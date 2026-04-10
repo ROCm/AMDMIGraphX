@@ -1520,14 +1520,14 @@ TEST_CASE(cmp_zero_stride_less_than_symbolic_stride)
 TEST_CASE(eval_optimals_single_var)
 {
     auto n = var("n", 1, 8, {2, 4});
-    EXPECT(n.eval_optimals() == std::set<std::size_t>{2, 4});
+    EXPECT(n.eval_optimals() == std::set<int64_t>{2, 4});
 }
 
 TEST_CASE(eval_optimals_compound_expr)
 {
     auto n = var("n", 1, 8, {2, 4});
     auto e = 2 * n + 1;
-    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 9});
+    EXPECT(e.eval_optimals() == std::set<int64_t>{5, 9});
 }
 
 TEST_CASE(eval_optimals_multi_var)
@@ -1535,7 +1535,15 @@ TEST_CASE(eval_optimals_multi_var)
     auto n = var("n", 1, 8, {2, 4});
     auto m = var("m", 1, 8, {3, 6});
     auto e = n + m;
-    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 8, 7, 10});
+    EXPECT(e.eval_optimals() == std::set<int64_t>{5, 7, 8, 10});
+}
+
+TEST_CASE(eval_optimals_negative)
+{
+    auto n = var("n", 1, 4, {2});
+    auto m = var("m", 1, 8, {5});
+    auto e = n - m;
+    EXPECT(e.eval_optimals() == std::set<int64_t>{-3});
 }
 
 TEST_CASE(eval_optimals_no_optimals)
@@ -1548,6 +1556,21 @@ TEST_CASE(eval_optimals_empty_expr)
 {
     migraphx::sym::expr e;
     EXPECT(e.eval_optimals().empty());
+}
+
+TEST_CASE(eval_optimals_uint)
+{
+    auto n = var("n", 1, 8, {2, 4});
+    auto e = 2 * n + 1;
+    EXPECT(e.eval_optimals_uint() == std::set<std::size_t>{5, 9});
+}
+
+TEST_CASE(eval_optimals_uint_negative_throws)
+{
+    auto n = var("n", 1, 4, {2});
+    auto m = var("m", 1, 8, {5});
+    auto e = n - m;
+    EXPECT(test::throws([&] { e.eval_optimals_uint(); }));
 }
 
 TEST_CASE(eval_min_max_uint)

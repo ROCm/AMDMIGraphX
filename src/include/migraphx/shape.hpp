@@ -120,7 +120,7 @@ struct MIGRAPHX_EXPORT shape
             auto bounds = s.compute_bounds_uint();
             min         = bounds.first;
             max         = bounds.second;
-            optimals    = s.eval_optimals();
+            optimals    = s.eval_optimals_uint();
             sym_expr    = std::move(s);
         }
 

@@ -65,7 +65,8 @@ struct MIGRAPHX_EXPORT expr
     int64_t eval_max() const;
     std::size_t eval_min_uint() const;
     std::size_t eval_max_uint() const;
-    std::set<std::size_t> eval_optimals() const;
+    std::set<int64_t> eval_optimals() const;
+    std::set<std::size_t> eval_optimals_uint() const;
     expr subs(const std::unordered_map<expr, expr>& symbol_map) const;
 
     MIGRAPHX_EXPORT friend expr operator+(const expr& a, const expr& b);

@@ -765,22 +765,6 @@ static std::string print_expr(const expr_ptr& e, int parent_prec)
 }
 
 // ===================================================================
-static std::string to_string(const binding_map& bindings)
-{
-    std::ostringstream os;
-    os << "{";
-    bool first = true;
-    for(const auto& [node, val] : bindings)
-    {
-        if(not first)
-            os << ", ";
-        os << print_expr(node) << "=" << val;
-        first = false;
-    }
-    os << "}";
-    return os.str();
-}
-
 // Section 8: Recursive descent parser
 // ===================================================================
 
@@ -1005,16 +989,11 @@ static void eval_optimals_impl(const expr_ptr& node,
                                const std::vector<std::pair<expr_ptr, symbol_data>>& syms,
                                std::size_t idx,
                                binding_map& bindings,
-                               std::set<std::size_t>& result)
+                               std::set<int64_t>& result)
 {
     if(idx == syms.size())
     {
-        auto v = eval_direct(node, bindings);
-        if(v < 0)
-            MIGRAPHX_THROW("sym::expr::eval_optimals: negative result (" + std::to_string(v) +
-                           ") for expr '" + print_expr(node) + "' with bindings " +
-                           to_string(bindings));
-        result.insert(static_cast<std::size_t>(v));
+        result.insert(eval_direct(node, bindings));
         return;
     }
     const auto& [sym_node, sd] = syms[idx];
@@ -1033,7 +1012,7 @@ static void eval_optimals_impl(const expr_ptr& node,
 // For multiple variables: n + m where n={2,4}, m={3,6}  =>  {5, 8, 7, 10}
 //
 // Returns empty if any symbol in the expression has no optimals.
-std::set<std::size_t> expr::eval_optimals() const
+std::set<int64_t> expr::eval_optimals() const
 {
     if(empty())
         return {};
@@ -1045,10 +1024,18 @@ std::set<std::size_t> expr::eval_optimals() const
     if(syms.empty() or not has_optimals)
         return {};
 
-    std::set<std::size_t> result;
+    std::set<int64_t> result;
     binding_map bindings;
     eval_optimals_impl(p->node, syms, 0, bindings, result);
     return result;
+}
+
+std::set<std::size_t> expr::eval_optimals_uint() const
+{
+    auto opts = eval_optimals();
+    if(std::any_of(opts.begin(), opts.end(), [](int64_t v) { return v < 0; }))
+        MIGRAPHX_THROW("sym::expr::eval_optimals_uint: negative optimal value");
+    return {opts.begin(), opts.end()};
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const

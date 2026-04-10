@@ -1111,8 +1111,7 @@ namespace {
 
 migraphx::value sym_value_to_value(const sym::value& sv)
 {
-    return std::visit(
-        [](auto x) -> migraphx::value { return migraphx::to_value(x); }, sv);
+    return std::visit([](auto x) -> migraphx::value { return migraphx::to_value(x); }, sv);
 }
 
 sym::value value_to_sym_value(const migraphx::value& v)
@@ -1198,7 +1197,8 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         auto name = v.at("name").get_string();
         if(v.contains("constraints"))
         {
-            auto constraints = migraphx::from_value<std::vector<sym::interval>>(v.at("constraints"));
+            auto constraints =
+                migraphx::from_value<std::vector<sym::interval>>(v.at("constraints"));
             for(auto& c : constraints)
                 e = sym::var(name, c);
         }
@@ -1215,12 +1215,10 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         {
             auto& cv = v.at("children");
             children.reserve(cv.size());
-            std::transform(cv.begin(),
-                           cv.end(),
-                           std::back_inserter(children),
-                           [](const migraphx::value& c) {
-                               return migraphx::from_value<sym::expr>(c);
-                           });
+            std::transform(
+                cv.begin(), cv.end(), std::back_inserter(children), [](const migraphx::value& c) {
+                    return migraphx::from_value<sym::expr>(c);
+                });
         }
         e = sym::call_function(name, std::move(children));
     }

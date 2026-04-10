@@ -2340,24 +2340,24 @@ TEST_CASE(parse_roundtrip)
 TEST_CASE(serialize_interval_int)
 {
     interval i{int64_t{3}, int64_t{10}};
-    auto v    = migraphx::to_value(i);
-    auto i2   = migraphx::from_value<interval>(v);
+    auto v  = migraphx::to_value(i);
+    auto i2 = migraphx::from_value<interval>(v);
     EXPECT(i == i2);
 }
 
 TEST_CASE(serialize_interval_double)
 {
     interval i{1.5, 3.5};
-    auto v    = migraphx::to_value(i);
-    auto i2   = migraphx::from_value<interval>(v);
+    auto v  = migraphx::to_value(i);
+    auto i2 = migraphx::from_value<interval>(v);
     EXPECT(i == i2);
 }
 
 TEST_CASE(serialize_interval_mixed)
 {
     interval i{int64_t{0}, 5.5};
-    auto v    = migraphx::to_value(i);
-    auto i2   = migraphx::from_value<interval>(v);
+    auto v  = migraphx::to_value(i);
+    auto i2 = migraphx::from_value<interval>(v);
     EXPECT(i == i2);
 }
 

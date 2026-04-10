@@ -184,7 +184,8 @@ struct nonmaxsuppression
                     "NonMaxSuppression: dynamic input shape with use_dyn_output set to false");
             }
             fixed_shape_error_check();
-            // actual selected boxes. Previously returned fixed max_num_boxes which caused zero padding bug. https://github.com/ROCm/AMDMIGraphX/issues/4679
+            // actual selected boxes. Previously returned fixed max_num_boxes which caused zero
+            // padding bug. https://github.com/ROCm/AMDMIGraphX/issues/4679
             std::vector<shape::dynamic_dimension> out_lens = {};
             out_lens.push_back({0, max_num_boxes});
             out_lens.push_back({3, 3});
@@ -403,7 +404,8 @@ struct nonmaxsuppression
         });
         // Previously only done when use_dyn_output==True
         // Now done always - correct for both static and dynamic inputs
-        // This makes output ONNX spec compliant https://onnx.ai/onnx/operators/onnx__NonMaxSuppression.html
+        // This makes output ONNX spec compliant
+        // https://onnx.ai/onnx/operators/onnx__NonMaxSuppression.html
         return result.reshape({output_shape.type(), {num_selected, 3}});
     }
 };

@@ -640,7 +640,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            bool print_program_on_error,
            int64_t max_loop_iterations,
            int64_t limit_max_iterations,
-           bool use_dyn_output) { 
+           bool use_dyn_output) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -651,7 +651,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.print_program_on_error = print_program_on_error;
             options.max_loop_iterations    = max_loop_iterations;
             options.limit_max_iterations   = limit_max_iterations;
-            options.use_dyn_output         = use_dyn_output; 
+            options.use_dyn_output         = use_dyn_output;
             return migraphx::parse_onnx(filename, options);
         },
         "Parse onnx file",
@@ -667,7 +667,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("print_program_on_error") = false,
         py::arg("max_loop_iterations")    = 10,
         py::arg("limit_max_iterations")   = std::numeric_limits<uint16_t>::max(),
-        py::arg("use_dyn_output") = false); 
+        py::arg("use_dyn_output")         = false);
     m.def(
         "parse_onnx_buffer",
         [](const std::string& onnx_buffer,

@@ -531,6 +531,180 @@ TEST_CASE(expr_default_not_equal_to_lit)
     EXPECT(a != lit(0));
 }
 
+// ---- empty tests ----
+
+TEST_CASE(empty_default)
+{
+    expr e;
+    EXPECT(e.empty());
+}
+
+TEST_CASE(empty_literal)
+{
+    auto e = lit(42);
+    EXPECT(not e.empty());
+}
+
+TEST_CASE(empty_variable)
+{
+    auto e = var("x");
+    EXPECT(not e.empty());
+}
+
+TEST_CASE(empty_compound)
+{
+    auto e = var("x") + lit(1);
+    EXPECT(not e.empty());
+}
+
+// ---- hash tests ----
+
+TEST_CASE(hash_equal_exprs)
+{
+    auto a = var("x") + lit(1);
+    auto b = var("x") + lit(1);
+    EXPECT(a.hash() == b.hash());
+}
+
+TEST_CASE(hash_different_exprs)
+{
+    auto a = var("x") + lit(1);
+    auto b = var("x") + lit(2);
+    EXPECT(a.hash() != b.hash());
+}
+
+TEST_CASE(hash_default_expr)
+{
+    expr e;
+    EXPECT(e.hash() == 0);
+}
+
+TEST_CASE(hash_literal)
+{
+    auto a = lit(42);
+    auto b = lit(42);
+    EXPECT(a.hash() == b.hash());
+}
+
+TEST_CASE(hash_different_literals)
+{
+    EXPECT(lit(1).hash() != lit(2).hash());
+}
+
+TEST_CASE(hash_different_variables)
+{
+    EXPECT(var("x").hash() != var("y").hash());
+}
+
+TEST_CASE(hash_unordered_map_key)
+{
+    std::unordered_map<expr, int> m;
+    auto x = var("x");
+    auto y = var("y");
+    m[x]   = 10;
+    m[y]   = 20;
+    EXPECT(m.at(x) == 10);
+    EXPECT(m.at(y) == 20);
+}
+
+// ---- eval_uint tests ----
+
+TEST_CASE(eval_uint_literal)
+{
+    auto e = lit(42);
+    EXPECT(e.eval_uint({}) == 42);
+}
+
+TEST_CASE(eval_uint_compound)
+{
+    auto e = lit(3) + lit(4);
+    EXPECT(e.eval_uint({}) == 7);
+}
+
+TEST_CASE(eval_uint_symbol_map)
+{
+    auto x = var("x");
+    EXPECT(x.eval_uint({{x, 10}}) == 10);
+}
+
+TEST_CASE(eval_uint_symbol_map_compound)
+{
+    auto x = var("x");
+    auto e = x + lit(5);
+    EXPECT(e.eval_uint({{e, 42}}) == 42);
+}
+
+TEST_CASE(eval_uint_symbol_map_partial)
+{
+    auto x = var("x");
+    auto e = x * lit(2);
+    // Map x to 7, so x*2 = 14
+    auto inner = lit(7) * lit(2);
+    EXPECT(inner.eval_uint({}) == 14);
+}
+
+// ---- subs tests ----
+
+TEST_CASE(subs_variable)
+{
+    auto x = var("x");
+    auto e = x.subs({{x, lit(42)}});
+    EXPECT(e == lit(42));
+}
+
+TEST_CASE(subs_compound)
+{
+    auto x = var("x");
+    auto e = (x + lit(1)).subs({{x, lit(5)}});
+    EXPECT(e.eval({}) == value{int64_t{6}});
+}
+
+TEST_CASE(subs_no_match)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = x.subs({{y, lit(5)}});
+    EXPECT(e == x);
+}
+
+TEST_CASE(subs_nested)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = (x + y).subs({{x, lit(3)}, {y, lit(4)}});
+    EXPECT(e.eval({}) == value{int64_t{7}});
+}
+
+TEST_CASE(subs_subexpr)
+{
+    auto x      = var("x");
+    auto sub    = x + lit(1);
+    auto e      = sin(sub);
+    auto result = e.subs({{sub, lit(0)}});
+    // sin(0) = 0.0
+    EXPECT(result.eval({}) == value{0.0});
+}
+
+TEST_CASE(subs_literal_unchanged)
+{
+    auto e = lit(42).subs({{var("x"), lit(5)}});
+    EXPECT(e == lit(42));
+}
+
+TEST_CASE(subs_empty_map)
+{
+    auto x = var("x");
+    auto e = x.subs({});
+    EXPECT(e == x);
+}
+
+TEST_CASE(subs_default_expr)
+{
+    expr e;
+    auto result = e.subs({{var("x"), lit(1)}});
+    EXPECT(result.empty());
+}
+
 // ---- Compound assignment tests ----
 
 TEST_CASE(plus_assign_eval)

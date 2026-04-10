@@ -172,6 +172,10 @@ class MIGRAPHX_EXPORT expr
     value eval(const std::unordered_map<std::string, value>& vars) const;
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;
     std::string to_string() const;
+    bool empty() const;
+    std::size_t hash() const;
+    std::size_t eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const;
+    expr subs(const std::unordered_map<expr, expr>& symbol_map) const;
 
     friend expr operator+(expr ex, expr ey);
     friend expr operator-(expr ex, expr ey);
@@ -305,5 +309,11 @@ inline simplifier simplify(expr e) { return {std::move(e)}; }
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+template <>
+struct std::hash<migraphx::sym::expr>
+{
+    std::size_t operator()(const migraphx::sym::expr& e) const { return e.hash(); }
+};
 
 #endif

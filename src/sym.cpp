@@ -649,6 +649,73 @@ bool operator==(const expr& a, const expr& b)
 
 bool operator!=(const expr& a, const expr& b) { return not(a == b); }
 
+bool expr::empty() const { return not pimpl; }
+
+static std::size_t hash_combine(std::size_t seed, std::size_t h)
+{
+    return seed ^ (h + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+}
+
+static std::size_t hash_value(const value& v)
+{
+    return std::visit(
+        [](auto x) -> std::size_t { return std::hash<decltype(x)>{}(x); }, v);
+}
+
+static std::size_t hash_node(const node_variant& nv)
+{
+    return std::visit(
+        [](const auto& n) -> std::size_t {
+            using T = std::decay_t<decltype(n)>;
+            if constexpr(std::is_same<T, literal_node>{})
+                return hash_value(n.val);
+            else if constexpr(std::is_same<T, variable_node>{})
+                return std::hash<std::string>{}(n.name);
+            else
+                return std::hash<const op_def*>{}(n.op);
+        },
+        nv);
+}
+
+std::size_t expr::hash() const
+{
+    if(not pimpl)
+        return 0;
+    auto result = hash_node(pimpl->node);
+    for(const auto& child : pimpl->children)
+        result = hash_combine(result, child.hash());
+    return result;
+}
+
+std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
+{
+    auto it = symbol_map.find(*this);
+    if(it != symbol_map.end())
+        return it->second;
+    auto v = eval({});
+    return to<std::size_t>(v);
+}
+
+expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
+{
+    auto it = symbol_map.find(*this);
+    if(it != symbol_map.end())
+        return it->second;
+    if(not pimpl)
+        return *this;
+    if(std::holds_alternative<literal_node>(pimpl->node) or
+       std::holds_alternative<variable_node>(pimpl->node))
+        return *this;
+    std::vector<expr> new_children;
+    new_children.reserve(pimpl->children.size());
+    std::transform(pimpl->children.begin(),
+                   pimpl->children.end(),
+                   std::back_inserter(new_children),
+                   [&](const expr& child) { return child.subs(symbol_map); });
+    auto* n = std::get_if<op_node>(&pimpl->node);
+    return call_op(n->op, std::move(new_children));
+}
+
 expr sin(expr e)
 {
     return call("sin", MIGRAPHX_LIFT(std::sin), [](interval x) { return sin(x); })(std::move(e));

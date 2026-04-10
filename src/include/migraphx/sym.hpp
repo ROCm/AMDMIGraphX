@@ -191,12 +191,21 @@ class MIGRAPHX_EXPORT expr
 
 #define MIGRAPHX_SYM_DEFINE_OP(binary, assign)                                    \
     expr& operator assign(expr ey) { return *this = *this binary std::move(ey); } \
-    template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})> \
-    expr& operator assign(T x) { return *this = *this binary lit(x); }     \
-    template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})> \
-    friend expr operator binary(expr ex, T y) { return ex binary lit(y); } \
-    template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})> \
-    friend expr operator binary(T x, expr ey) { return lit(x) binary ey; }
+    template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
+    expr& operator assign(T x)                                                    \
+    {                                                                             \
+        return *this = *this binary lit(x);                                       \
+    }                                                                             \
+    template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
+    friend expr operator binary(expr ex, T y)                                     \
+    {                                                                             \
+        return ex binary lit(y);                                                  \
+    }                                                                             \
+    template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
+    friend expr operator binary(T x, expr ey)                                     \
+    {                                                                             \
+        return lit(x) binary ey;                                                  \
+    }
 
     MIGRAPHX_SYM_DEFINE_OP(+, +=)
     MIGRAPHX_SYM_DEFINE_OP(-, -=)

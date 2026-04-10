@@ -184,7 +184,10 @@ struct nonmaxsuppression
                     "NonMaxSuppression: dynamic input shape with use_dyn_output set to false");
             }
             fixed_shape_error_check();
-            std::vector<std::size_t> out_lens = {max_num_boxes, 3};
+            // actual selected boxes. Previously returned fixed max_num_boxes which caused zero padding bug. https://github.com/ROCm/AMDMIGraphX/issues/4679
+            std::vector<shape::dynamic_dimension> out_lens = {};
+            out_lens.push_back({0, max_num_boxes});
+            out_lens.push_back({3, 3});
             return {shape::int64_type, out_lens};
         }
     }
@@ -321,7 +324,8 @@ struct nonmaxsuppression
                             double iou_threshold,
                             double score_threshold) const
     {
-        std::fill(output.begin(), output.end(), 0);
+        // We trim the output in compute() so zeros are irrelevant
+        // std::fill(output.begin(), output.end(), 0);
         const auto& lens       = scores.get_shape().lens();
         const auto num_batches = lens[0];
         const auto num_classes = lens[1];
@@ -398,14 +402,10 @@ struct nonmaxsuppression
                                            score_threshold);
             });
         });
-        if(use_dyn_output)
-        {
-            return result.reshape({output_shape.type(), {num_selected, 3}});
-        }
-        else
-        {
-            return result;
-        }
+        // Previously only done when use_dyn_output==True
+        // Now done always - correct for both static and dynamic inputs
+        // This makes output ONNX spec compliant https://onnx.ai/onnx/operators/onnx__NonMaxSuppression.html
+        return result.reshape({output_shape.type(), {num_selected, 3}});
     }
 };
 

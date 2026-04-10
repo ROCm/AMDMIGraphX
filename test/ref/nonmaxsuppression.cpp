@@ -265,7 +265,7 @@ TEST_CASE(nms_not_center_test)
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5}; // Only 3 boxes selected, no padding
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
@@ -299,7 +299,7 @@ TEST_CASE(nms_test)
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
@@ -337,7 +337,7 @@ TEST_CASE(nms_transpose1_test)
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
@@ -375,6 +375,192 @@ TEST_CASE(nms_transpose2_test)
     auto output = p.eval({}).back();
     std::vector<int64_t> result;
     output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
-    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
+}
+
+// Static inputs + use_dyn_output=False
+// Was the MAIN BUG — used to pad with fake [0,0,0] zeros
+TEST_CASE(nms_static_input_dyn_out_false_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    std::vector<float> boxes_vec = {
+        0.0, 0.0,   1.0, 1.0,   
+        0.0, 0.1,   1.0, 1.1,  
+        0.0, -0.1,  1.0, 0.9,   
+        0.0, 10.0,  1.0, 11.0,  
+        0.0, 10.1,  1.0, 11.1,  
+        0.0, 100.0, 1.0, 101.0  
+    };
+
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+
+    auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
+    auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l       = mm->add_literal(int64_t{3});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto r = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression",
+                          {{"use_dyn_output", false}}),
+        boxes_l,
+        scores_l,
+        max_out_l,
+        iou_threshold,
+        score_threshold);
+    mm->add_return({r});
+
+    p.compile(migraphx::make_target("ref"));
+    auto output = p.eval({}).back();
+    std::vector<int64_t> result;
+    output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+
+    // Only 3 selected boxes — NO fake [0,0,0] padding
+    // Before fix: output was (6,3) with 3 fake zero rows
+    // After fix:  output is  (3,3) with only real boxes
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
+    EXPECT(result.size() == gold.size()); // must be 9 not 18
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
+}
+
+
+// Static inputs + use_dyn_output=True 
+// Used to crash with PARSE_EXPAND error https://github.com/ROCm/AMDMIGraphX/issues/4679
+// Now works correctly with static input shapes
+TEST_CASE(nms_static_input_dyn_out_true_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    std::vector<float> boxes_vec = {
+        0.0, 0.0,   1.0, 1.0,   
+        0.0, 0.1,   1.0, 1.1,   
+        0.0, -0.1,  1.0, 0.9,   
+        0.0, 10.0,  1.0, 11.0,  
+        0.0, 10.1,  1.0, 11.1,  
+        0.0, 100.0, 1.0, 101.0  
+    };
+
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+
+    auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
+    auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l       = mm->add_literal(int64_t{3});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto r = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression",
+                          {{"use_dyn_output", true}}),
+        boxes_l,
+        scores_l,
+        max_out_l,
+        iou_threshold,
+        score_threshold);
+    mm->add_return({r});
+
+    p.compile(migraphx::make_target("ref"));
+    auto output = p.eval({}).back();
+    std::vector<int64_t> result;
+    output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+
+    // Same correct output as use_dyn_output=False
+    // Before fix: crashed with PARSE_EXPAND error
+    // After fix:  works correctly with static inputs
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
+    EXPECT(result.size() == gold.size());
+    EXPECT(migraphx::verify::verify_rms_range(result, gold));
+}
+
+
+TEST_CASE(nms_dyn_out_false_and_true_same_result_test)
+{
+    auto run_nms = [](bool use_dyn_output) {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+        std::vector<float> boxes_vec = {
+            0.0, 0.0,   1.0, 1.0,
+            0.0, 0.1,   1.0, 1.1,
+            0.0, -0.1,  1.0, 0.9,
+            0.0, 10.0,  1.0, 11.0,
+            0.0, 10.1,  1.0, 11.1,
+            0.0, 100.0, 1.0, 101.0
+        };
+
+        migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+        std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+
+        auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
+        auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+        auto max_out_l       = mm->add_literal(int64_t{3});
+        auto iou_threshold   = mm->add_literal(0.5f);
+        auto score_threshold = mm->add_literal(0.0f);
+
+        auto r = mm->add_instruction(
+            migraphx::make_op("nonmaxsuppression",
+                              {{"use_dyn_output", use_dyn_output}}),
+            boxes_l,
+            scores_l,
+            max_out_l,
+            iou_threshold,
+            score_threshold);
+        mm->add_return({r});
+
+        p.compile(migraphx::make_target("ref"));
+        auto output = p.eval({}).back();
+        std::vector<int64_t> result;
+        output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+        return result;
+    };
+
+    auto result_false = run_nms(false);
+    auto result_true  = run_nms(true);
+
+    // Both flags must produce identical output after fix
+    // Before fix: False gave (6,3), True gave (3,3) — different!
+    // After fix:  Both give (3,3) — identical! ✅
+    EXPECT(result_false.size() == result_true.size());
+    EXPECT(result_false == result_true);
+}
+
+
+// Dynamic inputs + use_dyn_output=False must throw
+// This is CORRECT behavior — not a bug
+// Ensures we didn't accidentally break this check
+TEST_CASE(nms_dynamic_input_dyn_out_false_throws_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    // Dynamic input shapes
+    migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 3}, {6, 6}, {4, 4}}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {{1, 3}, {1, 1}, {6, 6}}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{3});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    // Dynamic inputs + use_dyn_output=False MUST throw
+    // This is intentional — dynamic inputs require True
+    EXPECT(test::throws([&] {
+        mm->add_instruction(
+            migraphx::make_op("nonmaxsuppression",
+                              {{"use_dyn_output", false}}),
+            boxes_p,
+            scores_p,
+            max_out_l,
+            iou_threshold,
+            score_threshold);
+    }));
 }

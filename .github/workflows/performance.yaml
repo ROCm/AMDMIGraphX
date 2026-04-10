@@ -81,6 +81,9 @@ jobs:
       perf_number: ${{ steps.read_config.outputs.perf_number }}
       perf_flag: ${{ steps.read_config.outputs.perf_flag }}
       perf_timeout: ${{ steps.read_config.outputs.perf_timeout }}
+      model_path: ${{ steps.read_config.outputs.model_path }}
+      perf_workspace: ${{ steps.read_config.outputs.perf_workspace }}
+      runner_label: ${{ steps.read_config.outputs.runner_label }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
@@ -99,6 +102,23 @@ jobs:
           RESULTS_TO_COMPARE=$(grep 'RESULTS_TO_COMPARE' .github/workflows/config.md | cut -d "'" -f2)
           CALCULATION_METHOD_FLAG=$(grep 'CALCULATION_METHOD_FLAG' .github/workflows/config.md | cut -d "'" -f2)
           PERFORMANCE_TEST_TIMEOUT=$(grep 'PERFORMANCE_TEST_TIMEOUT' .github/workflows/config.md | cut -d "'" -f2)
+          
+          MODEL_PATH=""
+          PERF_WS=""
+          if grep -q 'MIGRAPHX_MODEL_PATH' .github/workflows/config.md 2>/dev/null; then
+            MODEL_PATH=$(grep 'MIGRAPHX_MODEL_PATH' .github/workflows/config.md | cut -d "'" -f2)
+          fi
+          if grep -q 'MIGRAPHX_PERF_WORKSPACE' .github/workflows/config.md 2>/dev/null; then
+            PERF_WS=$(grep 'MIGRAPHX_PERF_WORKSPACE' .github/workflows/config.md | cut -d "'" -f2)
+          fi
+          RUNNER_LABEL=""
+          if grep -q 'MIGRAPHX_RUNNER_LABEL' .github/workflows/config.md 2>/dev/null; then
+            RUNNER_LABEL=$(grep 'MIGRAPHX_RUNNER_LABEL' .github/workflows/config.md | cut -d "'" -f2)
+          fi
+          MODEL_PATH="${MODEL_PATH:-$MIGRAPHX_MODEL_PATH_DEFAULT}"
+          PERF_WS="${PERF_WS:-$MIGRAPHX_PERF_WORKSPACE_DEFAULT}"
+          RUNNER_LABEL="${RUNNER_LABEL:-$MIGRAPHX_RUNNER_LABEL_DEFAULT}"
+
           echo "rocm_version=$ROCM_VERSION"
           echo "rocm_version=$ROCM_VERSION" >> $GITHUB_OUTPUT
           echo "utils_repo=$BENCHMARK_UTILS_REPO" >> $GITHUB_OUTPUT

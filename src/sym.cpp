@@ -865,6 +865,8 @@ bool is_infix_op(const std::string& name)
 
 std::string expr::to_string() const
 {
+    if(not pimpl)
+        return {};
     if(auto* n = std::get_if<literal_node>(&pimpl->node))
         return value_to_string(n->val);
     if(auto* n = std::get_if<variable_node>(&pimpl->node))
@@ -1099,6 +1101,8 @@ expr parse(const std::string& str)
     sym_parser p{sv};
     // skip leading whitespace
     p.advance(0);
+    if(p.done())
+        return {};
     auto result = parse_expr(p);
     if(not p.done())
         MIGRAPHX_THROW(p.error_message("end of input"));

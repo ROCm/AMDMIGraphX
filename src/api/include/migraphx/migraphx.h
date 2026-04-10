@@ -664,8 +664,6 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operator_name_at_index(char*
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operators_size(size_t* out);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_set_log_header(bool show);
-
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_get_queue(void** out,

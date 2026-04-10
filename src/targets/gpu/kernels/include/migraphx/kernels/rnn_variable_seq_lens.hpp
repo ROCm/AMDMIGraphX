@@ -86,24 +86,19 @@ __device__ void rnn_var_sl_last_output(Input input, SeqLens seq_lens, Output out
 {
     auto ind = make_index();
 
-    constexpr auto in_shape = get_shape_c<Input>{};
-    // output is 3D [directions, batch, hidden] but input is 4D [seq_len, directions, batch, hidden]
-    // create a 4D computational shape with seq_len=1 to map output indices to input indices
-    constexpr auto out_comp_lens = [&] {
-        auto lens = in_shape.lens;
-        lens[0]   = 1;
-        return lens;
-    }();
-    constexpr auto out_comp_shape = make_shape(out_comp_lens, in_shape.strides);
-
     ind.global_stride(output.get_shape().elements(), [&](auto i) {
-        auto idx = out_comp_shape.multi(i);
-        auto d   = idx[1];
-        auto b   = idx[2];
-        auto l   = seq_lens[b];
-
-        idx[0]    = (IsReverse or d == 1) ? 0 : (l - 1);
-        output[i] = input[idx];
+        // decompose the linear index using the output layout (same convention as
+        // rnn_var_sl_shift_output); then index the 4D input explicitly.
+        auto out_idx                   = output.get_shape().multi(i);
+        auto d                         = out_idx[0];
+        auto b                         = out_idx[1];
+        auto l                         = seq_lens[b];
+        typename get_shape_c<Input>::index_array in_idx{};
+        in_idx[0] = (IsReverse or d == 1) ? 0 : (l - 1);
+        in_idx[1] = d;
+        in_idx[2] = b;
+        in_idx[3] = out_idx[2];
+        output[i] = input[in_idx];
     });
 }
 

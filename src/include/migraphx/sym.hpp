@@ -44,7 +44,7 @@ namespace sym {
 
 using value = std::variant<int64_t, double>;
 
-template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
+template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 value make_value(T v)
 {
     if constexpr(std::is_integral<T>{})

@@ -729,14 +729,13 @@ expr generic_eval_auto_apply(const op_node& op, const std::vector<expr>& args)
     return call_op(op.op, args);
 }
 
-template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
+template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 std::size_t generic_eval_auto_apply(const op_node& op, const std::vector<T>& args)
 {
     std::vector<value> vargs;
     vargs.reserve(args.size());
-    std::transform(args.begin(), args.end(), std::back_inserter(vargs), [](T x) {
-        return make_value(x);
-    });
+    std::transform(
+        args.begin(), args.end(), std::back_inserter(vargs), [](T x) { return make_value(x); });
     return to<T>(op.op->eval(vargs));
 }
 
@@ -781,19 +780,17 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
 {
-    return generic_eval<expr>(
-        *this,
-        [&](const expr& e) -> std::optional<expr> {
-            auto it = symbol_map.find(e);
-            if(it != symbol_map.end())
-                return it->second;
-            if(e.empty())
-                return e;
-            if(std::holds_alternative<literal_node>(e.node()) or
-               std::holds_alternative<variable_node>(e.node()))
-                return e;
-            return std::nullopt;
-        });
+    return generic_eval<expr>(*this, [&](const expr& e) -> std::optional<expr> {
+        auto it = symbol_map.find(e);
+        if(it != symbol_map.end())
+            return it->second;
+        if(e.empty())
+            return e;
+        if(std::holds_alternative<literal_node>(e.node()) or
+           std::holds_alternative<variable_node>(e.node()))
+            return e;
+        return std::nullopt;
+    });
 }
 
 expr sin(expr e)
@@ -890,22 +887,20 @@ value expr::eval(const std::unordered_map<std::string, value>& vars) const
 
 interval expr::eval_interval(const std::unordered_map<std::string, interval>& vars) const
 {
-    return generic_eval<interval>(
-        *this,
-        [&](const expr& e) -> std::optional<interval> {
-            if(auto* n = std::get_if<literal_node>(&e.node()))
-                return interval{n->val, n->val};
-            if(auto* n = std::get_if<variable_node>(&e.node()))
-            {
-                auto it = vars.find(n->name);
-                if(it != vars.end())
-                    return it->second;
-                if(not n->constraints.empty())
-                    return n->constraints.front();
-                MIGRAPHX_THROW("Variable '" + n->name + "' not found in interval map");
-            }
-            return std::nullopt;
-        });
+    return generic_eval<interval>(*this, [&](const expr& e) -> std::optional<interval> {
+        if(auto* n = std::get_if<literal_node>(&e.node()))
+            return interval{n->val, n->val};
+        if(auto* n = std::get_if<variable_node>(&e.node()))
+        {
+            auto it = vars.find(n->name);
+            if(it != vars.end())
+                return it->second;
+            if(not n->constraints.empty())
+                return n->constraints.front();
+            MIGRAPHX_THROW("Variable '" + n->name + "' not found in interval map");
+        }
+        return std::nullopt;
+    });
 }
 
 namespace {

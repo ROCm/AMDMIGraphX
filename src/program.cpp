@@ -248,7 +248,7 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
     auto trace = tracer{};
     // TODO: Add tracer based on compile options
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
-        trace = tracer{true};
+        trace = tracer{std::cout};
 
     trace(*this);
     trace();
@@ -319,7 +319,7 @@ void program::compile(const target& t, compile_options options)
     this->impl->contexts = {t.get_context()};
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
-        options.trace = tracer{true};
+        options.trace = tracer{std::cout};
 
     options.trace(*this);
     options.trace();
@@ -612,13 +612,13 @@ std::vector<argument> program::eval(const parameter_map& params,
         ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
             const auto& ctx = contexts[ins->get_target_id()];
             ctx.finish();
-            log::trace() << "Run instruction: " << ins_out.at(ins);
+            std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
             timer t{};
             auto result = f();
             double t1   = t.record<milliseconds>();
             ctx.finish();
             double t2 = t.record<milliseconds>();
-            log::trace() << "Time: " << t1 << "ms, " << t2 << "ms";
+            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
                not result.empty())
             {
@@ -639,17 +639,16 @@ std::vector<argument> program::eval(const parameter_map& params,
                 }
                 if(trace_level == 2)
                 {
-                    std::ostringstream ss;
-                    ss << "Output has " << to_string_range(classify_argument(buffer)) << "\n";
-                    ss << "Output: ";
-                    preview_argument(ss, buffer);
-                    ss << "\n";
-                    print_statistics(ss, buffer);
-                    log::trace() << ss.str();
+                    std::cout << "Output has " << to_string_range(classify_argument(buffer))
+                              << std::endl;
+                    std::cout << "Output: ";
+                    preview_argument(std::cout, buffer);
+                    std::cout << std::endl;
+                    print_statistics(std::cout, buffer);
                 }
                 else
                 {
-                    log::trace() << "Output: " << buffer;
+                    std::cout << "Output: " << buffer << std::endl;
                 }
             }
             return result;
@@ -1051,7 +1050,7 @@ void program::perf_report(
        << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
-void program::debug_print() const { log::debug() << *this; }
+void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
     std::unordered_map<instruction_ref, std::string> names;
@@ -1059,23 +1058,22 @@ void program::debug_print(instruction_ref ins) const
            return is_end(pp.second.end(), ins);
        }))
     {
-        log::debug() << "End instruction";
+        std::cout << "End instruction" << std::endl;
         return;
     }
     else if(std::none_of(this->impl->modules.begin(),
                          this->impl->modules.end(),
                          [&](const auto& pp) { return pp.second.has_instruction(ins); }))
     {
-        log::debug() << "Instruction not part of program";
+        std::cout << "Instruction not part of program" << std::endl;
         return;
     }
 
     this->print(names, [&](auto x, const auto& ins_names) {
         if(x == ins)
         {
-            std::ostringstream ss;
-            instruction::print(ss, x, ins_names);
-            log::debug() << ss.str();
+            instruction::print(std::cout, x, ins_names);
+            std::cout << std::endl;
         }
     });
 }

@@ -148,7 +148,7 @@ struct module_pm : module_pass_manager
             {
                 using milliseconds = std::chrono::duration<double, std::milli>;
                 auto ms            = time<milliseconds>([&] { p.apply(*this); });
-                log::trace() << p.name() << ": " << ms << "ms";
+                std::cout << p.name() << ": " << ms << "ms\n";
             }
             else
             {
@@ -204,7 +204,7 @@ module& get_module(module_pass_manager& mpm) { return mpm.get_module(); }
 void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{true};
+        trace = tracer{std::cout};
     std::unordered_set<module_ref> visited;
     for(const auto& p : passes)
     {
@@ -239,7 +239,7 @@ void run_passes(program& prog, module_ref root_mod, const std::vector<pass>& pas
 void run_passes(module& mod, const std::vector<pass>& passes, tracer trace)
 {
     if(enabled(MIGRAPHX_TRACE_PASSES{}))
-        trace = tracer{true};
+        trace = tracer{std::cout};
     for(const auto& p : passes)
     {
         module_pm{&mod, &mod, &trace}.run_pass(p);

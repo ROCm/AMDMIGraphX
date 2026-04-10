@@ -37,7 +37,6 @@
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
-#include <migraphx/logger.hpp>
 #include <onnx.pb.h>
 
 namespace migraphx {
@@ -351,7 +350,7 @@ parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto&
     for(auto&& f : graph.initializer())
     {
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
-            log::trace() << "initializer: " << f.name();
+            std::cout << "initializer: " << f.name() << std::endl;
         // backup instructions in parent mod
         auto pt  = parser.parse_tensor(f);
         auto lit = mod->add_literal(pt);
@@ -551,7 +550,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     }
     else
     {
-        log::warn() << "onnx model is not topologically sorted. Attempting to sort...";
+        std::cerr << "Warning: onnx model is not topologically sorted. Attempting to sort..."
+                  << std::endl;
         node_indices = toposort(graph);
     }
 
@@ -567,13 +567,11 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         const onnx::NodeProto& node = graph.node(node_index);
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
         {
-            std::ostringstream ss;
-            ss << "operator: " << node.op_type() << '\t' << node.name();
+            std::cout << "operator: " << node.op_type() << '\t' << node.name() << std::endl;
             for(auto&& attr : node.attribute())
             {
-                ss << "\n    " << attr.name() << " = " << to_string(attr);
+                std::cout << "    " << attr.name() << " = " << to_string(attr) << std::endl;
             }
-            log::trace() << ss.str();
         }
 
         std::vector<instruction_ref> args;

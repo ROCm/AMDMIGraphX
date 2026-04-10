@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/sym.hpp>
+#include <sstream>
 #include <test.hpp>
 
 using migraphx::sym::abs;
@@ -1325,6 +1326,36 @@ TEST_CASE(free_to_string)
     auto x = var("x");
     EXPECT(to_string(x + lit(1)) == "(1 + x)");
     EXPECT(to_string(sin(x)) == "sin(x)");
+}
+
+// ---- ostream operator<< tests ----
+
+TEST_CASE(ostream_expr)
+{
+    std::ostringstream ss;
+    ss << (var("x") + lit(1));
+    EXPECT(ss.str() == "(1 + x)");
+}
+
+TEST_CASE(ostream_expr_function)
+{
+    std::ostringstream ss;
+    ss << sin(var("x"));
+    EXPECT(ss.str() == "sin(x)");
+}
+
+TEST_CASE(ostream_interval)
+{
+    std::ostringstream ss;
+    ss << interval{int64_t{1}, int64_t{10}};
+    EXPECT(ss.str() == "[1, 10]");
+}
+
+TEST_CASE(ostream_interval_double)
+{
+    std::ostringstream ss;
+    ss << interval{1.5, 3.5};
+    EXPECT(ss.str() == "[1.5, 3.5]");
 }
 
 // ---- Associative flattening tests ----

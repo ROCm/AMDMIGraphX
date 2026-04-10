@@ -28,6 +28,7 @@
 #include <cmath>
 #include <functional>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -111,6 +112,7 @@ struct interval
     friend interval pow(interval x, interval y);
     friend interval min(interval x, interval y);
     friend interval max(interval x, interval y);
+    friend std::ostream& operator<<(std::ostream& os, const interval& i);
 };
 
 struct op_def
@@ -185,6 +187,7 @@ class MIGRAPHX_EXPORT expr
     friend expr operator-(expr e);
     friend bool operator==(const expr& a, const expr& b);
     friend bool operator!=(const expr& a, const expr& b);
+    friend std::ostream& operator<<(std::ostream& os, const expr& e);
 
 #define MIGRAPHX_SYM_DEFINE_OP_TYPE(binary, assign, type)                     \
     expr& operator assign(type x) { return *this = *this binary lit(x); }     \

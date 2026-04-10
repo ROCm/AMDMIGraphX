@@ -104,6 +104,16 @@ bool operator==(const interval& a, const interval& b) { return a.min == b.min an
 
 bool operator!=(const interval& a, const interval& b) { return not(a == b); }
 
+std::ostream& operator<<(std::ostream& os, const interval& i)
+{
+    os << "[";
+    std::visit([&](auto x) { os << x; }, i.min);
+    os << ", ";
+    std::visit([&](auto x) { os << x; }, i.max);
+    os << "]";
+    return os;
+}
+
 namespace {
 bool value_less(const value& a, const value& b)
 {
@@ -648,6 +658,8 @@ bool operator==(const expr& a, const expr& b)
 }
 
 bool operator!=(const expr& a, const expr& b) { return not(a == b); }
+
+std::ostream& operator<<(std::ostream& os, const expr& e) { return os << e.to_string(); }
 
 bool expr::empty() const { return not pimpl; }
 

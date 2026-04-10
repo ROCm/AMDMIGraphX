@@ -4,6 +4,8 @@
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/errors.hpp>
+#include <functional>
+#include <memory>
 #include <optional>
 #include <type_traits>
 #include <variant>
@@ -13,80 +15,23 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace parser {
 
-template <class Iterator, bool AutoSkipWhitespace = true, class View = iterator_range<Iterator>>
-struct simple_parser
+struct parse_state
 {
-    View buffer;
-    Iterator pos = buffer.begin();
+    std::string_view buffer;
+    const char* pos = buffer.data();
 
-    static View make_view(Iterator begin, Iterator end)
+    explicit parse_state(std::string_view sv) : buffer(sv), pos(sv.data()) { skip_whitespace(); }
+
+    void skip_whitespace()
     {
-        if constexpr(std::is_constructible<View, decltype(std::addressof(*begin)), std::size_t>{})
-        {
-            auto n = std::distance(begin, end);
-            if(n == 0)
-                return {};
-            return {std::addressof(*begin), static_cast<std::size_t>(n)};
-        }
-        else
-        {
-            return {begin, end};
-        }
+        const char* e = end();
+        while(pos < e and std::isspace(*pos))
+            ++pos;
     }
 
-    View peek() const
-    {
-        if(pos >= buffer.end())
-            return {};
-        return make_view(pos, buffer.end());
-    }
+    const char* end() const { return buffer.data() + buffer.size(); }
 
-    void advance(std::size_t n)
-    {
-        pos += n;
-        if(pos > buffer.end())
-            MIGRAPHX_THROW("Parser advanced past end of buffer");
-        if constexpr(AutoSkipWhitespace)
-        {
-            pos = std::find_if(pos, buffer.end(), [](auto c) { return !std::isspace(c); });
-        }
-    }
-
-    template <class Pred>
-    View parse_while(Pred p)
-    {
-        auto start = pos;
-        auto it    = std::find_if(pos, buffer.end(), [&](auto c) { return !p(c); });
-        auto n     = std::distance(pos, it);
-        advance(n);
-        return make_view(start, it);
-    }
-
-    bool starts_with(const View& prefix) const
-    {
-        auto tail = peek();
-        if(prefix.size() > tail.size())
-            return false;
-        else
-            return std::equal(prefix.begin(), prefix.end(), tail.begin());
-    }
-
-    bool done() const { return pos >= buffer.end(); }
-
-    bool match(const View& prefix)
-    {
-        if(not starts_with(prefix))
-            return false;
-        advance(prefix.size());
-        return true;
-    }
-
-    void expect(const View& str)
-    {
-        if(not starts_with(str))
-            MIGRAPHX_THROW(error_message("'" + std::string{str} + "'"));
-        advance(str.size());
-    }
+    bool done() const { return pos >= end(); }
 
     char peek_char() const
     {
@@ -95,18 +40,51 @@ struct simple_parser
         return *pos;
     }
 
+    void advance(std::size_t n)
+    {
+        pos += n;
+        if(pos > end())
+            MIGRAPHX_THROW("Parser advanced past end of buffer");
+        skip_whitespace();
+    }
+
+    std::string_view remaining() const
+    {
+        if(done())
+            return {};
+        return {pos, static_cast<std::size_t>(end() - pos)};
+    }
+
+    bool match(std::string_view prefix)
+    {
+        auto tail = remaining();
+        if(prefix.size() > tail.size())
+            return false;
+        if(not std::equal(prefix.begin(), prefix.end(), tail.begin()))
+            return false;
+        advance(prefix.size());
+        return true;
+    }
+
+    template <class Pred>
+    std::string_view parse_while(Pred pred)
+    {
+        auto start = pos;
+        while(pos < end() and pred(*pos))
+            ++pos;
+        auto n = static_cast<std::size_t>(pos - start);
+        if(n > 0)
+            skip_whitespace();
+        return n > 0 ? std::string_view{start, n} : std::string_view{};
+    }
+
     std::string error_message(std::string_view expected) const
     {
-        auto offset = std::distance(buffer.begin(), pos);
+        auto offset = pos - buffer.data();
         return "Expected " + std::string(expected) + " at position " + std::to_string(offset) +
                " in '" + std::string(buffer) + "'";
     }
 };
-
-using simple_string_view_skip_parser =
-    simple_parser<std::string_view::const_iterator, true, std::string_view>;
-
-// ---- Parser combinator framework ----
 
 struct skip_attr
 {
@@ -181,6 +159,27 @@ struct pcomb
 
 template <class F>
 pcomb(F) -> pcomb<F>;
+
+template <class Attr>
+struct shared_parser_fn
+{
+    std::shared_ptr<std::function<std::optional<Attr>(parse_state&)>> fn =
+        std::make_shared<std::function<std::optional<Attr>(parse_state&)>>();
+
+    std::optional<Attr> operator()(parse_state& p) const { return (*fn)(p); }
+};
+
+template <class Attr>
+struct rule : pcomb<shared_parser_fn<Attr>>
+{
+    rule() : pcomb<shared_parser_fn<Attr>>{shared_parser_fn<Attr>{}} {}
+
+    template <class F>
+    void operator=(pcomb<F> p)
+    {
+        *(this->fn.fn) = [p = std::move(p)](parse_state& state) { return p(state); };
+    }
+};
 
 // >> : sequence
 template <class F1, class F2>
@@ -319,12 +318,6 @@ auto guard(Pred pred)
     });
 }
 
-template <class F>
-auto lazy(F f)
-{
-    return pcomb{std::move(f)};
-}
-
 template <class P, class S>
 auto separated_by(P p, S sep)
 {
@@ -334,6 +327,18 @@ auto separated_by(P p, S sep)
         return rest;
     };
     return (p >> *(sep >> p))[cons];
+}
+
+template <class F>
+auto parse(std::string_view str, const pcomb<F>& p)
+{
+    parse_state state{str};
+    auto result = p(state);
+    if(not result)
+        MIGRAPHX_THROW(state.error_message("valid input"));
+    if(not state.done())
+        MIGRAPHX_THROW(state.error_message("end of input"));
+    return *std::move(result);
 }
 
 } // namespace parser

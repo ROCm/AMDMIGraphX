@@ -822,12 +822,6 @@ expr simplify(expr e, std::vector<rewrite_rule> rules) { return simplify_impl(e,
 
 namespace {
 
-using sym_parser = parser::simple_string_view_skip_parser;
-
-std::optional<expr> do_parse_expr(sym_parser& p);
-std::optional<expr> do_parse_unary(sym_parser& p);
-std::optional<expr> do_parse_primary(sym_parser& p);
-
 expr call_function(const std::string& name, std::vector<expr> args)
 {
     if(args.size() == 1)
@@ -864,27 +858,20 @@ expr call_function(const std::string& name, std::vector<expr> args)
     MIGRAPHX_THROW("Unknown function: " + name);
 }
 
-auto number_comb()
+auto sym_grammar()
 {
+    parser::rule<expr> expression;
+    parser::rule<expr> unary_expr;
+
     auto to_expr = [](std::string_view s) -> expr {
         if(s.find('.') != std::string_view::npos)
             return lit(std::stod(std::string(s)));
         return lit(std::stoll(std::string(s)));
     };
-    return parser::parse_while([](char c) { return std::isdigit(c) or c == '.'; })[to_expr];
-}
+    auto number = parser::parse_while([](char c) { return std::isdigit(c) or c == '.'; })[to_expr];
 
-auto ident_comb()
-{
-    return parser::guard([](char c) { return std::isalpha(c) or c == '_'; }) >>
-           parser::parse_while([](char c) { return std::isalnum(c) or c == '_'; });
-}
-
-std::optional<expr> do_parse_primary(sym_parser& p)
-{
-    auto expr_ref = parser::lazy(&do_parse_expr);
-    auto ident    = ident_comb();
-    auto args     = -parser::separated_by(expr_ref, parser::lit(","));
+    auto ident = parser::guard([](char c) { return std::isalpha(c) or c == '_'; }) >>
+                 parser::parse_while([](char c) { return std::isalnum(c) or c == '_'; });
 
     auto make_func = [](auto t) -> expr {
         auto [name, args_opt] = std::move(t);
@@ -893,29 +880,18 @@ std::optional<expr> do_parse_primary(sym_parser& p)
             avec = std::move(*args_opt);
         return call_function(std::string(name), std::move(avec));
     };
+    auto args      = -parser::separated_by(expression, parser::lit(","));
     auto func_call = (ident >> parser::lit("(") >> args >> parser::lit(")"))[make_func];
 
     auto make_var = [](std::string_view name) -> expr { return var(std::string(name)); };
     auto variable = ident[make_var];
 
-    auto paren = parser::lit("(") >> expr_ref >> parser::lit(")");
+    auto paren   = parser::lit("(") >> expression >> parser::lit(")");
+    auto primary = paren | func_call | variable | number;
 
-    auto primary = paren | func_call | variable | number_comb();
-    return primary(p);
-}
-
-std::optional<expr> do_parse_unary(sym_parser& p)
-{
     auto negate = [](expr e) -> expr { return -std::move(e); };
-    auto neg    = (parser::lit("-") >> parser::lazy(&do_parse_unary))[negate];
-    auto unary  = neg | parser::lazy(&do_parse_primary);
-    return unary(p);
-}
+    unary_expr  = (parser::lit("-") >> unary_expr)[negate] | primary;
 
-std::optional<expr> do_parse_expr(sym_parser& p)
-{
-    auto unary    = parser::lazy(&do_parse_unary);
-    auto mul_op   = parser::token("*") | parser::token("/");
     auto fold_ops = [](auto t) -> expr {
         auto [left, ops] = std::move(t);
         for(auto& [op, rhs] : ops)
@@ -931,27 +907,21 @@ std::optional<expr> do_parse_expr(sym_parser& p)
         }
         return left;
     };
-    auto mul = (unary >> *(mul_op >> unary))[fold_ops];
+    auto mul_op = parser::token("*") | parser::token("/");
+    auto mul    = (unary_expr >> *(mul_op >> unary_expr))[fold_ops];
 
-    auto add_op     = parser::token("+") | parser::token("-");
-    auto expression = (mul >> *(add_op >> mul))[fold_ops];
+    auto add_op = parser::token("+") | parser::token("-");
+    expression  = (mul >> *(add_op >> mul))[fold_ops];
 
-    return expression(p);
+    return expression;
 }
 
 } // namespace
 
 expr parse(const std::string& str)
 {
-    std::string_view sv(str);
-    sym_parser p{sv};
-    p.advance(0);
-    auto result = do_parse_expr(p);
-    if(not result)
-        MIGRAPHX_THROW(p.error_message("expression"));
-    if(not p.done())
-        MIGRAPHX_THROW(p.error_message("end of input"));
-    return *std::move(result);
+    static auto grammar = sym_grammar();
+    return parser::parse(str, grammar);
 }
 
 } // namespace sym

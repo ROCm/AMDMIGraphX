@@ -723,9 +723,10 @@ R generic_eval(const expr& e, Replace replace, Apply apply)
     auto& children = e.children();
     std::vector<R> args;
     args.reserve(children.size());
-    std::transform(children.begin(), children.end(), std::back_inserter(args), [&](const expr& child) {
-        return generic_eval<R>(child, replace, apply);
-    });
+    std::transform(children.begin(),
+                   children.end(),
+                   std::back_inserter(args),
+                   [&](const expr& child) { return generic_eval<R>(child, replace, apply); });
     return apply(std::get<op_node>(e.node()), std::move(args));
 }
 

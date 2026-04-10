@@ -884,7 +884,7 @@ std::optional<expr> do_parse_primary(sym_parser& p)
 {
     auto expr_ref = parser::lazy(&do_parse_expr);
     auto ident    = ident_comb();
-    auto args = -parser::separated_by(expr_ref, parser::lit(","));
+    auto args     = -parser::separated_by(expr_ref, parser::lit(","));
 
     auto make_func = [](auto t) -> expr {
         auto [name, args_opt] = std::move(t);
@@ -914,8 +914,8 @@ std::optional<expr> do_parse_unary(sym_parser& p)
 
 std::optional<expr> do_parse_expr(sym_parser& p)
 {
-    auto unary  = parser::lazy(&do_parse_unary);
-    auto mul_op = parser::token("*") | parser::token("/");
+    auto unary    = parser::lazy(&do_parse_unary);
+    auto mul_op   = parser::token("*") | parser::token("/");
     auto fold_ops = [](auto t) -> expr {
         auto [left, ops] = std::move(t);
         for(auto& [op, rhs] : ops)

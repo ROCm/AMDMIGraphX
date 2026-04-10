@@ -164,7 +164,7 @@ struct pcomb
     {
         auto self = *this;
         return make_pcomb([self = std::move(self), a = std::move(a)](auto& parser) {
-            auto r = self(parser);
+            auto r  = self(parser);
             using R = decltype(a(std::move(*r)));
             if(not r)
                 return std::optional<R>{std::nullopt};
@@ -181,10 +181,12 @@ template <class F1, class F2>
 auto operator>>(pcomb<F1> p1, pcomb<F2> p2)
 {
     return make_pcomb([p1 = std::move(p1), p2 = std::move(p2)](auto& parser) {
-        using P  = std::decay_t<decltype(parser)>;
-        using A1 = typename decltype(std::declval<const pcomb<F1>&>()(std::declval<P&>()))::value_type;
-        using A2 = typename decltype(std::declval<const pcomb<F2>&>()(std::declval<P&>()))::value_type;
-        using R  = decltype(detail::make_seq_result(std::declval<A1>(), std::declval<A2>()));
+        using P = std::decay_t<decltype(parser)>;
+        using A1 =
+            typename decltype(std::declval<const pcomb<F1>&>()(std::declval<P&>()))::value_type;
+        using A2 =
+            typename decltype(std::declval<const pcomb<F2>&>()(std::declval<P&>()))::value_type;
+        using R = decltype(detail::make_seq_result(std::declval<A1>(), std::declval<A2>()));
 
         auto copy = parser;
         auto r1   = p1(parser);
@@ -205,10 +207,12 @@ template <class F1, class F2>
 auto operator|(pcomb<F1> p1, pcomb<F2> p2)
 {
     return make_pcomb([p1 = std::move(p1), p2 = std::move(p2)](auto& parser) {
-        using P  = std::decay_t<decltype(parser)>;
-        using A1 = typename decltype(std::declval<const pcomb<F1>&>()(std::declval<P&>()))::value_type;
-        using A2 = typename decltype(std::declval<const pcomb<F2>&>()(std::declval<P&>()))::value_type;
-        using R  = std::conditional_t<std::is_same_v<A1, A2>, A1, std::variant<A1, A2>>;
+        using P = std::decay_t<decltype(parser)>;
+        using A1 =
+            typename decltype(std::declval<const pcomb<F1>&>()(std::declval<P&>()))::value_type;
+        using A2 =
+            typename decltype(std::declval<const pcomb<F2>&>()(std::declval<P&>()))::value_type;
+        using R = std::conditional_t<std::is_same_v<A1, A2>, A1, std::variant<A1, A2>>;
 
         auto r1 = p1(parser);
         if(r1)
@@ -236,7 +240,8 @@ auto operator*(pcomb<F> p)
 {
     return make_pcomb([p = std::move(p)](auto& parser) {
         using P = std::decay_t<decltype(parser)>;
-        using A = typename decltype(std::declval<const pcomb<F>&>()(std::declval<P&>()))::value_type;
+        using A =
+            typename decltype(std::declval<const pcomb<F>&>()(std::declval<P&>()))::value_type;
         std::vector<A> results;
         while(true)
         {
@@ -255,10 +260,11 @@ auto operator-(pcomb<F> p)
 {
     return make_pcomb([p = std::move(p)](auto& parser) {
         using P = std::decay_t<decltype(parser)>;
-        using A = typename decltype(std::declval<const pcomb<F>&>()(std::declval<P&>()))::value_type;
-        auto r  = p(parser);
-        return std::optional<std::optional<A>>{
-            r ? std::optional<A>{std::move(*r)} : std::optional<A>{std::nullopt}};
+        using A =
+            typename decltype(std::declval<const pcomb<F>&>()(std::declval<P&>()))::value_type;
+        auto r = p(parser);
+        return std::optional<std::optional<A>>{r ? std::optional<A>{std::move(*r)}
+                                                 : std::optional<A>{std::nullopt}};
     });
 }
 

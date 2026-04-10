@@ -271,7 +271,7 @@ TEST_CASE(comb_optional_absent)
 
 TEST_CASE(comb_semantic_action)
 {
-    auto digits = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+    auto digits    = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
     auto to_double = [](std::string_view s) { return std::stod(std::string(s)); };
     auto number    = digits[to_double];
 
@@ -285,10 +285,11 @@ TEST_CASE(comb_semantic_action)
 TEST_CASE(comb_number_list)
 {
     using migraphx::parser::lit;
-    auto number_s = migraphx::parser::parse_while([](char c) { return std::isdigit(c) or c == '.'; });
-    auto to_dbl = [](std::string_view s) { return std::stod(std::string(s)); };
-    auto number = number_s[to_dbl];
-    auto numbers  = migraphx::parser::separated_by(number, lit(","));
+    auto number_s =
+        migraphx::parser::parse_while([](char c) { return std::isdigit(c) or c == '.'; });
+    auto to_dbl  = [](std::string_view s) { return std::stod(std::string(s)); };
+    auto number  = number_s[to_dbl];
+    auto numbers = migraphx::parser::separated_by(number, lit(","));
 
     std::string_view sv("1, 2.5, 3");
     simple_string_view_skip_parser p{sv};

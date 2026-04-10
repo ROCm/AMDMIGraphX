@@ -91,9 +91,9 @@ TEST_CASE(comb_guard)
 
 TEST_CASE(comb_seq_skip_elision)
 {
-    auto digits   = parse_while([](char c) { return std::isdigit(c); });
+    auto digits    = parse_while([](char c) { return std::isdigit(c); });
     auto paren_num = lit("(") >> digits >> lit(")");
-    auto r        = parse("(42)", paren_num);
+    auto r         = parse("(42)", paren_num);
     EXPECT(r == "42");
 }
 

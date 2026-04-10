@@ -324,8 +324,7 @@ struct nonmaxsuppression
                             double iou_threshold,
                             double score_threshold) const
     {
-        // We trim the output in compute() so zeros are irrelevant
-        // std::fill(output.begin(), output.end(), 0);
+        // Output is trimmed in compute(), so zero-initialization is unnecessary here.
         const auto& lens       = scores.get_shape().lens();
         const auto num_batches = lens[0];
         const auto num_classes = lens[1];

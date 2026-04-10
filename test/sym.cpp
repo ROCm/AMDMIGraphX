@@ -107,6 +107,27 @@ TEST_CASE(div_double_eval)
     EXPECT(result == value{2.5});
 }
 
+TEST_CASE(mod_int_eval)
+{
+    auto e      = lit(10) % lit(3);
+    auto result = e.eval({});
+    EXPECT(result == value{int64_t{1}});
+}
+
+TEST_CASE(mod_double_eval)
+{
+    auto e      = lit(10.5) % lit(3.0);
+    auto result = e.eval({});
+    EXPECT(result == value{std::fmod(10.5, 3.0)});
+}
+
+TEST_CASE(mod_variable_eval)
+{
+    auto e      = var("x") % lit(3);
+    auto result = e.eval({{"x", int64_t{10}}});
+    EXPECT(result == value{int64_t{1}});
+}
+
 TEST_CASE(neg_eval)
 {
     auto e      = -lit(5);
@@ -243,6 +264,24 @@ TEST_CASE(mul_interval_mixed_sign)
     auto result = e.eval_interval(
         {{"x", interval{int64_t{-2}, int64_t{3}}}, {"y", interval{int64_t{1}, int64_t{4}}}});
     EXPECT(result == (interval{int64_t{-8}, int64_t{12}}));
+}
+
+TEST_CASE(mod_interval)
+{
+    auto x = var("x");
+    auto e = x % lit(3);
+    // [7,10] % 3: 7%3=1, 10%3=1 → min=1, max=1 (endpoint case)
+    auto result = e.eval_interval({{"x", interval{int64_t{7}, int64_t{10}}}});
+    EXPECT(result == (interval{int64_t{1}, int64_t{1}}));
+}
+
+TEST_CASE(mod_interval_range)
+{
+    auto x = var("x");
+    auto e = x % lit(5);
+    // [3,8] % 5: 3%5=3, 8%5=3 → min=3, max=3
+    auto result = e.eval_interval({{"x", interval{int64_t{3}, int64_t{8}}}});
+    EXPECT(result == (interval{int64_t{3}, int64_t{3}}));
 }
 
 TEST_CASE(neg_interval)
@@ -414,6 +453,13 @@ TEST_CASE(interval_div_assign)
     interval a{2.0, 10.0};
     a /= interval{1.0, 5.0};
     EXPECT(a == (interval{0.4, 10.0}));
+}
+
+TEST_CASE(interval_mod_assign)
+{
+    interval a{int64_t{7}, int64_t{10}};
+    a %= interval{int64_t{3}, int64_t{3}};
+    EXPECT(a == (interval{int64_t{1}, int64_t{1}}));
 }
 
 TEST_CASE(interval_compound_assign_no_alias)
@@ -726,6 +772,51 @@ TEST_CASE(div_assign_double)
     EXPECT(e.eval({{"x", 10.0}}) == value{2.5});
 }
 
+TEST_CASE(mod_expr_int64)
+{
+    auto e = var("x") % int64_t{3};
+    EXPECT(e.eval({{"x", int64_t{10}}}) == value{int64_t{1}});
+}
+
+TEST_CASE(mod_int64_expr)
+{
+    auto e = int64_t{10} % var("x");
+    EXPECT(e.eval({{"x", int64_t{3}}}) == value{int64_t{1}});
+}
+
+TEST_CASE(mod_expr_double)
+{
+    auto e = var("x") % 3.0;
+    EXPECT(e.eval({{"x", 10.5}}) == value{std::fmod(10.5, 3.0)});
+}
+
+TEST_CASE(mod_double_expr)
+{
+    auto e = 10.5 % var("x");
+    EXPECT(e.eval({{"x", 3.0}}) == value{std::fmod(10.5, 3.0)});
+}
+
+TEST_CASE(mod_assign_expr)
+{
+    auto e = var("x");
+    e %= lit(3);
+    EXPECT(e.eval({{"x", int64_t{10}}}) == value{int64_t{1}});
+}
+
+TEST_CASE(mod_assign_int64)
+{
+    auto e = var("x");
+    e %= int64_t{3};
+    EXPECT(e.eval({{"x", int64_t{10}}}) == value{int64_t{1}});
+}
+
+TEST_CASE(mod_assign_double)
+{
+    auto e = var("x");
+    e %= 3.0;
+    EXPECT(e.eval({{"x", 10.5}}) == value{std::fmod(10.5, 3.0)});
+}
+
 TEST_CASE(non_expr_compound)
 {
     // (x + 3) * 2.0 - 1  with x=4 → (7) * 2.0 - 1 = 13.0
@@ -1012,6 +1103,12 @@ TEST_CASE(to_string_div)
 {
     auto x = var("x");
     EXPECT((x / lit(4)).to_string() == "(x / 4)");
+}
+
+TEST_CASE(to_string_mod)
+{
+    auto x = var("x");
+    EXPECT((x % lit(3)).to_string() == "(x % 3)");
 }
 
 TEST_CASE(to_string_neg)
@@ -1882,6 +1979,12 @@ TEST_CASE(parse_div)
 {
     auto e = parse("x / y");
     EXPECT(e == var("x") / var("y"));
+}
+
+TEST_CASE(parse_mod)
+{
+    auto e = parse("x % y");
+    EXPECT(e == var("x") % var("y"));
 }
 
 TEST_CASE(parse_precedence)

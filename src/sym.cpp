@@ -76,6 +76,23 @@ interval operator/(interval a, interval b)
             value_max(value_max(p1, p2), value_max(p3, p4))};
 }
 
+interval operator%(interval a, interval b)
+{
+    auto f  = [](auto x, auto y) { return x % y; };
+    auto fd = [](auto x, auto y) { return std::fmod(x, y); };
+    auto compute = [&](const value& x, const value& y) -> value {
+        if(std::holds_alternative<int64_t>(x) and std::holds_alternative<int64_t>(y))
+            return f(std::get<int64_t>(x), std::get<int64_t>(y));
+        return fd(to<double>(x), to<double>(y));
+    };
+    auto p1 = compute(a.min, b.min);
+    auto p2 = compute(a.min, b.max);
+    auto p3 = compute(a.max, b.min);
+    auto p4 = compute(a.max, b.max);
+    return {value_min(value_min(p1, p2), value_min(p3, p4)),
+            value_max(value_max(p1, p2), value_max(p3, p4))};
+}
+
 interval operator-(interval a)
 {
     auto f = [](auto x) { return -x; };
@@ -605,6 +622,19 @@ expr operator/(expr ex, expr ey)
     return call("/", [](auto x, auto y) { return x / y; })(std::move(ex), std::move(ey));
 }
 
+expr operator%(expr ex, expr ey)
+{
+    return call(
+        "%",
+        [](auto x, auto y) {
+            if constexpr(std::is_integral_v<decltype(x)> and std::is_integral_v<decltype(y)>)
+                return x % y;
+            else
+                return std::fmod(static_cast<double>(x), static_cast<double>(y));
+        },
+        [](interval x, interval y) { return x % y; })(std::move(ex), std::move(ey));
+}
+
 expr operator-(expr e) { return lit(-1) * std::move(e); }
 
 bool operator==(const expr& a, const expr& b)
@@ -749,7 +779,7 @@ std::string value_to_string(const value& v)
 
 bool is_infix_op(const std::string& name)
 {
-    return name == "+" or name == "-" or name == "*" or name == "/";
+    return name == "+" or name == "-" or name == "*" or name == "/" or name == "%";
 }
 } // namespace
 
@@ -922,7 +952,7 @@ expr parse_mul_expr(sym_parser& p)
 {
     auto left = parse_unary(p);
     auto ops  = p.repeat([](sym_parser& q) -> std::pair<std::string_view, expr> {
-        auto op = q.first_of(std::string_view("*"), std::string_view("/"));
+        auto op = q.first_of(std::string_view("*"), std::string_view("/"), std::string_view("%"));
         if(op.empty())
             return {};
         return {op, parse_unary(q)};
@@ -931,8 +961,10 @@ expr parse_mul_expr(sym_parser& p)
     {
         if(op == "*")
             left = left * std::move(rhs);
-        else
+        else if(op == "/")
             left = left / std::move(rhs);
+        else
+            left = left % std::move(rhs);
     }
     return left;
 }

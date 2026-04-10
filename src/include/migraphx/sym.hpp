@@ -85,11 +85,13 @@ struct interval
     interval& operator-=(interval b) { return *this = *this - b; }
     interval& operator*=(interval b) { return *this = *this * b; }
     interval& operator/=(interval b) { return *this = *this / b; }
+    interval& operator%=(interval b) { return *this = *this % b; }
 
     friend interval operator+(interval a, interval b);
     friend interval operator-(interval a, interval b);
     friend interval operator*(interval a, interval b);
     friend interval operator/(interval a, interval b);
+    friend interval operator%(interval a, interval b);
     friend interval operator-(interval a);
     friend bool operator<(interval a, interval b);
     friend bool operator<=(interval a, interval b);
@@ -175,6 +177,7 @@ class MIGRAPHX_EXPORT expr
     friend expr operator-(expr ex, expr ey);
     friend expr operator*(expr ex, expr ey);
     friend expr operator/(expr ex, expr ey);
+    friend expr operator%(expr ex, expr ey);
     friend expr operator-(expr e);
     friend bool operator==(const expr& a, const expr& b);
     friend bool operator!=(const expr& a, const expr& b);
@@ -193,6 +196,7 @@ class MIGRAPHX_EXPORT expr
     MIGRAPHX_SYM_DEFINE_OP(-, -=)
     MIGRAPHX_SYM_DEFINE_OP(*, *=)
     MIGRAPHX_SYM_DEFINE_OP(/, /=)
+    MIGRAPHX_SYM_DEFINE_OP(%, %=)
 };
 
 expr lit(value v);

@@ -191,6 +191,7 @@ struct loader
     bool replace_literals       = false;
     bool brief                  = false;
     bool verbose                = false;
+    bool use_debug_symbols      = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -223,6 +224,11 @@ struct loader
            ap.help("Skip unknown operators when parsing and continue to parse."),
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
+        ap(use_debug_symbols,
+           {"--debug-symbols"},
+           ap.help(
+               "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
+           ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
@@ -410,6 +416,7 @@ struct loader
         }
         options.skip_unknown_operators = skip_unknown_operators;
         options.print_program_on_error = true;
+        options.use_debug_symbols      = use_debug_symbols;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;

@@ -78,7 +78,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <deque>
-#include <queue>
+#include <migraphx/functional.hpp>
 #include <variant>
 #include <fstream>
 #include <sstream>
@@ -933,21 +933,111 @@ struct mlir_program
         std::unordered_set<instruction_ref> core;
         core.insert(dot1);
         core.insert(dot2);
-        std::queue<instruction_ref> worklist;
-        worklist.push(dot2->inputs()[0]);
-        while(not worklist.empty())
-        {
-            auto ins = worklist.front();
-            worklist.pop();
+        fix([&](auto self, auto ins) {
             if(contains(core, ins) or ins->name() == "@param" or ins->name() == "@literal")
-                continue;
+                return;
             if(ins->can_eval())
-                continue;
+                return;
             core.insert(ins);
             for(auto input : ins->inputs())
-                worklist.push(input);
-        }
+                self(input);
+        })(dot2->inputs()[0]);
         return core;
+    }
+
+    static std::vector<instruction_ref>
+    find_pre_softmax_ops(const module& m,
+                         instruction_ref dot1,
+                         const std::unordered_set<instruction_ref>& attention_core)
+    {
+        std::vector<instruction_ref> post_order;
+        std::unordered_set<instruction_ref> visited;
+        fix([&](auto self, auto ins) {
+            for(auto output : ins->outputs())
+            {
+                if(not m.has_instruction(output))
+                    continue;
+                if(not contains(attention_core, output))
+                    continue;
+                if(output->name() == "reduce_max")
+                    continue;
+                if(not visited.insert(output).second)
+                    continue;
+                self(output);
+                post_order.push_back(output);
+            }
+        })(dot1);
+        std::reverse(post_order.begin(), post_order.end());
+        return post_order;
+    }
+
+    static std::vector<instruction_ref>
+    find_pre_softmax_external_inputs(const std::vector<instruction_ref>& pre_softmax_ops,
+                                     instruction_ref dot1)
+    {
+        std::unordered_set<instruction_ref> internal(pre_softmax_ops.begin(),
+                                                     pre_softmax_ops.end());
+        internal.insert(dot1);
+        std::vector<instruction_ref> external;
+        std::unordered_set<instruction_ref> seen;
+        for(auto op : pre_softmax_ops)
+        {
+            for(auto input : op->inputs())
+            {
+                if(not contains(internal, input) and seen.insert(input).second)
+                    external.push_back(input);
+            }
+        }
+        return external;
+    }
+
+    mlir_region build_pre_softmax_region(const std::vector<instruction_ref>& pre_softmax_ops,
+                                         instruction_ref dot1,
+                                         const std::vector<instruction_ref>& external_inputs)
+    {
+        std::vector<MlirType> block_arg_types;
+        block_arg_types.push_back(make_mlir_shaped(get_shape_for_mlir(dot1)));
+        for(auto ext : external_inputs)
+            block_arg_types.push_back(make_mlir_shaped(get_shape_for_mlir(ext)));
+
+        std::vector<MlirLocation> block_arg_locs(block_arg_types.size(), location);
+        mlir_region region = mlirRegionCreate();
+        mlir_block block =
+            mlirBlockCreate(block_arg_types.size(), block_arg_types.data(), block_arg_locs.data());
+        MlirBlock block_raw = block.get();
+        mlirRegionAppendOwnedBlock(region.get(), block.release());
+
+        std::unordered_map<instruction_ref, MlirValue> region_map;
+        region_map[dot1] = mlirBlockGetArgument(block_raw, 0);
+        for(std::size_t i = 0; i < external_inputs.size(); ++i)
+            region_map[external_inputs[i]] = mlirBlockGetArgument(block_raw, i + 1);
+
+        MlirValue last_result{};
+        for(auto op : pre_softmax_ops)
+        {
+            auto op_state = create_operation_state(get_name(op));
+            op_state.add_attribute_value(get_operator_value(op));
+            op_state.add_results({make_mlir_shaped(get_shape_for_mlir(op))});
+
+            if(op->name() == "@literal")
+                add_literal_attribute(op_state, op);
+
+            std::vector<MlirValue> op_inputs;
+            for(auto input : op->inputs())
+                op_inputs.push_back(region_map.at(input));
+            op_state.add_operands(op_inputs);
+
+            auto op_results = insert(block_raw, std::move(op_state));
+            assert(op_results.size() == 1);
+            region_map[op] = op_results.front();
+            last_result    = op_results.front();
+        }
+
+        auto yield_state = create_operation_state("migraphx.yield");
+        yield_state.add_operands({last_result});
+        insert(block_raw, std::move(yield_state));
+
+        return region;
     }
 
     void
@@ -963,6 +1053,8 @@ struct mlir_program
 
         auto [dot1, dot2]   = find_attention_dots(m);
         auto attention_core = find_attention_core(dot1, dot2);
+        auto pre_softmax_ops = find_pre_softmax_ops(m, dot1, attention_core);
+        auto external_inputs = find_pre_softmax_external_inputs(pre_softmax_ops, dot1);
 
         for(auto ins : iterator_for(m))
         {
@@ -983,17 +1075,33 @@ struct mlir_program
                 auto k_val = ins_map.at(dot1->inputs()[1]);
                 auto v_val = ins_map.at(dot2->inputs()[1]);
 
+                std::vector<MlirValue> attn_operands = {q_val, k_val, v_val};
+                for(auto ext : external_inputs)
+                    attn_operands.push_back(ins_map.at(ext));
+
                 auto attn_ops = create_operation_state("migraphx.attention");
-                attn_ops.add_operands({q_val, k_val, v_val});
+                attn_ops.add_operands(attn_operands);
                 attn_ops.add_results({get_shape(dot2)});
+
+                const std::vector<int> seg_sizes = {
+                    1, 1, 1, static_cast<int>(external_inputs.size()), 0};
+                attn_ops.set_operand_segment_sizes(seg_sizes);
 
                 auto features = attention_flags_to_features(flags);
                 attn_ops.add_attributes({{"features", features}});
 
-                mlir_region region = mlirRegionCreate();
-                mlir_block block   = mlirBlockCreate(0, nullptr, nullptr);
-                mlirRegionAppendOwnedBlock(region.get(), block.release());
-                attn_ops.add_region(std::move(region));
+                if(pre_softmax_ops.empty())
+                {
+                    mlir_region region = mlirRegionCreate();
+                    mlir_block block   = mlirBlockCreate(0, nullptr, nullptr);
+                    mlirRegionAppendOwnedBlock(region.get(), block.release());
+                    attn_ops.add_region(std::move(region));
+                }
+                else
+                {
+                    attn_ops.add_region(
+                        build_pre_softmax_region(pre_softmax_ops, dot1, external_inputs));
+                }
 
                 auto results = insert(fbody, std::move(attn_ops));
                 assert(results.size() == 1);

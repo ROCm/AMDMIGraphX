@@ -47,6 +47,13 @@ static hip_stream_ptr create_external_stream()
     return hip_stream_ptr{stream};
 }
 
+static void verify_data(const migraphx::argument& result, const migraphx::shape& s, float expected)
+{
+    std::vector<float> expected_data(s.elements(), expected);
+    auto expected_arg = migraphx::argument{s, expected_data.data()};
+    EXPECT(result == expected_arg);
+}
+
 TEST_CASE(test_stream_override_get)
 {
     migraphx::gpu::context ctx{};
@@ -166,18 +173,7 @@ TEST_CASE(test_external_stream_serialized_on_caller_stream)
 
     EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
     auto host_result = migraphx::gpu::from_gpu(gout);
-
-    auto* result_data = reinterpret_cast<const float*>(host_result.data());
-    bool all_correct  = true;
-    for(unsigned int i = 0; i < n; ++i)
-    {
-        if(result_data[i] != 3.0f)
-        {
-            all_correct = false;
-            break;
-        }
-    }
-    EXPECT(all_correct);
+    verify_data(host_result, out_shape, 3.0f);
 }
 
 TEST_CASE(test_multiple_async_evals_same_stream)
@@ -214,18 +210,7 @@ TEST_CASE(test_multiple_async_evals_same_stream)
 
     EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
     auto host_result = migraphx::gpu::from_gpu(gout);
-
-    auto* result_data = reinterpret_cast<const float*>(host_result.data());
-    bool all_correct  = true;
-    for(unsigned int i = 0; i < n; ++i)
-    {
-        if(result_data[i] != 3.0f)
-        {
-            all_correct = false;
-            break;
-        }
-    }
-    EXPECT(all_correct);
+    verify_data(host_result, out_shape, 3.0f);
 }
 
 TEST_CASE(test_external_stream_cleared_after_eval)
@@ -319,18 +304,7 @@ TEST_CASE(test_fallback_event_path_produces_correct_results)
 
     EXPECT(hipDeviceSynchronize() == hipSuccess);
     auto host_result = migraphx::gpu::from_gpu(gout);
-
-    auto* result_data = reinterpret_cast<const float*>(host_result.data());
-    bool all_correct  = true;
-    for(unsigned int i = 0; i < n; ++i)
-    {
-        if(result_data[i] != 12.0f)
-        {
-            all_correct = false;
-            break;
-        }
-    }
-    EXPECT(all_correct);
+    verify_data(host_result, out_shape, 12.0f);
 }
 
 TEST_CASE(test_non_async_eval_uses_internal_stream)
@@ -369,18 +343,7 @@ TEST_CASE(test_non_async_eval_uses_internal_stream)
 
     p.finish();
     auto host_result = migraphx::gpu::from_gpu(gout);
-
-    auto* result_data = reinterpret_cast<const float*>(host_result.data());
-    bool all_correct  = true;
-    for(unsigned int i = 0; i < n; ++i)
-    {
-        if(result_data[i] != 10.0f)
-        {
-            all_correct = false;
-            break;
-        }
-    }
-    EXPECT(all_correct);
+    verify_data(host_result, out_shape, 10.0f);
 }
 
 TEST_CASE(test_mixed_async_and_sync_evals)
@@ -419,12 +382,8 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     EXPECT(not gpu_ctx->get_stream().has_external_stream());
     EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
 
-    auto host_result  = migraphx::gpu::from_gpu(gout);
-    auto* result_data = reinterpret_cast<const float*>(host_result.data());
-    for(unsigned int i = 0; i < n; ++i)
-    {
-        EXPECT(result_data[i] == 3.0f);
-    }
+    auto host_result = migraphx::gpu::from_gpu(gout);
+    verify_data(host_result, out_shape, 3.0f);
 
     // Sync eval with internal stream
     auto gout2 = migraphx::gpu::to_gpu(out);
@@ -432,12 +391,8 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     EXPECT(not gpu_ctx->get_stream().has_external_stream());
     p.finish();
 
-    auto host_result2  = migraphx::gpu::from_gpu(gout2);
-    auto* result_data2 = reinterpret_cast<const float*>(host_result2.data());
-    for(unsigned int i = 0; i < n; ++i)
-    {
-        EXPECT(result_data2[i] == 3.0f);
-    }
+    auto host_result2 = migraphx::gpu::from_gpu(gout2);
+    verify_data(host_result2, out_shape, 3.0f);
 
     // Async eval again to confirm no stale state
     auto gout3 = migraphx::gpu::to_gpu(out);
@@ -445,12 +400,8 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     EXPECT(not gpu_ctx->get_stream().has_external_stream());
     EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
 
-    auto host_result3  = migraphx::gpu::from_gpu(gout3);
-    auto* result_data3 = reinterpret_cast<const float*>(host_result3.data());
-    for(unsigned int i = 0; i < n; ++i)
-    {
-        EXPECT(result_data3[i] == 3.0f);
-    }
+    auto host_result3 = migraphx::gpu::from_gpu(gout3);
+    verify_data(host_result3, out_shape, 3.0f);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -90,8 +90,8 @@ struct hip_device
 
         hipStream_t get()
         {
-            if(external_stream_ != nullptr)
-                return external_stream_;
+            if(external_stream != nullptr)
+                return external_stream;
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
             {
                 setup();
@@ -148,7 +148,7 @@ struct hip_device
 
         void set_external_stream(hipStream_t ext_stream)
         {
-            external_stream_ = ext_stream;
+            external_stream = ext_stream;
 #if MIGRAPHX_USE_MIOPEN
             if(mihandle != nullptr)
                 miopenSetStream(mihandle.get(), ext_stream);
@@ -161,10 +161,10 @@ struct hip_device
 
         void clear_external_stream()
         {
-            if(external_stream_ == nullptr)
+            if(external_stream == nullptr)
                 return;
-            external_stream_ = nullptr;
-            auto internal    = get();
+            external_stream = nullptr;
+            auto *internal    = get();
 #if MIGRAPHX_USE_MIOPEN
             if(mihandle != nullptr)
                 miopenSetStream(mihandle.get(), internal);
@@ -175,14 +175,14 @@ struct hip_device
 #endif
         }
 
-        bool has_external_stream() const { return external_stream_ != nullptr; }
+        bool has_external_stream() const { return external_stream != nullptr; }
 
         void wait() const
         {
-            if(external_stream_ != nullptr)
+            if(external_stream != nullptr)
             {
                 setup();
-                auto status = hipStreamSynchronize(external_stream_);
+                auto status = hipStreamSynchronize(external_stream);
                 if(status != hipSuccess)
                     MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
                 return;
@@ -214,7 +214,7 @@ struct hip_device
         private:
         std::size_t id           = 0;
         shared<hip_stream_ptr> s = nullptr;
-        hipStream_t external_stream_ = nullptr;
+        hipStream_t external_stream = nullptr;
 #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
 #endif
@@ -378,17 +378,17 @@ struct context
 
     void wait_for(any_ptr queue)
     {
-        auto ext = queue.get<hipStream_t>();
-        if(ext != nullptr)
-        {
-            get_stream().set_external_stream(ext);
-        }
-        else
+        auto *ext = queue.get<hipStream_t>();
+        if(ext == nullptr)
         {
             auto status = hipEventRecord(begin_event.get(), ext);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to record: " + hip_error(status));
             get_stream().wait(begin_event.get());
+        }
+        else
+        {
+            get_stream().set_external_stream(ext);
         }
     }
 

@@ -1,0 +1,1181 @@
+{
+  "generated_at": "2026-04-10T18:20:42.812380+00:00",
+  "repo": "ROCm/AMDMIGraphX",
+  "total_prs": 68,
+  "counts": {
+    "zero": 38,
+    "one": 14,
+    "two_plus": 4,
+    "two_plus_approved": 12
+  },
+  "buckets": {
+    "zero": [
+      {
+        "number": 4778,
+        "title": "Onnxruntime Weekly Sync 2026-04-10",
+        "author": "github-actions[bot]",
+        "author_avatar": "https://avatars.githubusercontent.com/in/15368?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4778",
+        "created_at": "2026-04-10T17:26:49Z",
+        "updated_at": "2026-04-10T17:26:52Z",
+        "labels": [
+          "onnxruntime",
+          "dependencies",
+          "skip bot checks",
+          "automated"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4777,
+        "title": "Remove gqa_rotary_embedding and use op builder in its place",
+        "author": "turneram",
+        "author_avatar": "https://avatars.githubusercontent.com/u/71655887?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4777",
+        "created_at": "2026-04-10T16:27:48Z",
+        "updated_at": "2026-04-10T16:27:49Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4775,
+        "title": "[AIMIGRAPHX-885] Use External Stream Contexts",
+        "author": "TedThemistokleous",
+        "author_avatar": "https://avatars.githubusercontent.com/u/107195283?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4775",
+        "created_at": "2026-04-10T16:12:05Z",
+        "updated_at": "2026-04-10T18:11:15Z",
+        "labels": [
+          "Perf Improve"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4773,
+        "title": "fix (nonmaxsuppression): fix incorrect output when use_dyn_output is false - #4679",
+        "author": "adityas-amd",
+        "author_avatar": "https://avatars.githubusercontent.com/u/195787814?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4773",
+        "created_at": "2026-04-10T03:59:48Z",
+        "updated_at": "2026-04-10T05:09:15Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4771,
+        "title": "Cross Compile Pt 1: Add optional string to device_name functions",
+        "author": "kahmed10",
+        "author_avatar": "https://avatars.githubusercontent.com/u/15948690?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4771",
+        "created_at": "2026-04-09T21:45:22Z",
+        "updated_at": "2026-04-10T16:40:04Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4770,
+        "title": "Adding compilation mode",
+        "author": "pnikolic-amd",
+        "author_avatar": "https://avatars.githubusercontent.com/u/194365688?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4770",
+        "created_at": "2026-04-09T19:50:16Z",
+        "updated_at": "2026-04-10T15:26:55Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4768,
+        "title": "Fix the logger tests on windows",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4768",
+        "created_at": "2026-04-09T16:05:26Z",
+        "updated_at": "2026-04-10T15:39:37Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4766,
+        "title": "Generate mxr files for benchmarking",
+        "author": "ahsan-ca",
+        "author_avatar": "https://avatars.githubusercontent.com/u/142340507?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4766",
+        "created_at": "2026-04-09T15:39:11Z",
+        "updated_at": "2026-04-09T15:48:18Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4764,
+        "title": "Fix concat_past_present OOB write when seqlens_k is negative",
+        "author": "danieyan-amd",
+        "author_avatar": "https://avatars.githubusercontent.com/u/231537261?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4764",
+        "created_at": "2026-04-09T14:43:04Z",
+        "updated_at": "2026-04-09T20:52:46Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4763,
+        "title": "Check if workaround deduction guide is needed",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4763",
+        "created_at": "2026-04-09T13:15:00Z",
+        "updated_at": "2026-04-09T14:58:30Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4756,
+        "title": "Update rocMLIR to fix bert_squad and bert_tf performance regression",
+        "author": "ahsan-ca",
+        "author_avatar": "https://avatars.githubusercontent.com/u/142340507?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4756",
+        "created_at": "2026-04-08T19:10:16Z",
+        "updated_at": "2026-04-10T13:43:41Z",
+        "labels": [
+          "backport"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4755,
+        "title": "[AIMIGRAPHX-799] jit implementation for rnn variable seq lens ops",
+        "author": "bdevorem",
+        "author_avatar": "https://avatars.githubusercontent.com/u/11051530?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4755",
+        "created_at": "2026-04-08T17:20:03Z",
+        "updated_at": "2026-04-10T17:12:02Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4751,
+        "title": "Add missing tests and fixes from 4647",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4751",
+        "created_at": "2026-04-08T01:06:01Z",
+        "updated_at": "2026-04-08T01:16:01Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4746,
+        "title": "Handle more cases for global pooling",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4746",
+        "created_at": "2026-04-07T00:53:41Z",
+        "updated_at": "2026-04-08T16:27:46Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4744,
+        "title": "Add dockerfile for building TheRock",
+        "author": "causten",
+        "author_avatar": "https://avatars.githubusercontent.com/u/7440191?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4744",
+        "created_at": "2026-04-06T17:41:41Z",
+        "updated_at": "2026-04-08T01:24:38Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4742,
+        "title": "[AIRADSW-64] Add Parser for arrayfeatureextractor Onnx op",
+        "author": "tamahedi",
+        "author_avatar": "https://avatars.githubusercontent.com/u/231760341?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4742",
+        "created_at": "2026-04-06T15:10:41Z",
+        "updated_at": "2026-04-10T16:28:20Z",
+        "labels": [
+          "Onnx Operators",
+          "Changelog: Added"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4733,
+        "title": "Fuse pointwise across split slices",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4733",
+        "created_at": "2026-04-01T22:17:09Z",
+        "updated_at": "2026-04-01T23:48:17Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4729,
+        "title": "Improve horizontal fusions",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4729",
+        "created_at": "2026-04-01T17:38:20Z",
+        "updated_at": "2026-04-01T19:17:44Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4720,
+        "title": "JIT implementations for scan lib, and nonzero & prefix_scan_sum ops",
+        "author": "bdevorem",
+        "author_avatar": "https://avatars.githubusercontent.com/u/11051530?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4720",
+        "created_at": "2026-03-30T17:59:17Z",
+        "updated_at": "2026-04-01T16:49:45Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4714,
+        "title": "AIMIGRAPHX-585 Update MIGraphX build/package scripts for TheRock 7.12 compatibility",
+        "author": "kentqian",
+        "author_avatar": "https://avatars.githubusercontent.com/u/16010430?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4714",
+        "created_at": "2026-03-27T16:25:04Z",
+        "updated_at": "2026-04-10T16:36:11Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4710,
+        "title": "Fix GPU MLIR-off builds and extend MLIR pointwise support",
+        "author": "Rolaand-Jayz",
+        "author_avatar": "https://avatars.githubusercontent.com/u/162228733?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4710",
+        "created_at": "2026-03-26T13:41:36Z",
+        "updated_at": "2026-03-31T04:29:05Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4708,
+        "title": "Cache repeated HIP compilation and MIOpen solution lookups",
+        "author": "Rolaand-Jayz",
+        "author_avatar": "https://avatars.githubusercontent.com/u/162228733?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4708",
+        "created_at": "2026-03-26T13:41:31Z",
+        "updated_at": "2026-03-27T17:14:14Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4682,
+        "title": "Add caching mechanism for CI tests in Jenkinsfile",
+        "author": "causten",
+        "author_avatar": "https://avatars.githubusercontent.com/u/7440191?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4682",
+        "created_at": "2026-03-18T14:13:51Z",
+        "updated_at": "2026-03-18T21:54:34Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4651,
+        "title": "Added support to set mlir defaults",
+        "author": "pnikolic-amd",
+        "author_avatar": "https://avatars.githubusercontent.com/u/194365688?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4651",
+        "created_at": "2026-03-04T16:27:06Z",
+        "updated_at": "2026-03-12T18:11:22Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4642,
+        "title": "fix jit pooling",
+        "author": "aarushjain29",
+        "author_avatar": "https://avatars.githubusercontent.com/u/142941703?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4642",
+        "created_at": "2026-02-27T19:54:23Z",
+        "updated_at": "2026-02-27T23:13:57Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4573,
+        "title": "Allow running in the driver a pass from a backend target using 'pass_name@target_name'",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4573",
+        "created_at": "2026-01-26T19:30:09Z",
+        "updated_at": "2026-03-03T05:04:49Z",
+        "labels": [
+          "simple"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4571,
+        "title": " ONNX: Added support for `SplitToSequence` and `ConcatFromSequence` operators (static support).",
+        "author": "RajBarshikar",
+        "author_avatar": "https://avatars.githubusercontent.com/u/145206238?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4571",
+        "created_at": "2026-01-26T07:35:47Z",
+        "updated_at": "2026-03-31T15:48:39Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4554,
+        "title": "Add deref op",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4554",
+        "created_at": "2026-01-19T23:43:35Z",
+        "updated_at": "2026-01-21T20:42:42Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4312,
+        "title": "Add ONNX model testing workflow",
+        "author": "danieyan-amd",
+        "author_avatar": "https://avatars.githubusercontent.com/u/231537261?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4312",
+        "created_at": "2025-09-23T21:58:31Z",
+        "updated_at": "2025-09-24T01:43:44Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4154,
+        "title": "Switch to c++23",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4154",
+        "created_at": "2025-07-21T15:07:25Z",
+        "updated_at": "2026-03-13T19:37:57Z",
+        "labels": [
+          "enhancement"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4049,
+        "title": "Store literals in pinned memory when there isnt enough GPU memory",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4049",
+        "created_at": "2025-06-03T22:40:46Z",
+        "updated_at": "2026-02-06T01:20:19Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3972,
+        "title": "Allow ONNX and TF modules optional",
+        "author": "apwojcik",
+        "author_avatar": "https://avatars.githubusercontent.com/u/24248912?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3972",
+        "created_at": "2025-04-25T11:32:20Z",
+        "updated_at": "2026-02-27T00:00:11Z",
+        "labels": [
+          "WCR"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3938,
+        "title": "Add GPU onnx support for com.microsoft.SparseAttention",
+        "author": "music-dino",
+        "author_avatar": "https://avatars.githubusercontent.com/u/111048524?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3938",
+        "created_at": "2025-04-09T12:18:27Z",
+        "updated_at": "2025-05-12T16:32:35Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3866,
+        "title": "Add partial onnx support for com.microsoft.SparseAttention",
+        "author": "music-dino",
+        "author_avatar": "https://avatars.githubusercontent.com/u/111048524?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3866",
+        "created_at": "2025-03-05T10:42:30Z",
+        "updated_at": "2025-06-04T11:07:29Z",
+        "labels": [
+          "onnx",
+          "Onnx Operators"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3766,
+        "title": "Remove rocmlir unsupported reduce types",
+        "author": "dhernandez0",
+        "author_avatar": "https://avatars.githubusercontent.com/u/9977702?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3766",
+        "created_at": "2025-01-17T14:43:48Z",
+        "updated_at": "2026-03-12T18:24:18Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3478,
+        "title": "reorder_slice_add_mul matcher",
+        "author": "aarushjain29",
+        "author_avatar": "https://avatars.githubusercontent.com/u/142941703?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3478",
+        "created_at": "2024-09-25T18:32:28Z",
+        "updated_at": "2025-08-08T16:03:14Z",
+        "labels": [
+          "Perf Improve"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3416,
+        "title": "Weight stripping",
+        "author": "simberg-amd",
+        "author_avatar": "https://avatars.githubusercontent.com/u/178921475?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3416",
+        "created_at": "2024-09-04T20:33:20Z",
+        "updated_at": "2025-03-07T22:47:12Z",
+        "labels": [],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3222,
+        "title": "Add weight streaming",
+        "author": "eddieliao",
+        "author_avatar": "https://avatars.githubusercontent.com/u/54926923?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3222",
+        "created_at": "2024-06-26T20:35:08Z",
+        "updated_at": "2026-04-05T06:17:38Z",
+        "labels": [
+          "enhancement",
+          "Windows",
+          "Ubuntu",
+          "UAI"
+        ],
+        "member_reviews": 0,
+        "reviewers": [],
+        "member_approvals": 0,
+        "approvers": []
+      }
+    ],
+    "one": [
+      {
+        "number": 4761,
+        "title": "Update rocMLIR integration API to version 5 (perfConfig, cluster size)",
+        "author": "dhernandez0",
+        "author_avatar": "https://avatars.githubusercontent.com/u/9977702?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4761",
+        "created_at": "2026-04-09T09:48:28Z",
+        "updated_at": "2026-04-10T15:28:12Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "pfultz2"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "pfultz2"
+        ]
+      },
+      {
+        "number": 4747,
+        "title": "Expose op builder to the python API using a macro class",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4747",
+        "created_at": "2026-04-07T00:55:41Z",
+        "updated_at": "2026-04-09T14:46:45Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "CharlieL7"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "CharlieL7"
+        ]
+      },
+      {
+        "number": 4723,
+        "title": "[AIMIGRAPHX-885]  MLP tower batched horizontal fusions",
+        "author": "TedThemistokleous",
+        "author_avatar": "https://avatars.githubusercontent.com/u/107195283?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4723",
+        "created_at": "2026-03-31T21:33:09Z",
+        "updated_at": "2026-04-10T04:16:52Z",
+        "labels": [
+          "Perf Improve"
+        ],
+        "member_reviews": 1,
+        "reviewers": [
+          "bdevorem"
+        ],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4709,
+        "title": "Tune GPU scheduling, return copies, and pointwise launch bounds",
+        "author": "Rolaand-Jayz",
+        "author_avatar": "https://avatars.githubusercontent.com/u/162228733?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4709",
+        "created_at": "2026-03-26T13:41:34Z",
+        "updated_at": "2026-03-31T20:48:21Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "CharlieL7"
+        ],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4707,
+        "title": "Improve adaptive GPU defaults and device feature caching",
+        "author": "Rolaand-Jayz",
+        "author_avatar": "https://avatars.githubusercontent.com/u/162228733?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4707",
+        "created_at": "2026-03-26T13:41:29Z",
+        "updated_at": "2026-03-31T20:59:48Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "CharlieL7"
+        ],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4702,
+        "title": "[AIMIGRAPHX-835] integrate symbolic expression in dynamic_dimension",
+        "author": "shivadbhavsar",
+        "author_avatar": "https://avatars.githubusercontent.com/u/105248561?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4702",
+        "created_at": "2026-03-25T00:26:52Z",
+        "updated_at": "2026-04-10T16:44:30Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "CharlieL7"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "CharlieL7"
+        ]
+      },
+      {
+        "number": 4699,
+        "title": "Support dynamic input shapes for NonMaxSuppression op with runtime validation",
+        "author": "klin2024",
+        "author_avatar": "https://avatars.githubusercontent.com/u/169317884?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4699",
+        "created_at": "2026-03-24T08:51:59Z",
+        "updated_at": "2026-04-10T18:17:45Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "CharlieL7"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "CharlieL7"
+        ]
+      },
+      {
+        "number": 4691,
+        "title": "add Dockerfile for ubuntu 24.04",
+        "author": "kahmed10",
+        "author_avatar": "https://avatars.githubusercontent.com/u/15948690?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4691",
+        "created_at": "2026-03-21T15:44:21Z",
+        "updated_at": "2026-04-06T16:16:41Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "causten"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "causten"
+        ]
+      },
+      {
+        "number": 4648,
+        "title": "Add flag to strip context",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4648",
+        "created_at": "2026-03-03T00:16:38Z",
+        "updated_at": "2026-04-02T09:29:23Z",
+        "labels": [
+          "simple"
+        ],
+        "member_reviews": 1,
+        "reviewers": [
+          "kahmed10"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "kahmed10"
+        ]
+      },
+      {
+        "number": 4163,
+        "title": "Improve split reshape",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4163",
+        "created_at": "2025-07-23T19:04:56Z",
+        "updated_at": "2026-04-08T14:38:12Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "TedThemistokleous"
+        ],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3666,
+        "title": "Llama2 7b model C++ example",
+        "author": "ototh-htec",
+        "author_avatar": "https://avatars.githubusercontent.com/u/180665894?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3666",
+        "created_at": "2024-11-29T13:46:47Z",
+        "updated_at": "2026-03-09T19:17:25Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "causten"
+        ],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3468,
+        "title": "Fix for Lower unsupported pooling sizes for the CPU to Reference backend #3177",
+        "author": "aditya-167",
+        "author_avatar": "https://avatars.githubusercontent.com/u/47297221?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3468",
+        "created_at": "2024-09-22T22:28:36Z",
+        "updated_at": "2024-10-21T22:48:16Z",
+        "labels": [],
+        "member_reviews": 1,
+        "reviewers": [
+          "CharlieL7"
+        ],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 3465,
+        "title": "Remove layernorm fusion",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3465",
+        "created_at": "2024-09-20T18:06:01Z",
+        "updated_at": "2026-04-10T18:20:06Z",
+        "labels": [
+          "Cleanup"
+        ],
+        "member_reviews": 1,
+        "reviewers": [
+          "TedThemistokleous"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "TedThemistokleous"
+        ]
+      },
+      {
+        "number": 2224,
+        "title": "Added mutex locks in register_target.cpp and created a multithreading\u2026",
+        "author": "bpickrel",
+        "author_avatar": "https://avatars.githubusercontent.com/u/95253842?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/2224",
+        "created_at": "2023-09-20T23:55:14Z",
+        "updated_at": "2026-03-11T02:30:44Z",
+        "labels": [
+          "bugfix"
+        ],
+        "member_reviews": 1,
+        "reviewers": [
+          "kahmed10"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "kahmed10"
+        ]
+      }
+    ],
+    "two_plus": [
+      {
+        "number": 4765,
+        "title": "Add versioninfo to migraphx binaries WINDOWS",
+        "author": "ivarusic-amd",
+        "author_avatar": "https://avatars.githubusercontent.com/u/147505839?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4765",
+        "created_at": "2026-04-09T15:21:11Z",
+        "updated_at": "2026-04-10T08:59:54Z",
+        "labels": [
+          "Windows"
+        ],
+        "member_reviews": 2,
+        "reviewers": [
+          "apwojcik",
+          "causten"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "apwojcik"
+        ]
+      },
+      {
+        "number": 4677,
+        "title": "Fix FP16 overflow in GQA attention and concat_past_present buffer overflow",
+        "author": "aditya-dl",
+        "author_avatar": "https://avatars.githubusercontent.com/u/64709773?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4677",
+        "created_at": "2026-03-16T19:27:40Z",
+        "updated_at": "2026-04-10T15:06:41Z",
+        "labels": [],
+        "member_reviews": 2,
+        "reviewers": [
+          "pfultz2",
+          "CharlieL7"
+        ],
+        "member_approvals": 0,
+        "approvers": []
+      },
+      {
+        "number": 4665,
+        "title": "Add missing `trace` check for debug output in `compile_plan`",
+        "author": "mferencevic",
+        "author_avatar": "https://avatars.githubusercontent.com/u/9316533?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4665",
+        "created_at": "2026-03-13T11:19:09Z",
+        "updated_at": "2026-03-19T11:00:52Z",
+        "labels": [],
+        "member_reviews": 2,
+        "reviewers": [
+          "causten",
+          "pfultz2"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "causten"
+        ]
+      },
+      {
+        "number": 4521,
+        "title": "Correct QLinearMatMul broadcasting and QLinearConv bias quantization",
+        "author": "klin2024",
+        "author_avatar": "https://avatars.githubusercontent.com/u/169317884?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4521",
+        "created_at": "2026-01-02T08:08:20Z",
+        "updated_at": "2026-04-10T01:09:41Z",
+        "labels": [],
+        "member_reviews": 2,
+        "reviewers": [
+          "causten",
+          "CharlieL7"
+        ],
+        "member_approvals": 1,
+        "approvers": [
+          "CharlieL7"
+        ]
+      }
+    ],
+    "two_plus_approved": [
+      {
+        "number": 4767,
+        "title": "Move the data into the for loop to avoid data races",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4767",
+        "created_at": "2026-04-09T15:57:38Z",
+        "updated_at": "2026-04-10T16:47:53Z",
+        "labels": [
+          "bugfix",
+          "simple"
+        ],
+        "member_reviews": 2,
+        "reviewers": [
+          "TedThemistokleous",
+          "CharlieL7"
+        ],
+        "member_approvals": 2,
+        "approvers": [
+          "TedThemistokleous",
+          "CharlieL7"
+        ]
+      },
+      {
+        "number": 4754,
+        "title": "Add build capability for Python 3.14",
+        "author": "causten",
+        "author_avatar": "https://avatars.githubusercontent.com/u/7440191?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4754",
+        "created_at": "2026-04-08T15:00:06Z",
+        "updated_at": "2026-04-10T17:09:26Z",
+        "labels": [
+          "ok-to-test"
+        ],
+        "member_reviews": 3,
+        "reviewers": [
+          "pfultz2",
+          "TedThemistokleous",
+          "bdevorem"
+        ],
+        "member_approvals": 3,
+        "approvers": [
+          "pfultz2",
+          "TedThemistokleous",
+          "bdevorem"
+        ]
+      },
+      {
+        "number": 4748,
+        "title": "Add rock prefix for rocMLIR attributes",
+        "author": "dhernandez0",
+        "author_avatar": "https://avatars.githubusercontent.com/u/9977702?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4748",
+        "created_at": "2026-04-07T15:44:44Z",
+        "updated_at": "2026-04-09T09:21:38Z",
+        "labels": [],
+        "member_reviews": 4,
+        "reviewers": [
+          "umangyadav",
+          "pfultz2",
+          "bdevorem",
+          "CharlieL7"
+        ],
+        "member_approvals": 4,
+        "approvers": [
+          "umangyadav",
+          "pfultz2",
+          "bdevorem",
+          "CharlieL7"
+        ]
+      },
+      {
+        "number": 4703,
+        "title": "Adding past inputs to MultiHeadAttention parser for supporting new models",
+        "author": "urpetkov-amd",
+        "author_avatar": "https://avatars.githubusercontent.com/u/127323899?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4703",
+        "created_at": "2026-03-25T11:24:38Z",
+        "updated_at": "2026-04-09T22:26:16Z",
+        "labels": [
+          "bugfix",
+          "Onnx Operators"
+        ],
+        "member_reviews": 2,
+        "reviewers": [
+          "TedThemistokleous",
+          "kahmed10"
+        ],
+        "member_approvals": 2,
+        "approvers": [
+          "TedThemistokleous",
+          "kahmed10"
+        ]
+      },
+      {
+        "number": 4626,
+        "title": "Add debug symbols for parsed and compiler pass replaced instructions ",
+        "author": "CharlieL7",
+        "author_avatar": "https://avatars.githubusercontent.com/u/11913076?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4626",
+        "created_at": "2026-02-20T21:54:12Z",
+        "updated_at": "2026-04-10T16:43:27Z",
+        "labels": [
+          "enhancement",
+          "high priority"
+        ],
+        "member_reviews": 3,
+        "reviewers": [
+          "pfultz2",
+          "TedThemistokleous",
+          "kahmed10"
+        ],
+        "member_approvals": 3,
+        "approvers": [
+          "pfultz2",
+          "TedThemistokleous",
+          "kahmed10"
+        ]
+      },
+      {
+        "number": 4613,
+        "title": "[7.2.1] Backport Inference Server improvements",
+        "author": "causten",
+        "author_avatar": "https://avatars.githubusercontent.com/u/7440191?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4613",
+        "created_at": "2026-02-13T15:37:54Z",
+        "updated_at": "2026-03-13T21:05:30Z",
+        "labels": [],
+        "member_reviews": 2,
+        "reviewers": [
+          "bdevorem",
+          "kahmed10"
+        ],
+        "member_approvals": 2,
+        "approvers": [
+          "bdevorem",
+          "kahmed10"
+        ]
+      },
+      {
+        "number": 4514,
+        "title": "Add early return for element tile calculation",
+        "author": "TedThemistokleous",
+        "author_avatar": "https://avatars.githubusercontent.com/u/107195283?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4514",
+        "created_at": "2025-12-19T16:08:36Z",
+        "updated_at": "2026-04-10T00:37:35Z",
+        "labels": [
+          "simple",
+          "Cleanup"
+        ],
+        "member_reviews": 2,
+        "reviewers": [
+          "CharlieL7",
+          "kahmed10"
+        ],
+        "member_approvals": 2,
+        "approvers": [
+          "CharlieL7",
+          "kahmed10"
+        ]
+      },
+      {
+        "number": 4217,
+        "title": "Set attribute to help bypass the warning about amdgpu_waves_per_eu",
+        "author": "lakhinderwalia",
+        "author_avatar": "https://avatars.githubusercontent.com/u/139581206?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/4217",
+        "created_at": "2025-08-08T19:14:23Z",
+        "updated_at": "2025-08-08T23:30:38Z",
+        "labels": [],
+        "member_reviews": 2,
+        "reviewers": [
+          "causten",
+          "CharlieL7"
+        ],
+        "member_approvals": 2,
+        "approvers": [
+          "causten",
+          "CharlieL7"
+        ]
+      },
+      {
+        "number": 3873,
+        "title": "wait() failing for the default stream 0",
+        "author": "lakhinderwalia",
+        "author_avatar": "https://avatars.githubusercontent.com/u/139581206?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3873",
+        "created_at": "2025-03-07T19:24:24Z",
+        "updated_at": "2026-04-03T22:02:03Z",
+        "labels": [],
+        "member_reviews": 3,
+        "reviewers": [
+          "pfultz2",
+          "CharlieL7",
+          "kahmed10"
+        ],
+        "member_approvals": 2,
+        "approvers": [
+          "CharlieL7",
+          "kahmed10"
+        ]
+      },
+      {
+        "number": 3815,
+        "title": "Use fill_argument for literals that have the same value",
+        "author": "pfultz2",
+        "author_avatar": "https://avatars.githubusercontent.com/u/1306044?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3815",
+        "created_at": "2025-02-14T17:15:19Z",
+        "updated_at": "2026-04-06T20:27:48Z",
+        "labels": [
+          "Cleanup"
+        ],
+        "member_reviews": 2,
+        "reviewers": [
+          "TedThemistokleous",
+          "kahmed10"
+        ],
+        "member_approvals": 2,
+        "approvers": [
+          "TedThemistokleous",
+          "kahmed10"
+        ]
+      },
+      {
+        "number": 3770,
+        "title": "Fix: Driver --batch option sets Window Dimensions.",
+        "author": "lakhinderwalia",
+        "author_avatar": "https://avatars.githubusercontent.com/u/139581206?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/3770",
+        "created_at": "2025-01-20T20:07:58Z",
+        "updated_at": "2025-06-16T20:06:58Z",
+        "labels": [
+          "bugfix",
+          "Continous Integration",
+          "Cleanup",
+          "Tooling"
+        ],
+        "member_reviews": 4,
+        "reviewers": [
+          "CharlieL7",
+          "pfultz2",
+          "kahmed10",
+          "TedThemistokleous"
+        ],
+        "member_approvals": 3,
+        "approvers": [
+          "CharlieL7",
+          "kahmed10",
+          "TedThemistokleous"
+        ]
+      },
+      {
+        "number": 1417,
+        "title": "Warnings upon tuning  information mismatch for Convolutions",
+        "author": "umangyadav",
+        "author_avatar": "https://avatars.githubusercontent.com/u/29876643?v=4",
+        "url": "https://github.com/ROCm/AMDMIGraphX/pull/1417",
+        "created_at": "2022-10-19T19:20:03Z",
+        "updated_at": "2025-03-07T15:58:58Z",
+        "labels": [
+          "revisit",
+          "Icebox"
+        ],
+        "member_reviews": 2,
+        "reviewers": [
+          "TedThemistokleous",
+          "kahmed10"
+        ],
+        "member_approvals": 2,
+        "approvers": [
+          "TedThemistokleous",
+          "kahmed10"
+        ]
+      }
+    ]
+  }
+}

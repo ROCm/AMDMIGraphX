@@ -39,6 +39,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/source_location.hpp>
+#include <migraphx/logger.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
@@ -392,6 +393,8 @@ static void register_custom_op(const CustomOp& op)
 }
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
+
+static void set_log_header(bool show) { log::set_show_header(show); }
 
 } // namespace migraphx
 
@@ -2423,6 +2426,12 @@ extern "C" migraphx_status migraphx_get_onnx_operator_name_at_index(char** out, 
 extern "C" migraphx_status migraphx_get_onnx_operators_size(size_t* out)
 {
     auto api_error_result = migraphx::try_([&] { *out = migraphx::get_onnx_operators_size(); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_set_log_header(bool show)
+{
+    auto api_error_result = migraphx::try_([&] { migraphx::set_log_header((show)); });
     return api_error_result;
 }
 

@@ -28,6 +28,7 @@
 #include <iterator>
 #include <functional>
 #include <numeric>
+#include <optional>
 #include <sstream>
 
 namespace migraphx {
@@ -713,37 +714,63 @@ std::size_t expr::hash() const
     return result;
 }
 
+template <class R, class Replace, class Apply>
+R generic_eval(const expr& e, Replace replace, Apply apply)
+{
+    auto r = replace(e);
+    if(r)
+        return *r;
+    auto& children = e.children();
+    std::vector<R> args;
+    args.reserve(children.size());
+    std::transform(children.begin(), children.end(), std::back_inserter(args), [&](const expr& child) {
+        return generic_eval<R>(child, replace, apply);
+    });
+    return apply(std::get<op_node>(e.node()), std::move(args));
+}
+
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
-    std::unordered_map<std::string, value> vars;
-    for(const auto& [key, val] : symbol_map)
-    {
-        if(key.empty() or not std::holds_alternative<variable_node>(key.node()))
-            MIGRAPHX_THROW("eval_uint: keys must be variable expressions");
-        vars[std::get<variable_node>(key.node()).name] = int64_t{static_cast<int64_t>(val)};
-    }
-    auto v = eval(vars);
-    return to<std::size_t>(v);
+    return generic_eval<std::size_t>(
+        *this,
+        [&](const expr& e) -> std::optional<std::size_t> {
+            auto it = symbol_map.find(e);
+            if(it != symbol_map.end())
+                return it->second;
+            if(auto* n = std::get_if<literal_node>(&e.node()))
+                return to<std::size_t>(n->val);
+            if(std::holds_alternative<variable_node>(e.node()))
+                MIGRAPHX_THROW("eval_uint: unbound variable '" +
+                               std::get<variable_node>(e.node()).name + "'");
+            return std::nullopt;
+        },
+        [](const op_node& op, std::vector<std::size_t> args) {
+            std::vector<value> vargs;
+            vargs.reserve(args.size());
+            std::transform(args.begin(),
+                           args.end(),
+                           std::back_inserter(vargs),
+                           [](std::size_t x) -> value { return int64_t(x); });
+            return to<std::size_t>(op.op->eval(vargs));
+        });
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
 {
-    auto it = symbol_map.find(*this);
-    if(it != symbol_map.end())
-        return it->second;
-    if(not pimpl)
-        return *this;
-    if(std::holds_alternative<literal_node>(pimpl->node) or
-       std::holds_alternative<variable_node>(pimpl->node))
-        return *this;
-    std::vector<expr> new_children;
-    new_children.reserve(pimpl->children.size());
-    std::transform(pimpl->children.begin(),
-                   pimpl->children.end(),
-                   std::back_inserter(new_children),
-                   [&](const expr& child) { return child.subs(symbol_map); });
-    auto* n = std::get_if<op_node>(&pimpl->node);
-    return call_op(n->op, std::move(new_children));
+    return generic_eval<expr>(
+        *this,
+        [&](const expr& e) -> std::optional<expr> {
+            auto it = symbol_map.find(e);
+            if(it != symbol_map.end())
+                return it->second;
+            if(e.empty())
+                return e;
+            if(std::holds_alternative<literal_node>(e.node()) or
+               std::holds_alternative<variable_node>(e.node()))
+                return e;
+            return std::nullopt;
+        },
+        [](const op_node& op, std::vector<expr> args) { return call_op(op.op, std::move(args)); });
 }
 
 expr sin(expr e)
@@ -826,41 +853,37 @@ const std::vector<expr>& expr::children() const { return pimpl->children; }
 
 value expr::eval(const std::unordered_map<std::string, value>& vars) const
 {
-    if(auto* n = std::get_if<literal_node>(&pimpl->node))
-        return n->val;
-    if(auto* n = std::get_if<variable_node>(&pimpl->node))
-        return vars.at(n->name);
-    auto* n = std::get_if<op_node>(&pimpl->node);
-    std::vector<value> args;
-    args.reserve(pimpl->children.size());
-    std::transform(pimpl->children.begin(),
-                   pimpl->children.end(),
-                   std::back_inserter(args),
-                   [&](const expr& child) { return child.eval(vars); });
-    return n->op->eval(args);
+    return generic_eval<value>(
+        *this,
+        [&](const expr& e) -> std::optional<value> {
+            if(auto* n = std::get_if<literal_node>(&e.node()))
+                return n->val;
+            if(auto* n = std::get_if<variable_node>(&e.node()))
+                return vars.at(n->name);
+            return std::nullopt;
+        },
+        [](const op_node& op, std::vector<value> args) { return op.op->eval(args); });
 }
 
 interval expr::eval_interval(const std::unordered_map<std::string, interval>& vars) const
 {
-    if(auto* n = std::get_if<literal_node>(&pimpl->node))
-        return {n->val, n->val};
-    if(auto* n = std::get_if<variable_node>(&pimpl->node))
-    {
-        auto it = vars.find(n->name);
-        if(it != vars.end())
-            return it->second;
-        if(not n->constraints.empty())
-            return n->constraints.front();
-        MIGRAPHX_THROW("Variable '" + n->name + "' not found in interval map");
-    }
-    auto* n = std::get_if<op_node>(&pimpl->node);
-    std::vector<interval> args;
-    args.reserve(pimpl->children.size());
-    std::transform(pimpl->children.begin(),
-                   pimpl->children.end(),
-                   std::back_inserter(args),
-                   [&](const expr& child) { return child.eval_interval(vars); });
-    return n->op->eval_interval(args);
+    return generic_eval<interval>(
+        *this,
+        [&](const expr& e) -> std::optional<interval> {
+            if(auto* n = std::get_if<literal_node>(&e.node()))
+                return interval{n->val, n->val};
+            if(auto* n = std::get_if<variable_node>(&e.node()))
+            {
+                auto it = vars.find(n->name);
+                if(it != vars.end())
+                    return it->second;
+                if(not n->constraints.empty())
+                    return n->constraints.front();
+                MIGRAPHX_THROW("Variable '" + n->name + "' not found in interval map");
+            }
+            return std::nullopt;
+        },
+        [](const op_node& op, std::vector<interval> args) { return op.op->eval_interval(args); });
 }
 
 namespace {

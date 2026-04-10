@@ -40,6 +40,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -896,8 +897,7 @@ void module::finalize(std::vector<context>& contexts)
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
     if(ins != end())
-        std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
-                  << std::endl;
+        log::warn() << "Instruction needs normalization, performance may be affected.";
 }
 
 std::unordered_map<instruction_ref, instruction_ref>

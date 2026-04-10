@@ -519,9 +519,7 @@ api.add_function('migraphx_get_onnx_operators_size',
                  fname='migraphx::get_onnx_operators_size',
                  returns='size_t')
 
-api.add_function('migraphx_set_log_header',
-                 api.params(show='bool'),
-                 fname='migraphx::set_log_header')
+
 
 @auto_handle(ref=True)
 def context(h):

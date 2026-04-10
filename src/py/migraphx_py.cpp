@@ -43,7 +43,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/float8.hpp>
-#include <migraphx/logger.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
 #include <migraphx/iterator_for.hpp>
@@ -450,9 +449,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def(py::self != py::self);
 
     py::class_<migraphx::module, std::unique_ptr<migraphx::module, py::nodelete>>(m, "module")
-        .def("print",
-             [](const migraphx::module& mm) { py::print(py::str(migraphx::to_string(mm))); })
-        .def("debug_print", [](const migraphx::module& mm) { migraphx::log::debug() << mm; })
+        .def("print", [](const migraphx::module& mm) { std::cout << mm << std::endl; })
         .def(
             "add_instruction",
             [](migraphx::module& mm,
@@ -570,9 +567,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  return ss.str();
              })
         .def("sort", &migraphx::program::sort)
-        .def("print",
-             [](const migraphx::program& p) { py::print(py::str(migraphx::to_string(p))); })
-        .def("debug_print", [](const migraphx::program& p) { migraphx::log::debug() << p; })
+        .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})
         .def("__repr__", [](const migraphx::program& p) { return migraphx::to_string(p); });
@@ -791,14 +786,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     m.def("from_gpu", &migraphx::gpu::from_gpu);
     m.def("gpu_sync", [] { migraphx::gpu::gpu_sync(); });
 #endif
-
-    m.def("set_log_header",
-          &migraphx::log::set_show_header,
-          "Enable or disable log header (timestamp, severity, source location)",
-          py::arg("show"));
-    m.def("get_log_header",
-          &migraphx::log::get_show_header,
-          "Get current log header visibility state");
 
 #ifdef VERSION_INFO
     m.attr("__version__") = VERSION_INFO;

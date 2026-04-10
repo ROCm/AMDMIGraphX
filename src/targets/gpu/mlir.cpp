@@ -32,7 +32,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
-#include <migraphx/logger.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
@@ -76,6 +75,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/logger.hpp>
 #include <deque>
 #include <variant>
 #include <fstream>
@@ -906,7 +906,7 @@ struct mlir_program
             std::string error = "Invalid MLIR created: " + logger.str();
             if(enabled(MIGRAPHX_TRACE_MLIR{}))
             {
-                log::trace() << error;
+                std::cout << error << std::endl;
             }
             MIGRAPHX_THROW(error);
         }
@@ -923,7 +923,7 @@ struct mlir_program
         if(trace >= 2)
         {
             const std::lock_guard<std::mutex> lock(mutex);
-            log::trace() << mlir_print(&mlirOperationPrint, mod_op);
+            std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
         }
 
         if(mlirLogicalResultIsFailure(mlirPassManagerRunOnOp(pm_back.get(), mod_op)))
@@ -931,7 +931,7 @@ struct mlir_program
             std::string error = "MLIR backend compilation failed: " + logger.str();
             if(enabled(MIGRAPHX_TRACE_MLIR{}))
             {
-                log::trace() << error;
+                std::cout << error << std::endl;
             }
             MIGRAPHX_THROW(error);
         }
@@ -1112,8 +1112,7 @@ struct mlir_program
                                         prob_config.begin() + prob_config_bytes);
             if(tuning_table.second)
             {
-                log::info() << "NOTE: MLIR tuning table did not include a key for "
-                            << prob_config_str;
+                log::info() << "MLIR tuning table did not include a key for " << prob_config_str;
             }
             dump_tuning_cfg(prob_config_str);
             return false;
@@ -1279,7 +1278,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        log::trace() << m;
+        std::cout << m << std::endl;
     }
 
     mlir_program mp;
@@ -1290,7 +1289,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        log::trace() << mlir_print(&mlirOperationPrint, mod_op);
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
     auto co            = mp.compile(solution);
@@ -1353,16 +1352,16 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     if(trace)
     {
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-        log::trace() << mlir_print(&mlirOperationPrint, mod_op);
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     auto tc = mp.get_tuning_config(exhaustive);
     static std::mutex mutex;
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        log::trace() << "Problem: " << tc.problem;
+        std::cout << "Problem: " << tc.problem << std::endl;
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-        log::trace() << mlir_print(&mlirOperationPrint, mod_op);
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     return tc;
 }

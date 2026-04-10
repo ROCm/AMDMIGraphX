@@ -41,10 +41,28 @@ on:
         description: -m for Max value; -s for Std dev; -r for Threshold file
         required: true
         default: '-r'
+      model_path:
+        description: Host path to NFS-backed models (ARC runner mount)
+        required: false
+        default: "/migraphx-models"
+      perf_workspace:
+        description: Writable NFS-backed workspace for reports/scratch (ARC runner mount)
+        required: false
+        default: "/mnt/migraphx-perf-work"
+      runner_label:
+        description: Self-hosted runner label (ARC scale set linux-migraphx-mi250-1)
+        required: false
+        default: "linux-migraphx-mi250-1"
 
 concurrency: 
-  group: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+  group: "perftest-${{ github.head_ref || github.base_ref || 'schedule' }}"
   cancel-in-progress: true
+
+env:
+  # Defaults when not overridden by config.md or workflow_dispatch
+  MIGRAPHX_MODEL_PATH_DEFAULT: /migraphx-models
+  MIGRAPHX_PERF_WORKSPACE_DEFAULT: /mnt/migraphx-perf-work
+  MIGRAPHX_RUNNER_LABEL: linux-migraphx-mi250-1
 
 jobs:
   get_config:
@@ -68,6 +86,10 @@ jobs:
         uses: actions/checkout@v4
       - name: read_config
         id: read_config
+        env:
+          MIGRAPHX_MODEL_PATH_DEFAULT: ${{ env.MIGRAPHX_MODEL_PATH_DEFAULT }}
+          MIGRAPHX_PERF_WORKSPACE_DEFAULT: ${{ env.MIGRAPHX_PERF_WORKSPACE_DEFAULT }}
+          MIGRAPHX_RUNNER_LABEL_DEFAULT: ${{ env.MIGRAPHX_RUNNER_LABEL }}
         run: |
           ROCM_VERSION=$(grep 'ROCM_VERSION' .github/workflows/config.md | cut -d "'" -f2)
           BENCHMARK_UTILS_REPO=$(grep 'BENCHMARK_UTILS_REPO' .github/workflows/config.md | cut -d "'" -f2)
@@ -86,7 +108,10 @@ jobs:
           echo "perf_number=$RESULTS_TO_COMPARE" >> $GITHUB_OUTPUT
           echo "perf_flag=$CALCULATION_METHOD_FLAG" >> $GITHUB_OUTPUT
           echo "perf_timeout=$PERFORMANCE_TEST_TIMEOUT" >> $GITHUB_OUTPUT
-      
+          echo "model_path=$MODEL_PATH" >> $GITHUB_OUTPUT
+          echo "perf_workspace=$PERF_WS" >> $GITHUB_OUTPUT
+          echo "runner_label=$RUNNER_LABEL" >> $GITHUB_OUTPUT
+
   call_reusable:
     needs: get_config
     uses: ROCm/migraphx-benchmark/.github/workflows/perf-test.yml@main
@@ -99,5 +124,8 @@ jobs:
       result_number: ${{ github.event.inputs.result_number || needs.get_config.outputs.perf_number }}
       flags: ${{ github.event.inputs.flags || needs.get_config.outputs.perf_flag }}
       model_timeout: ${{ github.event.inputs.model_timeout || needs.get_config.outputs.perf_timeout }}
+      model_path: ${{ github.event.inputs.model_path || needs.get_config.outputs.model_path }}
+      perf_workspace: ${{ github.event.inputs.perf_workspace || needs.get_config.outputs.perf_workspace }}
+      runs_on: ${{ github.event.inputs.runner_label || needs.get_config.outputs.runner_label }}
     secrets:
       BENCHMARK_UTILS_READ_TOKEN: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}

@@ -189,15 +189,14 @@ class MIGRAPHX_EXPORT expr
     friend bool operator!=(const expr& a, const expr& b);
     friend std::ostream& operator<<(std::ostream& os, const expr& e);
 
-#define MIGRAPHX_SYM_DEFINE_OP_TYPE(binary, assign, type)                     \
-    expr& operator assign(type x) { return *this = *this binary lit(x); }     \
-    friend expr operator binary(expr ex, type y) { return ex binary lit(y); } \
-    friend expr operator binary(type x, expr ey) { return lit(x) binary ey; }
-
 #define MIGRAPHX_SYM_DEFINE_OP(binary, assign)                                    \
     expr& operator assign(expr ey) { return *this = *this binary std::move(ey); } \
-    MIGRAPHX_SYM_DEFINE_OP_TYPE(binary, assign, int64_t)                          \
-    MIGRAPHX_SYM_DEFINE_OP_TYPE(binary, assign, double)
+    template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})> \
+    expr& operator assign(T x) { return *this = *this binary lit(x); }     \
+    template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})> \
+    friend expr operator binary(expr ex, T y) { return ex binary lit(y); } \
+    template<class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})> \
+    friend expr operator binary(T x, expr ey) { return lit(x) binary ey; }
 
     MIGRAPHX_SYM_DEFINE_OP(+, +=)
     MIGRAPHX_SYM_DEFINE_OP(-, -=)

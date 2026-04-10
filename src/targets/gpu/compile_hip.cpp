@@ -27,6 +27,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/logger.hpp>
 #include <cassert>
 #include <iostream>
 #include <deque>

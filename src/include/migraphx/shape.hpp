@@ -173,6 +173,7 @@ struct MIGRAPHX_EXPORT shape
         MIGRAPHX_EXPORT friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
 
         // clang-format off
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(binary_op, assign_op)                                  \
         dynamic_dimension& operator assign_op(const dynamic_dimension& x);                      \
         dynamic_dimension& operator assign_op(const std::size_t& x);                            \

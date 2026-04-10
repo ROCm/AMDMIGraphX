@@ -823,6 +823,7 @@ bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max;
 bool shape::dynamic_dimension::has_optimal() const { return not optimals.empty(); }
 
 // clang-format off
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_SHAPE_DYN_DIM_IMPLEMENT_OP(binary_op, assign_op)                                \
     shape::dynamic_dimension& shape::dynamic_dimension::operator assign_op(const std::size_t& x) \
     {                                                                                            \

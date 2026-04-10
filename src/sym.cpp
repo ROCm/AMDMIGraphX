@@ -29,6 +29,7 @@
 #include <functional>
 #include <numeric>
 #include <optional>
+#include <migraphx/stringutils.hpp>
 #include <sstream>
 
 namespace migraphx {
@@ -923,36 +924,24 @@ bool is_infix_op(const std::string& name)
 
 std::string expr::to_string() const
 {
-    if(not pimpl)
-        return {};
-    if(auto* n = std::get_if<literal_node>(&pimpl->node))
-        return value_to_string(n->val);
-    if(auto* n = std::get_if<variable_node>(&pimpl->node))
-        return n->name;
-    auto* n = std::get_if<op_node>(&pimpl->node);
-    if(n->op->name == "neg" and pimpl->children.size() == 1)
-        return "(-" + pimpl->children[0].to_string() + ")";
-    if(is_infix_op(n->op->name) and pimpl->children.size() >= 2)
-    {
-        std::string result = "(";
-        for(std::size_t i = 0; i < pimpl->children.size(); ++i)
-        {
-            if(i > 0)
-                result += " " + n->op->name + " ";
-            result += pimpl->children[i].to_string();
-        }
-        result += ")";
-        return result;
-    }
-    std::string result = n->op->name + "(";
-    for(std::size_t i = 0; i < pimpl->children.size(); ++i)
-    {
-        if(i > 0)
-            result += ", ";
-        result += pimpl->children[i].to_string();
-    }
-    result += ")";
-    return result;
+    return generic_eval<std::string>(
+        *this,
+        [](const expr& e) -> std::optional<std::string> {
+            if(e.empty())
+                return std::string{};
+            if(auto* n = std::get_if<literal_node>(&e.node()))
+                return value_to_string(n->val);
+            if(auto* n = std::get_if<variable_node>(&e.node()))
+                return n->name;
+            return std::nullopt;
+        },
+        [](const op_node& op, std::vector<std::string> args) -> std::string {
+            if(op.op->name == "neg" and args.size() == 1)
+                return "(-" + args[0] + ")";
+            if(is_infix_op(op.op->name) and args.size() >= 2)
+                return "(" + join_strings(args, " " + op.op->name + " ") + ")";
+            return op.op->name + "(" + join_strings(args, ", ") + ")";
+        });
 }
 
 std::string to_string(const expr& e) { return e.to_string(); }

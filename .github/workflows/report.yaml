@@ -7,7 +7,6 @@ on:
 env:
   REPORTS_DIR: migraphx-reports
   MAIL_TO: dl.dl-migraphx-perfrun@amd.com
-  MAIL_CC: igor.mirosavljevic@htecgroup.com
   MAIL_BODY: Scheduled Performance test run on develop branch
   PERFORMANCE_DIR: performance-backup
   REPORTS_PATH: temp_reports
@@ -64,18 +63,7 @@ jobs:
             else
               echo "ORGANIZATION=AMD" >> $GITHUB_ENV
             fi
-          fi
-
-      - name: Update Mailing list based on organization
-        if: steps.dl_art.outcome == 'success'
-        run: |
-          if [ "${{ env.ORGANIZATION }}" == "HTEC" ]; then
-            echo "MAIL_TO=igor.mirosavljevic@htecgroup.com" >> $GITHUB_ENV
-            echo "MAIL_CC=" >> $GITHUB_ENV
-          else
-            echo "MAIL_TO=dl.dl-migraphx-perfrun@amd.com" >> $GITHUB_ENV
-            echo "MAIL_CC=igor.mirosavljevic@htecgroup.com" >> $GITHUB_ENV
-          fi        
+          fi      
         
       - name: Checkout report's repo
         if: steps.dl_art.outcome == 'success'
@@ -216,7 +204,6 @@ jobs:
           from: "GH Actions"
           secure: true
           body: ${{ env.MAIL_BODY }}
-          cc: ${{ env.MAIL_CC }}
           ignore_cert: true
           attachments: ${{ steps.last_report.outputs.latest}}
           priority: normal

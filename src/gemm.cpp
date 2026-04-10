@@ -72,15 +72,18 @@ struct batch_slicer
     batch_slicer(const shape& mat_shape)
     {
         auto n_batch_dims = mat_shape.ndim() - 2;
-        inner_shape       = shape{mat_shape.type(),
-                                  {mat_shape.lens().end() - 2, mat_shape.lens().end()},
-                                  {mat_shape.strides().end() - 2, mat_shape.strides().end()}};
+        inner_shape       = shape{
+            mat_shape.type(),
+            std::vector<std::size_t>{mat_shape.lens().end() - 2, mat_shape.lens().end()},
+            std::vector<std::size_t>{mat_shape.strides().end() - 2, mat_shape.strides().end()}};
         if(n_batch_dims > 0)
         {
             outer_shape =
                 shape{mat_shape.type(),
-                      {mat_shape.lens().begin(), mat_shape.lens().begin() + n_batch_dims},
-                      {mat_shape.strides().begin(), mat_shape.strides().begin() + n_batch_dims}};
+                      std::vector<std::size_t>{mat_shape.lens().begin(),
+                                               mat_shape.lens().begin() + n_batch_dims},
+                      std::vector<std::size_t>{mat_shape.strides().begin(),
+                                               mat_shape.strides().begin() + n_batch_dims}};
         }
     }
 

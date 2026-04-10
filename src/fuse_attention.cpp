@@ -881,6 +881,12 @@ struct find_kv_cache_attention
         auto starts = inss;
         for(auto ins : starts)
         {
+            // insert_slice may be added by find_instructions_between, but is not fusible
+            if(ins->name() == "insert_slice")
+            {
+                inss.erase(ins);
+                continue;
+            }
             expand(ins);
         }
 

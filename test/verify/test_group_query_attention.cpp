@@ -28,6 +28,21 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/op/builder/insert.hpp>
+
+static migraphx::instruction_ref insert_rotary(migraphx::module& m,
+    bool interleaved,
+    std::size_t sequence_length,
+    std::vector<migraphx::instruction_ref> args)
+{
+    // GQA position semantics: prefill starts from 0, decode uses seqlens_k
+    auto& pos_ids = args.at(1);
+    if(sequence_length > 1)
+    {
+    pos_ids = m.add_literal(migraphx::literal{migraphx::shape{pos_ids->get_shape().type(), {1}}, {0}});
+    }
+    return migraphx::op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
+}
 
 // NOLINTNEXTLINE(readability-function-size)
 static migraphx::program create_gqa_program(const size_t batch_size,
@@ -80,36 +95,24 @@ static migraphx::program create_gqa_program(const size_t batch_size,
     transposed_qkv = mm->add_instruction(
         migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
 
-    auto rotary_qkv = transposed_qkv;
+
+    auto qk = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads + kv_num_heads}}}), transposed_qkv);
+    auto cur_v = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {num_heads + kv_num_heads}}, {"ends", {num_heads + (2 * kv_num_heads)}}}), transposed_qkv);
+    
     if(do_rotary)
     {
-        std::vector<migraphx::instruction_ref> rotary_inputs{
-            transposed_qkv, slk, cos_cache, sin_cache};
-        rotary_qkv = mm->add_instruction(
-            migraphx::make_op(
-                "gqa_rotary_embedding",
-                {{"kv_num_heads", kv_num_heads}, {"num_heads", num_heads}, {"interleaved", false}}),
-            rotary_inputs);
+        qk = insert_rotary(*mm, false, sequence_length, {qk, slk, cos_cache, sin_cache});
+
         if(test_rotary)
         {
-            mm->add_return({rotary_qkv});
+            mm->add_return({qk});
             return p;
         }
     }
 
-    auto rotary_k = mm->add_instruction(
-        migraphx::make_op(
-            "slice",
-            {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
-        rotary_qkv);
-    auto rotary_v =
-        mm->add_instruction(migraphx::make_op("slice",
-                                              {{"axes", {1}},
-                                               {"starts", {num_heads + kv_num_heads}},
-                                               {"ends", {num_heads + (2 * kv_num_heads)}}}),
-                            rotary_qkv);
+    auto q = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qk);
+    auto cur_k = mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}), qk);
 
-    
     std::vector<size_t> static_strides(kv_s.ndim(), 1);
     auto slk_slice = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, 4}}}), slk);
     auto slk_mask = mm->add_literal(migraphx::literal{migraphx::shape{slk_s.type(), {4}}, {0, 0, sequence_length > 1 ? 0 : 1, 0}});
@@ -119,8 +122,8 @@ static migraphx::program create_gqa_program(const size_t batch_size,
     {
         slk_slice = mm->add_instruction(migraphx::make_op("squeeze"), slk_slice);
     }
-    k = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_k, k, slk_slice});
-    v = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {rotary_v, v, slk_slice});
+    k = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {cur_k, k, slk_slice});
+    v = mm->add_instruction(migraphx::make_op("insert_slice", {{"static_strides", static_strides}, {"deref_dest", false}}), {cur_v, v, slk_slice});
     
 
     auto k_out = k;
@@ -136,10 +139,6 @@ static migraphx::program create_gqa_program(const size_t batch_size,
     auto max_seq_len         = kv_s.lens()[2];
     auto past_sl             = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
-
-    auto q = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
-        rotary_qkv);
 
     if(kv_num_heads_factor != 1)
     {

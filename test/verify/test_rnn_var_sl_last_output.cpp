@@ -54,3 +54,4 @@ struct test_rnn_var_sl_last_output : verify_program<test_rnn_var_sl_last_output<
 
 template struct test_rnn_var_sl_last_output<migraphx::op::rnn_direction::forward>;
 template struct test_rnn_var_sl_last_output<migraphx::op::rnn_direction::reverse>;
+template struct test_rnn_var_sl_last_output<migraphx::op::rnn_direction::bidirectional>;

@@ -115,23 +115,29 @@ struct skip_attr
 namespace detail {
 
 template <class T>
-inline constexpr bool is_skip_v = std::is_same_v<T, skip_attr>;
+struct is_skip : std::is_same<T, skip_attr>
+{
+};
 
 template <class T>
-inline constexpr bool is_tuple_v = false;
+struct is_tuple : std::false_type
+{
+};
 template <class... Ts>
-inline constexpr bool is_tuple_v<std::tuple<Ts...>> = true;
+struct is_tuple<std::tuple<Ts...>> : std::true_type
+{
+};
 
 template <class A, class B>
 auto make_seq_result(A a, B b)
 {
-    if constexpr(is_skip_v<A> and is_skip_v<B>)
+    if constexpr(is_skip<A>{} and is_skip<B>{})
         return skip_attr{};
-    else if constexpr(is_skip_v<A>)
+    else if constexpr(is_skip<A>{})
         return std::move(b);
-    else if constexpr(is_skip_v<B>)
+    else if constexpr(is_skip<B>{})
         return std::move(a);
-    else if constexpr(is_tuple_v<A>)
+    else if constexpr(is_tuple<A>{})
         return std::tuple_cat(std::move(a), std::make_tuple(std::move(b)));
     else
         return std::make_tuple(std::move(a), std::move(b));

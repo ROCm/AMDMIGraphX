@@ -117,7 +117,7 @@ int main()
     std::cout << "=== concat_kernel (by name) ===\n";
     p.eval(params, migraphx::eval_callback(print_cb, {"concat_kernel"}));
 
-    // 3. Filter by instruction index (@13 from the compiled graph printout)
+    // 3. Filter by instruction index (@13 from the compiled graph)
     std::cout << "=== concat_kernel (by index) ===\n";
     auto ins_13 = std::next(p.get_main_module()->begin(), 13);
     p.eval(params, migraphx::eval_callback(print_cb, {}, {ins_13}));

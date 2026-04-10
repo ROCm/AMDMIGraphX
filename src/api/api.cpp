@@ -330,12 +330,6 @@ static bool equal(const T& x, const T& y)
 
 static std::vector<argument> run(program& p, const parameter_map& params) { return p.eval(params); }
 
-static std::vector<argument>
-run_callback(program& p, const parameter_map& params, const eval_callback& cb)
-{
-    return p.eval(params, cb);
-}
-
 static std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
 static void print_program(const program& p) { std::cout << p << std::endl; }
@@ -1818,8 +1812,7 @@ extern "C" migraphx_status migraphx_program_run_callback(migraphx_arguments_t* o
                 migraphx_argument arg_handle(output);
                 callback(ins->name().c_str(), &arg_handle, data);
             });
-        *out = allocate<migraphx_arguments_t>(
-            migraphx::run_callback((program->object), (params->object), cb));
+        *out = allocate<migraphx_arguments_t>((program->object).eval((params->object), cb));
     });
     return api_error_result;
 }

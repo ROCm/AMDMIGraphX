@@ -588,10 +588,34 @@ std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
 std::vector<argument> program::eval(const parameter_map& params,
                                     execution_environment exec_env) const
 {
-    auto& contexts = this->impl->contexts;
+    return eval(params, eval_callback{}, exec_env);
+}
 
-    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
-    std::vector<argument> ret;
+std::vector<argument> program::eval(const parameter_map& params,
+                                    const eval_callback& callback,
+                                    execution_environment exec_env) const
+{
+    auto& contexts = this->impl->contexts;
+    auto& targets  = this->impl->targets;
+
+    auto copy_to_host = [&](const argument& result, std::size_t target_id) -> migraphx::argument {
+        try
+        {
+            return targets.at(target_id).copy_from(result);
+        }
+        catch(const migraphx::exception&)
+        {
+            return result;
+        }
+        catch(...)
+        {
+            MIGRAPHX_THROW("Failed to copy result to host.\n");
+        }
+    };
+
+    auto is_inspectable = [](const std::string& op) {
+        return not op.empty() and op.front() != '@' and op != "load";
+    };
 
     if(exec_env.async)
     {
@@ -599,55 +623,23 @@ std::vector<argument> program::eval(const parameter_map& params,
         contexts.front().wait_for(exec_env.queue);
     }
 
-    if(trace_level > 0)
+    std::vector<argument> ret;
+
+    if(callback.enabled())
     {
-        std::unordered_map<instruction_ref, std::string> ins_out;
-        // get instruction names
-        this->print([&](auto x, const auto& ins_names) {
-            std::stringstream ss;
-            instruction::print(ss, x, ins_names);
-            ins_out[x] = ss.str();
-        });
         ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
-            const auto& ctx = contexts[ins->get_target_id()];
-            ctx.finish();
-            std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-            timer t{};
             auto result = f();
-            double t1   = t.record<milliseconds>();
-            ctx.finish();
-            double t2 = t.record<milliseconds>();
-            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
-               not result.empty())
+            if(is_inspectable(ins->name()) and not result.empty() and callback.matches(ins))
             {
-                migraphx::argument buffer;
-                try
+                auto tid = ins->get_target_id();
+                if(tid < contexts.size())
                 {
-                    const target& tgt = this->impl->targets.at(ins->get_target_id());
-                    buffer            = tgt.copy_from(result);
-                }
-                catch(const migraphx::exception&)
-                {
-                    // instruction was run on host then no need to copy buffer from target
-                    buffer = result;
-                }
-                catch(...)
-                {
-                    MIGRAPHX_THROW("MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
-                }
-                if(trace_level == 2)
-                {
-                    std::cout << "Output has " << to_string_range(classify_argument(buffer))
-                              << std::endl;
-                    std::cout << "Output: ";
-                    preview_argument(std::cout, buffer);
-                    std::cout << std::endl;
-                    print_statistics(std::cout, buffer);
+                    contexts[tid].finish();
+                    callback(ins, copy_to_host(result, tid));
                 }
                 else
                 {
-                    std::cout << "Output: " << buffer << std::endl;
+                    callback(ins, result);
                 }
             }
             return result;
@@ -655,55 +647,50 @@ std::vector<argument> program::eval(const parameter_map& params,
     }
     else
     {
-        ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
-    }
-
-    if(exec_env.async)
-    {
-        assert(contexts.size() == 1);
-        contexts.front().finish_on(exec_env.queue);
-    }
-
-    return ret;
-}
-
-std::vector<argument> program::eval(const parameter_map& params,
-                                    const eval_callback& callback,
-                                    execution_environment exec_env) const
-{
-    if(not callback.enabled())
-        return eval(params, exec_env);
-
-    auto& contexts = this->impl->contexts;
-    std::vector<argument> ret;
-
-    if(exec_env.async)
-    {
-        assert(contexts.size() == 1);
-        contexts.front().wait_for(exec_env.queue);
-    }
-
-    ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
-        auto result    = f();
-        const auto& op = ins->name();
-        if(op.front() != '@' and op != "load" and not result.empty() and callback.matches(ins))
+        auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+        if(trace_level > 0)
         {
-            const auto& ctx = contexts[ins->get_target_id()];
-            ctx.finish();
-            migraphx::argument host_buffer;
-            try
-            {
-                const target& tgt = this->impl->targets.at(ins->get_target_id());
-                host_buffer       = tgt.copy_from(result);
-            }
-            catch(const migraphx::exception&)
-            {
-                host_buffer = result;
-            }
-            callback(ins, host_buffer);
+            std::unordered_map<instruction_ref, std::string> ins_out;
+            this->print([&](auto x, const auto& ins_names) {
+                std::stringstream ss;
+                instruction::print(ss, x, ins_names);
+                ins_out[x] = ss.str();
+            });
+            ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
+                const auto& ctx = contexts[ins->get_target_id()];
+                ctx.finish();
+                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                timer t{};
+                auto result = f();
+                double t1   = t.record<milliseconds>();
+                ctx.finish();
+                double t2 = t.record<milliseconds>();
+                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+                if(trace_level > 1 and is_inspectable(ins->name()) and not result.empty())
+                {
+                    auto buffer = copy_to_host(result, ins->get_target_id());
+                    if(trace_level == 2)
+                    {
+                        std::cout << "Output has " << to_string_range(classify_argument(buffer))
+                                  << std::endl;
+                        std::cout << "Output: ";
+                        preview_argument(std::cout, buffer);
+                        std::cout << std::endl;
+                        print_statistics(std::cout, buffer);
+                    }
+                    else
+                    {
+                        std::cout << "Output: " << buffer << std::endl;
+                    }
+                }
+                return result;
+            });
         }
-        return result;
-    });
+        else
+        {
+            ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
+        }
+    }
 
     if(exec_env.async)
     {

@@ -37,8 +37,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /// Callback invoked per-instruction during program::eval() with the result
-/// buffer copied to host memory. Installing a callback activates a separate
-/// eval code path so there is zero overhead when no callback is set.
+/// buffer copied to host memory.
 ///
 /// Two optional filters restrict which instructions trigger the callback.
 /// When both are empty every instruction fires. When either contains a match
@@ -54,21 +53,9 @@ struct eval_callback
 
     eval_callback() {}
 
-    eval_callback(callback_function f) : cb(std::move(f)) {}
-
-    eval_callback(callback_function f, std::unordered_set<std::string> names)
-        : cb(std::move(f)), name_filter(std::move(names))
-    {
-    }
-
-    eval_callback(callback_function f, std::unordered_set<instruction_ref> instructions)
-        : cb(std::move(f)), ins_filter(std::move(instructions))
-    {
-    }
-
-    eval_callback(callback_function f,
-                  std::unordered_set<std::string> names,
-                  std::unordered_set<instruction_ref> instructions)
+    explicit eval_callback(callback_function f,
+                           std::unordered_set<std::string> names            = {},
+                           std::unordered_set<instruction_ref> instructions = {})
         : cb(std::move(f)), name_filter(std::move(names)), ins_filter(std::move(instructions))
     {
     }

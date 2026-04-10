@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -380,16 +380,16 @@ struct nonmaxsuppression
         // make buffer of maximum size
         shape max_output_shape = {output_shape.type(), output_shape.max_lens()};
         argument result{max_output_shape};
+        std::size_t num_selected = 0;
 
         std::size_t max_output_boxes_per_class =
             (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
         if(max_output_boxes_per_class == 0)
         {
-            return result;
+            return result.reshape({output_shape.type(), {num_selected, 3}});
         }
         double iou_threshold     = (args.size() > 3) ? (args.at(3).at<double>()) : 0.0f;
         double score_threshold   = (args.size() > 4) ? (args.at(4).at<double>()) : 0.0f;
-        std::size_t num_selected = 0;
 
         result.visit([&](auto output) {
             get_all<double>(args[0], args[1])([&](auto boxes, auto scores) {

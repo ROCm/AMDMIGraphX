@@ -25,6 +25,7 @@
 #include <migraphx/simple_parser.hpp>
 #include <algorithm>
 #include <iterator>
+#include <functional>
 #include <numeric>
 #include <sstream>
 
@@ -856,52 +857,73 @@ using sym_parser = parser::simple_string_view_skip_parser;
 
 expr parse_expr(sym_parser& p);
 
+template<class F>
+struct call_wrapper
+{
+    F f;
+    template<class... Args>
+    auto try_call(rank<1>, Args&&... args) const -> decltype(f(std::forward<Args>(args)...))
+    {
+        return f(std::forward<Args>(args)...);
+    }
+    
+    template<class... Args>
+    expr try_call(rank<0>, Args&&... args) const
+    {
+        MIGRAPHX_THROW((std::string("Function is not callable: ") + ... + (to_string(args) + ", ")));
+    }
+
+    template <class G>
+    static expr visit_size(std::size_t n, G g)
+    {
+        switch(n)
+        {
+        case 0: return g(std::integral_constant<std::size_t, 0>{});
+        case 1: return g(std::integral_constant<std::size_t, 1>{});
+        case 2: return g(std::integral_constant<std::size_t, 2>{});
+        case 3: return g(std::integral_constant<std::size_t, 3>{});
+        default: MIGRAPHX_THROW("Invalid size: " + std::to_string(n));
+        }
+    }
+
+    expr operator()(const std::vector<expr>& args) const
+    {
+        return visit_size(args.size(), [&](auto n) {
+            return sequence_c<n>([&](auto... is){
+                return try_call(rank<1>{}, args[is]...);
+            });
+        });    
+    }
+};
+
+template <class F> call_wrapper(F) -> call_wrapper<F>;
+
 expr call_function(const std::string& name, std::vector<expr> args)
 {
-    if(args.size() == 1)
-    {
-        auto& a = args[0];
-        if(name == "sin")
-            return sin(std::move(a));
-        if(name == "cos")
-            return cos(std::move(a));
-        if(name == "tan")
-            return tan(std::move(a));
-        if(name == "exp")
-            return exp(std::move(a));
-        if(name == "log")
-            return log(std::move(a));
-        if(name == "sqrt")
-            return sqrt(std::move(a));
-        if(name == "abs")
-            return abs(std::move(a));
-        if(name == "floor")
-            return floor(std::move(a));
-        if(name == "ceil")
-            return ceil(std::move(a));
-    }
-    if(args.size() == 2)
-    {
-        auto& a = args[0];
-        auto& b = args[1];
-        if(name == "+")
-            return std::move(a) + std::move(b);
-        if(name == "-")
-            return std::move(a) - std::move(b);
-        if(name == "*")
-            return std::move(a) * std::move(b);
-        if(name == "/")
-            return std::move(a) / std::move(b);
-        if(name == "%")
-            return std::move(a) % std::move(b);
-        if(name == "pow")
-            return pow(std::move(a), std::move(b));
-        if(name == "min")
-            return min(std::move(a), std::move(b));
-        if(name == "max")
-            return max(std::move(a), std::move(b));
-    }
-    MIGRAPHX_THROW("Unknown function: " + name);
+#define MIGRAPHX_CALL_FUNC(name) \
+    {#name, call_wrapper{MIGRAPHX_LIFT(name)}}
+    static const std::unordered_map<std::string, std::function<expr(const std::vector<expr>& args)>>
+        functions = {
+            {"+", call_wrapper{std::plus<>{}}},
+            {"*", call_wrapper{std::multiplies<>{}}},
+            {"-", call_wrapper{std::minus<>{}}},
+            {"/", call_wrapper{std::divides<>{}}},
+            {"%", call_wrapper{std::modulus<>{}}},
+            MIGRAPHX_CALL_FUNC(pow),
+            MIGRAPHX_CALL_FUNC(min),
+            MIGRAPHX_CALL_FUNC(max),
+            MIGRAPHX_CALL_FUNC(sin),
+            MIGRAPHX_CALL_FUNC(cos),
+            MIGRAPHX_CALL_FUNC(tan),
+            MIGRAPHX_CALL_FUNC(exp),
+            MIGRAPHX_CALL_FUNC(log),
+            MIGRAPHX_CALL_FUNC(sqrt),
+            MIGRAPHX_CALL_FUNC(abs),
+            MIGRAPHX_CALL_FUNC(floor),
+            MIGRAPHX_CALL_FUNC(ceil),
+        };
+#undef MIGRAPHX_CALL_FUNC
+        return functions.at(name)(args);
 }
 
 expr parse_number(sym_parser& p)

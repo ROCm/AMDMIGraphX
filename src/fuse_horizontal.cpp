@@ -35,6 +35,7 @@
 #include <vector>
 #include <unordered_map>
 #include <tuple>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -61,11 +62,11 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class Finder>
 static void apply_horizontal_finder(module& m, const Finder& finder)
 {
-    // Collect all candidate instructions and build position map
     std::vector<instruction_ref> candidates;
     copy_if(iterator_for(m), std::back_inserter(candidates), [&](auto ins) {
         return finder.is_candidate(ins);
     });
+
     std::unordered_map<instruction_ref, std::size_t> pos;
     std::size_t p = 0;
     for(auto ins : iterator_for(m))
@@ -267,24 +268,268 @@ struct gather_horizontal_fusion
 };
 
 // ---------------------------------------------------------------------------
-// Future: add more horizontal fusion finders here, e.g.
+// SwiGLU expert head horizontal fusion
 //
-// struct pointwise_horizontal_fusion
-// {
-//     std::size_t min_group_size() const { return 2; }
-//     bool is_candidate(instruction_ref ins) const { ... }
-//     std::string group_key(instruction_ref ins) const { ... }
-//     std::vector<instruction_ref>
-//         fuse(module& m, const std::vector<instruction_ref>& ops,
-//              instruction_ref insert_pt) const { ... }
-// };
+// Matches the pattern: x -> sigmoid(x) -> mul(x, sigmoid(x)) -> dot(weight) -> add(bias)
+// where weight and bias are constants.
+//
+// Candidates: add instructions at the end of a SwiGLU-dot-add chain
+// Grouping:   by (add output lens, output type, weight lens)
+// Fusion:     stack all expert inputs along new batch axis 0, apply batched
+//             sigmoid, mul, dot, add, then slice+squeeze results back
 // ---------------------------------------------------------------------------
+
+struct expert_head_horizontal_fusion
+{
+    struct pattern_info
+    {
+        instruction_ref add_ins;
+        instruction_ref dot_ins;
+        instruction_ref mul_ins;
+        instruction_ref sig_ins;
+        instruction_ref input_ins;
+        instruction_ref weight_ins;
+        instruction_ref bias_ins;
+    };
+
+    static bool try_match(instruction_ref add_ins, pattern_info& pm)
+    {
+        pm.add_ins = add_ins;
+
+        if(add_ins->name() != "add" || add_ins->inputs().size() != 2)
+            return false;
+        if(add_ins->get_shape().dynamic())
+            return false;
+
+        instruction_ref dot_ins{};
+        instruction_ref bias_ins{};
+        for(const auto& in : add_ins->inputs())
+        {
+            if(in->name() == "dot")
+                dot_ins = in;
+            else
+                bias_ins = in;
+        }
+        if(dot_ins == instruction_ref{} || bias_ins == instruction_ref{})
+            return false;
+
+        if(dot_ins->inputs().size() != 2)
+            return false;
+        if(not dot_ins->inputs().at(1)->can_eval())
+            return false;
+        if(not bias_ins->can_eval())
+            return false;
+        if(dot_ins->outputs().size() != 1)
+            return false;
+
+        auto a_ins = dot_ins->inputs().at(0);
+        if(a_ins->name() != "mul" || a_ins->inputs().size() != 2)
+            return false;
+        if(a_ins->outputs().size() != 1)
+            return false;
+
+        instruction_ref sig_ins{};
+        instruction_ref x_ins{};
+        for(const auto& in : a_ins->inputs())
+        {
+            if(in->name() == "sigmoid")
+                sig_ins = in;
+            else
+                x_ins = in;
+        }
+        if(sig_ins == instruction_ref{} || x_ins == instruction_ref{})
+            return false;
+        if(sig_ins->inputs().size() != 1 || sig_ins->inputs().at(0) != x_ins)
+            return false;
+        if(sig_ins->outputs().size() != 1)
+            return false;
+
+        pm.dot_ins    = dot_ins;
+        pm.mul_ins    = a_ins;
+        pm.sig_ins    = sig_ins;
+        pm.input_ins  = x_ins;
+        pm.weight_ins = dot_ins->inputs().at(1);
+        pm.bias_ins   = bias_ins;
+        return true;
+    }
+
+    std::size_t min_group_size() const { return 4; }
+
+    bool is_candidate(instruction_ref ins) const
+    {
+        pattern_info pm;
+        return try_match(ins, pm);
+    }
+
+    auto group_key(instruction_ref ins) const
+    {
+        pattern_info pm;
+        try_match(ins, pm);
+        auto out_lens = ins->get_shape().lens();
+        auto out_type = ins->get_shape().type();
+        auto w_lens   = pm.weight_ins->get_shape().lens();
+        return std::make_tuple(out_lens, out_type, w_lens);
+    }
+
+    std::vector<instruction_ref>
+    fuse(module& m,
+         const std::vector<instruction_ref>& adds,
+         instruction_ref insert_pt) const
+    {
+        auto n = adds.size();
+        std::cerr << "[expert_horiz] FUSING group of " << n
+                  << " expert heads, out=" << adds.front()->get_shape() << "\n";
+
+        std::vector<instruction_ref> input_parts;
+        std::vector<instruction_ref> weight_parts;
+        std::vector<instruction_ref> bias_parts;
+        input_parts.reserve(n);
+        weight_parts.reserve(n);
+        bias_parts.reserve(n);
+
+        for(const auto& add_ins : adds)
+        {
+            pattern_info pm;
+            try_match(add_ins, pm);
+
+            input_parts.push_back(m.insert_instruction(
+                insert_pt, make_op("unsqueeze", {{"axes", {0}}}), pm.input_ins));
+            weight_parts.push_back(m.insert_instruction(
+                insert_pt, make_op("unsqueeze", {{"axes", {0}}}), pm.weight_ins));
+            bias_parts.push_back(m.insert_instruction(
+                insert_pt, make_op("unsqueeze", {{"axes", {0}}}), pm.bias_ins));
+        }
+
+        auto stacked_x =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), input_parts);
+        auto stacked_w =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), weight_parts);
+        auto stacked_b =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), bias_parts);
+
+        auto batched_sig =
+            m.insert_instruction(insert_pt, make_op("sigmoid"), stacked_x);
+        auto batched_mul =
+            m.insert_instruction(insert_pt, make_op("mul"), stacked_x, batched_sig);
+        auto batched_dot =
+            m.insert_instruction(insert_pt, make_op("dot"), batched_mul, stacked_w);
+        auto batched_add =
+            m.insert_instruction(insert_pt, make_op("add"), batched_dot, stacked_b);
+
+        std::vector<instruction_ref> results;
+        results.reserve(n);
+        for(std::size_t i = 0; i < n; ++i)
+        {
+            auto s = m.insert_instruction(
+                insert_pt,
+                make_op("slice",
+                        {{"axes", std::vector<int64_t>{0}},
+                         {"starts", std::vector<int64_t>{static_cast<int64_t>(i)}},
+                         {"ends", std::vector<int64_t>{static_cast<int64_t>(i + 1)}}}),
+                batched_add);
+            results.push_back(
+                m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), s));
+        }
+        return results;
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Dot horizontal fusion (guarded)
+//
+// Candidates: dot ops with a constant (evaluable) second input, static shapes,
+//             and whose output does NOT feed into an add followed by activation
+//             (those patterns are better handled by MLIR fusion)
+// Grouping:   by (output lens, output type, weight lens)
+// Fusion:     unsqueeze+concat inputs along new batch axis 0, single batched
+//             dot, slice+squeeze results back per original op
+// ---------------------------------------------------------------------------
+
+struct dot_horizontal_fusion
+{
+    std::size_t min_group_size() const { return 2; }
+
+    bool is_candidate(instruction_ref ins) const
+    {
+        if(ins->name() != "dot")
+            return false;
+        if(ins->get_shape().dynamic())
+            return false;
+        if(ins->inputs().size() != 2)
+            return false;
+        if(not ins->inputs().at(1)->can_eval())
+            return false;
+
+        // Skip dots that feed into add: MLIR fuses dot+add(+sigmoid+mul)
+        // more efficiently than horizontal batching
+        for(const auto& out : ins->outputs())
+        {
+            if(out->name() == "add")
+                return false;
+        }
+        return true;
+    }
+
+    auto group_key(instruction_ref ins) const
+    {
+        auto out_lens = ins->get_shape().lens();
+        auto out_type = ins->get_shape().type();
+        auto b_lens   = ins->inputs().at(1)->get_shape().lens();
+        return std::make_tuple(out_lens, out_type, b_lens);
+    }
+
+    std::vector<instruction_ref>
+    fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
+    {
+        auto n = dots.size();
+
+        std::vector<instruction_ref> a_parts;
+        a_parts.reserve(n);
+        std::vector<instruction_ref> b_parts;
+        b_parts.reserve(n);
+
+        for(const auto& d : dots)
+        {
+            a_parts.push_back(m.insert_instruction(
+                insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(0)));
+            b_parts.push_back(m.insert_instruction(
+                insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(1)));
+        }
+
+        auto stacked_a =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), a_parts);
+        auto stacked_b =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), b_parts);
+
+        auto batched = m.insert_instruction(insert_pt, make_op("dot"), stacked_a, stacked_b);
+
+        std::vector<instruction_ref> results;
+        results.reserve(n);
+        for(std::size_t i = 0; i < n; ++i)
+        {
+            auto s = m.insert_instruction(
+                insert_pt,
+                make_op("slice",
+                        {{"axes", std::vector<int64_t>{0}},
+                         {"starts", std::vector<int64_t>{static_cast<int64_t>(i)}},
+                         {"ends", std::vector<int64_t>{static_cast<int64_t>(i + 1)}}}),
+                batched);
+            results.push_back(
+                m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), s));
+        }
+        return results;
+    }
+};
 
 void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    fuse_horizontal_ops(m, gather_horizontal_fusion{});
+    fuse_horizontal_ops(
+        m,
+        gather_horizontal_fusion{},
+        expert_head_horizontal_fusion{},
+        dot_horizontal_fusion{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

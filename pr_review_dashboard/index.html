@@ -57,6 +57,11 @@
     border-radius: 6px;
     padding: 0.6rem 0.75rem;
     text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .summary-card:hover {
+    border-color: var(--text-muted);
   }
   .summary-card .count {
     font-size: 1.6rem;
@@ -294,11 +299,11 @@ async function init() {
     // Summary cards
     const summaryHTML = `
       <div class="summary-card total"><div class="count">${data.total_prs}</div><div class="label">Total PRs</div></div>
-      <div class="summary-card needs_reviews"><div class="count">${data.counts.needs_reviews}</div><div class="label">Needs Reviews</div></div>
-      <div class="summary-card in_review"><div class="count">${data.counts.in_review}</div><div class="label">Has 2+ Reviewers</div></div>
-      <div class="summary-card changes_requested"><div class="count">${data.counts.changes_requested}</div><div class="label">Changes Requested</div></div>
-      <div class="summary-card approved"><div class="count">${data.counts.approved}</div><div class="label">Has 2+ Approvals</div></div>
-      <div class="summary-card ready_to_merge"><div class="count">${data.counts.ready_to_merge}</div><div class="label">Ready to Merge</div></div>
+      <div class="summary-card needs_reviews" onclick="document.getElementById('bucket-needs_reviews').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.needs_reviews}</div><div class="label">Needs Reviews</div></div>
+      <div class="summary-card in_review" onclick="document.getElementById('bucket-in_review').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.in_review}</div><div class="label">Has 2+ Reviewers</div></div>
+      <div class="summary-card changes_requested" onclick="document.getElementById('bucket-changes_requested').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.changes_requested}</div><div class="label">Changes Requested</div></div>
+      <div class="summary-card approved" onclick="document.getElementById('bucket-approved').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.approved}</div><div class="label">Has 2+ Approvals</div></div>
+      <div class="summary-card ready_to_merge" onclick="document.getElementById('bucket-ready_to_merge').scrollIntoView({behavior:'smooth'})"><div class="count">${data.counts.ready_to_merge}</div><div class="label">Ready to Merge</div></div>
     `;
     document.getElementById('summary').innerHTML = summaryHTML;
 
@@ -306,7 +311,7 @@ async function init() {
     let bucketsHTML = '';
     for (const { key, dot, title } of BUCKET_META) {
       bucketsHTML += `
-        <div class="bucket">
+        <div class="bucket" id="bucket-${key}">
           <div class="bucket-header"><span class="dot ${dot}"></span> ${title} (${data.buckets[key].length})</div>
           ${buildTable(data.buckets[key])}
         </div>`;

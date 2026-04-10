@@ -246,10 +246,17 @@ std::shared_ptr<const expr::impl> expr::make_impl(node_variant node, std::vector
 
 expr lit(value v) { return expr(literal_node{v}); }
 
-expr var(std::string name) { return expr(variable_node{std::move(name), {}}); }
+expr var(std::string name)
+{
+    if(name.empty())
+        MIGRAPHX_THROW("Variable name must not be empty");
+    return expr(variable_node{std::move(name), {}});
+}
 
 expr var(std::string name, interval constraint)
 {
+    if(name.empty())
+        MIGRAPHX_THROW("Variable name must not be empty");
     return expr(variable_node{std::move(name), {std::move(constraint)}});
 }
 

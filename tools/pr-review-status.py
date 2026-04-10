@@ -48,6 +48,7 @@ import requests
 OWNER = "ROCm"
 REPO = "AMDMIGraphX"
 API = "https://api.github.com"
+BUCKET_KEYS = ("needs_reviews", "in_review", "changes_requested", "approved", "ready_to_merge")
 
 
 def get_session() -> requests.Session:
@@ -111,7 +112,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
         updatedAt
         author { login avatarUrl }
         labels(first: 20) { nodes { name } }
-        reviews(first: 100) {
+        reviews(last: 100) {
           nodes { author { login } state }
         }
         commits(last: 1) {
@@ -161,7 +162,7 @@ def fetch_all_prs(session: requests.Session) -> list[dict]:
 
 # ── sanitization ──────────────────────────────────────────────────────
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-_USERNAME_RE = re.compile(r"^[a-zA-Z0-9\-]+$")
+_USERNAME_RE = re.compile(r"^[a-zA-Z0-9\-_]+(\[bot\])?$")
 _GITHUB_URL_RE = re.compile(r"^https://github\.com/")
 
 
@@ -298,13 +299,7 @@ def gather_data(session: requests.Session) -> dict:
     prs = fetch_all_prs(session)
     print(f"  Found {len(prs)} open non-draft PRs.", file=sys.stderr)
 
-    buckets: dict[str, list[dict]] = {
-        "needs_reviews": [],
-        "in_review": [],
-        "changes_requested": [],
-        "approved": [],
-        "ready_to_merge": [],
-    }
+    buckets: dict[str, list[dict]] = {k: [] for k in BUCKET_KEYS}
 
     for i, pr in enumerate(prs, 1):
         number = int(pr["number"])
@@ -388,7 +383,7 @@ def print_terminal(data: dict):
         "approved":          "🟣  Has 2+ Approvals",
         "ready_to_merge":    "🟢  Ready to Merge",
     }
-    for key in ("needs_reviews", "in_review", "changes_requested", "approved", "ready_to_merge"):
+    for key in BUCKET_KEYS:
         items = data["buckets"][key]
         print(f"\n{divider}")
         print(f" {labels[key]}  ({len(items)} PRs)")
@@ -410,7 +405,7 @@ def print_terminal(data: dict):
     print(" Summary")
     print(divider)
     print(f"  Total open non-draft PRs : {data['total_prs']}")
-    for key in ("needs_reviews", "in_review", "changes_requested", "approved", "ready_to_merge"):
+    for key in BUCKET_KEYS:
         print(f"  {labels[key]:30s}: {data['counts'][key]}")
 
 

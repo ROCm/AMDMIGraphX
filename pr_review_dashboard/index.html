@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="PR review status dashboard for ROCm/AMDMIGraphX — tracks review progress, approvals, and CI status.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📊</text></svg>">
 <title>AMDMIGraphX — PR Review Status</title>
 <style>
   :root {
@@ -15,9 +17,6 @@
     --yellow: #d29922;
     --green: #3fb950;
     --blue: #58a6ff;
-    --badge-red-bg: #3d1214;
-    --badge-yellow-bg: #3d2e00;
-    --badge-green-bg: #0e2a15;
     --purple: #a371f7;
     --orange: #db6d28;
   }
@@ -89,6 +88,7 @@
   .table-scroll {
     border: 1px solid var(--border);
     border-radius: 8px;
+    overflow-x: auto;
   }
 
   .bucket-header {
@@ -235,11 +235,11 @@
 
 <script>
 const BUCKET_META = [
-  { key: 'needs_reviews',  dot: 'red',    title: 'Needs Reviews',      cardClass: 'needs_reviews'  },
-  { key: 'in_review',          dot: 'yellow', title: 'Has 2+ Reviewers',   cardClass: 'in_review'          },
-  { key: 'changes_requested', dot: 'orange', title: 'Changes Requested',  cardClass: 'changes_requested' },
-  { key: 'approved',          dot: 'purple', title: 'Has 2+ Approvals',   cardClass: 'approved'          },
-  { key: 'ready_to_merge', dot: 'green',  title: 'Ready to Merge',    cardClass: 'ready_to_merge' },
+  { key: 'needs_reviews',     dot: 'red',    title: 'Needs Reviews'     },
+  { key: 'in_review',         dot: 'yellow', title: 'Has 2+ Reviewers'  },
+  { key: 'changes_requested', dot: 'orange', title: 'Changes Requested' },
+  { key: 'approved',          dot: 'purple', title: 'Has 2+ Approvals'  },
+  { key: 'ready_to_merge',    dot: 'green',  title: 'Ready to Merge'    },
 ];
 
 function esc(str) {
@@ -302,15 +302,11 @@ async function init() {
     document.getElementById('timestamp').textContent =
       `Last updated: ${ts.toUTCString()}  •  ${data.total_prs} open non-draft PRs`;
 
-    // Summary cards
-    const summaryHTML = `
-      <div class="summary-card total"><div class="count">${data.total_prs}</div><div class="label">Total PRs</div></div>
-      <a class="summary-card needs_reviews" href="#bucket-needs_reviews"><div class="count">${data.counts.needs_reviews}</div><div class="label">Needs Reviews</div></a>
-      <a class="summary-card in_review" href="#bucket-in_review"><div class="count">${data.counts.in_review}</div><div class="label">Has 2+ Reviewers</div></a>
-      <a class="summary-card changes_requested" href="#bucket-changes_requested"><div class="count">${data.counts.changes_requested}</div><div class="label">Changes Requested</div></a>
-      <a class="summary-card approved" href="#bucket-approved"><div class="count">${data.counts.approved}</div><div class="label">Has 2+ Approvals</div></a>
-      <a class="summary-card ready_to_merge" href="#bucket-ready_to_merge"><div class="count">${data.counts.ready_to_merge}</div><div class="label">Ready to Merge</div></a>
-    `;
+    // Summary cards — generated from BUCKET_META so titles stay in sync
+    let summaryHTML = '<div class="summary-card total"><div class="count">' + data.total_prs + '</div><div class="label">Total PRs</div></div>';
+    for (const { key, title } of BUCKET_META) {
+      summaryHTML += `<a class="summary-card ${key}" href="#bucket-${key}"><div class="count">${data.counts[key]}</div><div class="label">${title}</div></a>`;
+    }
     document.getElementById('summary').innerHTML = summaryHTML;
 
     // Bucket tables

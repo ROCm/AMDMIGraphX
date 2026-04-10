@@ -212,8 +212,13 @@ def extract_reviews(
     review_nodes: list[dict],
     pr_author: str,
     members: set[str],
-) -> tuple[int, list[str], int, list[str]]:
-    """Process GraphQL review nodes into (review_count, reviewers, approval_count, approvers)."""
+) -> tuple[int, list[str], int, list[str], bool]:
+    """
+    Process GraphQL review nodes.
+
+    Returns (review_count, reviewers, approval_count, approvers,
+    has_changes_requested).
+    """
     latest: dict[str, str] = {}
     for review in review_nodes:
         author = sanitize_username((review.get("author") or {}).get("login", ""))
@@ -223,6 +228,7 @@ def extract_reviews(
 
     member_reviewers = []
     member_approvers = []
+    has_changes_requested = False
     for user, state in latest.items():
         if user == pr_author:
             continue
@@ -232,8 +238,10 @@ def extract_reviews(
             member_reviewers.append(user)
             if state == "APPROVED":
                 member_approvers.append(user)
+            elif state == "CHANGES_REQUESTED":
+                has_changes_requested = True
 
-    return len(member_reviewers), member_reviewers, len(member_approvers), member_approvers
+    return len(member_reviewers), member_reviewers, len(member_approvers), member_approvers, has_changes_requested
 
 
 def extract_ci_status(commits_nodes: list[dict]) -> str:
@@ -293,6 +301,7 @@ def gather_data(session: requests.Session) -> dict:
     buckets: dict[str, list[dict]] = {
         "needs_reviews": [],
         "in_review": [],
+        "changes_requested": [],
         "approved": [],
         "ready_to_merge": [],
     }
@@ -305,7 +314,7 @@ def gather_data(session: requests.Session) -> dict:
         )
 
         review_nodes = pr.get("reviews", {}).get("nodes", [])
-        member_review_count, reviewers, approval_count, approvers = (
+        member_review_count, reviewers, approval_count, approvers, has_changes_requested = (
             extract_reviews(review_nodes, author, members)
         )
 
@@ -334,11 +343,14 @@ def gather_data(session: requests.Session) -> dict:
             "member_approvals": approval_count,
             "approvers": approvers,
             "ci_status": ci_status,
+            "has_changes_requested": has_changes_requested,
             "dash_note": dash_note,
         }
 
-        if approval_count >= 2 and ci_status == "success":
+        if approval_count >= 2 and ci_status == "success" and not has_changes_requested:
             buckets["ready_to_merge"].append(entry)
+        elif has_changes_requested:
+            buckets["changes_requested"].append(entry)
         elif approval_count >= 2:
             buckets["approved"].append(entry)
         elif member_review_count >= 2:
@@ -350,7 +362,8 @@ def gather_data(session: requests.Session) -> dict:
             f"  [{i}/{len(prs)}] PR #{number}: "
             f"{member_review_count} review(s), "
             f"{approval_count} approval(s), "
-            f"CI={ci_status}",
+            f"CI={ci_status}"
+            f"{' [changes requested]' if has_changes_requested else ''}",
             file=sys.stderr,
         )
 
@@ -369,12 +382,13 @@ CI_ICONS = {"success": "✅", "failure": "❌", "pending": "🟠", "none": "⚪"
 def print_terminal(data: dict):
     divider = "=" * 80
     labels = {
-        "needs_reviews":  "🔴  Needs Reviews",
-        "in_review":      "🟡  Has 2+ Reviewers",
-        "approved":       "🟣  Has 2+ Approvals",
-        "ready_to_merge": "🟢  Ready to Merge",
+        "needs_reviews":     "🔴  Needs Reviews",
+        "in_review":         "🟡  Has 2+ Reviewers",
+        "changes_requested": "🟠  Changes Requested",
+        "approved":          "🟣  Has 2+ Approvals",
+        "ready_to_merge":    "🟢  Ready to Merge",
     }
-    for key in ("needs_reviews", "in_review", "approved", "ready_to_merge"):
+    for key in ("needs_reviews", "in_review", "changes_requested", "approved", "ready_to_merge"):
         items = data["buckets"][key]
         print(f"\n{divider}")
         print(f" {labels[key]}  ({len(items)} PRs)")
@@ -396,7 +410,7 @@ def print_terminal(data: dict):
     print(" Summary")
     print(divider)
     print(f"  Total open non-draft PRs : {data['total_prs']}")
-    for key in ("needs_reviews", "in_review", "approved", "ready_to_merge"):
+    for key in ("needs_reviews", "in_review", "changes_requested", "approved", "ready_to_merge"):
         print(f"  {labels[key]:30s}: {data['counts'][key]}")
 
 

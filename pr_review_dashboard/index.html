@@ -19,6 +19,7 @@
     --badge-yellow-bg: #3d2e00;
     --badge-green-bg: #0e2a15;
     --purple: #a371f7;
+    --orange: #db6d28;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -70,8 +71,9 @@
   .summary-card.total          .count { color: var(--blue); }
   .summary-card.needs_reviews  .count { color: var(--red); }
   .summary-card.in_review      .count { color: var(--yellow); }
-  .summary-card.approved       .count { color: var(--purple); }
-  .summary-card.ready_to_merge .count { color: var(--green); }
+  .summary-card.changes_requested .count { color: var(--orange); }
+  .summary-card.approved          .count { color: var(--purple); }
+  .summary-card.ready_to_merge    .count { color: var(--green); }
 
   .bucket { margin-bottom: 2rem; }
 
@@ -98,6 +100,7 @@
   .dot.red    { background: var(--red); }
   .dot.yellow { background: var(--yellow); }
   .dot.green  { background: var(--green); }
+  .dot.orange { background: var(--orange); }
   .dot.purple { background: var(--purple); }
 
   table {
@@ -224,8 +227,9 @@
 <script>
 const BUCKET_META = [
   { key: 'needs_reviews',  dot: 'red',    title: 'Needs Reviews',      cardClass: 'needs_reviews'  },
-  { key: 'in_review',      dot: 'yellow', title: 'Has 2+ Reviewers',   cardClass: 'in_review'      },
-  { key: 'approved',       dot: 'purple', title: 'Has 2+ Approvals',   cardClass: 'approved'       },
+  { key: 'in_review',          dot: 'yellow', title: 'Has 2+ Reviewers',   cardClass: 'in_review'          },
+  { key: 'changes_requested', dot: 'orange', title: 'Changes Requested',  cardClass: 'changes_requested' },
+  { key: 'approved',          dot: 'purple', title: 'Has 2+ Approvals',   cardClass: 'approved'          },
   { key: 'ready_to_merge', dot: 'green',  title: 'Ready to Merge',    cardClass: 'ready_to_merge' },
 ];
 
@@ -292,6 +296,7 @@ async function init() {
       <div class="summary-card total"><div class="count">${data.total_prs}</div><div class="label">Total PRs</div></div>
       <div class="summary-card needs_reviews"><div class="count">${data.counts.needs_reviews}</div><div class="label">Needs Reviews</div></div>
       <div class="summary-card in_review"><div class="count">${data.counts.in_review}</div><div class="label">Has 2+ Reviewers</div></div>
+      <div class="summary-card changes_requested"><div class="count">${data.counts.changes_requested}</div><div class="label">Changes Requested</div></div>
       <div class="summary-card approved"><div class="count">${data.counts.approved}</div><div class="label">Has 2+ Approvals</div></div>
       <div class="summary-card ready_to_merge"><div class="count">${data.counts.ready_to_merge}</div><div class="label">Ready to Merge</div></div>
     `;

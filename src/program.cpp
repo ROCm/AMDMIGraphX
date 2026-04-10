@@ -509,7 +509,8 @@ static std::vector<argument> generic_eval(const module* mod,
         }
         else if(name == "@comment")
         {
-            results.insert_or_assign(ins, trace(ins, [&] { return argument{}; }));
+            results.insert_or_assign(
+                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
         else if(name == "@return")
         {

@@ -50,9 +50,11 @@ struct comment
     }
 
     std::string name() const { return "@comment"; }
-    // This shape is dummy so dead code elimination does not remove @comment instruction.
-    shape compute_shape(const std::vector<shape>&) const { return {shape::bool_type, {0}}; }
-    argument compute(context&, const shape&, const std::vector<argument>&) const { return {}; }
+    shape compute_shape(const std::vector<shape>&) const { return {}; }
+    argument compute(context&, const shape& output_shape, const std::vector<argument>&) const
+    {
+        return argument{output_shape, nullptr};
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const comment& op)
     {

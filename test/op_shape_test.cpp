@@ -2296,7 +2296,7 @@ TEST_CASE(nms_shape)
     migraphx::shape max_out_s{migraphx::shape::int64_type, {1}};
     migraphx::shape iou_thres_s{migraphx::shape::float_type, {1}};
     migraphx::shape score_thres_s{migraphx::shape::float_type, {1}};
-    migraphx::shape output_s{migraphx::shape::int64_type, {6, 3}};
+    migraphx::shape output_s{migraphx::shape::int64_type, {{0, 6}, {3, 3}}};
     expect_shape(output_s,
                  migraphx::make_op("nonmaxsuppression",
                                    {{"center_point_box", true}, {"use_dyn_output", false}}),

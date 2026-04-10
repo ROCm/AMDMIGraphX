@@ -52,7 +52,6 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/generate.hpp>
-#include <migraphx/logger.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/propagate_constant.hpp>
 #include <migraphx/quantization.hpp>

@@ -572,6 +572,184 @@ TEST_CASE(compound_assign_cow_shared)
     EXPECT(sub.eval({{"x", int64_t{2}}}) == value{int64_t{3}});
 }
 
+// ---- Non-expr operator tests (int64_t / double mixed with expr) ----
+
+TEST_CASE(add_expr_int64)
+{
+    auto e = var("x") + int64_t{5};
+    EXPECT(e.eval({{"x", int64_t{3}}}) == value{int64_t{8}});
+}
+
+TEST_CASE(add_int64_expr)
+{
+    auto e = int64_t{5} + var("x");
+    EXPECT(e.eval({{"x", int64_t{3}}}) == value{int64_t{8}});
+}
+
+TEST_CASE(add_expr_double)
+{
+    auto e = var("x") + 1.5;
+    EXPECT(e.eval({{"x", int64_t{2}}}) == value{3.5});
+}
+
+TEST_CASE(add_double_expr)
+{
+    auto e = 1.5 + var("x");
+    EXPECT(e.eval({{"x", int64_t{2}}}) == value{3.5});
+}
+
+TEST_CASE(sub_expr_int64)
+{
+    auto e = var("x") - int64_t{3};
+    EXPECT(e.eval({{"x", int64_t{10}}}) == value{int64_t{7}});
+}
+
+TEST_CASE(sub_int64_expr)
+{
+    auto e = int64_t{10} - var("x");
+    EXPECT(e.eval({{"x", int64_t{3}}}) == value{int64_t{7}});
+}
+
+TEST_CASE(sub_expr_double)
+{
+    auto e = var("x") - 0.5;
+    EXPECT(e.eval({{"x", 2.0}}) == value{1.5});
+}
+
+TEST_CASE(sub_double_expr)
+{
+    auto e = 10.0 - var("x");
+    EXPECT(e.eval({{"x", 3.0}}) == value{7.0});
+}
+
+TEST_CASE(mul_expr_int64)
+{
+    auto e = var("x") * int64_t{6};
+    EXPECT(e.eval({{"x", int64_t{7}}}) == value{int64_t{42}});
+}
+
+TEST_CASE(mul_int64_expr)
+{
+    auto e = int64_t{6} * var("x");
+    EXPECT(e.eval({{"x", int64_t{7}}}) == value{int64_t{42}});
+}
+
+TEST_CASE(mul_expr_double)
+{
+    auto e = var("x") * 2.5;
+    EXPECT(e.eval({{"x", 4.0}}) == value{10.0});
+}
+
+TEST_CASE(mul_double_expr)
+{
+    auto e = 2.5 * var("x");
+    EXPECT(e.eval({{"x", 4.0}}) == value{10.0});
+}
+
+TEST_CASE(div_expr_int64)
+{
+    auto e = var("x") / int64_t{2};
+    EXPECT(e.eval({{"x", 10.0}}) == value{5.0});
+}
+
+TEST_CASE(div_int64_expr)
+{
+    auto e = int64_t{10} / var("x");
+    EXPECT(e.eval({{"x", 2.0}}) == value{5.0});
+}
+
+TEST_CASE(div_expr_double)
+{
+    auto e = var("x") / 4.0;
+    EXPECT(e.eval({{"x", 10.0}}) == value{2.5});
+}
+
+TEST_CASE(div_double_expr)
+{
+    auto e = 10.0 / var("x");
+    EXPECT(e.eval({{"x", 4.0}}) == value{2.5});
+}
+
+TEST_CASE(plus_assign_int64)
+{
+    auto e = var("x");
+    e += int64_t{5};
+    EXPECT(e.eval({{"x", int64_t{3}}}) == value{int64_t{8}});
+}
+
+TEST_CASE(plus_assign_double)
+{
+    auto e = var("x");
+    e += 1.5;
+    EXPECT(e.eval({{"x", 2.0}}) == value{3.5});
+}
+
+TEST_CASE(minus_assign_int64)
+{
+    auto e = var("x");
+    e -= int64_t{3};
+    EXPECT(e.eval({{"x", int64_t{10}}}) == value{int64_t{7}});
+}
+
+TEST_CASE(minus_assign_double)
+{
+    auto e = var("x");
+    e -= 0.5;
+    EXPECT(e.eval({{"x", 2.0}}) == value{1.5});
+}
+
+TEST_CASE(times_assign_int64)
+{
+    auto e = var("x");
+    e *= int64_t{6};
+    EXPECT(e.eval({{"x", int64_t{7}}}) == value{int64_t{42}});
+}
+
+TEST_CASE(times_assign_double)
+{
+    auto e = var("x");
+    e *= 2.5;
+    EXPECT(e.eval({{"x", 4.0}}) == value{10.0});
+}
+
+TEST_CASE(div_assign_int64)
+{
+    auto e = var("x");
+    e /= int64_t{2};
+    EXPECT(e.eval({{"x", 10.0}}) == value{5.0});
+}
+
+TEST_CASE(div_assign_double)
+{
+    auto e = var("x");
+    e /= 4.0;
+    EXPECT(e.eval({{"x", 10.0}}) == value{2.5});
+}
+
+TEST_CASE(non_expr_compound)
+{
+    // (x + 3) * 2.0 - 1  with x=4 → (7) * 2.0 - 1 = 13.0
+    auto e = (var("x") + int64_t{3}) * 2.0 - int64_t{1};
+    EXPECT(e.eval({{"x", int64_t{4}}}) == value{13.0});
+}
+
+TEST_CASE(non_expr_both_sides)
+{
+    // 2 * x + 1.5  with x=3 → 7.5
+    auto e = int64_t{2} * var("x") + 1.5;
+    EXPECT(e.eval({{"x", int64_t{3}}}) == value{7.5});
+}
+
+TEST_CASE(non_expr_chain_assign)
+{
+    auto e = var("x");
+    e += int64_t{1};
+    e *= 2.0;
+    e -= int64_t{1};
+    // (x + 1) * 2.0 - 1  with x=4 → 9.0
+    EXPECT(e.eval({{"x", int64_t{4}}}) == value{9.0});
+}
+
 TEST_CASE(custom_call_eval)
 {
     auto square = call("square", [](auto x) { return x * x; });

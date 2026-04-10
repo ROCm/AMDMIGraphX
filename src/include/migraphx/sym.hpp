@@ -145,6 +145,9 @@ struct op_node
 
 using node_variant = std::variant<literal_node, variable_node, op_node>;
 
+class expr;
+expr lit(value v);
+
 class MIGRAPHX_EXPORT expr
 {
     struct impl;
@@ -168,11 +171,6 @@ class MIGRAPHX_EXPORT expr
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;
     std::string to_string() const;
 
-    expr& operator+=(expr ey) { return *this = *this + std::move(ey); }
-    expr& operator-=(expr ey) { return *this = *this - std::move(ey); }
-    expr& operator*=(expr ey) { return *this = *this * std::move(ey); }
-    expr& operator/=(expr ey) { return *this = *this / std::move(ey); }
-
     friend expr operator+(expr ex, expr ey);
     friend expr operator-(expr ex, expr ey);
     friend expr operator*(expr ex, expr ey);
@@ -180,6 +178,21 @@ class MIGRAPHX_EXPORT expr
     friend expr operator-(expr e);
     friend bool operator==(const expr& a, const expr& b);
     friend bool operator!=(const expr& a, const expr& b);
+
+#define MIGRAPHX_SYM_DEFINE_OP_TYPE(binary, assign, type) \
+    expr& operator assign(type x) { return *this = *this binary lit(x); } \
+    friend expr operator binary(expr ex, type y) { return ex binary lit(y); } \
+    friend expr operator binary(type x, expr ey) { return lit(x) binary ey; }
+    
+#define MIGRAPHX_SYM_DEFINE_OP(binary, assign) \
+    expr& operator assign(expr ey) { return *this = *this binary std::move(ey); } \
+    MIGRAPHX_SYM_DEFINE_OP_TYPE(binary, assign, int64_t) \
+    MIGRAPHX_SYM_DEFINE_OP_TYPE(binary, assign, double)
+
+    MIGRAPHX_SYM_DEFINE_OP(+, +=)
+    MIGRAPHX_SYM_DEFINE_OP(-, -=)
+    MIGRAPHX_SYM_DEFINE_OP(*, *=)
+    MIGRAPHX_SYM_DEFINE_OP(/, /=)
 };
 
 expr lit(value v);

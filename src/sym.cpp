@@ -882,12 +882,24 @@ expr call_function(const std::string& name, std::vector<expr> args)
     }
     if(args.size() == 2)
     {
+        auto& a = args[0];
+        auto& b = args[1];
+        if(name == "+")
+            return std::move(a) + std::move(b);
+        if(name == "-")
+            return std::move(a) - std::move(b);
+        if(name == "*")
+            return std::move(a) * std::move(b);
+        if(name == "/")
+            return std::move(a) / std::move(b);
+        if(name == "%")
+            return std::move(a) % std::move(b);
         if(name == "pow")
-            return pow(std::move(args[0]), std::move(args[1]));
+            return pow(std::move(a), std::move(b));
         if(name == "min")
-            return min(std::move(args[0]), std::move(args[1]));
+            return min(std::move(a), std::move(b));
         if(name == "max")
-            return max(std::move(args[0]), std::move(args[1]));
+            return max(std::move(a), std::move(b));
     }
     MIGRAPHX_THROW("Unknown function: " + name);
 }
@@ -958,14 +970,7 @@ expr parse_mul_expr(sym_parser& p)
         return {op, parse_unary(q)};
     });
     for(auto& [op, rhs] : ops)
-    {
-        if(op == "*")
-            left = left * std::move(rhs);
-        else if(op == "/")
-            left = left / std::move(rhs);
-        else
-            left = left % std::move(rhs);
-    }
+        left = call_function(std::string(op), {std::move(left), std::move(rhs)});
     return left;
 }
 
@@ -979,12 +984,7 @@ expr parse_expr(sym_parser& p)
         return {op, parse_mul_expr(q)};
     });
     for(auto& [op, rhs] : ops)
-    {
-        if(op == "+")
-            left = left + std::move(rhs);
-        else
-            left = left - std::move(rhs);
-    }
+        left = call_function(std::string(op), {std::move(left), std::move(rhs)});
     return left;
 }
 

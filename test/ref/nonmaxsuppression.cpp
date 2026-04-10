@@ -526,8 +526,8 @@ TEST_CASE(nms_dyn_out_false_and_true_same_result_test)
     auto result_true  = run_nms(true);
 
     // Both flags must produce identical output after fix
-    // Before fix: False gave (6,3), True gave (3,3) — different!
-    // After fix:  Both give (3,3) — identical! ✅
+    // Before fix: False gave (6,3), True gave (3,3) - different.
+    // After fix:  Both give (3,3) - identical.
     EXPECT(result_false.size() == result_true.size());
     EXPECT(result_false == result_true);
 }

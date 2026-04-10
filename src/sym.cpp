@@ -857,20 +857,21 @@ using sym_parser = parser::simple_string_view_skip_parser;
 
 expr parse_expr(sym_parser& p);
 
-template<class F>
+template <class F>
 struct call_wrapper
 {
     F f;
-    template<class... Args>
+    template <class... Args>
     auto try_call(rank<1>, Args&&... args) const -> decltype(f(std::forward<Args>(args)...))
     {
         return f(std::forward<Args>(args)...);
     }
-    
-    template<class... Args>
+
+    template <class... Args>
     expr try_call(rank<0>, Args&&... args) const
     {
-        MIGRAPHX_THROW((std::string("Function is not callable: ") + ... + (to_string(args) + ", ")));
+        MIGRAPHX_THROW(
+            (std::string("Function is not callable: ") + ... + (to_string(args) + ", ")));
     }
 
     template <class G>
@@ -889,19 +890,20 @@ struct call_wrapper
     expr operator()(const std::vector<expr>& args) const
     {
         return visit_size(args.size(), [&](auto n) {
-            return sequence_c<n>([&](auto... is){
-                return try_call(rank<1>{}, args[is]...);
-            });
-        });    
+            return sequence_c<n>([&](auto... is) { return try_call(rank<1>{}, args[is]...); });
+        });
     }
 };
 
-template <class F> call_wrapper(F) -> call_wrapper<F>;
+template <class F>
+call_wrapper(F) -> call_wrapper<F>;
 
 expr call_function(const std::string& name, std::vector<expr> args)
 {
-#define MIGRAPHX_CALL_FUNC(name) \
-    {#name, call_wrapper{MIGRAPHX_LIFT(name)}}
+#define MIGRAPHX_CALL_FUNC(name)                    \
+    {                                               \
+        #name, call_wrapper { MIGRAPHX_LIFT(name) } \
+    }
     static const std::unordered_map<std::string, std::function<expr(const std::vector<expr>& args)>>
         functions = {
             {"+", call_wrapper{std::plus<>{}}},
@@ -923,7 +925,7 @@ expr call_function(const std::string& name, std::vector<expr> args)
             MIGRAPHX_CALL_FUNC(ceil),
         };
 #undef MIGRAPHX_CALL_FUNC
-        return functions.at(name)(args);
+    return functions.at(name)(args);
 }
 
 expr parse_number(sym_parser& p)

@@ -112,7 +112,7 @@ struct rnn_var_sl_shift_sequence_compiler : compiler<rnn_var_sl_shift_sequence_c
         options.kernel_name    = "rnn_var_sl_shift_sequence_kernel";
         options.virtual_inputs = inputs;
 
-        const auto *src = rnn_var_sl_shift_sequence_kernel;
+        const auto* src = rnn_var_sl_shift_sequence_kernel;
 
         return compile_hip_code_object(ctx, src, options);
     }

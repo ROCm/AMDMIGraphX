@@ -638,7 +638,14 @@ expr operator*(expr ex, expr ey)
 
 expr operator/(expr ex, expr ey)
 {
-    return call("/", [](auto x, auto y) { return x / y; })(std::move(ex), std::move(ey));
+    return call(
+        "/",
+        [](auto x, auto y) {
+            if(y == 0)
+                MIGRAPHX_THROW("Division by zero");
+            return x / y;
+        },
+        [](interval x, interval y) { return x / y; })(std::move(ex), std::move(ey));
 }
 
 expr operator%(expr ex, expr ey)
@@ -708,10 +715,14 @@ std::size_t expr::hash() const
 
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
-    auto it = symbol_map.find(*this);
-    if(it != symbol_map.end())
-        return it->second;
-    auto v = eval({});
+    std::unordered_map<std::string, value> vars;
+    for(const auto& [key, val] : symbol_map)
+    {
+        if(key.empty() or not std::holds_alternative<variable_node>(key.node()))
+            MIGRAPHX_THROW("eval_uint: keys must be variable expressions");
+        vars[std::get<variable_node>(key.node()).name] = int64_t{static_cast<int64_t>(val)};
+    }
+    auto v = eval(vars);
     return to<std::size_t>(v);
 }
 

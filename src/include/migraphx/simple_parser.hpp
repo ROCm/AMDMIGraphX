@@ -4,8 +4,9 @@
 #include <migraphx/config.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/errors.hpp>
-#include <migraphx/stringutils.hpp>
+#include <optional>
 #include <type_traits>
+#include <variant>
 #include <vector>
 
 namespace migraphx {
@@ -100,103 +101,228 @@ struct simple_parser
         return "Expected " + std::string(expected) + " at position " + std::to_string(offset) +
                " in '" + std::string(buffer) + "'";
     }
-
-    template <class F>
-    bool try_parse(F f)
-    {
-        auto copy = *this;
-        f(*this);
-        if(copy.pos != pos)
-            return true;
-        *this = copy;
-        return false;
-    }
-
-    View first_of(View view)
-    {
-        if(match(view))
-            return view;
-        return {};
-    }
-
-    template <class... Views>
-    View first_of(View view, Views... views)
-    {
-        if(match(view))
-            return view;
-        return first_of(views...);
-    }
-
-    template <class F>
-    auto first_of(F f) -> decltype(f(*this))
-    {
-        return f(*this);
-    }
-
-    template <class F, class G, class... Fs>
-    auto first_of(F f, G g, Fs... fs) -> decltype(f(*this))
-    {
-        auto copy   = *this;
-        auto result = f(*this);
-        if(copy.pos != pos)
-            return result;
-        *this = copy;
-        return first_of(g, fs...);
-    }
-
-    template <class F>
-    auto repeat(F f)
-    {
-        using result_type = decltype(f(*this));
-        std::vector<result_type> results;
-        for(;;)
-        {
-            auto copy = *this;
-            results.push_back(f(*this));
-            if(copy.pos == pos)
-            {
-                results.pop_back();
-                break;
-            }
-        }
-        return results;
-    }
 };
 
-template <class F>
-struct parser_action
+using simple_string_view_skip_parser =
+    simple_parser<std::string_view::const_iterator, true, std::string_view>;
+
+// ---- Parser combinator framework ----
+
+struct skip_attr
 {
-    F fn;
-
-    template <class Parser>
-    auto operator()(Parser& p) const -> decltype(fn(p))
-    {
-        return fn(p);
-    }
 };
 
+namespace detail {
+
+template <class T>
+inline constexpr bool is_skip_v = std::is_same_v<T, skip_attr>;
+
+template <class T>
+inline constexpr bool is_tuple_v = false;
+template <class... Ts>
+inline constexpr bool is_tuple_v<std::tuple<Ts...>> = true;
+
+template <class A, class B>
+auto make_seq_result(A a, B b)
+{
+    if constexpr(is_skip_v<A> and is_skip_v<B>)
+        return skip_attr{};
+    else if constexpr(is_skip_v<A>)
+        return std::move(b);
+    else if constexpr(is_skip_v<B>)
+        return std::move(a);
+    else if constexpr(is_tuple_v<A>)
+        return std::tuple_cat(std::move(a), std::make_tuple(std::move(b)));
+    else
+        return std::make_tuple(std::move(a), std::move(b));
+}
+
+} // namespace detail
+
 template <class F>
-parser_action<std::decay_t<F>> action(F&& f)
+struct pcomb;
+
+template <class F>
+pcomb<std::decay_t<F>> make_pcomb(F&& f)
 {
     return {std::forward<F>(f)};
 }
 
-template <class F1, class F2>
-auto operator|(parser_action<F1> a, parser_action<F2> b)
+template <class F>
+struct pcomb
 {
-    return action([a = std::move(a), b = std::move(b)](auto& p) -> decltype(a(p)) {
-        return p.first_of(a, b);
+    F fn;
+
+    template <class Parser>
+    auto operator()(Parser& p) const
+    {
+        return fn(p);
+    }
+
+    template <class Action>
+    auto operator[](Action a) const
+    {
+        auto self = *this;
+        return make_pcomb([self = std::move(self), a = std::move(a)](auto& parser) {
+            auto r = self(parser);
+            using R = decltype(a(std::move(*r)));
+            if(not r)
+                return std::optional<R>{std::nullopt};
+            return std::optional<R>{a(std::move(*r))};
+        });
+    }
+};
+
+template <class F>
+pcomb(F) -> pcomb<F>;
+
+// >> : sequence
+template <class F1, class F2>
+auto operator>>(pcomb<F1> p1, pcomb<F2> p2)
+{
+    return make_pcomb([p1 = std::move(p1), p2 = std::move(p2)](auto& parser) {
+        using P  = std::decay_t<decltype(parser)>;
+        using A1 = typename decltype(std::declval<const pcomb<F1>&>()(std::declval<P&>()))::value_type;
+        using A2 = typename decltype(std::declval<const pcomb<F2>&>()(std::declval<P&>()))::value_type;
+        using R  = decltype(detail::make_seq_result(std::declval<A1>(), std::declval<A2>()));
+
+        auto copy = parser;
+        auto r1   = p1(parser);
+        if(not r1)
+            return std::optional<R>{std::nullopt};
+        auto r2 = p2(parser);
+        if(not r2)
+        {
+            parser = copy;
+            return std::optional<R>{std::nullopt};
+        }
+        return std::optional<R>{detail::make_seq_result(std::move(*r1), std::move(*r2))};
+    });
+}
+
+// | : alternative
+template <class F1, class F2>
+auto operator|(pcomb<F1> p1, pcomb<F2> p2)
+{
+    return make_pcomb([p1 = std::move(p1), p2 = std::move(p2)](auto& parser) {
+        using P  = std::decay_t<decltype(parser)>;
+        using A1 = typename decltype(std::declval<const pcomb<F1>&>()(std::declval<P&>()))::value_type;
+        using A2 = typename decltype(std::declval<const pcomb<F2>&>()(std::declval<P&>()))::value_type;
+        using R  = std::conditional_t<std::is_same_v<A1, A2>, A1, std::variant<A1, A2>>;
+
+        auto r1 = p1(parser);
+        if(r1)
+        {
+            if constexpr(std::is_same_v<A1, A2>)
+                return std::optional<R>{std::move(*r1)};
+            else
+                return std::optional<R>{R{std::in_place_index<0>, std::move(*r1)}};
+        }
+        auto r2 = p2(parser);
+        if(r2)
+        {
+            if constexpr(std::is_same_v<A1, A2>)
+                return std::optional<R>{std::move(*r2)};
+            else
+                return std::optional<R>{R{std::in_place_index<1>, std::move(*r2)}};
+        }
+        return std::optional<R>{std::nullopt};
+    });
+}
+
+// * : zero-or-more repetition
+template <class F>
+auto operator*(pcomb<F> p)
+{
+    return make_pcomb([p = std::move(p)](auto& parser) {
+        using P = std::decay_t<decltype(parser)>;
+        using A = typename decltype(std::declval<const pcomb<F>&>()(std::declval<P&>()))::value_type;
+        std::vector<A> results;
+        while(true)
+        {
+            auto r = p(parser);
+            if(not r)
+                break;
+            results.push_back(std::move(*r));
+        }
+        return std::optional{std::move(results)};
+    });
+}
+
+// - : optional (always matches)
+template <class F>
+auto operator-(pcomb<F> p)
+{
+    return make_pcomb([p = std::move(p)](auto& parser) {
+        using P = std::decay_t<decltype(parser)>;
+        using A = typename decltype(std::declval<const pcomb<F>&>()(std::declval<P&>()))::value_type;
+        auto r  = p(parser);
+        return std::optional<std::optional<A>>{
+            r ? std::optional<A>{std::move(*r)} : std::optional<A>{std::nullopt}};
+    });
+}
+
+// ---- Combinator factories ----
+
+inline auto lit(std::string_view s)
+{
+    return make_pcomb([s](auto& p) -> std::optional<skip_attr> {
+        if(p.match(s))
+            return skip_attr{};
+        return std::nullopt;
+    });
+}
+
+inline auto token(std::string_view s)
+{
+    return make_pcomb([s](auto& p) -> std::optional<std::string_view> {
+        if(p.match(s))
+            return s;
+        return std::nullopt;
+    });
+}
+
+template <class Pred>
+auto parse_while(Pred pred)
+{
+    return make_pcomb([pred](auto& p) -> std::optional<std::string_view> {
+        auto copy   = p;
+        auto result = p.parse_while(pred);
+        if(result.empty())
+        {
+            p = copy;
+            return std::nullopt;
+        }
+        return result;
+    });
+}
+
+template <class Pred>
+auto guard(Pred pred)
+{
+    return make_pcomb([pred](auto& p) -> std::optional<skip_attr> {
+        if(p.done() or not pred(p.peek_char()))
+            return std::nullopt;
+        return skip_attr{};
     });
 }
 
 template <class F>
-auto operator*(parser_action<F> a)
+auto lazy(F f)
 {
-    return action([a = std::move(a)](auto& p) { return p.repeat(a); });
+    return pcomb{std::move(f)};
 }
 
-using simple_string_view_skip_parser =
-    simple_parser<std::string_view::const_iterator, true, std::string_view>;
+template <class P, class S>
+auto separated_by(P p, S sep)
+{
+    auto cons = [](auto t) {
+        auto [first, rest] = std::move(t);
+        rest.insert(rest.begin(), std::move(first));
+        return rest;
+    };
+    return (p >> *(sep >> p))[cons];
+}
 
 } // namespace parser
 } // namespace MIGRAPHX_INLINE_NS

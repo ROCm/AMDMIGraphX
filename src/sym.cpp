@@ -824,7 +824,9 @@ namespace {
 
 using sym_parser = parser::simple_string_view_skip_parser;
 
-expr parse_expr(sym_parser& p);
+std::optional<expr> do_parse_expr(sym_parser& p);
+std::optional<expr> do_parse_unary(sym_parser& p);
+std::optional<expr> do_parse_primary(sym_parser& p);
 
 expr call_function(const std::string& name, std::vector<expr> args)
 {
@@ -862,98 +864,79 @@ expr call_function(const std::string& name, std::vector<expr> args)
     MIGRAPHX_THROW("Unknown function: " + name);
 }
 
-expr parse_number(sym_parser& p)
+auto number_comb()
 {
-    if(not std::isdigit(p.peek_char()) and p.peek_char() != '.')
-        return {};
-    auto token    = p.parse_while([](char c) { return std::isdigit(c) or c == '.'; });
-    bool is_float = token.find('.') != std::string_view::npos;
-    if(is_float)
-        return lit(std::stod(std::string(token)));
-    return lit(std::stoll(std::string(token)));
+    auto to_expr = [](std::string_view s) -> expr {
+        if(s.find('.') != std::string_view::npos)
+            return lit(std::stod(std::string(s)));
+        return lit(std::stoll(std::string(s)));
+    };
+    return parser::parse_while([](char c) { return std::isdigit(c) or c == '.'; })[to_expr];
 }
 
-expr parse_func_or_var(sym_parser& p)
+auto ident_comb()
 {
-    char c = p.peek_char();
-    if(not std::isalpha(c) and c != '_')
-        return {};
-    auto name = p.parse_while([](char ch) { return std::isalnum(ch) or ch == '_'; });
-    std::string sname(name);
-    if(p.peek_char() != '(')
-        return var(sname);
-    p.advance(1);
-    std::vector<expr> args;
-    if(p.peek_char() != ')')
-    {
-        args.push_back(parse_expr(p));
-        while(p.match(std::string_view(",")))
-            args.push_back(parse_expr(p));
-    }
-    p.expect(std::string_view(")"));
-    return call_function(sname, std::move(args));
+    return parser::guard([](char c) { return std::isalpha(c) or c == '_'; }) >>
+           parser::parse_while([](char c) { return std::isalnum(c) or c == '_'; });
 }
 
-expr parse_paren_expr(sym_parser& p)
+std::optional<expr> do_parse_primary(sym_parser& p)
 {
-    if(not p.match(std::string_view("(")))
-        return {};
-    auto e = parse_expr(p);
-    p.expect(std::string_view(")"));
-    return e;
+    auto expr_ref = parser::lazy(&do_parse_expr);
+    auto ident    = ident_comb();
+    auto args = -parser::separated_by(expr_ref, parser::lit(","));
+
+    auto make_func = [](auto t) -> expr {
+        auto [name, args_opt] = std::move(t);
+        std::vector<expr> avec;
+        if(args_opt)
+            avec = std::move(*args_opt);
+        return call_function(std::string(name), std::move(avec));
+    };
+    auto func_call = (ident >> parser::lit("(") >> args >> parser::lit(")"))[make_func];
+
+    auto make_var = [](std::string_view name) -> expr { return var(std::string(name)); };
+    auto variable = ident[make_var];
+
+    auto paren = parser::lit("(") >> expr_ref >> parser::lit(")");
+
+    auto primary = paren | func_call | variable | number_comb();
+    return primary(p);
 }
 
-expr parse_primary(sym_parser& p)
+std::optional<expr> do_parse_unary(sym_parser& p)
 {
-    return p.first_of(&parse_paren_expr,
-                      &parse_func_or_var,
-                      &parse_number,
-                      [](sym_parser& q) -> expr { MIGRAPHX_THROW(q.error_message("expression")); });
+    auto negate = [](expr e) -> expr { return -std::move(e); };
+    auto neg    = (parser::lit("-") >> parser::lazy(&do_parse_unary))[negate];
+    auto unary  = neg | parser::lazy(&do_parse_primary);
+    return unary(p);
 }
 
-expr parse_unary(sym_parser& p)
+std::optional<expr> do_parse_expr(sym_parser& p)
 {
-    if(p.match(std::string_view("-")))
-        return -parse_unary(p);
-    return parse_primary(p);
-}
+    auto unary  = parser::lazy(&do_parse_unary);
+    auto mul_op = parser::token("*") | parser::token("/");
+    auto fold_ops = [](auto t) -> expr {
+        auto [left, ops] = std::move(t);
+        for(auto& [op, rhs] : ops)
+        {
+            if(op == "*")
+                left = left * std::move(rhs);
+            else if(op == "/")
+                left = left / std::move(rhs);
+            else if(op == "+")
+                left = left + std::move(rhs);
+            else
+                left = left - std::move(rhs);
+        }
+        return left;
+    };
+    auto mul = (unary >> *(mul_op >> unary))[fold_ops];
 
-expr parse_mul_expr(sym_parser& p)
-{
-    auto left = parse_unary(p);
-    auto ops  = p.repeat([](sym_parser& q) -> std::pair<std::string_view, expr> {
-        auto op = q.first_of(std::string_view("*"), std::string_view("/"));
-        if(op.empty())
-            return {};
-        return {op, parse_unary(q)};
-    });
-    for(auto& [op, rhs] : ops)
-    {
-        if(op == "*")
-            left = left * std::move(rhs);
-        else
-            left = left / std::move(rhs);
-    }
-    return left;
-}
+    auto add_op     = parser::token("+") | parser::token("-");
+    auto expression = (mul >> *(add_op >> mul))[fold_ops];
 
-expr parse_expr(sym_parser& p)
-{
-    auto left = parse_mul_expr(p);
-    auto ops  = p.repeat([](sym_parser& q) -> std::pair<std::string_view, expr> {
-        auto op = q.first_of(std::string_view("+"), std::string_view("-"));
-        if(op.empty())
-            return {};
-        return {op, parse_mul_expr(q)};
-    });
-    for(auto& [op, rhs] : ops)
-    {
-        if(op == "+")
-            left = left + std::move(rhs);
-        else
-            left = left - std::move(rhs);
-    }
-    return left;
+    return expression(p);
 }
 
 } // namespace
@@ -962,12 +945,13 @@ expr parse(const std::string& str)
 {
     std::string_view sv(str);
     sym_parser p{sv};
-    // skip leading whitespace
     p.advance(0);
-    auto result = parse_expr(p);
+    auto result = do_parse_expr(p);
+    if(not result)
+        MIGRAPHX_THROW(p.error_message("expression"));
     if(not p.done())
         MIGRAPHX_THROW(p.error_message("end of input"));
-    return result;
+    return *std::move(result);
 }
 
 } // namespace sym

@@ -24,8 +24,9 @@
 #include <migraphx/simple_parser.hpp>
 #include <test.hpp>
 
-using migraphx::parser::action;
 using migraphx::parser::simple_string_view_skip_parser;
+
+// ---- Base parser tests ----
 
 TEST_CASE(parser_peek_and_advance)
 {
@@ -67,176 +68,253 @@ TEST_CASE(parser_parse_while)
     EXPECT(digits == "123");
 }
 
-TEST_CASE(parser_try_parse)
-{
-    std::string_view sv("hello world");
-    simple_string_view_skip_parser p{sv};
-    bool matched = p.try_parse([](auto& q) { q.match(std::string_view("hello")); });
-    EXPECT(matched);
-    EXPECT(p.peek_char() == 'w');
+// ---- Combinator tests ----
 
-    bool missed = p.try_parse([](auto& q) { q.match(std::string_view("xyz")); });
-    EXPECT(not missed);
-    EXPECT(p.peek_char() == 'w');
-}
-
-TEST_CASE(parser_first_of)
+TEST_CASE(comb_lit_match)
 {
-    std::string_view sv("42");
+    auto comma = migraphx::parser::lit(",");
+    std::string_view sv(", rest");
     simple_string_view_skip_parser p{sv};
-    auto result = p.first_of(
-        [](auto& q) -> std::string {
-            if(not std::isalpha(q.peek_char()))
-                return {};
-            return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
-        },
-        [](auto& q) -> std::string {
-            if(not std::isdigit(q.peek_char()))
-                return {};
-            return std::string(q.parse_while([](char c) { return std::isdigit(c); }));
-        });
-    EXPECT(result == "42");
-}
-
-TEST_CASE(parser_first_of_first_match)
-{
-    std::string_view sv("abc");
-    simple_string_view_skip_parser p{sv};
-    auto result = p.first_of(
-        [](auto& q) -> std::string {
-            if(not std::isalpha(q.peek_char()))
-                return {};
-            return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
-        },
-        [](auto& q) -> std::string {
-            if(not std::isdigit(q.peek_char()))
-                return {};
-            return std::string(q.parse_while([](char c) { return std::isdigit(c); }));
-        });
-    EXPECT(result == "abc");
-}
-
-TEST_CASE(parser_repeat)
-{
-    std::string_view sv("a b c .");
-    simple_string_view_skip_parser p{sv};
-    auto results = p.repeat([](auto& q) -> std::string {
-        if(not std::isalpha(q.peek_char()))
-            return {};
-        return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
-    });
-    EXPECT(results.size() == 3);
-    EXPECT(results[0] == "a");
-    EXPECT(results[1] == "b");
-    EXPECT(results[2] == "c");
-    EXPECT(p.peek_char() == '.');
-}
-
-TEST_CASE(parser_repeat_empty)
-{
-    std::string_view sv("123");
-    simple_string_view_skip_parser p{sv};
-    auto results = p.repeat([](auto& q) -> std::string {
-        if(not std::isalpha(q.peek_char()))
-            return {};
-        return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
-    });
-    EXPECT(results.empty());
-    EXPECT(p.peek_char() == '1');
-}
-
-TEST_CASE(first_of_views)
-{
-    std::string_view sv("+ rest");
-    simple_string_view_skip_parser p{sv};
-    auto result = p.first_of(std::string_view("*"), std::string_view("+"), std::string_view("/"));
-    EXPECT(result == "+");
+    auto r = comma(p);
+    EXPECT(r.has_value());
     EXPECT(p.peek_char() == 'r');
 }
 
-TEST_CASE(first_of_views_no_match)
+TEST_CASE(comb_lit_no_match)
 {
+    auto comma = migraphx::parser::lit(",");
     std::string_view sv("xyz");
     simple_string_view_skip_parser p{sv};
-    auto result = p.first_of(std::string_view("+"), std::string_view("-"));
-    EXPECT(result.empty());
+    auto r = comma(p);
+    EXPECT(not r.has_value());
     EXPECT(p.peek_char() == 'x');
 }
 
-TEST_CASE(first_of_views_multichar)
+TEST_CASE(comb_token)
 {
-    std::string_view sv("== rest");
+    auto plus = migraphx::parser::token("+");
+    std::string_view sv("+ 1");
     simple_string_view_skip_parser p{sv};
-    auto result = p.first_of(std::string_view("!="), std::string_view("=="));
-    EXPECT(result == "==");
+    auto r = plus(p);
+    EXPECT(r.has_value());
+    EXPECT(*r == "+");
 }
 
-TEST_CASE(parser_action_pipe)
+TEST_CASE(comb_parse_while)
 {
-    auto parse_alpha  = action([](auto& q) -> std::string {
-        if(not std::isalpha(q.peek_char()))
-            return {};
-        return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
-    });
-    auto parse_digits = action([](auto& q) -> std::string {
-        if(not std::isdigit(q.peek_char()))
-            return {};
-        return std::string(q.parse_while([](char c) { return std::isdigit(c); }));
-    });
-    auto parse_token  = parse_alpha | parse_digits;
-
-    std::string_view sv("123");
+    auto digits = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+    std::string_view sv("123 abc");
     simple_string_view_skip_parser p{sv};
-    auto result = parse_token(p);
-    EXPECT(result == "123");
+    auto r = digits(p);
+    EXPECT(r.has_value());
+    EXPECT(*r == "123");
+}
 
-    std::string_view sv2("abc");
+TEST_CASE(comb_parse_while_no_match)
+{
+    auto digits = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+    std::string_view sv("abc");
+    simple_string_view_skip_parser p{sv};
+    auto r = digits(p);
+    EXPECT(not r.has_value());
+    EXPECT(p.peek_char() == 'a');
+}
+
+TEST_CASE(comb_guard)
+{
+    auto alpha_guard = migraphx::parser::guard([](char c) { return std::isalpha(c); });
+    std::string_view sv("abc");
+    simple_string_view_skip_parser p{sv};
+    auto r = alpha_guard(p);
+    EXPECT(r.has_value());
+    EXPECT(p.peek_char() == 'a');
+
+    std::string_view sv2("123");
     simple_string_view_skip_parser p2{sv2};
-    auto result2 = parse_token(p2);
-    EXPECT(result2 == "abc");
+    auto r2 = alpha_guard(p2);
+    EXPECT(not r2.has_value());
 }
 
-TEST_CASE(parser_action_star)
+TEST_CASE(comb_seq_skip_elision)
 {
-    auto parse_word  = action([](auto& q) -> std::string {
-        if(not std::isalpha(q.peek_char()))
-            return {};
-        return std::string(q.parse_while([](char c) { return std::isalpha(c); }));
-    });
-    auto parse_words = *parse_word;
+    using migraphx::parser::lit;
+    auto digits = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+
+    auto paren_num = lit("(") >> digits >> lit(")");
+    std::string_view sv("(42)");
+    simple_string_view_skip_parser p{sv};
+    auto r = paren_num(p);
+    EXPECT(r.has_value());
+    EXPECT(*r == "42");
+}
+
+TEST_CASE(comb_seq_tuple)
+{
+    auto alpha  = migraphx::parser::parse_while([](char c) { return std::isalpha(c); });
+    auto digits = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+
+    auto pair = alpha >> digits;
+    std::string_view sv("abc 123");
+    simple_string_view_skip_parser p{sv};
+    auto r = pair(p);
+    EXPECT(r.has_value());
+    EXPECT(std::get<0>(*r) == "abc");
+    EXPECT(std::get<1>(*r) == "123");
+}
+
+TEST_CASE(comb_seq_triple_flattened)
+{
+    auto a = migraphx::parser::parse_while([](char c) { return c == 'a'; });
+    auto b = migraphx::parser::parse_while([](char c) { return c == 'b'; });
+    auto c = migraphx::parser::parse_while([](char c) { return c == 'c'; });
+
+    auto triple = a >> b >> c;
+    std::string_view sv("aa bb cc");
+    simple_string_view_skip_parser p{sv};
+    auto r = triple(p);
+    EXPECT(r.has_value());
+    EXPECT(std::get<0>(*r) == "aa");
+    EXPECT(std::get<1>(*r) == "bb");
+    EXPECT(std::get<2>(*r) == "cc");
+}
+
+TEST_CASE(comb_seq_backtrack)
+{
+    using migraphx::parser::lit;
+    auto digits = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+
+    auto seq = lit("(") >> digits >> lit(")");
+    std::string_view sv("(abc)");
+    simple_string_view_skip_parser p{sv};
+    auto r = seq(p);
+    EXPECT(not r.has_value());
+    EXPECT(p.peek_char() == '(');
+}
+
+TEST_CASE(comb_alt_same_type)
+{
+    auto plus  = migraphx::parser::token("+");
+    auto minus = migraphx::parser::token("-");
+    auto op    = plus | minus;
+
+    std::string_view sv("-");
+    simple_string_view_skip_parser p{sv};
+    auto r = op(p);
+    EXPECT(r.has_value());
+    EXPECT(*r == "-");
+}
+
+TEST_CASE(comb_alt_no_match)
+{
+    auto plus  = migraphx::parser::token("+");
+    auto minus = migraphx::parser::token("-");
+    auto op    = plus | minus;
+
+    std::string_view sv("*");
+    simple_string_view_skip_parser p{sv};
+    auto r = op(p);
+    EXPECT(not r.has_value());
+}
+
+TEST_CASE(comb_repeat)
+{
+    auto word  = migraphx::parser::parse_while([](char c) { return std::isalpha(c); });
+    auto words = *word;
 
     std::string_view sv("foo bar baz 123");
     simple_string_view_skip_parser p{sv};
-    auto results = parse_words(p);
-    EXPECT(results.size() == 3);
-    EXPECT(results[0] == "foo");
-    EXPECT(results[1] == "bar");
-    EXPECT(results[2] == "baz");
+    auto r = words(p);
+    EXPECT(r.has_value());
+    EXPECT(r->size() == 3);
+    EXPECT(r->at(0) == "foo");
+    EXPECT(r->at(1) == "bar");
+    EXPECT(r->at(2) == "baz");
 }
 
-TEST_CASE(parser_action_star_pipe)
+TEST_CASE(comb_repeat_zero)
 {
-    auto parse_ident  = action([](auto& q) -> std::string {
-        if(not std::isalpha(q.peek_char()))
-            return {};
-        return std::string(q.parse_while([](char c) { return std::isalnum(c); }));
-    });
-    auto parse_number = action([](auto& q) -> std::string {
-        if(not std::isdigit(q.peek_char()))
-            return {};
-        return std::string(q.parse_while([](char c) { return std::isdigit(c); }));
-    });
-    auto parse_token  = parse_number | parse_ident;
-    auto parse_tokens = *parse_token;
+    auto word  = migraphx::parser::parse_while([](char c) { return std::isalpha(c); });
+    auto words = *word;
 
-    std::string_view sv("123 abc 456 def");
+    std::string_view sv("123");
     simple_string_view_skip_parser p{sv};
-    auto results = parse_tokens(p);
-    EXPECT(results.size() == 4);
-    EXPECT(results[0] == "123");
-    EXPECT(results[1] == "abc");
-    EXPECT(results[2] == "456");
-    EXPECT(results[3] == "def");
+    auto r = words(p);
+    EXPECT(r.has_value());
+    EXPECT(r->empty());
+}
+
+TEST_CASE(comb_optional_present)
+{
+    auto digits = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+    auto opt    = -digits;
+
+    std::string_view sv("42");
+    simple_string_view_skip_parser p{sv};
+    auto r = opt(p);
+    EXPECT(r.has_value());
+    EXPECT(r->has_value());
+    EXPECT(**r == "42");
+}
+
+TEST_CASE(comb_optional_absent)
+{
+    auto digits = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+    auto opt    = -digits;
+
+    std::string_view sv("abc");
+    simple_string_view_skip_parser p{sv};
+    auto r = opt(p);
+    EXPECT(r.has_value());
+    EXPECT(not r->has_value());
+    EXPECT(p.peek_char() == 'a');
+}
+
+TEST_CASE(comb_semantic_action)
+{
+    auto digits = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+    auto to_double = [](std::string_view s) { return std::stod(std::string(s)); };
+    auto number    = digits[to_double];
+
+    std::string_view sv("42");
+    simple_string_view_skip_parser p{sv};
+    auto r = number(p);
+    EXPECT(r.has_value());
+    EXPECT(*r == 42.0);
+}
+
+TEST_CASE(comb_number_list)
+{
+    using migraphx::parser::lit;
+    auto number_s = migraphx::parser::parse_while([](char c) { return std::isdigit(c) or c == '.'; });
+    auto to_dbl = [](std::string_view s) { return std::stod(std::string(s)); };
+    auto number = number_s[to_dbl];
+    auto numbers  = migraphx::parser::separated_by(number, lit(","));
+
+    std::string_view sv("1, 2.5, 3");
+    simple_string_view_skip_parser p{sv};
+    auto r = numbers(p);
+    EXPECT(r.has_value());
+    EXPECT(r->size() == 3);
+    EXPECT(r->at(0) == 1.0);
+    EXPECT(r->at(1) == 2.5);
+    EXPECT(r->at(2) == 3.0);
+}
+
+TEST_CASE(comb_star_pipe)
+{
+    auto ident  = migraphx::parser::parse_while([](char c) { return std::isalpha(c); });
+    auto number = migraphx::parser::parse_while([](char c) { return std::isdigit(c); });
+    auto tokens = *(ident | number);
+
+    std::string_view sv("abc 123 def 456");
+    simple_string_view_skip_parser p{sv};
+    auto r = tokens(p);
+    EXPECT(r.has_value());
+    EXPECT(r->size() == 4);
+    EXPECT(r->at(0) == "abc");
+    EXPECT(r->at(1) == "123");
+    EXPECT(r->at(2) == "def");
+    EXPECT(r->at(3) == "456");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

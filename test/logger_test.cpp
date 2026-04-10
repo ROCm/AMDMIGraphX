@@ -358,7 +358,7 @@ TEST_CASE(logger_file_sink)
 
     // add_file_logger should return an ID > 0
     auto file_id =
-        migraphx::log::add_file_logger(log_path_fs.string().c_str(), migraphx::log::severity::info);
+        migraphx::log::add_file_logger(log_path_fs.string(), migraphx::log::severity::info);
     EXPECT(file_id > 0);
 
     // Log something
@@ -393,13 +393,13 @@ TEST_CASE(logger_file_sink_existing_file)
     auto log_path = (td.path / "migraphx_test_existing_log.txt").string();
 
     // Create a file logger and write some content
-    auto file_id1 = migraphx::log::add_file_logger(log_path.c_str(), migraphx::log::severity::info);
+    auto file_id1 = migraphx::log::add_file_logger(log_path, migraphx::log::severity::info);
     EXPECT(file_id1 > 0);
     migraphx::log::info() << "First message";
     migraphx::log::remove_sink(file_id1);
 
     // Add a file logger to the same path (file now exists)
-    auto file_id2 = migraphx::log::add_file_logger(log_path.c_str(), migraphx::log::severity::info);
+    auto file_id2 = migraphx::log::add_file_logger(log_path, migraphx::log::severity::info);
     EXPECT(file_id2 > 0);
 
     // Log another message
@@ -762,7 +762,7 @@ TEST_CASE(logger_concurrent_file_sink)
     migraphx::tmp_dir td{"logger_concurrent_file_sink"};
     auto log_path = (td.path / "migraphx_concurrent_test.log").string();
 
-    auto file_id = migraphx::log::add_file_logger(log_path.c_str(), migraphx::log::severity::info);
+    auto file_id = migraphx::log::add_file_logger(log_path, migraphx::log::severity::info);
 
     const unsigned int num_threads    = get_thread_count(4);
     constexpr int messages_per_thread = 25;

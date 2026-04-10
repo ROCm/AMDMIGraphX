@@ -387,9 +387,14 @@ TEST_CASE(nms_static_input_dyn_out_false_test)
     auto* mm = p.get_main_module();
 
     migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-    std::vector<float> boxes_vec = {0.0, 0.0,  1.0, 1.0,  0.0, 0.1,   1.0, 1.1,
-                                    0.0, -0.1, 1.0, 0.9,  0.0, 10.0,  1.0, 11.0,
-                                    0.0, 10.1, 1.0, 11.1, 0.0, 100.0, 1.0, 101.0};
+    std::vector<float> boxes_vec = {
+        0.0, 0.0,   1.0, 1.0,   
+        0.0, 0.1,   1.0, 1.1,  
+        0.0, -0.1,  1.0, 0.9,   
+        0.0, 10.0,  1.0, 11.0,  
+        0.0, 10.1,  1.0, 11.1,  
+        0.0, 100.0, 1.0, 101.0  
+    };
 
     migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
     std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
@@ -400,13 +405,14 @@ TEST_CASE(nms_static_input_dyn_out_false_test)
     auto iou_threshold   = mm->add_literal(0.5f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    auto r =
-        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", false}}),
-                            boxes_l,
-                            scores_l,
-                            max_out_l,
-                            iou_threshold,
-                            score_threshold);
+    auto r = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression",
+                          {{"use_dyn_output", false}}),
+        boxes_l,
+        scores_l,
+        max_out_l,
+        iou_threshold,
+        score_threshold);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -422,7 +428,8 @@ TEST_CASE(nms_static_input_dyn_out_false_test)
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
-// Static inputs + use_dyn_output=True
+
+// Static inputs + use_dyn_output=True 
 // Used to crash with PARSE_EXPAND error https://github.com/ROCm/AMDMIGraphX/issues/4679
 // Now works correctly with static input shapes
 TEST_CASE(nms_static_input_dyn_out_true_test)
@@ -431,9 +438,14 @@ TEST_CASE(nms_static_input_dyn_out_true_test)
     auto* mm = p.get_main_module();
 
     migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-    std::vector<float> boxes_vec = {0.0, 0.0,  1.0, 1.0,  0.0, 0.1,   1.0, 1.1,
-                                    0.0, -0.1, 1.0, 0.9,  0.0, 10.0,  1.0, 11.0,
-                                    0.0, 10.1, 1.0, 11.1, 0.0, 100.0, 1.0, 101.0};
+    std::vector<float> boxes_vec = {
+        0.0, 0.0,   1.0, 1.0,   
+        0.0, 0.1,   1.0, 1.1,   
+        0.0, -0.1,  1.0, 0.9,   
+        0.0, 10.0,  1.0, 11.0,  
+        0.0, 10.1,  1.0, 11.1,  
+        0.0, 100.0, 1.0, 101.0  
+    };
 
     migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
     std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
@@ -444,12 +456,14 @@ TEST_CASE(nms_static_input_dyn_out_true_test)
     auto iou_threshold   = mm->add_literal(0.5f);
     auto score_threshold = mm->add_literal(0.0f);
 
-    auto r = mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}),
-                                 boxes_l,
-                                 scores_l,
-                                 max_out_l,
-                                 iou_threshold,
-                                 score_threshold);
+    auto r = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression",
+                          {{"use_dyn_output", true}}),
+        boxes_l,
+        scores_l,
+        max_out_l,
+        iou_threshold,
+        score_threshold);
     mm->add_return({r});
 
     p.compile(migraphx::make_target("ref"));
@@ -465,6 +479,7 @@ TEST_CASE(nms_static_input_dyn_out_true_test)
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
 
+
 TEST_CASE(nms_dyn_out_false_and_true_same_result_test)
 {
     auto run_nms = [](bool use_dyn_output) {
@@ -472,9 +487,14 @@ TEST_CASE(nms_dyn_out_false_and_true_same_result_test)
         auto* mm = p.get_main_module();
 
         migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-        std::vector<float> boxes_vec = {0.0, 0.0,  1.0, 1.0,  0.0, 0.1,   1.0, 1.1,
-                                        0.0, -0.1, 1.0, 0.9,  0.0, 10.0,  1.0, 11.0,
-                                        0.0, 10.1, 1.0, 11.1, 0.0, 100.0, 1.0, 101.0};
+        std::vector<float> boxes_vec = {
+            0.0, 0.0,   1.0, 1.0,
+            0.0, 0.1,   1.0, 1.1,
+            0.0, -0.1,  1.0, 0.9,
+            0.0, 10.0,  1.0, 11.0,
+            0.0, 10.1,  1.0, 11.1,
+            0.0, 100.0, 1.0, 101.0
+        };
 
         migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
         std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
@@ -486,7 +506,8 @@ TEST_CASE(nms_dyn_out_false_and_true_same_result_test)
         auto score_threshold = mm->add_literal(0.0f);
 
         auto r = mm->add_instruction(
-            migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", use_dyn_output}}),
+            migraphx::make_op("nonmaxsuppression",
+                              {{"use_dyn_output", use_dyn_output}}),
             boxes_l,
             scores_l,
             max_out_l,
@@ -505,11 +526,12 @@ TEST_CASE(nms_dyn_out_false_and_true_same_result_test)
     auto result_true  = run_nms(true);
 
     // Both flags must produce identical output after fix
-    // Before fix: False gave (6,3), True gave (3,3) - different.
-    // After fix:  Both give (3,3) - identical.
+    // Before fix: False gave (6,3), True gave (3,3) — different!
+    // After fix:  Both give (3,3) — identical!
     EXPECT(result_false.size() == result_true.size());
     EXPECT(result_false == result_true);
 }
+
 
 // Dynamic inputs + use_dyn_output=False must throw
 // This is CORRECT behavior — not a bug
@@ -532,11 +554,13 @@ TEST_CASE(nms_dynamic_input_dyn_out_false_throws_test)
     // Dynamic inputs + use_dyn_output=False MUST throw
     // This is intentional — dynamic inputs require True
     EXPECT(test::throws([&] {
-        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", false}}),
-                            boxes_p,
-                            scores_p,
-                            max_out_l,
-                            iou_threshold,
-                            score_threshold);
+        mm->add_instruction(
+            migraphx::make_op("nonmaxsuppression",
+                              {{"use_dyn_output", false}}),
+            boxes_p,
+            scores_p,
+            max_out_l,
+            iou_threshold,
+            score_threshold);
     }));
 }

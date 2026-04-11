@@ -36,7 +36,8 @@ migraphx::instruction_ref add_group(migraphx::program& p,
                                     const std::string& group_tag,
                                     std::vector<migraphx::instruction_ref> inputs,
                                     std::vector<std::string> arg_names,
-                                    const F& f)
+                                    const F& f,
+                                    std::uint32_t flags = 0)
 {
     assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
@@ -50,7 +51,11 @@ migraphx::instruction_ref add_group(migraphx::program& p,
     auto r = f(pm, params);
 
     pm->add_return(r);
-    return mm->add_instruction(migraphx::make_op("group", {{"tag", group_tag}}), inputs, {pm});
+    return mm->add_instruction(
+        migraphx::make_op("group",
+                          {{"tag", group_tag}, {"flags", static_cast<std::uint32_t>(flags)}}),
+        inputs,
+        {pm});
 }
 
 template <class F>
@@ -58,13 +63,15 @@ migraphx::instruction_ref add_group(migraphx::program& p,
                                     const std::string& name,
                                     const std::string& group_tag,
                                     std::vector<migraphx::instruction_ref> inputs,
-                                    const F& f)
+                                    const F& f,
+                                    std::uint32_t flags = 0)
 {
     std::vector<std::string> arg_names;
     migraphx::transform(migraphx::range(inputs.size()), std::back_inserter(arg_names), [&](auto i) {
         return migraphx::param_name(i);
     });
-    return add_group(p, name, group_tag, std::move(inputs), std::move(arg_names), std::move(f));
+    return add_group(
+        p, name, group_tag, std::move(inputs), std::move(arg_names), std::move(f), flags);
 }
 
 #endif // MIGRAPHX_GUARD_TEST_GPU_MAKE_GROUP_OP_HPP

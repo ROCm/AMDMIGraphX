@@ -31,6 +31,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/attention_flags.hpp>
 #include <basic_ops.hpp>
 #include <group.hpp>
 #include <test.hpp>
@@ -66,7 +67,9 @@ static migraphx::instruction_ref add_mlir(migraphx::program& p,
                                           const std::string& name,
                                           std::vector<migraphx::instruction_ref> inputs,
                                           std::vector<std::string> arg_names,
-                                          const F& f)
+                                          const F& f,
+                                          const std::string& tag = "",
+                                          std::uint32_t flags    = 0)
 {
     assert(inputs.size() == arg_names.size() and "One interior parameter name given per input.");
     auto* mm = p.get_main_module();
@@ -81,8 +84,12 @@ static migraphx::instruction_ref add_mlir(migraphx::program& p,
     auto root   = std::get<0>(values);
     auto r      = std::get<1>(values);
     auto_add_return(pm, r);
-    return mm->add_instruction(
-        migraphx::make_op("gpu::mlir_op", {{"op", migraphx::to_value(root)}}), inputs, {pm});
+    return mm->add_instruction(migraphx::make_op("gpu::mlir_op",
+                                                 {{"op", migraphx::to_value(root)},
+                                                  {"tag", tag},
+                                                  {"flags", static_cast<std::uint32_t>(flags)}}),
+                               inputs,
+                               {pm});
 }
 
 template <class F>
@@ -1283,7 +1290,11 @@ TEST_CASE(standalone_attention)
         auto b     = mm->add_parameter("2", s1);
         auto b1    = mm->add_parameter("3", s1);
         auto fused = add_mlir(
-            p2, "mlir_attn0", {a, b, b1}, {"x0", "x1", "x2"}, [=](auto* pm, const auto& inputs) {
+            p2,
+            "mlir_attn0",
+            {a, b, b1},
+            {"x0", "x1", "x2"},
+            [=](auto* pm, const auto& inputs) {
                 auto fb = pm->add_instruction(
                     migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), inputs[1]);
                 auto fb1 = pm->add_instruction(
@@ -1303,7 +1314,8 @@ TEST_CASE(standalone_attention)
 
                 auto gemm2 = pm->add_instruction(migraphx::make_op("dot"), div, fb1);
                 return std::make_tuple(gemm2->get_operator(), gemm2);
-            });
+            },
+            "attention");
         mm->add_return({fused});
     }
     EXPECT(p1 == p2);
@@ -1393,7 +1405,8 @@ TEST_CASE(fused_attention)
                 auto gemm2 = pm->add_instruction(migraphx::make_op("dot"), div, fb1);
                 auto add   = pm->add_instruction(migraphx::make_op("add"), gemm2, inputs[4]);
                 return std::make_tuple(gemm2->get_operator(), add);
-            });
+            },
+            "attention");
         mm->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -1516,7 +1529,8 @@ TEST_CASE(lse_attention)
                     log2se);
                 return std::make_tuple(gemm2->get_operator(),
                                        std::vector<migraphx::instruction_ref>{gemm2, lse});
-            });
+            },
+            "attention");
 
         auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), fused);
         auto lse_squeeze = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), lse);
@@ -1526,6 +1540,81 @@ TEST_CASE(lse_attention)
         mm->add_return({gemm2, lse_squeeze});
     }
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(kv_cache_attention)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+    auto kv_cache = static_cast<std::uint32_t>(migraphx::attention_flags::kv_cache);
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("1", s1);
+        auto b   = mm->add_parameter("2", s1);
+        auto b1  = mm->add_parameter("3", s1);
+
+        auto group = add_group(
+            p1,
+            "attn0",
+            "attention",
+            {a, b, b1},
+            {"x0", "x1", "x2"},
+            [=](auto* gm, const auto& inputs) {
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                return std::vector<migraphx::instruction_ref>{gemm2};
+            },
+            kv_cache);
+        mm->add_return({group});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* mm      = p2.get_main_module();
+        auto a        = mm->add_parameter("1", s1);
+        auto b        = mm->add_parameter("2", s1);
+        auto b1       = mm->add_parameter("3", s1);
+        auto group_op = migraphx::make_op("group", {{"tag", "attention"}, {"flags", kv_cache}});
+        auto fused    = add_mlir(
+            p2,
+            "attn0",
+            {a, b, b1},
+            {"x0", "x1", "x2"},
+            [=](auto* pm, const auto& inputs) {
+                auto gemm1 = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto rmax =
+                    pm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+                rmax = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub = pm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp = pm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    pm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = pm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div = pm->add_instruction(migraphx::make_op("div"), exp, rsum);
+
+                auto gemm2 = pm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                return std::make_tuple(group_op, gemm2);
+            },
+            "attention",
+            kv_cache);
+        mm->add_return({fused});
+    }
+    EXPECT(p1 == p2);
 }
 
 TEST_CASE(conv_output_reshapes)

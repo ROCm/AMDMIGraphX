@@ -33,6 +33,7 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/split_factor.hpp>
 #include <migraphx/generic_float.hpp>
+#include <migraphx/attention_flags.hpp>
 #include <migraphx/env.hpp>
 #include <basic_ops.hpp>
 #include <group.hpp>
@@ -513,10 +514,11 @@ TEST_CASE(kv_cache_attention_shared_broadcasts)
                                     v_part,
                                     slk,
                                     past_v);
-            auto group = add_group(
+            auto kv_cache = static_cast<std::uint32_t>(migraphx::attention_flags::kv_cache);
+            auto group    = add_group(
                 p2,
                 attn_name,
-                "kv_cache_attention",
+                "attention",
                 {slk, rope, cpp_k, cpp_v},
                 [=](auto* gm, const auto& inputs) {
                     auto range_lit = gm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3}});
@@ -583,7 +585,8 @@ TEST_CASE(kv_cache_attention_shared_broadcasts)
                     auto rsp_out = gm->add_instruction(
                         migraphx::make_op("reshape", {{"dims", {1, 3, 4}}}), tsp_out);
                     return std::vector<migraphx::instruction_ref>{rsp_out};
-                });
+                },
+                kv_cache);
             return std::make_tuple(group, cpp_k, cpp_v);
         };
 
@@ -1412,10 +1415,11 @@ TEST_CASE(kv_cache_attention)
             migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, slk, k);
         auto cpp_v = mm->add_instruction(
             migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_v, slk, v);
-        auto group = add_group(
+        auto kv_cache = static_cast<std::uint32_t>(migraphx::attention_flags::kv_cache);
+        auto group    = add_group(
             p2,
             "attn0",
-            "kv_cache_attention",
+            "attention",
             {rope, cpp_k, slk, cpp_v},
             [=](auto* gm, const auto& inputs) {
                 auto half = gm->add_literal(migraphx::literal{s1, {0.5}});
@@ -1470,7 +1474,8 @@ TEST_CASE(kv_cache_attention)
                 auto rsp_out = gm->add_instruction(
                     migraphx::make_op("reshape", {{"dims", {2, 1, 4}}}), tsp_out);
                 return std::vector<migraphx::instruction_ref>{rsp_out};
-            });
+            },
+            kv_cache);
         mm->add_return({group, cpp_k, cpp_v});
     }
     EXPECT(p1.sort() == p2.sort());
@@ -1629,10 +1634,11 @@ TEST_CASE(kv_cache_attention_external_pointwise)
             migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), v_part, slk, past_v);
 
         // Group inputs: {rope, cpp_k, slk, cpp_v}
-        auto group = add_group(
+        auto kv_cache = static_cast<std::uint32_t>(migraphx::attention_flags::kv_cache);
+        auto group    = add_group(
             p2,
             "attn0",
-            "kv_cache_attention",
+            "attention",
             {rope, cpp_k, slk, cpp_v},
             [=](auto* gm, const auto& inputs) {
                 auto range_lit = gm->add_literal(migraphx::literal{s_range, {0, 1, 2, 3}});
@@ -1692,7 +1698,8 @@ TEST_CASE(kv_cache_attention_external_pointwise)
                 auto rsp_out = gm->add_instruction(
                     migraphx::make_op("reshape", {{"dims", {1, 3, 4}}}), tsp_out);
                 return std::vector<migraphx::instruction_ref>{rsp_out};
-            });
+            },
+            kv_cache);
         mm->add_return({group, cpp_k, cpp_v});
     }
     EXPECT(p1.sort() == p2.sort());

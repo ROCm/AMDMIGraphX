@@ -1552,9 +1552,8 @@ TEST_CASE(kv_cache_attention_with_fp32_softmax_upcast)
             migraphx::make_op("unsqueeze", {{"axes", {1, 2}}, {"steps", {}}}), conv_grtr);
         auto bc_grtr = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), unsq_grtr);
-        auto mask   = mm->add_instruction(migraphx::make_op("where"), bc_grtr, bc_ninf, scaled);
-        auto softmax =
-            mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mask);
+        auto mask    = mm->add_instruction(migraphx::make_op("where"), bc_grtr, bc_ninf, scaled);
+        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mask);
         auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), softmax, cpp_v);
         auto tsp_out = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);

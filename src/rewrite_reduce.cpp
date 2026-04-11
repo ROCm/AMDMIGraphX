@@ -110,12 +110,12 @@ struct find_dot_softmax_fp32
             {
                 auto i0 = current->inputs()[0];
                 auto i1 = current->inputs()[1];
-                if(i0->name() == "dot" || i0->name() == "where" ||
-                   i0->name() == "convert" || i0->name() == "mul")
+                if(i0->name() == "dot" or i0->name() == "where" or i0->name() == "convert" or
+                   i0->name() == "mul")
                     return i0;
                 return i1;
             }
-            if(name == "broadcast" || name == "multibroadcast" || name == "convert")
+            if(name == "broadcast" or name == "multibroadcast" or name == "convert")
                 return current->inputs()[0];
             return std::nullopt;
         };
@@ -140,8 +140,8 @@ struct find_dot_softmax_fp32
             return;
 
         // Upcast ops between dot (exclusive) and inp (inclusive)
-        auto dot_ins      = *dot_opt;
-        auto pre_inss     = find_instructions_between(dot_ins, inp, &m);
+        auto dot_ins  = *dot_opt;
+        auto pre_inss = find_instructions_between(dot_ins, inp, &m);
 
         for(const auto& ins : pre_inss)
         {
@@ -154,7 +154,7 @@ struct find_dot_softmax_fp32
                 ins->inputs().end(),
                 std::back_inserter(ins_inputs_up),
                 [&](auto i) {
-                    if(i->get_shape().type() == shape::bool_type ||
+                    if(i->get_shape().type() == shape::bool_type or
                        i->get_shape().type() == shape::float_type)
                         return i;
                     return m.insert_instruction(

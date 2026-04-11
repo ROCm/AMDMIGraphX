@@ -21,13 +21,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-import migraphx, array, math
+import migraphx, math
 
 
-def create_buffer(t, data, shape):
-    a = array.array(t, data)
-    m = memoryview(a.tobytes())
-    return m.cast(t, shape)
+def make_arg(lens, data):
+    return migraphx.create_argument(
+        migraphx.shape(type="float_type", lens=lens), data)
 
 
 def test_macro_name_and_options():
@@ -47,12 +46,8 @@ def test_macro_no_options():
 def test_add_macro_gemm():
     p = migraphx.program()
     mm = p.get_main_module()
-    # 2x3 matrix
-    a = mm.add_literal(
-        create_buffer('f', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (2, 3)))
-    # 3x2 matrix
-    b = mm.add_literal(
-        create_buffer('f', [7.0, 8.0, 9.0, 10.0, 11.0, 12.0], (3, 2)))
+    a = mm.add_literal(make_arg([2, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
+    b = mm.add_literal(make_arg([3, 2], [7.0, 8.0, 9.0, 10.0, 11.0, 12.0]))
     mac = migraphx.macro("gemm")
     result = mm.add_macro(mac, [a, b])
     mm.add_return([result[-1]])
@@ -66,11 +61,8 @@ def test_add_macro_gemm_transA():
     p = migraphx.program()
     mm = p.get_main_module()
     # 3x2 matrix, will be transposed to 2x3
-    a = mm.add_literal(
-        create_buffer('f', [1.0, 4.0, 2.0, 5.0, 3.0, 6.0], (3, 2)))
-    # 3x2 matrix
-    b = mm.add_literal(
-        create_buffer('f', [7.0, 8.0, 9.0, 10.0, 11.0, 12.0], (3, 2)))
+    a = mm.add_literal(make_arg([3, 2], [1.0, 4.0, 2.0, 5.0, 3.0, 6.0]))
+    b = mm.add_literal(make_arg([3, 2], [7.0, 8.0, 9.0, 10.0, 11.0, 12.0]))
     mac = migraphx.macro("gemm", transA=True)
     result = mm.add_macro(mac, [a, b])
     mm.add_return([result[-1]])
@@ -84,16 +76,16 @@ def test_add_macro_gemm_transA():
 def test_add_macro_gemm_with_params():
     p = migraphx.program()
     mm = p.get_main_module()
-    s_a = migraphx.shape(lens=[2, 3], type="float")
-    s_b = migraphx.shape(lens=[3, 2], type="float")
+    s_a = migraphx.shape(lens=[2, 3], type="float_type")
+    s_b = migraphx.shape(lens=[3, 2], type="float_type")
     a = mm.add_parameter("a", s_a)
     b = mm.add_parameter("b", s_b)
     mac = migraphx.macro("gemm")
     result = mm.add_macro(mac, [a, b])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
-    a_data = create_buffer('f', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (2, 3))
-    b_data = create_buffer('f', [7.0, 8.0, 9.0, 10.0, 11.0, 12.0], (3, 2))
+    a_data = make_arg([2, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    b_data = make_arg([3, 2], [7.0, 8.0, 9.0, 10.0, 11.0, 12.0])
     output = p.run({"a": a_data, "b": b_data})[-1].tolist()
     assert output == [58.0, 64.0, 139.0, 154.0]
 
@@ -102,21 +94,18 @@ def test_add_macro_batchnorm():
     p = migraphx.program()
     mm = p.get_main_module()
     # Input: (1, 2, 3) - batch=1, channels=2, width=3
-    x = mm.add_literal(
-        create_buffer('f', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (1, 2, 3)))
+    x = mm.add_literal(make_arg([1, 2, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
     # scale, bias, mean, var each have shape (2,) for 2 channels
-    scale = mm.add_literal(create_buffer('f', [1.0, 1.0], (2,)))
-    bias = mm.add_literal(create_buffer('f', [0.0, 0.0], (2,)))
-    mean = mm.add_literal(create_buffer('f', [2.0, 5.0], (2,)))
-    var = mm.add_literal(create_buffer('f', [1.0, 1.0], (2,)))
+    scale = mm.add_literal(make_arg([2], [1.0, 1.0]))
+    bias = mm.add_literal(make_arg([2], [0.0, 0.0]))
+    mean = mm.add_literal(make_arg([2], [2.0, 5.0]))
+    var = mm.add_literal(make_arg([2], [1.0, 1.0]))
     mac = migraphx.macro("batchnorm")
     result = mm.add_macro(mac, [x, scale, bias, mean, var])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
     output = p.run({})[-1].tolist()
     # BN: (x - mean) / sqrt(var + eps) * scale + bias
-    # Channel 0: (1-2)/sqrt(1+1e-5), (2-2)/sqrt(1+1e-5), (3-2)/sqrt(1+1e-5)
-    # Channel 1: (4-5)/sqrt(1+1e-5), (5-5)/sqrt(1+1e-5), (6-5)/sqrt(1+1e-5)
     eps = 1e-5
     expected = [
         (1.0 - 2.0) / math.sqrt(1.0 + eps),
@@ -134,12 +123,11 @@ def test_add_macro_batchnorm():
 def test_add_macro_batchnorm_with_epsilon():
     p = migraphx.program()
     mm = p.get_main_module()
-    x = mm.add_literal(
-        create_buffer('f', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (1, 2, 3)))
-    scale = mm.add_literal(create_buffer('f', [2.0, 0.5], (2,)))
-    bias = mm.add_literal(create_buffer('f', [1.0, -1.0], (2,)))
-    mean = mm.add_literal(create_buffer('f', [2.0, 5.0], (2,)))
-    var = mm.add_literal(create_buffer('f', [4.0, 4.0], (2,)))
+    x = mm.add_literal(make_arg([1, 2, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
+    scale = mm.add_literal(make_arg([2], [2.0, 0.5]))
+    bias = mm.add_literal(make_arg([2], [1.0, -1.0]))
+    mean = mm.add_literal(make_arg([2], [2.0, 5.0]))
+    var = mm.add_literal(make_arg([2], [4.0, 4.0]))
     mac = migraphx.macro("batchnorm", epsilon=0.01)
     result = mm.add_macro(mac, [x, scale, bias, mean, var])
     mm.add_return([result[-1]])
@@ -163,15 +151,13 @@ def test_add_macro_convolution():
     p = migraphx.program()
     mm = p.get_main_module()
     # Input: (1, 1, 3, 3) - batch=1, channels=1, 3x3
-    x = mm.add_literal(
-        create_buffer('f', [
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0
-        ], (1, 1, 3, 3)))
+    x = mm.add_literal(make_arg([1, 1, 3, 3], [
+        1.0, 2.0, 3.0,
+        4.0, 5.0, 6.0,
+        7.0, 8.0, 9.0
+    ]))
     # Weight: (1, 1, 2, 2) - out_channels=1, in_channels=1, 2x2 kernel
-    w = mm.add_literal(
-        create_buffer('f', [1.0, 0.0, 0.0, 1.0], (1, 1, 2, 2)))
+    w = mm.add_literal(make_arg([1, 1, 2, 2], [1.0, 0.0, 0.0, 1.0]))
     mac = migraphx.macro("convolution")
     result = mm.add_macro(mac, [x, w])
     mm.add_return([result[-1]])
@@ -187,15 +173,13 @@ def test_add_macro_convolution():
 def test_add_macro_convolution_with_bias():
     p = migraphx.program()
     mm = p.get_main_module()
-    x = mm.add_literal(
-        create_buffer('f', [
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0
-        ], (1, 1, 3, 3)))
-    w = mm.add_literal(
-        create_buffer('f', [1.0, 0.0, 0.0, 1.0], (1, 1, 2, 2)))
-    bias = mm.add_literal(create_buffer('f', [10.0], (1,)))
+    x = mm.add_literal(make_arg([1, 1, 3, 3], [
+        1.0, 2.0, 3.0,
+        4.0, 5.0, 6.0,
+        7.0, 8.0, 9.0
+    ]))
+    w = mm.add_literal(make_arg([1, 1, 2, 2], [1.0, 0.0, 0.0, 1.0]))
+    bias = mm.add_literal(make_arg([1], [10.0]))
     mac = migraphx.macro("convolution")
     result = mm.add_macro(mac, [x, w, bias])
     mm.add_return([result[-1]])
@@ -208,33 +192,27 @@ def test_add_macro_convolution_with_bias():
 def test_add_macro_convolution_with_padding():
     p = migraphx.program()
     mm = p.get_main_module()
-    # Input: (1, 1, 3, 3)
-    x = mm.add_literal(
-        create_buffer('f', [
-            1.0, 2.0, 3.0,
-            4.0, 5.0, 6.0,
-            7.0, 8.0, 9.0
-        ], (1, 1, 3, 3)))
+    x = mm.add_literal(make_arg([1, 1, 3, 3], [
+        1.0, 2.0, 3.0,
+        4.0, 5.0, 6.0,
+        7.0, 8.0, 9.0
+    ]))
     # Weight: (1, 1, 3, 3) - 3x3 kernel all ones
-    w = mm.add_literal(
-        create_buffer('f', [1.0] * 9, (1, 1, 3, 3)))
+    w = mm.add_literal(make_arg([1, 1, 3, 3], [1.0] * 9))
     mac = migraphx.macro("convolution", paddings=[1, 1])
     result = mm.add_macro(mac, [x, w])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
     output = p.run({})[-1].tolist()
     # 3x3 kernel of ones on 3x3 input with padding=1 => 3x3 output
-    # Each output is the sum of the overlapping region
     assert output == [12.0, 21.0, 16.0, 27.0, 45.0, 33.0, 24.0, 39.0, 28.0]
 
 
 def test_add_macro_einsum_matmul():
     p = migraphx.program()
     mm = p.get_main_module()
-    a = mm.add_literal(
-        create_buffer('f', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (2, 3)))
-    b = mm.add_literal(
-        create_buffer('f', [7.0, 8.0, 9.0, 10.0, 11.0, 12.0], (3, 2)))
+    a = mm.add_literal(make_arg([2, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
+    b = mm.add_literal(make_arg([3, 2], [7.0, 8.0, 9.0, 10.0, 11.0, 12.0]))
     mac = migraphx.macro("einsum", equation="ij,jk->ik")
     result = mm.add_macro(mac, [a, b])
     mm.add_return([result[-1]])
@@ -247,8 +225,7 @@ def test_add_macro_einsum_matmul():
 def test_add_macro_einsum_transpose():
     p = migraphx.program()
     mm = p.get_main_module()
-    a = mm.add_literal(
-        create_buffer('f', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (2, 3)))
+    a = mm.add_literal(make_arg([2, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
     mac = migraphx.macro("einsum", equation="ij->ji")
     result = mm.add_macro(mac, [a])
     mm.add_return([result[-1]])
@@ -261,13 +238,11 @@ def test_add_macro_einsum_transpose():
 def test_add_macro_einsum_trace():
     p = migraphx.program()
     mm = p.get_main_module()
-    # 3x3 identity matrix
-    a = mm.add_literal(
-        create_buffer('f', [
-            1.0, 0.0, 0.0,
-            0.0, 2.0, 0.0,
-            0.0, 0.0, 3.0
-        ], (3, 3)))
+    a = mm.add_literal(make_arg([3, 3], [
+        1.0, 0.0, 0.0,
+        0.0, 2.0, 0.0,
+        0.0, 0.0, 3.0
+    ]))
     mac = migraphx.macro("einsum", equation="ii->")
     result = mm.add_macro(mac, [a])
     mm.add_return([result[-1]])
@@ -280,12 +255,8 @@ def test_add_macro_einsum_trace():
 def test_insert_macro():
     p = migraphx.program()
     mm = p.get_main_module()
-    # 2x3 matrix
-    a = mm.add_literal(
-        create_buffer('f', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (2, 3)))
-    # 3x2 matrix
-    b = mm.add_literal(
-        create_buffer('f', [7.0, 8.0, 9.0, 10.0, 11.0, 12.0], (3, 2)))
+    a = mm.add_literal(make_arg([2, 3], [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
+    b = mm.add_literal(make_arg([3, 2], [7.0, 8.0, 9.0, 10.0, 11.0, 12.0]))
     # First add a gemm at the end
     gemm_mac = migraphx.macro("gemm")
     gemm_result = mm.add_macro(gemm_mac, [a, b])

@@ -148,6 +148,8 @@ struct hip_device
 
         void set_external_stream(hipStream_t ext_stream)
         {
+            if(external_stream == ext_stream)
+                return;
             external_stream = ext_stream;
 #if MIGRAPHX_USE_MIOPEN
             if(mihandle != nullptr)
@@ -161,18 +163,9 @@ struct hip_device
 
         void clear_external_stream()
         {
-            if(external_stream == nullptr)
-                return;
-            external_stream = nullptr;
-            auto *internal    = get();
-#if MIGRAPHX_USE_MIOPEN
-            if(mihandle != nullptr)
-                miopenSetStream(mihandle.get(), internal);
-#endif
-#if MIGRAPHX_USE_ROCBLAS
-            if(rbhandle != nullptr)
-                rocblas_set_stream(rbhandle.get(), internal);
-#endif
+            // No-op: keep external stream bound to avoid repeated
+            // miopenSetStream/rocblas_set_stream rebinding on the next call.
+            // A different stream passed to set_external_stream will replace it.
         }
 
         bool has_external_stream() const { return external_stream != nullptr; }
@@ -394,11 +387,7 @@ struct context
 
     void finish_on(any_ptr queue)
     {
-        if(get_stream().has_external_stream())
-        {
-            get_stream().clear_external_stream();
-        }
-        else
+        if(not get_stream().has_external_stream())
         {
             get_stream().record(finish_event.get());
             auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);

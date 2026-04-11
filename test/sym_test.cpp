@@ -1147,8 +1147,8 @@ TEST_CASE(cmp_empty_not_less)
 
 TEST_CASE(cmp_empty_with_nonempty_throws)
 {
-    EXPECT(test::throws([&] { se{} < var("n"); }));
-    EXPECT(test::throws([&] { var("n") < se{}; }));
+    EXPECT(test::throws([&]() -> bool { return se{} < var("n"); }));
+    EXPECT(test::throws([&]() -> bool { return var("n") < se{}; }));
 }
 
 // --- Stride ordering: standard layout [N, C, H, W] ---
@@ -1277,7 +1277,7 @@ TEST_CASE(cmp_offset_expressions)
 TEST_CASE(cmp_undetermined_throws)
 {
     auto n = var("n", 2, 10);
-    EXPECT(test::throws([&] { n < lit(5); }));
+    EXPECT(test::throws([&]() -> bool { return n < lit(5); }));
 }
 
 // --- Element count comparisons ---
@@ -1325,7 +1325,7 @@ TEST_CASE(cmp_commuted_product)
 TEST_CASE(cmp_strict_dim_one_undetermined)
 {
     auto w = var("w", 1, 128);
-    EXPECT(test::throws([&] { lit(1) < w; }));
+    EXPECT(test::throws([&]() -> bool { return lit(1) < w; }));
     EXPECT(lit(1) <= w);
 }
 
@@ -1334,7 +1334,7 @@ TEST_CASE(cmp_strict_stride_ordering_with_possible_dim_one)
     auto c = var("c", 1, 512);
     auto h = var("h", 2, 256);
     auto w = var("w", 2, 256);
-    EXPECT(test::throws([&] { h* w < c* h* w; }));
+    EXPECT(test::throws([&]() -> bool { return h * w < c * h * w; }));
 }
 
 // --- Zero and negative literal edge cases ---
@@ -1422,7 +1422,7 @@ TEST_CASE(cmp_sum_not_less_than_product_degenerate)
 {
     auto n = var("n", 2, 32);
     auto c = var("c", 2, 512);
-    EXPECT(test::throws([&] { n + c < n* c; }));
+    EXPECT(test::throws([&]() -> bool { return n + c < n * c; }));
 }
 
 // --- Comparison after substitution ---

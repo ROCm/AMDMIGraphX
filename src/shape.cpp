@@ -97,7 +97,7 @@ struct shape_impl
         auto dim_exprs = sym_dims();
         std::vector<sym::expr> filtered_strides;
         for(std::size_t i = 0; i < m_dyn_strides.size(); i++)
-            if(not(m_dyn_dims[i].is_fixed() and m_dyn_dims[i].min == 1))
+            if(not m_dyn_dims[i].is_fixed() or m_dyn_dims[i].min != 1)
                 filtered_strides.push_back(m_dyn_strides[i]);
         m_standard = compute_packed<sym::expr>(dim_exprs, m_dyn_strides) and
                      is_sorted_strides(filtered_strides);

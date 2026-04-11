@@ -17,6 +17,7 @@ Full documentation for MIGraphX is available at
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
 * Added JIT compiler for `multinomial` operation (#4721).
+* Added debug symbols for MIGraphX instructions such that parsed and compiled instructions can be tracked back to their ONNX origin node (#4626)
 
 ### Changed
 

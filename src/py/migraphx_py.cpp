@@ -504,7 +504,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             },
             py::arg("args"))
         .def(
-            "add_instructions",
+            "add_macro",
             [](migraphx::module& mm,
                const py_macro& mac,
                std::vector<migraphx::instruction_ref>& args,
@@ -515,7 +515,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("args"),
             py::arg("mod_args") = std::vector<migraphx::module*>{})
         .def(
-            "insert_instructions",
+            "insert_macro",
             [](migraphx::module& mm,
                migraphx::instruction_ref ins,
                const py_macro& mac,

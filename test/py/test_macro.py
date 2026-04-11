@@ -44,46 +44,46 @@ def test_macro_no_options():
     assert mac.options() == {}
 
 
-def test_add_instructions_add():
+def test_add_macro_add():
     p = migraphx.program()
     mm = p.get_main_module()
     x = mm.add_literal(create_buffer('f', [1.0, 2.0, 3.0], (1, 3)))
     y = mm.add_literal(create_buffer('f', [4.0, 5.0, 6.0], (1, 3)))
     mac = migraphx.macro("add")
-    result = mm.add_instructions(mac, [x, y])
+    result = mm.add_macro(mac, [x, y])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
     output = p.run({})[-1].tolist()
     assert output == [5.0, 7.0, 9.0]
 
 
-def test_add_instructions_mul():
+def test_add_macro_mul():
     p = migraphx.program()
     mm = p.get_main_module()
     x = mm.add_literal(create_buffer('f', [2.0, 3.0, 4.0], (1, 3)))
     y = mm.add_literal(create_buffer('f', [5.0, 6.0, 7.0], (1, 3)))
     mac = migraphx.macro("mul")
-    result = mm.add_instructions(mac, [x, y])
+    result = mm.add_macro(mac, [x, y])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
     output = p.run({})[-1].tolist()
     assert output == [10.0, 18.0, 28.0]
 
 
-def test_add_instructions_broadcast():
+def test_add_macro_broadcast():
     p = migraphx.program()
     mm = p.get_main_module()
     x = mm.add_literal(create_buffer('f', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (2, 3)))
     y = mm.add_literal(create_buffer('f', [10.0, 20.0, 30.0], (3,)))
     mac = migraphx.macro("add")
-    result = mm.add_instructions(mac, [x, y])
+    result = mm.add_macro(mac, [x, y])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
     output = p.run({})[-1].tolist()
     assert output == [11.0, 22.0, 33.0, 14.0, 25.0, 36.0]
 
 
-def test_add_instructions_gemm():
+def test_add_macro_gemm():
     p = migraphx.program()
     mm = p.get_main_module()
     # 2x3 matrix
@@ -93,7 +93,7 @@ def test_add_instructions_gemm():
     b = mm.add_literal(
         create_buffer('f', [7.0, 8.0, 9.0, 10.0, 11.0, 12.0], (3, 2)))
     mac = migraphx.macro("gemm")
-    result = mm.add_instructions(mac, [a, b])
+    result = mm.add_macro(mac, [a, b])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
     output = p.run({})[-1].tolist()
@@ -101,7 +101,7 @@ def test_add_instructions_gemm():
     assert output == [58.0, 64.0, 139.0, 154.0]
 
 
-def test_add_instructions_gemm_with_options():
+def test_add_macro_gemm_with_options():
     p = migraphx.program()
     mm = p.get_main_module()
     # 3x2 matrix, will be transposed to 2x3
@@ -111,7 +111,7 @@ def test_add_instructions_gemm_with_options():
     b = mm.add_literal(
         create_buffer('f', [7.0, 8.0, 9.0, 10.0, 11.0, 12.0], (3, 2)))
     mac = migraphx.macro("gemm", transA=True)
-    result = mm.add_instructions(mac, [a, b])
+    result = mm.add_macro(mac, [a, b])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
     output = p.run({})[-1].tolist()
@@ -120,17 +120,17 @@ def test_add_instructions_gemm_with_options():
     assert output == [58.0, 64.0, 139.0, 154.0]
 
 
-def test_insert_instructions():
+def test_insert_macro():
     p = migraphx.program()
     mm = p.get_main_module()
     x = mm.add_literal(create_buffer('f', [1.0, 2.0, 3.0], (1, 3)))
     y = mm.add_literal(create_buffer('f', [4.0, 5.0, 6.0], (1, 3)))
     # First add a mul at the end
     mul_mac = migraphx.macro("mul")
-    mul_result = mm.add_instructions(mul_mac, [x, y])
+    mul_result = mm.add_macro(mul_mac, [x, y])
     # Insert an add before the mul
     add_mac = migraphx.macro("add")
-    add_result = mm.insert_instructions(mul_result[0], add_mac, [x, y])
+    add_result = mm.insert_macro(mul_result[0], add_mac, [x, y])
     # Return the add result
     mm.add_return([add_result[-1]])
     p.compile(migraphx.get_target("ref"))
@@ -138,27 +138,27 @@ def test_insert_instructions():
     assert output == [5.0, 7.0, 9.0]
 
 
-def test_add_instructions_sub():
+def test_add_macro_sub():
     p = migraphx.program()
     mm = p.get_main_module()
     x = mm.add_literal(create_buffer('f', [10.0, 20.0, 30.0], (1, 3)))
     y = mm.add_literal(create_buffer('f', [1.0, 2.0, 3.0], (1, 3)))
     mac = migraphx.macro("sub")
-    result = mm.add_instructions(mac, [x, y])
+    result = mm.add_macro(mac, [x, y])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
     output = p.run({})[-1].tolist()
     assert output == [9.0, 18.0, 27.0]
 
 
-def test_add_instructions_with_params():
+def test_add_macro_with_params():
     p = migraphx.program()
     mm = p.get_main_module()
     s = migraphx.shape(lens=[2, 3], type="float")
     x = mm.add_parameter("x", s)
     y = mm.add_parameter("y", s)
     mac = migraphx.macro("add")
-    result = mm.add_instructions(mac, [x, y])
+    result = mm.add_macro(mac, [x, y])
     mm.add_return([result[-1]])
     p.compile(migraphx.get_target("ref"))
     x_data = create_buffer('f', [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], (2, 3))
@@ -170,11 +170,11 @@ def test_add_instructions_with_params():
 if __name__ == "__main__":
     test_macro_name_and_options()
     test_macro_no_options()
-    test_add_instructions_add()
-    test_add_instructions_mul()
-    test_add_instructions_broadcast()
-    test_add_instructions_gemm()
-    test_add_instructions_gemm_with_options()
-    test_insert_instructions()
-    test_add_instructions_sub()
-    test_add_instructions_with_params()
+    test_add_macro_add()
+    test_add_macro_mul()
+    test_add_macro_broadcast()
+    test_add_macro_gemm()
+    test_add_macro_gemm_with_options()
+    test_insert_macro()
+    test_add_macro_sub()
+    test_add_macro_with_params()

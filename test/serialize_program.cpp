@@ -159,6 +159,7 @@ TEST_CASE(symbolic_shape_msgpack_roundtrip)
     std::vector<char> buffer = migraphx::save_buffer(p, options);
     migraphx::program p2     = migraphx::load_buffer(buffer, options);
     EXPECT(p.sort() == p2.sort());
+}
 
 static migraphx::program create_program_with_debug_symbols()
 {

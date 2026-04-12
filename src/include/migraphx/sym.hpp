@@ -42,10 +42,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace sym {
 
-using value = std::variant<int64_t, double>;
+using scalar = std::variant<int64_t, double>;
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
-value make_value(T v)
+scalar make_scalar(T v)
 {
     if constexpr(std::is_integral<T>{})
         return int64_t(v);
@@ -54,27 +54,27 @@ value make_value(T v)
 }
 
 template <class To>
-To to(const value& v)
+To to(const scalar& v)
 {
     return std::visit([](auto x) -> To { return x; }, v);
 }
 
 template <class F, class... Ts>
-value value_invoke(F f, const Ts&... vs)
+scalar scalar_invoke(F f, const Ts&... vs)
 {
-    return std::visit([&](auto... xs) -> value { return f(xs...); }, vs...);
+    return std::visit([&](auto... xs) -> scalar { return f(xs...); }, vs...);
 }
 
 template <class F, class... Ts>
-value value_invoke_common(F f, const Ts&... xs)
+scalar scalar_invoke_common(F f, const Ts&... xs)
 {
     if((std::holds_alternative<int64_t>(xs) and ...))
         return f(std::get<int64_t>(xs)...);
     return f(to<double>(xs)...);
 }
 
-value value_min(const value& a, const value& b);
-value value_max(const value& a, const value& b);
+scalar scalar_min(const scalar& a, const scalar& b);
+scalar scalar_max(const scalar& a, const scalar& b);
 
 template <std::size_t N, class F>
 auto unpack_container(F f)
@@ -88,8 +88,8 @@ auto unpack_container(F f)
 
 struct interval
 {
-    value min = int64_t{0};
-    value max = int64_t{0};
+    scalar min = int64_t{0};
+    scalar max = int64_t{0};
 
     interval& operator+=(interval b) { return *this = *this + b; }
     interval& operator-=(interval b) { return *this = *this - b; }
@@ -127,13 +127,13 @@ struct interval
 struct op_def
 {
     std::string name;
-    std::function<value(const std::vector<value>&)> eval;
+    std::function<scalar(const std::vector<scalar>&)> eval;
     std::function<interval(const std::vector<interval>&)> eval_interval;
 };
 
 struct literal_node
 {
-    value val;
+    scalar val;
     friend bool operator==(const literal_node& a, const literal_node& b) { return a.val == b.val; }
     friend bool operator!=(const literal_node& a, const literal_node& b) { return not(a == b); }
 };
@@ -159,7 +159,7 @@ struct op_node
 using node_variant = std::variant<literal_node, variable_node, op_node>;
 
 class expr;
-expr lit(value v);
+expr lit(scalar v);
 
 class MIGRAPHX_EXPORT expr
 {
@@ -180,7 +180,7 @@ class MIGRAPHX_EXPORT expr
     bool is_raw() const;
     const node_variant& node() const;
     const std::vector<expr>& children() const;
-    value eval(const std::unordered_map<std::string, value>& vars) const;
+    scalar eval(const std::unordered_map<std::string, scalar>& vars) const;
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;
     std::string to_string() const;
     bool empty() const;
@@ -223,12 +223,12 @@ class MIGRAPHX_EXPORT expr
     MIGRAPHX_SYM_DEFINE_OP(%, %=)
 };
 
-expr lit(value v);
+expr lit(scalar v);
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 expr lit(T v)
 {
-    return lit(make_value(v));
+    return lit(make_scalar(v));
 }
 
 expr var(std::string name);
@@ -259,7 +259,7 @@ auto call(std::string name, Eval eval, EvalInterval eval_interval)
 {
     return [=](auto... es) {
         auto eval1 = unpack_container<sizeof...(es)>(
-            [=](auto... xs) { return value_invoke_common(eval, xs...); });
+            [=](auto... xs) { return scalar_invoke_common(eval, xs...); });
         auto eval_interval1 =
             unpack_container<sizeof...(es)>([=](auto... xs) { return eval_interval(xs...); });
         return call_op(name, eval1, eval_interval1, {arg(es)...});

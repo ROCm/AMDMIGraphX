@@ -37,55 +37,55 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace sym {
 
-value value_min(const value& a, const value& b)
+scalar scalar_min(const scalar& a, const scalar& b)
 {
-    return value_invoke_common([](auto x, auto y) { return x < y ? x : y; }, a, b);
+    return scalar_invoke_common([](auto x, auto y) { return x < y ? x : y; }, a, b);
 }
 
-value value_max(const value& a, const value& b)
+scalar scalar_max(const scalar& a, const scalar& b)
 {
-    return value_invoke_common([](auto x, auto y) { return x > y ? x : y; }, a, b);
+    return scalar_invoke_common([](auto x, auto y) { return x > y ? x : y; }, a, b);
 }
 
 interval operator+(interval a, interval b)
 {
     auto f = [](auto x, auto y) { return x + y; };
-    return {value_invoke_common(f, a.min, b.min), value_invoke_common(f, a.max, b.max)};
+    return {scalar_invoke_common(f, a.min, b.min), scalar_invoke_common(f, a.max, b.max)};
 }
 
 interval operator-(interval a, interval b)
 {
     auto f = [](auto x, auto y) { return x - y; };
-    return {value_invoke_common(f, a.min, b.max), value_invoke_common(f, a.max, b.min)};
+    return {scalar_invoke_common(f, a.min, b.max), scalar_invoke_common(f, a.max, b.min)};
 }
 
 interval operator*(interval a, interval b)
 {
     auto f  = [](auto x, auto y) { return x * y; };
-    auto p1 = value_invoke_common(f, a.min, b.min);
-    auto p2 = value_invoke_common(f, a.min, b.max);
-    auto p3 = value_invoke_common(f, a.max, b.min);
-    auto p4 = value_invoke_common(f, a.max, b.max);
-    return {value_min(value_min(p1, p2), value_min(p3, p4)),
-            value_max(value_max(p1, p2), value_max(p3, p4))};
+    auto p1 = scalar_invoke_common(f, a.min, b.min);
+    auto p2 = scalar_invoke_common(f, a.min, b.max);
+    auto p3 = scalar_invoke_common(f, a.max, b.min);
+    auto p4 = scalar_invoke_common(f, a.max, b.max);
+    return {scalar_min(scalar_min(p1, p2), scalar_min(p3, p4)),
+            scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
 }
 
 interval operator/(interval a, interval b)
 {
     auto f  = [](auto x, auto y) { return x / y; };
-    auto p1 = value_invoke_common(f, a.min, b.min);
-    auto p2 = value_invoke_common(f, a.min, b.max);
-    auto p3 = value_invoke_common(f, a.max, b.min);
-    auto p4 = value_invoke_common(f, a.max, b.max);
-    return {value_min(value_min(p1, p2), value_min(p3, p4)),
-            value_max(value_max(p1, p2), value_max(p3, p4))};
+    auto p1 = scalar_invoke_common(f, a.min, b.min);
+    auto p2 = scalar_invoke_common(f, a.min, b.max);
+    auto p3 = scalar_invoke_common(f, a.max, b.min);
+    auto p4 = scalar_invoke_common(f, a.max, b.max);
+    return {scalar_min(scalar_min(p1, p2), scalar_min(p3, p4)),
+            scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
 }
 
 interval operator%(interval a, interval b)
 {
     auto f       = [](auto x, auto y) { return x % y; };
     auto fd      = [](auto x, auto y) { return std::fmod(x, y); };
-    auto compute = [&](const value& x, const value& y) -> value {
+    auto compute = [&](const scalar& x, const scalar& y) -> scalar {
         if(std::holds_alternative<int64_t>(x) and std::holds_alternative<int64_t>(y))
             return f(std::get<int64_t>(x), std::get<int64_t>(y));
         return fd(to<double>(x), to<double>(y));
@@ -94,14 +94,14 @@ interval operator%(interval a, interval b)
     auto p2 = compute(a.min, b.max);
     auto p3 = compute(a.max, b.min);
     auto p4 = compute(a.max, b.max);
-    return {value_min(value_min(p1, p2), value_min(p3, p4)),
-            value_max(value_max(p1, p2), value_max(p3, p4))};
+    return {scalar_min(scalar_min(p1, p2), scalar_min(p3, p4)),
+            scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
 }
 
 interval operator-(interval a)
 {
     auto f = [](auto x) { return -x; };
-    return {value_invoke_common(f, a.max), value_invoke_common(f, a.min)};
+    return {scalar_invoke_common(f, a.max), scalar_invoke_common(f, a.min)};
 }
 
 bool operator==(const interval& a, const interval& b) { return a.min == b.min and a.max == b.max; }
@@ -119,20 +119,20 @@ std::ostream& operator<<(std::ostream& os, const interval& i)
 }
 
 namespace {
-bool value_less(const value& a, const value& b)
+bool scalar_less(const scalar& a, const scalar& b)
 {
     auto f = [](auto x, auto y) -> int64_t { return x < y ? 1 : 0; };
-    return std::get<int64_t>(value_invoke_common(f, a, b)) != 0;
+    return std::get<int64_t>(scalar_invoke_common(f, a, b)) != 0;
 }
 } // namespace
 
-bool operator<(interval a, interval b) { return value_less(a.max, b.min); }
+bool operator<(interval a, interval b) { return scalar_less(a.max, b.min); }
 
-bool operator<=(interval a, interval b) { return not value_less(b.min, a.max); }
+bool operator<=(interval a, interval b) { return not scalar_less(b.min, a.max); }
 
-bool operator>(interval a, interval b) { return value_less(b.max, a.min); }
+bool operator>(interval a, interval b) { return scalar_less(b.max, a.min); }
 
-bool operator>=(interval a, interval b) { return not value_less(a.min, b.max); }
+bool operator>=(interval a, interval b) { return not scalar_less(a.min, b.max); }
 
 interval sin(interval x)
 {
@@ -195,8 +195,8 @@ interval abs(interval x)
         return x;
     if(hi <= 0.0)
         return -x;
-    auto neg_min = value_invoke_common([](auto v) { return -v; }, x.min);
-    return {int64_t{0}, value_max(neg_min, x.max)};
+    auto neg_min = scalar_invoke_common([](auto v) { return -v; }, x.min);
+    return {int64_t{0}, scalar_max(neg_min, x.max)};
 }
 
 interval floor(interval x)
@@ -209,17 +209,17 @@ interval ceil(interval x) { return {std::ceil(to<double>(x.min)), std::ceil(to<d
 interval pow(interval x, interval y)
 {
     auto f  = MIGRAPHX_LIFT(std::pow);
-    auto p1 = value_invoke_common(f, x.min, y.min);
-    auto p2 = value_invoke_common(f, x.min, y.max);
-    auto p3 = value_invoke_common(f, x.max, y.min);
-    auto p4 = value_invoke_common(f, x.max, y.max);
-    return {value_min(value_min(p1, p2), value_min(p3, p4)),
-            value_max(value_max(p1, p2), value_max(p3, p4))};
+    auto p1 = scalar_invoke_common(f, x.min, y.min);
+    auto p2 = scalar_invoke_common(f, x.min, y.max);
+    auto p3 = scalar_invoke_common(f, x.max, y.min);
+    auto p4 = scalar_invoke_common(f, x.max, y.max);
+    return {scalar_min(scalar_min(p1, p2), scalar_min(p3, p4)),
+            scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
 }
 
-interval min(interval x, interval y) { return {value_min(x.min, y.min), value_min(x.max, y.max)}; }
+interval min(interval x, interval y) { return {scalar_min(x.min, y.min), scalar_min(x.max, y.max)}; }
 
-interval max(interval x, interval y) { return {value_max(x.min, y.min), value_max(x.max, y.max)}; }
+interval max(interval x, interval y) { return {scalar_max(x.min, y.min), scalar_max(x.max, y.max)}; }
 
 struct expr::impl
 {
@@ -247,7 +247,7 @@ std::shared_ptr<const expr::impl> expr::make_impl(node_variant node, std::vector
     return std::make_shared<const impl>(impl{std::move(node), std::move(children), raw});
 }
 
-expr lit(value v) { return expr(literal_node{v}); }
+expr lit(scalar v) { return expr(literal_node{v}); }
 
 expr var(std::string name)
 {
@@ -306,9 +306,9 @@ auto expr_compare_key(const expr& e)
     if(auto* l = std::get_if<literal_node>(&n))
         return std::make_tuple(0, l->val, std::string{}, children);
     if(auto* v = std::get_if<variable_node>(&n))
-        return std::make_tuple(1, value{int64_t{0}}, v->name, children);
+        return std::make_tuple(1, scalar{int64_t{0}}, v->name, children);
     auto* o = std::get_if<op_node>(&n);
-    return std::make_tuple(2, value{int64_t{0}}, o->op->name, children);
+    return std::make_tuple(2, scalar{int64_t{0}}, o->op->name, children);
 }
 
 static bool expr_less(const expr& a, const expr& b)
@@ -379,13 +379,13 @@ static expr substitute_expr(const expr& tmpl, const std::unordered_map<std::stri
     return call_op(op_n->op, std::move(new_children));
 }
 
-static bool is_zero(const value& v) { return v == value{int64_t{0}} or v == value{0.0}; }
+static bool is_zero(const scalar& v) { return v == scalar{int64_t{0}} or v == scalar{0.0}; }
 
-static bool is_one(const value& v) { return v == value{int64_t{1}} or v == value{1.0}; }
+static bool is_one(const scalar& v) { return v == scalar{int64_t{1}} or v == scalar{1.0}; }
 
 struct term
 {
-    value coeff;
+    scalar coeff;
     std::vector<expr> bases;
 };
 
@@ -398,14 +398,14 @@ static term extract_term(const expr& e)
     }
     if(e.name() == "*")
     {
-        value coeff{int64_t{1}};
+        scalar coeff{int64_t{1}};
         std::vector<expr> bases;
         for(const auto& child : e.children())
         {
             if(child.name() == "literal")
             {
                 auto* n = std::get_if<literal_node>(&child.node());
-                coeff   = value_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
+                coeff   = scalar_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
             }
             else
             {
@@ -414,7 +414,7 @@ static term extract_term(const expr& e)
         }
         return {coeff, std::move(bases)};
     }
-    return {value{int64_t{1}}, {e}};
+    return {scalar{int64_t{1}}, {e}};
 }
 
 static expr build_term(const term& t)
@@ -451,7 +451,7 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
     {
         if(not merged.empty() and merged.back().bases == t.bases)
         {
-            merged.back().coeff = value_invoke_common(
+            merged.back().coeff = scalar_invoke_common(
                 [](auto x, auto y) { return x + y; }, merged.back().coeff, t.coeff);
         }
         else
@@ -480,14 +480,14 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
 
 static expr normalize_mul(const op_def* op, std::vector<expr> args)
 {
-    value coeff{int64_t{1}};
+    scalar coeff{int64_t{1}};
     std::vector<expr> non_literals;
     for(auto& a : args)
     {
         if(a.name() == "literal")
         {
             auto* n = std::get_if<literal_node>(&a.node());
-            coeff   = value_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
+            coeff   = scalar_invoke_common([](auto x, auto y) { return x * y; }, coeff, n->val);
         }
         else
         {
@@ -586,8 +586,8 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     // Cancel GCD of integer coefficients
     auto num_coeff      = num_term.coeff;
     auto den_coeff      = den_term.coeff;
-    value new_num_coeff = num_coeff;
-    value new_den_coeff = den_coeff;
+    scalar new_num_coeff = num_coeff;
+    scalar new_den_coeff = den_coeff;
 
     if(std::holds_alternative<int64_t>(num_coeff) and std::holds_alternative<int64_t>(den_coeff))
     {
@@ -732,12 +732,12 @@ template <class Eval, class EvalInterval>
 auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
 {
     return [=](auto... es) {
-        auto eval1 = [=](const std::vector<value>& args) {
+        auto eval1 = [=](const std::vector<scalar>& args) {
             return std::accumulate(args.begin() + 1,
                                    args.end(),
                                    args.front(),
-                                   [=](const value& acc, const value& arg) {
-                                       return value_invoke_common(eval, acc, arg);
+                                   [=](const scalar& acc, const scalar& arg) {
+                                       return scalar_invoke_common(eval, acc, arg);
                                    });
         };
         auto eval_interval1 = [=](const std::vector<interval>& args) {
@@ -818,7 +818,7 @@ static std::size_t hash_combine(std::size_t seed, std::size_t h)
     return seed ^ (h + 0x9e3779b9 + (seed << 6) + (seed >> 2));
 }
 
-static std::size_t hash_value(const value& v)
+static std::size_t hash_scalar(const scalar& v)
 {
     return std::visit([](auto x) -> std::size_t { return std::hash<decltype(x)>{}(x); }, v);
 }
@@ -829,7 +829,7 @@ static std::size_t hash_node(const node_variant& nv)
         [](const auto& n) -> std::size_t {
             using T = std::decay_t<decltype(n)>;
             if constexpr(std::is_same<T, literal_node>{})
-                return hash_value(n.val);
+                return hash_scalar(n.val);
             else if constexpr(std::is_same<T, variable_node>{})
                 return std::hash<std::string>{}(n.name);
             else
@@ -848,7 +848,7 @@ std::size_t expr::hash() const
     return result;
 }
 
-value generic_eval_auto_apply(const op_node& op, const std::vector<value>& args)
+scalar generic_eval_auto_apply(const op_node& op, const std::vector<scalar>& args)
 {
     return op.op->eval(args);
 }
@@ -866,10 +866,10 @@ expr generic_eval_auto_apply(const op_node& op, const std::vector<expr>& args)
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 std::size_t generic_eval_auto_apply(const op_node& op, const std::vector<T>& args)
 {
-    std::vector<value> vargs;
+    std::vector<scalar> vargs;
     vargs.reserve(args.size());
     std::transform(
-        args.begin(), args.end(), std::back_inserter(vargs), [](T x) { return make_value(x); });
+        args.begin(), args.end(), std::back_inserter(vargs), [](T x) { return make_scalar(x); });
     return to<T>(op.op->eval(vargs));
 }
 
@@ -1005,18 +1005,18 @@ const node_variant& expr::node() const { return pimpl->node; }
 
 const std::vector<expr>& expr::children() const { return pimpl->children; }
 
-value expr::eval(const std::unordered_map<std::string, value>& vars) const
+scalar expr::eval(const std::unordered_map<std::string, scalar>& vars) const
 {
-    return generic_eval<value>(
+    return generic_eval<scalar>(
         *this,
-        [&](const expr& e) -> std::optional<value> {
+        [&](const expr& e) -> std::optional<scalar> {
             if(auto* n = std::get_if<literal_node>(&e.node()))
                 return n->val;
             if(auto* n = std::get_if<variable_node>(&e.node()))
                 return vars.at(n->name);
             return std::nullopt;
         },
-        [](const op_node& op, std::vector<value> args) { return op.op->eval(args); });
+        [](const op_node& op, std::vector<scalar> args) { return op.op->eval(args); });
 }
 
 interval expr::eval_interval(const std::unordered_map<std::string, interval>& vars) const
@@ -1038,7 +1038,7 @@ interval expr::eval_interval(const std::unordered_map<std::string, interval>& va
 }
 
 namespace {
-std::string value_to_string(const value& v)
+std::string scalar_to_string(const scalar& v)
 {
     return std::visit(
         [](auto x) -> std::string {
@@ -1082,7 +1082,7 @@ std::string expr::to_string() const
                    if(e.empty())
                        return string_prec{};
                    if(auto* n = std::get_if<literal_node>(&e.node()))
-                       return string_prec{value_to_string(n->val)};
+                       return string_prec{scalar_to_string(n->val)};
                    if(auto* n = std::get_if<variable_node>(&e.node()))
                        return string_prec{n->name};
                    return std::nullopt;
@@ -1327,16 +1327,16 @@ expr parse(const std::string& str)
 
 namespace {
 
-migraphx::value sym_value_to_value(const sym::value& sv)
+migraphx::value sym_scalar_to_value(const sym::scalar& sv)
 {
     return std::visit([](auto x) -> migraphx::value { return migraphx::to_value(x); }, sv);
 }
 
-sym::value value_to_sym_value(const migraphx::value& v)
+sym::scalar value_to_sym_scalar(const migraphx::value& v)
 {
     if(v.is_float())
-        return sym::value{v.get_float()};
-    return sym::value{v.get_int64()};
+        return sym::scalar{v.get_float()};
+    return sym::scalar{v.get_int64()};
 }
 
 } // namespace
@@ -1344,15 +1344,15 @@ sym::value value_to_sym_value(const migraphx::value& v)
 void migraphx_to_value(migraphx::value& v, const sym::interval& i)
 {
     migraphx::value result;
-    result["min"] = sym_value_to_value(i.min);
-    result["max"] = sym_value_to_value(i.max);
+    result["min"] = sym_scalar_to_value(i.min);
+    result["max"] = sym_scalar_to_value(i.max);
     v             = result;
 }
 
 void migraphx_from_value(const migraphx::value& v, sym::interval& i)
 {
-    i.min = value_to_sym_value(v.at("min"));
-    i.max = value_to_sym_value(v.at("max"));
+    i.min = value_to_sym_scalar(v.at("min"));
+    i.max = value_to_sym_scalar(v.at("max"));
 }
 
 static migraphx::value expr_to_value(const sym::expr& e)
@@ -1366,7 +1366,7 @@ static migraphx::value expr_to_value(const sym::expr& e)
             if constexpr(std::is_same<T, sym::literal_node>{})
             {
                 result["type"]  = "literal";
-                result["value"] = sym_value_to_value(n.val);
+                result["value"] = sym_scalar_to_value(n.val);
             }
             else if constexpr(std::is_same<T, sym::variable_node>{})
             {
@@ -1408,7 +1408,7 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
     auto type = v.at("type").get_string();
     if(type == "literal")
     {
-        e = sym::lit(value_to_sym_value(v.at("value")));
+        e = sym::lit(value_to_sym_scalar(v.at("value")));
     }
     else if(type == "variable")
     {

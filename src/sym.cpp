@@ -217,9 +217,15 @@ interval pow(interval x, interval y)
             scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
 }
 
-interval min(interval x, interval y) { return {scalar_min(x.min, y.min), scalar_min(x.max, y.max)}; }
+interval min(interval x, interval y)
+{
+    return {scalar_min(x.min, y.min), scalar_min(x.max, y.max)};
+}
 
-interval max(interval x, interval y) { return {scalar_max(x.min, y.min), scalar_max(x.max, y.max)}; }
+interval max(interval x, interval y)
+{
+    return {scalar_max(x.min, y.min), scalar_max(x.max, y.max)};
+}
 
 struct expr::impl
 {

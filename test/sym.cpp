@@ -43,12 +43,12 @@ using migraphx::sym::parse;
 using migraphx::sym::pow;
 using migraphx::sym::pvar;
 using migraphx::sym::rewrite_rule;
+using migraphx::sym::scalar;
 using migraphx::sym::simplify;
 using migraphx::sym::sin;
 using migraphx::sym::sqrt;
 using migraphx::sym::tan;
 using migraphx::sym::to_string;
-using migraphx::sym::scalar;
 using migraphx::sym::var;
 
 // ---- Value evaluation tests ----

@@ -234,7 +234,16 @@ struct expr::impl
     bool raw_flag = false;
 };
 
-static std::string get_name(const node_variant& nv)
+static std::string get_sym_name(const node_variant& nv)
+{
+    if(auto* n = std::get_if<variable_node>(&nv))
+        return n->name;
+    if(auto* n = std::get_if<op_node>(&nv))
+        return n->op->name;
+    return "";
+}
+
+static std::string get_node_name(const node_variant& nv)
 {
     if(auto* n = std::get_if<literal_node>(&nv))
         return "literal";
@@ -242,6 +251,13 @@ static std::string get_name(const node_variant& nv)
         return "variable";
     auto* n = std::get_if<op_node>(&nv);
     return n->op->name;
+}
+
+static scalar get_scalar_or(const node_variant& nv, scalar s)
+{
+    if(auto* n = std::get_if<literal_node>(&nv))
+        return n->val;
+    return s;
 }
 
 std::shared_ptr<const expr::impl> expr::make_impl(node_variant node, std::vector<expr> children)
@@ -309,12 +325,7 @@ auto expr_compare_key(const expr& e)
         std::cref(e.children()), [](const std::vector<expr>& a, const std::vector<expr>& b) {
             return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), &expr_less);
         });
-    if(auto* l = std::get_if<literal_node>(&n))
-        return std::make_tuple(0, l->val, std::string{}, children);
-    if(auto* v = std::get_if<variable_node>(&n))
-        return std::make_tuple(1, scalar{int64_t{0}}, v->name, children);
-    auto* o = std::get_if<op_node>(&n);
-    return std::make_tuple(2, scalar{int64_t{0}}, o->op->name, children);
+    return std::make_tuple(node_type_index(n), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
 }
 
 static bool expr_less(const expr& a, const expr& b)
@@ -1003,7 +1014,7 @@ expr max(expr x, expr y)
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
 }
 
-std::string expr::name() const { return get_name(pimpl->node); }
+std::string expr::name() const { return get_node_name(pimpl->node); }
 
 bool expr::is_raw() const { return pimpl and pimpl->raw_flag; }
 

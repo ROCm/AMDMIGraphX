@@ -10,11 +10,14 @@ Full documentation for MIGraphX is available at
 * Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
+* Added Eigen third party headers for ref GEMMs (#4631).
 * Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
 * Added GPU JIT `Resize` kernel (#4553).
 * Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
+* Added JIT compiler for `multinomial` operation (#4721).
+* Added debug symbols for MIGraphX instructions such that parsed and compiled instructions can be tracked back to their ONNX origin node (#4626)
 
 ### Changed
 
@@ -23,16 +26,19 @@ Full documentation for MIGraphX is available at
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
 * Updated the ONNX clip operator to support opset 13 (#4518).
 * Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
-* Updated GPU stream-count, NHWC layout, and MLIR attention defaults to adapt to the detected architecture (#4668).
+* Updated GPU stream-count, NHWC layout, and MLIR attention defaults to adapt to the detected architecture (#4707).
+* Replaced usages of `std::cout` and `std::cerr` with the logger (#4732)
 
 ### Resolved issues
 
+* Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
 * Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518).
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 * Fixed an issue with `convert` output overflowing when converting inf/-inf to integral types (#4669).
+* Fixed issue with `find_concat_op` matcher merging converted int32 inputs after bf16/fp16 quant during compilation (#4745)
 
 ### Optimized
 * Optimized fusion for local_window mode of GQA operator (#4617).
@@ -42,7 +48,7 @@ Full documentation for MIGraphX is available at
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
 * Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
-* Stabilized quantized GPU NHWC compilation on architecture-selected layout defaults (#4668).
+* Stabilized quantized GPU NHWC compilation on architecture-selected layout defaults (#4707).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 
 ### Removed

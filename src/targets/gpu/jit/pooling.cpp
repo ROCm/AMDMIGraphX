@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,7 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/op/common.hpp>
 
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -89,12 +90,9 @@ struct pooling_compiler : compiler<pooling_compiler>
 
         algorithm() {}
 
-        algorithm(context& ctx, const shape& input, const std::vector<std::size_t>& window)
+        void set_block_algo(context& ctx, std::size_t wsize)
         {
-            if(input.strides().back() != 1)
-                return;
             std::size_t max_wavefront_size = ctx.get_current_device().get_wavefront_size();
-            auto wsize                     = window.back();
             if(wsize > max_wavefront_size)
             {
                 block_size  = compute_block_size(ctx, wsize, 256);
@@ -103,10 +101,22 @@ struct pooling_compiler : compiler<pooling_compiler>
             }
             else
             {
-                block_size  = max_wavefront_size;
+                block_size  = 256;
                 reduce_size = compute_subwave_size(ctx, wsize);
                 name        = "reduce::subwave<" + to_string(reduce_size) + ">";
             }
+        }
+
+        void set_block_algo(context& ctx, const std::vector<std::size_t>& window)
+        {
+            set_block_algo(ctx, window.back());
+        }
+
+        algorithm(context& ctx, const shape& input, const std::vector<std::size_t>& window)
+        {
+            if(input.strides().back() != 1)
+                return;
+            set_block_algo(ctx, window);
         }
     };
 
@@ -166,10 +176,16 @@ struct pooling_compiler : compiler<pooling_compiler>
             op += "<" + v.at("lp_order").to<std::string>() + ">";
 
         algorithm algo{};
+        algo.group_size = v.get("group_size", 1);
+        auto width      = v.get("width", 1);
+        if(width > 1)
+            algo.set_block_algo(ctx, width);
+        auto fast_dim       = out_s.lens()[gen::find_fast_axis(out_s)];
+        auto other_elements = out_s.elements() / fast_dim;
+        auto grouped_elements =
+            other_elements * ((fast_dim + algo.group_size - 1) / algo.group_size);
         options.set_launch_params(
-            v,
-            compute_global_for(ctx, (out_s.elements() / algo.group_size) * algo.reduce_size, 256),
-            algo.block_size);
+            v, compute_global_for(ctx, grouped_elements * algo.reduce_size, 256), algo.block_size);
         normalize(options.virtual_inputs, padding, stride, window);
         auto src = interpolate_string(pooling_kernel,
                                       {{"op", op + "{}"},
@@ -182,9 +198,93 @@ struct pooling_compiler : compiler<pooling_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
-    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    compiler_replace
+    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+        auto v = op.to_value();
+        for(const auto& x : solution)
+            v.insert(x);
+        return compile_op(ctx, to_shapes(ins->inputs()), v);
+    }
+
+    optional<tuning_config> get_tuning_config(const context& ctx,
+                                              instruction_ref ins,
+                                              const operation& op,
+                                              bool exhaustive) const
+    {
+        tuning_config tc;
+        auto shapes        = to_shapes(ins->inputs());
+        const auto& output = shapes.back();
+        auto v             = op.to_value();
+        tc.problem         = value{{"input", to_value(shapes.front())}, {"config", v}};
+
+        auto w     = v["lengths"].to_vector<std::size_t>();
+        auto wsize = std::accumulate(w.begin(), w.end(), 1, std::multiplies<std::size_t>());
+        auto faxis = gen::find_fast_axis(output);
+        auto x     = output.lens()[faxis];
+
+        auto add_solution = [&](auto group_size, auto width) {
+            if(x < group_size)
+                return;
+            if(wsize < width)
+                return;
+            if(width > ctx.get_current_device().get_wavefront_size())
+                return;
+            if(width > 1 and (wsize / width) > 255)
+                return;
+            tc.solutions.push_back({{"group_size", group_size}, {"width", width}});
+        };
+        if(exhaustive)
+        {
+            for(auto group_size : {1, 2, 4, 8, 16})
+            {
+                for(auto width : {1, 2, 4, 8, 16, 32, 64})
+                {
+                    add_solution(group_size, width);
+                }
+            }
+        }
+        else
+        {
+            add_solution(1, 1);
+            if(ctx.get_current_device().get_wavefront_size() == 32)
+            {
+                add_solution(1, 16);
+                add_solution(1, 2);
+                add_solution(1, 32);
+                add_solution(1, 4);
+                add_solution(1, 8);
+                add_solution(2, 1);
+                add_solution(2, 2);
+                add_solution(2, 4);
+                add_solution(4, 1);
+                add_solution(4, 2);
+                add_solution(8, 1);
+            }
+            else
+            {
+                add_solution(1, 16);
+                add_solution(1, 2);
+                add_solution(1, 32);
+                add_solution(1, 4);
+                add_solution(1, 64);
+                add_solution(1, 8);
+                add_solution(2, 1);
+                add_solution(2, 16);
+                add_solution(2, 2);
+                add_solution(2, 32);
+                add_solution(2, 4);
+                add_solution(2, 64);
+                add_solution(2, 8);
+                add_solution(4, 1);
+                add_solution(4, 2);
+                add_solution(4, 4);
+                add_solution(4, 8);
+                add_solution(8, 2);
+                add_solution(8, 4);
+            }
+        }
+        return tc;
     }
 };
 

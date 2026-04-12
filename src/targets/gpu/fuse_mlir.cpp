@@ -705,7 +705,7 @@ struct find_mlir_split_reduce
  * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
  * into a mlir_op with submodule.
  */
-struct find_mlir_fused_ops : match::supports_dynamic_shapes
+struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;

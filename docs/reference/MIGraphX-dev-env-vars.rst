@@ -66,13 +66,13 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Layernorm fusion is not used.
 
-  * - | ``MIGRAPHX_DISABLE_MIOPEN_POOLING``
-      | When set, MIGraphX pooling is used instead of MIOpen pooling.
+  * - | ``MIGRAPHX_ENABLE_MIOPEN_POOLING``
+      | When set, MIOpen pooling is used instead of MIGraphX pooling.
       
-    - | ``1``: Use MIGraphX pooling.
+    - | ``1``: Use MIOpen pooling.
       | ``0``: Returns to default behavior.
 
-      | Default: MIOpen pooling is used.
+      | Default: MIGraphX pooling is used.
 
   * - | ``MIGRAPHX_USE_FAST_SOFTMAX``
       | Turns on fast softmax optimization to speed up softmax computations.

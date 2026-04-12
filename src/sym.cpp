@@ -521,6 +521,121 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
     return expr(op_node{op}, std::move(factors));
 }
 
+static expr normalize_div(const op_def* op, std::vector<expr> args)
+{
+    auto& num = args[0];
+    auto& den = args[1];
+
+    // 0 / x == 0
+    if(num.name() == "literal")
+    {
+        auto* n = std::get_if<literal_node>(&num.node());
+        if(is_zero(n->val))
+            return lit(n->val);
+    }
+
+    // x / 1 == x
+    if(den.name() == "literal")
+    {
+        auto* n = std::get_if<literal_node>(&den.node());
+        if(is_one(n->val))
+            return num;
+    }
+
+    // x / x == 1
+    if(num == den)
+        return lit(int64_t{1});
+
+    // Factor cancellation between products
+    auto num_term = extract_term(num);
+    auto den_term = extract_term(den);
+
+    // Cancel common symbolic bases pairwise
+    auto remaining_num_bases = num_term.bases;
+    std::vector<expr> remaining_den_bases;
+    for(const auto& db : den_term.bases)
+    {
+        auto it = std::find(remaining_num_bases.begin(), remaining_num_bases.end(), db);
+        if(it != remaining_num_bases.end())
+            remaining_num_bases.erase(it);
+        else
+            remaining_den_bases.push_back(db);
+    }
+
+    bool bases_changed =
+        remaining_num_bases.size() != num_term.bases.size() or
+        remaining_den_bases.size() != den_term.bases.size();
+
+    // Cancel GCD of integer coefficients
+    auto num_coeff = num_term.coeff;
+    auto den_coeff = den_term.coeff;
+    value new_num_coeff = num_coeff;
+    value new_den_coeff = den_coeff;
+
+    if(std::holds_alternative<int64_t>(num_coeff) and std::holds_alternative<int64_t>(den_coeff))
+    {
+        auto nc = std::get<int64_t>(num_coeff);
+        auto dc = std::get<int64_t>(den_coeff);
+        if(dc != 0)
+        {
+            auto g = std::gcd(std::abs(nc), std::abs(dc));
+            if(g > 1)
+            {
+                new_num_coeff = int64_t{nc / g};
+                new_den_coeff = int64_t{dc / g};
+                bases_changed = true;
+            }
+        }
+    }
+
+    if(bases_changed)
+    {
+        expr new_num = build_term({new_num_coeff, remaining_num_bases});
+        expr new_den = build_term({new_den_coeff, remaining_den_bases});
+
+        if(new_den.name() == "literal")
+        {
+            auto* n = std::get_if<literal_node>(&new_den.node());
+            if(is_one(n->val))
+                return new_num;
+        }
+        return new_num / new_den;
+    }
+
+    // Distribute over sum: (a*k + b*k) / k when all terms are divisible
+    if(num.name() == "+" and den.name() == "literal")
+    {
+        auto* d = std::get_if<literal_node>(&den.node());
+        if(std::holds_alternative<int64_t>(d->val))
+        {
+            auto dv            = std::get<int64_t>(d->val);
+            bool all_divisible = std::all_of(
+                num.children().begin(), num.children().end(), [&](const expr& child) {
+                    auto t = extract_term(child);
+                    if(not std::holds_alternative<int64_t>(t.coeff))
+                        return false;
+                    return std::get<int64_t>(t.coeff) % dv == 0;
+                });
+            if(all_divisible)
+            {
+                std::vector<expr> divided;
+                divided.reserve(num.children().size());
+                std::transform(
+                    num.children().begin(),
+                    num.children().end(),
+                    std::back_inserter(divided),
+                    [&](const expr& child) { return child / den; });
+                expr result = divided[0];
+                for(std::size_t i = 1; i < divided.size(); ++i)
+                    result = result + divided[i];
+                return result;
+            }
+        }
+    }
+
+    return expr(op_node{op}, std::move(args));
+}
+
 static expr normalize_impl(const op_def* op, std::vector<expr> args)
 {
     bool is_const =
@@ -534,6 +649,8 @@ static expr normalize_impl(const op_def* op, std::vector<expr> args)
         return normalize_add(op, std::move(args));
     if(op->name == "*")
         return normalize_mul(op, std::move(args));
+    if(op->name == "/")
+        return normalize_div(op, std::move(args));
     return expr(op_node{op}, std::move(args));
 }
 

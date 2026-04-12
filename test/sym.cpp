@@ -1926,6 +1926,95 @@ TEST_CASE(norm_zero_product_sum)
     EXPECT(x * y - x * y == lit(0));
 }
 
+// ---- Division normalization tests ----
+
+TEST_CASE(norm_div_identity)
+{
+    auto x = var("x");
+    EXPECT(x / lit(1) == x);
+}
+
+TEST_CASE(norm_div_zero_numerator)
+{
+    auto x = var("x");
+    EXPECT(lit(0) / x == lit(0));
+    EXPECT(lit(0) / (x + lit(1)) == lit(0));
+}
+
+TEST_CASE(norm_div_self)
+{
+    auto x = var("x");
+    EXPECT(x / x == lit(1));
+    EXPECT((x + lit(1)) / (x + lit(1)) == lit(1));
+}
+
+TEST_CASE(norm_div_cancel_symbolic_factor)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(lit(2) * h / h == lit(2));
+    EXPECT(h * w / h == w);
+    EXPECT(h * w / w == h);
+    EXPECT(lit(3) * h * w / h == lit(3) * w);
+    EXPECT(lit(3) * h * w / (h * w) == lit(3));
+}
+
+TEST_CASE(norm_div_cancel_coefficient)
+{
+    auto n = var("n");
+    EXPECT((lit(6) * n) / lit(3) == lit(2) * n);
+    EXPECT((lit(6) * n) / lit(2) == lit(3) * n);
+}
+
+TEST_CASE(norm_div_cancel_mixed)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(h * lit(6) * w / (lit(3) * w) == lit(2) * h);
+    EXPECT(h * h * w / (h * w) == h);
+}
+
+TEST_CASE(norm_div_cancel_partial)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(lit(5) * h * w / (lit(2) * h) == lit(5) * w / lit(2));
+    EXPECT(h * h * w / (lit(2) * h) == h * w / lit(2));
+}
+
+TEST_CASE(norm_div_cancel_cross_factor)
+{
+    auto h = var("h");
+    auto w = var("w");
+    auto c = var("c");
+    EXPECT(h * w / (h * c) == w / c);
+    EXPECT(h * w / (h * h) == w / h);
+}
+
+TEST_CASE(norm_div_distribute_over_sum)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT((lit(2) * h + lit(4)) / lit(2) == h + lit(2));
+    EXPECT((lit(6) * h + lit(3) * w + lit(9)) / lit(3) == lit(2) * h + w + lit(3));
+    EXPECT((lit(4) * h + lit(2)) / lit(2) == lit(2) * h + lit(1));
+}
+
+TEST_CASE(norm_div_no_distribute_not_all_divisible)
+{
+    auto h = var("h");
+    // (2*h + 3) / 2: 3 is not divisible by 2, so no distribution
+    auto r = (lit(2) * h + lit(3)) / lit(2);
+    EXPECT(r != h);
+}
+
+TEST_CASE(norm_div_constant_folding)
+{
+    EXPECT(lit(7) / lit(2) == lit(3));
+    EXPECT(lit(6) / lit(3) == lit(2));
+    EXPECT(lit(0) / lit(5) == lit(0));
+}
+
 // ---- Rewrite DSL tests ----
 
 TEST_CASE(dsl_pvar_match)

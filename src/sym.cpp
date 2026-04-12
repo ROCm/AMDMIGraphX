@@ -325,7 +325,8 @@ auto expr_compare_key(const expr& e)
         std::cref(e.children()), [](const std::vector<expr>& a, const std::vector<expr>& b) {
             return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), &expr_less);
         });
-    return std::make_tuple(node_type_index(n), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
+    return std::make_tuple(
+        node_type_index(n), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
 }
 
 static bool expr_less(const expr& a, const expr& b)

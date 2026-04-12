@@ -1635,6 +1635,100 @@ TEST_CASE(const_fold_to_string)
     EXPECT(e.to_string() == "7");
 }
 
+// ---- Associative constant folding tests ----
+
+TEST_CASE(assoc_fold_add_trailing_literals)
+{
+    auto x = var("x");
+    // x + 2 + 3: flattened to +(x, 2, 3), adjacent literals 2 and 3 fold to 5
+    auto e = x + lit(2) + lit(3);
+    EXPECT(e.eval({{"x", int64_t{0}}}) == scalar{int64_t{5}});
+    EXPECT(e == x + lit(5));
+}
+
+TEST_CASE(assoc_fold_mul_trailing_literals)
+{
+    auto x = var("x");
+    // x * 2 * 3: flattened to *(x, 2, 3), adjacent literals 2 and 3 fold to 6
+    auto e = x * lit(2) * lit(3);
+    EXPECT(e.eval({{"x", int64_t{1}}}) == scalar{int64_t{6}});
+    EXPECT(e == x * lit(6));
+}
+
+TEST_CASE(assoc_fold_add_leading_literals)
+{
+    auto x = var("x");
+    // 2 + 3 + x: literals adjacent at the front fold to 5
+    auto e = lit(2) + lit(3) + x;
+    EXPECT(e == x + lit(5));
+}
+
+TEST_CASE(assoc_fold_mul_leading_literals)
+{
+    auto x = var("x");
+    // 2 * 3 * x: literals adjacent at the front fold to 6
+    auto e = lit(2) * lit(3) * x;
+    EXPECT(e == lit(6) * x);
+}
+
+TEST_CASE(assoc_fold_add_three_literals)
+{
+    // 1 + 2 + 3: all literals fold completely
+    auto e = lit(1) + lit(2) + lit(3);
+    EXPECT(e == lit(6));
+}
+
+TEST_CASE(assoc_fold_mul_three_literals)
+{
+    // 2 * 3 * 4: all literals fold completely
+    auto e = lit(2) * lit(3) * lit(4);
+    EXPECT(e == lit(24));
+}
+
+TEST_CASE(assoc_fold_add_mixed_chain)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // x + 1 + y + 2: after sorting, literals end up adjacent and fold
+    auto e = x + lit(1) + y + lit(2);
+    EXPECT(e.eval({{"x", int64_t{10}}, {"y", int64_t{20}}}) == scalar{int64_t{33}});
+}
+
+TEST_CASE(assoc_fold_mul_mixed_chain)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // x * 2 * y * 3: after sorting, literals end up adjacent and fold
+    auto e = x * lit(2) * y * lit(3);
+    EXPECT(e.eval({{"x", int64_t{5}}, {"y", int64_t{7}}}) == scalar{int64_t{210}});
+}
+
+TEST_CASE(assoc_fold_preserves_eval)
+{
+    auto x = var("x");
+    // Folding must not change evaluation results
+    auto e1 = x + lit(10) + lit(20) + lit(30);
+    auto e2 = x + lit(60);
+    EXPECT(e1.eval({{"x", int64_t{5}}}) == e2.eval({{"x", int64_t{5}}}));
+    EXPECT(e1 == e2);
+}
+
+TEST_CASE(assoc_fold_double_literals)
+{
+    auto x = var("x");
+    // Folding works with double literals too
+    auto e = x + lit(1.5) + lit(2.5);
+    EXPECT(e.eval({{"x", 0.0}}) == scalar{4.0});
+}
+
+TEST_CASE(assoc_fold_no_fold_single_literal)
+{
+    auto x = var("x");
+    // Only one literal, nothing to fold
+    auto e = x + lit(5);
+    EXPECT(e.eval({{"x", int64_t{3}}}) == scalar{int64_t{8}});
+}
+
 // ---- Canonicalization tests ----
 
 TEST_CASE(canonical_add_commutative)

@@ -301,8 +301,7 @@ auto expr_compare_key(const expr& e)
     auto& n       = e.node();
     auto children = make_ordered_as(
         std::cref(e.children()), [](const std::vector<expr>& a, const std::vector<expr>& b) {
-            return std::lexicographical_compare(
-                a.begin(), a.end(), b.begin(), b.end(), &expr_less);
+            return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), &expr_less);
         });
     if(auto* l = std::get_if<literal_node>(&n))
         return std::make_tuple(0, l->val, std::string{}, children);
@@ -432,7 +431,8 @@ static expr build_term(const term& t)
 
 static bool bases_less(const std::vector<expr>& a, const std::vector<expr>& b)
 {
-    return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), by(std::greater<>{}, &expr_compare_key));
+    return std::lexicographical_compare(
+        a.begin(), a.end(), b.begin(), b.end(), by(std::greater<>{}, &expr_compare_key));
 }
 
 static expr normalize_add(const op_def* op, std::vector<expr> args)
@@ -473,7 +473,8 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
     result_children.reserve(merged.size());
     for(const auto& t : merged)
         result_children.push_back(build_term(t));
-    std::stable_sort(result_children.begin(), result_children.end(), by(std::greater<>{}, &expr_compare_key));
+    std::stable_sort(
+        result_children.begin(), result_children.end(), by(std::greater<>{}, &expr_compare_key));
     return expr(op_node{op}, std::move(result_children));
 }
 

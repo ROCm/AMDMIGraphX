@@ -299,9 +299,10 @@ static bool expr_less(const expr& a, const expr& b);
 auto expr_compare_key(const expr& e)
 {
     auto& n       = e.node();
-    auto children = make_ordered_as(std::cref(e.children()), [](const std::vector<expr>& a, const std::vector<expr>& b) {
-        return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), &expr_less);
-    });
+    auto children = make_ordered_as(
+        std::cref(e.children()), [](const std::vector<expr>& a, const std::vector<expr>& b) {
+            return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), &expr_less);
+        });
     if(auto* l = std::get_if<literal_node>(&n))
         return std::make_tuple(0, l->val, std::string{}, children);
     if(auto* v = std::get_if<variable_node>(&n))
@@ -310,7 +311,10 @@ auto expr_compare_key(const expr& e)
     return std::make_tuple(2, value{int64_t{0}}, o->op->name, children);
 }
 
-static bool expr_less(const expr& a, const expr& b) { return by(std::less<>{}, &expr_compare_key)(a, b); }
+static bool expr_less(const expr& a, const expr& b)
+{
+    return by(std::less<>{}, &expr_compare_key)(a, b);
+}
 
 static bool is_commutative(const std::string& name) { return name == "+" or name == "*"; }
 

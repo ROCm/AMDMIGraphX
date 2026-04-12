@@ -562,13 +562,12 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
             remaining_den_bases.push_back(db);
     }
 
-    bool bases_changed =
-        remaining_num_bases.size() != num_term.bases.size() or
-        remaining_den_bases.size() != den_term.bases.size();
+    bool bases_changed = remaining_num_bases.size() != num_term.bases.size() or
+                         remaining_den_bases.size() != den_term.bases.size();
 
     // Cancel GCD of integer coefficients
-    auto num_coeff = num_term.coeff;
-    auto den_coeff = den_term.coeff;
+    auto num_coeff      = num_term.coeff;
+    auto den_coeff      = den_term.coeff;
     value new_num_coeff = num_coeff;
     value new_den_coeff = den_coeff;
 
@@ -608,9 +607,9 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
         auto* d = std::get_if<literal_node>(&den.node());
         if(std::holds_alternative<int64_t>(d->val))
         {
-            auto dv            = std::get<int64_t>(d->val);
-            bool all_divisible = std::all_of(
-                num.children().begin(), num.children().end(), [&](const expr& child) {
+            auto dv = std::get<int64_t>(d->val);
+            bool all_divisible =
+                std::all_of(num.children().begin(), num.children().end(), [&](const expr& child) {
                     auto t = extract_term(child);
                     if(not std::holds_alternative<int64_t>(t.coeff))
                         return false;
@@ -620,11 +619,10 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
             {
                 std::vector<expr> divided;
                 divided.reserve(num.children().size());
-                std::transform(
-                    num.children().begin(),
-                    num.children().end(),
-                    std::back_inserter(divided),
-                    [&](const expr& child) { return child / den; });
+                std::transform(num.children().begin(),
+                               num.children().end(),
+                               std::back_inserter(divided),
+                               [&](const expr& child) { return child / den; });
                 expr result = divided[0];
                 for(std::size_t i = 1; i < divided.size(); ++i)
                     result = result + divided[i];

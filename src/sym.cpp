@@ -307,25 +307,22 @@ ordered_as<T, Compare> make_ordered_as(T value, Compare compare)
     return {std::move(value), std::move(compare)};
 }
 
-static bool expr_less(const expr& a, const expr& b);
+static bool expr_children_less(const std::vector<expr>& a, const std::vector<expr>& b);
 
 auto expr_compare_key(const expr& e)
 {
     auto& n       = e.node();
     auto children = make_ordered_as(
-        std::cref(e.children()), [](const std::vector<expr>& a, const std::vector<expr>& b) {
-            return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), &expr_less);
-        });
+        std::cref(e.children()), &expr_children_less);
     return std::make_tuple(
         n.index(), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
 }
 
-static bool expr_less(const expr& a, const expr& b)
+static bool expr_children_less(const std::vector<expr>& a, const std::vector<expr>& b)
 {
-    return by(std::less<>{}, &expr_compare_key)(a, b);
+    return std::lexicographical_compare(
+        a.begin(), a.end(), b.begin(), b.end(), by(std::less<>{}, &expr_compare_key));
 }
-
-static bool is_commutative(const std::string& name) { return name == "+" or name == "*"; }
 
 static bool is_pvar(const expr& e)
 {
@@ -438,12 +435,6 @@ static expr build_term(const term& t)
     return lit(t.coeff) * base_product;
 }
 
-static bool bases_less(const std::vector<expr>& a, const std::vector<expr>& b)
-{
-    return std::lexicographical_compare(
-        a.begin(), a.end(), b.begin(), b.end(), by(std::greater<>{}, &expr_compare_key));
-}
-
 static expr normalize_add(const op_def* op, std::vector<expr> args)
 {
     std::vector<term> terms;
@@ -452,7 +443,7 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
         terms.push_back(extract_term(a));
 
     std::stable_sort(terms.begin(), terms.end(), [](const term& a, const term& b) {
-        return bases_less(a.bases, b.bases);
+        return expr_children_less(a.bases, b.bases);
     });
 
     std::vector<term> merged;

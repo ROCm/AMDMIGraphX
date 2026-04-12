@@ -1251,22 +1251,22 @@ TEST_CASE(to_string_variable) { EXPECT(var("x").to_string() == "x"); }
 TEST_CASE(to_string_add)
 {
     auto x = var("x");
-    // literals sort before variables
-    EXPECT((x + lit(3)).to_string() == "3 + x");
+    // variables sort before literals
+    EXPECT((x + lit(3)).to_string() == "x + 3");
 }
 
 TEST_CASE(to_string_sub)
 {
     auto x = var("x");
-    // x - 1 is rewritten as x + (-1), then sorted: lit before var
-    EXPECT((x - lit(1)).to_string() == "-1 + x");
+    // x - 1 is rewritten as x + (-1), variables sort before literals
+    EXPECT((x - lit(1)).to_string() == "x + -1");
 }
 
 TEST_CASE(to_string_mul)
 {
     auto x = var("x");
-    // literals sort before variables
-    EXPECT((x * lit(2)).to_string() == "2*x");
+    // variables sort before literals
+    EXPECT((x * lit(2)).to_string() == "x*2");
 }
 
 TEST_CASE(to_string_div)
@@ -1284,8 +1284,8 @@ TEST_CASE(to_string_mod)
 TEST_CASE(to_string_neg)
 {
     auto x = var("x");
-    // -x is rewritten as -1 * x
-    EXPECT((-x).to_string() == "-1*x");
+    // -x is rewritten as -1 * x, variables sort before literals
+    EXPECT((-x).to_string() == "x*-1");
 }
 
 TEST_CASE(to_string_nested)
@@ -1294,7 +1294,8 @@ TEST_CASE(to_string_nested)
     auto y = var("y");
     auto e = (x + lit(1)) * (y - lit(2));
     // fully expanded: (x+1)*(y-2) = xy - 2x + y - 2
-    EXPECT(e.to_string() == "-2 + y + -2*x + x*y");
+    // ops first, then variables, then literals
+    EXPECT(e.to_string() == "y*x + x*-2 + y + -2");
 }
 
 TEST_CASE(to_string_function)
@@ -1319,13 +1320,13 @@ TEST_CASE(to_string_composed)
     auto x = var("x");
     auto e = sin(x * lit(2)) + lit(1);
     // lit(1) sorts before sin(...)
-    EXPECT(e.to_string() == "1 + sin(2*x)");
+    EXPECT(e.to_string() == "sin(x*2) + 1");
 }
 
 TEST_CASE(free_to_string)
 {
     auto x = var("x");
-    EXPECT(to_string(x + lit(1)) == "1 + x");
+    EXPECT(to_string(x + lit(1)) == "x + 1");
     EXPECT(to_string(sin(x)) == "sin(x)");
 }
 
@@ -1335,7 +1336,7 @@ TEST_CASE(ostream_expr)
 {
     std::ostringstream ss;
     ss << (var("x") + lit(1));
-    EXPECT(ss.str() == "1 + x");
+    EXPECT(ss.str() == "x + 1");
 }
 
 TEST_CASE(ostream_expr_function)
@@ -1506,7 +1507,7 @@ TEST_CASE(flatten_to_string_add)
     auto a = var("a");
     auto b = var("b");
     auto c = var("c");
-    EXPECT(((a + b) + c).to_string() == "a + b + c");
+    EXPECT(((a + b) + c).to_string() == "c + b + a");
 }
 
 TEST_CASE(flatten_to_string_add_both)
@@ -1515,7 +1516,7 @@ TEST_CASE(flatten_to_string_add_both)
     auto b = var("b");
     auto c = var("c");
     auto d = var("d");
-    EXPECT(((a + b) + (c + d)).to_string() == "a + b + c + d");
+    EXPECT(((a + b) + (c + d)).to_string() == "d + c + b + a");
 }
 
 TEST_CASE(flatten_to_string_mul)
@@ -1523,7 +1524,7 @@ TEST_CASE(flatten_to_string_mul)
     auto a = var("a");
     auto b = var("b");
     auto c = var("c");
-    EXPECT(((a * b) * c).to_string() == "a*b*c");
+    EXPECT(((a * b) * c).to_string() == "c*b*a");
 }
 
 TEST_CASE(flatten_to_string_nested)
@@ -1532,7 +1533,7 @@ TEST_CASE(flatten_to_string_nested)
     auto b = var("b");
     auto c = var("c");
     auto d = var("d");
-    EXPECT((((a + b) + c) + d).to_string() == "a + b + c + d");
+    EXPECT((((a + b) + c) + d).to_string() == "d + c + b + a");
 }
 
 TEST_CASE(flatten_to_string_mixed)
@@ -1541,8 +1542,8 @@ TEST_CASE(flatten_to_string_mixed)
     auto b = var("b");
     auto c = var("c");
     // (a * b) + c: mul is a child of add, should not flatten across ops
-    // var c sorts before op (a*b)
-    EXPECT(((a * b) + c).to_string() == "c + a*b");
+    // ops sort before variables
+    EXPECT(((a * b) + c).to_string() == "b*a + c");
 }
 
 // ---- Constant folding tests ----
@@ -2102,7 +2103,7 @@ TEST_CASE(dsl_trig_identity)
     auto x  = var("x");
     // sin(x)^2 + cos(x)^2 == 1
     auto e      = sin(x) * sin(x) + cos(x) * cos(x);
-    auto result = simplify(e)(cos(_1) * cos(_1) + sin(_1) * sin(_1) >> lit(1));
+    auto result = simplify(e)(sin(_1) * sin(_1) + cos(_1) * cos(_1) >> lit(1));
     EXPECT(result == lit(1));
 }
 

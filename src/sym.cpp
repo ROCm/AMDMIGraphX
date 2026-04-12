@@ -307,15 +307,6 @@ ordered_as<T, Compare> make_ordered_as(T value, Compare compare)
     return {std::move(value), std::move(compare)};
 }
 
-static int node_type_index(const node_variant& nv)
-{
-    if(std::get_if<literal_node>(&nv))
-        return 0;
-    if(std::get_if<variable_node>(&nv))
-        return 1;
-    return 2;
-}
-
 static bool expr_less(const expr& a, const expr& b);
 
 auto expr_compare_key(const expr& e)
@@ -326,7 +317,7 @@ auto expr_compare_key(const expr& e)
             return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), &expr_less);
         });
     return std::make_tuple(
-        node_type_index(n), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
+        n.index(), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
 }
 
 static bool expr_less(const expr& a, const expr& b)

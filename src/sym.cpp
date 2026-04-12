@@ -535,7 +535,7 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
         return lit(coeff);
     if(factors.size() == 1)
         return factors[0];
-    std::stable_sort(factors.begin(), factors.end(), by(std::greater<>{}, &expr_compare_key));
+    std::stable_sort(factors.begin(), factors.end(), by(std::less<>{}, &expr_compare_key));
     return expr(op_node{op}, std::move(factors));
 }
 

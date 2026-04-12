@@ -1265,8 +1265,8 @@ TEST_CASE(to_string_sub)
 TEST_CASE(to_string_mul)
 {
     auto x = var("x");
-    // variables sort before literals
-    EXPECT((x * lit(2)).to_string() == "x*2");
+    // literals sort before variables in multiplication
+    EXPECT((x * lit(2)).to_string() == "2*x");
 }
 
 TEST_CASE(to_string_div)
@@ -1284,8 +1284,8 @@ TEST_CASE(to_string_mod)
 TEST_CASE(to_string_neg)
 {
     auto x = var("x");
-    // -x is rewritten as -1 * x, variables sort before literals
-    EXPECT((-x).to_string() == "x*-1");
+    // -x is rewritten as -1 * x
+    EXPECT((-x).to_string() == "-1*x");
 }
 
 TEST_CASE(to_string_nested)
@@ -1295,7 +1295,7 @@ TEST_CASE(to_string_nested)
     auto e = (x + lit(1)) * (y - lit(2));
     // fully expanded: (x+1)*(y-2) = xy - 2x + y - 2
     // ops first, then variables, then literals
-    EXPECT(e.to_string() == "y*x + x*-2 + y + -2");
+    EXPECT(e.to_string() == "x*y + -2*x + y + -2");
 }
 
 TEST_CASE(to_string_function)
@@ -1320,7 +1320,7 @@ TEST_CASE(to_string_composed)
     auto x = var("x");
     auto e = sin(x * lit(2)) + lit(1);
     // lit(1) sorts before sin(...)
-    EXPECT(e.to_string() == "sin(x*2) + 1");
+    EXPECT(e.to_string() == "sin(2*x) + 1");
 }
 
 TEST_CASE(free_to_string)
@@ -1524,7 +1524,7 @@ TEST_CASE(flatten_to_string_mul)
     auto a = var("a");
     auto b = var("b");
     auto c = var("c");
-    EXPECT(((a * b) * c).to_string() == "c*b*a");
+    EXPECT(((a * b) * c).to_string() == "a*b*c");
 }
 
 TEST_CASE(flatten_to_string_nested)
@@ -1543,7 +1543,7 @@ TEST_CASE(flatten_to_string_mixed)
     auto c = var("c");
     // (a * b) + c: mul is a child of add, should not flatten across ops
     // ops sort before variables
-    EXPECT(((a * b) + c).to_string() == "b*a + c");
+    EXPECT(((a * b) + c).to_string() == "a*b + c");
 }
 
 // ---- Constant folding tests ----

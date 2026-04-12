@@ -30,6 +30,7 @@
 #include <numeric>
 #include <optional>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/utility_operators.hpp>
 #include <sstream>
 
 namespace migraphx {
@@ -264,6 +265,26 @@ expr var(std::string name, interval constraint)
 
 expr arg(expr x) { return x; }
 
+template <class T, class Compare>
+struct ordered_as : totally_ordered<ordered_as<T, Compare>>, equivalence<ordered_as<T, Compare>>
+{
+    T value;
+    Compare compare;
+
+    ordered_as(T v, Compare c) : value(std::move(v)), compare(std::move(c)) {}
+
+    friend bool operator<(const ordered_as& a, const ordered_as& b)
+    {
+        return a.compare(a.value, b.value);
+    }
+};
+
+template <class T, class Compare>
+ordered_as<T, Compare> make_ordered_as(T value, Compare compare)
+{
+    return {std::move(value), std::move(compare)};
+}
+
 static int node_type_index(const node_variant& nv)
 {
     if(std::get_if<literal_node>(&nv))
@@ -273,32 +294,23 @@ static int node_type_index(const node_variant& nv)
     return 2;
 }
 
-static bool expr_less(const expr& a, const expr& b)
+static bool expr_less(const expr& a, const expr& b);
+
+auto expr_compare_key(const expr& e)
 {
-    int ai = node_type_index(a.node());
-    int bi = node_type_index(b.node());
-    if(ai != bi)
-        return ai < bi;
-    if(auto* la = std::get_if<literal_node>(&a.node()))
-    {
-        auto* lb = std::get_if<literal_node>(&b.node());
-        return la->val < lb->val;
-    }
-    if(auto* va = std::get_if<variable_node>(&a.node()))
-    {
-        auto* vb = std::get_if<variable_node>(&b.node());
-        return va->name < vb->name;
-    }
-    auto* oa = std::get_if<op_node>(&a.node());
-    auto* ob = std::get_if<op_node>(&b.node());
-    if(oa->op->name != ob->op->name)
-        return oa->op->name < ob->op->name;
-    return std::lexicographical_compare(a.children().begin(),
-                                        a.children().end(),
-                                        b.children().begin(),
-                                        b.children().end(),
-                                        expr_less);
+    auto& n       = e.node();
+    auto children = make_ordered_as(std::cref(e.children()), [](const std::vector<expr>& a, const std::vector<expr>& b) {
+        return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end(), &expr_less);
+    });
+    if(auto* l = std::get_if<literal_node>(&n))
+        return std::make_tuple(0, l->val, std::string{}, children);
+    if(auto* v = std::get_if<variable_node>(&n))
+        return std::make_tuple(1, value{int64_t{0}}, v->name, children);
+    auto* o = std::get_if<op_node>(&n);
+    return std::make_tuple(2, value{int64_t{0}}, o->op->name, children);
 }
+
+static bool expr_less(const expr& a, const expr& b) { return by(std::less<>{}, &expr_compare_key)(a, b); }
 
 static bool is_commutative(const std::string& name) { return name == "+" or name == "*"; }
 

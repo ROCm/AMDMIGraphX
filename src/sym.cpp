@@ -312,8 +312,7 @@ static bool expr_children_less(const std::vector<expr>& a, const std::vector<exp
 auto expr_compare_key(const expr& e)
 {
     auto& n       = e.node();
-    auto children = make_ordered_as(
-        std::cref(e.children()), &expr_children_less);
+    auto children = make_ordered_as(std::cref(e.children()), &expr_children_less);
     return std::make_tuple(
         n.index(), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
 }
@@ -734,19 +733,23 @@ static expr fold_associative_args(expr e)
         return e;
     if(e.children().size() <= 2)
         return e;
-    auto& op_n = std::get<op_node>(e.node());
-    auto children = std::accumulate(e.children().begin()+1, e.children().end(), std::vector<expr>{e.children().front()}, [&](std::vector<expr> c, expr x) {
-        if(std::holds_alternative<literal_node>(x.node()) and std::holds_alternative<literal_node>(c.back().node()))
-        {
-            auto d = expr(op_n, {c.back(), x});
-            c.push_back(lit(d.eval({})));
-        }
-        else
-        {
-            c.push_back(x);
-        }
-        return c;
-    });
+    auto& op_n    = std::get<op_node>(e.node());
+    auto children = std::accumulate(e.children().begin() + 1,
+                                    e.children().end(),
+                                    std::vector<expr>{e.children().front()},
+                                    [&](std::vector<expr> c, expr x) {
+                                        if(std::holds_alternative<literal_node>(x.node()) and
+                                           std::holds_alternative<literal_node>(c.back().node()))
+                                        {
+                                            auto d = expr(op_n, {c.back(), x});
+                                            c.push_back(lit(d.eval({})));
+                                        }
+                                        else
+                                        {
+                                            c.push_back(x);
+                                        }
+                                        return c;
+                                    });
     return expr(op_n, std::move(children));
 }
 
@@ -769,7 +772,8 @@ auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
                 args.front(),
                 [=](const interval& acc, const interval& arg) { return eval_interval(acc, arg); });
         };
-        return fold_associative_args(call_op(name, eval1, eval_interval1, flatten_args(name, {arg(es)...})));
+        return fold_associative_args(
+            call_op(name, eval1, eval_interval1, flatten_args(name, {arg(es)...})));
     };
 }
 

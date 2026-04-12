@@ -312,8 +312,7 @@ static bool expr_children_less(const std::vector<expr>& a, const std::vector<exp
 auto expr_compare_key(const expr& e)
 {
     auto& n       = e.node();
-    auto children = make_ordered_as(
-        std::cref(e.children()), &expr_children_less);
+    auto children = make_ordered_as(std::cref(e.children()), &expr_children_less);
     return std::make_tuple(
         n.index(), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
 }

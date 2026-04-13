@@ -39,8 +39,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /**
- * Convolution operator. Does not support optimal dimensions for spatial dimensions. Returns empty
- * optimals.
+ * Convolution operator.
  */
 struct convolution
 {
@@ -151,15 +150,7 @@ struct convolution
             {
                 auto s           = stride[i];
                 const auto& x_dd = x_dyn[i + 2];
-                auto result      = (x_dd + (s - 1)) / shape::dynamic_dimension{s, s};
-                auto ceil_div    = [](std::size_t x, std::size_t y) { return (x + y - 1) / y; };
-                std::set<std::size_t> optimals{};
-                std::transform(x_dd.optimals.begin(),
-                               x_dd.optimals.end(),
-                               std::inserter(optimals, optimals.begin()),
-                               [&](auto o) { return ceil_div(o, s); });
-                result.optimals = optimals;
-                output_dyn_dims.push_back(result);
+                output_dyn_dims.push_back((x_dd + (s - 1)) / shape::dynamic_dimension{s, s});
             }
         }
         else

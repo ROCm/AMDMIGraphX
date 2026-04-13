@@ -47,7 +47,7 @@ struct simple_parser
             MIGRAPHX_THROW("Parser advanced past end of buffer");
         if constexpr(AutoSkipWhitespace)
         {
-            pos = std::find_if(pos, buffer.end(), [](auto c) { return !std::isspace(c); });
+            pos = std::find_if(pos, buffer.end(), [](auto c) { return not std::isspace(c); });
         }
     }
 
@@ -55,7 +55,7 @@ struct simple_parser
     View parse_while(Pred p)
     {
         auto start = pos;
-        auto it    = std::find_if(pos, buffer.end(), [&](auto c) { return !p(c); });
+        auto it    = std::find_if(pos, buffer.end(), [&](auto c) { return not p(c); });
         auto n     = std::distance(pos, it);
         advance(n);
         return make_view(start, it);

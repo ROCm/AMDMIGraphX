@@ -33,6 +33,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 #include <vector>
 #include <migraphx/config.hpp>
@@ -207,7 +208,7 @@ class MIGRAPHX_EXPORT expr
     MIGRAPHX_SYM_DEFINE_OP(%, %=)
 };
 
-expr lit(scalar v);
+
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 expr lit(T v)
@@ -251,7 +252,7 @@ auto call(std::string name, Eval eval, EvalInterval eval_interval)
             [=](auto... xs) { return scalar_invoke_common(eval, xs...); });
         auto eval_interval1 =
             unpack_container<sizeof...(es)>([=](auto... xs) { return eval_interval(xs...); });
-        return call_op(name, eval1, eval_interval1, {arg(es)...});
+        return call_op(name, eval1, eval_interval1, {arg(std::move(es))...});
     };
 }
 
@@ -298,7 +299,7 @@ rewrite_rule operator>>(expr pattern, T replacement)
     return {std::move(pattern), lit(replacement)};
 }
 
-expr simplify(expr e, std::vector<rewrite_rule> rules);
+expr simplify(const expr& e, const std::vector<rewrite_rule>& rules);
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const sym::interval& i);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, sym::interval& i);

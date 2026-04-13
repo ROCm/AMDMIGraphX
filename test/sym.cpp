@@ -2050,7 +2050,7 @@ TEST_CASE(norm_double_negate)
 {
     auto x = var("x");
     // -(-x) == x
-    EXPECT(-(-x) == x);
+    EXPECT(-(-x) == x); // cppcheck-suppress migraphx-MultipleUnaryOperator
 }
 
 TEST_CASE(norm_coefficient_fold)

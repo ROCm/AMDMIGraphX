@@ -35,6 +35,7 @@
 #include <numeric>
 #include <optional>
 #include <sstream>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -258,7 +259,7 @@ using node_variant = std::variant<literal_node, variable_node, op_node>;
 
 static std::size_t hash_combine(std::size_t seed, std::size_t h)
 {
-    return seed ^ (h + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+    return seed ^ (h + 0x9e3779b9 + (seed << 6u) + (seed >> 2u));
 }
 
 static std::size_t hash_scalar(const scalar& v)
@@ -351,16 +352,16 @@ expr var(std::string name, interval constraint, std::set<scalar> optimals)
 {
     if(name.empty())
         MIGRAPHX_THROW("Variable name must not be empty");
-    return expr(variable_node{std::move(name), {std::move(constraint)}, std::move(optimals)});
+    return expr(variable_node{std::move(name), {constraint}, std::move(optimals)});
 }
 
 expr arg(expr x) { return x; }
 
 static bool expr_children_less(const std::vector<expr>& a, const std::vector<expr>& b);
 
-auto expr_compare_key(const expr& e)
+static auto expr_compare_key(const expr& e)
 {
-    auto& n       = get_node(e);
+    const auto& n       = get_node(e);
     auto children = make_ordered_as(std::cref(e.children()), &expr_children_less);
     return std::make_tuple(
         n.index(), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
@@ -374,7 +375,7 @@ static bool expr_children_less(const std::vector<expr>& a, const std::vector<exp
 
 static bool is_pvar(const expr& e)
 {
-    auto* v = std::get_if<variable_node>(&get_node(e));
+    const auto* v = std::get_if<variable_node>(&get_node(e));
     return v != nullptr and not v->name.empty() and v->name[0] == '_';
 }
 
@@ -427,7 +428,7 @@ static term extract_term(const expr& e)
 {
     if(e.name() == "literal")
     {
-        auto* n = std::get_if<literal_node>(&get_node(e));
+        const auto* n = std::get_if<literal_node>(&get_node(e));
         return {n->val, {}};
     }
     if(e.name() == "*")
@@ -438,7 +439,7 @@ static term extract_term(const expr& e)
                                [](term t, const expr& child) {
                                    if(child.name() == "literal")
                                    {
-                                       auto* n = std::get_if<literal_node>(&get_node(child));
+                                       const auto* n = std::get_if<literal_node>(&get_node(child));
                                        t.coeff = scalar_invoke_common(
                                            [](auto x, auto y) { return x * y; }, t.coeff, n->val);
                                    }
@@ -459,7 +460,7 @@ static expr build_term(const term& t)
     auto base_product = std::accumulate(t.bases.begin() + 1,
                                         t.bases.end(),
                                         t.bases.front(),
-                                        [](expr acc, const expr& b) { return acc * b; });
+                                        [](expr acc, const expr& b) { return std::move(acc) * b; });
     if(is_one(t.coeff))
         return base_product;
     return lit(t.coeff) * base_product;
@@ -550,12 +551,12 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
                                other_factors.begin(),
                                other_factors.end(),
                                pc,
-                               [](expr product, const expr& f) { return product * f; });
+                               [](expr product, const expr& f) { return std::move(product) * f; });
                        });
         return std::accumulate(distributed.begin() + 1,
                                distributed.end(),
                                distributed.front(),
-                               [](expr acc, const expr& e) { return acc + e; });
+                               [](expr acc, const expr& e) { return std::move(acc) + e; });
     }
 
     if(factors.empty())
@@ -568,13 +569,13 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
 
 static expr normalize_div(const op_def* op, std::vector<expr> args)
 {
-    auto& num = args[0];
-    auto& den = args[1];
+    const auto& num = args[0];
+    const auto& den = args[1];
 
     // 0 / x == 0
     if(num.name() == "literal")
     {
-        auto* n = std::get_if<literal_node>(&get_node(num));
+        const auto* n = std::get_if<literal_node>(&get_node(num));
         if(is_zero(n->val))
             return lit(n->val);
     }
@@ -582,7 +583,7 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     // x / 1 == x
     if(den.name() == "literal")
     {
-        auto* n = std::get_if<literal_node>(&get_node(den));
+        const auto* n = std::get_if<literal_node>(&get_node(den));
         if(is_one(n->val))
             return num;
     }
@@ -649,7 +650,7 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
 
         if(new_den.name() == "literal")
         {
-            auto* n = std::get_if<literal_node>(&get_node(new_den));
+            const auto* n = std::get_if<literal_node>(&get_node(new_den));
             if(is_one(n->val))
                 return new_num;
         }
@@ -659,7 +660,7 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     // Distribute over sum: (a*k + b*k) / k when all terms are divisible
     if(num.name() == "+" and den.name() == "literal")
     {
-        auto* d = std::get_if<literal_node>(&get_node(den));
+        const auto* d = std::get_if<literal_node>(&get_node(den));
         if(std::holds_alternative<int64_t>(d->val))
         {
             auto dv = std::get<int64_t>(d->val);
@@ -681,7 +682,7 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
                 return std::accumulate(divided.begin() + 1,
                                        divided.end(),
                                        divided.front(),
-                                       [](expr acc, const expr& e) { return acc + e; });
+                                       [](expr acc, const expr& e) { return std::move(acc) + e; });
             }
         }
     }
@@ -693,7 +694,7 @@ static expr normalize_impl(const op_def* op, std::vector<expr> args)
 {
     if(std::any_of(args.begin(), args.end(), [](const expr& e) { return e.empty(); }))
     {
-        return expr();
+        return {};
     }
     if(std::all_of(args.begin(), args.end(), [](const expr& e) { return e.name() == "literal"; }))
     {
@@ -714,8 +715,8 @@ static expr normalize_impl(const op_def* op, std::vector<expr> args)
 static const std::vector<rewrite_rule>& get_rewrite_rules()
 {
     static const std::vector<rewrite_rule> rules = [] {
-        auto _1 = pvar(1);
-        auto _2 = pvar(2);
+        auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
+        auto _2 = pvar(2); // NOLINT(readability-identifier-naming)
         return std::vector<rewrite_rule>{
             sqrt(_1 * _2) >> sqrt(_1) * sqrt(_2),
             sqrt(_1 / _2) >> sqrt(_1) / sqrt(_2),
@@ -763,7 +764,7 @@ static expr fold_associative_args(expr e)
         return e;
     if(e.children().size() <= 2)
         return e;
-    auto& op_n    = std::get<op_node>(get_node(e));
+    const auto& op_n    = std::get<op_node>(get_node(e));
     auto children = std::accumulate(e.children().begin() + 1,
                                     e.children().end(),
                                     std::vector<expr>{e.children().front()},
@@ -796,7 +797,7 @@ expr call_op(const op_def* op, std::vector<expr> args)
 }
 
 template <class Eval, class EvalInterval>
-auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
+static auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
 {
     return [=](auto... es) {
         auto eval1 = [=](const std::vector<scalar>& args) {
@@ -814,14 +815,14 @@ auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
                 args.front(),
                 [=](const interval& acc, const interval& arg) { return eval_interval(acc, arg); });
         };
-        return call_op(name, eval1, eval_interval1, {arg(es)...}, true);
+        return call_op(name, eval1, eval_interval1, {arg(std::move(es))...}, true);
     };
 }
 
 template <class Eval>
-auto call_associative(std::string name, Eval eval)
+static auto call_associative(std::string name, Eval eval)
 {
-    return call_associative(name, eval, eval);
+    return call_associative(std::move(name), eval, eval);
 }
 
 expr operator+(expr ex, expr ey)
@@ -830,7 +831,7 @@ expr operator+(expr ex, expr ey)
                                                                        std::move(ey));
 }
 
-expr operator-(expr ex, expr ey) { return ex + (-ey); }
+expr operator-(expr ex, expr ey) { return std::move(ex) + (-std::move(ey)); }
 
 expr operator*(expr ex, expr ey)
 {
@@ -889,23 +890,23 @@ std::size_t expr::hash() const
     return pimpl->cached_hash;
 }
 
-scalar generic_eval_auto_apply(const op_node& op, const std::vector<scalar>& args)
+static scalar generic_eval_auto_apply(const op_node& op, const std::vector<scalar>& args)
 {
     return op.op->eval(args);
 }
 
-interval generic_eval_auto_apply(const op_node& op, const std::vector<interval>& args)
+static interval generic_eval_auto_apply(const op_node& op, const std::vector<interval>& args)
 {
     return op.op->eval_interval(args);
 }
 
-expr generic_eval_auto_apply(const op_node& op, const std::vector<expr>& args)
+static expr generic_eval_auto_apply(const op_node& op, const std::vector<expr>& args)
 {
     return call_op(op.op, args);
 }
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
-std::size_t generic_eval_auto_apply(const op_node& op, const std::vector<T>& args)
+static std::size_t generic_eval_auto_apply(const op_node& op, const std::vector<T>& args)
 {
     std::vector<scalar> vargs;
     vargs.reserve(args.size());
@@ -915,12 +916,12 @@ std::size_t generic_eval_auto_apply(const op_node& op, const std::vector<T>& arg
 }
 
 template <class R, class Replace, class Apply>
-R generic_eval(const expr& e, const Replace& replace, const Apply& apply)
+static R generic_eval(const expr& e, const Replace& replace, const Apply& apply)
 {
     auto r = replace(e);
     if(r)
         return *r;
-    auto& children = e.children();
+    const auto& children = e.children();
     std::vector<R> args;
     args.reserve(children.size());
     std::transform(children.begin(),
@@ -931,7 +932,7 @@ R generic_eval(const expr& e, const Replace& replace, const Apply& apply)
 }
 
 template <class R, class Replace>
-R generic_eval(const expr& e, const Replace& replace)
+static R generic_eval(const expr& e, const Replace& replace)
 {
     return generic_eval<R>(e, replace, MIGRAPHX_LIFT(generic_eval_auto_apply));
 }
@@ -1057,7 +1058,7 @@ scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
                            [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
                 get_node(e));
         },
-        [](const op_node& op, std::vector<scalar> args) { return op.op->eval(args); });
+        [](const op_node& op, const std::vector<scalar>& args) { return op.op->eval(args); });
 }
 
 interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const
@@ -1253,15 +1254,16 @@ static expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
 {
     if(e.children().empty())
         return apply_rules(e, rules);
-    auto* op_n = std::get_if<op_node>(&get_node(e));
+    const auto* op_n = std::get_if<op_node>(&get_node(e));
     std::vector<expr> new_children;
     new_children.reserve(e.children().size());
-    for(const auto& child : e.children())
-        new_children.push_back(simplify_impl(child, rules));
+    std::transform(e.children().begin(), e.children().end(), std::back_inserter(new_children), [&](const expr& child) {
+        return simplify_impl(child, rules);
+    });
     return apply_rules(call_op(op_n->op, std::move(new_children)), rules);
 }
 
-expr simplify(expr e, std::vector<rewrite_rule> rules) { return simplify_impl(e, rules); }
+expr simplify(const expr& e, const std::vector<rewrite_rule>& rules) { return simplify_impl(e, rules); }
 
 using sym_parser = parser::simple_string_view_skip_parser;
 
@@ -1309,7 +1311,7 @@ template <class F>
 call_wrapper(F) -> call_wrapper<F>;
 
 template <class F>
-auto associative_call_wrapper(F f)
+static auto associative_call_wrapper(F f)
 {
     return [=](const std::vector<expr>& args) {
         if(args.empty())
@@ -1318,7 +1320,7 @@ auto associative_call_wrapper(F f)
     };
 }
 
-static expr call_function(const std::string& name, std::vector<expr> args)
+static expr call_function(const std::string& name, const std::vector<expr>& args)
 {
 #define MIGRAPHX_CALL_FUNC(name)                    \
     {                                               \
@@ -1350,7 +1352,7 @@ static expr call_function(const std::string& name, std::vector<expr> args)
 
 static expr parse_number(sym_parser& p)
 {
-    if(not std::isdigit(p.peek_char()) and p.peek_char() != '.')
+    if((std::isdigit(p.peek_char()) == 0) and p.peek_char() != '.')
         return {};
     auto token    = p.parse_while([](char c) { return std::isdigit(c) or c == '.'; });
     bool is_float = token.find('.') != std::string_view::npos;
@@ -1362,7 +1364,7 @@ static expr parse_number(sym_parser& p)
 static expr parse_func_or_var(sym_parser& p)
 {
     char c = p.peek_char();
-    if(not std::isalpha(c) and c != '_')
+    if((std::isalpha(c) == 0) and c != '_')
         return {};
     auto name = p.parse_while([](char ch) { return std::isalnum(ch) or ch == '_'; });
     std::string sname(name);
@@ -1377,7 +1379,7 @@ static expr parse_func_or_var(sym_parser& p)
             args.push_back(parse_expr(p));
     }
     p.expect(std::string_view(")"));
-    return call_function(sname, std::move(args));
+    return call_function(sname, args);
 }
 
 static expr parse_paren_expr(sym_parser& p)
@@ -1479,13 +1481,13 @@ static migraphx::value expr_to_value(const sym::expr& e)
     migraphx::value result;
     std::visit(
         [&](const auto& n) {
-            using T = std::decay_t<decltype(n)>;
-            if constexpr(std::is_same<T, sym::literal_node>{})
+            using t = std::decay_t<decltype(n)>;
+            if constexpr(std::is_same<t, sym::literal_node>{})
             {
                 result["type"]  = "literal";
                 result["value"] = sym_scalar_to_value(n.val);
             }
-            else if constexpr(std::is_same<T, sym::variable_node>{})
+            else if constexpr(std::is_same<t, sym::variable_node>{})
             {
                 result["type"] = "variable";
                 result["name"] = n.name;
@@ -1499,7 +1501,7 @@ static migraphx::value expr_to_value(const sym::expr& e)
             }
         },
         get_node(e));
-    auto& children = e.children();
+    const auto& children = e.children();
     if(not children.empty())
     {
         std::vector<migraphx::value> child_vals;
@@ -1534,7 +1536,7 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         {
             auto constraints =
                 migraphx::from_value<std::vector<sym::interval>>(v.at("constraints"));
-            for(auto& c : constraints)
+            for(const auto& c : constraints)
                 e = sym::var(name, c);
         }
         else
@@ -1548,7 +1550,7 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         std::vector<sym::expr> children;
         if(v.contains("children"))
         {
-            auto& cv = v.at("children");
+            const auto& cv = v.at("children");
             children.reserve(cv.size());
             std::transform(
                 cv.begin(), cv.end(), std::back_inserter(children), [](const migraphx::value& c) {

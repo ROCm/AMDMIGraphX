@@ -856,6 +856,8 @@ expr operator%(expr ex, expr ey)
     return call(
         "%",
         [](auto x, auto y) {
+            if(float_equal(y, 0))
+                MIGRAPHX_THROW("Division by zero");
             if constexpr(std::is_integral<decltype(x)>{} and std::is_integral<decltype(y)>{})
                 return x % y;
             else

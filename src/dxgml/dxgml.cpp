@@ -33,14 +33,57 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// Convert a UTF-16 LE string (with or without BOM) to UTF-8.
+// Only handles the Basic Multilingual Plane (code points < 0x10000),
+// which covers all MLIR source text in practice.
+static std::string utf16le_to_utf8(const std::string& raw)
+{
+    const auto* p   = reinterpret_cast<const unsigned char*>(raw.data());
+    std::size_t len = raw.size();
+    // Skip BOM (FF FE) if present
+    std::size_t start = 0;
+    if(len >= 2 && p[0] == 0xFF && p[1] == 0xFE)
+        start = 2;
+
+    std::string out;
+    out.reserve(len); // upper bound
+    for(std::size_t i = start; i + 1 < len; i += 2)
+    {
+        unsigned cp = static_cast<unsigned>(p[i]) | (static_cast<unsigned>(p[i + 1]) << 8);
+        if(cp < 0x80)
+        {
+            out += static_cast<char>(cp);
+        }
+        else if(cp < 0x800)
+        {
+            out += static_cast<char>(0xC0 | (cp >> 6));
+            out += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+        else
+        {
+            out += static_cast<char>(0xE0 | (cp >> 12));
+            out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            out += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+    }
+    return out;
+}
+
 program parse_dxgml(const std::string& filename, const dxgml_options& options)
 {
-    std::ifstream f(filename);
+    std::ifstream f(filename, std::ios::binary);
     if(!f)
         MIGRAPHX_THROW("DxGML: cannot open file: " + filename);
     std::ostringstream ss;
     ss << f.rdbuf();
-    return parse_dxgml_string(ss.str(), options);
+    std::string content = ss.str();
+
+    // Detect UTF-16 LE BOM (FF FE) and convert to UTF-8
+    const auto* raw = reinterpret_cast<const unsigned char*>(content.data());
+    if(content.size() >= 2 && raw[0] == 0xFF && raw[1] == 0xFE)
+        content = utf16le_to_utf8(content);
+
+    return parse_dxgml_string(content, options);
 }
 
 program parse_dxgml_string(const std::string& mlir_text, const dxgml_options& options)

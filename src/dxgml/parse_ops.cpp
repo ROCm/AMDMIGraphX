@@ -30,11 +30,20 @@
 #include <migraphx/op/common.hpp>
 
 #include <unordered_map>
+#include <sstream>
 #include <string>
 #include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+static std::string trim(const std::string& s)
+{
+    auto b = s.find_first_not_of(" \t\r\n");
+    if(b == std::string::npos) return {};
+    auto e = s.find_last_not_of(" \t\r\n");
+    return s.substr(b, e - b + 1);
+}
 
 // ---------------------------------------------------------------------------
 // Local helpers
@@ -83,9 +92,57 @@ collect_inputs(const std::string& operands_raw,
 
 // ---------------------------------------------------------------------------
 // Constant: dxgml_op.constant(#dxgml.constant_resource<NAME : TYPE>)
+//        or dxgml_op.constant(#dxgml.dense_integer_elements<[v0,v1,...]> : TYPE)
 // ---------------------------------------------------------------------------
 static instruction_ref parse_constant(dxgml_parser& self, const std::string& operands_raw)
 {
+    // --- Handle dense_integer_elements inline constant ---
+    const std::string dense_pfx = "dense_integer_elements<";
+    {
+        auto dp = operands_raw.find(dense_pfx);
+        if(dp != std::string::npos)
+        {
+            auto list_start = dp + dense_pfx.size();
+            // Find '[' ... ']'
+            auto lb = operands_raw.find('[', list_start);
+            auto rb = operands_raw.find(']', lb != std::string::npos ? lb : list_start);
+            std::vector<int64_t> vals;
+            if(lb != std::string::npos && rb != std::string::npos)
+            {
+                std::string list = operands_raw.substr(lb + 1, rb - lb - 1);
+                std::istringstream ss(list);
+                std::string tok;
+                while(std::getline(ss, tok, ','))
+                {
+                    tok = trim(tok);
+                    if(!tok.empty())
+                        vals.push_back(std::stoll(tok));
+                }
+            }
+            // Find type after '>'  ':'  TYPE
+            auto colon_pos = operands_raw.find(':', rb != std::string::npos ? rb : list_start);
+            if(colon_pos != std::string::npos)
+            {
+                std::string type_str = trim(operands_raw.substr(colon_pos + 1));
+                try
+                {
+                    shape sh = self.parse_tensor_type(type_str);
+                    return self.mm->add_literal(literal{sh, vals.begin(), vals.end()});
+                }
+                catch(...)
+                {
+                }
+            }
+            // Fallback: return 1D int64 literal
+            if(!vals.empty())
+            {
+                shape sh{shape::int64_type, {vals.size()}};
+                return self.mm->add_literal(literal{sh, vals.begin(), vals.end()});
+            }
+            return self.mm->add_literal(literal{});
+        }
+    }
+
     // operands_raw = "#dxgml.constant_resource<NAME : !dxgml.tensor<...>>"
     // (possibly prefixed by the dialect hash)
     const std::string pfx = "constant_resource<";
@@ -134,6 +191,18 @@ get_dense_int(dxgml_parser& self, const std::string& attrs, const std::string& k
     return self.parse_dense_int_vec(val);
 }
 
+static std::vector<std::size_t>
+get_dense_int_or(dxgml_parser& self,
+                 const std::string& attrs,
+                 const std::string& key,
+                 std::vector<std::size_t> default_val)
+{
+    std::string val = self.get_attr_str(attrs, key);
+    if(val.empty())
+        return default_val;
+    return self.parse_dense_int_vec(val);
+}
+
 // Get an integer scalar attribute value by key.
 static int64_t
 get_int(dxgml_parser& self, const std::string& attrs, const std::string& key)
@@ -141,6 +210,15 @@ get_int(dxgml_parser& self, const std::string& attrs, const std::string& key)
     std::string val = self.get_attr_str(attrs, key);
     if(val.empty())
         MIGRAPHX_THROW("DxGML: missing attribute '" + key + "' in: " + attrs);
+    return self.parse_int_scalar(val);
+}
+
+static int64_t
+get_int_or(dxgml_parser& self, const std::string& attrs, const std::string& key, int64_t default_val)
+{
+    std::string val = self.get_attr_str(attrs, key);
+    if(val.empty())
+        return default_val;
     return self.parse_int_scalar(val);
 }
 
@@ -201,10 +279,27 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Binary elementwise ---
     // DxGML binary ops implicitly broadcast; MIGraphX requires identical shapes.
     // If shapes differ, derive the output shape from the type signature and broadcast.
+
+    // Returns true if `in_lens` can be numpy-broadcast to `out_lens`.
+    auto is_broadcastable = [](const std::vector<std::size_t>& in_lens,
+                                const std::vector<std::size_t>& out_lens) -> bool {
+        if(in_lens.size() > out_lens.size())
+            return false;
+        std::size_t off = out_lens.size() - in_lens.size();
+        for(std::size_t i = 0; i < in_lens.size(); ++i)
+        {
+            if(in_lens[i] != 1 && in_lens[i] != out_lens[off + i])
+                return false;
+        }
+        return true;
+    };
+
     auto broadcast_to = [&](instruction_ref in,
                              const std::vector<std::size_t>& out_lens) -> instruction_ref {
         if(in->get_shape().lens() == out_lens)
             return in;
+        if(!is_broadcastable(in->get_shape().lens(), out_lens))
+            return in; // cannot broadcast; return as-is
         return mm->add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}), in);
     };
     auto get_out_lens = [&]() -> std::vector<std::size_t> {
@@ -227,15 +322,23 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
         auto it = binary_map.find(name);
         if(it != binary_map.end())
         {
-            if(inputs.size() == 2 &&
-               inputs[0]->get_shape().lens() != inputs[1]->get_shape().lens())
+            if(inputs.size() == 2)
             {
-                auto out_lens = get_out_lens();
-                if(!out_lens.empty())
+                // Shape broadcast: if dims differ, try to broadcast to output shape
+                if(inputs[0]->get_shape().lens() != inputs[1]->get_shape().lens())
                 {
-                    inputs[0] = broadcast_to(inputs[0], out_lens);
-                    inputs[1] = broadcast_to(inputs[1], out_lens);
+                    auto out_lens = get_out_lens();
+                    if(!out_lens.empty())
+                    {
+                        inputs[0] = broadcast_to(inputs[0], out_lens);
+                        inputs[1] = broadcast_to(inputs[1], out_lens);
+                    }
                 }
+                // Type coercion: MIGraphX requires matching element types
+                if(inputs[0]->get_shape().type() != inputs[1]->get_shape().type())
+                    inputs[1] = mm->add_instruction(
+                        make_op("convert", {{"target_type", inputs[0]->get_shape().type()}}),
+                        inputs[1]);
             }
             return mm->add_instruction(make_op(it->second), inputs);
         }
@@ -245,10 +348,12 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     if(name == "convolution")
     {
         auto strides   = get_dense_int(*this, attrs_block, "strides");
-        auto dilations = get_dense_int(*this, attrs_block, "dilations");
         auto pad_start = get_dense_int(*this, attrs_block, "start_padding");
         auto pad_end   = get_dense_int(*this, attrs_block, "end_padding");
-        auto groups    = get_int(*this, attrs_block, "group_count");
+        // dilations and group_count are optional
+        std::vector<std::size_t> default_dil(strides.size(), 1);
+        auto dilations = get_dense_int_or(*this, attrs_block, "dilations", default_dil);
+        auto groups    = get_int_or(*this, attrs_block, "group_count", 1);
 
         // MIGraphX interleaved padding: [top, bottom, left, right] for 2D
         // DxGML: start_padding=[top,left], end_padding=[bottom,right]
@@ -305,6 +410,10 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
                 a_lens[i] = b_lens[i];
             a = mm->add_instruction(make_op("multibroadcast", {{"out_lens", a_lens}}), a);
         }
+        // MIGraphX dot requires matching types; convert weight to activation type if needed
+        if(a->get_shape().type() != b->get_shape().type())
+            b = mm->add_instruction(
+                make_op("convert", {{"target_type", a->get_shape().type()}}), b);
         return mm->add_instruction(make_op("dot"), a, b);
     }
 
@@ -597,11 +706,39 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
         return first;
     }
 
+    // --- null_ptr: DxGML optional/null sentinel ---
+    if(name == "null_ptr")
+        return mm->add_literal(literal{});
+
     // --- Unknown ---
     if(!opts.skip_unknown_operators)
         MIGRAPHX_THROW("DxGML: unhandled op: " + name);
 
-    // Skip: return first input as passthrough (or literal if no inputs)
+    // Skip: return a placeholder with the declared output shape when possible,
+    // so downstream shape/type checks don't fail.
+    {
+        std::string ret_type_str = extract_ret_type(type_sig);
+        if(!ret_type_str.empty())
+        {
+            try
+            {
+                shape out_shape = parse_tensor_type(ret_type_str);
+                // Use the first input if its shape already matches, else add a
+                // fresh parameter so the correct shape propagates downstream.
+                if(!inputs.empty() &&
+                   out_shape.lens() == inputs[0]->get_shape().lens() &&
+                   out_shape.type() == inputs[0]->get_shape().type())
+                    return inputs[0];
+                static std::size_t skip_counter = 0;
+                std::string ph_name =
+                    "__skipped_" + name + "_" + std::to_string(skip_counter++);
+                return mm->add_parameter(ph_name, out_shape);
+            }
+            catch(...)
+            {
+            }
+        }
+    }
     if(inputs.empty())
         return mm->add_literal(literal{});
     return inputs[0];

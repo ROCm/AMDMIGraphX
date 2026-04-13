@@ -1,0 +1,58 @@
+
+=====================================================
+DxGML Test Suite - FULL RUN
+=====================================================
+Arch:   gfx1201
+Driver: C:\Develop\AMDMIGraphX.WML\build\WinRelWithDebInfo\bin\migraphx-driver.exe
+Dump:   C:\Develop\AMDMIGraphX.WML\test\dxgml\dump  (enabled: False)
+Log:    C:\Develop\AMDMIGraphX.WML\test\dxgml\dump\run_results.log
+
+--- Parse Unit Tests (C++ test binaries) ---
+  [PASS] ConvRelu parse
+  [PASS] Gelu parse
+  [PASS] ReluErf parse
+  [PASS] StandaloneCluster parse
+
+--- MLIR Driver Tests ---
+[simple models]
+  [PASS] simple_gemm
+  [PASS] conv_example
+  [PASS] test_dxgml
+  [PASS] test_model1_clean
+[standalone tests]
+  [PASS] conv_act_add
+  [PASS] conv_relu_mul
+  [PASS] gemm_add
+  [PASS] gemm_relu_add
+  [PASS] gemm_gemm_add
+  [PASS] transpose_conv_transpose
+  [PASS] group_query_attention
+  [PASS] qkv_projection
+  [PASS] qkv_projection_2
+  [PASS] gqa_attention
+[CNN models]
+  [PASS] model1
+  [PASS] model1_test
+  [PASS] model2
+  [PASS] model2_test
+  [PASS] model3
+  [PASS] model3_test
+[vision models]
+  [PASS] audio2face
+  [PASS] audio2face_test
+[LLM models]
+  [PASS] llama32_decoder
+  [PASS] llama32_prefill
+  [PASS] llama32_decoder_test
+  [PASS] llama32_prefill_test
+  [PASS] nemotron_decoder
+  [PASS] nemotron_prefill
+  [PASS] nemotron_decoder_test
+  [PASS] nemotron_prefill_test
+  [PASS] phi_silica_qdq
+
+=====================================================
+Results: 35 passed, 0 failed, 0 skipped
+=====================================================
+Full log: C:\Develop\AMDMIGraphX.WML\test\dxgml\dump\run_results.log
+All tests passed!

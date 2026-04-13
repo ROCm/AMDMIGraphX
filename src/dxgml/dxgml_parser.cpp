@@ -111,6 +111,9 @@ shape::type_t dxgml_parser::parse_element_type(const std::string& raw) const
     if(e == "!dxgml.uint32" || e == "ui32")   return shape::uint32_type;
     if(e == "!dxgml.uint64" || e == "ui64")   return shape::uint64_type;
     if(e == "!dxgml.bool")                    return shape::bool_type;
+    // 4-bit quantized types — map to their 8-bit counterparts for storage
+    if(e == "!dxgml.uint4" || e == "ui4")     return shape::uint8_type;
+    if(e == "!dxgml.int4"  || e == "si4" || e == "i4") return shape::int8_type;
     MIGRAPHX_THROW("DxGML: unsupported element type: " + e);
 }
 
@@ -580,19 +583,35 @@ void dxgml_parser::parse_entry_point(const std::string& arg_list_str, const std:
             }
             std::string op_name = full_op_name.substr(dxgml_op_pfx.size());
 
-            // After op name, find '('
+            // After op name, find '('.
+            // Some ops (e.g. dxgml_op.null_ptr) have no argument list at all.
+            // Detect the next '%' or ';' to determine if '(' comes before the
+            // next statement boundary.
             auto paren_open = flat.find('(', op_end);
-            if(paren_open == std::string::npos)
-                break;
+            std::size_t next_stmt = flat.find('%', op_end);
+            std::size_t semi      = flat.find(';', op_end);
+            if(next_stmt == std::string::npos) next_stmt = flat.size();
+            if(semi != std::string::npos && semi < next_stmt) next_stmt = semi;
 
-            auto paren_close = find_matching(flat, paren_open, '(', ')');
-            if(paren_close == std::string::npos)
-                break;
-
-            std::string operands_raw = flat.substr(paren_open + 1, paren_close - paren_open - 1);
+            std::string operands_raw;
+            std::size_t after_operands = op_end;
+            if(paren_open != std::string::npos && paren_open < next_stmt)
+            {
+                auto paren_close = find_matching(flat, paren_open, '(', ')');
+                if(paren_close == std::string::npos)
+                    break;
+                operands_raw   = flat.substr(paren_open + 1, paren_close - paren_open - 1);
+                after_operands = paren_close + 1;
+            }
+            else
+            {
+                // No parenthesised argument list (e.g. null_ptr).
+                // Treat as a zero-operand op; advance past the op name.
+                after_operands = op_end;
+            }
 
             // After ')': optional attribute block { ... } and type signature
-            std::size_t after_paren = paren_close + 1;
+            std::size_t after_paren = after_operands;
 
             // Skip whitespace and newlines
             while(after_paren < flat.size() && std::isspace(static_cast<unsigned char>(flat[after_paren])))
@@ -680,24 +699,111 @@ void dxgml_parser::parse_entry_point(const std::string& arg_list_str, const std:
             }
 
             // Dispatch to op handler.
-            // Multi-result ops (e.g. split) use "name:N" syntax — parse_dxgml_op
-            // registers all N results into value_map itself and returns the first.
-            auto colon_pos = result_name.find(':');
-            int num_results = 1;
-            std::string base_name = result_name;
+            // Three forms of result list:
+            //   1. "%a = op(...)":        single result — result_name = "a"
+            //   2. "%a:N = op(...)":      N homogeneous results (e.g. split)
+            //   3. "%a, %b, %c = op(...)": named heterogeneous multi-results
+
+            // Collect individual result names (strip leading '%' already done above)
+            std::vector<std::string> result_names;
+            {
+                // result_name may be "a" or "a, b, c" (% already stripped by
+                // the substr that built result_name from flat[pos+1..eq-1])
+                std::istringstream rns(result_name);
+                std::string tok;
+                while(std::getline(rns, tok, ','))
+                {
+                    tok = trim(tok);
+                    // strip leading '%' if present (shouldn't be, but be safe)
+                    if(!tok.empty() && tok[0] == '%')
+                        tok = tok.substr(1);
+                    if(!tok.empty())
+                        result_names.push_back(tok);
+                }
+            }
+
+            // :N syntax (split-style): "a:4" → base_name="a", num_results=4
+            auto colon_pos = result_names.size() == 1 ? result_names[0].find(':') : std::string::npos;
+            int num_results = static_cast<int>(result_names.size());
+            std::string base_name = result_names.empty() ? result_name : result_names[0];
             if(colon_pos != std::string::npos)
             {
-                num_results = std::stoi(result_name.substr(colon_pos + 1));
-                base_name   = result_name.substr(0, colon_pos);
+                num_results = std::stoi(result_names[0].substr(colon_pos + 1));
+                base_name   = result_names[0].substr(0, colon_pos);
+                result_names = {base_name}; // :N style uses base_name#0..N-1
             }
 
             instruction_ref result =
                 parse_dxgml_op(op_name, operands_raw, attrs_block, type_sig,
                                base_name, num_results);
-            // Single-result: register under the result name (or base_name for :N ops
-            // where parse_dxgml_op already registered the individual results).
-            if(num_results == 1)
-                value_map[result_name] = result;
+
+            if(result_names.size() == 1 && colon_pos == std::string::npos)
+            {
+                // Single-result op: register under the single result name.
+                // (:N ops have already been registered by parse_dxgml_op.)
+                if(num_results == 1)
+                    value_map[result_names[0]] = result;
+            }
+            else if(result_names.size() > 1)
+            {
+                // Named multi-result op: try to extract per-result types from type_sig
+                // and register each result name.  We build one placeholder per result.
+                // Extract the return-type list: "-> (t0, t1, t2, ...)" or "-> t0"
+                std::string ret_str = [&]() -> std::string {
+                    auto arrow = type_sig.rfind("->");
+                    if(arrow == std::string::npos)
+                        return "";
+                    std::string r = trim(type_sig.substr(arrow + 2));
+                    if(!r.empty() && r.front() == '(')
+                        r = r.substr(1, r.size() > 1 && r.back() == ')' ? r.size() - 2 : r.size() - 1);
+                    return r;
+                }();
+
+                // Split ret_str by ',' at depth 0 to get per-result types
+                std::vector<std::string> ret_types;
+                {
+                    std::string cur;
+                    int depth = 0;
+                    for(char c : ret_str)
+                    {
+                        if(c == '<' || c == '(') ++depth;
+                        else if(c == '>' || c == ')') --depth;
+                        if(c == ',' && depth == 0)
+                        {
+                            ret_types.push_back(trim(cur));
+                            cur.clear();
+                        }
+                        else cur += c;
+                    }
+                    if(!cur.empty())
+                        ret_types.push_back(trim(cur));
+                }
+
+                static std::size_t named_multi_counter = 0;
+                for(std::size_t i = 0; i < result_names.size(); ++i)
+                {
+                    instruction_ref ri = result; // default: share first result
+                    if(i < ret_types.size() && !ret_types[i].empty())
+                    {
+                        try
+                        {
+                            shape rs = parse_tensor_type(ret_types[i]);
+                            std::string ph = "__multi_" + std::to_string(named_multi_counter++);
+                            ri = mm->add_parameter(ph, rs);
+                        }
+                        catch(...)
+                        {
+                            // type not parseable (e.g. !dxgml.null) → use empty literal
+                            ri = mm->add_literal(literal{});
+                        }
+                    }
+                    else
+                    {
+                        ri = mm->add_literal(literal{});
+                    }
+                    value_map[result_names[i]] = ri;
+                }
+            }
             continue;
         }
 

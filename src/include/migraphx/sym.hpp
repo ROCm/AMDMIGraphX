@@ -129,6 +129,7 @@ struct op_def
     std::string name;
     std::function<scalar(const std::vector<scalar>&)> eval;
     std::function<interval(const std::vector<interval>&)> eval_interval;
+    bool associative = false;
 };
 
 struct literal_node
@@ -248,9 +249,11 @@ expr arg(T x)
 expr call_op(const op_def* op, std::vector<expr> args);
 
 template <class Eval, class EvalInterval>
-expr call_op(std::string name, Eval eval, EvalInterval eval_interval, std::vector<expr> args)
+expr call_op(
+    std::string name, Eval eval, EvalInterval eval_interval, std::vector<expr> args, bool is_associative = false)
 {
-    static const op_def op{std::move(name), std::move(eval), std::move(eval_interval)};
+    static const op_def op{
+        std::move(name), std::move(eval), std::move(eval_interval), is_associative};
     return call_op(&op, std::move(args));
 }
 

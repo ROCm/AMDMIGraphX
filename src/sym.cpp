@@ -690,15 +690,7 @@ static expr normalize_expr(const op_def* op, std::vector<expr> args)
     return apply_rewrite_rules(normalize_impl(op, std::move(args)));
 }
 
-expr call_op(const op_def* op, std::vector<expr> args)
-{
-    if(std::any_of(args.begin(), args.end(), [](const expr& e) { return e.is_raw(); }))
-        return expr(op_node{op}, std::move(args));
-    return normalize_expr(op, std::move(args));
-}
-
-namespace {
-std::vector<expr> flatten_args(const std::string& op_name, std::vector<expr> args)
+static std::vector<expr> flatten_args(const std::string& op_name, std::vector<expr> args)
 {
     std::vector<expr> flat_args;
     std::transform(args.begin(), args.end(), join_back_inserter(flat_args), [&](const expr& a) {
@@ -708,7 +700,6 @@ std::vector<expr> flatten_args(const std::string& op_name, std::vector<expr> arg
     });
     return flat_args;
 }
-} // namespace
 
 static expr fold_associative_args(expr e)
 {
@@ -736,6 +727,18 @@ static expr fold_associative_args(expr e)
     return expr(op_n, std::move(children));
 }
 
+expr call_op(const op_def* op, std::vector<expr> args)
+{
+    if(std::any_of(args.begin(), args.end(), [](const expr& e) { return e.is_raw(); }))
+        return expr(op_node{op}, std::move(args));
+    if(op->associative)
+        args = flatten_args(op->name, std::move(args));
+    auto result = normalize_expr(op, std::move(args));
+    if(op->associative)
+        result = fold_associative_args(std::move(result));
+    return result;
+}
+
 template <class Eval, class EvalInterval>
 auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
 {
@@ -755,8 +758,7 @@ auto call_associative(std::string name, Eval eval, EvalInterval eval_interval)
                 args.front(),
                 [=](const interval& acc, const interval& arg) { return eval_interval(acc, arg); });
         };
-        return fold_associative_args(
-            call_op(name, eval1, eval_interval1, flatten_args(name, {arg(es)...})));
+        return call_op(name, eval1, eval_interval1, {arg(es)...}, true);
     };
 }
 

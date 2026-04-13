@@ -27,4 +27,4 @@ protobuf==5.29.6
 numpy==1.26.4;python_version>="3.11"
 numpy==1.21.6;python_version<"3.11"
 packaging==23.0
-pytest==6.0.1
+pytest==9.0.3

@@ -369,26 +369,6 @@ expr var(std::string name, interval constraint, std::set<scalar> optimals)
 
 expr arg(expr x) { return x; }
 
-template <class T, class Compare>
-struct ordered_as : totally_ordered<ordered_as<T, Compare>>, equivalence<ordered_as<T, Compare>>
-{
-    T value;
-    Compare compare;
-
-    ordered_as(T v, Compare c) : value(std::move(v)), compare(std::move(c)) {}
-
-    friend bool operator<(const ordered_as& a, const ordered_as& b)
-    {
-        return a.compare(a.value, b.value);
-    }
-};
-
-template <class T, class Compare>
-ordered_as<T, Compare> make_ordered_as(T value, Compare compare)
-{
-    return {std::move(value), std::move(compare)};
-}
-
 static bool expr_children_less(const std::vector<expr>& a, const std::vector<expr>& b);
 
 auto expr_compare_key(const expr& e)

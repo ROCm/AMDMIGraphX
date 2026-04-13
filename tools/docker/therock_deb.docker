@@ -2,7 +2,7 @@ FROM ubuntu:24.04
 
 ARG GPU_ARCH=gfx120x
 ARG ROCM_VERSION=7.13
-ARG ROCM_NIGHTLY_URL=https://rocm.nightlies.amd.com/deb/20260401-23832802691
+ARG ROCM_RELEASE_URL=https://rocm.nightlies.amd.com/deb/20260401-23832802691
 
 # Support multiarch
 RUN dpkg --add-architecture i386
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] ${ROCM_NIGHTLY_URL} stable main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 trusted=yes] ${ROCM_RELEASE_URL} stable main > /etc/apt/sources.list.d/rocm.list'
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"

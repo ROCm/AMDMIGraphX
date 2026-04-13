@@ -24,15 +24,16 @@
 #include <migraphx/sym.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/simple_parser.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
+#include <migraphx/stringutils.hpp>
+#include <migraphx/utility_operators.hpp>
+#include <migraphx/float_equal.hpp>
 #include <algorithm>
 #include <iterator>
 #include <functional>
 #include <numeric>
 #include <optional>
-#include <migraphx/algorithm.hpp>
-#include <migraphx/output_iterator.hpp>
-#include <migraphx/stringutils.hpp>
-#include <migraphx/utility_operators.hpp>
 #include <sstream>
 
 namespace migraphx {
@@ -848,7 +849,7 @@ expr operator/(expr ex, expr ey)
     return call(
         "/",
         [](auto x, auto y) {
-            if(y == 0)
+            if(float_equal(y, 0))
                 MIGRAPHX_THROW("Division by zero");
             return x / y;
         },

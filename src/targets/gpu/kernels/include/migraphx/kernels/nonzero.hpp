@@ -48,15 +48,15 @@ __device__ void nonzero(Input input, Output output)
     static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
                   "Block size must be a multiple of wavefront size");
     const index_int num_chunks = (elem_num + block_size - 1) / block_size;
-    int carry                    = 0;
+    int carry                  = 0;
     for(index_int chunk = 0; chunk < num_chunks; ++chunk)
     {
         const index_int j = chunk * block_size + idx.local;
-        int value           = (j < elem_num) ? (float_equal(input[j], 0) ? 0 : 1) : 0;
-        carry               = block_scan(idx, value, op::sum{}, carry);
+        int value         = (j < elem_num) ? (float_equal(input[j], 0) ? 0 : 1) : 0;
+        carry             = block_scan(idx, value, op::sum{}, carry);
         if(j < elem_num)
         {
-            const int scanned = value;
+            const int scanned  = value;
             const auto out_loc = scanned - 1;
             if(float_equal(input[j], 0))
                 continue;

@@ -59,36 +59,49 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     static_assert(block_size % wave_size == 0, "Block size must be a multiple of wavefront size");
     constexpr index_int num_waves = block_size / wave_size;
 
-    __shared__ uninitialized_buffer<T, num_waves> wave_prefixes;
-
-    // scan within wave
-    wave_scan<wave_size>(idx, value, op);
-
-    // last lane of each wave writes its inclusive-scan total to shared memory
-    const auto wave_id = idx.wave();
-    const auto lane_id = idx.local_wave();
-    if(lane_id == wave_size - 1)
-        wave_prefixes[wave_id] = value;
-    __syncthreads();
-
-    // the first wave scans the wave prefixes
-    if(idx.local < num_waves)
+#ifdef MIGRAPHX_HAS_CONST_LOCAL
+    // like block_reduce: one wave fits in registers/shuffles, skip LDS wave prefix pass
+    if constexpr(decltype(idx.nlocal()){} == MIGRAPHX_WAVEFRONTSIZE)
     {
-        T prefix = wave_prefixes[idx.local];
-        wave_scan<wave_size>(idx, prefix, op);
-        wave_prefixes[idx.local] = prefix;
+        wave_scan<wave_size>(idx, value, op);
+        const T block_agg = readlane<wave_size - 1, wave_size>(value);
+        value               = op(init, value);
+        return op(init, block_agg);
     }
-    __syncthreads();
+    else
+#endif
+    {
+        __shared__ uninitialized_buffer<T, num_waves> wave_prefixes;
 
-    // add wave prefix to each thread's result, except wave 0
-    if(wave_id > 0)
-        value = op(wave_prefixes[wave_id - 1], value);
+        // scan within wave
+        wave_scan<wave_size>(idx, value, op);
 
-    // include init value
-    value = op(init, value);
+        // last lane of each wave writes its inclusive-scan total to shared memory
+        const auto wave_id = idx.wave();
+        const auto lane_id = idx.local_wave();
+        if(lane_id == wave_size - 1)
+            wave_prefixes[wave_id] = value;
+        __syncthreads();
 
-    // return block total, init + sum of all inputs
-    return op(init, wave_prefixes[num_waves - 1]);
+        // the first wave scans the wave prefixes
+        if(idx.local < num_waves)
+        {
+            T prefix = wave_prefixes[idx.local];
+            wave_scan<wave_size>(idx, prefix, op);
+            wave_prefixes[idx.local] = prefix;
+        }
+        __syncthreads();
+
+        // add wave prefix to each thread's result, except wave 0
+        if(wave_id > 0)
+            value = op(wave_prefixes[wave_id - 1], value);
+
+        // include init value
+        value = op(init, value);
+
+        // return block total, init + sum of all inputs
+        return op(init, wave_prefixes[num_waves - 1]);
+    }
 }
 
 template <class Op, class T, class Input, class Output>

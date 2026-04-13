@@ -1128,24 +1128,6 @@ void collect_optimals(const expr& e, std::unordered_map<std::string, std::set<sc
         collect_optimals(child, result);
 }
 
-template <class F>
-void cartesian_product(const std::vector<std::pair<std::string, std::vector<scalar>>>& var_values,
-                       std::unordered_map<std::string, scalar>& current,
-                       std::size_t index,
-                       F f)
-{
-    if(index == var_values.size())
-    {
-        f(current);
-        return;
-    }
-    const auto& [name, values] = var_values[index];
-    for(const auto& v : values)
-    {
-        current[name] = v;
-        cartesian_product(var_values, current, index + 1, f);
-    }
-}
 } // namespace
 
 std::set<scalar> expr::eval_optimals() const
@@ -1168,10 +1150,19 @@ std::set<scalar> expr::eval_optimals() const
 
     std::set<scalar> results;
     std::unordered_map<std::string, scalar> current;
-    cartesian_product(
-        var_values, current, 0, [&](const std::unordered_map<std::string, scalar>& vars) {
-            results.insert(eval(vars));
-        });
+    fix<void>([&](auto self, std::size_t index) {
+        if(index == var_values.size())
+        {
+            results.insert(eval(current));
+            return;
+        }
+        const auto& [name, values] = var_values[index];
+        for(const auto& v : values)
+        {
+            current[name] = v;
+            self(index + 1);
+        }
+    })(0);
     return results;
 }
 

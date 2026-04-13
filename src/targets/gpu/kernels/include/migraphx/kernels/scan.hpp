@@ -104,25 +104,6 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     }
 }
 
-template <class Op, class T, class Input, class Output>
-__device__ void block_scan(index idx, Op op, T init, index_int n, Input input, Output output)
-{
-    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
-    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
-                  "Block size must be a multiple of wavefront size");
-    using type                 = decltype(input(index_int{}));
-    const index_int num_chunks = (n + block_size - 1) / block_size;
-    type x                     = init;
-    for(index_int chunk = 0; chunk < num_chunks; ++chunk)
-    {
-        index_int i = chunk * block_size + idx.local;
-        type value  = (i < n) ? input(i) : init;
-        x           = block_scan(idx, value, op, x);
-        if(i < n)
-            output(i, value);
-    }
-}
-
 template <class Op, class T, class Index, class F>
 __device__ auto wave_scan(index idx, Op op, T init, Index n, F f)
 {
@@ -134,24 +115,6 @@ __device__ auto wave_scan(index idx, Op op, T init, Index n, F f)
     if(lane_id < n)
         f(lane_id) = value;
     return value;
-}
-
-template <class Op, class T, class Index, class F>
-__device__ auto block_scan(index idx, Op op, T init, Index n, F f)
-{
-    using type                     = remove_reference_t<decltype(f(index_int{}))>;
-    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
-    const index_int num_chunks     = (n + block_size - 1) / block_size;
-    type x                         = init;
-    for(index_int chunk = 0; chunk < num_chunks; ++chunk)
-    {
-        index_int i = chunk * block_size + idx.local;
-        type value  = (i < n) ? f(i) : init;
-        x           = block_scan(idx, value, op, x);
-        if(i < n)
-            f(i) = value;
-    }
-    return x;
 }
 
 template <class F>

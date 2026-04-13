@@ -36,30 +36,38 @@ __device__ void prefix_scan_sum_slice(
 {
     auto idx = make_index();
 
-    auto read_input = [&](index_int j) {
-        index_int pos = Reverse ? (n - 1 - j) : j;
-        return input[offset + pos * axis_stride];
+    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
+    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
+                  "Block size must be a multiple of wavefront size");
+    const index_int num_chunks = (n + block_size - 1) / block_size;
+
+    auto axis_index = [&](index_int j) {
+        const index_int pos = Reverse ? (n - 1 - j) : j;
+        return offset + pos * axis_stride;
     };
 
-    auto write_output = [&](index_int j, auto x) {
-        index_int pos                      = Reverse ? (n - 1 - j) : j;
-        output[offset + pos * axis_stride] = x;
-    };
+    using value_type = remove_reference_t<decltype(input[axis_index(0)])>;
 
-    using value_type = decltype(read_input(0));
-
-    if constexpr(Exclusive)
+    value_type carry = value_type{0};
+    for(index_int chunk = 0; chunk < num_chunks; ++chunk)
     {
-        block_scan(idx, op::sum{}, value_type{0}, n, read_input, [&](index_int j, auto x) {
-            if(j == 0)
-                write_output(j, value_type{0});
+        const index_int j = chunk * block_size + idx.local;
+        value_type value  = (j < n) ? input[axis_index(j)] : value_type{0};
+        carry             = block_scan(idx, value, op::sum{}, carry);
+        if(j < n)
+        {
+            if constexpr(Exclusive)
+            {
+                if(j == 0)
+                    output[axis_index(j)] = value_type{0};
+                else
+                    output[axis_index(j)] = value - input[axis_index(j)];
+            }
             else
-                write_output(j, x - read_input(j));
-        });
-    }
-    else
-    {
-        block_scan(idx, op::sum{}, value_type{0}, n, read_input, write_output);
+            {
+                output[axis_index(j)] = value;
+            }
+        }
     }
 }
 

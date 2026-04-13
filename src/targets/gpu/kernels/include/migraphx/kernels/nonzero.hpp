@@ -44,23 +44,30 @@ __device__ void nonzero(Input input, Output output)
     // Fill all output to 0 first
     idx.local_stride(out_elem_num, [&](auto j) { output[j] = 0; });
 
-    block_scan(
-        idx,
-        op::sum{},
-        0,
-        elem_num,
-        [&](auto j) { return float_equal(input[j], 0) ? 0 : 1; },
-        [&](auto j, auto x) {
-            auto out_loc = x - 1;
+    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
+    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
+                  "Block size must be a multiple of wavefront size");
+    const index_int num_chunks = (elem_num + block_size - 1) / block_size;
+    int carry                    = 0;
+    for(index_int chunk = 0; chunk < num_chunks; ++chunk)
+    {
+        const index_int j = chunk * block_size + idx.local;
+        int value           = (j < elem_num) ? (float_equal(input[j], 0) ? 0 : 1) : 0;
+        carry               = block_scan(idx, value, op::sum{}, carry);
+        if(j < elem_num)
+        {
+            const int scanned = value;
+            const auto out_loc = scanned - 1;
             if(float_equal(input[j], 0))
-                return;
+                continue;
 
-            auto multi_idx = in_shape.multi(j);
+            const auto multi_idx = in_shape.multi(j);
             for(index_int k = 0; k < multi_idx.size(); ++k)
             {
                 output[k * elem_num + out_loc] = multi_idx[k];
             }
-        });
+        }
+    }
 }
 
 } // namespace migraphx

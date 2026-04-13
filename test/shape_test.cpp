@@ -303,6 +303,94 @@ TEST_CASE(dynamic_dimension_mul_fixed)
     EXPECT((b * 0) == shape::dynamic_dimension{0, 0, {0}});
 }
 
+TEST_CASE(dynamic_dimension_div_fixed)
+{
+    dd a{10, 30, {12, 24}};
+    a /= 3;
+    EXPECT(a == dd{3, 10, {4, 8}});
+
+    dd b{8, 20, {10, 16}};
+    EXPECT((b / 2) == dd{4, 10, {5, 8}});
+    EXPECT((b / 1) == b);
+}
+
+TEST_CASE(dynamic_dimension_add_dd)
+{
+    dd a{2, 8, {4, 6}};
+    dd b{3, 5, {3, 5}};
+    auto r = a + b;
+    EXPECT(r.min == 5);
+    EXPECT(r.max == 13);
+    EXPECT(r.optimals.empty());
+    EXPECT(not r.sym_expr.has_value());
+}
+
+TEST_CASE(dynamic_dimension_sub_dd)
+{
+    dd a{10, 30, {15, 25}};
+    dd b{2, 5, {3}};
+    auto r = a - b;
+    EXPECT(r.min == 5);
+    EXPECT(r.max == 28);
+    EXPECT(r.optimals.empty());
+    EXPECT(not r.sym_expr.has_value());
+}
+
+TEST_CASE(dynamic_dimension_mul_dd)
+{
+    dd a{2, 8, {4}};
+    dd b{3, 5, {3, 5}};
+    auto r = a * b;
+    EXPECT(r.min == 6);
+    EXPECT(r.max == 40);
+    EXPECT(r.optimals.empty());
+    EXPECT(not r.sym_expr.has_value());
+}
+
+TEST_CASE(dynamic_dimension_div_dd)
+{
+    dd a{10, 40, {20, 30}};
+    dd b{2, 5, {2, 4}};
+    auto r = a / b;
+    EXPECT(r.min == 2);
+    EXPECT(r.max == 20);
+    EXPECT(r.optimals.empty());
+    EXPECT(not r.sym_expr.has_value());
+}
+
+TEST_CASE(dynamic_dimension_sub_clamp_zero)
+{
+    dd a{2, 5};
+    dd b{4, 8};
+    auto r = a - b;
+    EXPECT(r.min == 0);
+    EXPECT(r.max == 1);
+}
+
+TEST_CASE(dynamic_dimension_add_one_fixed)
+{
+    dd a{4, 4, {4}};
+    dd b{2, 8, {3, 6}};
+    auto r = a + b;
+    EXPECT(r.min == 6);
+    EXPECT(r.max == 12);
+    std::set<std::size_t> expected_opts = {7, 10};
+    EXPECT(r.optimals == expected_opts);
+    EXPECT(not r.sym_expr.has_value());
+}
+
+TEST_CASE(dynamic_dimension_mul_one_fixed)
+{
+    dd a{3, 3};
+    dd b{2, 8, {4, 6}};
+    auto r = a * b;
+    EXPECT(r.min == 6);
+    EXPECT(r.max == 24);
+    std::set<std::size_t> expected_opts = {12, 18};
+    EXPECT(r.optimals == expected_opts);
+    EXPECT(not r.sym_expr.has_value());
+}
+
 TEST_CASE(dynamic_dimension_intersection)
 {
     using migraphx::shape;

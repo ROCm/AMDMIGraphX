@@ -2687,6 +2687,34 @@ TEST_CASE(serialize_expr_variable_constraint)
     EXPECT(e == e2);
 }
 
+TEST_CASE(serialize_expr_variable_multiple_constraints)
+{
+    auto c1 = interval{int64_t{0}, int64_t{10}};
+    auto c2 = interval{int64_t{20}, int64_t{30}};
+    // Build expression with two constraints via serialization round-trip
+    auto e1 = var("x", c1);
+    auto v1 = migraphx::to_value(e1);
+    // Manually add a second constraint to the serialized form
+    auto constraints = migraphx::from_value<std::vector<interval>>(v1.at("constraints"));
+    constraints.push_back(c2);
+    v1.at("constraints") = migraphx::to_value(constraints);
+    auto e2 = migraphx::from_value<expr>(v1);
+    // The deserialized expr should have both constraints, not just the last one
+    auto v2 = migraphx::to_value(e2);
+    auto result_constraints = migraphx::from_value<std::vector<interval>>(v2.at("constraints"));
+    EXPECT(result_constraints.size() == 2);
+    EXPECT(result_constraints[0] == c1);
+    EXPECT(result_constraints[1] == c2);
+}
+
+TEST_CASE(serialize_expr_variable_optimals)
+{
+    auto e  = var("x", interval{int64_t{0}, int64_t{10}}, std::set<scalar>{int64_t{1}, int64_t{5}});
+    auto v  = migraphx::to_value(e);
+    auto e2 = migraphx::from_value<expr>(v);
+    EXPECT(e == e2);
+}
+
 // ---- eval_optimals tests ----
 
 TEST_CASE(var_with_optimals)

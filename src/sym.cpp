@@ -1493,6 +1493,16 @@ static migraphx::value expr_to_value(const sym::expr& e)
                 result["name"] = n.name;
                 if(not n.constraints.empty())
                     result["constraints"] = migraphx::to_value(n.constraints);
+                if(not n.optimals.empty())
+                {
+                    migraphx::value opt_vals;
+                    std::transform(
+                        n.optimals.begin(),
+                        n.optimals.end(),
+                        std::back_inserter(opt_vals),
+                        [](const scalar& s) { return sym_scalar_to_value(s); });
+                    result["optimals"] = opt_vals;
+                }
             }
             else
             {
@@ -1532,17 +1542,19 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
     else if(type == "variable")
     {
         auto name = v.at("name").get_string();
+        std::vector<interval> constraints;
         if(v.contains("constraints"))
+            constraints = migraphx::from_value<std::vector<interval>>(v.at("constraints"));
+        std::set<scalar> optimals;
+        if(v.contains("optimals"))
         {
-            auto constraints =
-                migraphx::from_value<std::vector<sym::interval>>(v.at("constraints"));
-            for(const auto& c : constraints)
-                e = sym::var(name, c);
+            const auto& opt_vals = v.at("optimals");
+            std::transform(opt_vals.begin(),
+                           opt_vals.end(),
+                           std::inserter(optimals, optimals.end()),
+                           [](const migraphx::value& ov) { return value_to_sym_scalar(ov); });
         }
-        else
-        {
-            e = sym::var(name);
-        }
+        e = expr(variable_node{std::move(name), std::move(constraints), std::move(optimals)});
     }
     else
     {

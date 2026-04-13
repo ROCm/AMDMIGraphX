@@ -57,7 +57,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MIOPEN_POOLING)
 
 struct miopen_apply
 {
@@ -93,7 +93,6 @@ struct miopen_apply
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_extend_op("fixed_pad");
-        add_extend_op("multinomial");
         add_extend_op("rnn_var_sl_last_output");
         add_extend_op("rnn_var_sl_shift_output");
         add_extend_op("rnn_var_sl_shift_sequence");
@@ -346,9 +345,11 @@ struct miopen_apply
 
     static bool use_miopen_pooling(instruction_ref ins)
     {
-        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}) or
-           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()) or
-           ins->get_shape().dynamic())
+        if(not enabled(MIGRAPHX_ENABLE_MIOPEN_POOLING{}))
+            return false;
+        if(not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
+            return false;
+        if(ins->get_shape().dynamic())
             return false;
         auto&& op   = ins->get_operator();
         auto op_val = op.to_value();

@@ -179,7 +179,6 @@ add_library(migraphx_gpu
     loop.cpp
     lrn.cpp
     mlir.cpp
-    multinomial.cpp
     no_device.cpp
     pack_args.cpp
     prefuse_ops.cpp
@@ -212,7 +211,6 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     fixed_pad
     loop
-    multinomial
     topk
 )
 if (MIGRAPHX_USE_MIOPEN)

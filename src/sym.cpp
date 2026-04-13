@@ -571,14 +571,6 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     auto& num = args[0];
     auto& den = args[1];
 
-    // x / 0 is an error
-    if(den.name() == "literal")
-    {
-        auto* n = std::get_if<literal_node>(&get_node(den));
-        if(is_zero(n->val))
-            MIGRAPHX_THROW("Division by zero");
-    }
-
     // 0 / x == 0
     if(num.name() == "literal")
     {
@@ -708,6 +700,8 @@ static expr normalize_impl(const op_def* op, std::vector<expr> args)
         auto e = expr(op_node{op}, std::move(args));
         return lit(e.eval({}));
     }
+    if(contains({"/", "%"}, op->name) and args.at(1) == lit(0))
+        MIGRAPHX_THROW("Division by zero");
     if(op->name == "+")
         return normalize_add(op, std::move(args));
     if(op->name == "*")

@@ -313,5 +313,4 @@ struct hash<migraphx::sym::expr>
 
 } // namespace std
 
-
 #endif

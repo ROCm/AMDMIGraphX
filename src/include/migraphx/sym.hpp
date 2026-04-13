@@ -40,6 +40,9 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct value;
+
 namespace sym {
 
 using scalar = std::variant<int64_t, double>;
@@ -292,22 +295,23 @@ rewrite_rule operator>>(expr pattern, T replacement)
 
 expr simplify(expr e, std::vector<rewrite_rule> rules);
 
-} // namespace sym
-
-struct value;
-
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const sym::interval& i);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, sym::interval& i);
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const sym::expr& e);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, sym::expr& e);
 
+} // namespace sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
+namespace std {
 template <>
-struct std::hash<migraphx::sym::expr>
+struct hash<migraphx::sym::expr>
 {
     std::size_t operator()(const migraphx::sym::expr& e) const { return e.hash(); }
 };
+
+} // namespace std
+
 
 #endif

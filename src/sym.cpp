@@ -1370,8 +1370,6 @@ expr parse(const std::string& str)
     return result;
 }
 
-} // namespace sym
-
 namespace {
 
 migraphx::value sym_scalar_to_value(const sym::scalar& sv)
@@ -1489,5 +1487,6 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
     }
 }
 
+} // namespace sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

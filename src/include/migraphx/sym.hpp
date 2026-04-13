@@ -81,6 +81,14 @@ scalar scalar_invoke_common(F f, const Ts&... xs)
     return f(to<double>(xs)...);
 }
 
+template <class R, class F, class... Ts>
+R scalar_invoke_common(F f, const Ts&... xs)
+{
+    if((std::holds_alternative<int64_t>(xs) and ...))
+        return f(std::get<int64_t>(xs)...);
+    return f(to<double>(xs)...);
+}
+
 scalar scalar_min(const scalar& a, const scalar& b);
 scalar scalar_max(const scalar& a, const scalar& b);
 

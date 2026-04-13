@@ -124,6 +124,7 @@ query($owner: String!, $repo: String!, $cursor: String) {
         number
         title
         isDraft
+        mergeable
         url
         createdAt
         updatedAt
@@ -368,6 +369,8 @@ def gather_data(session: requests.Session) -> dict:
         ]
         requested_reviewers = [r for r in requested_reviewers if r]
 
+        mergeable = pr.get("mergeable", "UNKNOWN")
+
         ci_status = extract_ci_status(
             pr.get("commits", {}).get("nodes", [])
         )
@@ -392,11 +395,12 @@ def gather_data(session: requests.Session) -> dict:
             "member_approvals": approval_count,
             "approvers": approvers,
             "ci_status": ci_status,
+            "mergeable": mergeable,
             "has_changes_requested": has_changes_requested,
             "dash_note": dash_note,
         }
 
-        if approval_count >= 2 and ci_status == "success" and not has_changes_requested:
+        if approval_count >= 2 and ci_status == "success" and not has_changes_requested and mergeable == "MERGEABLE":
             buckets["ready_to_merge"].append(entry)
         elif has_changes_requested:
             buckets["changes_requested"].append(entry)

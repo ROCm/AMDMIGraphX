@@ -142,12 +142,11 @@ TEST_CASE(program_with_module)
 TEST_CASE(symbolic_shape_msgpack_roundtrip)
 {
     using migraphx::shape;
-    using dd = shape::dynamic_dimension;
-    auto n   = migraphx::sym::var("n");
+    auto n = migraphx::sym::var("n", 1, 8);
 
     migraphx::program p;
     auto* mm = p.get_main_module();
-    shape s{shape::float_type, {dd{1, 8, {}, n}, {3, 3}, {4, 4}}};
+    shape s{shape::float_type, {{n}, {3, 3}, {4, 4}}};
     auto x = mm->add_parameter("x", s);
     auto r = mm->add_instruction(migraphx::make_op("relu"), x);
     mm->add_return({r});

@@ -19190,17 +19190,3 @@ def array_feature_extractor_3d_test():
     )
 
     return ([node], [x, y], [z])
-
-@onnx_test()
-def array_feature_extractor_0d_error_test():
-    x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [])
-    y = helper.make_tensor_value_info('Y', TensorProto.INT64, [2])
-    z = helper.make_tensor_value_info('Z', TensorProto.FLOAT, [])
-
-    node = onnx.helper.make_node(
-        'ArrayFeatureExtractor',
-        inputs=['X', 'Y'],
-        outputs=['Z'],
-    )
-
-    return ([node], [x, y], [z])

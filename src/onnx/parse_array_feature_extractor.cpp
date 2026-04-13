@@ -43,13 +43,7 @@ struct parse_array_feature_extractor : op_parser<parse_array_feature_extractor>
         auto y      = info.make_contiguous(args[1]);
         auto data_s = x->get_shape();
 
-        auto ndim = data_s.ndim();
-        if(ndim == 0)
-        {
-            MIGRAPHX_THROW(
-                "PARSE_ARRAY_FEATURE_EXTRACTOR: input data must have at least 1 dimension");
-        }
-        auto axis = ndim - 1;
+        auto axis = data_s.ndim() - 1;
         auto op   = make_op("gather", {{"axis", axis}});
         return info.add_instruction(op, x, y);
     }

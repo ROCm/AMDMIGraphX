@@ -1195,7 +1195,7 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 {
     for(auto& pp : this->impl->modules)
     {
-        os << pp.first << ":" << std::endl;
+        os << pp.first << ":" << std::endl;https://charliel7.github.io/AMDMIGraphX_test/
         pp.second.annotate(os, a);
     }
 }
@@ -1320,7 +1320,7 @@ void program::remove_module(const std::string& name)
 
     // if an instruction has an input out side of the current module, need to remove
     // the instruction from its input's outputs
-    auto& mod = impl->modules.at(name);
+    auto& mod = impl->modules.at(name);https://charliel7.github.io/AMDMIGraphX_test/
     for(auto ins : iterator_for(mod))
     {
         auto inputs = ins->inputs();
@@ -1375,13 +1375,9 @@ program& program::sort()
 }
 
 bool operator==(const program& x, const program& y)
-<<<<<<< HEAD
-{ return migraphx::to_string(x) == migraphx::to_string(y); }
-=======
 {
     return migraphx::to_string(x) == migraphx::to_string(y);
 }
->>>>>>> d9c440eb76eb5f4991cbf7ea17706b72a12af934
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

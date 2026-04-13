@@ -70,7 +70,7 @@ TEST_CASE(literal_double_eval)
 TEST_CASE(variable_eval)
 {
     auto e      = var("x");
-    auto result = e.eval({{"x", int64_t{10}}});
+    auto result = e.eval({{var("x"), int64_t{10}}});
     EXPECT(result == scalar{int64_t{10}});
 }
 
@@ -126,7 +126,7 @@ TEST_CASE(mod_double_eval)
 TEST_CASE(mod_variable_eval)
 {
     auto e      = var("x") % lit(3);
-    auto result = e.eval({{"x", int64_t{10}}});
+    auto result = e.eval({{var("x"), int64_t{10}}});
     EXPECT(result == scalar{int64_t{1}});
 }
 
@@ -141,7 +141,7 @@ TEST_CASE(compound_expr_eval)
 {
     auto x      = var("x");
     auto e      = (x + lit(3)) * lit(2);
-    auto result = e.eval({{"x", int64_t{5}}});
+    auto result = e.eval({{var("x"), int64_t{5}}});
     EXPECT(result == scalar{int64_t{16}});
 }
 
@@ -151,7 +151,7 @@ TEST_CASE(multi_variable_eval)
     auto y = var("y");
     auto e = x * y + lit(1);
 
-    auto result = e.eval({{"x", int64_t{3}}, {"y", int64_t{4}}});
+    auto result = e.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{4}}});
     EXPECT(result == scalar{int64_t{13}});
 }
 
@@ -180,7 +180,7 @@ TEST_CASE(arg_int_literal)
 {
     auto x      = var("x");
     auto e      = call("+", [](auto a, auto b) { return a + b; })(x, 3);
-    auto result = e.eval({{"x", int64_t{5}}});
+    auto result = e.eval({{var("x"), int64_t{5}}});
     EXPECT(result == scalar{int64_t{8}});
 }
 
@@ -188,7 +188,7 @@ TEST_CASE(arg_double_literal)
 {
     auto x      = var("x");
     auto e      = call("*", [](auto a, auto b) { return a * b; })(x, 2.0);
-    auto result = e.eval({{"x", 3.0}});
+    auto result = e.eval({{var("x"), 3.0}});
     EXPECT(result == scalar{6.0});
 }
 
@@ -197,7 +197,7 @@ TEST_CASE(shared_subexpr)
     auto x      = var("x");
     auto sub    = x + lit(1);
     auto e      = sub * sub;
-    auto result = e.eval({{"x", int64_t{4}}});
+    auto result = e.eval({{var("x"), int64_t{4}}});
     EXPECT(result == scalar{int64_t{25}});
 }
 
@@ -220,7 +220,7 @@ TEST_CASE(literal_double_interval)
 TEST_CASE(variable_interval)
 {
     auto x      = var("x");
-    auto result = x.eval_interval({{"x", interval{int64_t{1}, int64_t{10}}}});
+    auto result = x.eval_interval({{var("x"), interval{int64_t{1}, int64_t{10}}}});
     EXPECT(result == (interval{int64_t{1}, int64_t{10}}));
 }
 
@@ -231,7 +231,7 @@ TEST_CASE(add_interval)
     auto e = x + y;
     // [1,3] + [2,4] = [3,7]
     auto result = e.eval_interval(
-        {{"x", interval{int64_t{1}, int64_t{3}}}, {"y", interval{int64_t{2}, int64_t{4}}}});
+        {{var("x"), interval{int64_t{1}, int64_t{3}}}, {var("y"), interval{int64_t{2}, int64_t{4}}}});
     EXPECT(result == (interval{int64_t{3}, int64_t{7}}));
 }
 
@@ -242,7 +242,7 @@ TEST_CASE(sub_interval)
     auto e = x - y;
     // [5,10] - [1,3] = [5-3, 10-1] = [2, 9]
     auto result = e.eval_interval(
-        {{"x", interval{int64_t{5}, int64_t{10}}}, {"y", interval{int64_t{1}, int64_t{3}}}});
+        {{var("x"), interval{int64_t{5}, int64_t{10}}}, {var("y"), interval{int64_t{1}, int64_t{3}}}});
     EXPECT(result == (interval{int64_t{2}, int64_t{9}}));
 }
 
@@ -253,7 +253,7 @@ TEST_CASE(mul_interval_positive)
     auto e = x * y;
     // [2,3] * [4,5]: products = {8,10,12,15}, min=8, max=15
     auto result = e.eval_interval(
-        {{"x", interval{int64_t{2}, int64_t{3}}}, {"y", interval{int64_t{4}, int64_t{5}}}});
+        {{var("x"), interval{int64_t{2}, int64_t{3}}}, {var("y"), interval{int64_t{4}, int64_t{5}}}});
     EXPECT(result == (interval{int64_t{8}, int64_t{15}}));
 }
 
@@ -264,7 +264,7 @@ TEST_CASE(mul_interval_mixed_sign)
     auto e = x * y;
     // [-2,3] * [1,4]: products = {-2,-8,3,12}, min=-8, max=12
     auto result = e.eval_interval(
-        {{"x", interval{int64_t{-2}, int64_t{3}}}, {"y", interval{int64_t{1}, int64_t{4}}}});
+        {{var("x"), interval{int64_t{-2}, int64_t{3}}}, {var("y"), interval{int64_t{1}, int64_t{4}}}});
     EXPECT(result == (interval{int64_t{-8}, int64_t{12}}));
 }
 
@@ -273,7 +273,7 @@ TEST_CASE(mod_interval)
     auto x = var("x");
     auto e = x % lit(3);
     // [7,10] % 3: 7%3=1, 10%3=1 → min=1, max=1 (endpoint case)
-    auto result = e.eval_interval({{"x", interval{int64_t{7}, int64_t{10}}}});
+    auto result = e.eval_interval({{var("x"), interval{int64_t{7}, int64_t{10}}}});
     EXPECT(result == (interval{int64_t{1}, int64_t{1}}));
 }
 
@@ -282,7 +282,7 @@ TEST_CASE(mod_interval_range)
     auto x = var("x");
     auto e = x % lit(5);
     // [3,8] % 5: 3%5=3, 8%5=3 → min=3, max=3
-    auto result = e.eval_interval({{"x", interval{int64_t{3}, int64_t{8}}}});
+    auto result = e.eval_interval({{var("x"), interval{int64_t{3}, int64_t{8}}}});
     EXPECT(result == (interval{int64_t{3}, int64_t{3}}));
 }
 
@@ -291,7 +291,7 @@ TEST_CASE(neg_interval)
     auto x = var("x");
     auto e = -x;
     // -[3,7] = [-7,-3]
-    auto result = e.eval_interval({{"x", interval{int64_t{3}, int64_t{7}}}});
+    auto result = e.eval_interval({{var("x"), interval{int64_t{3}, int64_t{7}}}});
     EXPECT(result == (interval{int64_t{-7}, int64_t{-3}}));
 }
 
@@ -300,14 +300,14 @@ TEST_CASE(compound_interval)
     auto x = var("x");
     auto e = (x + lit(3)) * lit(2);
     // x in [1,5], x+3 in [4,8], *2 in [8,16]
-    auto result = e.eval_interval({{"x", interval{int64_t{1}, int64_t{5}}}});
+    auto result = e.eval_interval({{var("x"), interval{int64_t{1}, int64_t{5}}}});
     EXPECT(result == (interval{int64_t{8}, int64_t{16}}));
 }
 
 TEST_CASE(sqrt_interval)
 {
     auto e      = sqrt(var("x"));
-    auto result = e.eval_interval({{"x", interval{4.0, 9.0}}});
+    auto result = e.eval_interval({{var("x"), interval{4.0, 9.0}}});
     EXPECT(result == (interval{2.0, 3.0}));
 }
 
@@ -321,7 +321,7 @@ TEST_CASE(variable_constraint_interval)
 TEST_CASE(constraint_overridden_by_map)
 {
     auto x      = var("x", interval{int64_t{0}, int64_t{100}});
-    auto result = x.eval_interval({{"x", interval{int64_t{5}, int64_t{10}}}});
+    auto result = x.eval_interval({{x, interval{int64_t{5}, int64_t{10}}}});
     EXPECT(result == (interval{int64_t{5}, int64_t{10}}));
 }
 
@@ -735,7 +735,7 @@ TEST_CASE(plus_assign_variable)
 {
     auto e = var("x");
     e += lit(5);
-    EXPECT(e.eval({{"x", int64_t{3}}}) == scalar{int64_t{8}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}}) == scalar{int64_t{8}});
 }
 
 TEST_CASE(compound_assign_chain)
@@ -744,7 +744,7 @@ TEST_CASE(compound_assign_chain)
     e += lit(1);
     e *= lit(2);
     // (x + 1) * 2 with x=4 → 10
-    EXPECT(e.eval({{"x", int64_t{4}}}) == scalar{int64_t{10}});
+    EXPECT(e.eval({{var("x"), int64_t{4}}}) == scalar{int64_t{10}});
 }
 
 TEST_CASE(plus_assign_cow)
@@ -768,8 +768,8 @@ TEST_CASE(times_assign_cow)
     b *= lit(2);
     // b is now (x+1)*2, a is still x+1
     EXPECT(a != b);
-    EXPECT(a.eval({{"x", int64_t{5}}}) == scalar{int64_t{6}});
-    EXPECT(b.eval({{"x", int64_t{5}}}) == scalar{int64_t{12}});
+    EXPECT(a.eval({{var("x"), int64_t{5}}}) == scalar{int64_t{6}});
+    EXPECT(b.eval({{var("x"), int64_t{5}}}) == scalar{int64_t{12}});
 }
 
 TEST_CASE(compound_assign_cow_shared)
@@ -782,10 +782,10 @@ TEST_CASE(compound_assign_cow_shared)
     b *= lit(10);
     // a = (x+1)+10, b = (x+1)*10
     EXPECT(a != b);
-    EXPECT(a.eval({{"x", int64_t{2}}}) == scalar{int64_t{13}});
-    EXPECT(b.eval({{"x", int64_t{2}}}) == scalar{int64_t{30}});
+    EXPECT(a.eval({{var("x"), int64_t{2}}}) == scalar{int64_t{13}});
+    EXPECT(b.eval({{var("x"), int64_t{2}}}) == scalar{int64_t{30}});
     // original sub unchanged
-    EXPECT(sub.eval({{"x", int64_t{2}}}) == scalar{int64_t{3}});
+    EXPECT(sub.eval({{var("x"), int64_t{2}}}) == scalar{int64_t{3}});
 }
 
 // ---- Non-expr operator tests (int64_t / double mixed with expr) ----
@@ -793,212 +793,212 @@ TEST_CASE(compound_assign_cow_shared)
 TEST_CASE(add_expr_int64)
 {
     auto e = var("x") + int64_t{5};
-    EXPECT(e.eval({{"x", int64_t{3}}}) == scalar{int64_t{8}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}}) == scalar{int64_t{8}});
 }
 
 TEST_CASE(add_int64_expr)
 {
     auto e = int64_t{5} + var("x");
-    EXPECT(e.eval({{"x", int64_t{3}}}) == scalar{int64_t{8}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}}) == scalar{int64_t{8}});
 }
 
 TEST_CASE(add_expr_double)
 {
     auto e = var("x") + 1.5;
-    EXPECT(e.eval({{"x", int64_t{2}}}) == scalar{3.5});
+    EXPECT(e.eval({{var("x"), int64_t{2}}}) == scalar{3.5});
 }
 
 TEST_CASE(add_double_expr)
 {
     auto e = 1.5 + var("x");
-    EXPECT(e.eval({{"x", int64_t{2}}}) == scalar{3.5});
+    EXPECT(e.eval({{var("x"), int64_t{2}}}) == scalar{3.5});
 }
 
 TEST_CASE(sub_expr_int64)
 {
     auto e = var("x") - int64_t{3};
-    EXPECT(e.eval({{"x", int64_t{10}}}) == scalar{int64_t{7}});
+    EXPECT(e.eval({{var("x"), int64_t{10}}}) == scalar{int64_t{7}});
 }
 
 TEST_CASE(sub_int64_expr)
 {
     auto e = int64_t{10} - var("x");
-    EXPECT(e.eval({{"x", int64_t{3}}}) == scalar{int64_t{7}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}}) == scalar{int64_t{7}});
 }
 
 TEST_CASE(sub_expr_double)
 {
     auto e = var("x") - 0.5;
-    EXPECT(e.eval({{"x", 2.0}}) == scalar{1.5});
+    EXPECT(e.eval({{var("x"), 2.0}}) == scalar{1.5});
 }
 
 TEST_CASE(sub_double_expr)
 {
     auto e = 10.0 - var("x");
-    EXPECT(e.eval({{"x", 3.0}}) == scalar{7.0});
+    EXPECT(e.eval({{var("x"), 3.0}}) == scalar{7.0});
 }
 
 TEST_CASE(mul_expr_int64)
 {
     auto e = var("x") * int64_t{6};
-    EXPECT(e.eval({{"x", int64_t{7}}}) == scalar{int64_t{42}});
+    EXPECT(e.eval({{var("x"), int64_t{7}}}) == scalar{int64_t{42}});
 }
 
 TEST_CASE(mul_int64_expr)
 {
     auto e = int64_t{6} * var("x");
-    EXPECT(e.eval({{"x", int64_t{7}}}) == scalar{int64_t{42}});
+    EXPECT(e.eval({{var("x"), int64_t{7}}}) == scalar{int64_t{42}});
 }
 
 TEST_CASE(mul_expr_double)
 {
     auto e = var("x") * 2.5;
-    EXPECT(e.eval({{"x", 4.0}}) == scalar{10.0});
+    EXPECT(e.eval({{var("x"), 4.0}}) == scalar{10.0});
 }
 
 TEST_CASE(mul_double_expr)
 {
     auto e = 2.5 * var("x");
-    EXPECT(e.eval({{"x", 4.0}}) == scalar{10.0});
+    EXPECT(e.eval({{var("x"), 4.0}}) == scalar{10.0});
 }
 
 TEST_CASE(div_expr_int64)
 {
     auto e = var("x") / int64_t{2};
-    EXPECT(e.eval({{"x", 10.0}}) == scalar{5.0});
+    EXPECT(e.eval({{var("x"), 10.0}}) == scalar{5.0});
 }
 
 TEST_CASE(div_int64_expr)
 {
     auto e = int64_t{10} / var("x");
-    EXPECT(e.eval({{"x", 2.0}}) == scalar{5.0});
+    EXPECT(e.eval({{var("x"), 2.0}}) == scalar{5.0});
 }
 
 TEST_CASE(div_expr_double)
 {
     auto e = var("x") / 4.0;
-    EXPECT(e.eval({{"x", 10.0}}) == scalar{2.5});
+    EXPECT(e.eval({{var("x"), 10.0}}) == scalar{2.5});
 }
 
 TEST_CASE(div_double_expr)
 {
     auto e = 10.0 / var("x");
-    EXPECT(e.eval({{"x", 4.0}}) == scalar{2.5});
+    EXPECT(e.eval({{var("x"), 4.0}}) == scalar{2.5});
 }
 
 TEST_CASE(plus_assign_int64)
 {
     auto e = var("x");
     e += int64_t{5};
-    EXPECT(e.eval({{"x", int64_t{3}}}) == scalar{int64_t{8}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}}) == scalar{int64_t{8}});
 }
 
 TEST_CASE(plus_assign_double)
 {
     auto e = var("x");
     e += 1.5;
-    EXPECT(e.eval({{"x", 2.0}}) == scalar{3.5});
+    EXPECT(e.eval({{var("x"), 2.0}}) == scalar{3.5});
 }
 
 TEST_CASE(minus_assign_int64)
 {
     auto e = var("x");
     e -= int64_t{3};
-    EXPECT(e.eval({{"x", int64_t{10}}}) == scalar{int64_t{7}});
+    EXPECT(e.eval({{var("x"), int64_t{10}}}) == scalar{int64_t{7}});
 }
 
 TEST_CASE(minus_assign_double)
 {
     auto e = var("x");
     e -= 0.5;
-    EXPECT(e.eval({{"x", 2.0}}) == scalar{1.5});
+    EXPECT(e.eval({{var("x"), 2.0}}) == scalar{1.5});
 }
 
 TEST_CASE(times_assign_int64)
 {
     auto e = var("x");
     e *= int64_t{6};
-    EXPECT(e.eval({{"x", int64_t{7}}}) == scalar{int64_t{42}});
+    EXPECT(e.eval({{var("x"), int64_t{7}}}) == scalar{int64_t{42}});
 }
 
 TEST_CASE(times_assign_double)
 {
     auto e = var("x");
     e *= 2.5;
-    EXPECT(e.eval({{"x", 4.0}}) == scalar{10.0});
+    EXPECT(e.eval({{var("x"), 4.0}}) == scalar{10.0});
 }
 
 TEST_CASE(div_assign_int64)
 {
     auto e = var("x");
     e /= int64_t{2};
-    EXPECT(e.eval({{"x", 10.0}}) == scalar{5.0});
+    EXPECT(e.eval({{var("x"), 10.0}}) == scalar{5.0});
 }
 
 TEST_CASE(div_assign_double)
 {
     auto e = var("x");
     e /= 4.0;
-    EXPECT(e.eval({{"x", 10.0}}) == scalar{2.5});
+    EXPECT(e.eval({{var("x"), 10.0}}) == scalar{2.5});
 }
 
 TEST_CASE(mod_expr_int64)
 {
     auto e = var("x") % int64_t{3};
-    EXPECT(e.eval({{"x", int64_t{10}}}) == scalar{int64_t{1}});
+    EXPECT(e.eval({{var("x"), int64_t{10}}}) == scalar{int64_t{1}});
 }
 
 TEST_CASE(mod_int64_expr)
 {
     auto e = int64_t{10} % var("x");
-    EXPECT(e.eval({{"x", int64_t{3}}}) == scalar{int64_t{1}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}}) == scalar{int64_t{1}});
 }
 
 TEST_CASE(mod_expr_double)
 {
     auto e = var("x") % 3.0;
-    EXPECT(e.eval({{"x", 10.5}}) == scalar{std::fmod(10.5, 3.0)});
+    EXPECT(e.eval({{var("x"), 10.5}}) == scalar{std::fmod(10.5, 3.0)});
 }
 
 TEST_CASE(mod_double_expr)
 {
     auto e = 10.5 % var("x");
-    EXPECT(e.eval({{"x", 3.0}}) == scalar{std::fmod(10.5, 3.0)});
+    EXPECT(e.eval({{var("x"), 3.0}}) == scalar{std::fmod(10.5, 3.0)});
 }
 
 TEST_CASE(mod_assign_expr)
 {
     auto e = var("x");
     e %= lit(3);
-    EXPECT(e.eval({{"x", int64_t{10}}}) == scalar{int64_t{1}});
+    EXPECT(e.eval({{var("x"), int64_t{10}}}) == scalar{int64_t{1}});
 }
 
 TEST_CASE(mod_assign_int64)
 {
     auto e = var("x");
     e %= int64_t{3};
-    EXPECT(e.eval({{"x", int64_t{10}}}) == scalar{int64_t{1}});
+    EXPECT(e.eval({{var("x"), int64_t{10}}}) == scalar{int64_t{1}});
 }
 
 TEST_CASE(mod_assign_double)
 {
     auto e = var("x");
     e %= 3.0;
-    EXPECT(e.eval({{"x", 10.5}}) == scalar{std::fmod(10.5, 3.0)});
+    EXPECT(e.eval({{var("x"), 10.5}}) == scalar{std::fmod(10.5, 3.0)});
 }
 
 TEST_CASE(non_expr_compound)
 {
     // (x + 3) * 2.0 - 1  with x=4 → (7) * 2.0 - 1 = 13.0
     auto e = (var("x") + int64_t{3}) * 2.0 - int64_t{1};
-    EXPECT(e.eval({{"x", int64_t{4}}}) == scalar{13.0});
+    EXPECT(e.eval({{var("x"), int64_t{4}}}) == scalar{13.0});
 }
 
 TEST_CASE(non_expr_both_sides)
 {
     // 2 * x + 1.5  with x=3 → 7.5
     auto e = int64_t{2} * var("x") + 1.5;
-    EXPECT(e.eval({{"x", int64_t{3}}}) == scalar{7.5});
+    EXPECT(e.eval({{var("x"), int64_t{3}}}) == scalar{7.5});
 }
 
 TEST_CASE(non_expr_chain_assign)
@@ -1008,7 +1008,7 @@ TEST_CASE(non_expr_chain_assign)
     e *= 2.0;
     e -= int64_t{1};
     // (x + 1) * 2.0 - 1  with x=4 → 9.0
-    EXPECT(e.eval({{"x", int64_t{4}}}) == scalar{9.0});
+    EXPECT(e.eval({{var("x"), int64_t{4}}}) == scalar{9.0});
 }
 
 TEST_CASE(custom_call_eval)
@@ -1016,7 +1016,7 @@ TEST_CASE(custom_call_eval)
     auto square = call("square", [](auto x) { return x * x; });
     auto x      = var("x");
     auto e      = square(x);
-    auto result = e.eval({{"x", int64_t{7}}});
+    auto result = e.eval({{var("x"), int64_t{7}}});
     EXPECT(result == scalar{int64_t{49}});
 }
 
@@ -1026,7 +1026,7 @@ TEST_CASE(custom_call_interval)
     auto x      = var("x");
     auto e      = square(x);
     // [2,3] squared: interval*interval = [2,3]*[2,3], products={4,6,6,9}, min=4, max=9
-    auto result = e.eval_interval({{"x", interval{int64_t{2}, int64_t{3}}}});
+    auto result = e.eval_interval({{var("x"), interval{int64_t{2}, int64_t{3}}}});
     EXPECT(result == (interval{int64_t{4}, int64_t{9}}));
 }
 
@@ -1083,8 +1083,8 @@ TEST_CASE(max_eval)
 TEST_CASE(math_with_variable)
 {
     auto x = var("x");
-    EXPECT(sin(x).eval({{"x", 0.0}}) == scalar{0.0});
-    EXPECT(abs(x).eval({{"x", int64_t{-7}}}) == scalar{int64_t{7}});
+    EXPECT(sin(x).eval({{var("x"), 0.0}}) == scalar{0.0});
+    EXPECT(abs(x).eval({{var("x"), int64_t{-7}}}) == scalar{int64_t{7}});
 }
 
 // ---- Interval math function tests ----
@@ -1203,7 +1203,7 @@ TEST_CASE(max_interval)
 TEST_CASE(expr_abs_interval)
 {
     auto x      = var("x");
-    auto result = abs(x).eval_interval({{"x", interval{int64_t{-3}, int64_t{5}}}});
+    auto result = abs(x).eval_interval({{var("x"), interval{int64_t{-3}, int64_t{5}}}});
     EXPECT(result == (interval{int64_t{0}, int64_t{5}}));
 }
 
@@ -1212,7 +1212,7 @@ TEST_CASE(expr_min_interval)
     auto x      = var("x");
     auto y      = var("y");
     auto result = min(x, y).eval_interval(
-        {{"x", interval{int64_t{1}, int64_t{5}}}, {"y", interval{int64_t{3}, int64_t{7}}}});
+        {{var("x"), interval{int64_t{1}, int64_t{5}}}, {var("y"), interval{int64_t{3}, int64_t{7}}}});
     EXPECT(result == (interval{int64_t{1}, int64_t{5}}));
 }
 
@@ -1221,14 +1221,14 @@ TEST_CASE(expr_max_interval)
     auto x      = var("x");
     auto y      = var("y");
     auto result = max(x, y).eval_interval(
-        {{"x", interval{int64_t{1}, int64_t{5}}}, {"y", interval{int64_t{3}, int64_t{7}}}});
+        {{var("x"), interval{int64_t{1}, int64_t{5}}}, {var("y"), interval{int64_t{3}, int64_t{7}}}});
     EXPECT(result == (interval{int64_t{3}, int64_t{7}}));
 }
 
 TEST_CASE(expr_exp_interval)
 {
     auto x      = var("x");
-    auto result = exp(x).eval_interval({{"x", interval{0.0, 1.0}}});
+    auto result = exp(x).eval_interval({{var("x"), interval{0.0, 1.0}}});
     EXPECT(result == (interval{1.0, std::exp(1.0)}));
 }
 
@@ -1369,7 +1369,7 @@ TEST_CASE(flatten_add_right)
     auto c = var("c");
     // (a + b) + c should flatten to +(a, b, c)
     auto e      = (a + b) + c;
-    auto result = e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}});
+    auto result = e.eval({{var("a"), int64_t{1}}, {var("b"), int64_t{2}}, {var("c"), int64_t{3}}});
     EXPECT(result == scalar{int64_t{6}});
     EXPECT(e.children().size() == 3);
 }
@@ -1381,7 +1381,7 @@ TEST_CASE(flatten_add_left)
     auto c = var("c");
     // a + (b + c) should flatten to +(a, b, c)
     auto e      = a + (b + c);
-    auto result = e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}});
+    auto result = e.eval({{var("a"), int64_t{1}}, {var("b"), int64_t{2}}, {var("c"), int64_t{3}}});
     EXPECT(result == scalar{int64_t{6}});
     EXPECT(e.children().size() == 3);
 }
@@ -1395,7 +1395,7 @@ TEST_CASE(flatten_add_both)
     // (a + b) + (c + d) should flatten to +(a, b, c, d)
     auto e = (a + b) + (c + d);
     auto result =
-        e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}, {"d", int64_t{4}}});
+        e.eval({{var("a"), int64_t{1}}, {var("b"), int64_t{2}}, {var("c"), int64_t{3}}, {var("d"), int64_t{4}}});
     EXPECT(result == scalar{int64_t{10}});
     EXPECT(e.children().size() == 4);
 }
@@ -1407,7 +1407,7 @@ TEST_CASE(flatten_mul_right)
     auto c = var("c");
     // (a * b) * c should flatten to *(a, b, c)
     auto e      = (a * b) * c;
-    auto result = e.eval({{"a", int64_t{2}}, {"b", int64_t{3}}, {"c", int64_t{4}}});
+    auto result = e.eval({{var("a"), int64_t{2}}, {var("b"), int64_t{3}}, {var("c"), int64_t{4}}});
     EXPECT(result == scalar{int64_t{24}});
     EXPECT(e.children().size() == 3);
 }
@@ -1421,7 +1421,7 @@ TEST_CASE(flatten_mul_both)
     // (a * b) * (c * d) should flatten to *(a, b, c, d)
     auto e = (a * b) * (c * d);
     auto result =
-        e.eval({{"a", int64_t{2}}, {"b", int64_t{3}}, {"c", int64_t{4}}, {"d", int64_t{5}}});
+        e.eval({{var("a"), int64_t{2}}, {var("b"), int64_t{3}}, {var("c"), int64_t{4}}, {var("d"), int64_t{5}}});
     EXPECT(result == scalar{int64_t{120}});
     EXPECT(e.children().size() == 4);
 }
@@ -1435,7 +1435,7 @@ TEST_CASE(flatten_nested_add)
     // ((a + b) + c) + d should flatten to +(a, b, c, d)
     auto e = ((a + b) + c) + d;
     auto result =
-        e.eval({{"a", int64_t{1}}, {"b", int64_t{2}}, {"c", int64_t{3}}, {"d", int64_t{4}}});
+        e.eval({{var("a"), int64_t{1}}, {var("b"), int64_t{2}}, {var("c"), int64_t{3}}, {var("d"), int64_t{4}}});
     EXPECT(result == scalar{int64_t{10}});
     EXPECT(e.children().size() == 4);
 }
@@ -1447,7 +1447,7 @@ TEST_CASE(sub_flattens_into_add)
     auto c = var("c");
     // (a - b) - c becomes a + (-b) + (-c), flattened to 3 children
     auto e      = (a - b) - c;
-    auto result = e.eval({{"a", int64_t{10}}, {"b", int64_t{3}}, {"c", int64_t{2}}});
+    auto result = e.eval({{var("a"), int64_t{10}}, {var("b"), int64_t{3}}, {var("c"), int64_t{2}}});
     EXPECT(result == scalar{int64_t{5}});
     EXPECT(e.children().size() == 3);
 }
@@ -1459,7 +1459,7 @@ TEST_CASE(no_flatten_div)
     auto c = var("c");
     // (a / b) / c should NOT flatten
     auto e      = (a / b) / c;
-    auto result = e.eval({{"a", 12.0}, {"b", 2.0}, {"c", 3.0}});
+    auto result = e.eval({{var("a"), 12.0}, {var("b"), 2.0}, {var("c"), 3.0}});
     EXPECT(result == scalar{2.0});
     EXPECT(e.children().size() == 2);
 }
@@ -1472,7 +1472,7 @@ TEST_CASE(no_flatten_mixed_ops)
     // (a * b) + c should NOT flatten mul into add
     auto e = (a * b) + c;
     EXPECT(e.children().size() == 2);
-    auto result = e.eval({{"a", int64_t{3}}, {"b", int64_t{4}}, {"c", int64_t{5}}});
+    auto result = e.eval({{var("a"), int64_t{3}}, {var("b"), int64_t{4}}, {var("c"), int64_t{5}}});
     EXPECT(result == scalar{int64_t{17}});
 }
 
@@ -1483,9 +1483,9 @@ TEST_CASE(flatten_add_interval)
     auto c = var("c");
     auto e = (a + b) + c;
     // [1,2] + [3,4] + [5,6] = [9,12]
-    auto result = e.eval_interval({{"a", interval{int64_t{1}, int64_t{2}}},
-                                   {"b", interval{int64_t{3}, int64_t{4}}},
-                                   {"c", interval{int64_t{5}, int64_t{6}}}});
+    auto result = e.eval_interval({{var("a"), interval{int64_t{1}, int64_t{2}}},
+                                   {var("b"), interval{int64_t{3}, int64_t{4}}},
+                                   {var("c"), interval{int64_t{5}, int64_t{6}}}});
     EXPECT(result == (interval{int64_t{9}, int64_t{12}}));
 }
 
@@ -1496,9 +1496,9 @@ TEST_CASE(flatten_mul_interval)
     auto c = var("c");
     auto e = (a * b) * c;
     // [1,2] * [3,4] * [1,1] = [3,8] * [1,1] = [3,8]
-    auto result = e.eval_interval({{"a", interval{int64_t{1}, int64_t{2}}},
-                                   {"b", interval{int64_t{3}, int64_t{4}}},
-                                   {"c", interval{int64_t{1}, int64_t{1}}}});
+    auto result = e.eval_interval({{var("a"), interval{int64_t{1}, int64_t{2}}},
+                                   {var("b"), interval{int64_t{3}, int64_t{4}}},
+                                   {var("c"), interval{int64_t{1}, int64_t{1}}}});
     EXPECT(result == (interval{int64_t{3}, int64_t{8}}));
 }
 
@@ -1617,7 +1617,7 @@ TEST_CASE(const_fold_partial)
     // x + (3 + 4): the (3+4) subexpr folds to 7, but x+7 does not fold
     auto e = x + (lit(3) + lit(4));
     EXPECT(e.name() != "literal");
-    auto result = e.eval({{"x", int64_t{1}}});
+    auto result = e.eval({{var("x"), int64_t{1}}});
     EXPECT(result == scalar{int64_t{8}});
 }
 
@@ -1642,7 +1642,7 @@ TEST_CASE(assoc_fold_add_trailing_literals)
     auto x = var("x");
     // x + 2 + 3: flattened to +(x, 2, 3), adjacent literals 2 and 3 fold to 5
     auto e = x + lit(2) + lit(3);
-    EXPECT(e.eval({{"x", int64_t{0}}}) == scalar{int64_t{5}});
+    EXPECT(e.eval({{var("x"), int64_t{0}}}) == scalar{int64_t{5}});
     EXPECT(e == x + lit(5));
 }
 
@@ -1651,7 +1651,7 @@ TEST_CASE(assoc_fold_mul_trailing_literals)
     auto x = var("x");
     // x * 2 * 3: flattened to *(x, 2, 3), adjacent literals 2 and 3 fold to 6
     auto e = x * lit(2) * lit(3);
-    EXPECT(e.eval({{"x", int64_t{1}}}) == scalar{int64_t{6}});
+    EXPECT(e.eval({{var("x"), int64_t{1}}}) == scalar{int64_t{6}});
     EXPECT(e == x * lit(6));
 }
 
@@ -1691,7 +1691,7 @@ TEST_CASE(assoc_fold_add_mixed_chain)
     auto y = var("y");
     // x + 1 + y + 2: after sorting, literals end up adjacent and fold
     auto e = x + lit(1) + y + lit(2);
-    EXPECT(e.eval({{"x", int64_t{10}}, {"y", int64_t{20}}}) == scalar{int64_t{33}});
+    EXPECT(e.eval({{var("x"), int64_t{10}}, {var("y"), int64_t{20}}}) == scalar{int64_t{33}});
 }
 
 TEST_CASE(assoc_fold_mul_mixed_chain)
@@ -1700,7 +1700,7 @@ TEST_CASE(assoc_fold_mul_mixed_chain)
     auto y = var("y");
     // x * 2 * y * 3: after sorting, literals end up adjacent and fold
     auto e = x * lit(2) * y * lit(3);
-    EXPECT(e.eval({{"x", int64_t{5}}, {"y", int64_t{7}}}) == scalar{int64_t{210}});
+    EXPECT(e.eval({{var("x"), int64_t{5}}, {var("y"), int64_t{7}}}) == scalar{int64_t{210}});
 }
 
 TEST_CASE(assoc_fold_preserves_eval)
@@ -1709,7 +1709,7 @@ TEST_CASE(assoc_fold_preserves_eval)
     // Folding must not change evaluation results
     auto e1 = x + lit(10) + lit(20) + lit(30);
     auto e2 = x + lit(60);
-    EXPECT(e1.eval({{"x", int64_t{5}}}) == e2.eval({{"x", int64_t{5}}}));
+    EXPECT(e1.eval({{var("x"), int64_t{5}}}) == e2.eval({{var("x"), int64_t{5}}}));
     EXPECT(e1 == e2);
 }
 
@@ -1718,7 +1718,7 @@ TEST_CASE(assoc_fold_double_literals)
     auto x = var("x");
     // Folding works with double literals too
     auto e = x + lit(1.5) + lit(2.5);
-    EXPECT(e.eval({{"x", 0.0}}) == scalar{4.0});
+    EXPECT(e.eval({{var("x"), 0.0}}) == scalar{4.0});
 }
 
 TEST_CASE(assoc_fold_no_fold_single_literal)
@@ -1726,7 +1726,7 @@ TEST_CASE(assoc_fold_no_fold_single_literal)
     auto x = var("x");
     // Only one literal, nothing to fold
     auto e = x + lit(5);
-    EXPECT(e.eval({{"x", int64_t{3}}}) == scalar{int64_t{8}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}}) == scalar{int64_t{8}});
 }
 
 // ---- Canonicalization tests ----
@@ -1811,21 +1811,21 @@ TEST_CASE(canonical_eval_preserved)
     // canonicalization should not change evaluation results
     auto e1 = x + y;
     auto e2 = y + x;
-    EXPECT(e1.eval({{"x", int64_t{3}}, {"y", int64_t{7}}}) == scalar{int64_t{10}});
-    EXPECT(e2.eval({{"x", int64_t{3}}, {"y", int64_t{7}}}) == scalar{int64_t{10}});
+    EXPECT(e1.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{7}}}) == scalar{int64_t{10}});
+    EXPECT(e2.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{7}}}) == scalar{int64_t{10}});
 
     auto e3 = x * y;
     auto e4 = y * x;
-    EXPECT(e3.eval({{"x", int64_t{3}}, {"y", int64_t{7}}}) == scalar{int64_t{21}});
-    EXPECT(e4.eval({{"x", int64_t{3}}, {"y", int64_t{7}}}) == scalar{int64_t{21}});
+    EXPECT(e3.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{7}}}) == scalar{int64_t{21}});
+    EXPECT(e4.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{7}}}) == scalar{int64_t{21}});
 }
 
 TEST_CASE(canonical_interval_preserved)
 {
     auto x    = var("x");
     auto y    = var("y");
-    auto vars = std::unordered_map<std::string, interval>{{"x", interval{int64_t{1}, int64_t{3}}},
-                                                          {"y", interval{int64_t{4}, int64_t{6}}}};
+    auto vars = std::unordered_map<expr, interval>{{var("x"), interval{int64_t{1}, int64_t{3}}},
+                                                          {var("y"), interval{int64_t{4}, int64_t{6}}}};
     EXPECT((x + y).eval_interval(vars) == (y + x).eval_interval(vars));
     EXPECT((x * y).eval_interval(vars) == (y * x).eval_interval(vars));
 }
@@ -1901,7 +1901,7 @@ TEST_CASE(norm_foil_eval)
     auto y    = var("y");
     auto lhs  = (x + y) * (x + y);
     auto rhs  = x * x + lit(2) * x * y + y * y;
-    auto vars = std::unordered_map<std::string, scalar>{{"x", int64_t{3}}, {"y", int64_t{4}}};
+    auto vars = std::unordered_map<expr, scalar>{{var("x"), int64_t{3}}, {var("y"), int64_t{4}}};
     EXPECT(lhs.eval(vars) == scalar{int64_t{49}});
     EXPECT(rhs.eval(vars) == scalar{int64_t{49}});
 }
@@ -1920,7 +1920,7 @@ TEST_CASE(norm_difference_of_squares_eval)
     auto y    = var("y");
     auto lhs  = (x + y) * (x - y);
     auto rhs  = x * x - y * y;
-    auto vars = std::unordered_map<std::string, scalar>{{"x", int64_t{5}}, {"y", int64_t{3}}};
+    auto vars = std::unordered_map<expr, scalar>{{var("x"), int64_t{5}}, {var("y"), int64_t{3}}};
     EXPECT(lhs.eval(vars) == scalar{int64_t{16}});
     EXPECT(rhs.eval(vars) == scalar{int64_t{16}});
 }
@@ -1938,7 +1938,7 @@ TEST_CASE(norm_triple_product_eval)
 {
     auto x      = var("x");
     auto cubed  = (x + lit(1)) * (x + lit(1)) * (x + lit(1));
-    auto result = cubed.eval({{"x", int64_t{2}}});
+    auto result = cubed.eval({{var("x"), int64_t{2}}});
     EXPECT(result == scalar{int64_t{27}});
 }
 
@@ -2227,7 +2227,7 @@ TEST_CASE(dsl_eval_after_simplify)
     auto e      = sqrt(x * y);
     auto result = simplify(e, {sqrt(_1 * _2) >> sqrt(_1) * sqrt(_2)});
     // sqrt(4) * sqrt(9) = 2 * 3 = 6
-    EXPECT(result.eval({{"x", 4.0}, {"y", 9.0}}) == scalar{6.0});
+    EXPECT(result.eval({{var("x"), 4.0}, {var("y"), 9.0}}) == scalar{6.0});
 }
 
 TEST_CASE(dsl_chained_simplify)
@@ -2292,7 +2292,7 @@ TEST_CASE(builtin_sqrt_product_eval)
     auto b = var("b");
     // sqrt(a*b) == sqrt(a)*sqrt(b), verify eval
     auto e = sqrt(a * b);
-    EXPECT(e.eval({{"a", 4.0}, {"b", 9.0}}) == scalar{6.0});
+    EXPECT(e.eval({{var("a"), 4.0}, {var("b"), 9.0}}) == scalar{6.0});
 }
 
 TEST_CASE(builtin_log_exp_nested)
@@ -2614,7 +2614,7 @@ TEST_CASE(serialize_expr_eval_preserved)
     auto e  = var("x") * lit(2) + lit(3);
     auto v  = migraphx::to_value(e);
     auto e2 = migraphx::from_value<expr>(v);
-    EXPECT(e2.eval({{"x", int64_t{5}}}) == scalar{int64_t{13}});
+    EXPECT(e2.eval({{var("x"), int64_t{5}}}) == scalar{int64_t{13}});
 }
 
 TEST_CASE(serialize_expr_mod)
@@ -2639,14 +2639,14 @@ TEST_CASE(var_with_optimals)
 {
     auto x = var("x", std::set<scalar>{int64_t{1}, int64_t{2}, int64_t{3}});
     EXPECT(x.name() == "variable");
-    EXPECT(x.eval({{"x", int64_t{5}}}) == scalar{int64_t{5}});
+    EXPECT(x.eval({{x, int64_t{5}}}) == scalar{int64_t{5}});
 }
 
 TEST_CASE(var_with_constraint_and_optimals)
 {
     auto x = var("x", interval{int64_t{0}, int64_t{10}}, std::set<scalar>{int64_t{1}, int64_t{5}});
     EXPECT(x.name() == "variable");
-    EXPECT(x.eval({{"x", int64_t{3}}}) == scalar{int64_t{3}});
+    EXPECT(x.eval({{x, int64_t{3}}}) == scalar{int64_t{3}});
 }
 
 TEST_CASE(eval_optimals_literal)

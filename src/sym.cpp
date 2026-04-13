@@ -1082,30 +1082,31 @@ bool expr::is_raw() const { return pimpl and pimpl->raw_flag; }
 
 const std::vector<expr>& expr::children() const { return pimpl->children; }
 
-scalar expr::eval(const std::unordered_map<std::string, scalar>& vars) const
+scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 {
     return generic_eval<scalar>(
         *this,
         [&](const expr& e) -> std::optional<scalar> {
             if(auto* n = std::get_if<literal_node>(&get_node(e)))
                 return n->val;
-            if(auto* n = std::get_if<variable_node>(&get_node(e)))
-                return vars.at(n->name);
+            auto it = vars.find(e);
+            if(it != vars.end())
+                return it->second;
             return std::nullopt;
         },
         [](const op_node& op, std::vector<scalar> args) { return op.op->eval(args); });
 }
 
-interval expr::eval_interval(const std::unordered_map<std::string, interval>& vars) const
+interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const
 {
     return generic_eval<interval>(*this, [&](const expr& e) -> std::optional<interval> {
         if(auto* n = std::get_if<literal_node>(&get_node(e)))
             return interval{n->val, n->val};
+        auto it = vars.find(e);
+        if(it != vars.end())
+            return it->second;
         if(auto* n = std::get_if<variable_node>(&get_node(e)))
         {
-            auto it = vars.find(n->name);
-            if(it != vars.end())
-                return it->second;
             if(not n->constraints.empty())
                 return n->constraints.front();
             MIGRAPHX_THROW("Variable '" + n->name + "' not found in interval map");
@@ -1115,14 +1116,14 @@ interval expr::eval_interval(const std::unordered_map<std::string, interval>& va
 }
 
 namespace {
-void collect_optimals(const expr& e, std::unordered_map<std::string, std::set<scalar>>& result)
+void collect_optimals(const expr& e, std::unordered_map<expr, std::set<scalar>>& result)
 {
     if(e.empty())
         return;
     if(auto* n = std::get_if<variable_node>(&get_node(e)))
     {
         if(not n->optimals.empty())
-            result[n->name].insert(n->optimals.begin(), n->optimals.end());
+            result[e].insert(n->optimals.begin(), n->optimals.end());
     }
     for(const auto& child : e.children())
         collect_optimals(child, result);
@@ -1132,13 +1133,13 @@ void collect_optimals(const expr& e, std::unordered_map<std::string, std::set<sc
 
 std::set<scalar> expr::eval_optimals() const
 {
-    std::unordered_map<std::string, std::set<scalar>> var_optimals;
+    std::unordered_map<expr, std::set<scalar>> var_optimals;
     collect_optimals(*this, var_optimals);
 
     if(var_optimals.empty())
         return {eval({})};
 
-    std::vector<std::pair<std::string, std::vector<scalar>>> var_values;
+    std::vector<std::pair<expr, std::vector<scalar>>> var_values;
     var_values.reserve(var_optimals.size());
     std::transform(var_optimals.begin(),
                    var_optimals.end(),
@@ -1149,17 +1150,17 @@ std::set<scalar> expr::eval_optimals() const
                    });
 
     std::set<scalar> results;
-    std::unordered_map<std::string, scalar> current;
+    std::unordered_map<expr, scalar> current;
     fix<void>([&](auto self, std::size_t index) {
         if(index == var_values.size())
         {
             results.insert(eval(current));
             return;
         }
-        const auto& [name, values] = var_values[index];
+        const auto& [var_expr, values] = var_values[index];
         for(const auto& v : values)
         {
-            current[name] = v;
+            current[var_expr] = v;
             self(index + 1);
         }
     })(0);

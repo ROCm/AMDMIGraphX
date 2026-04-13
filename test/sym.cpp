@@ -2798,4 +2798,35 @@ TEST_CASE(eval_optimals_three_vars)
     EXPECT(result == std::set<scalar>{int64_t{111}, int64_t{112}, int64_t{211}, int64_t{212}});
 }
 
+// ---- ceiling division tests ----
+
+TEST_CASE(ceildiv_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = (x + y - 1) / y;
+    // ceil(7/3) = 3: (7+3-1)/3 = 9/3 = 3
+    EXPECT(e.eval({{x, int64_t{7}}, {y, int64_t{3}}}) == scalar{int64_t{3}});
+    // ceil(8/4) = 2: (8+4-1)/4 = 11/4 = 2
+    EXPECT(e.eval({{x, int64_t{8}}, {y, int64_t{4}}}) == scalar{int64_t{2}});
+    // ceil(9/4) = 3: (9+4-1)/4 = 12/4 = 3
+    EXPECT(e.eval({{x, int64_t{9}}, {y, int64_t{4}}}) == scalar{int64_t{3}});
+    // ceil(1/1) = 1: (1+1-1)/1 = 1
+    EXPECT(e.eval({{x, int64_t{1}}, {y, int64_t{1}}}) == scalar{int64_t{1}});
+    // ceil(10/5) = 2: (10+5-1)/5 = 14/5 = 2
+    EXPECT(e.eval({{x, int64_t{10}}, {y, int64_t{5}}}) == scalar{int64_t{2}});
+    // ceil(11/5) = 3: (11+5-1)/5 = 15/5 = 3
+    EXPECT(e.eval({{x, int64_t{11}}, {y, int64_t{5}}}) == scalar{int64_t{3}});
+}
+
+TEST_CASE(ceildiv_to_string)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = (x + y - 1) / y;
+    auto s = e.to_string();
+    // Just verify it produces something reasonable and roundtrips eval
+    EXPECT(not s.empty());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

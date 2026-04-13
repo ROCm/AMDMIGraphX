@@ -51,6 +51,58 @@ using migraphx::sym::tan;
 using migraphx::sym::to_string;
 using migraphx::sym::var;
 
+// ---- make_scalar tests ----
+
+using migraphx::sym::make_scalar;
+
+TEST_CASE(make_scalar_int)
+{
+    EXPECT(make_scalar(42) == scalar{int64_t{42}});
+    EXPECT(make_scalar(-7) == scalar{int64_t{-7}});
+    EXPECT(make_scalar(0) == scalar{int64_t{0}});
+}
+
+TEST_CASE(make_scalar_int64)
+{
+    EXPECT(make_scalar(int64_t{100}) == scalar{int64_t{100}});
+    EXPECT(make_scalar(std::numeric_limits<int64_t>::max()) ==
+           scalar{std::numeric_limits<int64_t>::max()});
+    EXPECT(make_scalar(std::numeric_limits<int64_t>::min()) ==
+           scalar{std::numeric_limits<int64_t>::min()});
+}
+
+TEST_CASE(make_scalar_unsigned)
+{
+    EXPECT(make_scalar(0u) == scalar{int64_t{0}});
+    EXPECT(make_scalar(42u) == scalar{int64_t{42}});
+}
+
+TEST_CASE(make_scalar_size_t)
+{
+    EXPECT(make_scalar(std::size_t{0}) == scalar{int64_t{0}});
+    EXPECT(make_scalar(std::size_t{100}) == scalar{int64_t{100}});
+}
+
+TEST_CASE(make_scalar_unsigned_clips_max)
+{
+    auto max_int64 = std::numeric_limits<int64_t>::max();
+    EXPECT(make_scalar(uint64_t(max_int64)) == scalar{max_int64});
+    EXPECT(make_scalar(std::numeric_limits<uint64_t>::max()) == scalar{max_int64});
+    EXPECT(make_scalar(uint64_t(max_int64) + 1) == scalar{max_int64});
+}
+
+TEST_CASE(make_scalar_double)
+{
+    EXPECT(make_scalar(3.14) == scalar{3.14});
+    EXPECT(make_scalar(0.0) == scalar{0.0});
+    EXPECT(make_scalar(-2.5) == scalar{-2.5});
+}
+
+TEST_CASE(make_scalar_float)
+{
+    EXPECT(make_scalar(1.0f) == scalar{double{1.0f}});
+}
+
 // ---- Value evaluation tests ----
 
 TEST_CASE(literal_int_eval)

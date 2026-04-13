@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <functional>
 #include <memory>
 #include <ostream>
@@ -51,7 +52,9 @@ using scalar = std::variant<int64_t, double>;
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 scalar make_scalar(T v)
 {
-    if constexpr(std::is_integral<T>{})
+    if constexpr(std::is_unsigned<T>{})
+        return int64_t(std::min<T>(v, std::numeric_limits<int64_t>::max()));
+    else if constexpr(std::is_integral<T>{})
         return int64_t(v);
     else
         return double(v);

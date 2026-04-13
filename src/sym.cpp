@@ -265,7 +265,11 @@ struct expr::impl
 
 const expr::impl* expr::get_pimpl() const { return pimpl.get(); }
 
-static const node_variant& get_node(const expr& e) { return e.get_pimpl()->node; }
+static const node_variant& get_node(const expr& e)
+{
+    assert(e.get_pimpl() != nullptr); 
+    return e.get_pimpl()->node; 
+}
 
 static std::string get_sym_name(const node_variant& nv)
 {
@@ -680,9 +684,11 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
 
 static expr normalize_impl(const op_def* op, std::vector<expr> args)
 {
-    bool is_const =
-        std::all_of(args.begin(), args.end(), [](const expr& e) { return e.name() == "literal"; });
-    if(is_const)
+    if(std::any_of(args.begin(), args.end(), [](const expr& e) { return e.empty(); }))
+    {
+        return expr();
+    }
+    if(std::all_of(args.begin(), args.end(), [](const expr& e) { return e.name() == "literal"; }))
     {
         auto e = expr(op_node{op}, std::move(args));
         return lit(e.eval({}));
@@ -713,6 +719,8 @@ static const std::vector<rewrite_rule>& get_rewrite_rules()
 
 static expr apply_rewrite_rules(const expr& e)
 {
+    if(e.empty())
+        return e;
     for(const auto& rule : get_rewrite_rules())
     {
         std::unordered_map<expr, expr> bindings;
@@ -740,6 +748,8 @@ static std::vector<expr> flatten_args(const std::string& op_name, std::vector<ex
 
 static expr fold_associative_args(expr e)
 {
+    if(e.empty())
+        return e;
     if(not std::holds_alternative<op_node>(get_node(e)))
         return e;
     if(e.children().size() <= 2)
@@ -1046,7 +1056,12 @@ expr max(expr x, expr y)
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
 }
 
-std::string expr::name() const { return get_node_name(get_node(*this)); }
+std::string expr::name() const 
+{
+    if(empty())
+        return "";
+    return get_node_name(get_node(*this)); 
+}
 
 bool expr::is_raw() const { return pimpl and pimpl->raw_flag; }
 

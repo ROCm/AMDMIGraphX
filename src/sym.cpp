@@ -332,15 +332,14 @@ static bool is_pvar(const expr& e)
 }
 
 static bool
-match_expr(const expr& pattern, const expr& e, std::unordered_map<std::string, expr>& bindings)
+match_expr(const expr& pattern, const expr& e, std::unordered_map<expr, expr>& bindings)
 {
     if(is_pvar(pattern))
     {
-        auto* v = std::get_if<variable_node>(&pattern.node());
-        auto it = bindings.find(v->name);
+        auto it = bindings.find(pattern);
         if(it != bindings.end())
             return it->second == e;
-        bindings.emplace(v->name, e);
+        bindings.emplace(pattern, e);
         return true;
     }
     if(pattern.node().index() != e.node().index())
@@ -367,24 +366,6 @@ match_expr(const expr& pattern, const expr& e, std::unordered_map<std::string, e
                       [&](const expr& p, const expr& c) { return match_expr(p, c, bindings); });
 }
 
-static expr substitute_expr(const expr& tmpl, const std::unordered_map<std::string, expr>& bindings)
-{
-    if(is_pvar(tmpl))
-    {
-        auto* v = std::get_if<variable_node>(&tmpl.node());
-        return bindings.at(v->name);
-    }
-    if(tmpl.children().empty())
-        return tmpl;
-    auto* op_n = std::get_if<op_node>(&tmpl.node());
-    std::vector<expr> new_children;
-    new_children.reserve(tmpl.children().size());
-    std::transform(tmpl.children().begin(),
-                   tmpl.children().end(),
-                   std::back_inserter(new_children),
-                   [&](const expr& child) { return substitute_expr(child, bindings); });
-    return call_op(op_n->op, std::move(new_children));
-}
 
 static bool is_zero(const scalar& v) { return v == scalar{int64_t{0}} or v == scalar{0.0}; }
 
@@ -699,9 +680,9 @@ static expr apply_rewrite_rules(const expr& e)
 {
     for(const auto& rule : get_rewrite_rules())
     {
-        std::unordered_map<std::string, expr> bindings;
+        std::unordered_map<expr, expr> bindings;
         if(match_expr(rule.pattern, e, bindings))
-            return substitute_expr(rule.replacement, bindings);
+            return rule.replacement.subs(bindings);
     }
     return e;
 }
@@ -1154,9 +1135,9 @@ expr apply_rules(const expr& e, const std::vector<rewrite_rule>& rules)
 {
     for(const auto& rule : rules)
     {
-        std::unordered_map<std::string, expr> bindings;
+        std::unordered_map<expr, expr> bindings;
         if(match_expr(rule.pattern, e, bindings))
-            return simplify_impl(substitute_expr(rule.replacement, bindings), rules);
+            return simplify_impl(rule.replacement.subs(bindings), rules);
     }
     return e;
 }

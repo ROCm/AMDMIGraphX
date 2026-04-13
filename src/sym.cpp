@@ -742,11 +742,11 @@ static expr fold_associative_args(expr e)
                                            std::holds_alternative<literal_node>(c.back().node()))
                                         {
                                             auto d = expr(op_n, {c.back(), x});
-                                            c.push_back(lit(d.eval({})));
+                                            c.back() = lit(d.eval({}));
                                         }
                                         else
                                         {
-                                            c.push_back(x);
+                                            c.push_back(std::move(x));
                                         }
                                         return c;
                                     });
@@ -900,7 +900,7 @@ std::size_t generic_eval_auto_apply(const op_node& op, const std::vector<T>& arg
 }
 
 template <class R, class Replace, class Apply>
-R generic_eval(const expr& e, Replace replace, Apply apply)
+R generic_eval(const expr& e, const Replace& replace, const Apply& apply)
 {
     auto r = replace(e);
     if(r)
@@ -916,7 +916,7 @@ R generic_eval(const expr& e, Replace replace, Apply apply)
 }
 
 template <class R, class Replace>
-R generic_eval(const expr& e, Replace replace)
+R generic_eval(const expr& e, const Replace& replace)
 {
     return generic_eval<R>(e, replace, MIGRAPHX_LIFT(generic_eval_auto_apply));
 }

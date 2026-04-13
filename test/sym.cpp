@@ -2251,7 +2251,7 @@ TEST_CASE(dsl_trig_identity)
     auto x  = var("x");
     // sin(x)^2 + cos(x)^2 == 1
     auto e      = sin(x) * sin(x) + cos(x) * cos(x);
-    auto result = simplify(e, {sin(_1) * sin(_1) + cos(_1) * cos(_1) >> lit(1)});
+    auto result = simplify(e, {(sin(_1) * sin(_1) + cos(_1) * cos(_1)) >> lit(1)});
     EXPECT(result == lit(1));
 }
 

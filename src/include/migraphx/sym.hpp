@@ -53,7 +53,7 @@ using scalar = std::variant<int64_t, double>;
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 scalar make_scalar(T v)
 {
-    if constexpr(std::is_unsigned<T>{})
+    if constexpr(std::is_unsigned<T>{} and sizeof(T) >= sizeof(int64_t))
         return int64_t(std::min<T>(v, std::numeric_limits<int64_t>::max()));
     else if constexpr(std::is_integral<T>{})
         return int64_t(v);

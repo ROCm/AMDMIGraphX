@@ -98,10 +98,7 @@ TEST_CASE(make_scalar_double)
     EXPECT(make_scalar(-2.5) == scalar{-2.5});
 }
 
-TEST_CASE(make_scalar_float)
-{
-    EXPECT(make_scalar(1.0f) == scalar{double{1.0f}});
-}
+TEST_CASE(make_scalar_float) { EXPECT(make_scalar(1.0f) == scalar{double{1.0f}}); }
 
 // ---- Value evaluation tests ----
 

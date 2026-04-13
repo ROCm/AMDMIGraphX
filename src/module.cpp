@@ -40,6 +40,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -62,7 +63,7 @@ struct module_impl
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
-    std::size_t num_ins_with_debug_symbols = 0; // number of ins with debug symbols
+    std::size_t num_ins_with_debug_symbols = 0;
 
     bool contains(instruction_ref ins) const
     {
@@ -165,7 +166,11 @@ void module::set_bypass(bool b) { impl->bypass = b; }
 
 bool module::has_debug_symbols() const { return impl->num_ins_with_debug_symbols > 0; }
 
+<<<<<<< HEAD
 void module::add_debug_symbols(instruction_ref ins, const std::set<std::string>& symbols) const
+=======
+void module::add_debug_symbols(instruction_ref ins, const std::set<std::string>& symbols)
+>>>>>>> d9c440eb76eb5f4991cbf7ea17706b72a12af934
 {
     if(symbols.empty())
         return;
@@ -176,8 +181,14 @@ void module::add_debug_symbols(instruction_ref ins, const std::set<std::string>&
     ins->add_debug_symbols(symbols);
 }
 
+<<<<<<< HEAD
 void module::remove_debug_symbols(instruction_ref ins) const
 {
+=======
+void module::remove_debug_symbols(instruction_ref ins)
+{
+    assert(ins->get_debug_symbols().empty() or impl->num_ins_with_debug_symbols > 0);
+>>>>>>> d9c440eb76eb5f4991cbf7ea17706b72a12af934
     if(not ins->get_debug_symbols().empty() and impl->num_ins_with_debug_symbols > 0)
     {
         impl->num_ins_with_debug_symbols--;
@@ -389,10 +400,15 @@ static std::unordered_set<instruction_ref> gather_max_splice(
     return result;
 }
 
+<<<<<<< HEAD
 /**
  * Figure out the instructions actually being spliced (min splice).
  * end: instruction at end of splice
  */
+=======
+// Figure out the instructions actually being spliced (min splice).
+// end: instruction at end of splice
+>>>>>>> d9c440eb76eb5f4991cbf7ea17706b72a12af934
 static std::unordered_set<instruction_ref>
 deduce_min_splice(std::vector<instruction_ref> ends,
                   const std::unordered_set<instruction_ref>& max_splice,
@@ -425,7 +441,11 @@ deduce_min_splice(std::vector<instruction_ref> ends,
 
 // ins: instruction that was/will be replaced
 // rep: replacing instruction
+<<<<<<< HEAD
 static void propagate_debug_symbols(const_module_ref m,
+=======
+static void propagate_debug_symbols(module_ref m,
+>>>>>>> d9c440eb76eb5f4991cbf7ea17706b72a12af934
                                     instruction_ref ins,
                                     instruction_ref rep,
                                     const std::unordered_set<instruction_ref>& new_max_splice,
@@ -458,10 +478,28 @@ static void propagate_debug_symbols(const_module_ref m,
     }
 }
 
+<<<<<<< HEAD
+=======
+// Adds a placeholder identity instruction for when replacing an instruction in place.
+static void propagate_debug_symbols_with_placeholder(module_ref m,
+                                                     instruction_ref ins,
+                                                     const std::vector<instruction_ref>& prev_args)
+{
+    auto id_ins = m->insert_instruction(ins, make_op("identity"), prev_args);
+    // Get old_max_splice after replacement to get smallest dependent splice
+    std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(m, id_ins);
+    // TODO: if there are no common ancestors, this may traverse the majority of the graph
+    std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(m, ins, old_max_splice);
+    propagate_debug_symbols(m, ins, id_ins, new_max_splice, old_max_splice);
+    m->remove_instruction(id_ins);
+}
+
+>>>>>>> d9c440eb76eb5f4991cbf7ea17706b72a12af934
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
-                                            std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
+                                            std::vector<instruction_ref> args)
 {
+<<<<<<< HEAD
     impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
@@ -487,12 +525,15 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     }
     assert(ins->valid(begin()));
     return ins;
+=======
+    return replace_instruction(ins, op, std::move(args), {});
+>>>>>>> d9c440eb76eb5f4991cbf7ea17706b72a12af934
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args,
-                                            std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
+                                            std::vector<module_ref> module_args)
 {
     impl->changed.notify();
     assert(has_instruction(ins));
@@ -506,12 +547,16 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
     if(has_debug_symbols() and not prev_args.empty())
     {
+<<<<<<< HEAD
         auto id_ins = insert_instruction(ins, make_op("identity"), prev_args);
         std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(this, id_ins);
         std::unordered_set<instruction_ref> new_max_splice =
             gather_max_splice(this, ins, old_max_splice);
         propagate_debug_symbols(this, ins, id_ins, new_max_splice, old_max_splice);
         remove_instruction(id_ins);
+=======
+        propagate_debug_symbols_with_placeholder(this, ins, prev_args);
+>>>>>>> d9c440eb76eb5f4991cbf7ea17706b72a12af934
     }
     assert(ins->valid(begin()));
     return ins;
@@ -570,8 +615,13 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
 // For replacing multiple instructions within a single matcher.
 // Handles debug symbol propagation by having all old splice debug symbols propagate
 // to the new splice instructions.
+<<<<<<< HEAD
 std::vector<instruction_ref> module::batch_replace_instruction(
     const std::vector<instruction_replacement>& replacers) MIGRAPHX_TIDY_CONST
+=======
+std::vector<instruction_ref>
+module::batch_replace_instruction(const std::vector<instruction_replacement>& replacers)
+>>>>>>> d9c440eb76eb5f4991cbf7ea17706b72a12af934
 {
     impl->changed.notify();
     std::vector<instruction_ref> ret;
@@ -1146,8 +1196,7 @@ void module::finalize(std::vector<context>& contexts)
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
     if(ins != end())
-        std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
-                  << std::endl;
+        log::warn() << "Instruction needs normalization, performance may be affected.";
 }
 
 std::unordered_map<instruction_ref, instruction_ref>

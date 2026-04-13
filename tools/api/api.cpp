@@ -180,6 +180,11 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
     options.limit_max_iterations = value;
 }
 
+static void set_use_debug_symbols(onnx_options& options, bool value)
+{
+    options.use_debug_symbols = value;
+}
+
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }

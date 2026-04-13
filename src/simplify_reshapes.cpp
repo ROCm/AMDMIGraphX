@@ -144,20 +144,6 @@ instruction_ref insert_auto_reshape(module& m,
     return insert_auto_reshape(m, ins, std::vector<T>(dims), input);
 }
 
-const auto& reshaper_names()
-{
-    // clang-format off
-    static const std::unordered_set<std::string> names = {
-        "flatten",
-        "reshape",
-        "contiguous",
-        "squeeze",
-        "unsqueeze"
-    };
-    // clang-format on
-    return names;
-}
-
 instruction_ref
 insert_ops(module& m, instruction_ref ins, const std::vector<operation>& ops, instruction_ref input)
 {
@@ -568,31 +554,32 @@ struct find_slice_shape_transforms
         std::reverse(ops.begin(), ops.end());
         auto desc = shape_transform_descriptor::create(slice->get_shape().lens(), ops);
 
-        std::vector<std::size_t> new_axes;
-        std::transform(axes.begin(),
-                       axes.end(),
-                       join_back_inserter(new_axes),
-                       [&](auto axis) -> std::vector<std::size_t> {
-                           auto result = desc.get_dst_axes_from_src(axis);
-                           if(result.size() != 1)
-                               return {};
-                           return result;
-                       });
+        auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
+        if(new_desc.empty())
+            return;
+        new_desc.simplify();
 
         // Optimizes shape transforms if the slice cant be optimized
-        if(axes.size() != new_axes.size())
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+               return new_desc.get_dst_axes_from_src(axis).size() != 1;
+           }))
         {
             auto opt_ops = desc.generate();
             auto y       = insert_ops(m, ins, opt_ops, slice);
             m.replace_instruction(ins, y);
             return;
         }
-        slice_op["axes"] = new_axes;
 
-        auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
-        if(new_desc.empty())
-            return;
-        new_desc.simplify();
+        // Map slice axes using the rebased descriptor to correctly track
+        // where dimensions end up after rebase reorders them
+        std::vector<std::size_t> new_axes;
+        std::transform(axes.begin(),
+                       axes.end(),
+                       join_back_inserter(new_axes),
+                       [&](auto axis) -> std::vector<std::size_t> {
+                           return new_desc.get_dst_axes_from_src(axis);
+                       });
+        slice_op["axes"] = new_axes;
 
         auto opt_ops = new_desc.generate();
         auto y       = insert_ops(m, ins, opt_ops, x);
@@ -605,22 +592,30 @@ struct find_nop_reshapes
 {
     auto matcher() const
     {
-        auto reshapes = reshaper_names();
-        reshapes.insert("as_shape");
-        reshapes.insert("broadcast");
-        reshapes.insert("concat");
-        reshapes.insert("convert");
-        reshapes.insert("multibroadcast");
-        reshapes.insert("pad");
-        reshapes.insert("slice");
-        reshapes.insert("step");
-        reshapes.insert("transpose");
-        reshapes.insert("reduce_mean");
-        reshapes.insert("reduce_max");
-        reshapes.insert("reduce_min");
-        reshapes.insert("reduce_sum");
-        reshapes.insert("reduce_prod");
-        return match::name(reshapes)(match::same_shape(match::arg(0)));
+        // clang-format off
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "contiguous",
+            "squeeze",
+            "unsqueeze",
+            "as_shape",
+            "broadcast",
+            "concat",
+            "convert",
+            "multibroadcast",
+            "pad",
+            "slice",
+            "step",
+            "transpose",
+            "reduce_mean",
+            "reduce_max",
+            "reduce_min",
+            "reduce_sum",
+            "reduce_prod",
+        };
+
+       return match::name(names)(match::same_shape(match::arg(0)));
     }
 
     void apply(module& m, const match::matcher_result& mr) const

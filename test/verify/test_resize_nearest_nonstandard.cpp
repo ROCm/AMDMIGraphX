@@ -21,39 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_MULTINOMIAL_HPP
-#define MIGRAPHX_GUARD_RTGLIB_MULTINOMIAL_HPP
 
-#include <migraphx/op/multinomial.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct hip_multinomial
+struct test_resize_nearest_nonstandard : verify_program<test_resize_nearest_nonstandard>
 {
-    op::multinomial op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    migraphx::program create_program() const
     {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::multinomial"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        // NHWC permuted strides: lens={1, 8, 4, 4}, strides={128, 1, 32, 8}
+        auto in_shape = migraphx::shape::from_permutation(
+            migraphx::shape::float_type, {1, 8, 4, 4}, {0, 2, 3, 1});
+        auto x       = mm->add_parameter("x", in_shape);
+        auto resized = mm->add_instruction(
+            migraphx::make_op("resize",
+                              {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                               {"nearest_mode", "round_prefer_floor"},
+                               {"coordinate_transformation_mode", "half_pixel"}}),
+            x);
+        mm->add_return({resized});
+        return p;
+    };
 };
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

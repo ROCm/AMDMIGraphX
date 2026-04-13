@@ -2031,6 +2031,34 @@ TEST_CASE(move_output_instructions_after_cross_module_mixed)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(debug_symbols_copy_module_verify)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    auto x   = m1.add_parameter("x", s);
+    auto y   = m1.add_parameter("y", s);
+    auto add = m1.add_instruction(migraphx::make_op("add"), x, y);
+    auto neg = m1.add_instruction(migraphx::make_op("neg"), add);
+    auto ret = m1.add_return({neg});
+
+    m1.add_debug_symbols(add, {"add_node"});
+    m1.add_debug_symbols(neg, {"neg_node", "extra_sym"});
+    m1.add_debug_symbols(ret, {"@output:0:result_tensor"});
+
+    auto m2 = m1;
+
+    EXPECT(m2.has_debug_symbols());
+
+    auto it1 = m1.begin();
+    auto it2 = m2.begin();
+    for(; it1 != m1.end() and it2 != m2.end(); ++it1, ++it2)
+    {
+        EXPECT(it1->get_debug_symbols() == it2->get_debug_symbols());
+    }
+    EXPECT(it1 == m1.end());
+    EXPECT(it2 == m2.end());
+}
+
 TEST_CASE(debug_symbols_add_and_remove)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
@@ -2112,20 +2140,6 @@ TEST_CASE(debug_symbols_remove_instructions_range)
     EXPECT(m.has_debug_symbols());
     m.remove_instructions(neg, m.end());
     EXPECT(not m.has_debug_symbols());
-}
-
-TEST_CASE(debug_symbols_copy_module)
-{
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    migraphx::module m;
-    auto x   = m.add_parameter("x", s);
-    auto y   = m.add_parameter("y", s);
-    auto add = m.add_instruction(migraphx::make_op("add"), x, y);
-    m.add_debug_symbols(add, {"add_sym"});
-    m.add_return({add});
-
-    auto m2 = m;
-    EXPECT(m2.has_debug_symbols());
 }
 
 TEST_CASE(erase_single_with_debug_symbols)

@@ -1336,6 +1336,26 @@ TEST_CASE(concat_convert_fusion)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(concat_convert_mismatched_input_types)
+{
+    auto sx = migraphx::shape{migraphx::shape::float_type, {1, 128}};
+    auto sy = migraphx::shape{migraphx::shape::int32_type, {1, 64}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", sx);
+        auto y  = m1.add_parameter("y", sy);
+        auto xc = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), x);
+        auto yc = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), y);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xc, yc);
+        m1.add_instruction(pass_op{}, concat);
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(simplify_div_const)
 {
     migraphx::module m1;
@@ -4855,6 +4875,31 @@ TEST_CASE(conv_broadcast_input_padded)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(conv_broadcast_input_padded_no_interior_add)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {4, 512, 1, 1}};
+    migraphx::shape ws{migraphx::shape::float_type, {512, 512, 3, 3}};
+    migraphx::shape bs{migraphx::shape::float_type, {512}};
+
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xs);
+        auto bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 512, 2, 2}}}), x);
+        auto w = m1.add_literal(migraphx::generate_literal(ws, 1));
+        auto conv =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), bcast, w);
+        auto b  = m1.add_parameter("b", bs);
+        auto bb = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {4, 512, 2, 2}}}), b);
+        auto sum = m1.add_instruction(migraphx::make_op("add"), conv, bb);
+        m1.add_instruction(pass_op{}, sum);
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(conv_broadcast_input_group)
 {
     migraphx::shape xs{migraphx::shape::float_type, {64}};
@@ -5302,6 +5347,5 @@ TEST_CASE(debug_symbols_simplify_div_const)
     }
     EXPECT(m1.sort() == m2.sort());
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

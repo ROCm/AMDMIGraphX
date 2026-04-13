@@ -227,21 +227,27 @@ TEST_CASE(horiz_fusion_dot)
         auto concat    = m1.insert_instruction(x, migraphx::make_op("concat", {{"axis", 2}}), a, b);
         auto fused_dot = m1.insert_instruction(x, migraphx::make_op("dot"), input, concat);
         m1.batch_replace_instruction({
-            {x, migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), {fused_dot}, {}},
-            {y, migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}), {fused_dot}, {}},
+            {x,
+             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}),
+             {fused_dot},
+             {}},
+            {y,
+             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {4}}}),
+             {fused_dot},
+             {}},
         });
     }
 
     migraphx::module m2;
     {
-        auto input     = m2.add_parameter("input", s);
-        auto a         = m2.add_literal(migraphx::generate_literal(s, 0));
-        auto b         = m2.add_literal(migraphx::generate_literal(s, 1));
+        auto input  = m2.add_parameter("input", s);
+        auto a      = m2.add_literal(migraphx::generate_literal(s, 0));
+        auto b      = m2.add_literal(migraphx::generate_literal(s, 1));
         auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), a, b);
         m2.add_debug_symbols(concat, {"gemm1", "gemm2"});
         auto fused_dot = m2.add_instruction(migraphx::make_op("dot"), input, concat);
         m2.add_debug_symbols(fused_dot, {"gemm1", "gemm2"});
-        auto sx        = m2.add_instruction(
+        auto sx = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {2}}}), fused_dot);
         m2.add_debug_symbols(sx, {"gemm1", "gemm2"});
         auto sy = m2.add_instruction(
@@ -821,8 +827,7 @@ TEST_CASE(rewrite_resize_debug_symbols)
         m1.add_debug_symbols(resize, {"onnx:resize"});
         m1.add_return({resize});
 
-        auto rsp =
-            m1.insert_instruction(resize, migraphx::make_op("reshape", {{"dims", {4}}}), x);
+        auto rsp = m1.insert_instruction(resize, migraphx::make_op("reshape", {{"dims", {4}}}), x);
         auto ins_ind = m1.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1, 1, 4, 4}}, indices});
         m1.replace_instruction(resize, migraphx::make_op("gather", {{"axis", 0}}), rsp, ins_ind);
@@ -836,8 +841,7 @@ TEST_CASE(rewrite_resize_debug_symbols)
         m2.add_debug_symbols(rsp, {"onnx:resize"});
         auto ins_ind = m2.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::int32_type, {1, 1, 4, 4}}, indices});
-        auto gather =
-            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, ins_ind);
+        auto gather = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), rsp, ins_ind);
         m2.add_debug_symbols(gather, {"onnx:resize"});
         m2.add_return({gather});
     }

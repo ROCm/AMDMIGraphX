@@ -292,18 +292,6 @@ rewrite_rule operator>>(expr pattern, T replacement)
 
 expr simplify(expr e, std::vector<rewrite_rule> rules);
 
-struct simplifier
-{
-    expr e;
-    template <class... Rules>
-    expr operator()(Rules... rules) const
-    {
-        return sym::simplify(e, {std::move(rules)...});
-    }
-};
-
-inline simplifier simplify(expr e) { return {std::move(e)}; }
-
 } // namespace sym
 
 struct value;

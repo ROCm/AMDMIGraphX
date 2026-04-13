@@ -156,7 +156,7 @@ struct shape_impl
         }
         std::vector<sym::expr> result(m_dyn_dims.size());
         std::transform(m_dyn_dims.begin(), m_dyn_dims.end(), result.begin(), [](const auto& dd) {
-            return dd.sym_expr.value_or(sym::expr{});
+            return dd.sym_expr;
         });
         return result;
     }
@@ -926,8 +926,8 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
                    [&](const auto& dd) -> std::size_t {
                        if(dd.is_fixed())
                            return dd.min;
-                       if(dd.sym_expr)
-                           return dd.sym_expr->eval_uint(symbol_map);
+                       if(not dd.sym_expr.empty())
+                           return dd.sym_expr.eval_uint(symbol_map);
                        MIGRAPHX_THROW("to_static: non-fixed dimension has no symbolic expression");
                    });
     const auto& ds = this->dyn_strides();
@@ -1037,7 +1037,7 @@ bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimensio
 std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
     if(x.is_symbolic())
-        os << *x.sym_expr;
+        os << x.sym_expr;
     if(x.is_fixed())
     {
         if(not x.is_symbolic())
@@ -1098,13 +1098,13 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const shape::dyna
 {
     auto lhs_sym = sym_expr;
     auto rhs_sym = x.sym_expr;
-    sym_expr     = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym + *rhs_sym) : nullopt;
-    if(sym_expr.has_value())
+    sym_expr     = lhs_sym + rhs_sym;
+    if(not sym_expr.empty())
     {
-        auto bounds = sym_expr->compute_bounds_uint();
+        auto bounds = sym_expr.compute_bounds_uint();
         min         = bounds.first;
         max         = bounds.second;
-        optimals    = sym_expr->eval_optimals_uint();
+        optimals    = sym_expr.eval_optimals_uint();
     }
     else
     {
@@ -1131,13 +1131,13 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const shape::dyna
 {
     auto lhs_sym = sym_expr;
     auto rhs_sym = x.sym_expr;
-    sym_expr     = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym - *rhs_sym) : nullopt;
-    if(sym_expr.has_value())
+    sym_expr     = lhs_sym - rhs_sym;
+    if(not sym_expr.empty())
     {
-        auto bounds = sym_expr->compute_bounds_uint();
+        auto bounds = sym_expr.compute_bounds_uint();
         min         = bounds.first;
         max         = bounds.second;
-        optimals    = sym_expr->eval_optimals_uint();
+        optimals    = sym_expr.eval_optimals_uint();
     }
     else
     {
@@ -1162,13 +1162,13 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const shape::dyna
 {
     auto lhs_sym = sym_expr;
     auto rhs_sym = x.sym_expr;
-    sym_expr     = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym * *rhs_sym) : nullopt;
-    if(sym_expr.has_value())
+    sym_expr     = lhs_sym * rhs_sym;
+    if(not sym_expr.empty())
     {
-        auto bounds = sym_expr->compute_bounds_uint();
+        auto bounds = sym_expr.compute_bounds_uint();
         min         = bounds.first;
         max         = bounds.second;
-        optimals    = sym_expr->eval_optimals_uint();
+        optimals    = sym_expr.eval_optimals_uint();
     }
     else
     {
@@ -1200,13 +1200,13 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const shape::dyna
 {
     auto lhs_sym = sym_expr;
     auto rhs_sym = x.sym_expr;
-    sym_expr     = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym / *rhs_sym) : nullopt;
-    if(sym_expr.has_value())
+    sym_expr     = lhs_sym / rhs_sym;
+    if(not sym_expr.empty())
     {
-        auto bounds = sym_expr->compute_bounds_uint();
+        auto bounds = sym_expr.compute_bounds_uint();
         min         = bounds.first;
         max         = bounds.second;
-        optimals    = sym_expr->eval_optimals_uint();
+        optimals    = sym_expr.eval_optimals_uint();
     }
     else
     {

@@ -322,7 +322,7 @@ TEST_CASE(dynamic_dimension_add_dd)
     EXPECT(r.min == 5);
     EXPECT(r.max == 13);
     EXPECT(r.optimals.empty());
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
 }
 
 TEST_CASE(dynamic_dimension_sub_dd)
@@ -333,7 +333,7 @@ TEST_CASE(dynamic_dimension_sub_dd)
     EXPECT(r.min == 5);
     EXPECT(r.max == 28);
     EXPECT(r.optimals.empty());
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
 }
 
 TEST_CASE(dynamic_dimension_mul_dd)
@@ -344,7 +344,7 @@ TEST_CASE(dynamic_dimension_mul_dd)
     EXPECT(r.min == 6);
     EXPECT(r.max == 40);
     EXPECT(r.optimals.empty());
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
 }
 
 TEST_CASE(dynamic_dimension_div_dd)
@@ -355,7 +355,7 @@ TEST_CASE(dynamic_dimension_div_dd)
     EXPECT(r.min == 2);
     EXPECT(r.max == 20);
     EXPECT(r.optimals.empty());
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
 }
 
 TEST_CASE(dynamic_dimension_sub_clamp_zero)
@@ -376,7 +376,7 @@ TEST_CASE(dynamic_dimension_add_one_fixed)
     EXPECT(r.max == 12);
     std::set<std::size_t> expected_opts = {7, 10};
     EXPECT(r.optimals == expected_opts);
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
 }
 
 TEST_CASE(dynamic_dimension_mul_one_fixed)
@@ -388,7 +388,7 @@ TEST_CASE(dynamic_dimension_mul_one_fixed)
     EXPECT(r.max == 24);
     std::set<std::size_t> expected_opts = {12, 18};
     EXPECT(r.optimals == expected_opts);
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
 }
 
 TEST_CASE(dynamic_dimension_intersection)
@@ -1821,7 +1821,7 @@ TEST_CASE(test_dd_symbolic_add_size_t)
     d += 2;
     EXPECT(d.min == 3);
     EXPECT(d.max == 10);
-    EXPECT(*d.sym_expr == n + 2);
+    EXPECT(d.sym_expr == n + 2);
 }
 
 TEST_CASE(test_dd_symbolic_sub_size_t)
@@ -1831,7 +1831,7 @@ TEST_CASE(test_dd_symbolic_sub_size_t)
     d -= 1;
     EXPECT(d.min == 2);
     EXPECT(d.max == 7);
-    EXPECT(*d.sym_expr == n - 1);
+    EXPECT(d.sym_expr == n - 1);
 }
 
 TEST_CASE(test_dd_symbolic_mul_size_t)
@@ -1841,7 +1841,7 @@ TEST_CASE(test_dd_symbolic_mul_size_t)
     d *= 3;
     EXPECT(d.min == 3);
     EXPECT(d.max == 24);
-    EXPECT(*d.sym_expr == n * 3);
+    EXPECT(d.sym_expr == n * 3);
 }
 
 TEST_CASE(test_dd_symbolic_div_size_t)
@@ -1851,7 +1851,7 @@ TEST_CASE(test_dd_symbolic_div_size_t)
     d /= 2;
     EXPECT(d.min == 2);
     EXPECT(d.max == 8);
-    EXPECT(*d.sym_expr == n / 2);
+    EXPECT(d.sym_expr == n / 2);
 }
 
 TEST_CASE(test_dd_symbolic_add_dd)
@@ -1863,7 +1863,7 @@ TEST_CASE(test_dd_symbolic_add_dd)
     auto r = a + b;
     EXPECT(r.min == 3);
     EXPECT(r.max == 12);
-    EXPECT(*r.sym_expr == n + c);
+    EXPECT(r.sym_expr == n + c);
 }
 
 TEST_CASE(test_dd_symbolic_sub_dd)
@@ -1875,7 +1875,7 @@ TEST_CASE(test_dd_symbolic_sub_dd)
     auto r = a - b;
     EXPECT(r.min == 0);
     EXPECT(r.max == 15);
-    EXPECT(*r.sym_expr == n - k);
+    EXPECT(r.sym_expr == n - k);
 }
 
 TEST_CASE(test_dd_symbolic_mul_dd)
@@ -1887,7 +1887,7 @@ TEST_CASE(test_dd_symbolic_mul_dd)
     auto r = a * b;
     EXPECT(r.min == 2);
     EXPECT(r.max == 32);
-    EXPECT(*r.sym_expr == n * c);
+    EXPECT(r.sym_expr == n * c);
 }
 
 TEST_CASE(test_dd_symbolic_div_dd)
@@ -1899,7 +1899,7 @@ TEST_CASE(test_dd_symbolic_div_dd)
     auto r = a / b;
     EXPECT(r.min == 1);
     EXPECT(r.max == 8);
-    EXPECT(*r.sym_expr == n / k);
+    EXPECT(r.sym_expr == n / k);
 }
 
 TEST_CASE(test_dd_symbolic_add_dd_optimals)
@@ -1907,7 +1907,7 @@ TEST_CASE(test_dd_symbolic_add_dd_optimals)
     auto h = var("h", 5, 20, {10, 15});
     auto w = var("w", 5, 20, {10, 15});
     auto r = dd{h} + dd{w};
-    EXPECT(*r.sym_expr == h + w);
+    EXPECT(r.sym_expr == h + w);
     EXPECT(r.min == 10);
     EXPECT(r.max == 40);
     std::set<std::size_t> expected_opts = {20, 25, 30};
@@ -1919,7 +1919,7 @@ TEST_CASE(test_dd_symbolic_sub_dd_optimals)
     auto n = var("n", 10, 50, {20, 30});
     auto k = var("k", 1, 5, {2, 4});
     auto r = dd{n} - dd{k};
-    EXPECT(*r.sym_expr == n - k);
+    EXPECT(r.sym_expr == n - k);
     EXPECT(r.min == 5);
     EXPECT(r.max == 49);
     std::set<std::size_t> expected_opts = {16, 18, 26, 28};
@@ -1931,7 +1931,7 @@ TEST_CASE(test_dd_symbolic_mul_dd_optimals)
     auto n = var("n", 1, 8, {2, 4});
     auto c = var("c", 1, 4, {2, 3});
     auto r = dd{n} * dd{c};
-    EXPECT(*r.sym_expr == n * c);
+    EXPECT(r.sym_expr == n * c);
     EXPECT(r.min == 1);
     EXPECT(r.max == 32);
     std::set<std::size_t> expected_opts = {4, 6, 8, 12};
@@ -1943,7 +1943,7 @@ TEST_CASE(test_dd_symbolic_div_dd_optimals)
     auto n = var("n", 10, 50, {20, 40});
     auto k = var("k", 2, 5, {2, 5});
     auto r = dd{n} / dd{k};
-    EXPECT(*r.sym_expr == n / k);
+    EXPECT(r.sym_expr == n / k);
     EXPECT(r.min == 2);
     EXPECT(r.max == 25);
     std::set<std::size_t> expected_opts = {4, 8, 10, 20};
@@ -1957,7 +1957,7 @@ TEST_CASE(test_dd_symbolic_add_size_t_optimals)
     d += 2;
     EXPECT(d.min == 3);
     EXPECT(d.max == 10);
-    EXPECT(*d.sym_expr == n + 2);
+    EXPECT(d.sym_expr == n + 2);
     std::set<std::size_t> expected_opts = {6, 8};
     EXPECT(d.optimals == expected_opts);
 }
@@ -1969,7 +1969,7 @@ TEST_CASE(test_dd_symbolic_mul_size_t_optimals)
     d *= 3;
     EXPECT(d.min == 3);
     EXPECT(d.max == 24);
-    EXPECT(*d.sym_expr == n * 3);
+    EXPECT(d.sym_expr == n * 3);
     std::set<std::size_t> expected_opts = {6, 12};
     EXPECT(d.optimals == expected_opts);
 }
@@ -1981,7 +1981,7 @@ TEST_CASE(test_dd_symbolic_chained_arithmetic_optimals)
     d -= 3;
     d /= 2;
     d += 1;
-    EXPECT(*d.sym_expr == (h - 3) / 2 + 1);
+    EXPECT(d.sym_expr == (h - 3) / 2 + 1);
     EXPECT(d.min == 4);
     EXPECT(d.max == 24);
     std::set<std::size_t> expected_opts = {9, 14};
@@ -1994,8 +1994,8 @@ TEST_CASE(test_dd_symbolic_plus_fixed)
     dd a{n};
     dd b{3, 3};
     auto r = a + b;
-    EXPECT(r.sym_expr.has_value());
-    EXPECT(*r.sym_expr == n + 3);
+    EXPECT(not r.sym_expr.empty());
+    EXPECT(r.sym_expr == n + 3);
     EXPECT(r.min == 4);
     EXPECT(r.max == 11);
 }
@@ -2006,7 +2006,7 @@ TEST_CASE(test_dd_nonfixed_nonsymbolic_plus_symbolic_drops_sym)
     dd a{1, 8, {}};
     dd b{c};
     auto r = a + b;
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
     EXPECT(r.min == 3);
     EXPECT(r.max == 12);
 }
@@ -2016,7 +2016,7 @@ TEST_CASE(test_dd_nonsymbolic_remains_nonsymbolic)
     dd a{1, 8, {}};
     dd b{2, 4, {}};
     auto r = a + b;
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
 }
 
 TEST_CASE(test_dd_from_empty_expr_throws)
@@ -2135,7 +2135,7 @@ TEST_CASE(dd_intersection_symbolic_with_range)
     EXPECT(result.has_value());
     EXPECT(result->min == 2);
     EXPECT(result->max == 6);
-    EXPECT(not result->sym_expr.has_value());
+    EXPECT(result->sym_expr.empty());
 }
 
 TEST_CASE(dd_intersection_symbolic_same_symbol)

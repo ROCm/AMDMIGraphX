@@ -100,7 +100,7 @@ struct MIGRAPHX_EXPORT shape
         std::size_t min = 0;
         std::size_t max = 0;
         std::set<std::size_t> optimals{};
-        optional<sym::expr> sym_expr;
+        sym::expr sym_expr;
 
         dynamic_dimension() = default;
         dynamic_dimension(std::size_t min_v, std::size_t max_v) : min(min_v), max(max_v)
@@ -134,7 +134,7 @@ struct MIGRAPHX_EXPORT shape
         }
 
         bool is_fixed() const;
-        bool is_symbolic() const { return sym_expr.has_value(); }
+        bool is_symbolic() const { return not sym_expr.empty(); }
         void normalize_sym()
         {
             if(is_fixed() and not is_symbolic())

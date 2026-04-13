@@ -58,7 +58,7 @@ std::vector<int64_t> find_permutation(const shape& s)
         const auto& dds     = s.dyn_dims();
         std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
                              return std::make_tuple(strides[x].eval_max(),
-                                                    dds[x].sym_expr->eval_max());
+                                                    dds[x].sym_expr.eval_max());
                          }));
     }
     else

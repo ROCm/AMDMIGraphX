@@ -969,24 +969,13 @@ R generic_eval(const expr& e, const Replace& replace)
 
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
-    return generic_eval<std::size_t>(
-        *this,
-        [&](const expr& e) -> std::optional<std::size_t> {
-            auto it = symbol_map.find(e);
-            if(it != symbol_map.end())
-                return it->second;
-            return std::visit(overloaded{[](const literal_node& n) -> std::optional<std::size_t> {
-                                             return to<std::size_t>(n.val);
-                                         },
-                                         [](const variable_node& n) -> std::optional<std::size_t> {
-                                             MIGRAPHX_THROW("eval_uint: unbound variable '" +
-                                                            n.name + "'");
-                                         },
-                                         [](const op_node&) -> std::optional<std::size_t> {
-                                             return std::nullopt;
-                                         }},
-                              get_node(e));
-        });
+    std::unordered_map<expr, scalar> vars;
+    vars.reserve(symbol_map.size());
+    std::transform(symbol_map.begin(),
+                   symbol_map.end(),
+                   std::inserter(vars, vars.end()),
+                   [](const auto& p) { return std::make_pair(p.first, make_scalar(p.second)); });
+    return to<std::size_t>(eval(vars));
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const

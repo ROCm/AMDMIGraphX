@@ -43,6 +43,28 @@ if(NOT WIN32)
         BYPRODUCTS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver
     )
     set_directory_properties(PROPERTIES ADDITIONAL_CLEAN_FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/driver)
+else()
+    # On Windows, copy ROCm runtime DLLs next to migraphx-driver.exe so it can
+    # be run without manually extending PATH.  The list covers the DLLs that are
+    # dynamically loaded by migraphx_gpu at startup (HIP runtime + HIPRTC).
+    set(ROCM_BIN_DIR "C:/opt/rocm/bin" CACHE PATH
+        "Directory containing ROCm runtime DLLs (amdhip64_6.dll, hiprtc*.dll, ...)")
+
+    set(ROCM_RUNTIME_DLLS
+        amdhip64_6.dll
+        hiprtc0604.dll
+        hiprtc-builtins0604.dll
+    )
+
+    foreach(DLL IN LISTS ROCM_RUNTIME_DLLS)
+        add_custom_command(
+            TARGET driver POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${ROCM_BIN_DIR}/${DLL}"
+                "$<TARGET_FILE_DIR:driver>/${DLL}"
+            COMMENT "Copying ${DLL} to driver output directory"
+        )
+    endforeach()
 endif()
 rocm_clang_tidy_check(driver)
 

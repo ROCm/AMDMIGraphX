@@ -62,11 +62,11 @@ struct dxgml_options
 };
 
 /// Parse a DxGML MLIR dialect file (.mlir) and return a MIGraphX program.
-MIGRAPHX_DXGML_EXPORT program parse_dxgml(const std::string& filename,
+AMDXGML_EXPORT program parse_dxgml(const std::string& filename,
                                            const dxgml_options& options = {});
 
 /// Parse DxGML MLIR dialect text and return a MIGraphX program.
-MIGRAPHX_DXGML_EXPORT program parse_dxgml_string(const std::string& mlir_text,
+AMDXGML_EXPORT program parse_dxgml_string(const std::string& mlir_text,
                                                    const dxgml_options& options = {});
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/op/common.hpp>
 
 #include <unordered_map>
 #include <string>
@@ -52,6 +53,7 @@ static std::vector<std::string> split_operands(const std::string& s)
         if(pct == std::string::npos)
             break;
         auto end = pct + 1;
+        // Allow '#' in names to support multi-result refs like %548#0
         while(end < s.size() && s[end] != ',' && s[end] != ' ' && s[end] != ')')
             ++end;
         names.push_back(s.substr(pct + 1, end - pct - 1));
@@ -163,7 +165,9 @@ static std::string extract_ret_type(const std::string& type_sig)
 instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
                                                const std::string& operands_raw,
                                                const std::string& attrs_block,
-                                               const std::string& type_sig)
+                                               const std::string& type_sig,
+                                               const std::string& result_base_name,
+                                               int num_results)
 {
     // --- Constant (weight / bias) ---
     if(name == "constant")
@@ -195,6 +199,21 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     }
 
     // --- Binary elementwise ---
+    // DxGML binary ops implicitly broadcast; MIGraphX requires identical shapes.
+    // If shapes differ, derive the output shape from the type signature and broadcast.
+    auto broadcast_to = [&](instruction_ref in,
+                             const std::vector<std::size_t>& out_lens) -> instruction_ref {
+        if(in->get_shape().lens() == out_lens)
+            return in;
+        return mm->add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}), in);
+    };
+    auto get_out_lens = [&]() -> std::vector<std::size_t> {
+        std::string ret = extract_ret_type(type_sig);
+        if(ret.empty())
+            return {};
+        return parse_tensor_type(ret).lens();
+    };
+
     static const std::unordered_map<std::string, std::string> binary_map = {
         {"add",      "add"},
         {"subtract", "sub"},
@@ -207,7 +226,19 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     {
         auto it = binary_map.find(name);
         if(it != binary_map.end())
+        {
+            if(inputs.size() == 2 &&
+               inputs[0]->get_shape().lens() != inputs[1]->get_shape().lens())
+            {
+                auto out_lens = get_out_lens();
+                if(!out_lens.empty())
+                {
+                    inputs[0] = broadcast_to(inputs[0], out_lens);
+                    inputs[1] = broadcast_to(inputs[1], out_lens);
+                }
+            }
             return mm->add_instruction(make_op(it->second), inputs);
+        }
     }
 
     // --- Convolution ---
@@ -241,8 +272,41 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     }
 
     // --- Gemm / dot ---
+    // MIGraphX dot requires same ndims; broadcast batch dims if needed.
     if(name == "gemm" || name == "dot")
-        return mm->add_instruction(make_op("dot"), inputs);
+    {
+        auto a = inputs[0];
+        auto b = inputs[1];
+        std::size_t na = a->get_shape().ndim();
+        std::size_t nb = b->get_shape().ndim();
+        if(na > nb)
+        {
+            // Prepend (na - nb) leading axes of size 1 to b, then broadcast to match a's batch dims
+            std::vector<int64_t> new_axes;
+            for(std::size_t i = 0; i < na - nb; ++i)
+                new_axes.push_back(static_cast<int64_t>(i));
+            b = mm->add_instruction(make_op("unsqueeze", {{"axes", new_axes}}), b);
+            // Broadcast batch dims of b to match a
+            auto b_lens = b->get_shape().lens();
+            auto a_lens = a->get_shape().lens();
+            for(std::size_t i = 0; i < na - nb; ++i)
+                b_lens[i] = a_lens[i];
+            b = mm->add_instruction(make_op("multibroadcast", {{"out_lens", b_lens}}), b);
+        }
+        else if(nb > na)
+        {
+            std::vector<int64_t> new_axes;
+            for(std::size_t i = 0; i < nb - na; ++i)
+                new_axes.push_back(static_cast<int64_t>(i));
+            a = mm->add_instruction(make_op("unsqueeze", {{"axes", new_axes}}), a);
+            auto a_lens = a->get_shape().lens();
+            auto b_lens = b->get_shape().lens();
+            for(std::size_t i = 0; i < nb - na; ++i)
+                a_lens[i] = b_lens[i];
+            a = mm->add_instruction(make_op("multibroadcast", {{"out_lens", a_lens}}), a);
+        }
+        return mm->add_instruction(make_op("dot"), a, b);
+    }
 
     // --- Reshape ---
     if(name == "reshape")
@@ -256,7 +320,9 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     // --- Transpose ---
     if(name == "transpose")
     {
-        auto perm = get_dense_int(*this, attrs_block, "perm");
+        // DxGML uses "permutation"; fall back to "perm" for robustness.
+        std::string perm_key = get_attr_str(attrs_block, "permutation").empty() ? "perm" : "permutation";
+        auto perm = get_dense_int(*this, attrs_block, perm_key);
         std::vector<int64_t> permutation(perm.begin(), perm.end());
         return mm->add_instruction(
             make_op("transpose", {{"permutation", permutation}}), inputs);
@@ -284,11 +350,28 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     {
         auto win  = get_dense_int(*this, attrs_block, "window_size");
         auto strd = get_dense_int(*this, attrs_block, "strides");
-        auto pad  = get_dense_int(*this, attrs_block, "padding");
-        std::string mode = (name == "max_pooling") ? "max" : "average";
+        // DxGML uses start_padding / end_padding; fall back to symmetric 'padding' if present.
+        std::vector<std::size_t> padding;
+        std::string sym_str = get_attr_str(attrs_block, "padding");
+        if(!sym_str.empty())
+        {
+            padding = parse_dense_int_vec(sym_str);
+        }
+        else
+        {
+            auto pad_start = get_dense_int(*this, attrs_block, "start_padding");
+            auto pad_end   = get_dense_int(*this, attrs_block, "end_padding");
+            for(std::size_t i = 0; i < pad_start.size(); ++i)
+            {
+                padding.push_back(pad_start[i]);
+                padding.push_back(pad_end[i]);
+            }
+        }
+        op::pooling_mode mode =
+            (name == "max_pooling") ? op::pooling_mode::max : op::pooling_mode::average;
         return mm->add_instruction(
             make_op("pooling",
-                    {{"mode", mode}, {"lengths", win}, {"stride", strd}, {"padding", pad}}),
+                    {{"mode", mode}, {"lengths", win}, {"stride", strd}, {"padding", padding}}),
             inputs);
     }
 
@@ -297,7 +380,8 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
         auto in_shape = inputs[0]->get_shape();
         std::vector<std::size_t> lengths(in_shape.lens().begin() + 2, in_shape.lens().end());
         return mm->add_instruction(
-            make_op("pooling", {{"mode", "average"}, {"lengths", lengths}}), inputs);
+            make_op("pooling", {{"mode", op::pooling_mode::average}, {"lengths", lengths}}),
+            inputs);
     }
 
     // --- Concat ---
@@ -318,6 +402,7 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     }
 
     // --- Reduce ops ---
+    // MIGraphX reduce ops always drop the reduced axes; if keepdims=1 we add unsqueeze after.
     static const std::unordered_map<std::string, std::string> reduce_map = {
         {"reduce_sum",  "reduce_sum"},
         {"reduce_mean", "reduce_mean"},
@@ -329,13 +414,23 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
         auto it = reduce_map.find(name);
         if(it != reduce_map.end())
         {
-            auto axes     = get_dense_int(*this, attrs_block, "axes");
+            auto axes_u = get_dense_int(*this, attrs_block, "axes");
+            std::vector<int64_t> axes(axes_u.begin(), axes_u.end());
+            auto result = mm->add_instruction(make_op(it->second, {{"axes", axes}}), inputs);
+            // Determine keepdims from attr or by comparing to expected output shape.
             int keep_dims = 0;
             std::string kd_str = get_attr_str(attrs_block, "keepdims");
             if(!kd_str.empty())
                 keep_dims = (kd_str == "true" || kd_str == "1") ? 1 : 0;
-            return mm->add_instruction(
-                make_op(it->second, {{"axes", axes}, {"keepdims", keep_dims}}), inputs);
+            else
+            {
+                auto out_lens = get_out_lens();
+                if(!out_lens.empty() && result->get_shape().lens() != out_lens)
+                    keep_dims = 1;
+            }
+            if(keep_dims)
+                result = mm->add_instruction(make_op("unsqueeze", {{"axes", axes}}), result);
+            return result;
         }
     }
 
@@ -356,6 +451,150 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     {
         int64_t axis = get_int(*this, attrs_block, "axis");
         return mm->add_instruction(make_op("flatten", {{"axis", axis}}), inputs);
+    }
+
+    // --- Clip ---
+    // MIGraphX clip takes 3 inputs: (x, min, max) — no attributes.
+    // DxGML encodes min/max as float attributes; we create scalar literals and broadcast.
+    if(name == "clip")
+    {
+        std::string min_str = get_attr_str(attrs_block, "min");
+        std::string max_str = get_attr_str(attrs_block, "max");
+        if(min_str.empty() || max_str.empty())
+            MIGRAPHX_THROW("DxGML clip: missing min or max attribute in: " + attrs_block);
+        double mn = parse_float_scalar(min_str);
+        double mx = parse_float_scalar(max_str);
+        auto in_shape = inputs[0]->get_shape();
+        auto out_lens = in_shape.lens();
+        shape::type_t dtype = in_shape.type();
+        // Create scalar literals for min/max and broadcast to input shape
+        auto mn_lit  = mm->add_literal(literal{shape{dtype, {1}}, {static_cast<float>(mn)}});
+        auto mx_lit  = mm->add_literal(literal{shape{dtype, {1}}, {static_cast<float>(mx)}});
+        auto mn_bcast = mm->add_instruction(
+            make_op("multibroadcast", {{"out_lens", out_lens}}), mn_lit);
+        auto mx_bcast = mm->add_instruction(
+            make_op("multibroadcast", {{"out_lens", out_lens}}), mx_lit);
+        return mm->add_instruction(make_op("clip"), inputs[0], mn_bcast, mx_bcast);
+    }
+
+    // --- Batch normalization ---
+    // DxGML: batch_normalization(input, scale, bias, mean, variance) { epsilon }
+    // Decomposes to: (input - mean) / sqrt(variance + epsilon) * scale + bias
+    // Per-channel 1-D params {C} are broadcast to match the input shape {N,C,...}.
+    if(name == "batch_normalization")
+    {
+        std::string eps_str = get_attr_str(attrs_block, "epsilon");
+        if(eps_str.empty())
+            MIGRAPHX_THROW("DxGML batch_normalization: missing epsilon in: " + attrs_block);
+        double epsilon      = parse_float_scalar(eps_str);
+        auto input          = inputs[0];
+        auto scale          = inputs[1];
+        auto bias           = inputs[2];
+        auto mean           = inputs[3];
+        auto variance       = inputs[4];
+        auto in_shape       = input->get_shape();
+        shape::type_t dtype = in_shape.type();
+        auto in_lens        = in_shape.lens();
+
+        // Epsilon scalar literal
+        auto eps_lit = mm->add_literal(
+            literal{shape{dtype, {1}}, {static_cast<float>(epsilon)}});
+
+        // Broadcast 1-D per-channel params {C} -> {1, C, 1, 1, ...} to match input rank.
+        // We use multibroadcast with out_lens = in_lens.
+        auto bcast = [&](instruction_ref p) -> instruction_ref {
+            auto p_shape = p->get_shape();
+            if(p_shape.lens() == in_lens)
+                return p; // already same shape
+            // unsqueeze to {1, C, 1, 1, ...} then multibroadcast
+            std::size_t rank = in_lens.size();
+            std::vector<int64_t> axes;
+            for(std::size_t ax = 0; ax < rank; ++ax)
+                if(ax != 1) axes.push_back(static_cast<int64_t>(ax));
+            auto unsqueezed = mm->add_instruction(make_op("unsqueeze", {{"axes", axes}}), p);
+            return mm->add_instruction(
+                make_op("multibroadcast", {{"out_lens", in_lens}}), unsqueezed);
+        };
+
+        auto scale_b = bcast(scale);
+        auto bias_b  = bcast(bias);
+        auto mean_b  = bcast(mean);
+        // Broadcast eps scalar {1} -> {C} to match variance, then to input shape
+        auto eps_c   = mm->add_instruction(
+            make_op("multibroadcast", {{"out_lens", variance->get_shape().lens()}}), eps_lit);
+        auto var_eps = mm->add_instruction(make_op("add"),   bcast(variance), bcast(eps_c));
+        auto rsqrt   = mm->add_instruction(make_op("rsqrt"), var_eps);
+        auto norm    = mm->add_instruction(make_op("sub"),   input,  mean_b);
+        auto scaled  = mm->add_instruction(make_op("mul"),   norm,   rsqrt);
+        auto out     = mm->add_instruction(make_op("mul"),   scaled, scale_b);
+        return           mm->add_instruction(make_op("add"),   out,    bias_b);
+    }
+
+    // --- Reduce (generic, with reduction_function attr) ---
+    // dxgml_op.reduce { axes, reduction_function = #dxgml_op.reduce_function_enum_attr<...> }
+    if(name == "reduce")
+    {
+        auto axes = get_dense_int(*this, attrs_block, "axes");
+        std::string rfunc = get_attr_str(attrs_block, "reduction_function");
+        // Map enum name to MIGraphX op
+        static const std::unordered_map<std::string, std::string> rfunc_map = {
+            {"reduce_function_average", "reduce_mean"},
+            {"reduce_function_sum",     "reduce_sum"},
+            {"reduce_function_max",     "reduce_max"},
+            {"reduce_function_min",     "reduce_min"},
+            {"reduce_function_prod",    "reduce_prod"},
+        };
+        std::string mgx_op;
+        for(const auto& kv : rfunc_map)
+        {
+            if(rfunc.find(kv.first) != std::string::npos)
+            {
+                mgx_op = kv.second;
+                break;
+            }
+        }
+        if(mgx_op.empty())
+            MIGRAPHX_THROW("DxGML reduce: unknown reduction_function: " + rfunc);
+        std::vector<int64_t> axes_i(axes.begin(), axes.end());
+        auto result = mm->add_instruction(make_op(mgx_op, {{"axes", axes_i}}), inputs);
+        // DxGML reduce always keeps dimensions (keepdims=1).
+        // Only unsqueeze if needed (check against expected output shape from type sig).
+        auto out_lens = get_out_lens();
+        if(!out_lens.empty() && result->get_shape().lens() != out_lens)
+            result = mm->add_instruction(make_op("unsqueeze", {{"axes", axes_i}}), result);
+        return result;
+    }
+
+    // --- Split ---
+    // dxgml_op.split(input) { axis } -> T0, T1, ..., TN
+    // Registers each result as <base_name>#<i> in value_map.
+    // Returns the first slice (caller skips value_map registration for multi-result).
+    if(name == "split")
+    {
+        int64_t axis = get_int(*this, attrs_block, "axis");
+        auto in_shape = inputs[0]->get_shape();
+        std::size_t ax = (axis < 0)
+            ? in_shape.ndim() + static_cast<std::size_t>(axis)
+            : static_cast<std::size_t>(axis);
+        std::size_t total = in_shape.lens()[ax];
+        // Assume equal split (all output types should be uniform)
+        std::size_t chunk = (num_results > 0) ? total / static_cast<std::size_t>(num_results) : total;
+
+        instruction_ref first{};
+        for(int i = 0; i < num_results; ++i)
+        {
+            std::size_t start = static_cast<std::size_t>(i) * chunk;
+            std::size_t end   = start + chunk;
+            auto slice = mm->add_instruction(
+                make_op("slice", {{"axes", {ax}}, {"starts", {start}}, {"ends", {end}}}),
+                inputs);
+            if(i == 0)
+                first = slice;
+            // Register each result under "<base_name>#<i>"
+            if(!result_base_name.empty())
+                value_map[result_base_name + "#" + std::to_string(i)] = slice;
+        }
+        return first;
     }
 
     // --- Unknown ---

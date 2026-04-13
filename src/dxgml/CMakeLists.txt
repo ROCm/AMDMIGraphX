@@ -23,17 +23,17 @@
 #####################################################################################
 
 file(GLOB DXGML_SRCS CONFIGURE_DEPENDS *.cpp)
-add_library(migraphx_dxgml ${DXGML_SRCS})
-set_target_properties(migraphx_dxgml PROPERTIES EXPORT_NAME dxgml)
-migraphx_generate_export_header(migraphx_dxgml)
-rocm_set_soversion(migraphx_dxgml ${MIGRAPHX_SO_VERSION})
-rocm_clang_tidy_check(migraphx_dxgml)
+add_library(amdxgml ${DXGML_SRCS})
+set_target_properties(amdxgml PROPERTIES EXPORT_NAME dxgml)
+migraphx_generate_export_header(amdxgml DIRECTORY migraphx/dxgml)
+rocm_set_soversion(amdxgml ${MIGRAPHX_SO_VERSION})
+rocm_clang_tidy_check(amdxgml)
 
 # DxGML parser is a pure text-based parser — no MLIR C API or external dialect
 # libraries are required.  The only dependency is the MIGraphX core library.
-target_link_libraries(migraphx_dxgml PUBLIC migraphx)
+target_link_libraries(amdxgml PUBLIC migraphx)
 
 rocm_install_targets(
   PRIVATE
-  TARGETS migraphx_dxgml
+  TARGETS amdxgml
 )

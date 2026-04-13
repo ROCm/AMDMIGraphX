@@ -25,12 +25,20 @@
 function(add_dxgml_test TEST_NAME)
     rocm_add_test_executable(${TEST_NAME} ${ARGN})
     rocm_clang_tidy_check(${TEST_NAME})
-    target_link_libraries(${TEST_NAME} migraphx_dxgml migraphx_ref dxgml_files)
+    target_link_libraries(${TEST_NAME} amdxgml migraphx_ref dxgml_files)
     target_include_directories(${TEST_NAME} PUBLIC ../include include)
 endfunction()
 
-file(GLOB_RECURSE DXGML_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mlir/*.mlir)
-add_embed_library(dxgml_files ${DXGML_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/mlir)
+# Embed only the small test-fixture .mlir files used by the C++ parse unit tests.
+# Large model files (resources.mlir, LLM weights, etc.) are excluded — they are
+# read directly from disk by the driver tests in run_dxgml_tests.bat.
+set(DXGML_FIXTURE_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/mlir/ConvRelu.CompilationInput.mlir
+    ${CMAKE_CURRENT_SOURCE_DIR}/mlir/Gelu.CompilationInput.mlir
+    ${CMAKE_CURRENT_SOURCE_DIR}/mlir/ReluErf.CompilationInput.mlir
+    ${CMAKE_CURRENT_SOURCE_DIR}/mlir/StandaloneCluster.CompilationInput.mlir
+)
+add_embed_library(dxgml_files ${DXGML_FIXTURE_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/mlir)
 
 file(GLOB DXGML_PARSE_TESTS CONFIGURE_DEPENDS parse/*.cpp)
 foreach(TEST_SRC ${DXGML_PARSE_TESTS})

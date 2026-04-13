@@ -1,180 +1,296 @@
 @echo off
-REM Run DxGML MLIR dialect tests using migraphx-driver.exe
-REM Models after C:\Develop\rocMLIR.WML\examples\dxml-dialect\run_examples.bat
+REM ============================================================
+REM run_dxgml_tests.bat
 REM
-REM Usage: run_dxgml_tests.bat [test] [arch]
+REM Run DxGML MLIR dialect tests using migraphx-driver.exe,
+REM plus the compiled unit-test binaries in test\dxgml\parse\.
+REM Dump output goes to: <script-dir>\dump\
 REM
-REM   run_dxgml_tests.bat                      - Run all DxGML tests (parse only)
-REM   run_dxgml_tests.bat all gfx1201          - Run all tests with specified arch
-REM   run_dxgml_tests.bat ConvRelu             - Run ConvRelu test only
-REM   run_dxgml_tests.bat model1               - Run model1 test only
+REM Usage:
+REM   run_dxgml_tests.bat                   - Run EVERYTHING (mlir + parse unit tests)
+REM   run_dxgml_tests.bat parse             - Run only parse unit tests (C++ test binaries)
+REM   run_dxgml_tests.bat mlir              - Run only migraphx-driver tests (all .mlir models)
+REM   run_dxgml_tests.bat dump              - Run all tests AND dump intermediate output
+REM   run_dxgml_tests.bat simple_gemm       - Run simple_gemm/model.mlir only
+REM   run_dxgml_tests.bat <model>           - Run model/<model>.mlir or matching file
 REM
-REM Available tests:
-REM   --- CompilationInput (4 original parse tests) ---
-REM   ConvRelu        - ConvRelu.CompilationInput.mlir
-REM   Gelu            - Gelu.CompilationInput.mlir
-REM   ReluErf         - ReluErf.CompilationInput.mlir
-REM   StandaloneCluster - StandaloneCluster.CompilationInput.mlir
+REM   run_dxgml_tests.bat mlir  dump        - Run driver tests + dump output
+REM   run_dxgml_tests.bat parse dump        - Run unit tests + print results
+REM   run_dxgml_tests.bat all   dump gfx1201 - Run all with dump for gfx1201
 REM
-REM   --- Simple Models (from rocMLIR examples) ---
-REM   model1          - model1.mlir  (CNN with depth-to-space)
-REM   model2          - model2.mlir  (CNN variant)
-REM   model3          - model3.mlir  (CNN variant)
-REM   simple_gemm     - simple_gemm.mlir  (GEMM + bias + relu)
-REM   conv_example    - conv_example.mlir  (Conv+BN+ReLU+MaxPool)
-REM
-REM   --- Vision Models ---
-REM   audio2face      - audio2face.mlir  (with reduce ops)
-REM
-REM   --- LLM Models ---
-REM   llama32_dec     - llama32_decoder.mlir  (LLaMA 3.2 decoder, GQA)
-REM   llama32_pre     - llama32_prefill.mlir  (LLaMA 3.2 pre-fill, GQA)
-REM   nemotron_dec    - nemotron_decoder.mlir
-REM   nemotron_pre    - nemotron_prefill.mlir
-REM   phi_silica      - phi_silica_qdq.mlir  (quantized)
+REM Dump files go to: <script-dir>\dump\<model>_migraphx_ops.txt
+REM ============================================================
 
 setlocal enabledelayedexpansion
 
-set TEST=%1
-set ARCH=%2
+REM ---- Parse arguments ----
+set SUITE=%1
+set OPT2=%2
+set ARCH=%3
 if "%ARCH%"=="" set ARCH=gfx1201
 
-REM Locate migraphx-driver.exe relative to this script
+REM Normalize SUITE
+if "%SUITE%"==""    set SUITE=all
+if /i "%SUITE%"=="all" set SUITE=all
+
+REM Check for "dump" keyword in second arg or suite
+set DO_DUMP=0
+if /i "%OPT2%"=="dump" set DO_DUMP=1
+if /i "%SUITE%"=="dump" (
+    set SUITE=all
+    set DO_DUMP=1
+)
+
+REM ---- Locate directories ----
 set SCRIPT_DIR=%~dp0
 set ROOT_DIR=%SCRIPT_DIR%..\..
-set DRIVER_PATH=
-
-if exist "%ROOT_DIR%\build\WinRelWithDebInfo\bin\migraphx-driver.exe" (
-    set DRIVER_PATH=%ROOT_DIR%\build\WinRelWithDebInfo\bin\migraphx-driver.exe
-) else if exist "%ROOT_DIR%\build\WinRelease\bin\migraphx-driver.exe" (
-    set DRIVER_PATH=%ROOT_DIR%\build\WinRelease\bin\migraphx-driver.exe
-) else if exist "%ROOT_DIR%\build\WinDebug\bin\migraphx-driver.exe" (
-    set DRIVER_PATH=%ROOT_DIR%\build\WinDebug\bin\migraphx-driver.exe
-) else if exist "%ROOT_DIR%\build\bin\migraphx-driver.exe" (
-    set DRIVER_PATH=%ROOT_DIR%\build\bin\migraphx-driver.exe
-)
-
-if "%DRIVER_PATH%"=="" (
-    echo Error: migraphx-driver.exe not found.
-    echo Please build MIGraphX first:
-    echo   build_migraphx.bat
-    echo   - or -
-    echo   cmake --build build\WinRelWithDebInfo --target driver
-    exit /b 1
-)
-
 set MLIR_DIR=%SCRIPT_DIR%mlir
+set DUMP_DIR=%SCRIPT_DIR%dump
 
-set PASS_COUNT=0
-set FAIL_COUNT=0
+REM Create dump directory
+if not exist "%DUMP_DIR%" mkdir "%DUMP_DIR%"
 
-if "%TEST%"=="" goto RunAll
-if /i "%TEST%"=="all" goto RunAll
+REM ---- Locate migraphx-driver.exe ----
+set DRIVER_PATH=
+set BIN_DIR=
 
-REM --- CompilationInput tests ---
-if /i "%TEST%"=="ConvRelu"          call :RunTest "ConvRelu.CompilationInput.mlir"          "ConvRelu (conv + relu)"              & goto show_results
-if /i "%TEST%"=="Gelu"              call :RunTest "Gelu.CompilationInput.mlir"              "Gelu (erf-based GELU)"               & goto show_results
-if /i "%TEST%"=="ReluErf"           call :RunTest "ReluErf.CompilationInput.mlir"           "ReluErf (relu + erf)"                & goto show_results
-if /i "%TEST%"=="StandaloneCluster" call :RunTest "StandaloneCluster.CompilationInput.mlir" "StandaloneCluster (pre/post-conv)"   & goto show_results
-
-REM --- Simple model tests ---
-if /i "%TEST%"=="model1"            call :RunTest "model1.mlir"          "model1 (CNN with depth-to-space)"    & goto show_results
-if /i "%TEST%"=="model2"            call :RunTest "model2.mlir"          "model2 (CNN variant)"                & goto show_results
-if /i "%TEST%"=="model3"            call :RunTest "model3.mlir"          "model3 (CNN variant)"                & goto show_results
-if /i "%TEST%"=="simple_gemm"       call :RunTest "simple_gemm.mlir"     "simple_gemm (GEMM + bias + relu)"    & goto show_results
-if /i "%TEST%"=="conv_example"      call :RunTest "conv_example.mlir"    "conv_example (Conv+BN+ReLU+MaxPool)" & goto show_results
-
-REM --- Vision model tests ---
-if /i "%TEST%"=="audio2face"        call :RunTest "audio2face.mlir"      "audio2face (with reduce ops)"        & goto show_results
-
-REM --- LLM model tests ---
-if /i "%TEST%"=="llama32_dec"       call :RunTest "llama32_decoder.mlir" "llama32 decoder (GQA, dequantize)"   & goto show_results
-if /i "%TEST%"=="llama32_pre"       call :RunTest "llama32_prefill.mlir" "llama32 pre-fill (GQA, dequantize)"  & goto show_results
-if /i "%TEST%"=="nemotron_dec"      call :RunTest "nemotron_decoder.mlir" "nemotron decoder"                   & goto show_results
-if /i "%TEST%"=="nemotron_pre"      call :RunTest "nemotron_prefill.mlir" "nemotron pre-fill"                  & goto show_results
-if /i "%TEST%"=="phi_silica"        call :RunTest "phi_silica_qdq.mlir"  "phi_silica_qdq (quantized)"          & goto show_results
-
-echo Unknown test: %TEST%
-echo.
-echo Run without arguments to run all tests.
+for %%D in (WinRelWithDebInfo WinRelease WinRelMinSizeRel WinDebug) do (
+    if exist "%ROOT_DIR%\build\%%D\bin\migraphx-driver.exe" (
+        set DRIVER_PATH=%ROOT_DIR%\build\%%D\bin\migraphx-driver.exe
+        set BIN_DIR=%ROOT_DIR%\build\%%D\bin
+        goto FoundDriver
+    )
+)
+if exist "%ROOT_DIR%\build\bin\migraphx-driver.exe" (
+    set DRIVER_PATH=%ROOT_DIR%\build\bin\migraphx-driver.exe
+    set BIN_DIR=%ROOT_DIR%\build\bin
+    goto FoundDriver
+)
+echo [ERROR] migraphx-driver.exe not found.
+echo         Build MIGraphX first:  build_migraphx.bat
 exit /b 1
+:FoundDriver
 
-REM ======================================
-REM :RunAll - Run every test
-REM ======================================
+REM ---- Extend PATH so driver can find migraphx.dll, amdhip64_6.dll etc. ----
+set PATH=%BIN_DIR%;C:\opt\rocm\bin;%PATH%
+
+REM ---- Parse unit test binaries live alongside the driver ----
+set PARSE_BIN_DIR=%BIN_DIR%
+
+REM ---- Counters ----
+set TOTAL_PASS=0
+set TOTAL_FAIL=0
+set TOTAL_SKIP=0
+
+REM ============================================================
+REM Dispatch
+REM ============================================================
+
+if /i "%SUITE%"=="all"   goto RunAll
+if /i "%SUITE%"=="mlir"  goto RunMlir
+if /i "%SUITE%"=="parse" goto RunParse
+
+REM Single-model shortcut
+goto RunSingleModel
+
+REM ============================================================
 :RunAll
-echo ======================================
-echo DxGML MLIR Dialect Tests
-echo ======================================
+REM ============================================================
+echo =====================================================
+echo DxGML Test Suite - FULL RUN
+echo =====================================================
 echo Arch:   %ARCH%
 echo Driver: %DRIVER_PATH%
+echo Dump:   %DUMP_DIR%  (enabled: %DO_DUMP%)
 echo.
 
-echo --- CompilationInput Tests ---
-call :RunTest "ConvRelu.CompilationInput.mlir"          "ConvRelu (conv + relu)"
-call :RunTest "Gelu.CompilationInput.mlir"              "Gelu (erf-based GELU)"
-call :RunTest "ReluErf.CompilationInput.mlir"           "ReluErf (relu + erf)"
-call :RunTest "StandaloneCluster.CompilationInput.mlir" "StandaloneCluster (pre/post-conv)"
+call :RunParseSuite
 echo.
+call :RunMlirSuite
+goto ShowResults
 
-echo --- Simple Model Tests ---
-call :RunTest "model1.mlir"       "model1 (CNN with depth-to-space)"
-call :RunTest "model2.mlir"       "model2 (CNN variant)"
-call :RunTest "model3.mlir"       "model3 (CNN variant)"
-call :RunTest "simple_gemm.mlir"  "simple_gemm (GEMM + bias + relu)"
-call :RunTest "conv_example.mlir" "conv_example (Conv+BN+ReLU+MaxPool)"
+REM ============================================================
+:RunMlir
+REM ============================================================
+echo =====================================================
+echo DxGML Test Suite - MLIR Driver Tests
+echo =====================================================
+echo Arch:   %ARCH%
+echo Driver: %DRIVER_PATH%
+echo Dump:   %DUMP_DIR%  (enabled: %DO_DUMP%)
 echo.
+call :RunMlirSuite
+goto ShowResults
 
-echo --- Vision Model Tests ---
-call :RunTest "audio2face.mlir"   "audio2face (with reduce ops)"
+REM ============================================================
+:RunParse
+REM ============================================================
+echo =====================================================
+echo DxGML Test Suite - Parse Unit Tests
+echo =====================================================
+echo BinDir: %PARSE_BIN_DIR%
 echo.
+call :RunParseSuite
+goto ShowResults
 
-echo --- LLM Model Tests ---
-call :RunTest "llama32_decoder.mlir"  "llama32 decoder (GQA, dequantize)"
-call :RunTest "llama32_prefill.mlir"  "llama32 pre-fill (GQA, dequantize)"
-call :RunTest "nemotron_decoder.mlir" "nemotron decoder"
-call :RunTest "nemotron_prefill.mlir" "nemotron pre-fill"
-call :RunTest "phi_silica_qdq.mlir"   "phi_silica_qdq (quantized)"
-goto show_results
+REM ============================================================
+:RunSingleModel
+REM ============================================================
+set FOUND_MODEL=0
 
-REM ======================================
-REM :show_results
-REM ======================================
-:show_results
-echo.
-echo ======================================
-echo Results: !PASS_COUNT! passed, !FAIL_COUNT! failed
-echo ======================================
-if !FAIL_COUNT! GTR 0 (
+REM Check subdirectory model.mlir convention first
+if exist "%MLIR_DIR%\%SUITE%\model.mlir" (
+    call :RunDriverTest "%MLIR_DIR%\%SUITE%\model.mlir" "%SUITE%"
+    set FOUND_MODEL=1
+    goto ShowResults
+)
+
+REM Check by exact filename (without extension)
+for /r "%MLIR_DIR%" %%F in (*.mlir) do (
+    if /i "%%~nF"=="%SUITE%" (
+        call :RunDriverTest "%%F" "%SUITE%"
+        set FOUND_MODEL=1
+        goto ShowResults
+    )
+)
+
+if !FOUND_MODEL!==0 (
+    echo [ERROR] Unknown test or model: %SUITE%
     echo.
-    echo To debug a failure, run:
-    echo   "!DRIVER_PATH!" "!MLIR_DIR!\<test>.mlir" --dxgml --parse
+    echo Usage examples:
+    echo   run_dxgml_tests.bat                 - Run all tests
+    echo   run_dxgml_tests.bat parse           - C++ parse unit tests only
+    echo   run_dxgml_tests.bat mlir            - Driver tests only
+    echo   run_dxgml_tests.bat dump            - All tests + dump output
+    echo   run_dxgml_tests.bat simple_gemm     - Single model test
+    echo   run_dxgml_tests.bat mlir dump       - Driver tests + dump output
     exit /b 1
 )
-echo.
-echo All tests passed!
-exit /b 0
+goto ShowResults
 
-REM ======================================
-REM Subroutine: RunTest <filename> <description>
-REM ======================================
-:RunTest
-    set "MLIR_FILE=!MLIR_DIR!\%~1"
+REM ============================================================
+REM :RunParseSuite
+REM Run the four C++ parse unit-test executables.
+REM ============================================================
+:RunParseSuite
+echo --- Parse Unit Tests (C++ test binaries) ---
+call :RunUnitTest "test_dxgml_conv_relu_test.exe"          "ConvRelu parse"
+call :RunUnitTest "test_dxgml_gelu_test.exe"               "Gelu parse"
+call :RunUnitTest "test_dxgml_relu_erf_test.exe"           "ReluErf parse"
+call :RunUnitTest "test_dxgml_standalone_cluster_test.exe" "StandaloneCluster parse"
+goto :eof
+
+REM ============================================================
+REM :RunMlirSuite
+REM Run all .mlir files through migraphx-driver --dxgml.
+REM ============================================================
+:RunMlirSuite
+echo --- MLIR Driver Tests ---
+
+echo [simple models]
+call :RunDriverTest "%MLIR_DIR%\simple_gemm\model.mlir"      "simple_gemm"
+call :RunDriverTest "%MLIR_DIR%\conv_example\model.mlir"     "conv_example"
+call :RunDriverTest "%MLIR_DIR%\test\test_dxgml.mlir"        "test_dxgml"
+call :RunDriverTest "%MLIR_DIR%\test\test_model1_clean.mlir" "test_model1_clean"
+
+echo [CNN models]
+call :RunDriverTest "%MLIR_DIR%\model1\model.mlir"       "model1"
+call :RunDriverTest "%MLIR_DIR%\model1\model_test.mlir"  "model1_test"
+call :RunDriverTest "%MLIR_DIR%\model2\model.mlir"       "model2"
+call :RunDriverTest "%MLIR_DIR%\model2\model_test.mlir"  "model2_test"
+call :RunDriverTest "%MLIR_DIR%\model3\model.mlir"       "model3"
+call :RunDriverTest "%MLIR_DIR%\model3\model_test.mlir"  "model3_test"
+
+echo [vision models]
+call :RunDriverTest "%MLIR_DIR%\audio2face\model.mlir"      "audio2face"
+call :RunDriverTest "%MLIR_DIR%\audio2face\model_test.mlir" "audio2face_test"
+
+echo [LLM models]
+call :RunDriverTest "%MLIR_DIR%\llama32\llama32_dxgml_static_decoder.mlir"       "llama32_decoder"
+call :RunDriverTest "%MLIR_DIR%\llama32\llama32_dxgml_static_pre-fill.mlir"      "llama32_prefill"
+call :RunDriverTest "%MLIR_DIR%\llama32\llama32_dxgml_static_decoder_test.mlir"  "llama32_decoder_test"
+call :RunDriverTest "%MLIR_DIR%\llama32\llama32_dxgml_static_pre-fill_test.mlir" "llama32_prefill_test"
+call :RunDriverTest "%MLIR_DIR%\nemotron\model_decoder.mlir"       "nemotron_decoder"
+call :RunDriverTest "%MLIR_DIR%\nemotron\model_pre-fill.mlir"      "nemotron_prefill"
+call :RunDriverTest "%MLIR_DIR%\nemotron\model_decoder_test.mlir"  "nemotron_decoder_test"
+call :RunDriverTest "%MLIR_DIR%\nemotron\model_pre-fill_test.mlir" "nemotron_prefill_test"
+call :RunDriverTest "%MLIR_DIR%\phi_silica_qdq\model.mlir" "phi_silica_qdq"
+goto :eof
+
+REM ============================================================
+REM :RunUnitTest <exe_name> <description>
+REM ============================================================
+:RunUnitTest
+    set "EXE_NAME=%~1"
     set "DESC=%~2"
+    set "EXE_PATH=!PARSE_BIN_DIR!\!EXE_NAME!"
 
-    if not exist "!MLIR_FILE!" (
-        echo   [SKIP] !DESC! - file not found: !MLIR_FILE!
+    if not exist "!EXE_PATH!" (
+        echo   [SKIP] !DESC! - binary not found: !EXE_PATH!
+        set /a TOTAL_SKIP+=1
         goto :eof
     )
 
-    "!DRIVER_PATH!" "!MLIR_FILE!" --dxgml --parse >nul 2>&1
-
-    if !errorlevel! == 0 (
+    "!EXE_PATH!" >nul 2>&1
+    if !errorlevel!==0 (
         echo   [PASS] !DESC!
-        set /a PASS_COUNT+=1
+        set /a TOTAL_PASS+=1
     ) else (
         echo   [FAIL] !DESC!
-        "!DRIVER_PATH!" "!MLIR_FILE!" --dxgml --parse 2>&1
-        set /a FAIL_COUNT+=1
+        "!EXE_PATH!" 2>&1
+        set /a TOTAL_FAIL+=1
     )
     goto :eof
+
+REM ============================================================
+REM :RunDriverTest <mlir_file> <name>
+REM   Parses with migraphx-driver read --dxgml --skip-unknown-operators
+REM   If DO_DUMP==1, also writes MIGraphX ops text to dump\<name>_migraphx_ops.txt
+REM ============================================================
+:RunDriverTest
+    set "MLIR_FILE=%~1"
+    set "MODEL_NAME=%~2"
+
+    if not exist "!MLIR_FILE!" (
+        echo   [SKIP] !MODEL_NAME! - file not found
+        set /a TOTAL_SKIP+=1
+        goto :eof
+    )
+
+    REM Parse test
+    "!DRIVER_PATH!" read "!MLIR_FILE!" --dxgml --skip-unknown-operators >nul 2>&1
+    if !errorlevel!==0 (
+        echo   [PASS] !MODEL_NAME!
+        set /a TOTAL_PASS+=1
+    ) else (
+        echo   [FAIL] !MODEL_NAME!
+        "!DRIVER_PATH!" read "!MLIR_FILE!" --dxgml --skip-unknown-operators 2>&1
+        set /a TOTAL_FAIL+=1
+    )
+
+    REM Dump MIGraphX ops representation if requested
+    if "%DO_DUMP%"=="1" (
+        set "DUMP_FILE=!DUMP_DIR!\!MODEL_NAME!_migraphx_ops.txt"
+        echo          ^> !DUMP_FILE!
+        "!DRIVER_PATH!" read "!MLIR_FILE!" --dxgml --skip-unknown-operators --text > "!DUMP_FILE!" 2>&1
+    )
+    goto :eof
+
+REM ============================================================
+:ShowResults
+REM ============================================================
+echo.
+echo =====================================================
+echo Results: !TOTAL_PASS! passed, !TOTAL_FAIL! failed, !TOTAL_SKIP! skipped
+echo =====================================================
+if %DO_DUMP%==1 (
+    echo Dump files: %DUMP_DIR%
+)
+if !TOTAL_FAIL! GTR 0 (
+    echo.
+    echo To debug a failure:
+    echo   "!DRIVER_PATH!" read ^<file.mlir^> --dxgml --skip-unknown-operators --text
+    exit /b 1
+)
+echo All tests passed!
+exit /b 0

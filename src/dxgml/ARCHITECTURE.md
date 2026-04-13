@@ -39,7 +39,7 @@ nodes are translated to MIGraphX built-in ops during frontend parsing.
 | `src/dxgml/dxgml_parser.hpp` | Internal `dxgml_parser` class declaration |
 | `src/dxgml/dxgml_parser.cpp` | Text parser: type parsing, attribute helpers, body walk |
 | `src/dxgml/parse_ops.cpp` | Op-by-op conversion from DxGML names to MIGraphX ops |
-| `src/dxgml/CMakeLists.txt` | Build rules for `migraphx_dxgml` shared library |
+| `src/dxgml/CMakeLists.txt` | Build rules for `amdxgml` shared library |
 | `test/dxgml/` | Unit tests and embedded MLIR fixtures |
 
 ---
@@ -194,7 +194,7 @@ tooling wrappers can inspect them.
 
 ## Build
 
-The frontend is a standalone shared library (`migraphx_dxgml`).  It has no
+The frontend is a standalone shared library (`amdxgml`).  It has no
 dependency on MLIR C API libraries or `dxgml_ir.dll`.
 
 ```cmake
@@ -202,7 +202,7 @@ dependency on MLIR C API libraries or `dxgml_ir.dll`.
 cmake -DMIGRAPHX_ENABLE_DXGML=ON ...
 
 # Build:
-ninja migraphx_dxgml
+ninja amdxgml
 
 # Run tests:
 ninja test/dxgml/test

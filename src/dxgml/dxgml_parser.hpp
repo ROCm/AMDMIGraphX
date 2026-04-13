@@ -59,6 +59,7 @@ struct dxgml_parser
     shape::type_t parse_element_type(const std::string& elem_str) const;
     std::vector<std::size_t> parse_dense_int_vec(const std::string& attr_str) const;
     int64_t parse_int_scalar(const std::string& attr_str) const;
+    double parse_float_scalar(const std::string& attr_str) const;
     std::string get_attr_str(const std::string& attrs_block, const std::string& key) const;
 
     private:
@@ -70,7 +71,9 @@ struct dxgml_parser
     instruction_ref parse_dxgml_op(const std::string& name,
                                    const std::string& operands_str,
                                    const std::string& attrs_block,
-                                   const std::string& type_sig);
+                                   const std::string& type_sig,
+                                   const std::string& result_base_name = {},
+                                   int num_results = 1);
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -54,9 +54,16 @@ program parse_dxgml_string(const std::string& mlir_text, const dxgml_options& op
         {
             parser.parse_from_string(mlir_text);
         }
+        catch(const std::exception& e)
+        {
+            std::cerr << "[DxGML] Parse error: " << e.what() << "\n";
+            std::cerr << "[DxGML] Partial program:\n" << parser.prog << "\n";
+            throw;
+        }
         catch(...)
         {
-            std::cerr << "[DxGML] Parse error — partial program:\n" << parser.prog << "\n";
+            std::cerr << "[DxGML] Parse error (unknown exception)\n";
+            std::cerr << "[DxGML] Partial program:\n" << parser.prog << "\n";
             throw;
         }
     }

@@ -248,15 +248,40 @@ std::vector<std::size_t> dxgml_parser::parse_dense_int_vec(const std::string& s)
     return out;
 }
 
-// Parse "#dxgml.integer<1 : !dxgml.int64>"
+// Parse "#dxgml.integer<-1 : !dxgml.int64>" or bare "-1 : si64"
 int64_t dxgml_parser::parse_int_scalar(const std::string& s) const
+{
+    std::string ts = trim(s);
+    // Format 1: #dxgml.integer<N : ...>
+    auto lt = ts.find('<');
+    if(lt != std::string::npos)
+    {
+        auto colon = ts.find(':', lt);
+        if(colon != std::string::npos)
+        {
+            std::string val = trim(ts.substr(lt + 1, colon - lt - 1));
+            return std::stoll(val);
+        }
+    }
+    // Format 2: "-1 : si64" or just "-1"
+    auto colon = ts.find(':');
+    std::string val = trim(colon != std::string::npos ? ts.substr(0, colon) : ts);
+    if(!val.empty())
+    {
+        try { return std::stoll(val); } catch(...) {}
+    }
+    MIGRAPHX_THROW("DxGML: cannot parse int scalar: " + s);
+}
+
+// Parse "#dxgml.float<1.0e-05 : !dxgml.float64>" or "#dxgml.float<6.000000e+00 : !dxgml.float32>"
+double dxgml_parser::parse_float_scalar(const std::string& s) const
 {
     auto lt = s.find('<');
     auto colon = s.find(':', lt != std::string::npos ? lt : 0);
     if(lt == std::string::npos || colon == std::string::npos)
-        MIGRAPHX_THROW("DxGML: cannot parse int scalar: " + s);
+        MIGRAPHX_THROW("DxGML: cannot parse float scalar: " + s);
     std::string val = trim(s.substr(lt + 1, colon - lt - 1));
-    return std::stoll(val);
+    return std::stod(val);
 }
 
 // ---------------------------------------------------------------------------
@@ -654,9 +679,25 @@ void dxgml_parser::parse_entry_point(const std::string& arg_list_str, const std:
                 // else: no type sig — pos stays at after_paren (already set above)
             }
 
-            // Dispatch to op handler
-            instruction_ref result = parse_dxgml_op(op_name, operands_raw, attrs_block, type_sig);
-            value_map[result_name] = result;
+            // Dispatch to op handler.
+            // Multi-result ops (e.g. split) use "name:N" syntax — parse_dxgml_op
+            // registers all N results into value_map itself and returns the first.
+            auto colon_pos = result_name.find(':');
+            int num_results = 1;
+            std::string base_name = result_name;
+            if(colon_pos != std::string::npos)
+            {
+                num_results = std::stoi(result_name.substr(colon_pos + 1));
+                base_name   = result_name.substr(0, colon_pos);
+            }
+
+            instruction_ref result =
+                parse_dxgml_op(op_name, operands_raw, attrs_block, type_sig,
+                               base_name, num_results);
+            // Single-result: register under the result name (or base_name for :N ops
+            // where parse_dxgml_op already registered the individual results).
+            if(num_results == 1)
+                value_map[result_name] = result;
             continue;
         }
 

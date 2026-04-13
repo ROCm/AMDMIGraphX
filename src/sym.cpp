@@ -120,13 +120,11 @@ std::ostream& operator<<(std::ostream& os, const interval& i)
     return os;
 }
 
-namespace {
-bool scalar_less(const scalar& a, const scalar& b)
+static bool scalar_less(const scalar& a, const scalar& b)
 {
     auto f = [](auto x, auto y) -> int64_t { return x < y ? 1 : 0; };
     return std::get<int64_t>(scalar_invoke_common(f, a, b)) != 0;
 }
-} // namespace
 
 bool operator<(interval a, interval b) { return scalar_less(a.max, b.min); }
 
@@ -1116,8 +1114,7 @@ interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) con
     });
 }
 
-namespace {
-void collect_optimals(const expr& e, std::unordered_map<expr, std::set<scalar>>& result)
+static void collect_optimals(const expr& e, std::unordered_map<expr, std::set<scalar>>& result)
 {
     if(e.empty())
         return;
@@ -1130,8 +1127,6 @@ void collect_optimals(const expr& e, std::unordered_map<expr, std::set<scalar>>&
     for(const auto& child : e.children())
         collect_optimals(child, result);
 }
-
-} // namespace
 
 std::set<scalar> expr::eval_optimals() const
 {
@@ -1169,8 +1164,7 @@ std::set<scalar> expr::eval_optimals() const
     return results;
 }
 
-namespace {
-std::string scalar_to_string(const scalar& v)
+static std::string scalar_to_string(const scalar& v)
 {
     return std::visit(
         [](auto x) -> std::string {
@@ -1187,7 +1181,7 @@ struct string_prec
     int prec = 0;
 };
 
-int op_precedence(const std::string& name)
+static int op_precedence(const std::string& name)
 {
     if(name == "+" or name == "-")
         return 1;
@@ -1196,15 +1190,14 @@ int op_precedence(const std::string& name)
     return 0;
 }
 
-bool is_infix_op(const std::string& name) { return op_precedence(name) > 0; }
+static bool is_infix_op(const std::string& name) { return op_precedence(name) > 0; }
 
-std::string wrap_if(const string_prec& sp, int parent_prec)
+static std::string wrap_if(const string_prec& sp, int parent_prec)
 {
     if(sp.prec > 0 and sp.prec < parent_prec)
         return "(" + sp.str + ")";
     return sp.str;
 }
-} // namespace
 
 std::string expr::to_string() const
 {
@@ -1253,11 +1246,9 @@ std::string to_string(const expr& e) { return e.to_string(); }
 
 expr pvar(int id) { return var("_" + std::to_string(id)); }
 
-namespace {
+static expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules);
 
-expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules);
-
-expr apply_rules(const expr& e, const std::vector<rewrite_rule>& rules)
+static expr apply_rules(const expr& e, const std::vector<rewrite_rule>& rules)
 {
     for(const auto& rule : rules)
     {
@@ -1268,7 +1259,7 @@ expr apply_rules(const expr& e, const std::vector<rewrite_rule>& rules)
     return e;
 }
 
-expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
+static expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
 {
     if(e.children().empty())
         return apply_rules(e, rules);
@@ -1280,15 +1271,11 @@ expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
     return apply_rules(call_op(op_n->op, std::move(new_children)), rules);
 }
 
-} // namespace
-
 expr simplify(expr e, std::vector<rewrite_rule> rules) { return simplify_impl(e, rules); }
-
-namespace {
 
 using sym_parser = parser::simple_string_view_skip_parser;
 
-expr parse_expr(sym_parser& p);
+static expr parse_expr(sym_parser& p);
 
 template <class F>
 struct call_wrapper
@@ -1341,7 +1328,7 @@ auto associative_call_wrapper(F f)
     };
 }
 
-expr call_function(const std::string& name, std::vector<expr> args)
+static expr call_function(const std::string& name, std::vector<expr> args)
 {
 #define MIGRAPHX_CALL_FUNC(name)                    \
     {                                               \
@@ -1371,7 +1358,7 @@ expr call_function(const std::string& name, std::vector<expr> args)
     return functions.at(name)(args);
 }
 
-expr parse_number(sym_parser& p)
+static expr parse_number(sym_parser& p)
 {
     if(not std::isdigit(p.peek_char()) and p.peek_char() != '.')
         return {};
@@ -1382,7 +1369,7 @@ expr parse_number(sym_parser& p)
     return lit(std::stoll(std::string(token)));
 }
 
-expr parse_func_or_var(sym_parser& p)
+static expr parse_func_or_var(sym_parser& p)
 {
     char c = p.peek_char();
     if(not std::isalpha(c) and c != '_')
@@ -1403,7 +1390,7 @@ expr parse_func_or_var(sym_parser& p)
     return call_function(sname, std::move(args));
 }
 
-expr parse_paren_expr(sym_parser& p)
+static expr parse_paren_expr(sym_parser& p)
 {
     if(not p.match(std::string_view("(")))
         return {};
@@ -1412,7 +1399,7 @@ expr parse_paren_expr(sym_parser& p)
     return e;
 }
 
-expr parse_primary(sym_parser& p)
+static expr parse_primary(sym_parser& p)
 {
     return p.first_of(&parse_paren_expr,
                       &parse_func_or_var,
@@ -1420,14 +1407,14 @@ expr parse_primary(sym_parser& p)
                       [](sym_parser& q) -> expr { MIGRAPHX_THROW(q.error_message("expression")); });
 }
 
-expr parse_unary(sym_parser& p)
+static expr parse_unary(sym_parser& p)
 {
     if(p.match(std::string_view("-")))
         return -parse_unary(p);
     return parse_primary(p);
 }
 
-expr parse_mul_expr(sym_parser& p)
+static expr parse_mul_expr(sym_parser& p)
 {
     auto left = parse_unary(p);
     auto ops  = p.repeat([](sym_parser& q) -> std::pair<std::string_view, expr> {
@@ -1441,7 +1428,7 @@ expr parse_mul_expr(sym_parser& p)
     return left;
 }
 
-expr parse_expr(sym_parser& p)
+static expr parse_expr(sym_parser& p)
 {
     auto left = parse_mul_expr(p);
     auto ops  = p.repeat([](sym_parser& q) -> std::pair<std::string_view, expr> {
@@ -1454,8 +1441,6 @@ expr parse_expr(sym_parser& p)
         left = call_function(std::string(op), {std::move(left), std::move(rhs)});
     return left;
 }
-
-} // namespace
 
 expr parse(const std::string& str)
 {
@@ -1471,21 +1456,17 @@ expr parse(const std::string& str)
     return result;
 }
 
-namespace {
-
-migraphx::value sym_scalar_to_value(const sym::scalar& sv)
+static migraphx::value sym_scalar_to_value(const sym::scalar& sv)
 {
     return std::visit([](auto x) -> migraphx::value { return migraphx::to_value(x); }, sv);
 }
 
-sym::scalar value_to_sym_scalar(const migraphx::value& v)
+static sym::scalar value_to_sym_scalar(const migraphx::value& v)
 {
     if(v.is_float())
         return sym::scalar{v.get_float()};
     return sym::scalar{v.get_int64()};
 }
-
-} // namespace
 
 void migraphx_to_value(migraphx::value& v, const sym::interval& i)
 {

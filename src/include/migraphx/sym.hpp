@@ -193,12 +193,12 @@ class MIGRAPHX_EXPORT expr
     template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
     friend expr operator binary(expr ex, T y)                                     \
     {                                                                             \
-        return ex binary lit(y);                                                  \
+        return std::move(ex) binary lit(y);                                                  \
     }                                                                             \
     template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
     friend expr operator binary(T x, expr ey)                                     \
     {                                                                             \
-        return lit(x) binary ey;                                                  \
+        return lit(x) binary std::move(ey);                                                  \
     }
 
     MIGRAPHX_SYM_DEFINE_OP(+, +=)
@@ -257,7 +257,7 @@ auto call(std::string name, Eval eval, EvalInterval eval_interval)
 template <class Eval>
 auto call(std::string name, Eval eval)
 {
-    return call(name, eval, eval);
+    return call(std::move(name), eval, eval);
 }
 
 std::string to_string(const expr& e);

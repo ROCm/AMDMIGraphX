@@ -27,7 +27,6 @@
 #include <test.hpp>
 
 using migraphx::sym::abs;
-using migraphx::sym::arg;
 using migraphx::sym::call;
 using migraphx::sym::ceil;
 using migraphx::sym::cos;
@@ -42,7 +41,6 @@ using migraphx::sym::min;
 using migraphx::sym::parse;
 using migraphx::sym::pow;
 using migraphx::sym::pvar;
-using migraphx::sym::rewrite_rule;
 using migraphx::sym::scalar;
 using migraphx::sym::simplify;
 using migraphx::sym::sin;
@@ -2168,7 +2166,7 @@ TEST_CASE(norm_div_constant_folding)
 
 TEST_CASE(dsl_pvar_match)
 {
-    auto _1 = pvar(1);
+    auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
     auto x  = var("x");
     // sqrt(x) matches sqrt(_1)
     auto result = simplify(sqrt(x), {sqrt(_1) >> _1});
@@ -2177,7 +2175,7 @@ TEST_CASE(dsl_pvar_match)
 
 TEST_CASE(dsl_consistent_binding)
 {
-    auto _1 = pvar(1);
+    auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
     auto x  = var("x");
     auto y  = var("y");
     // _1 * _1 matches x*x but not x*y
@@ -2188,7 +2186,7 @@ TEST_CASE(dsl_consistent_binding)
 
 TEST_CASE(dsl_log_exp)
 {
-    auto _1     = pvar(1);
+    auto _1     = pvar(1); // NOLINT(readability-identifier-naming)
     auto x      = var("x");
     auto result = simplify(log(exp(x)), {log(exp(_1)) >> _1});
     EXPECT(result == x);
@@ -2196,7 +2194,7 @@ TEST_CASE(dsl_log_exp)
 
 TEST_CASE(dsl_exp_log)
 {
-    auto _1     = pvar(1);
+    auto _1     = pvar(1); // NOLINT(readability-identifier-naming)
     auto x      = var("x");
     auto result = simplify(exp(log(x)), {exp(log(_1)) >> _1});
     EXPECT(result == x);
@@ -2204,8 +2202,8 @@ TEST_CASE(dsl_exp_log)
 
 TEST_CASE(dsl_sqrt_product)
 {
-    auto _1     = pvar(1);
-    auto _2     = pvar(2);
+    auto _1     = pvar(1); // NOLINT(readability-identifier-naming)
+    auto _2     = pvar(2); // NOLINT(readability-identifier-naming)
     auto a      = var("a");
     auto b      = var("b");
     auto result = simplify(sqrt(a * b), {sqrt(_1 * _2) >> sqrt(_1) * sqrt(_2)});
@@ -2214,8 +2212,8 @@ TEST_CASE(dsl_sqrt_product)
 
 TEST_CASE(dsl_sqrt_division)
 {
-    auto _1     = pvar(1);
-    auto _2     = pvar(2);
+    auto _1     = pvar(1); // NOLINT(readability-identifier-naming)
+    auto _2     = pvar(2); // NOLINT(readability-identifier-naming)
     auto a      = var("a");
     auto b      = var("b");
     auto result = simplify(sqrt(a / b), {sqrt(_1 / _2) >> sqrt(_1) / sqrt(_2)});
@@ -2224,7 +2222,7 @@ TEST_CASE(dsl_sqrt_division)
 
 TEST_CASE(dsl_recursive)
 {
-    auto _1 = pvar(1);
+    auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
     auto x  = var("x");
     auto y  = var("y");
     // Rule applied to subexpressions: log(exp(x)) + log(exp(y))
@@ -2235,8 +2233,8 @@ TEST_CASE(dsl_recursive)
 
 TEST_CASE(dsl_multiple_rules)
 {
-    auto _1 = pvar(1);
-    auto _2 = pvar(2);
+    auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
+    auto _2 = pvar(2); // NOLINT(readability-identifier-naming)
     auto x  = var("x");
     auto y  = var("y");
     // Chain: pow(x,2) → x*x, then abs(x*x) → x*x (already positive)
@@ -2247,7 +2245,7 @@ TEST_CASE(dsl_multiple_rules)
 
 TEST_CASE(dsl_trig_identity)
 {
-    auto _1 = pvar(1);
+    auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
     auto x  = var("x");
     // sin(x)^2 + cos(x)^2 == 1
     auto e      = sin(x) * sin(x) + cos(x) * cos(x);
@@ -2257,7 +2255,7 @@ TEST_CASE(dsl_trig_identity)
 
 TEST_CASE(dsl_no_match)
 {
-    auto _1 = pvar(1);
+    auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
     auto x  = var("x");
     // Rule doesn't match, expression unchanged
     auto result = simplify(sin(x), {log(exp(_1)) >> _1});
@@ -2266,7 +2264,7 @@ TEST_CASE(dsl_no_match)
 
 TEST_CASE(dsl_literal_pattern)
 {
-    auto _1     = pvar(1);
+    auto _1     = pvar(1); // NOLINT(readability-identifier-naming)
     auto x      = var("x");
     auto result = simplify(pow(x, lit(2)), {pow(_1, lit(2)) >> _1 * _1});
     EXPECT(result == x * x);
@@ -2274,8 +2272,8 @@ TEST_CASE(dsl_literal_pattern)
 
 TEST_CASE(dsl_eval_after_simplify)
 {
-    auto _1     = pvar(1);
-    auto _2     = pvar(2);
+    auto _1     = pvar(1); // NOLINT(readability-identifier-naming)
+    auto _2     = pvar(2); // NOLINT(readability-identifier-naming)
     auto x      = var("x");
     auto y      = var("y");
     auto e      = sqrt(x * y);
@@ -2286,7 +2284,7 @@ TEST_CASE(dsl_eval_after_simplify)
 
 TEST_CASE(dsl_chained_simplify)
 {
-    auto _1 = pvar(1);
+    auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
     auto x  = var("x");
     // exp(log(exp(log(x)))) with repeated rule application
     auto e      = exp(log(exp(log(x))));
@@ -2296,8 +2294,8 @@ TEST_CASE(dsl_chained_simplify)
 
 TEST_CASE(dsl_nested_subexpr)
 {
-    auto _1 = pvar(1);
-    auto _2 = pvar(2);
+    auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
+    auto _2 = pvar(2); // NOLINT(readability-identifier-naming)
     auto a  = var("a");
     auto b  = var("b");
     auto c  = var("c");
@@ -2368,7 +2366,7 @@ TEST_CASE(builtin_raw_no_leak)
 
 TEST_CASE(builtin_pvar_is_raw)
 {
-    auto _1 = pvar(1);
+    auto _1 = pvar(1); // NOLINT(readability-identifier-naming)
     EXPECT(_1.is_raw());
     // Expressions built from pvars are raw
     EXPECT((_1 * pvar(2)).is_raw());

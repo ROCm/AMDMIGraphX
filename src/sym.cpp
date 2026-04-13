@@ -255,11 +255,40 @@ struct op_node
 
 using node_variant = std::variant<literal_node, variable_node, op_node>;
 
+static std::size_t hash_combine(std::size_t seed, std::size_t h)
+{
+    return seed ^ (h + 0x9e3779b9 + (seed << 6) + (seed >> 2));
+}
+
+static std::size_t hash_scalar(const scalar& v)
+{
+    return std::visit([](auto x) -> std::size_t { return std::hash<decltype(x)>{}(x); }, v);
+}
+
+static std::size_t hash_node(const node_variant& nv)
+{
+    return std::visit(
+        overloaded{[](const literal_node& n) { return hash_scalar(n.val); },
+                   [](const variable_node& n) { return std::hash<std::string>{}(n.name); },
+                   [](const op_node& n) { return std::hash<const op_def*>{}(n.op); }},
+        nv);
+}
+
+static std::size_t hash_children(const std::vector<expr>& children, std::size_t start)
+{
+    return transform_accumulate(children.begin(),
+                                children.end(),
+                                start,
+                                hash_combine,
+                                [](const expr& child) { return child.hash(); });
+}
+
 struct expr::impl
 {
     node_variant node;
     std::vector<expr> children;
     bool raw_flag = false;
+    std::size_t cached_hash = 0;
 };
 
 const expr::impl* expr::get_pimpl() const { return pimpl.get(); }
@@ -298,10 +327,11 @@ std::shared_ptr<const expr::impl> expr::make_impl(Node node, std::vector<expr> c
 {
     bool raw =
         std::any_of(children.begin(), children.end(), [](const expr& e) { return e.is_raw(); });
-    if constexpr(std::is_same_v<Node, variable_node>)
+    if constexpr(std::is_same<Node, variable_node>{})
         raw = raw or (not node.name.empty() and node.name[0] == '_');
+    auto h = hash_children(children, hash_node(node));
     return std::make_shared<const impl>(
-        impl{node_variant{std::move(node)}, std::move(children), raw});
+        impl{node_variant{std::move(node)}, std::move(children), raw, h});
 }
 
 template std::shared_ptr<const expr::impl> expr::make_impl(literal_node, std::vector<expr>);
@@ -881,6 +911,8 @@ bool operator==(const expr& a, const expr& b)
         return true;
     if(not a.pimpl or not b.pimpl)
         return false;
+    if(a.pimpl->cached_hash != b.pimpl->cached_hash)
+        return false;
     return get_node(a) == get_node(b) and a.children() == b.children();
 }
 
@@ -890,34 +922,11 @@ std::ostream& operator<<(std::ostream& os, const expr& e) { return os << e.to_st
 
 bool expr::empty() const { return not pimpl; }
 
-static std::size_t hash_combine(std::size_t seed, std::size_t h)
-{
-    return seed ^ (h + 0x9e3779b9 + (seed << 6) + (seed >> 2));
-}
-
-static std::size_t hash_scalar(const scalar& v)
-{
-    return std::visit([](auto x) -> std::size_t { return std::hash<decltype(x)>{}(x); }, v);
-}
-
-static std::size_t hash_node(const node_variant& nv)
-{
-    return std::visit(
-        overloaded{[](const literal_node& n) { return hash_scalar(n.val); },
-                   [](const variable_node& n) { return std::hash<std::string>{}(n.name); },
-                   [](const op_node& n) { return std::hash<const op_def*>{}(n.op); }},
-        nv);
-}
-
 std::size_t expr::hash() const
 {
     if(not pimpl)
         return 0;
-    return transform_accumulate(children().begin(),
-                                children().end(),
-                                hash_node(get_node(*this)),
-                                hash_combine,
-                                [](const expr& child) { return child.hash(); });
+    return pimpl->cached_hash;
 }
 
 scalar generic_eval_auto_apply(const op_node& op, const std::vector<scalar>& args)

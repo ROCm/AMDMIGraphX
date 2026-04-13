@@ -263,10 +263,15 @@ function relativeTime(dateStr) {
 function buildTable(prs) {
   if (!prs.length) return '<div class="empty-msg">No pull requests in this category 🎉</div>';
 
+  prs = prs.slice().sort((a, b) => b.number - a.number);
+
   let rows = prs.map(pr => {
     const labels = pr.labels.map(l => `<span class="label-badge">${esc(l)}</span>`).join(' ');
     const reviewers = pr.reviewers.length
       ? pr.reviewers.map(r => `<a href="https://github.com/${encodeURIComponent(r)}">@${esc(r)}</a>`).join(', ')
+      : '—';
+    const requested = (pr.requested_reviewers || []).length
+      ? pr.requested_reviewers.map(r => `<a href="https://github.com/${encodeURIComponent(r)}">@${esc(r)}</a>`).join(', ')
       : '—';
     const note = pr.dash_note
       ? `<div>${esc(pr.dash_note.body)}</div><div class="note-author">— ${esc(pr.dash_note.author)}</div>`
@@ -281,12 +286,13 @@ function buildTable(prs) {
       <td class="ci-cell"><span class="ci-dot ${ci}" title="${ci}"></span></td>
       <td class="note-cell">${note}</td>
       <td class="reviewers">${reviewers}</td>
+      <td class="reviewers">${requested}</td>
       <td title="${esc(pr.updated_at)}">${relativeTime(pr.updated_at)}</td>
     </tr>`;
   }).join('');
 
   return `<div class="table-scroll"><table>
-    <thead><tr><th>PR</th><th>Author</th><th>Title</th><th>Approvals</th><th>CI</th><th>Note</th><th>Reviewers</th><th>Updated</th></tr></thead>
+    <thead><tr><th>PR</th><th>Author</th><th>Title</th><th>Approvals</th><th>CI</th><th>Note</th><th>Reviewers</th><th>Requested</th><th>Updated</th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }

@@ -139,6 +139,14 @@ query($owner: String!, $repo: String!, $cursor: String) {
             }
           }
         }
+        reviewRequests(first: 20) {
+          nodes {
+            requestedReviewer {
+              ... on User { login }
+              ... on Team { name }
+            }
+          }
+        }
         comments(last: 100) {
           nodes { author { login } body updatedAt }
         }
@@ -231,7 +239,7 @@ def extract_reviews(
     comment_nodes: list[dict],
     pr_author: str,
     members: set[str],
-) -> tuple[int, list[str], int, list[str], bool]:
+) -> tuple[list[str], list[str], bool]:
     """
     Process GraphQL review and comment nodes. 
     Returns (review_count, reviewers, approval_count, approvers,
@@ -241,8 +249,11 @@ def extract_reviews(
     for review in review_nodes:
         author = sanitize_username((review.get("author") or {}).get("login", ""))
         state = review.get("state", "")
-        if author and state in ("APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"):
-            latest[author] = state
+        if not author or state not in ("APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"):
+            continue
+        if state == "COMMENTED" and latest.get(author) in ("APPROVED", "CHANGES_REQUESTED"):
+            continue
+        latest[author] = state
 
     commenters: set[str] = set()
     for comment in comment_nodes:
@@ -271,7 +282,7 @@ def extract_reviews(
         if user in members:
             member_reviewers.append(user)
 
-    return len(member_reviewers), member_reviewers, len(member_approvers), member_approvers, has_changes_requested
+    return member_reviewers, member_approvers, has_changes_requested
 
 
 def extract_ci_status(commits_nodes: list[dict]) -> str:
@@ -341,9 +352,21 @@ def gather_data(session: requests.Session) -> dict:
 
         review_nodes = pr.get("reviews", {}).get("nodes", [])
         comment_nodes = pr.get("comments", {}).get("nodes", [])
-        member_review_count, reviewers, approval_count, approvers, has_changes_requested = (
+        reviewers, approvers, has_changes_requested = (
             extract_reviews(review_nodes, comment_nodes, author, members)
         )
+
+        member_review_count = len(reviewers)
+        approval_count = len(approvers)
+
+        requested_reviewers = [
+            sanitize_username(
+                (node.get("requestedReviewer") or {}).get("login", "")
+                or (node.get("requestedReviewer") or {}).get("name", "")
+            )
+            for node in pr.get("reviewRequests", {}).get("nodes", [])
+        ]
+        requested_reviewers = [r for r in requested_reviewers if r]
 
         ci_status = extract_ci_status(
             pr.get("commits", {}).get("nodes", [])
@@ -365,6 +388,7 @@ def gather_data(session: requests.Session) -> dict:
             ],
             "member_reviews": member_review_count,
             "reviewers": reviewers,
+            "requested_reviewers": requested_reviewers,
             "member_approvals": approval_count,
             "approvers": approvers,
             "ci_status": ci_status,
@@ -420,12 +444,13 @@ def print_terminal(data: dict):
         print(divider)
         if not items:
             print("  (none)")
-        for pr in items:
+        for pr in sorted(items, key=lambda p: p["number"], reverse=True):
             ci = CI_ICONS.get(pr.get("ci_status", "none"), "⚪")
             approvals = pr.get("member_approvals", 0)
             reviewers = ", ".join(pr["reviewers"]) if pr["reviewers"] else "—"
+            requested = ", ".join(pr.get("requested_reviewers", [])) or "—"
             print(f"  #{pr['number']:>5}  [{pr['author']}]  {pr['title']}")
-            print(f"         Approvals: {approvals}/2  CI: {ci}  Reviewers: {reviewers}")
+            print(f"         Approvals: {approvals}/2  CI: {ci}  Reviewers: {reviewers}  Requested: {requested}")
             if pr.get("dash_note"):
                 note = pr["dash_note"]
                 print(f"         Note ({note['author']}): {note['body']}")

@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 cmake_minimum_required(VERSION 3.5)
-project(cpp_eval_callback)
+project(cpp_trace_callback)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -30,18 +30,17 @@ set(CMAKE_CXX_STANDARD 17)
 set(MIGRAPHX_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../.." CACHE PATH "MIGraphX source root")
 set(MIGRAPHX_BUILD_DIR "${MIGRAPHX_SRC_DIR}/build" CACHE PATH "MIGraphX build directory")
 
-add_executable(eval_callback_example eval_callback_example.cpp)
+add_executable(trace_callback_example trace_callback_example.cpp)
 
-target_include_directories(eval_callback_example PRIVATE
-    ${MIGRAPHX_SRC_DIR}/src/include
-    ${MIGRAPHX_BUILD_DIR}/src/include
+target_include_directories(trace_callback_example PRIVATE
+    ${MIGRAPHX_SRC_DIR}/src/api/include
+    ${MIGRAPHX_BUILD_DIR}/src/api/include
 )
 
-target_link_directories(eval_callback_example PRIVATE
+target_link_directories(trace_callback_example PRIVATE
     ${MIGRAPHX_BUILD_DIR}/lib
 )
 
-target_link_libraries(eval_callback_example
-    migraphx
-    migraphx_gpu
+target_link_libraries(trace_callback_example
+    migraphx_c
 )

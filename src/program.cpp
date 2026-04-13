@@ -588,13 +588,6 @@ std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
 std::vector<argument> program::eval(const parameter_map& params,
                                     execution_environment exec_env) const
 {
-    return eval(params, eval_callback{}, exec_env);
-}
-
-std::vector<argument> program::eval(const parameter_map& params,
-                                    const eval_callback& callback,
-                                    execution_environment exec_env) const
-{
     auto& contexts = this->impl->contexts;
     auto& targets  = this->impl->targets;
 
@@ -625,21 +618,21 @@ std::vector<argument> program::eval(const parameter_map& params,
 
     std::vector<argument> ret;
 
-    if(callback.enabled())
+    if(exec_env.trace)
     {
         ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
             auto result = f();
-            if(is_inspectable(ins->name()) and not result.empty() and callback.matches(ins))
+            if(is_inspectable(ins->name()) and not result.empty())
             {
                 auto tid = ins->get_target_id();
                 if(tid < contexts.size())
                 {
                     contexts[tid].finish();
-                    callback(ins, copy_to_host(result, tid));
+                    exec_env.trace(ins, copy_to_host(result, tid));
                 }
                 else
                 {
-                    callback(ins, result);
+                    exec_env.trace(ins, result);
                 }
             }
             return result;

@@ -1,12 +1,12 @@
-# Eval Callback
+# Trace Callback
 
 ## Description
-This example demonstrates how to use `eval_callback` to inspect operator output buffers during program evaluation. The callback receives host-side copies of each operator's result, with zero overhead when no callback is installed.
+This example demonstrates how to use `program::run_trace` to inspect operator output buffers during program evaluation. The callback receives the instruction index, name, and a host-side copy of each operator's result.
 
 The example shows three filtering modes:
 1. **No filter** -- callback fires for every operator
 2. **Name filter** -- callback fires only for operators matching a given name or kernel symbol name (e.g. `"concat_kernel"`)
-3. **Instruction index filter** -- callback fires only for a specific instruction identified by its `@N` index in the compiled graph printout
+3. **Instruction index filter** -- callback fires only for a specific instruction identified by its `@N` index in the compiled graph
 
 ## Building
 ```
@@ -19,5 +19,5 @@ By default CMakeLists.txt expects the MIGraphX source tree at `../../..` and the
 
 ## Running
 ```
-./eval_callback_example
+./trace_callback_example
 ```

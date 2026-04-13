@@ -24,7 +24,10 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_EXECUTION_ENV_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_EXECUTION_ENV_HPP
 
+#include <functional>
 #include <migraphx/any_ptr.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/argument.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -33,6 +36,7 @@ struct execution_environment
 {
     any_ptr queue = any_ptr{};
     bool async    = false;
+    std::function<void(instruction_ref, const argument&)> trace;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

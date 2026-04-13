@@ -1217,18 +1217,18 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     }
 
     /// Run the program with a per-instruction callback for buffer inspection.
-    /// The callback receives the instruction name and a borrowed argument handle
-    /// whose data resides in host memory.
+    /// The callback receives the instruction index, name, and a borrowed
+    /// argument handle whose data resides in host memory.
     template <class F>
-    arguments eval(const program_parameters& pparams, F callback) const
+    arguments run_trace(const program_parameters& pparams, F callback) const
     {
-        migraphx_eval_callback_t c_callback =
-            [](const char* name, const_migraphx_argument_t result, void* data) {
+        migraphx_trace_callback_t c_callback =
+            [](size_t idx, const char* name, const_migraphx_argument_t result, void* data) {
                 auto* fn = static_cast<F*>(data);
-                (*fn)(name, argument(result, borrow{}));
+                (*fn)(idx, name, argument(result, borrow{}));
             };
         migraphx_arguments_t pout;
-        call(&migraphx_program_run_callback,
+        call(&migraphx_program_run_trace,
              &pout,
              this->get_handle_ptr(),
              pparams.get_handle_ptr(),

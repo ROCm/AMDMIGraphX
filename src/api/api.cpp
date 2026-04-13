@@ -27,7 +27,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/eval_callback.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
@@ -211,7 +210,7 @@ static void set_output_names(tf_options& options, std::vector<const char*> names
 static std::vector<argument>
 run_async(program& p, const parameter_map& params, void* s, std::string_view name)
 {
-    execution_environment exec_env{any_ptr(s, name), true};
+    execution_environment exec_env{any_ptr(s, name), true, {}};
     return p.eval(params, exec_env);
 }
 
@@ -1794,11 +1793,11 @@ extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_program_run_callback(migraphx_arguments_t* out,
-                                                         migraphx_program_t program,
-                                                         migraphx_program_parameters_t params,
-                                                         migraphx_eval_callback_t callback,
-                                                         void* data)
+extern "C" migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
+                                                      migraphx_program_t program,
+                                                      migraphx_program_parameters_t params,
+                                                      migraphx_trace_callback_t callback,
+                                                      void* data)
 {
     auto api_error_result = migraphx::try_([&] {
         if(program == nullptr)
@@ -1807,12 +1806,17 @@ extern "C" migraphx_status migraphx_program_run_callback(migraphx_arguments_t* o
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
         if(callback == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter callback: Null pointer");
-        migraphx::eval_callback cb(
-            [callback, data](migraphx::instruction_ref ins, const migraphx::argument& output) {
-                migraphx_argument arg_handle(output);
-                callback(ins->name().c_str(), &arg_handle, data);
-            });
-        *out = allocate<migraphx_arguments_t>((program->object).eval((params->object), cb));
+        migraphx::execution_environment exec_env;
+        const auto* mm = (program->object).get_main_module();
+        exec_env.trace = [callback, data, mm](migraphx::instruction_ref ins,
+                                              const migraphx::argument& output) {
+            auto idx         = std::distance(mm->begin(), ins);
+            auto sym         = ins->get_operator().to_value().get("symbol_name", std::string{});
+            const auto& name = sym.empty() ? ins->name() : sym;
+            migraphx_argument arg_handle(output);
+            callback(idx, name.c_str(), &arg_handle, data);
+        };
+        *out = allocate<migraphx_arguments_t>((program->object).eval((params->object), exec_env));
     });
     return api_error_result;
 }

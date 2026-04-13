@@ -230,8 +230,8 @@ TEST_CASE(add_interval)
     auto y = var("y");
     auto e = x + y;
     // [1,3] + [2,4] = [3,7]
-    auto result = e.eval_interval(
-        {{var("x"), interval{int64_t{1}, int64_t{3}}}, {var("y"), interval{int64_t{2}, int64_t{4}}}});
+    auto result = e.eval_interval({{var("x"), interval{int64_t{1}, int64_t{3}}},
+                                   {var("y"), interval{int64_t{2}, int64_t{4}}}});
     EXPECT(result == (interval{int64_t{3}, int64_t{7}}));
 }
 
@@ -241,8 +241,8 @@ TEST_CASE(sub_interval)
     auto y = var("y");
     auto e = x - y;
     // [5,10] - [1,3] = [5-3, 10-1] = [2, 9]
-    auto result = e.eval_interval(
-        {{var("x"), interval{int64_t{5}, int64_t{10}}}, {var("y"), interval{int64_t{1}, int64_t{3}}}});
+    auto result = e.eval_interval({{var("x"), interval{int64_t{5}, int64_t{10}}},
+                                   {var("y"), interval{int64_t{1}, int64_t{3}}}});
     EXPECT(result == (interval{int64_t{2}, int64_t{9}}));
 }
 
@@ -252,8 +252,8 @@ TEST_CASE(mul_interval_positive)
     auto y = var("y");
     auto e = x * y;
     // [2,3] * [4,5]: products = {8,10,12,15}, min=8, max=15
-    auto result = e.eval_interval(
-        {{var("x"), interval{int64_t{2}, int64_t{3}}}, {var("y"), interval{int64_t{4}, int64_t{5}}}});
+    auto result = e.eval_interval({{var("x"), interval{int64_t{2}, int64_t{3}}},
+                                   {var("y"), interval{int64_t{4}, int64_t{5}}}});
     EXPECT(result == (interval{int64_t{8}, int64_t{15}}));
 }
 
@@ -263,8 +263,8 @@ TEST_CASE(mul_interval_mixed_sign)
     auto y = var("y");
     auto e = x * y;
     // [-2,3] * [1,4]: products = {-2,-8,3,12}, min=-8, max=12
-    auto result = e.eval_interval(
-        {{var("x"), interval{int64_t{-2}, int64_t{3}}}, {var("y"), interval{int64_t{1}, int64_t{4}}}});
+    auto result = e.eval_interval({{var("x"), interval{int64_t{-2}, int64_t{3}}},
+                                   {var("y"), interval{int64_t{1}, int64_t{4}}}});
     EXPECT(result == (interval{int64_t{-8}, int64_t{12}}));
 }
 
@@ -1211,8 +1211,8 @@ TEST_CASE(expr_min_interval)
 {
     auto x      = var("x");
     auto y      = var("y");
-    auto result = min(x, y).eval_interval(
-        {{var("x"), interval{int64_t{1}, int64_t{5}}}, {var("y"), interval{int64_t{3}, int64_t{7}}}});
+    auto result = min(x, y).eval_interval({{var("x"), interval{int64_t{1}, int64_t{5}}},
+                                           {var("y"), interval{int64_t{3}, int64_t{7}}}});
     EXPECT(result == (interval{int64_t{1}, int64_t{5}}));
 }
 
@@ -1220,8 +1220,8 @@ TEST_CASE(expr_max_interval)
 {
     auto x      = var("x");
     auto y      = var("y");
-    auto result = max(x, y).eval_interval(
-        {{var("x"), interval{int64_t{1}, int64_t{5}}}, {var("y"), interval{int64_t{3}, int64_t{7}}}});
+    auto result = max(x, y).eval_interval({{var("x"), interval{int64_t{1}, int64_t{5}}},
+                                           {var("y"), interval{int64_t{3}, int64_t{7}}}});
     EXPECT(result == (interval{int64_t{3}, int64_t{7}}));
 }
 
@@ -1394,8 +1394,10 @@ TEST_CASE(flatten_add_both)
     auto d = var("d");
     // (a + b) + (c + d) should flatten to +(a, b, c, d)
     auto e = (a + b) + (c + d);
-    auto result =
-        e.eval({{var("a"), int64_t{1}}, {var("b"), int64_t{2}}, {var("c"), int64_t{3}}, {var("d"), int64_t{4}}});
+    auto result = e.eval({{var("a"), int64_t{1}},
+                          {var("b"), int64_t{2}},
+                          {var("c"), int64_t{3}},
+                          {var("d"), int64_t{4}}});
     EXPECT(result == scalar{int64_t{10}});
     EXPECT(e.children().size() == 4);
 }
@@ -1420,8 +1422,10 @@ TEST_CASE(flatten_mul_both)
     auto d = var("d");
     // (a * b) * (c * d) should flatten to *(a, b, c, d)
     auto e = (a * b) * (c * d);
-    auto result =
-        e.eval({{var("a"), int64_t{2}}, {var("b"), int64_t{3}}, {var("c"), int64_t{4}}, {var("d"), int64_t{5}}});
+    auto result = e.eval({{var("a"), int64_t{2}},
+                          {var("b"), int64_t{3}},
+                          {var("c"), int64_t{4}},
+                          {var("d"), int64_t{5}}});
     EXPECT(result == scalar{int64_t{120}});
     EXPECT(e.children().size() == 4);
 }
@@ -1434,8 +1438,10 @@ TEST_CASE(flatten_nested_add)
     auto d = var("d");
     // ((a + b) + c) + d should flatten to +(a, b, c, d)
     auto e = ((a + b) + c) + d;
-    auto result =
-        e.eval({{var("a"), int64_t{1}}, {var("b"), int64_t{2}}, {var("c"), int64_t{3}}, {var("d"), int64_t{4}}});
+    auto result = e.eval({{var("a"), int64_t{1}},
+                          {var("b"), int64_t{2}},
+                          {var("c"), int64_t{3}},
+                          {var("d"), int64_t{4}}});
     EXPECT(result == scalar{int64_t{10}});
     EXPECT(e.children().size() == 4);
 }
@@ -1825,7 +1831,7 @@ TEST_CASE(canonical_interval_preserved)
     auto x    = var("x");
     auto y    = var("y");
     auto vars = std::unordered_map<expr, interval>{{var("x"), interval{int64_t{1}, int64_t{3}}},
-                                                          {var("y"), interval{int64_t{4}, int64_t{6}}}};
+                                                   {var("y"), interval{int64_t{4}, int64_t{6}}}};
     EXPECT((x + y).eval_interval(vars) == (y + x).eval_interval(vars));
     EXPECT((x * y).eval_interval(vars) == (y * x).eval_interval(vars));
 }

@@ -100,10 +100,7 @@ TEST_CASE(make_scalar_float) { EXPECT(make_scalar(1.0f) == scalar{double{1.0f}})
 
 // ---- Value evaluation tests ----
 
-TEST_CASE(literal_zero)
-{
-    EXPECT(lit(0) == lit(0.0));
-}
+TEST_CASE(literal_zero) { EXPECT(lit(0) == lit(0.0)); }
 
 TEST_CASE(literal_int_eval)
 {

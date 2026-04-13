@@ -232,7 +232,11 @@ interval max(interval x, interval y)
 struct literal_node
 {
     scalar val;
-    friend bool operator==(const literal_node& a, const literal_node& b) { return scalar_invoke_common<bool>([](auto a, auto b) { return float_equal(a, b); }, a.val, b.val); }
+    friend bool operator==(const literal_node& a, const literal_node& b)
+    {
+        return scalar_invoke_common<bool>(
+            [](auto a, auto b) { return float_equal(a, b); }, a.val, b.val);
+    }
     friend bool operator!=(const literal_node& a, const literal_node& b) { return not(a == b); }
 };
 

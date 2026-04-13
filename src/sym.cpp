@@ -267,8 +267,8 @@ const expr::impl* expr::get_pimpl() const { return pimpl.get(); }
 
 static const node_variant& get_node(const expr& e)
 {
-    assert(e.get_pimpl() != nullptr); 
-    return e.get_pimpl()->node; 
+    assert(e.get_pimpl() != nullptr);
+    return e.get_pimpl()->node;
 }
 
 static std::string get_sym_name(const node_variant& nv)
@@ -1056,11 +1056,11 @@ expr max(expr x, expr y)
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
 }
 
-std::string expr::name() const 
+std::string expr::name() const
 {
     if(empty())
         return "";
-    return get_node_name(get_node(*this)); 
+    return get_node_name(get_node(*this));
 }
 
 bool expr::is_raw() const { return pimpl and pimpl->raw_flag; }

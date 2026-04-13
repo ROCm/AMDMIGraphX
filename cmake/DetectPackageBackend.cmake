@@ -24,87 +24,93 @@
 
 # Detect the packaging backend for MIGraphX.
 #
-# Sets MIGRAPHX_PACKAGE_BACKEND as a cache variable with one of:
-#   "therock"       - TheRock sub-project build (amdrocm-xxx packages)
-#   "pre-installed" - Libraries in /opt/rocm but not registered in package manager
-#   "default"       - Traditional ROCm with deb/rpm packages
+# detect_package_backend() sets MIGRAPHX_PACKAGE_BACKEND as a cache variable:
+#   "therock"  - TheRock environment (amdrocm-xxx deb/rpm packages)
+#   "default"  - Traditional ROCm with deb/rpm packages
 #
-# Can be overridden by the user via -DMIGRAPHX_PACKAGE_BACKEND=<value>
+# Preferred usage (explicit):
+#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x ..
+#
+# If MIGRAPHX_PACKAGE_BACKEND is not set, falls back to auto-detection via
+# dpkg/rpm to check for installed amdrocm-runtime packages.
+#
+# When MIGRAPHX_PACKAGE_BACKEND=therock, MIGRAPHX_THEROCK_GPU_ARCH must be set
+# to the target GPU architecture family that follows TheRock packaging requirements.
 
-function(detect_package_backend)
-    if (DEFINED MIGRAPHX_PACKAGE_BACKEND)
-        set (check_backend_cache "default" "pre-installed" "therock")
-        if (NOT MIGRAPHX_PACKAGE_BACKEND IN_LIST check_backend_cache)
-            message (FATAL_ERROR "MIGraphX package backend (cached): ${MIGRAPHX_PACKAGE_BACKEND} is not a valid value")
-        endif()
-        message(STATUS "MIGraphX package backend (cached): ${MIGRAPHX_PACKAGE_BACKEND}")
-        return()
-    endif()
-
-    # TheRock injects these variables into sub-projects
-    if(DEFINED THEROCK_PROVIDED_PACKAGES OR DEFINED THEROCK_PACKAGE_VERSION)
-        set(MIGRAPHX_PACKAGE_BACKEND "therock"
-            CACHE STRING "Auto-detected: TheRock sub-project build")
-        message(STATUS "MIGraphX package backend (auto-detected): therock")
-        return()
-    endif()
-    
-    if(WIN32)
-        set(MIGRAPHX_PACKAGE_BACKEND "default"
-            CACHE STRING "Default for Windows")
-        message(STATUS "MIGraphX package backend (default): default (Windows)")
-        return()
-    endif()
-
-    # Check system package managers with deb/rpm for traditional ROCm 
-    set(_found_in_pkgmgr FALSE)
-    find_program(_dpkg_exe dpkg)
-    if(_dpkg_exe)
-        execute_process(
-            COMMAND ${_dpkg_exe} -s hip-runtime-amd
-            RESULT_VARIABLE _dpkg_result
-            OUTPUT_QUIET ERROR_QUIET
-        )
-        if(_dpkg_result EQUAL 0)
-            set(_found_in_pkgmgr TRUE)
-        endif()
-    endif()
-    if(NOT _found_in_pkgmgr)
-        find_program(_rpm_exe rpm)
-        if(_rpm_exe)
+function(_detect_therock_via_package_manager)
+    set(_found FALSE)
+    if(NOT WIN32)
+        find_program(_dpkg_exe dpkg)
+        if(_dpkg_exe)
             execute_process(
-                COMMAND ${_rpm_exe} -q hip-runtime-amd
-                RESULT_VARIABLE _rpm_result
+                COMMAND ${_dpkg_exe} -s amdrocm-runtime
+                RESULT_VARIABLE _result
                 OUTPUT_QUIET ERROR_QUIET
             )
-            if(_rpm_result EQUAL 0)
-                set(_found_in_pkgmgr TRUE)
+            if(_result EQUAL 0)
+                set(_found TRUE)
             endif()
         endif()
-    endif()
-    if(_found_in_pkgmgr)
-        set(MIGRAPHX_PACKAGE_BACKEND "default"
-            CACHE STRING "Auto-detected: default ROCm (packages registered)")
-        message(STATUS "MIGraphX package backend (auto-detected): default for deb/rpm packages")
+        if(NOT _found)
+            find_program(_rpm_exe rpm)
+            if(_rpm_exe)
+                execute_process(
+                    COMMAND ${_rpm_exe} -q amdrocm-runtime
+                    RESULT_VARIABLE _result
+                    OUTPUT_QUIET ERROR_QUIET
+                )
+                if(_result EQUAL 0)
+                    set(_found TRUE)
+                endif()
+            endif()
+        endif()
         unset(_dpkg_exe CACHE)
         unset(_rpm_exe CACHE)
-        return()
     endif()
-    
-    # Check for pre-installed libraries but not registered in package manager
-    find_library(_hip_runtime_lib amdhip64
-        PATHS /opt/rocm/lib
-        NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
-    if(_hip_runtime_lib)
-        set(MIGRAPHX_PACKAGE_BACKEND "pre-installed"
-            CACHE STRING "Auto-detected: pre-installed (libraries present, not registered)")
-        message(STATUS "MIGraphX package backend (auto-detected): pre-installed (${_hip_runtime_lib} found but not in package manager)")
+    set(_THEROCK_DETECTED ${_found} PARENT_SCOPE)
+endfunction()
+
+function(detect_package_backend)
+    if(NOT DEFINED CACHE{MIGRAPHX_PACKAGE_BACKEND})
+        # No explicit -D flag: auto-detect via package manager (fallback)
+        _detect_therock_via_package_manager()
+        if(_THEROCK_DETECTED)
+            set(_default_backend "therock")
+            message(STATUS "MIGraphX package backend auto-detected: therock (amdrocm-runtime found)")
+            message(STATUS "  Hint: prefer explicit -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=<arch>")
+        else()
+            set(_default_backend "default")
+        endif()
+        set(MIGRAPHX_PACKAGE_BACKEND "${_default_backend}" CACHE STRING
+            "Packaging backend: 'default' for traditional ROCm, 'therock' for TheRock amdrocm packages")
+    endif()
+
+    set_property(CACHE MIGRAPHX_PACKAGE_BACKEND PROPERTY STRINGS "default" "therock")
+
+    set(_valid_backends "default" "therock")
+    if(NOT MIGRAPHX_PACKAGE_BACKEND IN_LIST _valid_backends)
+        message(FATAL_ERROR
+            "MIGRAPHX_PACKAGE_BACKEND='${MIGRAPHX_PACKAGE_BACKEND}' is not valid. "
+            "Must be one of: ${_valid_backends}")
+    endif()
+
+    if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+        if(DEFINED ENV{MIGRAPHX_THEROCK_GPU_ARCH})
+            set(_default_gpu_arch "$ENV{MIGRAPHX_THEROCK_GPU_ARCH}")
+        else()
+            set(_default_gpu_arch "")
+        endif()
+        set(MIGRAPHX_THEROCK_GPU_ARCH "${_default_gpu_arch}" CACHE STRING
+            "TheRock GPU architecture family suffix (e.g. gfx120x ..)")
+
+        if(MIGRAPHX_THEROCK_GPU_ARCH STREQUAL "")
+            message(FATAL_ERROR
+                "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH to be set. "
+                "Example: cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x ..")
+        endif()
+
+        message(STATUS "MIGraphX package backend: therock (GPU arch: ${MIGRAPHX_THEROCK_GPU_ARCH})")
     else()
-        set(MIGRAPHX_PACKAGE_BACKEND "default"
-            CACHE STRING "Default: default ROCm")
-        message(STATUS "MIGraphX package backend (default): default")
+        message(STATUS "MIGraphX package backend: default (traditional ROCm)")
     endif()
-    unset(_dpkg_exe CACHE)
-    unset(_rpm_exe CACHE)
-    unset(_hip_runtime_lib CACHE)
 endfunction()

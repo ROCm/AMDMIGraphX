@@ -379,23 +379,20 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 
-if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "pre-installed")
-    # Pre-installed: libraries exist in /opt/rocm but are not registered with the system package manager (dpkg, rpm, etc.)
-    set(DEPENDS_HIP_RUNTIME "")
-    set(PACKAGE_HALF "")
-
-elseif(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
-    # STILL IN RFC, TheRock with amdrocm-xxx packages based on RFC0009-OS-Packaging-Requirements
-    # WILL BE CHANGED when RFC is approved
-    set(DEPENDS_HIP_RUNTIME "amdrocm-runtimes") # In RFC, asan variant keeps the same name as the regular variant
-    set(PACKAGE_HALF "")
+if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+    # TheRock amdrocm packages (RFC0009-OS-Packaging-Requirements):
+    #   Gfxarch=False packages: amdrocm-{component}
+    #   Gfxarch=True  packages: amdrocm-{component}-{gpu_arch}
+    # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime")
     if(MIGRAPHX_USE_MIOPEN)
-        list(APPEND PACKAGE_DEPENDS amdrocm-dnn)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
     if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-        list(APPEND PACKAGE_DEPENDS amdrocm-blas)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-blas-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
-
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel")
 else()
     # Default ROCm (default for ROCM packaging)
     if(BUILD_ADDRESS_SANITIZER)
@@ -403,7 +400,6 @@ else()
     else()
         set(DEPENDS_HIP_RUNTIME "hip-runtime-amd")
     endif()
-    set(PACKAGE_HALF "half")
     if(MIGRAPHX_USE_MIOPEN)
         list(APPEND PACKAGE_DEPENDS miopen-hip)
     endif()
@@ -413,20 +409,8 @@ else()
     if(MIGRAPHX_USE_HIPBLASLT)
         list(APPEND PACKAGE_DEPENDS hipblaslt)
     endif()
-endif()
-
-if(NOT MIGRAPHX_PACKAGE_BACKEND STREQUAL "pre-installed")
-    if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
-        rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtimes-devel")
-        rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtimes-devel")
-    else()
-        rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
-        rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
-    endif()
-endif()
-
-if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "pre-installed")
-    set(ROCM_DEP_ROCMCORE FALSE CACHE BOOL "Disable rocm-core dependency for pre-installed environments" FORCE)
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 endif()
 
 rocm_create_package(
@@ -435,5 +419,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS ${DEPENDS_HIP_RUNTIME} ${PACKAGE_HALF} ${PACKAGE_DEPENDS}
+    DEPENDS ${DEPENDS_HIP_RUNTIME} ${PACKAGE_DEPENDS}
 )

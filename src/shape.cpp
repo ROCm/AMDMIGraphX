@@ -143,7 +143,7 @@ struct shape_impl
         }
         std::vector<sym::expr> result(m_dyn_dims.size());
         std::transform(m_dyn_dims.begin(), m_dyn_dims.end(), result.begin(), [](const auto& dd) {
-            return dd.sym_expr.value_or(sym::expr{});
+            return dd.sym_expr;
         });
         return result;
     }
@@ -753,8 +753,8 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
                    [&](const auto& dd) -> std::size_t {
                        if(dd.is_fixed())
                            return dd.min;
-                       if(dd.sym_expr)
-                           return dd.sym_expr->eval_uint(symbol_map);
+                       if(not dd.sym_expr.empty())
+                           return dd.sym_expr.eval_uint(symbol_map);
                        MIGRAPHX_THROW("to_static: non-fixed dimension has no symbolic expression");
                    });
     const auto& ds = this->dyn_strides();
@@ -864,7 +864,7 @@ bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimensio
 std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
     if(x.is_symbolic())
-        os << *x.sym_expr;
+        os << x.sym_expr;
     if(x.is_fixed())
     {
         if(not x.is_symbolic())
@@ -939,7 +939,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const shape::dyna
         rhs_fixed,
         [&](auto o) { return o + x.min; },
         [&](auto o) { return o + lhs_min; });
-    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym + *rhs_sym) : nullopt;
+    sym_expr = lhs_sym + rhs_sym;
     normalize_sym();
     return *this;
 }
@@ -960,7 +960,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const shape::dyna
         rhs_fixed,
         [&](auto o) { return (o > x.min) ? o - x.min : 0; },
         [&](auto o) { return (lhs_min > o) ? lhs_min - o : 0; });
-    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym - *rhs_sym) : nullopt;
+    sym_expr = lhs_sym - rhs_sym;
     normalize_sym();
     return *this;
 }
@@ -988,7 +988,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const shape::dyna
         rhs_fixed,
         [&](auto o) { return o * x.min; },
         [&](auto o) { return o * lhs_min; });
-    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym * *rhs_sym) : nullopt;
+    sym_expr = lhs_sym * rhs_sym;
     normalize_sym();
     return *this;
 }
@@ -1009,7 +1009,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const shape::dyna
         rhs_fixed,
         [&](auto o) { return (x.min == 0) ? std::size_t{0} : o / x.min; },
         [&](auto o) { return (o == 0) ? std::size_t{0} : lhs_min / o; });
-    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym / *rhs_sym) : nullopt;
+    sym_expr = lhs_sym / rhs_sym;
     normalize_sym();
     return *this;
 }

@@ -1290,7 +1290,7 @@ TEST_CASE(test_dd_symbolic_add_size_t)
     dd += 2;
     EXPECT(dd.min == 3);
     EXPECT(dd.max == 10);
-    EXPECT(*dd.sym_expr == n + 2);
+    EXPECT(dd.sym_expr == n + 2);
 }
 
 TEST_CASE(test_dd_symbolic_sub_size_t)
@@ -1300,7 +1300,7 @@ TEST_CASE(test_dd_symbolic_sub_size_t)
     dd -= 1;
     EXPECT(dd.min == 2);
     EXPECT(dd.max == 7);
-    EXPECT(*dd.sym_expr == n - 1);
+    EXPECT(dd.sym_expr == n - 1);
 }
 
 TEST_CASE(test_dd_symbolic_mul_size_t)
@@ -1310,7 +1310,7 @@ TEST_CASE(test_dd_symbolic_mul_size_t)
     dd *= 3;
     EXPECT(dd.min == 3);
     EXPECT(dd.max == 24);
-    EXPECT(*dd.sym_expr == n * 3);
+    EXPECT(dd.sym_expr == n * 3);
 }
 
 TEST_CASE(test_dd_symbolic_div_size_t)
@@ -1320,7 +1320,7 @@ TEST_CASE(test_dd_symbolic_div_size_t)
     dd /= 2;
     EXPECT(dd.min == 2);
     EXPECT(dd.max == 8);
-    EXPECT(*dd.sym_expr == n / 2);
+    EXPECT(dd.sym_expr == n / 2);
 }
 
 TEST_CASE(test_dd_symbolic_add_dd)
@@ -1332,7 +1332,7 @@ TEST_CASE(test_dd_symbolic_add_dd)
     auto r = a + b;
     EXPECT(r.min == 3);
     EXPECT(r.max == 12);
-    EXPECT(*r.sym_expr == n + c);
+    EXPECT(r.sym_expr == n + c);
 }
 
 TEST_CASE(test_dd_symbolic_sub_dd)
@@ -1344,7 +1344,7 @@ TEST_CASE(test_dd_symbolic_sub_dd)
     auto r = a - b;
     EXPECT(r.min == 0);
     EXPECT(r.max == 15);
-    EXPECT(*r.sym_expr == n - k);
+    EXPECT(r.sym_expr == n - k);
 }
 
 TEST_CASE(test_dd_symbolic_mul_dd)
@@ -1356,7 +1356,7 @@ TEST_CASE(test_dd_symbolic_mul_dd)
     auto r = a * b;
     EXPECT(r.min == 2);
     EXPECT(r.max == 32);
-    EXPECT(*r.sym_expr == n * c);
+    EXPECT(r.sym_expr == n * c);
 }
 
 TEST_CASE(test_dd_symbolic_div_dd)
@@ -1368,7 +1368,7 @@ TEST_CASE(test_dd_symbolic_div_dd)
     auto r = a / b;
     EXPECT(r.min == 1);
     EXPECT(r.max == 8);
-    EXPECT(*r.sym_expr == n / k);
+    EXPECT(r.sym_expr == n / k);
 }
 
 TEST_CASE(test_dd_symbolic_plus_fixed)
@@ -1377,8 +1377,8 @@ TEST_CASE(test_dd_symbolic_plus_fixed)
     migraphx::shape::dynamic_dimension a{1, 8, {}, n};
     migraphx::shape::dynamic_dimension b{3, 3};
     auto r = a + b;
-    EXPECT(r.sym_expr.has_value());
-    EXPECT(*r.sym_expr == n + 3);
+    EXPECT(not r.sym_expr.empty());
+    EXPECT(r.sym_expr == n + 3);
     EXPECT(r.min == 4);
     EXPECT(r.max == 11);
 }
@@ -1389,7 +1389,7 @@ TEST_CASE(test_dd_nonfixed_nonsymbolic_plus_symbolic_drops_sym)
     migraphx::shape::dynamic_dimension a{1, 8, {}};
     migraphx::shape::dynamic_dimension b{2, 4, {}, c};
     auto r = a + b;
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
     EXPECT(r.min == 3);
     EXPECT(r.max == 12);
 }
@@ -1399,7 +1399,7 @@ TEST_CASE(test_dd_nonsymbolic_remains_nonsymbolic)
     migraphx::shape::dynamic_dimension a{1, 8, {}};
     migraphx::shape::dynamic_dimension b{2, 4, {}};
     auto r = a + b;
-    EXPECT(not r.sym_expr.has_value());
+    EXPECT(r.sym_expr.empty());
 }
 
 TEST_CASE(test_dd_equality_with_sym)
@@ -1501,7 +1501,7 @@ TEST_CASE(dd_intersection_symbolic_with_range)
     EXPECT(result.has_value());
     EXPECT(result->min == 2);
     EXPECT(result->max == 6);
-    EXPECT(not result->sym_expr.has_value());
+    EXPECT(result->sym_expr.empty());
 }
 
 TEST_CASE(dd_intersection_symbolic_same_symbol)

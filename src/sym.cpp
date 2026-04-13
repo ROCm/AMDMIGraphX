@@ -1551,7 +1551,7 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
                     return migraphx::from_value<sym::expr>(c);
                 });
         }
-        e = sym::call_function(name, std::move(children));
+        e = sym::call_function(name, children);
     }
 }
 

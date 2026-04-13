@@ -276,11 +276,10 @@ static std::size_t hash_node(const node_variant& nv)
 
 static std::size_t hash_children(const std::vector<expr>& children, std::size_t start)
 {
-    return transform_accumulate(children.begin(),
-                                children.end(),
-                                start,
-                                hash_combine,
-                                [](const expr& child) { return child.hash(); });
+    return transform_accumulate(
+        children.begin(), children.end(), start, hash_combine, [](const expr& child) {
+            return child.hash();
+        });
 }
 
 struct expr::impl

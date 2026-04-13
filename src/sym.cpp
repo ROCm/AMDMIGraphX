@@ -1255,6 +1255,16 @@ struct call_wrapper
 template <class F>
 call_wrapper(F) -> call_wrapper<F>;
 
+template<class F>
+auto associative_call_wrapper(F f)
+{
+    return [=](const std::vector<expr>& args) {
+        if(args.empty())
+            MIGRAPHX_THROW("Associative function requires at least one argument");
+        return std::accumulate(args.begin()+1, args.end(), args.front(), f);
+    };
+}
+
 expr call_function(const std::string& name, std::vector<expr> args)
 {
 #define MIGRAPHX_CALL_FUNC(name)                    \
@@ -1263,8 +1273,8 @@ expr call_function(const std::string& name, std::vector<expr> args)
     }
     static const std::unordered_map<std::string, std::function<expr(const std::vector<expr>& args)>>
         functions = {
-            {"+", call_wrapper{std::plus<>{}}},
-            {"*", call_wrapper{std::multiplies<>{}}},
+            {"+", associative_call_wrapper(std::plus<>{})},
+            {"*", associative_call_wrapper(std::multiplies<>{})},
             {"-", call_wrapper{std::minus<>{}}},
             {"/", call_wrapper{std::divides<>{}}},
             {"%", call_wrapper{std::modulus<>{}}},

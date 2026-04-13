@@ -55,8 +55,11 @@ BUCKET_KEYS = ("needs_reviews", "in_review", "changes_requested", "approved", "r
 def load_config() -> dict:
     config_path = pathlib.Path(__file__).parent / "pr-review-config.json"
     if config_path.exists():
-        with open(config_path) as f:
-            return json.load(f)
+        try:
+            with open(config_path) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"WARNING: Failed to load {config_path}: {e}", file=sys.stderr)
     return {}
 
 
@@ -115,7 +118,7 @@ GRAPHQL_URL = "https://api.github.com/graphql"
 PR_QUERY = """
 query($owner: String!, $repo: String!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
-    pullRequests(states: OPEN, first: 50, after: $cursor) {
+    pullRequests(states: OPEN, first: 100, after: $cursor) {
       pageInfo { hasNextPage endCursor }
       nodes {
         number

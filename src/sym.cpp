@@ -331,8 +331,7 @@ static bool is_pvar(const expr& e)
     return v != nullptr and not v->name.empty() and v->name[0] == '_';
 }
 
-static bool
-match_expr(const expr& pattern, const expr& e, std::unordered_map<expr, expr>& bindings)
+static bool match_expr(const expr& pattern, const expr& e, std::unordered_map<expr, expr>& bindings)
 {
     if(is_pvar(pattern))
     {
@@ -365,7 +364,6 @@ match_expr(const expr& pattern, const expr& e, std::unordered_map<expr, expr>& b
                       e.children().begin(),
                       [&](const expr& p, const expr& c) { return match_expr(p, c, bindings); });
 }
-
 
 static bool is_zero(const scalar& v) { return v == scalar{int64_t{0}} or v == scalar{0.0}; }
 

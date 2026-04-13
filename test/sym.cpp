@@ -2798,6 +2798,23 @@ TEST_CASE(eval_optimals_three_vars)
     EXPECT(result == std::set<scalar>{int64_t{111}, int64_t{112}, int64_t{211}, int64_t{212}});
 }
 
+// ---- division by zero tests ----
+
+TEST_CASE(div_by_zero_int_throws)
+{
+    test::throws([&] { var("x") / 0; });
+}
+
+TEST_CASE(div_by_zero_double_throws)
+{
+    test::throws([&] { var("x") / 0.0; });
+}
+
+TEST_CASE(div_by_zero_lit_throws)
+{
+    test::throws([&] { lit(5) / lit(0); });
+}
+
 // ---- ceiling division tests ----
 
 TEST_CASE(ceildiv_eval)

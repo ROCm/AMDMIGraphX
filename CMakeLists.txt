@@ -393,6 +393,9 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     endif()
     rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev")
     rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel")
+
+    # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
+    set(ROCM_DEP_ROCMCORE OFF)
 else()
     # Default ROCm (default for ROCM packaging)
     if(BUILD_ADDRESS_SANITIZER)

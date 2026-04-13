@@ -361,7 +361,7 @@ static bool expr_children_less(const std::vector<expr>& a, const std::vector<exp
 
 static auto expr_compare_key(const expr& e)
 {
-    const auto& n       = get_node(e);
+    const auto& n = get_node(e);
     auto children = make_ordered_as(std::cref(e.children()), &expr_children_less);
     return std::make_tuple(
         n.index(), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
@@ -764,7 +764,7 @@ static expr fold_associative_args(expr e)
         return e;
     if(e.children().size() <= 2)
         return e;
-    const auto& op_n    = std::get<op_node>(get_node(e));
+    const auto& op_n = std::get<op_node>(get_node(e));
     auto children = std::accumulate(e.children().begin() + 1,
                                     e.children().end(),
                                     std::vector<expr>{e.children().front()},
@@ -1257,13 +1257,17 @@ static expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
     const auto* op_n = std::get_if<op_node>(&get_node(e));
     std::vector<expr> new_children;
     new_children.reserve(e.children().size());
-    std::transform(e.children().begin(), e.children().end(), std::back_inserter(new_children), [&](const expr& child) {
-        return simplify_impl(child, rules);
-    });
+    std::transform(e.children().begin(),
+                   e.children().end(),
+                   std::back_inserter(new_children),
+                   [&](const expr& child) { return simplify_impl(child, rules); });
     return apply_rules(call_op(op_n->op, std::move(new_children)), rules);
 }
 
-expr simplify(const expr& e, const std::vector<rewrite_rule>& rules) { return simplify_impl(e, rules); }
+expr simplify(const expr& e, const std::vector<rewrite_rule>& rules)
+{
+    return simplify_impl(e, rules);
+}
 
 using sym_parser = parser::simple_string_view_skip_parser;
 

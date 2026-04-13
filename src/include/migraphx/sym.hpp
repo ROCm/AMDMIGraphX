@@ -208,8 +208,6 @@ class MIGRAPHX_EXPORT expr
     MIGRAPHX_SYM_DEFINE_OP(%, %=)
 };
 
-
-
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 expr lit(T v)
 {

@@ -49,7 +49,7 @@ MIGRAPHX_GLOBAL void prefix_scan_sum_kernel(void* input_p, void* output_p)
         if(slice_idx < nslices)
         {
             index_int offset = ${offset_computation};
-            prefix_scan_sum_slice<${block_size}, ${exclusive}, ${reverse}>(
+            prefix_scan_sum_slice<${exclusive}, ${reverse}>(
                 input, output, offset, n, axis_stride);
         }
     });
@@ -170,8 +170,7 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
         options.local                    = block_size;
 
         auto src = interpolate_string(prefix_scan_sum_kernel,
-                                      {{"block_size", std::to_string(block_size)},
-                                       {"n", std::to_string(n)},
+                                      {{"n", std::to_string(n)},
                                        {"axis_stride", std::to_string(axis_stride)},
                                        {"nslices", std::to_string(nslices)},
                                        {"offset_computation", offset_computation},

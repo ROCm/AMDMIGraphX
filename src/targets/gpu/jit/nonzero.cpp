@@ -41,7 +41,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void nonzero_kernel(void* in_data, void* output)
 {
     make_tensors()(in_data, output)([](auto input, auto out) {
-        nonzero<${block_size}>(input, out);
+        nonzero(input, out);
     });
 }
 
@@ -70,7 +70,7 @@ struct nonzero_compiler : compiler<nonzero_compiler>
         options.global                   = block_size;
         options.local                    = block_size;
 
-        auto src = interpolate_string(nonzero_kernel, {{"block_size", std::to_string(block_size)}});
+        auto src = interpolate_string(nonzero_kernel, {});
 
         return compile_hip_code_object(ctx, src, options);
     }

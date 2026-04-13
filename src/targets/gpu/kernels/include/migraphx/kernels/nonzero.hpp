@@ -33,7 +33,7 @@ namespace migraphx {
 
 // Use prefix sum to compute index in the output.
 // Only 1 block can be used since we have only one prefix sum.
-template <index_int BlockSize, class Input, class Output>
+template <class Input, class Output>
 __device__ void nonzero(Input input, Output output)
 {
     auto idx                     = make_index();
@@ -44,7 +44,7 @@ __device__ void nonzero(Input input, Output output)
     // Fill all output to 0 first
     idx.local_stride(out_elem_num, [&](auto j) { output[j] = 0; });
 
-    block_scan<BlockSize>(
+    block_scan(
         idx,
         op::sum{},
         0,

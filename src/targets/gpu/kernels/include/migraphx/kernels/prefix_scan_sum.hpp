@@ -30,7 +30,7 @@
 
 namespace migraphx {
 
-template <index_int BlockSize, bool Exclusive, bool Reverse, class Input, class Output>
+template <bool Exclusive, bool Reverse, class Input, class Output>
 __device__ void prefix_scan_sum_slice(
     Input input, Output output, index_int offset, index_int n, index_int axis_stride)
 {
@@ -50,7 +50,7 @@ __device__ void prefix_scan_sum_slice(
 
     if constexpr(Exclusive)
     {
-        block_scan<BlockSize>(
+        block_scan(
             idx, op::sum{}, value_type{0}, n, read_input, [&](index_int j, auto x) {
                 if(j == 0)
                     write_output(j, value_type{0});
@@ -60,7 +60,7 @@ __device__ void prefix_scan_sum_slice(
     }
     else
     {
-        block_scan<BlockSize>(idx, op::sum{}, value_type{0}, n, read_input, write_output);
+        block_scan(idx, op::sum{}, value_type{0}, n, read_input, write_output);
     }
 }
 

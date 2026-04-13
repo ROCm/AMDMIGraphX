@@ -49,26 +49,25 @@ __device__ void wave_scan(index idx, T& output, Op op)
 
 // Block-level inclusive scan using hierarchical wave scans
 // Uses wave_scan for scanning within waves, then combines wave results
-template <index_int BlockSize, class T, class Op>
+template <class T, class Op>
 __device__ T block_scan(index idx, T& value, Op op, T init)
 {
-    MIGRAPHX_ASSERT(idx.nlocal() == BlockSize);
+    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
+    MIGRAPHX_ASSERT(idx.nlocal() == block_size);
 
     constexpr index_int wave_size = MIGRAPHX_WAVEFRONTSIZE;
-    constexpr index_int num_waves = (BlockSize + wave_size - 1) / wave_size;
+    static_assert(block_size % wave_size == 0, "Block size must be a multiple of wavefront size");
+    constexpr index_int num_waves = block_size / wave_size;
 
     __shared__ uninitialized_buffer<T, num_waves> wave_prefixes;
 
     // scan within wave
     wave_scan<wave_size>(idx, value, op);
 
-    // last valid lane of each wave writes its result to shared memory
-    const auto wave_id      = idx.wave();
-    const auto lane_id      = idx.local_wave();
-    const bool is_last_wave = (wave_id == num_waves - 1);
-    // for partial waves, the last active lane is (BlockSize - 1) % wave_size
-    const index_int last_lane = is_last_wave ? ((BlockSize - 1) % wave_size) : (wave_size - 1);
-    if(lane_id == last_lane)
+    // last lane of each wave writes its inclusive-scan total to shared memory
+    const auto wave_id = idx.wave();
+    const auto lane_id = idx.local_wave();
+    if(lane_id == wave_size - 1)
         wave_prefixes[wave_id] = value;
     __syncthreads();
 
@@ -92,17 +91,20 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     return op(init, wave_prefixes[num_waves - 1]);
 }
 
-template <index_int N, class Op, class T, class Input, class Output>
+template <class Op, class T, class Input, class Output>
 __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, Output output)
 {
+    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
+    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
+                  "Block size must be a multiple of wavefront size");
     using type                 = decltype(input(index_int{}));
-    const index_int num_chunks = (n + N - 1) / N;
+    const index_int num_chunks = (n + block_size - 1) / block_size;
     type x                     = init;
     for(index_int chunk = 0; chunk < num_chunks; ++chunk)
     {
-        index_int i = chunk * N + idx.local;
+        index_int i = chunk * block_size + idx.local;
         type value  = (i < n) ? input(i) : init;
-        x           = block_scan<N>(idx, value, op, x);
+        x           = block_scan(idx, value, op, x);
         if(i < n)
             output(i, value);
     }
@@ -124,15 +126,15 @@ __device__ auto wave_scan(index idx, Op op, T init, Index n, F f)
 template <class Op, class T, class Index, class F>
 __device__ auto block_scan(index idx, Op op, T init, Index n, F f)
 {
-    using type                 = remove_reference_t<decltype(f(index_int{}))>;
-    constexpr auto block_size  = decltype(idx.max_nlocal()){};
-    const index_int num_chunks = (n + block_size - 1) / block_size;
-    type x                     = init;
+    using type                     = remove_reference_t<decltype(f(index_int{}))>;
+    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
+    const index_int num_chunks     = (n + block_size - 1) / block_size;
+    type x                         = init;
     for(index_int chunk = 0; chunk < num_chunks; ++chunk)
     {
         index_int i = chunk * block_size + idx.local;
         type value  = (i < n) ? f(i) : init;
-        x           = block_scan<block_size>(idx, value, op, x);
+        x           = block_scan(idx, value, op, x);
         if(i < n)
             f(i) = value;
     }

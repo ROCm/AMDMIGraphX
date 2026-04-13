@@ -1814,6 +1814,92 @@ TEST_CASE(test_dd_symbolic_div_dd)
     EXPECT(*r.sym_expr == n / k);
 }
 
+TEST_CASE(test_dd_symbolic_add_dd_optimals)
+{
+    auto h = var("h", 5, 20, {10, 15});
+    auto w = var("w", 5, 20, {10, 15});
+    auto r = dd{h} + dd{w};
+    EXPECT(*r.sym_expr == h + w);
+    EXPECT(r.min == 10);
+    EXPECT(r.max == 40);
+    std::set<std::size_t> expected_opts = {20, 25, 30};
+    EXPECT(r.optimals == expected_opts);
+}
+
+TEST_CASE(test_dd_symbolic_sub_dd_optimals)
+{
+    auto n = var("n", 10, 50, {20, 30});
+    auto k = var("k", 1, 5, {2, 4});
+    auto r = dd{n} - dd{k};
+    EXPECT(*r.sym_expr == n - k);
+    EXPECT(r.min == 5);
+    EXPECT(r.max == 49);
+    std::set<std::size_t> expected_opts = {16, 18, 26, 28};
+    EXPECT(r.optimals == expected_opts);
+}
+
+TEST_CASE(test_dd_symbolic_mul_dd_optimals)
+{
+    auto n = var("n", 1, 8, {2, 4});
+    auto c = var("c", 1, 4, {2, 3});
+    auto r = dd{n} * dd{c};
+    EXPECT(*r.sym_expr == n * c);
+    EXPECT(r.min == 1);
+    EXPECT(r.max == 32);
+    std::set<std::size_t> expected_opts = {4, 6, 8, 12};
+    EXPECT(r.optimals == expected_opts);
+}
+
+TEST_CASE(test_dd_symbolic_div_dd_optimals)
+{
+    auto n = var("n", 10, 50, {20, 40});
+    auto k = var("k", 2, 5, {2, 5});
+    auto r = dd{n} / dd{k};
+    EXPECT(*r.sym_expr == n / k);
+    EXPECT(r.min == 2);
+    EXPECT(r.max == 25);
+    std::set<std::size_t> expected_opts = {4, 8, 10, 20};
+    EXPECT(r.optimals == expected_opts);
+}
+
+TEST_CASE(test_dd_symbolic_add_size_t_optimals)
+{
+    auto n = var("n", 1, 8, {4, 6});
+    dd d{n};
+    d += 2;
+    EXPECT(d.min == 3);
+    EXPECT(d.max == 10);
+    EXPECT(*d.sym_expr == n + 2);
+    std::set<std::size_t> expected_opts = {6, 8};
+    EXPECT(d.optimals == expected_opts);
+}
+
+TEST_CASE(test_dd_symbolic_mul_size_t_optimals)
+{
+    auto n = var("n", 1, 8, {2, 4});
+    dd d{n};
+    d *= 3;
+    EXPECT(d.min == 3);
+    EXPECT(d.max == 24);
+    EXPECT(*d.sym_expr == n * 3);
+    std::set<std::size_t> expected_opts = {6, 12};
+    EXPECT(d.optimals == expected_opts);
+}
+
+TEST_CASE(test_dd_symbolic_chained_arithmetic_optimals)
+{
+    auto h = var("h", 10, 50, {20, 30});
+    dd d{h};
+    d -= 3;
+    d /= 2;
+    d += 1;
+    EXPECT(*d.sym_expr == (h - 3) / 2 + 1);
+    EXPECT(d.min == 4);
+    EXPECT(d.max == 24);
+    std::set<std::size_t> expected_opts = {9, 14};
+    EXPECT(d.optimals == expected_opts);
+}
+
 TEST_CASE(test_dd_symbolic_plus_fixed)
 {
     auto n = var("n", 1, 8);

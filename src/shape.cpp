@@ -1096,93 +1096,133 @@ static void merge_optimals(std::set<std::size_t>& optimals,
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const shape::dynamic_dimension& x)
 {
-    auto lhs_sym   = sym_expr;
-    auto rhs_sym   = x.sym_expr;
-    auto lhs_fixed = this->is_fixed();
-    auto rhs_fixed = x.is_fixed();
-    auto lhs_min   = min;
-    min            = min + x.min;
-    max            = (max > std::numeric_limits<std::size_t>::max() - x.max)
-                         ? std::numeric_limits<std::size_t>::max()
-                         : max + x.max;
-    merge_optimals(
-        optimals,
-        lhs_fixed,
-        x.optimals,
-        rhs_fixed,
-        [&](auto o) { return o + x.min; },
-        [&](auto o) { return o + lhs_min; });
-    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym + *rhs_sym) : nullopt;
+    auto lhs_sym = sym_expr;
+    auto rhs_sym = x.sym_expr;
+    sym_expr     = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym + *rhs_sym) : nullopt;
+    if(sym_expr.has_value())
+    {
+        auto bounds = sym_expr->compute_bounds_uint();
+        min         = bounds.first;
+        max         = bounds.second;
+        optimals    = sym_expr->eval_optimals_uint();
+    }
+    else
+    {
+        auto lhs_fixed = this->is_fixed();
+        auto rhs_fixed = x.is_fixed();
+        auto lhs_min   = min;
+        min            = min + x.min;
+        max            = (max > std::numeric_limits<std::size_t>::max() - x.max)
+                             ? std::numeric_limits<std::size_t>::max()
+                             : max + x.max;
+        merge_optimals(
+            optimals,
+            lhs_fixed,
+            x.optimals,
+            rhs_fixed,
+            [&](auto o) { return o + x.min; },
+            [&](auto o) { return o + lhs_min; });
+    }
     normalize_sym();
     return *this;
 }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const shape::dynamic_dimension& x)
 {
-    auto lhs_sym   = sym_expr;
-    auto rhs_sym   = x.sym_expr;
-    auto lhs_fixed = this->is_fixed();
-    auto rhs_fixed = x.is_fixed();
-    auto lhs_min   = min;
-    min            = (min > x.max) ? min - x.max : 0;
-    max            = (max > x.min) ? max - x.min : 0;
-    merge_optimals(
-        optimals,
-        lhs_fixed,
-        x.optimals,
-        rhs_fixed,
-        [&](auto o) { return (o > x.min) ? o - x.min : 0; },
-        [&](auto o) { return (lhs_min > o) ? lhs_min - o : 0; });
-    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym - *rhs_sym) : nullopt;
+    auto lhs_sym = sym_expr;
+    auto rhs_sym = x.sym_expr;
+    sym_expr     = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym - *rhs_sym) : nullopt;
+    if(sym_expr.has_value())
+    {
+        auto bounds = sym_expr->compute_bounds_uint();
+        min         = bounds.first;
+        max         = bounds.second;
+        optimals    = sym_expr->eval_optimals_uint();
+    }
+    else
+    {
+        auto lhs_fixed = this->is_fixed();
+        auto rhs_fixed = x.is_fixed();
+        auto lhs_min   = min;
+        min            = (min > x.max) ? min - x.max : 0;
+        max            = (max > x.min) ? max - x.min : 0;
+        merge_optimals(
+            optimals,
+            lhs_fixed,
+            x.optimals,
+            rhs_fixed,
+            [&](auto o) { return (o > x.min) ? o - x.min : 0; },
+            [&](auto o) { return (lhs_min > o) ? lhs_min - o : 0; });
+    }
     normalize_sym();
     return *this;
 }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const shape::dynamic_dimension& x)
 {
-    auto lhs_sym   = sym_expr;
-    auto rhs_sym   = x.sym_expr;
-    auto lhs_fixed = this->is_fixed();
-    auto rhs_fixed = x.is_fixed();
-    auto lhs_min   = min;
-    min            = min * x.min;
-    auto safe_mul  = [](std::size_t a, std::size_t b) -> std::size_t {
-        if(b == 0)
-            return 0;
-        if(a > std::numeric_limits<std::size_t>::max() / b)
-            return std::numeric_limits<std::size_t>::max();
-        return a * b;
-    };
-    max = safe_mul(max, x.max);
-    merge_optimals(
-        optimals,
-        lhs_fixed,
-        x.optimals,
-        rhs_fixed,
-        [&](auto o) { return o * x.min; },
-        [&](auto o) { return o * lhs_min; });
-    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym * *rhs_sym) : nullopt;
+    auto lhs_sym = sym_expr;
+    auto rhs_sym = x.sym_expr;
+    sym_expr     = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym * *rhs_sym) : nullopt;
+    if(sym_expr.has_value())
+    {
+        auto bounds = sym_expr->compute_bounds_uint();
+        min         = bounds.first;
+        max         = bounds.second;
+        optimals    = sym_expr->eval_optimals_uint();
+    }
+    else
+    {
+        auto lhs_fixed = this->is_fixed();
+        auto rhs_fixed = x.is_fixed();
+        auto lhs_min   = min;
+        min            = min * x.min;
+        auto safe_mul  = [](std::size_t a, std::size_t b) -> std::size_t {
+            if(b == 0)
+                return 0;
+            if(a > std::numeric_limits<std::size_t>::max() / b)
+                return std::numeric_limits<std::size_t>::max();
+            return a * b;
+        };
+        max = safe_mul(max, x.max);
+        merge_optimals(
+            optimals,
+            lhs_fixed,
+            x.optimals,
+            rhs_fixed,
+            [&](auto o) { return o * x.min; },
+            [&](auto o) { return o * lhs_min; });
+    }
     normalize_sym();
     return *this;
 }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const shape::dynamic_dimension& x)
 {
-    auto lhs_sym   = sym_expr;
-    auto rhs_sym   = x.sym_expr;
-    auto lhs_fixed = this->is_fixed();
-    auto rhs_fixed = x.is_fixed();
-    auto lhs_min   = min;
-    min            = (x.max == 0) ? 0 : min / x.max;
-    max            = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
-    merge_optimals(
-        optimals,
-        lhs_fixed,
-        x.optimals,
-        rhs_fixed,
-        [&](auto o) { return (x.min == 0) ? std::size_t{0} : o / x.min; },
-        [&](auto o) { return (o == 0) ? std::size_t{0} : lhs_min / o; });
-    sym_expr = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym / *rhs_sym) : nullopt;
+    auto lhs_sym = sym_expr;
+    auto rhs_sym = x.sym_expr;
+    sym_expr     = (lhs_sym and rhs_sym) ? optional<sym::expr>(*lhs_sym / *rhs_sym) : nullopt;
+    if(sym_expr.has_value())
+    {
+        auto bounds = sym_expr->compute_bounds_uint();
+        min         = bounds.first;
+        max         = bounds.second;
+        optimals    = sym_expr->eval_optimals_uint();
+    }
+    else
+    {
+        auto lhs_fixed = this->is_fixed();
+        auto rhs_fixed = x.is_fixed();
+        auto lhs_min   = min;
+        min            = (x.max == 0) ? 0 : min / x.max;
+        max            = (x.min == 0) ? std::numeric_limits<std::size_t>::max() : max / x.min;
+        merge_optimals(
+            optimals,
+            lhs_fixed,
+            x.optimals,
+            rhs_fixed,
+            [&](auto o) { return (x.min == 0) ? std::size_t{0} : o / x.min; },
+            [&](auto o) { return (o == 0) ? std::size_t{0} : lhs_min / o; });
+    }
     normalize_sym();
     return *this;
 }

@@ -567,17 +567,39 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     auto num_term = extract_term(num);
     auto den_term = extract_term(den);
 
-    // Cancel common symbolic bases pairwise
+    // Cancel common symbolic bases using sorted merge
     auto remaining_num_bases = num_term.bases;
-    std::vector<expr> remaining_den_bases;
-    for(const auto& db : den_term.bases)
+    auto remaining_den_bases = den_term.bases;
+    auto cmp                 = by(std::less<>{}, &expr_compare_key);
+    std::stable_sort(remaining_num_bases.begin(), remaining_num_bases.end(), cmp);
+    std::stable_sort(remaining_den_bases.begin(), remaining_den_bases.end(), cmp);
+
+    std::vector<expr> new_num_bases;
+    std::vector<expr> new_den_bases;
+    auto ni = remaining_num_bases.begin();
+    auto di = remaining_den_bases.begin();
+    while(ni != remaining_num_bases.end() and di != remaining_den_bases.end())
     {
-        auto it = std::find(remaining_num_bases.begin(), remaining_num_bases.end(), db);
-        if(it != remaining_num_bases.end())
-            remaining_num_bases.erase(it);
+        if(*ni == *di)
+        {
+            ++ni;
+            ++di;
+        }
+        else if(cmp(*ni, *di))
+        {
+            new_num_bases.push_back(std::move(*ni));
+            ++ni;
+        }
         else
-            remaining_den_bases.push_back(db);
+        {
+            new_den_bases.push_back(std::move(*di));
+            ++di;
+        }
     }
+    std::move(ni, remaining_num_bases.end(), std::back_inserter(new_num_bases));
+    std::move(di, remaining_den_bases.end(), std::back_inserter(new_den_bases));
+    remaining_num_bases = std::move(new_num_bases);
+    remaining_den_bases = std::move(new_den_bases);
 
     bool bases_changed = remaining_num_bases.size() != num_term.bases.size() or
                          remaining_den_bases.size() != den_term.bases.size();

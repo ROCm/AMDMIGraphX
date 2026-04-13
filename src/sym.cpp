@@ -1020,7 +1020,7 @@ std::set<int64_t> expr::eval_optimals() const
     std::set<std::string> seen;
     collect_symbols(p->node, syms, seen);
     auto has_optimals = std::all_of(
-        syms.begin(), syms.end(), [](const auto& p) { return not p.second.optimals.empty(); });
+        syms.begin(), syms.end(), [](const auto& s) { return not s.second.optimals.empty(); });
     if(syms.empty() or not has_optimals)
         return {};
 

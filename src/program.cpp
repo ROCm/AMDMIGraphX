@@ -686,7 +686,7 @@ static std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 7;
+const int program_file_version = 8;
 
 value program::to_value() const
 {
@@ -731,12 +731,14 @@ value program::to_value() const
                                    [&](auto mod_ref) { return mod_ref->name(); });
                     node["module_inputs"] = module_inputs;
                 }
-
+                if(not ins->get_debug_symbols().empty())
+                {
+                    node["debug_symbols"] = migraphx::to_value(ins->get_debug_symbols());
+                }
                 nodes.push_back(node);
             },
             names);
-        mod_val["nodes"] = nodes;
-
+        mod_val["nodes"]         = nodes;
         module_vals[mod->name()] = mod_val;
     }
 
@@ -810,6 +812,10 @@ static void mod_from_val(module_ref mod,
             }
         }
         output->set_normalized(normalized);
+        if(node.contains("debug_symbols"))
+        {
+            output->add_debug_symbols(from_value<std::set<std::string>>(node.at("debug_symbols")));
+        }
         instructions[node.at("output").to<std::string>()] = output;
     }
 }
@@ -1044,10 +1050,10 @@ void program::perf_report(
     os << percentile_90_time << "ms, " << percentile_95_time << "ms, " << percentile_99_time
        << "ms)" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
-    os << "Overhead time: " << overhead_time << "ms"
-       << ", " << calculate_overhead_time << "ms" << std::endl;
-    os << "Overhead: " << std::round(overhead_percent) << "%"
-       << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
+    os << "Overhead time: " << overhead_time << "ms" << ", " << calculate_overhead_time << "ms"
+       << std::endl;
+    os << "Overhead: " << std::round(overhead_percent) << "%" << ", "
+       << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
@@ -1371,7 +1377,10 @@ program& program::sort()
     return *this;
 }
 
-bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
+bool operator==(const program& x, const program& y)
+{
+    return migraphx::to_string(x) == migraphx::to_string(y);
+}
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

@@ -27,6 +27,8 @@
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 
 #include <cstdio>
 
@@ -156,6 +158,113 @@ TEST_CASE(symbolic_shape_msgpack_roundtrip)
     std::vector<char> buffer = migraphx::save_buffer(p, options);
     migraphx::program p2     = migraphx::load_buffer(buffer, options);
     EXPECT(p.sort() == p2.sort());
+}
+
+static migraphx::program create_program_with_debug_symbols()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {2, 3}});
+    auto y   = mm->add_parameter("y", {migraphx::shape::float_type, {2, 3}});
+    auto add = mm->add_instruction(migraphx::make_op("add"), x, y);
+    mm->add_debug_symbols(add, {"onnx:Add_0", "onnx:Add_1"});
+    auto relu = mm->add_instruction(migraphx::make_op("relu"), add);
+    mm->add_debug_symbols(relu, {"onnx:Relu_0"});
+    mm->add_return({relu});
+    return p;
+}
+
+using symbol_map = std::map<std::string, std::set<std::string>>;
+
+static symbol_map collect_debug_symbols(const migraphx::module& m)
+{
+    symbol_map result;
+    for(auto ins : migraphx::iterator_for(m))
+    {
+        auto syms = ins->get_debug_symbols();
+        if(not syms.empty())
+            result[ins->name()] = std::move(syms);
+    }
+    return result;
+}
+
+TEST_CASE(debug_symbols_as_value)
+{
+    migraphx::program p1 = create_program_with_debug_symbols();
+    migraphx::program p2;
+    p2.from_value(p1.to_value());
+    EXPECT(p1.sort() == p2.sort());
+
+    auto syms1 = collect_debug_symbols(*p1.get_main_module());
+    auto syms2 = collect_debug_symbols(*p2.get_main_module());
+    EXPECT(syms1 == syms2);
+}
+
+TEST_CASE(debug_symbols_as_msgpack)
+{
+    migraphx::file_options options;
+    options.format       = "msgpack";
+    migraphx::program p1 = create_program_with_debug_symbols();
+    auto buffer          = migraphx::save_buffer(p1, options);
+    migraphx::program p2 = migraphx::load_buffer(buffer, options);
+    EXPECT(p1.sort() == p2.sort());
+
+    auto syms1 = collect_debug_symbols(*p1.get_main_module());
+    auto syms2 = collect_debug_symbols(*p2.get_main_module());
+    EXPECT(syms1 == syms2);
+}
+
+TEST_CASE(debug_symbols_as_json)
+{
+    migraphx::file_options options;
+    options.format       = "json";
+    migraphx::program p1 = create_program_with_debug_symbols();
+    auto buffer          = migraphx::save_buffer(p1, options);
+    migraphx::program p2 = migraphx::load_buffer(buffer, options);
+    EXPECT(p1.sort() == p2.sort());
+
+    auto syms1 = collect_debug_symbols(*p1.get_main_module());
+    auto syms2 = collect_debug_symbols(*p2.get_main_module());
+    EXPECT(syms1 == syms2);
+}
+
+TEST_CASE(debug_symbols_as_file)
+{
+    std::string filename = "migraphx_program_debug_symbols.mxr";
+    migraphx::program p1 = create_program_with_debug_symbols();
+    migraphx::save(p1, filename);
+    migraphx::program p2 = migraphx::load(filename);
+    std::remove(filename.c_str());
+    EXPECT(p1.sort() == p2.sort());
+
+    auto syms1 = collect_debug_symbols(*p1.get_main_module());
+    auto syms2 = collect_debug_symbols(*p2.get_main_module());
+    EXPECT(syms1 == syms2);
+}
+
+TEST_CASE(debug_symbols_compiled)
+{
+    migraphx::program p1 = create_program_with_debug_symbols();
+    p1.compile(migraphx::make_target("ref"));
+    auto buffer          = migraphx::save_buffer(p1);
+    migraphx::program p2 = migraphx::load_buffer(buffer);
+    EXPECT(p1.sort() == p2.sort());
+
+    auto syms1 = collect_debug_symbols(*p1.get_main_module());
+    auto syms2 = collect_debug_symbols(*p2.get_main_module());
+    EXPECT(syms1 == syms2);
+}
+
+TEST_CASE(no_debug_symbols_roundtrip)
+{
+    migraphx::program p1 = create_program();
+    migraphx::program p2;
+    p2.from_value(p1.to_value());
+    EXPECT(p1.sort() == p2.sort());
+
+    auto syms2 = collect_debug_symbols(*p2.get_main_module());
+    EXPECT(syms2.empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

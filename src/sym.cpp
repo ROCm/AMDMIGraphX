@@ -292,7 +292,7 @@ struct expr::impl
 {
     node_variant node;
     std::vector<expr> children;
-    bool raw_flag = false;
+    bool raw_flag           = false;
     std::size_t cached_hash = 0;
 };
 
@@ -444,7 +444,7 @@ static term extract_term(const expr& e)
                                    if(child.name() == "literal")
                                    {
                                        const auto* n = std::get_if<literal_node>(&get_node(child));
-                                       t.coeff = scalar_invoke_common(
+                                       t.coeff       = scalar_invoke_common(
                                            [](auto x, auto y) { return x * y; }, t.coeff, n->val);
                                    }
                                    else
@@ -626,8 +626,8 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
                          remaining_den_bases.size() != den_term.bases.size();
 
     // Cancel GCD of integer coefficients
-    auto num_coeff      = num_term.coeff;
-    auto den_coeff      = den_term.coeff;
+    auto num_coeff       = num_term.coeff;
+    auto den_coeff       = den_term.coeff;
     scalar new_num_coeff = num_coeff;
     scalar new_den_coeff = den_coeff;
 
@@ -769,14 +769,14 @@ static expr fold_associative_args(expr e)
     if(e.children().size() <= 2)
         return e;
     const auto& op_n = std::get<op_node>(get_node(e));
-    auto children = std::accumulate(e.children().begin() + 1,
+    auto children    = std::accumulate(e.children().begin() + 1,
                                     e.children().end(),
                                     std::vector<expr>{e.children().front()},
                                     [&](std::vector<expr> c, expr x) {
                                         if(std::holds_alternative<literal_node>(get_node(x)) and
                                            std::holds_alternative<literal_node>(get_node(c.back())))
                                         {
-                                            auto d = expr(op_n, {c.back(), x});
+                                            auto d   = expr(op_n, {c.back(), x});
                                             c.back() = lit(d.eval({}));
                                         }
                                         else
@@ -1045,16 +1045,15 @@ const std::vector<expr>& expr::children() const { return pimpl->children; }
 
 scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 {
-    return generic_eval<scalar>(
-        *this, [&](const expr& e) -> std::optional<scalar> {
-            auto it = vars.find(e);
-            if(it != vars.end())
-                return it->second;
-            return std::visit(
-                overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
-                           [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
-                get_node(e));
-        });
+    return generic_eval<scalar>(*this, [&](const expr& e) -> std::optional<scalar> {
+        auto it = vars.find(e);
+        if(it != vars.end())
+            return it->second;
+        return std::visit(
+            overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
+                       [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
+            get_node(e));
+    });
 }
 
 interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const

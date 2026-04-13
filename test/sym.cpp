@@ -1441,7 +1441,7 @@ TEST_CASE(flatten_add_both)
     auto c = var("c");
     auto d = var("d");
     // (a + b) + (c + d) should flatten to +(a, b, c, d)
-    auto e = (a + b) + (c + d);
+    auto e      = (a + b) + (c + d);
     auto result = e.eval({{var("a"), int64_t{1}},
                           {var("b"), int64_t{2}},
                           {var("c"), int64_t{3}},
@@ -1469,7 +1469,7 @@ TEST_CASE(flatten_mul_both)
     auto c = var("c");
     auto d = var("d");
     // (a * b) * (c * d) should flatten to *(a, b, c, d)
-    auto e = (a * b) * (c * d);
+    auto e      = (a * b) * (c * d);
     auto result = e.eval({{var("a"), int64_t{2}},
                           {var("b"), int64_t{3}},
                           {var("c"), int64_t{4}},
@@ -1485,7 +1485,7 @@ TEST_CASE(flatten_nested_add)
     auto c = var("c");
     auto d = var("d");
     // ((a + b) + c) + d should flatten to +(a, b, c, d)
-    auto e = ((a + b) + c) + d;
+    auto e      = ((a + b) + c) + d;
     auto result = e.eval({{var("a"), int64_t{1}},
                           {var("b"), int64_t{2}},
                           {var("c"), int64_t{3}},

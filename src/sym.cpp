@@ -229,12 +229,43 @@ interval max(interval x, interval y)
     return {scalar_max(x.min, y.min), scalar_max(x.max, y.max)};
 }
 
+struct literal_node
+{
+    scalar val;
+    friend bool operator==(const literal_node& a, const literal_node& b) { return a.val == b.val; }
+    friend bool operator!=(const literal_node& a, const literal_node& b) { return not(a == b); }
+};
+
+struct variable_node
+{
+    std::string name;
+    std::vector<interval> constraints;
+    friend bool operator==(const variable_node& a, const variable_node& b)
+    {
+        return a.name == b.name and a.constraints == b.constraints;
+    }
+    friend bool operator!=(const variable_node& a, const variable_node& b) { return not(a == b); }
+};
+
+struct op_node
+{
+    const op_def* op;
+    friend bool operator==(const op_node& a, const op_node& b) { return a.op == b.op; }
+    friend bool operator!=(const op_node& a, const op_node& b) { return not(a == b); }
+};
+
+using node_variant = std::variant<literal_node, variable_node, op_node>;
+
 struct expr::impl
 {
     node_variant node;
     std::vector<expr> children;
     bool raw_flag = false;
 };
+
+const expr::impl* expr::get_pimpl() const { return pimpl.get(); }
+
+static const node_variant& get_node(const expr& e) { return e.get_pimpl()->node; }
 
 static std::string get_sym_name(const node_variant& nv)
 {
@@ -262,14 +293,20 @@ static scalar get_scalar_or(const node_variant& nv, scalar s)
     return s;
 }
 
-std::shared_ptr<const expr::impl> expr::make_impl(node_variant node, std::vector<expr> children)
+template <class Node>
+std::shared_ptr<const expr::impl> expr::make_impl(Node node, std::vector<expr> children)
 {
     bool raw =
         std::any_of(children.begin(), children.end(), [](const expr& e) { return e.is_raw(); });
-    if(auto* v = std::get_if<variable_node>(&node))
-        raw = raw or (not v->name.empty() and v->name[0] == '_');
-    return std::make_shared<const impl>(impl{std::move(node), std::move(children), raw});
+    if constexpr(std::is_same_v<Node, variable_node>)
+        raw = raw or (not node.name.empty() and node.name[0] == '_');
+    return std::make_shared<const impl>(
+        impl{node_variant{std::move(node)}, std::move(children), raw});
 }
+
+template std::shared_ptr<const expr::impl> expr::make_impl(literal_node, std::vector<expr>);
+template std::shared_ptr<const expr::impl> expr::make_impl(variable_node, std::vector<expr>);
+template std::shared_ptr<const expr::impl> expr::make_impl(op_node, std::vector<expr>);
 
 expr lit(scalar v) { return expr(literal_node{v}); }
 
@@ -313,7 +350,7 @@ static bool expr_children_less(const std::vector<expr>& a, const std::vector<exp
 
 auto expr_compare_key(const expr& e)
 {
-    auto& n       = e.node();
+    auto& n       = get_node(e);
     auto children = make_ordered_as(std::cref(e.children()), &expr_children_less);
     return std::make_tuple(
         n.index(), get_scalar_or(n, scalar{int64_t{0}}), get_sym_name(n), children);
@@ -327,7 +364,7 @@ static bool expr_children_less(const std::vector<expr>& a, const std::vector<exp
 
 static bool is_pvar(const expr& e)
 {
-    auto* v = std::get_if<variable_node>(&e.node());
+    auto* v = std::get_if<variable_node>(&get_node(e));
     return v != nullptr and not v->name.empty() and v->name[0] == '_';
 }
 
@@ -341,20 +378,20 @@ static bool match_expr(const expr& pattern, const expr& e, std::unordered_map<ex
         bindings.emplace(pattern, e);
         return true;
     }
-    if(pattern.node().index() != e.node().index())
+    if(get_node(pattern).index() != get_node(e).index())
         return false;
-    if(auto* pl = std::get_if<literal_node>(&pattern.node()))
+    if(auto* pl = std::get_if<literal_node>(&get_node(pattern)))
     {
-        auto* el = std::get_if<literal_node>(&e.node());
+        auto* el = std::get_if<literal_node>(&get_node(e));
         return pl->val == el->val;
     }
-    if(auto* pv = std::get_if<variable_node>(&pattern.node()))
+    if(auto* pv = std::get_if<variable_node>(&get_node(pattern)))
     {
-        auto* ev = std::get_if<variable_node>(&e.node());
+        auto* ev = std::get_if<variable_node>(&get_node(e));
         return pv->name == ev->name and pv->constraints == ev->constraints;
     }
-    auto* po = std::get_if<op_node>(&pattern.node());
-    auto* eo = std::get_if<op_node>(&e.node());
+    auto* po = std::get_if<op_node>(&get_node(pattern));
+    auto* eo = std::get_if<op_node>(&get_node(e));
     if(po->op->name != eo->op->name)
         return false;
     if(pattern.children().size() != e.children().size())
@@ -379,7 +416,7 @@ static term extract_term(const expr& e)
 {
     if(e.name() == "literal")
     {
-        auto* n = std::get_if<literal_node>(&e.node());
+        auto* n = std::get_if<literal_node>(&get_node(e));
         return {n->val, {}};
     }
     if(e.name() == "*")
@@ -390,7 +427,7 @@ static term extract_term(const expr& e)
                                [](term t, const expr& child) {
                                    if(child.name() == "literal")
                                    {
-                                       auto* n = std::get_if<literal_node>(&child.node());
+                                       auto* n = std::get_if<literal_node>(&get_node(child));
                                        t.coeff = scalar_invoke_common(
                                            [](auto x, auto y) { return x * y; }, t.coeff, n->val);
                                    }
@@ -470,7 +507,7 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
         [](scalar acc, scalar v) {
             return scalar_invoke_common([](auto x, auto y) { return x * y; }, acc, v);
         },
-        [](const expr& a) { return std::get_if<literal_node>(&a.node())->val; });
+        [](const expr& a) { return std::get_if<literal_node>(&get_node(a))->val; });
 
     if(is_zero(coeff))
         return lit(coeff);
@@ -526,7 +563,7 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     // 0 / x == 0
     if(num.name() == "literal")
     {
-        auto* n = std::get_if<literal_node>(&num.node());
+        auto* n = std::get_if<literal_node>(&get_node(num));
         if(is_zero(n->val))
             return lit(n->val);
     }
@@ -534,7 +571,7 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     // x / 1 == x
     if(den.name() == "literal")
     {
-        auto* n = std::get_if<literal_node>(&den.node());
+        auto* n = std::get_if<literal_node>(&get_node(den));
         if(is_one(n->val))
             return num;
     }
@@ -601,7 +638,7 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
 
         if(new_den.name() == "literal")
         {
-            auto* n = std::get_if<literal_node>(&new_den.node());
+            auto* n = std::get_if<literal_node>(&get_node(new_den));
             if(is_one(n->val))
                 return new_num;
         }
@@ -611,7 +648,7 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     // Distribute over sum: (a*k + b*k) / k when all terms are divisible
     if(num.name() == "+" and den.name() == "literal")
     {
-        auto* d = std::get_if<literal_node>(&den.node());
+        auto* d = std::get_if<literal_node>(&get_node(den));
         if(std::holds_alternative<int64_t>(d->val))
         {
             auto dv = std::get<int64_t>(d->val);
@@ -703,17 +740,17 @@ static std::vector<expr> flatten_args(const std::string& op_name, std::vector<ex
 
 static expr fold_associative_args(expr e)
 {
-    if(not std::holds_alternative<op_node>(e.node()))
+    if(not std::holds_alternative<op_node>(get_node(e)))
         return e;
     if(e.children().size() <= 2)
         return e;
-    auto& op_n    = std::get<op_node>(e.node());
+    auto& op_n    = std::get<op_node>(get_node(e));
     auto children = std::accumulate(e.children().begin() + 1,
                                     e.children().end(),
                                     std::vector<expr>{e.children().front()},
                                     [&](std::vector<expr> c, expr x) {
-                                        if(std::holds_alternative<literal_node>(x.node()) and
-                                           std::holds_alternative<literal_node>(c.back().node()))
+                                        if(std::holds_alternative<literal_node>(get_node(x)) and
+                                           std::holds_alternative<literal_node>(get_node(c.back())))
                                         {
                                             auto d = expr(op_n, {c.back(), x});
                                             c.back() = lit(d.eval({}));
@@ -815,7 +852,7 @@ bool operator==(const expr& a, const expr& b)
         return true;
     if(not a.pimpl or not b.pimpl)
         return false;
-    return a.pimpl->node == b.pimpl->node and a.pimpl->children == b.pimpl->children;
+    return get_node(a) == get_node(b) and a.children() == b.children();
 }
 
 bool operator!=(const expr& a, const expr& b) { return not(a == b); }
@@ -853,9 +890,9 @@ std::size_t expr::hash() const
 {
     if(not pimpl)
         return 0;
-    return transform_accumulate(pimpl->children.begin(),
-                                pimpl->children.end(),
-                                hash_node(pimpl->node),
+    return transform_accumulate(children().begin(),
+                                children().end(),
+                                hash_node(get_node(*this)),
                                 hash_combine,
                                 [](const expr& child) { return child.hash(); });
 }
@@ -898,7 +935,7 @@ R generic_eval(const expr& e, const Replace& replace, const Apply& apply)
                    children.end(),
                    std::back_inserter(args),
                    [&](const expr& child) { return generic_eval<R>(child, replace, apply); });
-    return apply(std::get<op_node>(e.node()), std::move(args));
+    return apply(std::get<op_node>(get_node(e)), std::move(args));
 }
 
 template <class R, class Replace>
@@ -915,11 +952,11 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
             auto it = symbol_map.find(e);
             if(it != symbol_map.end())
                 return it->second;
-            if(auto* n = std::get_if<literal_node>(&e.node()))
+            if(auto* n = std::get_if<literal_node>(&get_node(e)))
                 return to<std::size_t>(n->val);
-            if(std::holds_alternative<variable_node>(e.node()))
+            if(std::holds_alternative<variable_node>(get_node(e)))
                 MIGRAPHX_THROW("eval_uint: unbound variable '" +
-                               std::get<variable_node>(e.node()).name + "'");
+                               std::get<variable_node>(get_node(e)).name + "'");
             return std::nullopt;
         });
 }
@@ -932,8 +969,8 @@ expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
             return it->second;
         if(e.empty())
             return e;
-        if(std::holds_alternative<literal_node>(e.node()) or
-           std::holds_alternative<variable_node>(e.node()))
+        if(std::holds_alternative<literal_node>(get_node(e)) or
+           std::holds_alternative<variable_node>(get_node(e)))
             return e;
         return std::nullopt;
     });
@@ -1009,11 +1046,9 @@ expr max(expr x, expr y)
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
 }
 
-std::string expr::name() const { return get_node_name(pimpl->node); }
+std::string expr::name() const { return get_node_name(get_node(*this)); }
 
 bool expr::is_raw() const { return pimpl and pimpl->raw_flag; }
-
-const node_variant& expr::node() const { return pimpl->node; }
 
 const std::vector<expr>& expr::children() const { return pimpl->children; }
 
@@ -1022,9 +1057,9 @@ scalar expr::eval(const std::unordered_map<std::string, scalar>& vars) const
     return generic_eval<scalar>(
         *this,
         [&](const expr& e) -> std::optional<scalar> {
-            if(auto* n = std::get_if<literal_node>(&e.node()))
+            if(auto* n = std::get_if<literal_node>(&get_node(e)))
                 return n->val;
-            if(auto* n = std::get_if<variable_node>(&e.node()))
+            if(auto* n = std::get_if<variable_node>(&get_node(e)))
                 return vars.at(n->name);
             return std::nullopt;
         },
@@ -1034,9 +1069,9 @@ scalar expr::eval(const std::unordered_map<std::string, scalar>& vars) const
 interval expr::eval_interval(const std::unordered_map<std::string, interval>& vars) const
 {
     return generic_eval<interval>(*this, [&](const expr& e) -> std::optional<interval> {
-        if(auto* n = std::get_if<literal_node>(&e.node()))
+        if(auto* n = std::get_if<literal_node>(&get_node(e)))
             return interval{n->val, n->val};
-        if(auto* n = std::get_if<variable_node>(&e.node()))
+        if(auto* n = std::get_if<variable_node>(&get_node(e)))
         {
             auto it = vars.find(n->name);
             if(it != vars.end())
@@ -1093,9 +1128,9 @@ std::string expr::to_string() const
                [](const expr& e) -> std::optional<string_prec> {
                    if(e.empty())
                        return string_prec{};
-                   if(auto* n = std::get_if<literal_node>(&e.node()))
+                   if(auto* n = std::get_if<literal_node>(&get_node(e)))
                        return string_prec{scalar_to_string(n->val)};
-                   if(auto* n = std::get_if<variable_node>(&e.node()))
+                   if(auto* n = std::get_if<variable_node>(&get_node(e)))
                        return string_prec{n->name};
                    return std::nullopt;
                },
@@ -1146,7 +1181,7 @@ expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
 {
     if(e.children().empty())
         return apply_rules(e, rules);
-    auto* op_n = std::get_if<op_node>(&e.node());
+    auto* op_n = std::get_if<op_node>(&get_node(e));
     std::vector<expr> new_children;
     new_children.reserve(e.children().size());
     for(const auto& child : e.children())
@@ -1393,7 +1428,7 @@ static migraphx::value expr_to_value(const sym::expr& e)
                 result["name"] = n.op->name;
             }
         },
-        e.node());
+        get_node(e));
     auto& children = e.children();
     if(not children.empty())
     {

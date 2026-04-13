@@ -132,33 +132,6 @@ struct op_def
     bool associative = false;
 };
 
-struct literal_node
-{
-    scalar val;
-    friend bool operator==(const literal_node& a, const literal_node& b) { return a.val == b.val; }
-    friend bool operator!=(const literal_node& a, const literal_node& b) { return not(a == b); }
-};
-
-struct variable_node
-{
-    std::string name;
-    std::vector<interval> constraints;
-    friend bool operator==(const variable_node& a, const variable_node& b)
-    {
-        return a.name == b.name and a.constraints == b.constraints;
-    }
-    friend bool operator!=(const variable_node& a, const variable_node& b) { return not(a == b); }
-};
-
-struct op_node
-{
-    const op_def* op;
-    friend bool operator==(const op_node& a, const op_node& b) { return a.op == b.op; }
-    friend bool operator!=(const op_node& a, const op_node& b) { return not(a == b); }
-};
-
-using node_variant = std::variant<literal_node, variable_node, op_node>;
-
 class expr;
 expr lit(scalar v);
 
@@ -166,20 +139,22 @@ class MIGRAPHX_EXPORT expr
 {
     struct impl;
     std::shared_ptr<const impl> pimpl;
-    static std::shared_ptr<const impl> make_impl(node_variant node, std::vector<expr> children);
+
+    template <class Node>
+    static std::shared_ptr<const impl> make_impl(Node node, std::vector<expr> children);
 
     public:
     expr() = default;
 
     template <class Node>
     explicit expr(Node node, std::vector<expr> children = {})
-        : pimpl(make_impl(node_variant{std::move(node)}, std::move(children)))
+        : pimpl(make_impl(std::move(node), std::move(children)))
     {
     }
 
     std::string name() const;
     bool is_raw() const;
-    const node_variant& node() const;
+    const impl* get_pimpl() const;
     const std::vector<expr>& children() const;
     scalar eval(const std::unordered_map<std::string, scalar>& vars) const;
     interval eval_interval(const std::unordered_map<std::string, interval>& vars) const;

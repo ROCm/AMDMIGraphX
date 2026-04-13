@@ -30,6 +30,7 @@
 #include <numeric>
 #include <optional>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/utility_operators.hpp>
 #include <sstream>
@@ -733,18 +734,11 @@ namespace {
 std::vector<expr> flatten_args(const std::string& op_name, std::vector<expr> args)
 {
     std::vector<expr> flat_args;
-    for(auto& a : args)
-    {
+    std::transform(args.begin(), args.end(), join_back_inserter(flat_args), [&](const expr& a) {
         if(a.name() == op_name)
-        {
-            auto& c = a.children();
-            flat_args.insert(flat_args.end(), c.begin(), c.end());
-        }
-        else
-        {
-            flat_args.push_back(std::move(a));
-        }
-    }
+            return a.children();
+        return std::vector<expr>{a};
+    });
     return flat_args;
 }
 } // namespace

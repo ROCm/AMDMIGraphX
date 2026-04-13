@@ -274,28 +274,25 @@ static const node_variant& get_node(const expr& e)
 
 static std::string get_sym_name(const node_variant& nv)
 {
-    if(auto* n = std::get_if<variable_node>(&nv))
-        return n->name;
-    if(auto* n = std::get_if<op_node>(&nv))
-        return n->op->name;
-    return "";
+    return std::visit(overloaded{[](const variable_node& n) { return n.name; },
+                                 [](const op_node& n) -> std::string { return n.op->name; },
+                                 [](const literal_node&) -> std::string { return ""; }},
+                      nv);
 }
 
 static std::string get_node_name(const node_variant& nv)
 {
-    if(auto* n = std::get_if<literal_node>(&nv))
-        return "literal";
-    if(auto* n = std::get_if<variable_node>(&nv))
-        return "variable";
-    auto* n = std::get_if<op_node>(&nv);
-    return n->op->name;
+    return std::visit(overloaded{[](const literal_node&) -> std::string { return "literal"; },
+                                 [](const variable_node&) -> std::string { return "variable"; },
+                                 [](const op_node& n) -> std::string { return n.op->name; }},
+                      nv);
 }
 
 static scalar get_scalar_or(const node_variant& nv, scalar s)
 {
-    if(auto* n = std::get_if<literal_node>(&nv))
-        return n->val;
-    return s;
+    return std::visit(overloaded{[](const literal_node& n) { return n.val; },
+                                 [&](const auto&) { return s; }},
+                      nv);
 }
 
 template <class Node>
@@ -399,26 +396,28 @@ static bool match_expr(const expr& pattern, const expr& e, std::unordered_map<ex
     }
     if(get_node(pattern).index() != get_node(e).index())
         return false;
-    if(auto* pl = std::get_if<literal_node>(&get_node(pattern)))
-    {
-        auto* el = std::get_if<literal_node>(&get_node(e));
-        return pl->val == el->val;
-    }
-    if(auto* pv = std::get_if<variable_node>(&get_node(pattern)))
-    {
-        auto* ev = std::get_if<variable_node>(&get_node(e));
-        return pv->name == ev->name and pv->constraints == ev->constraints;
-    }
-    auto* po = std::get_if<op_node>(&get_node(pattern));
-    auto* eo = std::get_if<op_node>(&get_node(e));
-    if(po->op->name != eo->op->name)
-        return false;
-    if(pattern.children().size() != e.children().size())
-        return false;
-    return std::equal(pattern.children().begin(),
-                      pattern.children().end(),
-                      e.children().begin(),
-                      [&](const expr& p, const expr& c) { return match_expr(p, c, bindings); });
+    return std::visit(
+        overloaded{
+            [&](const literal_node& pl) {
+                return pl.val == std::get<literal_node>(get_node(e)).val;
+            },
+            [&](const variable_node& pv) {
+                const auto& ev = std::get<variable_node>(get_node(e));
+                return pv.name == ev.name and pv.constraints == ev.constraints;
+            },
+            [&](const op_node& po) {
+                const auto& eo = std::get<op_node>(get_node(e));
+                if(po.op->name != eo.op->name)
+                    return false;
+                if(pattern.children().size() != e.children().size())
+                    return false;
+                return std::equal(
+                    pattern.children().begin(),
+                    pattern.children().end(),
+                    e.children().begin(),
+                    [&](const expr& p, const expr& c) { return match_expr(p, c, bindings); });
+            }},
+        get_node(pattern));
 }
 
 static bool is_zero(const scalar& v) { return v == scalar{int64_t{0}} or v == scalar{0.0}; }
@@ -899,15 +898,9 @@ static std::size_t hash_scalar(const scalar& v)
 static std::size_t hash_node(const node_variant& nv)
 {
     return std::visit(
-        [](const auto& n) -> std::size_t {
-            using T = std::decay_t<decltype(n)>;
-            if constexpr(std::is_same<T, literal_node>{})
-                return hash_scalar(n.val);
-            else if constexpr(std::is_same<T, variable_node>{})
-                return std::hash<std::string>{}(n.name);
-            else
-                return std::hash<const op_def*>{}(n.op);
-        },
+        overloaded{[](const literal_node& n) { return hash_scalar(n.val); },
+                   [](const variable_node& n) { return std::hash<std::string>{}(n.name); },
+                   [](const op_node& n) { return std::hash<const op_def*>{}(n.op); }},
         nv);
 }
 
@@ -977,12 +970,16 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
             auto it = symbol_map.find(e);
             if(it != symbol_map.end())
                 return it->second;
-            if(auto* n = std::get_if<literal_node>(&get_node(e)))
-                return to<std::size_t>(n->val);
-            if(std::holds_alternative<variable_node>(get_node(e)))
-                MIGRAPHX_THROW("eval_uint: unbound variable '" +
-                               std::get<variable_node>(get_node(e)).name + "'");
-            return std::nullopt;
+            return std::visit(
+                overloaded{
+                    [](const literal_node& n) -> std::optional<std::size_t> {
+                        return to<std::size_t>(n.val);
+                    },
+                    [](const variable_node& n) -> std::optional<std::size_t> {
+                        MIGRAPHX_THROW("eval_uint: unbound variable '" + n.name + "'");
+                    },
+                    [](const op_node&) -> std::optional<std::size_t> { return std::nullopt; }},
+                get_node(e));
         });
 }
 
@@ -994,10 +991,11 @@ expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
             return it->second;
         if(e.empty())
             return e;
-        if(std::holds_alternative<literal_node>(get_node(e)) or
-           std::holds_alternative<variable_node>(get_node(e)))
-            return e;
-        return std::nullopt;
+        return std::visit(
+            overloaded{[&](const literal_node&) -> std::optional<expr> { return e; },
+                       [&](const variable_node&) -> std::optional<expr> { return e; },
+                       [](const op_node&) -> std::optional<expr> { return std::nullopt; }},
+            get_node(e));
     });
 }
 
@@ -1087,12 +1085,14 @@ scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
     return generic_eval<scalar>(
         *this,
         [&](const expr& e) -> std::optional<scalar> {
-            if(auto* n = std::get_if<literal_node>(&get_node(e)))
-                return n->val;
             auto it = vars.find(e);
             if(it != vars.end())
                 return it->second;
-            return std::nullopt;
+            return std::visit(
+                overloaded{
+                    [](const literal_node& n) -> std::optional<scalar> { return n.val; },
+                    [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
+                get_node(e));
         },
         [](const op_node& op, std::vector<scalar> args) { return op.op->eval(args); });
 }
@@ -1100,18 +1100,21 @@ scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const
 {
     return generic_eval<interval>(*this, [&](const expr& e) -> std::optional<interval> {
-        if(auto* n = std::get_if<literal_node>(&get_node(e)))
-            return interval{n->val, n->val};
         auto it = vars.find(e);
         if(it != vars.end())
             return it->second;
-        if(auto* n = std::get_if<variable_node>(&get_node(e)))
-        {
-            if(not n->constraints.empty())
-                return n->constraints.front();
-            MIGRAPHX_THROW("Variable '" + n->name + "' not found in interval map");
-        }
-        return std::nullopt;
+        return std::visit(
+            overloaded{
+                [](const literal_node& n) -> std::optional<interval> {
+                    return interval{n.val, n.val};
+                },
+                [](const variable_node& n) -> std::optional<interval> {
+                    if(not n.constraints.empty())
+                        return n.constraints.front();
+                    MIGRAPHX_THROW("Variable '" + n.name + "' not found in interval map");
+                },
+                [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
+            get_node(e));
     });
 }
 
@@ -1120,11 +1123,12 @@ void collect_optimals(const expr& e, std::unordered_map<expr, std::set<scalar>>&
 {
     if(e.empty())
         return;
-    if(auto* n = std::get_if<variable_node>(&get_node(e)))
-    {
-        if(not n->optimals.empty())
-            result[e].insert(n->optimals.begin(), n->optimals.end());
-    }
+    std::visit(overloaded{[&](const variable_node& n) {
+                              if(not n.optimals.empty())
+                                  result[e].insert(n.optimals.begin(), n.optimals.end());
+                          },
+                          [](const auto&) {}},
+               get_node(e));
     for(const auto& child : e.children())
         collect_optimals(child, result);
 }
@@ -1211,11 +1215,18 @@ std::string expr::to_string() const
                [](const expr& e) -> std::optional<string_prec> {
                    if(e.empty())
                        return string_prec{};
-                   if(auto* n = std::get_if<literal_node>(&get_node(e)))
-                       return string_prec{scalar_to_string(n->val)};
-                   if(auto* n = std::get_if<variable_node>(&get_node(e)))
-                       return string_prec{n->name};
-                   return std::nullopt;
+                   return std::visit(
+                       overloaded{
+                           [](const literal_node& n) -> std::optional<string_prec> {
+                               return string_prec{scalar_to_string(n.val)};
+                           },
+                           [](const variable_node& n) -> std::optional<string_prec> {
+                               return string_prec{n.name};
+                           },
+                           [](const op_node&) -> std::optional<string_prec> {
+                               return std::nullopt;
+                           }},
+                       get_node(e));
                },
                [](const op_node& op, std::vector<string_prec> args) -> string_prec {
                    int prec = op_precedence(op.op->name);

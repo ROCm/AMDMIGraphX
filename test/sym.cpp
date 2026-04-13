@@ -2698,9 +2698,9 @@ TEST_CASE(serialize_expr_variable_multiple_constraints)
     auto constraints = migraphx::from_value<std::vector<interval>>(v1.at("constraints"));
     constraints.push_back(c2);
     v1.at("constraints") = migraphx::to_value(constraints);
-    auto e2 = migraphx::from_value<expr>(v1);
+    auto e2              = migraphx::from_value<expr>(v1);
     // The deserialized expr should have both constraints, not just the last one
-    auto v2 = migraphx::to_value(e2);
+    auto v2                 = migraphx::to_value(e2);
     auto result_constraints = migraphx::from_value<std::vector<interval>>(v2.at("constraints"));
     EXPECT(result_constraints.size() == 2);
     EXPECT(result_constraints[0] == c1);

@@ -1496,11 +1496,10 @@ static migraphx::value expr_to_value(const sym::expr& e)
                 if(not n.optimals.empty())
                 {
                     migraphx::value opt_vals;
-                    std::transform(
-                        n.optimals.begin(),
-                        n.optimals.end(),
-                        std::back_inserter(opt_vals),
-                        [](const scalar& s) { return sym_scalar_to_value(s); });
+                    std::transform(n.optimals.begin(),
+                                   n.optimals.end(),
+                                   std::back_inserter(opt_vals),
+                                   [](const scalar& s) { return sym_scalar_to_value(s); });
                     result["optimals"] = opt_vals;
                 }
             }

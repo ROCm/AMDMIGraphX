@@ -38,6 +38,7 @@ Usage:
 import argparse
 import json
 import os
+import pathlib
 import re
 import sys
 from datetime import datetime, timezone
@@ -49,6 +50,17 @@ OWNER = "ROCm"
 REPO = "AMDMIGraphX"
 API = "https://api.github.com"
 BUCKET_KEYS = ("needs_reviews", "in_review", "changes_requested", "approved", "ready_to_merge")
+
+
+def load_config() -> dict:
+    config_path = pathlib.Path(__file__).parent / "pr-review-config.json"
+    if config_path.exists():
+        with open(config_path) as f:
+            return json.load(f)
+    return {}
+
+
+IGNORE_USERS = set(load_config().get("ignore_users", []))
 
 
 def get_session() -> requests.Session:
@@ -82,13 +94,15 @@ def paginate(session: requests.Session, url: str, params: Optional[dict] = None)
 
 def get_members_with_write_access(session: requests.Session) -> set[str]:
     """
-    Return the set of GitHub logins that have *push* (write) permission
-    or higher on the repository.
+    Return the set of GitHub logins that have push (write) permission
+    or higher on the repository.  Requires the PAT to have read:org scope.
     """
     url = f"{API}/repos/{OWNER}/{REPO}/collaborators"
     members: set[str] = set()
-    for collab in paginate(session, url, {"permission": "push"}):
+    for collab in paginate(session, url):
         login = collab["login"]
+        if login in IGNORE_USERS:
+            continue
         perms = collab.get("permissions", {})
         if perms.get("push"):
             members.add(login)
@@ -211,12 +225,12 @@ def sanitize_note(raw: str) -> str:
 
 def extract_reviews(
     review_nodes: list[dict],
+    comment_nodes: list[dict],
     pr_author: str,
     members: set[str],
 ) -> tuple[int, list[str], int, list[str], bool]:
     """
-    Process GraphQL review nodes.
-
+    Process GraphQL review and comment nodes. 
     Returns (review_count, reviewers, approval_count, approvers,
     has_changes_requested).
     """
@@ -226,6 +240,12 @@ def extract_reviews(
         state = review.get("state", "")
         if author and state in ("APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED"):
             latest[author] = state
+
+    commenters: set[str] = set()
+    for comment in comment_nodes:
+        author = sanitize_username((comment.get("author") or {}).get("login", ""))
+        if author and author not in latest:
+            commenters.add(author)
 
     member_reviewers = []
     member_approvers = []
@@ -241,6 +261,12 @@ def extract_reviews(
                 member_approvers.append(user)
             elif state == "CHANGES_REQUESTED":
                 has_changes_requested = True
+
+    for user in commenters:
+        if user == pr_author:
+            continue
+        if user in members:
+            member_reviewers.append(user)
 
     return len(member_reviewers), member_reviewers, len(member_approvers), member_approvers, has_changes_requested
 
@@ -294,6 +320,8 @@ def gather_data(session: requests.Session) -> dict:
     print("Fetching collaborators with write access…", file=sys.stderr)
     members = get_members_with_write_access(session)
     print(f"  Found {len(members)} members with push access.", file=sys.stderr)
+    if IGNORE_USERS:
+        print(f"  Ignoring users: {', '.join(sorted(IGNORE_USERS))}", file=sys.stderr)
 
     print("Fetching open, non-draft PRs (GraphQL)…", file=sys.stderr)
     prs = fetch_all_prs(session)
@@ -309,17 +337,16 @@ def gather_data(session: requests.Session) -> dict:
         )
 
         review_nodes = pr.get("reviews", {}).get("nodes", [])
+        comment_nodes = pr.get("comments", {}).get("nodes", [])
         member_review_count, reviewers, approval_count, approvers, has_changes_requested = (
-            extract_reviews(review_nodes, author, members)
+            extract_reviews(review_nodes, comment_nodes, author, members)
         )
 
         ci_status = extract_ci_status(
             pr.get("commits", {}).get("nodes", [])
         )
 
-        dash_note = extract_dash_note(
-            pr.get("comments", {}).get("nodes", []), members
-        )
+        dash_note = extract_dash_note(comment_nodes, members)
 
         entry = {
             "number": number,

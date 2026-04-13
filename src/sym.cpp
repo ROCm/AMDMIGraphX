@@ -1219,6 +1219,31 @@ std::string expr::to_string() const
                    int prec = op_precedence(op.op->name);
                    if(is_infix_op(op.op->name) and args.size() >= 2)
                    {
+                       // -1*x -> -x
+                       if(op.op->name == "*" and args[0].str == "-1")
+                       {
+                           std::vector<std::string> strs;
+                           strs.reserve(args.size() - 1);
+                           std::transform(
+                               args.begin() + 1,
+                               args.end(),
+                               std::back_inserter(strs),
+                               [&](const string_prec& sp) { return wrap_if(sp, prec); });
+                           return {"-" + join_strings(strs, "*"), prec};
+                       }
+                       // x + (-y) -> x - y
+                       if(op.op->name == "+")
+                       {
+                           std::string result = wrap_if(args[0], prec);
+                           std::for_each(args.begin() + 1, args.end(), [&](const string_prec& sp) {
+                               auto s = wrap_if(sp, prec);
+                               if(not s.empty() and s.front() == '-')
+                                   result += " - " + s.substr(1);
+                               else
+                                   result += " + " + s;
+                           });
+                           return {result, prec};
+                       }
                        std::string delim = prec >= 2 ? op.op->name : " " + op.op->name + " ";
                        std::vector<std::string> strs;
                        strs.reserve(args.size());

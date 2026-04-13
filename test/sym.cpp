@@ -1307,8 +1307,8 @@ TEST_CASE(to_string_add)
 TEST_CASE(to_string_sub)
 {
     auto x = var("x");
-    // x - 1 is rewritten as x + (-1), variables sort before literals
-    EXPECT((x - lit(1)).to_string() == "x + -1");
+    // x - 1 is rewritten as x + (-1), displayed as subtraction
+    EXPECT((x - lit(1)).to_string() == "x - 1");
 }
 
 TEST_CASE(to_string_mul)
@@ -1333,8 +1333,8 @@ TEST_CASE(to_string_mod)
 TEST_CASE(to_string_neg)
 {
     auto x = var("x");
-    // -x is rewritten as -1 * x
-    EXPECT((-x).to_string() == "-1*x");
+    // -x is rewritten as -1 * x, displayed as negation
+    EXPECT((-x).to_string() == "-x");
 }
 
 TEST_CASE(to_string_nested)
@@ -1343,8 +1343,7 @@ TEST_CASE(to_string_nested)
     auto y = var("y");
     auto e = (x + lit(1)) * (y - lit(2));
     // fully expanded: (x+1)*(y-2) = xy - 2x + y - 2
-    // ops first, then variables, then literals
-    EXPECT(e.to_string() == "x*y + -2*x + y + -2");
+    EXPECT(e.to_string() == "x*y - 2*x + y - 2");
 }
 
 TEST_CASE(to_string_function)

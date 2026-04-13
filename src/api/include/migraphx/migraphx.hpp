@@ -1218,8 +1218,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 
     /// Run the program with a per-instruction callback for buffer inspection.
     /// The callback receives the instruction name and a borrowed argument handle
-    /// whose data resides in host memory. Using a callback activates a separate
-    /// eval code path so there is zero overhead when no callback is installed.
+    /// whose data resides in host memory.
     template <class F>
     arguments eval(const program_parameters& pparams, F callback) const
     {

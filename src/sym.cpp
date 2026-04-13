@@ -240,9 +240,10 @@ struct variable_node
 {
     std::string name;
     std::vector<interval> constraints;
+    std::set<scalar> optimals;
     friend bool operator==(const variable_node& a, const variable_node& b)
     {
-        return a.name == b.name and a.constraints == b.constraints;
+        return a.name == b.name and a.constraints == b.constraints and a.optimals == b.optimals;
     }
     friend bool operator!=(const variable_node& a, const variable_node& b) { return not(a == b); }
 };
@@ -318,14 +319,28 @@ expr var(std::string name)
 {
     if(name.empty())
         MIGRAPHX_THROW("Variable name must not be empty");
-    return expr(variable_node{std::move(name), {}});
+    return expr(variable_node{std::move(name), {}, {}});
 }
 
 expr var(std::string name, interval constraint)
 {
     if(name.empty())
         MIGRAPHX_THROW("Variable name must not be empty");
-    return expr(variable_node{std::move(name), {std::move(constraint)}});
+    return expr(variable_node{std::move(name), {std::move(constraint)}, {}});
+}
+
+expr var(std::string name, std::set<scalar> optimals)
+{
+    if(name.empty())
+        MIGRAPHX_THROW("Variable name must not be empty");
+    return expr(variable_node{std::move(name), {}, std::move(optimals)});
+}
+
+expr var(std::string name, interval constraint, std::set<scalar> optimals)
+{
+    if(name.empty())
+        MIGRAPHX_THROW("Variable name must not be empty");
+    return expr(variable_node{std::move(name), {std::move(constraint)}, std::move(optimals)});
 }
 
 expr arg(expr x) { return x; }
@@ -1100,6 +1115,65 @@ interval expr::eval_interval(const std::unordered_map<std::string, interval>& va
 }
 
 namespace {
+void collect_optimals(const expr& e, std::unordered_map<std::string, std::set<scalar>>& result)
+{
+    if(e.empty())
+        return;
+    if(auto* n = std::get_if<variable_node>(&get_node(e)))
+    {
+        if(not n->optimals.empty())
+            result[n->name].insert(n->optimals.begin(), n->optimals.end());
+    }
+    for(const auto& child : e.children())
+        collect_optimals(child, result);
+}
+
+template <class F>
+void cartesian_product(const std::vector<std::pair<std::string, std::vector<scalar>>>& var_values,
+                       std::unordered_map<std::string, scalar>& current,
+                       std::size_t index,
+                       F f)
+{
+    if(index == var_values.size())
+    {
+        f(current);
+        return;
+    }
+    const auto& [name, values] = var_values[index];
+    for(const auto& v : values)
+    {
+        current[name] = v;
+        cartesian_product(var_values, current, index + 1, f);
+    }
+}
+} // namespace
+
+std::set<scalar> expr::eval_optimals() const
+{
+    std::unordered_map<std::string, std::set<scalar>> var_optimals;
+    collect_optimals(*this, var_optimals);
+
+    if(var_optimals.empty())
+        return {eval({})};
+
+    std::vector<std::pair<std::string, std::vector<scalar>>> var_values;
+    var_values.reserve(var_optimals.size());
+    std::transform(var_optimals.begin(),
+                   var_optimals.end(),
+                   std::back_inserter(var_values),
+                   [](const auto& p) {
+                       return std::make_pair(p.first, std::vector<scalar>(p.second.begin(), p.second.end()));
+                   });
+
+    std::set<scalar> results;
+    std::unordered_map<std::string, scalar> current;
+    cartesian_product(var_values, current, 0, [&](const std::unordered_map<std::string, scalar>& vars) {
+        results.insert(eval(vars));
+    });
+    return results;
+}
+
+namespace {
 std::string scalar_to_string(const scalar& v)
 {
     return std::visit(
@@ -1255,13 +1329,13 @@ struct call_wrapper
 template <class F>
 call_wrapper(F) -> call_wrapper<F>;
 
-template<class F>
+template <class F>
 auto associative_call_wrapper(F f)
 {
     return [=](const std::vector<expr>& args) {
         if(args.empty())
             MIGRAPHX_THROW("Associative function requires at least one argument");
-        return std::accumulate(args.begin()+1, args.end(), args.front(), f);
+        return std::accumulate(args.begin() + 1, args.end(), args.front(), f);
     };
 }
 

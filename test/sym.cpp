@@ -2633,4 +2633,114 @@ TEST_CASE(serialize_expr_variable_constraint)
     EXPECT(e == e2);
 }
 
+// ---- eval_optimals tests ----
+
+TEST_CASE(var_with_optimals)
+{
+    auto x = var("x", std::set<scalar>{int64_t{1}, int64_t{2}, int64_t{3}});
+    EXPECT(x.name() == "variable");
+    EXPECT(x.eval({{"x", int64_t{5}}}) == scalar{int64_t{5}});
+}
+
+TEST_CASE(var_with_constraint_and_optimals)
+{
+    auto x = var("x", interval{int64_t{0}, int64_t{10}}, std::set<scalar>{int64_t{1}, int64_t{5}});
+    EXPECT(x.name() == "variable");
+    EXPECT(x.eval({{"x", int64_t{3}}}) == scalar{int64_t{3}});
+}
+
+TEST_CASE(eval_optimals_literal)
+{
+    auto e      = lit(42);
+    auto result = e.eval_optimals();
+    EXPECT(result == std::set<scalar>{int64_t{42}});
+}
+
+TEST_CASE(eval_optimals_single_var)
+{
+    auto x      = var("x", std::set<scalar>{int64_t{1}, int64_t{2}, int64_t{3}});
+    auto result = x.eval_optimals();
+    EXPECT(result == std::set<scalar>{int64_t{1}, int64_t{2}, int64_t{3}});
+}
+
+TEST_CASE(eval_optimals_var_plus_lit)
+{
+    auto x      = var("x", std::set<scalar>{int64_t{1}, int64_t{2}});
+    auto e      = x + lit(10);
+    auto result = e.eval_optimals();
+    EXPECT(result == std::set<scalar>{int64_t{11}, int64_t{12}});
+}
+
+TEST_CASE(eval_optimals_var_times_lit)
+{
+    auto x      = var("x", std::set<scalar>{int64_t{2}, int64_t{3}, int64_t{5}});
+    auto e      = x * lit(2);
+    auto result = e.eval_optimals();
+    EXPECT(result == std::set<scalar>{int64_t{4}, int64_t{6}, int64_t{10}});
+}
+
+TEST_CASE(eval_optimals_two_vars)
+{
+    auto x      = var("x", std::set<scalar>{int64_t{1}, int64_t{2}});
+    auto y      = var("y", std::set<scalar>{int64_t{10}, int64_t{20}});
+    auto e      = x + y;
+    auto result = e.eval_optimals();
+    // Cartesian product: (1,10), (1,20), (2,10), (2,20) -> 11, 21, 12, 22
+    EXPECT(result == std::set<scalar>{int64_t{11}, int64_t{12}, int64_t{21}, int64_t{22}});
+}
+
+TEST_CASE(eval_optimals_two_vars_multiply)
+{
+    auto x      = var("x", std::set<scalar>{int64_t{2}, int64_t{3}});
+    auto y      = var("y", std::set<scalar>{int64_t{5}, int64_t{7}});
+    auto e      = x * y;
+    auto result = e.eval_optimals();
+    // 2*5=10, 2*7=14, 3*5=15, 3*7=21
+    EXPECT(result == std::set<scalar>{int64_t{10}, int64_t{14}, int64_t{15}, int64_t{21}});
+}
+
+TEST_CASE(eval_optimals_compound)
+{
+    auto x      = var("x", std::set<scalar>{int64_t{1}, int64_t{2}});
+    auto e      = x * x + lit(1);
+    auto result = e.eval_optimals();
+    // x=1: 1*1+1=2, x=2: 2*2+1=5
+    EXPECT(result == std::set<scalar>{int64_t{2}, int64_t{5}});
+}
+
+TEST_CASE(eval_optimals_duplicate_results)
+{
+    auto x      = var("x", std::set<scalar>{int64_t{1}, int64_t{-1}});
+    auto e      = x * x;
+    auto result = e.eval_optimals();
+    // Both 1*1 and (-1)*(-1) = 1, so result should have single element
+    EXPECT(result == std::set<scalar>{int64_t{1}});
+}
+
+TEST_CASE(eval_optimals_var_no_optimals)
+{
+    auto x = var("x");
+    auto e = x + lit(1);
+    test::throws([&] { e.eval_optimals(); });
+}
+
+TEST_CASE(eval_optimals_double_values)
+{
+    auto x      = var("x", std::set<scalar>{1.0, 2.0, 3.0});
+    auto e      = x * lit(0.5);
+    auto result = e.eval_optimals();
+    EXPECT(result == std::set<scalar>{0.5, 1.0, 1.5});
+}
+
+TEST_CASE(eval_optimals_three_vars)
+{
+    auto x      = var("x", std::set<scalar>{int64_t{1}, int64_t{2}});
+    auto y      = var("y", std::set<scalar>{int64_t{10}});
+    auto z      = var("z", std::set<scalar>{int64_t{100}, int64_t{200}});
+    auto e      = x + y + z;
+    auto result = e.eval_optimals();
+    // x=1,y=10,z=100: 111, x=1,y=10,z=200: 211, x=2,y=10,z=100: 112, x=2,y=10,z=200: 212
+    EXPECT(result == std::set<scalar>{int64_t{111}, int64_t{112}, int64_t{211}, int64_t{212}});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

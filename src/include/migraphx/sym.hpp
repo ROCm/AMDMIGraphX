@@ -29,6 +29,7 @@
 #include <functional>
 #include <memory>
 #include <ostream>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -166,6 +167,7 @@ class MIGRAPHX_EXPORT expr
     std::size_t hash() const;
     std::size_t eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const;
     expr subs(const std::unordered_map<expr, expr>& symbol_map) const;
+    std::set<scalar> eval_optimals() const;
 
     friend expr operator+(expr ex, expr ey);
     friend expr operator-(expr ex, expr ey);
@@ -212,6 +214,8 @@ expr lit(T v)
 
 expr var(std::string name);
 expr var(std::string name, interval constraint);
+expr var(std::string name, std::set<scalar> optimals);
+expr var(std::string name, interval constraint, std::set<scalar> optimals);
 
 expr arg(expr x);
 

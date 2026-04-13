@@ -65,7 +65,7 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     {
         wave_scan<wave_size>(idx, value, op);
         const T block_agg = readlane<wave_size - 1, wave_size>(value);
-        value               = op(init, value);
+        value             = op(init, value);
         return op(init, block_agg);
     }
     else

@@ -50,13 +50,12 @@ __device__ void prefix_scan_sum_slice(
 
     if constexpr(Exclusive)
     {
-        block_scan(
-            idx, op::sum{}, value_type{0}, n, read_input, [&](index_int j, auto x) {
-                if(j == 0)
-                    write_output(j, value_type{0});
-                else
-                    write_output(j, x - read_input(j));
-            });
+        block_scan(idx, op::sum{}, value_type{0}, n, read_input, [&](index_int j, auto x) {
+            if(j == 0)
+                write_output(j, value_type{0});
+            else
+                write_output(j, x - read_input(j));
+        });
     }
     else
     {

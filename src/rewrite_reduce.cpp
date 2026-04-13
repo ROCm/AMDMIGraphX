@@ -97,27 +97,23 @@ struct find_dot_softmax_fp32
     auto matcher() const { return match::softmax(); }
 
     // Walk backwards from the softmax input through the attention chain
-    // (where, mul, broadcast, multibroadcast, convert) to find an upstream dot.
+    // to find an upstream dot. At each step, follows the non-constant,
+    // non-bool input (the attention data path), skipping constants (scale,
+    // -inf literals) and bool inputs (where conditions/masks).
     static std::optional<instruction_ref> find_upstream_dot(instruction_ref inp)
     {
         auto step = [](instruction_ref current) -> std::optional<instruction_ref> {
-            auto name = current->name();
-            if(name == "dot")
+            if(current->name() == "dot")
                 return std::nullopt;
-            if(name == "where")
-                return current->inputs()[2];
-            if(name == "mul")
-            {
-                auto i0 = current->inputs()[0];
-                auto i1 = current->inputs()[1];
-                if(i0->name() == "dot" or i0->name() == "where" or i0->name() == "convert" or
-                   i0->name() == "mul")
-                    return i0;
-                return i1;
-            }
-            if(name == "broadcast" or name == "multibroadcast" or name == "convert")
-                return current->inputs()[0];
-            return std::nullopt;
+            if(current->inputs().size() == 1)
+                return current->inputs().front();
+            auto it = std::find_if(
+                current->inputs().begin(), current->inputs().end(), [](instruction_ref input) {
+                    return not input->can_eval() and input->get_shape().type() != shape::bool_type;
+                });
+            if(it == current->inputs().end())
+                return std::nullopt;
+            return *it;
         };
         auto chain = unfold(inp, step);
         auto it    = std::find_if(

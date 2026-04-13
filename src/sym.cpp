@@ -404,19 +404,22 @@ static term extract_term(const expr& e)
     }
     if(e.name() == "*")
     {
-        return std::accumulate(
-            e.children().begin(), e.children().end(), term{scalar{int64_t{1}}, {}}, [](term t, const expr& child) {
-                if(child.name() == "literal")
-                {
-                    auto* n = std::get_if<literal_node>(&child.node());
-                    t.coeff = scalar_invoke_common([](auto x, auto y) { return x * y; }, t.coeff, n->val);
-                }
-                else
-                {
-                    t.bases.push_back(child);
-                }
-                return t;
-            });
+        return std::accumulate(e.children().begin(),
+                               e.children().end(),
+                               term{scalar{int64_t{1}}, {}},
+                               [](term t, const expr& child) {
+                                   if(child.name() == "literal")
+                                   {
+                                       auto* n = std::get_if<literal_node>(&child.node());
+                                       t.coeff = scalar_invoke_common(
+                                           [](auto x, auto y) { return x * y; }, t.coeff, n->val);
+                                   }
+                                   else
+                                   {
+                                       t.bases.push_back(child);
+                                   }
+                                   return t;
+                               });
     }
     return {scalar{int64_t{1}}, {e}};
 }
@@ -425,10 +428,10 @@ static expr build_term(const term& t)
 {
     if(t.bases.empty())
         return lit(t.coeff);
-    auto base_product = std::accumulate(
-        t.bases.begin() + 1, t.bases.end(), t.bases.front(), [](expr acc, const expr& b) {
-            return acc * b;
-        });
+    auto base_product = std::accumulate(t.bases.begin() + 1,
+                                        t.bases.end(),
+                                        t.bases.front(),
+                                        [](expr acc, const expr& b) { return acc * b; });
     if(is_one(t.coeff))
         return base_product;
     return lit(t.coeff) * base_product;
@@ -450,8 +453,8 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
         terms.begin(),
         terms.end(),
         [&](auto first, auto last) {
-            merged.push_back(std::accumulate(
-                std::next(first), last, *first, [](term acc, const term& t) {
+            merged.push_back(
+                std::accumulate(std::next(first), last, *first, [](term acc, const term& t) {
                     acc.coeff = scalar_invoke_common(
                         [](auto x, auto y) { return x + y; }, acc.coeff, t.coeff);
                     return acc;
@@ -470,8 +473,7 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
 
     std::vector<expr> result_children;
     result_children.reserve(merged.size());
-    std::transform(
-        merged.begin(), merged.end(), std::back_inserter(result_children), build_term);
+    std::transform(merged.begin(), merged.end(), std::back_inserter(result_children), build_term);
     std::stable_sort(
         result_children.begin(), result_children.end(), by(std::greater<>{}, &expr_compare_key));
     return expr(op_node{op}, std::move(result_children));
@@ -485,7 +487,9 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
         partition_it,
         args.end(),
         scalar{int64_t{1}},
-        [](scalar acc, scalar v) { return scalar_invoke_common([](auto x, auto y) { return x * y; }, acc, v); },
+        [](scalar acc, scalar v) {
+            return scalar_invoke_common([](auto x, auto y) { return x * y; }, acc, v);
+        },
         [](const expr& a) { return std::get_if<literal_node>(&a.node())->val; });
 
     if(is_zero(coeff))
@@ -494,8 +498,9 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
     std::vector<expr> factors;
     if(not is_one(coeff))
         factors.push_back(lit(coeff));
-    factors.insert(
-        factors.end(), std::make_move_iterator(args.begin()), std::make_move_iterator(partition_it));
+    factors.insert(factors.end(),
+                   std::make_move_iterator(args.begin()),
+                   std::make_move_iterator(partition_it));
 
     auto it =
         std::find_if(factors.begin(), factors.end(), [](const expr& e) { return e.name() == "+"; });
@@ -503,25 +508,26 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
     {
         auto plus_children = it->children();
         std::vector<expr> other_factors;
-        std::copy_if(factors.begin(), factors.end(), std::back_inserter(other_factors), [&](const expr& f) {
-            return &f != &*it;
-        });
+        std::copy_if(factors.begin(),
+                     factors.end(),
+                     std::back_inserter(other_factors),
+                     [&](const expr& f) { return &f != &*it; });
         std::vector<expr> distributed;
         distributed.reserve(plus_children.size());
-        std::transform(
-            plus_children.begin(),
-            plus_children.end(),
-            std::back_inserter(distributed),
-            [&](const expr& pc) {
-                return std::accumulate(
-                    other_factors.begin(), other_factors.end(), pc, [](expr product, const expr& f) {
-                        return product * f;
-                    });
-            });
-        return std::accumulate(
-            distributed.begin() + 1, distributed.end(), distributed.front(), [](expr acc, const expr& e) {
-                return acc + e;
-            });
+        std::transform(plus_children.begin(),
+                       plus_children.end(),
+                       std::back_inserter(distributed),
+                       [&](const expr& pc) {
+                           return std::accumulate(
+                               other_factors.begin(),
+                               other_factors.end(),
+                               pc,
+                               [](expr product, const expr& f) { return product * f; });
+                       });
+        return std::accumulate(distributed.begin() + 1,
+                               distributed.end(),
+                               distributed.front(),
+                               [](expr acc, const expr& e) { return acc + e; });
     }
 
     if(factors.empty())
@@ -656,10 +662,10 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
                                num.children().end(),
                                std::back_inserter(divided),
                                [&](const expr& child) { return child / den; });
-                return std::accumulate(
-                    divided.begin() + 1, divided.end(), divided.front(), [](expr acc, const expr& e) {
-                        return acc + e;
-                    });
+                return std::accumulate(divided.begin() + 1,
+                                       divided.end(),
+                                       divided.front(),
+                                       [](expr acc, const expr& e) { return acc + e; });
             }
         }
     }
@@ -884,12 +890,11 @@ std::size_t expr::hash() const
 {
     if(not pimpl)
         return 0;
-    return transform_accumulate(
-        pimpl->children.begin(),
-        pimpl->children.end(),
-        hash_node(pimpl->node),
-        hash_combine,
-        [](const expr& child) { return child.hash(); });
+    return transform_accumulate(pimpl->children.begin(),
+                                pimpl->children.end(),
+                                hash_node(pimpl->node),
+                                hash_combine,
+                                [](const expr& child) { return child.hash(); });
 }
 
 scalar generic_eval_auto_apply(const op_node& op, const std::vector<scalar>& args)

@@ -1224,11 +1224,10 @@ std::string expr::to_string() const
                        {
                            std::vector<std::string> strs;
                            strs.reserve(args.size() - 1);
-                           std::transform(
-                               args.begin() + 1,
-                               args.end(),
-                               std::back_inserter(strs),
-                               [&](const string_prec& sp) { return wrap_if(sp, prec); });
+                           std::transform(args.begin() + 1,
+                                          args.end(),
+                                          std::back_inserter(strs),
+                                          [&](const string_prec& sp) { return wrap_if(sp, prec); });
                            return {"-" + join_strings(strs, "*"), prec};
                        }
                        // x + (-y) -> x - y

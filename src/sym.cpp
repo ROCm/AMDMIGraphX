@@ -1162,14 +1162,16 @@ std::set<scalar> expr::eval_optimals() const
                    var_optimals.end(),
                    std::back_inserter(var_values),
                    [](const auto& p) {
-                       return std::make_pair(p.first, std::vector<scalar>(p.second.begin(), p.second.end()));
+                       return std::make_pair(p.first,
+                                             std::vector<scalar>(p.second.begin(), p.second.end()));
                    });
 
     std::set<scalar> results;
     std::unordered_map<std::string, scalar> current;
-    cartesian_product(var_values, current, 0, [&](const std::unordered_map<std::string, scalar>& vars) {
-        results.insert(eval(vars));
-    });
+    cartesian_product(
+        var_values, current, 0, [&](const std::unordered_map<std::string, scalar>& vars) {
+            results.insert(eval(vars));
+        });
     return results;
 }
 

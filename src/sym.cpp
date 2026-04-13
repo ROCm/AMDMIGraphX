@@ -929,17 +929,15 @@ static R generic_eval(const expr& e, const Replace& replace)
 
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
-    return to<std::size_t>(generic_eval<scalar>(
-        *this,
-        [&](const expr& e) -> std::optional<scalar> {
-            auto it = symbol_map.find(e);
-            if(it != symbol_map.end())
-                return make_scalar(it->second);
-            return std::visit(
-                overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
-                           [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
-                get_node(e));
-        }));
+    return to<std::size_t>(generic_eval<scalar>(*this, [&](const expr& e) -> std::optional<scalar> {
+        auto it = symbol_map.find(e);
+        if(it != symbol_map.end())
+            return make_scalar(it->second);
+        return std::visit(
+            overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
+                       [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
+            get_node(e));
+    }));
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
@@ -1042,8 +1040,7 @@ const std::vector<expr>& expr::children() const { return pimpl->children; }
 scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 {
     return generic_eval<scalar>(
-        *this,
-        [&](const expr& e) -> std::optional<scalar> {
+        *this, [&](const expr& e) -> std::optional<scalar> {
             auto it = vars.find(e);
             if(it != vars.end())
                 return it->second;

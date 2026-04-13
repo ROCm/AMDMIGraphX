@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/returns.hpp>
+#include <utility>
 #include <type_traits>
 
 namespace migraphx {
@@ -128,6 +129,26 @@ template <class X>
 struct totally_ordered : equality_comparable<X>, less_than_comparable<X>
 {
 };
+
+template <class T, class Compare>
+struct ordered_as : totally_ordered<ordered_as<T, Compare>>, equivalence<ordered_as<T, Compare>>
+{
+    T value;
+    Compare compare;
+
+    ordered_as(T v, Compare c) : value(std::move(v)), compare(std::move(c)) {}
+
+    friend bool operator<(const ordered_as& a, const ordered_as& b)
+    {
+        return a.compare(a.value, b.value);
+    }
+};
+
+template <class T, class Compare>
+ordered_as<T, Compare> make_ordered_as(T value, Compare compare)
+{
+    return {std::move(value), std::move(compare)};
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

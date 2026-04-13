@@ -276,10 +276,11 @@ static std::size_t hash_node(const node_variant& nv)
 
 static std::size_t hash_children(const std::vector<expr>& children, std::size_t start)
 {
-    return transform_accumulate(
-        children.begin(), children.end(), start, hash_combine, [](const expr& child) {
-            return child.hash();
-        });
+    return transform_accumulate(children.begin(),
+                                children.end(),
+                                start,
+                                hash_combine,
+                                [](const expr& child) { return child.hash(); });
 }
 
 struct expr::impl
@@ -894,7 +895,7 @@ expr operator%(expr ex, expr ey)
     return call(
         "%",
         [](auto x, auto y) {
-            if constexpr(std::is_integral_v<decltype(x)> and std::is_integral_v<decltype(y)>)
+            if constexpr(std::is_integral<decltype(x)>{} and std::is_integral<decltype(y)>{})
                 return x % y;
             else
                 return std::fmod(static_cast<double>(x), static_cast<double>(y));

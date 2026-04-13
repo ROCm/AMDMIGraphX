@@ -216,9 +216,8 @@ expr lit(T v)
 }
 
 expr var(std::string name);
-expr var(std::string name, interval constraint);
 expr var(std::string name, std::set<scalar> optimals);
-expr var(std::string name, interval constraint, std::set<scalar> optimals);
+expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
 
 expr arg(expr x);
 

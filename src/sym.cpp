@@ -346,13 +346,6 @@ expr var(std::string name)
     return expr(variable_node{std::move(name), {}, {}});
 }
 
-expr var(std::string name, interval constraint)
-{
-    if(name.empty())
-        MIGRAPHX_THROW("Variable name must not be empty");
-    return expr(variable_node{std::move(name), {std::move(constraint)}, {}});
-}
-
 expr var(std::string name, std::set<scalar> optimals)
 {
     if(name.empty())

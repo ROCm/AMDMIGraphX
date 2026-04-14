@@ -115,7 +115,6 @@ void add_initializer(onnx::GraphProto* graph,
     {
         init->add_dims(d);
     }
-    init->set_raw_data("NULL");
 }
 
 void add_node(onnx::GraphProto* graph,

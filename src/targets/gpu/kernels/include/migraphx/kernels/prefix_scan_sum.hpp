@@ -77,10 +77,10 @@ template <index_int Axis, bool Exclusive, bool Reverse, class Input, class Outpu
 __device__ void prefix_scan_sum(Input input, Output output)
 {
     auto idx = make_index();
-    slice_schedule<per_block>(idx, slice_axes<Axis>())(input, output)(
-        [&](auto in_slice, auto out_slice) {
-            prefix_scan_sum_slice<Exclusive, Reverse>(in_slice, out_slice);
-        });
+    slice_schedule<per_block>(idx, slice_axes<Axis>())(input,
+                                                       output)([&](auto in_slice, auto out_slice) {
+        prefix_scan_sum_slice<Exclusive, Reverse>(in_slice, out_slice);
+    });
 }
 
 } // namespace migraphx

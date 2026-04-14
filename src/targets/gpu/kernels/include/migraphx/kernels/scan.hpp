@@ -127,7 +127,7 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit = E
     constexpr index_int block_size = decltype(idx.max_nlocal())::value;
     static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
                   "Block size must be a multiple of wavefront size");
-    const index_int ni        = n;
+    const index_int ni      = n;
     const index_int nchunks = (ni + block_size - 1) / block_size;
     // Like block_reduce: use invoke_loop so we do not call declval() here (it is __host__-only).
     using value_t = remove_reference_t<decltype(index::invoke_loop(f, Index{}, _c<0>))>;

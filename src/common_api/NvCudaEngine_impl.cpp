@@ -193,14 +193,12 @@ Dims NvCudaEngine_impl::getProfileShape(
 
 int32_t NvCudaEngine_impl::getNbIOTensors() const noexcept
 {
-    // TODO! implement
-    return 0;
+    return mTensorNames.size();
 }
 
 char const* NvCudaEngine_impl::getIOTensorName(int32_t index) const noexcept
 {
-    // TODO! implement
-    return nullptr;
+    return mTensorNames.at(index).c_str();
 }
 
 HardwareCompatibilityLevel NvCudaEngine_impl::getHardwareCompatibilityLevel() const noexcept

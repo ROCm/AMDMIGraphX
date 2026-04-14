@@ -131,14 +131,15 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
     const index_int ni      = n;
     const index_int nchunks = (ni + block_size - 1) / block_size;
     MIGRAPHX_ASSERT(nchunks > 0);
-    using value_t = remove_reference_t<decltype(f(static_cast<Index>(index_int{0})))>;
+    // n may be integral_constant (static shape); j is always runtime index_int.
+    using value_t = remove_reference_t<decltype(f(index_int{}))>;
     T carry       = init;
     for(index_int chunk = 0; chunk < nchunks; ++chunk)
     {
         const index_int j = chunk * block_size + idx.local;
-        value_t value     = (j < ni) ? f(static_cast<Index>(j)) : value_t{};
+        value_t value     = (j < ni) ? f(j) : value_t{};
         carry             = detail::block_scan_impl(idx, value, op, carry);
-        emit(static_cast<Index>(j), value);
+        emit(j, value);
     }
     return carry;
 }

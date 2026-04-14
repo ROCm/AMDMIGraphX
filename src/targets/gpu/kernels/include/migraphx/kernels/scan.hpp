@@ -119,9 +119,10 @@ struct block_scan_no_emit
 
 // Inclusive prefix over 0..n-1: f(j) loads j, lanes past n use T{} (0 for sum).
 // When n is bigger than the block, chunk in lockstep like block_reduce / local_stride tiling.
-// emit(j, value) after each chunk if you need side effects; default skips. Returns final carry.
-template <class Op, class T, class Index, class F, class Emit = detail::block_scan_no_emit>
-__device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit = Emit{})
+// Primary API is block_scan(idx, op, init, n, f). Optional emit(j, value) overload for side
+// effects after each chunk. Both return final carry.
+template <class Op, class T, class Index, class F, class Emit>
+__device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     constexpr index_int block_size = decltype(idx.max_nlocal())::value;
@@ -129,9 +130,9 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit = E
                   "Block size must be a multiple of wavefront size");
     const index_int ni      = n;
     const index_int nchunks = (ni + block_size - 1) / block_size;
-    // Like block_reduce: use invoke_loop so we do not call declval() here (it is __host__-only).
-    using value_t = remove_reference_t<decltype(index::invoke_loop(f, Index{}, _c<0>))>;
-    T carry       = init;
+    using value_t =
+        remove_reference_t<decltype(f(static_cast<Index>(index_int{0})))>;
+    T carry = init;
     for(index_int chunk = 0; chunk < nchunks; ++chunk)
     {
         const index_int j = chunk * block_size + idx.local;
@@ -140,6 +141,12 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit = E
         emit(static_cast<Index>(j), value);
     }
     return carry;
+}
+
+template <class Op, class T, class Index, class F>
+__device__ auto block_scan(index idx, Op op, T init, Index n, F f)
+{
+    return block_scan(idx, op, init, n, f, detail::block_scan_no_emit{});
 }
 
 template <class F>

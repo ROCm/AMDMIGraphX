@@ -91,6 +91,8 @@ jobs:
         if: >-
           steps.dl_art.outcome == 'success'
           && github.event.workflow_run.event != 'schedule'
+          && env.PR_NUMBER
+          && env.GIT_SHA
           && env.PR_NUMBER != ''
           && env.GIT_SHA != ''
         env:

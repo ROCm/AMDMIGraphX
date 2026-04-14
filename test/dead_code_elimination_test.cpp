@@ -311,4 +311,23 @@ TEST_CASE(zero_element_shape_eliminated)
     EXPECT(std::none_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "neg"; }));
 }
 
+TEST_CASE(comment_not_eliminated)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_instruction(migraphx::make_op("@comment",
+                                          {{"op_name", "test_op"},
+                                           {"problem", migraphx::value("key1")},
+                                           {"solution", migraphx::value("sol1")}}),
+                        {});
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    run_pass(p);
+    EXPECT(std::any_of(
+        mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "@comment"; }));
+    auto result = p.eval({}).back();
+    EXPECT(result == migraphx::literal{3});
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

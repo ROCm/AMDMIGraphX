@@ -1,5 +1,10 @@
 #include "NvRuntime_impl.hpp"
 
+#include <migraphx/program.hpp>
+#include <migraphx/load_save.hpp>
+
+#include "NvCudaEngine_impl.hpp"
+
 namespace nvinfer1
 {
 
@@ -23,8 +28,25 @@ IRuntime* NvRuntime_impl::getPImpl() noexcept
 
 nvinfer1::ICudaEngine* NvRuntime_impl::deserializeCudaEngine(void const* blob, std::size_t size) noexcept
 {
-    // TODO! implement
-    return nullptr;
+    std::shared_ptr<migraphx::program> program;
+    try
+    {
+        program = std::make_shared<migraphx::program>(
+            migraphx::load_buffer(reinterpret_cast<const char*>(blob), size));
+    }
+    catch(migraphx::exception e)
+    {
+        // TODO write to error recorder if set, otherwise to logger
+        return nullptr;
+    }
+
+    auto* engine = new NvCudaEngine_impl{std::move(program)};
+    /*
+    if(error_recorder_)
+        engine->setErrorRecorder(error_recorder_);
+    */
+
+    return engine;
 }
 
 nvinfer1::ICudaEngine* NvRuntime_impl::deserializeCudaEngine(IStreamReader& streamReader) noexcept

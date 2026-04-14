@@ -554,31 +554,32 @@ struct find_slice_shape_transforms
         std::reverse(ops.begin(), ops.end());
         auto desc = shape_transform_descriptor::create(slice->get_shape().lens(), ops);
 
-        std::vector<std::size_t> new_axes;
-        std::transform(axes.begin(),
-                       axes.end(),
-                       join_back_inserter(new_axes),
-                       [&](auto axis) -> std::vector<std::size_t> {
-                           auto result = desc.get_dst_axes_from_src(axis);
-                           if(result.size() != 1)
-                               return {};
-                           return result;
-                       });
+        auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
+        if(new_desc.empty())
+            return;
+        new_desc.simplify();
 
         // Optimizes shape transforms if the slice cant be optimized
-        if(axes.size() != new_axes.size())
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+               return new_desc.get_dst_axes_from_src(axis).size() != 1;
+           }))
         {
             auto opt_ops = desc.generate();
             auto y       = insert_ops(m, ins, opt_ops, slice);
             m.replace_instruction(ins, y);
             return;
         }
-        slice_op["axes"] = new_axes;
 
-        auto new_desc = desc.rebase(slice->inputs().front()->get_shape().lens());
-        if(new_desc.empty())
-            return;
-        new_desc.simplify();
+        // Map slice axes using the rebased descriptor to correctly track
+        // where dimensions end up after rebase reorders them
+        std::vector<std::size_t> new_axes;
+        std::transform(axes.begin(),
+                       axes.end(),
+                       join_back_inserter(new_axes),
+                       [&](auto axis) -> std::vector<std::size_t> {
+                           return new_desc.get_dst_axes_from_src(axis);
+                       });
+        slice_op["axes"] = new_axes;
 
         auto opt_ops = new_desc.generate();
         auto y       = insert_ops(m, ins, opt_ops, x);

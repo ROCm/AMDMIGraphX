@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/logger.hpp>
 #include <chrono>
 
 namespace migraphx {
@@ -370,8 +371,8 @@ struct hip_gemm_impl
 
                 if(returned_algo_count != n_sol)
                 {
-                    std::cout << "less solution found! request: " << n_sol
-                              << ", found: " << returned_algo_count << std::endl;
+                    log::info() << "less solution found! request: " << n_sol
+                                << ", found: " << returned_algo_count;
                 }
             }
             else
@@ -481,7 +482,7 @@ struct hip_gemm_impl
         auto check_valid = hipblaslt_invoke(&hipblasLtMatmul, common_args, false);
         if(check_valid != HIPBLAS_STATUS_SUCCESS)
         {
-            std::cerr << "WARNING: tuned solution is invalid; reverting to default" << std::endl;
+            log::warn() << "tuned solution is invalid; reverting to default";
             return 0;
         }
         return solution_idx;
@@ -520,8 +521,7 @@ struct hip_gemm_impl
         // Return default workspace size when no algo is provided.
         if(heuristic_result.empty())
         {
-            std::cout << "No hipBLASLt algo returned for solution index: " << solution_idx
-                      << std::endl;
+            log::warn() << "No hipBLASLt algo returned for solution index: " << solution_idx;
             return workspace_size;
         }
 
@@ -637,8 +637,8 @@ struct hip_gemm_impl
             }
         }
 
-        std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
-                  << first_time << "ms" << std::endl;
+        log::info() << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
+                    << first_time << "ms";
         return best_sol;
     }
 

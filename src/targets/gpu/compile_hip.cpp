@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/logger.hpp>
 #include <cassert>
 #include <iostream>
 #include <deque>
@@ -171,7 +172,7 @@ struct hiprtc_program
         auto prog_log = log();
         if(not prog_log.empty() and not quiet)
         {
-            std::cerr << prog_log << std::endl;
+            log::warn() << prog_log;
         }
         if(result != HIPRTC_SUCCESS)
             MIGRAPHX_HIPRTC_THROW(result, "Compilation failed.");
@@ -369,9 +370,8 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 
 #endif // MIGRAPHX_USE_HIPRTC
 
-bool hip_has_flags(const std::vector<std::string>& flags)
+bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)
 {
-    std::string src = " ";
     src_file input{"main.cpp", src};
     std::vector<src_file> srcs = {input};
 
@@ -386,6 +386,8 @@ bool hip_has_flags(const std::vector<std::string>& flags)
         return false;
     }
 }
+
+bool hip_has_flags(const std::vector<std::string>& flags) { return hip_can_compile(" ", flags); }
 
 std::string enum_params(std::size_t count, std::string param)
 {

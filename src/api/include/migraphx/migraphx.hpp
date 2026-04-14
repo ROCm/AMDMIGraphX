@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1365,6 +1365,12 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
         call(&migraphx_onnx_options_set_external_data_path,
              this->get_handle_ptr(),
              external_data_path.c_str());
+    }
+
+    /// Enable debug symbols from ONNX node names
+    void set_use_debug_symbols(bool value = true)
+    {
+        call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
     }
 };
 

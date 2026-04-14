@@ -103,7 +103,7 @@ int main()
     // 2. Filter by name
     std::cout << "=== concat_kernel (by name) ===\n";
     p.run_trace(params, [](size_t idx, const char* name, migraphx::argument output) {
-        if(std::string(name) == "concat_kernel")
+        if(std::string(name).find("concat_kernel") != std::string::npos)
             print_cb(idx, name, output);
     });
 

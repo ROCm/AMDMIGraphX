@@ -5,7 +5,7 @@ This example demonstrates how to use `program::run_trace` to inspect operator ou
 
 The example shows three filtering modes:
 1. **No filter** -- callback fires for every operator
-2. **Name filter** -- callback fires only for operators matching a given name or kernel symbol name (e.g. `"concat_kernel"`)
+2. **Name filter** -- callback fires only for operators whose name contains a substring (e.g. `"concat_kernel"`)
 3. **Instruction index filter** -- callback fires only for a specific instruction identified by its `@N` index in the compiled graph
 
 ## Building

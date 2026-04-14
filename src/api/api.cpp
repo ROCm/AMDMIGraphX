@@ -43,6 +43,7 @@
 #include <array>
 #include <algorithm>
 #include <cstdarg>
+#include <sstream>
 
 namespace migraphx {
 
@@ -1810,9 +1811,10 @@ extern "C" migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
         const auto* mm = (program->object).get_main_module();
         exec_env.trace = [callback, data, mm](migraphx::instruction_ref ins,
                                               const migraphx::argument& output) {
-            auto idx         = std::distance(mm->begin(), ins);
-            auto sym         = ins->get_operator().to_value().get("symbol_name", std::string{});
-            const auto& name = sym.empty() ? ins->name() : sym;
+            auto idx = std::distance(mm->begin(), ins);
+            std::ostringstream oss;
+            oss << ins->get_operator();
+            auto name = oss.str();
             migraphx_argument arg_handle(output);
             callback(idx, name.c_str(), &arg_handle, data);
         };

@@ -1,6 +1,8 @@
 #ifndef NV_NETWORK_DEFINITION_IMPL_H
 #define NV_NETWORK_DEFINITION_IMPL_H
 
+#include <vector>
+
 #include "migraphx/common_api/NvInfer.h"
 #include "Tensor_impl.hpp"
 
@@ -109,6 +111,7 @@ namespace nvinfer1
         bool unmarkUnfusedTensorsAsDebugTensors() noexcept override;
 
         void setProgram(std::shared_ptr<migraphx::program> program);
+        const migraphx::program* getProgram() const;
 
     private:
         IBuilder& mBuilder;

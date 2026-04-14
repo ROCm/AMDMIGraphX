@@ -14,6 +14,11 @@ NvNetworkDefinition_impl::~NvNetworkDefinition_impl()
 	// TODO! implement
 }
 
+const migraphx::program* NvNetworkDefinition_impl::getProgram() const
+{
+	return mProgram.get(); 
+}
+
 void NvNetworkDefinition_impl::setProgram(std::shared_ptr<migraphx::program> program)
 {
 	mProgram = program;

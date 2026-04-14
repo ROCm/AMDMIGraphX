@@ -149,8 +149,8 @@ Dims NvExecutionContext_impl::getTensorStrides(char const* tensorName) const noe
 
 bool NvExecutionContext_impl::setTensorAddress(char const* tensorName, void* data) noexcept
 {
-    // TODO! implement
-    return false;
+    mParamMap[tensorName] = migraphx::argument(mProgram->get_parameter_shapes().at(tensorName), data);
+    return true;
 }
 
 void const* NvExecutionContext_impl::getTensorAddress(char const* tensorName) const noexcept

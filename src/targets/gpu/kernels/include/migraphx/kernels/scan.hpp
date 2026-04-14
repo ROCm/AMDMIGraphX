@@ -130,6 +130,7 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
                   "Block size must be a multiple of wavefront size");
     const index_int ni      = n;
     const index_int nchunks = (ni + block_size - 1) / block_size;
+    MIGRAPHX_ASSERT(nchunks > 0);
     using value_t =
         remove_reference_t<decltype(f(static_cast<Index>(index_int{0})))>;
     T carry = init;

@@ -128,7 +128,8 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         auto dyn_dim = dd_check_vec->at(0).dd;
         // create submodules for each dimension size
         std::vector<module_ref> submodules;
-        for(size_t dim_size : migraphx::range(dyn_dim.min(), dyn_dim.max() + 1))
+        auto dim_interval = dyn_dim.get_interval();
+        for(size_t dim_size : migraphx::range(dim_interval.min, dim_interval.max + 1))
         {
             auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
             // instruction map for new static shaped submodule parameters

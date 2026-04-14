@@ -164,8 +164,9 @@ struct convolution
                                    x.get_optimals().end(),
                                    std::inserter(optimals, optimals.begin()),
                                    [&](auto o) { return ceil_div(o, s); });
+                    auto x_interval = x.get_interval();
                     output_dyn_dims.push_back(shape::dynamic_dimension{
-                        ceil_div(x.min(), s), ceil_div(x.max(), s), optimals});
+                        ceil_div(x_interval.min, s), ceil_div(x_interval.max, s), optimals});
                 }
                 else
                 {

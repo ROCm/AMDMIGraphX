@@ -192,7 +192,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](const shape::dynamic_dimension& x) { return x.min(); });
+                       [](const shape::dynamic_dimension& x) { return x.get_interval().min; });
         return ret;
     }
 
@@ -202,7 +202,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](const shape::dynamic_dimension& x) { return x.max(); });
+                       [](const shape::dynamic_dimension& x) { return x.get_interval().max; });
         return ret;
     }
 
@@ -321,7 +321,10 @@ bool shape::is_compatible_lens(const shape& actual, const shape& expected)
         return std::equal(actual.lens().begin(),
                           actual.lens().end(),
                           expected.dyn_dims().begin(),
-                          [&](auto a, const auto& e) { return a >= e.min() and a <= e.max(); });
+                          [&](auto a, const auto& e) {
+                              auto expected_interval = e.get_interval();
+                              return a >= expected_interval.min and a <= expected_interval.max;
+                          });
     }
     return actual.lens() == expected.lens();
 }
@@ -705,7 +708,11 @@ std::vector<std::size_t> shape::max_lens() const
 
 std::vector<std::set<std::size_t>> shape::opt_lens() const { return impl->opt_lens(); }
 
-bool shape::dynamic_dimension::is_fixed() const { return this->min() == this->max(); }
+bool shape::dynamic_dimension::is_fixed() const
+{
+    auto i = this->get_interval();
+    return i.min == i.max;
+}
 
 bool shape::dynamic_dimension::has_optimal() const { return not optimals.empty(); }
 
@@ -755,7 +762,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t
 
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
-    return (x.min() == y.min() and x.max() == y.max() and
+    return (x.get_interval() == y.get_interval() and
             ((x.is_fixed() and y.is_fixed()) or (x.get_optimals() == y.get_optimals())));
 }
 
@@ -765,14 +772,16 @@ bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimensio
 }
 std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
-    os << "[ " << x.min() << ", " << x.max() << ", {" << migraphx::to_string_range(x.get_optimals())
-       << "} ]";
+    auto x_interval = x.get_interval();
+    os << "[ " << x_interval.min << ", " << x_interval.max << ", {"
+       << migraphx::to_string_range(x.get_optimals()) << "} ]";
     return os;
 }
 
 bool operator==(const shape::dynamic_dimension& x, const std::size_t& y)
 {
-    return x.min() == y and x.max() == y;
+    auto x_interval = x.get_interval();
+    return x_interval.min == y and x_interval.max == y;
 }
 bool operator==(const std::size_t& x, const shape::dynamic_dimension& y) { return y == x; }
 bool operator!=(const shape::dynamic_dimension& x, const std::size_t& y) { return not(x == y); }

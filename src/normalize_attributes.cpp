@@ -74,7 +74,7 @@ static auto tune_attribute(const std::vector<int64_t>& vec,
                 return vec;
             }
             std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
-                return input_shape.dyn_dims().at(i).max();
+                return input_shape.dyn_dims().at(i).get_interval().max;
             });
         }
         else

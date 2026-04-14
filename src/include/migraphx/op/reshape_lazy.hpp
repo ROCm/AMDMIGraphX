@@ -66,7 +66,7 @@ struct reshape_lazy
             if(dyn_dims[i].is_fixed())
             {
                 num_dims_ele *= dims[i];
-                num_dd_ele *= dyn_dims[i].min();
+                num_dd_ele *= dyn_dims[i].get_interval().min;
             }
             else
             {

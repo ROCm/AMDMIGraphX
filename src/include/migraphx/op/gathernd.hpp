@@ -63,7 +63,7 @@ struct gathernd
                 MIGRAPHX_THROW(
                     "GATHERND: last dimension of indices tensor must be fixed (min=max)");
             }
-            k = i_shape.dyn_dims().back().min();
+            k = i_shape.dyn_dims().back().get_interval().min;
         }
         else
             k = i_shape.lens().back();

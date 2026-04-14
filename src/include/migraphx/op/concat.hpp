@@ -128,9 +128,10 @@ struct concat
             std::size_t new_max = 0;
             for(const auto& input : inputs)
             {
-                auto ddim = input.dyn_dims()[axis];
-                new_min += ddim.min();
-                new_max += ddim.max();
+                auto ddim         = input.dyn_dims()[axis];
+                auto dim_interval = ddim.get_interval();
+                new_min += dim_interval.min;
+                new_max += dim_interval.max;
             }
 
             auto new_dims  = inputs[0].dyn_dims();

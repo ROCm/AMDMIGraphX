@@ -416,12 +416,12 @@ struct resize
             {
                 for(std::size_t i = 0; i < scales.size(); i++)
                 {
-                    auto new_min = static_cast<std::size_t>(input.dyn_dims()[i].min() * scales[i]);
-                    auto new_max =
-                        input.dyn_dims()[i].max() != max_val
-                            ? static_cast<std::size_t>(input.dyn_dims()[i].max() * scales[i])
-                            : max_val;
-                    dyn_dims[i] = shape::dynamic_dimension{new_min, new_max};
+                    auto input_interval = input.dyn_dims()[i].get_interval();
+                    auto new_min        = static_cast<std::size_t>(input_interval.min * scales[i]);
+                    auto new_max        = input_interval.max != max_val
+                                              ? static_cast<std::size_t>(input_interval.max * scales[i])
+                                              : max_val;
+                    dyn_dims[i]         = shape::dynamic_dimension{new_min, new_max};
                 }
             }
             return {input.type(), dyn_dims};

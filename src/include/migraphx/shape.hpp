@@ -128,8 +128,6 @@ struct MIGRAPHX_EXPORT shape
             return pack(f(self.range, "range"), f(self.optimals, "optimals"));
         }
 
-        std::size_t min() const { return range.min; }
-        std::size_t max() const { return range.max; }
         interval get_interval() const { return range; }
         const std::set<std::size_t>& get_optimals() const { return optimals; }
 
@@ -142,8 +140,10 @@ struct MIGRAPHX_EXPORT shape
          */
         std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
         {
-            auto left  = std::max(this->min(), other.min());
-            auto right = std::min(this->max(), other.max());
+            auto this_interval  = this->get_interval();
+            auto other_interval = other.get_interval();
+            auto left           = std::max(this_interval.min, other_interval.min);
+            auto right          = std::min(this_interval.max, other_interval.max);
             if(left <= right)
             {
                 return dynamic_dimension{left, right};

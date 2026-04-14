@@ -109,26 +109,22 @@ ILayer* NvNetworkDefinition_impl::getLayer(int32_t index) const noexcept
 
 int32_t NvNetworkDefinition_impl::getNbInputs() const noexcept
 {
-	// TODO! implement
-	return 0;
+	return mInputTensors.size();
 }
 
 ITensor* NvNetworkDefinition_impl::getInput(int32_t index) const noexcept
 {
-	// TODO! implement
-	return nullptr;
+	return mInputTensors.at(index).get();
 }
 
 int32_t NvNetworkDefinition_impl::getNbOutputs() const noexcept
 {
-	// TODO! implement
-	return 0;
+	return mOutputTensors.size();
 }
 
 ITensor* NvNetworkDefinition_impl::getOutput(int32_t index) const noexcept
 {
-	// TODO! implement
-	return nullptr;
+	return mOutputTensors.at(index).get();
 }
 
 IReduceLayer* NvNetworkDefinition_impl::addReduce(

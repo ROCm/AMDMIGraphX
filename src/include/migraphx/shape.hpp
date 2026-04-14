@@ -131,6 +131,7 @@ struct MIGRAPHX_EXPORT shape
         std::size_t min() const { return range.min; }
         std::size_t max() const { return range.max; }
         interval get_interval() const { return range; }
+        const std::set<std::size_t>& get_optimals() const { return optimals; }
 
         bool is_fixed() const;
         bool has_optimal() const;

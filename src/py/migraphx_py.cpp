@@ -401,7 +401,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                                [](const migraphx::shape::dynamic_dimension& d) { return d.min(); })
         .def_property_readonly("max",
                                [](const migraphx::shape::dynamic_dimension& d) { return d.max(); })
-        .def_readwrite("optimals", &migraphx::shape::dynamic_dimension::optimals)
+        .def_property_readonly(
+            "optimals",
+            [](const migraphx::shape::dynamic_dimension& d) { return d.get_optimals(); })
         .def("is_fixed", &migraphx::shape::dynamic_dimension::is_fixed);
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())

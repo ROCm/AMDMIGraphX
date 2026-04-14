@@ -212,7 +212,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](const shape::dynamic_dimension& x) { return x.optimals; });
+                       [](const shape::dynamic_dimension& x) { return x.get_optimals(); });
         return ret;
     }
 
@@ -756,7 +756,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
     return (x.min() == y.min() and x.max() == y.max() and
-            ((x.is_fixed() and y.is_fixed()) or (x.optimals == y.optimals)));
+            ((x.is_fixed() and y.is_fixed()) or (x.get_optimals() == y.get_optimals())));
 }
 
 bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
@@ -765,7 +765,7 @@ bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimensio
 }
 std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
-    os << "[ " << x.min() << ", " << x.max() << ", {" << migraphx::to_string_range(x.optimals)
+    os << "[ " << x.min() << ", " << x.max() << ", {" << migraphx::to_string_range(x.get_optimals())
        << "} ]";
     return os;
 }

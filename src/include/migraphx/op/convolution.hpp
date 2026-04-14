@@ -160,8 +160,8 @@ struct convolution
                 {
                     auto x = x_shape.dyn_dims()[i + 2];
                     std::set<std::size_t> optimals{};
-                    std::transform(x.optimals.begin(),
-                                   x.optimals.end(),
+                    std::transform(x.get_optimals().begin(),
+                                   x.get_optimals().end(),
                                    std::inserter(optimals, optimals.begin()),
                                    [&](auto o) { return ceil_div(o, s); });
                     output_dyn_dims.push_back(shape::dynamic_dimension{

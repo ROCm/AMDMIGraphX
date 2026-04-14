@@ -149,7 +149,7 @@ struct op_def
 };
 
 class expr;
-expr lit(scalar v);
+MIGRAPHX_EXPORT expr lit(scalar v);
 
 class MIGRAPHX_EXPORT expr
 {
@@ -196,17 +196,17 @@ class MIGRAPHX_EXPORT expr
     template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
     expr& operator assign(T x)                                                    \
     {                                                                             \
-        return *this = *this binary lit(x);                                       \
+        return *this = *this binary lit(make_scalar(x));                                       \
     }                                                                             \
     template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
     friend expr operator binary(expr ex, T y)                                     \
     {                                                                             \
-        return std::move(ex) binary lit(y);                                       \
+        return std::move(ex) binary lit(make_scalar(y));                                       \
     }                                                                             \
     template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
     friend expr operator binary(T x, expr ey)                                     \
     {                                                                             \
-        return lit(x) binary std::move(ey);                                       \
+        return lit(make_scalar(x)) binary std::move(ey);                                       \
     }
 
     MIGRAPHX_SYM_DEFINE_OP(+, +=)

@@ -2,6 +2,7 @@
 #define NV_EXECUTION_CONTEXT_IMPL_HPP
 
 #include <memory>
+#include <migraphx/program.hpp>
 #include "migraphx/common_api/NvInferRuntime.h"
 
 namespace nvinfer1
@@ -10,6 +11,7 @@ namespace nvinfer1
     {
     public:
         NvExecutionContext_impl(void* logger, int32_t version) noexcept;
+        NvExecutionContext_impl(const std::shared_ptr<migraphx::program>& program) noexcept;
         ~NvExecutionContext_impl() override;
 
         // public API
@@ -68,6 +70,9 @@ namespace nvinfer1
 
     private:
         std::unique_ptr<ICudaEngine> mEngine;
+
+        std::shared_ptr<migraphx::program> mProgram;
+        migraphx::parameter_map mParamMap;
     };
 
 } // namespace nvinfer1

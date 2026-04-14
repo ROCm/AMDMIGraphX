@@ -10,6 +10,12 @@ NvExecutionContext_impl::NvExecutionContext_impl(void* logger, int32_t version) 
     mImpl = this;
 }
 
+NvExecutionContext_impl::NvExecutionContext_impl(const std::shared_ptr<migraphx::program>& program) noexcept
+    : mProgram(program) 
+{
+    mImpl = this;
+}
+
 NvExecutionContext_impl::~NvExecutionContext_impl()
 {
     // TODO! implement

@@ -8,12 +8,18 @@ namespace nvinfer1
     class NvHostMemory_impl : public IHostMemory, public apiv::VHostMemory
     {
     public:
-        NvHostMemory_impl(void* data, size_t size) noexcept;
+        NvHostMemory_impl(void* data, size_t size, DataType type) noexcept;
         ~NvHostMemory_impl() override;
         
         // public API
         void* data() const noexcept override;
         size_t size() const noexcept override;
+        DataType type() const noexcept override;
+
+    private:
+        void* mData;
+        size_t mSize;
+        DataType mType;
     };
 
 } // ns:nvinfer1

@@ -3,9 +3,9 @@
 namespace nvinfer1
 {
 
-NvHostMemory_impl::NvHostMemory_impl(void* data, size_t size) noexcept
+NvHostMemory_impl::NvHostMemory_impl(void* data, size_t size, DataType type) noexcept
+    : mData(data), mSize(size), mType(type)
 {
-    // TODO! implement
     mImpl = this;
 }
 
@@ -17,14 +17,17 @@ NvHostMemory_impl::~NvHostMemory_impl()
 // public API
 void* NvHostMemory_impl::data() const noexcept
 {
-    // TODO! implement
-    return nullptr;
+    return mData;
 }
 
 size_t NvHostMemory_impl::size() const noexcept
 {
-    // TODO! implement
-    return 0;
+    return mSize;
+}
+
+DataType NvHostMemory_impl::type() const noexcept
+{
+    return mType;
 }
 
 }   // ns:nvinfer1

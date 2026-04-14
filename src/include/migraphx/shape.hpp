@@ -98,8 +98,8 @@ struct MIGRAPHX_EXPORT shape
     {
         struct interval
         {
-            std::size_t min;
-            std::size_t max;
+            std::size_t min = 0;
+            std::size_t max = 0;
             template <class Self, class F>
             static auto reflect(Self& self, F f)
             {

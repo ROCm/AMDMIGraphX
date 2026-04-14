@@ -3,6 +3,19 @@
 namespace nvinfer1
 {
 
+namespace helper
+{
+    inline nvinfer1::Dims toDimensions(const migraphx::shape& shape)
+    {
+        nvinfer1::Dims dims;
+        auto lens   = shape.lens();
+        dims.nbDims = static_cast<int32_t>(lens.size());
+        std::transform(
+            lens.begin(), lens.end(), dims.d, [](auto l) { return static_cast<int64_t>(l); });
+        return dims;
+    }
+} // namespace helper
+
 Tensor_impl::Tensor_impl() noexcept
 {
     // TODO! implement
@@ -38,7 +51,7 @@ void Tensor_impl::setDimensions(Dims const& dimensions) noexcept
 Dims Tensor_impl::getDimensions() const noexcept
 {
     // TODO! implement
-    return Dims{};
+    return helper::toDimensions(mIns->get_shape());
 }
 
 void Tensor_impl::setType(DataType type) noexcept

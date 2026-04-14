@@ -2,13 +2,13 @@
 
 ## Overview
 
-The DxGML frontend converts `.mlir` files written in the **DxGML MLIR dialect** into
+The DxGML frontend converts **DxGML MLIR dialect** into
 MIGraphX `program` objects, which then follow the standard MIGraphX GPU compilation
 pipeline.  No DxGML ops ever reach the rocMLIR / GPU layer; all dialect-specific
 nodes are translated to MIGraphX built-in ops during frontend parsing.
 
 ```
-.mlir file / text
+    .mlir
       │
       ▼
  parse_dxgml()            ← public entry point (src/dxgml/dxgml.cpp)
@@ -224,18 +224,23 @@ Output directory: `build\<preset>\`  (e.g. `build\WinRelWithDebInfo\bin\amdxgml.
 
 ### Visual Studio 2022 (ClangCL toolset)
 
-> **Note:** The VS + ClangCL build is currently blocked by a template
-> incompatibility in `src/include/migraphx/float8.hpp` when compiled with
-> MSVC headers.  Use the Ninja/Clang build for day-to-day development.
-> The VS generator is provided for IDE navigation (`--no-build`) and may
-> be unblocked in a future MSVC / ClangCL update.
+**Prerequisite — install two ClangCL components:**
+
+1. Open **Visual Studio Installer** → click **Modify** on VS 2022
+2. Go to the **Individual components** tab
+3. Search for and check **both** of the following:
+   - **"C++ Clang Compiler for Windows"** — installs `clang-cl.exe`
+   - **"C++ Clang-cl for v143 build tools (x64/x86)"** — registers the ClangCL MSBuild toolset
+4. Click **Modify** to install
+
+Both components are required. Without `clang-cl.exe`, the compiler is missing. Without the `v143` toolset integration, CMake configure fails with `MSB8020: The build tools for ClangCL cannot be found`.
 
 ```bat
 REM Generate VS solution for IDE navigation (no build)
 generate_migraphx.bat --vs --no-build
 REM  → open build_vs\migraphx.sln in Visual Studio
 
-REM Configure VS solution + attempt build (RelWithDebInfo)
+REM Configure VS solution + build (RelWithDebInfo)
 generate_migraphx.bat --vs
 
 REM Rebuild without re-configure
@@ -244,14 +249,14 @@ generate_migraphx.bat --vs --build-only
 REM Debug config
 generate_migraphx.bat --vs Debug
 
-REM VS build + run all DxGML tests (once build is fixed)
+REM VS build + run all DxGML tests
 generate_migraphx.bat --vs --run-tests
 ```
 
 Available configs: `RelWithDebInfo` (default), `Debug`, `Release`, `MinSizeRel`.
 Also accepts Ninja preset names as aliases (`WinRelWithDebInfo` → `RelWithDebInfo`).
 
-Output directory (when build succeeds): `build_vs\bin\<config>\`  (e.g. `build_vs\bin\RelWithDebInfo\amdxgml.dll`)
+Output directory: `build_vs\bin\<config>\`  (e.g. `build_vs\bin\RelWithDebInfo\amdxgml.dll`)
 
 ### CMake directly (advanced)
 

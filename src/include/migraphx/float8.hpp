@@ -434,6 +434,10 @@ struct common_type<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, FNUZ>,
     using type = float;
 };
 
+#if !defined(_MSC_VER) || defined(__clang__)
+// MSVC cl.exe rejects partial specializations of std::common_type with enum-valued
+// non-type template parameters (e.g. migraphx::fp8::f8_type T). Clang (including
+// ClangCL and Clang-on-Windows) handles them correctly, so guard with !MSVC-or-Clang.
 template <unsigned int E, unsigned int M, unsigned int F, migraphx::fp8::f8_type T, bool FNUZ>
 struct common_type<migraphx::generic_float<E, M, F>, migraphx::fp8::float8<T, FNUZ>>
     : std::common_type<float, float>
@@ -445,6 +449,7 @@ struct common_type<migraphx::fp8::float8<T, FNUZ>, migraphx::generic_float<E, M,
     : std::common_type<float, float>
 {
 };
+#endif // !_MSC_VER || __clang__
 
 } // namespace std
 // NOLINTEND(cert-dcl58-cpp)

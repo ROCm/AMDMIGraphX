@@ -1,7 +1,11 @@
+#include <migraphx/register_target.hpp>
+#include <migraphx/load_save.hpp>
+
 #include "migraphx/common_api/NvInferImpl.h"
 #include "migraphx/common_api/NvInferRuntime.h"
 
 #include "NvBuilder_impl.hpp"
+#include "NvHostMemory_impl.hpp"
 #include "NetworkDefinition_impl.hpp"
 #include "NvBuilderConfig_impl.hpp"
 
@@ -97,7 +101,26 @@ bool NvBuilder_impl::platformHasTf32() const noexcept
 nvinfer1::IHostMemory* NvBuilder_impl::buildSerializedNetwork(INetworkDefinition& network, IBuilderConfig& config) noexcept
 {
     // TODO! implement
-    return nullptr;
+
+    auto& nw_impl = static_cast<NvNetworkDefinition_impl&>(network);
+    migraphx::program prog = *nw_impl.getProgram();
+
+    try
+    {
+        prog.compile(migraphx::make_target("gpu"));
+    }
+    catch(migraphx::exception& e)
+    {
+        // TODO write to error recorder/logger
+        return nullptr;
+    }
+    
+    mSerializedNetworks.push_back(migraphx::save_buffer(prog));
+    auto&& current_network = mSerializedNetworks.back();
+
+    return new NvHostMemory_impl{reinterpret_cast<void*>(current_network.data()),
+                            current_network.size(),
+                            DataType::kUINT8};
 }
 
 bool NvBuilder_impl::isNetworkSupported(INetworkDefinition const& network, IBuilderConfig const& config) const noexcept

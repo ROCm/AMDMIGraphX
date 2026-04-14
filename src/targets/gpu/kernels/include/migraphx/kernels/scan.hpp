@@ -131,9 +131,8 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
     const index_int ni      = n;
     const index_int nchunks = (ni + block_size - 1) / block_size;
     MIGRAPHX_ASSERT(nchunks > 0);
-    using value_t =
-        remove_reference_t<decltype(f(static_cast<Index>(index_int{0})))>;
-    T carry = init;
+    using value_t = remove_reference_t<decltype(f(static_cast<Index>(index_int{0})))>;
+    T carry       = init;
     for(index_int chunk = 0; chunk < nchunks; ++chunk)
     {
         const index_int j = chunk * block_size + idx.local;

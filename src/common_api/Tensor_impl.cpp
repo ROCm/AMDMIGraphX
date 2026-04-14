@@ -1,20 +1,8 @@
 #include "Tensor_impl.hpp"
+#include "Helper.hpp"
 
 namespace nvinfer1
 {
-
-namespace helper
-{
-    inline nvinfer1::Dims toDimensions(const migraphx::shape& shape)
-    {
-        nvinfer1::Dims dims;
-        auto lens   = shape.lens();
-        dims.nbDims = static_cast<int32_t>(lens.size());
-        std::transform(
-            lens.begin(), lens.end(), dims.d, [](auto l) { return static_cast<int64_t>(l); });
-        return dims;
-    }
-} // namespace helper
 
 Tensor_impl::Tensor_impl() noexcept
 {

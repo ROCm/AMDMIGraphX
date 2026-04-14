@@ -1,6 +1,9 @@
+#include <migraphx/ranges.hpp>
+
 #include "migraphx/common_api/NvInfer.h"
 #include "NvCudaEngine_impl.hpp"
 #include "NvExecutionContext_impl.hpp"
+#include "Helper.hpp"
 
 namespace nvinfer1
 {
@@ -126,14 +129,12 @@ IEngineInspector* NvCudaEngine_impl::createEngineInspector() const noexcept
 
 Dims NvCudaEngine_impl::getTensorShape(char const* tensorName) const noexcept
 {
-    // TODO! implement
-    return Dims{};
+    return helper::toDimensions(mProgram->get_parameter_shapes().at(tensorName));
 }
 
 DataType NvCudaEngine_impl::getTensorDataType(char const* tensorName) const noexcept
 {
-    // TODO! implement
-    return DataType::kFLOAT;
+    return helper::toDataType(mProgram->get_parameter_shapes().at(tensorName).type());
 }
 
 TensorLocation NvCudaEngine_impl::getTensorLocation(char const* tensorName) const noexcept
@@ -150,8 +151,7 @@ bool NvCudaEngine_impl::isShapeInferenceIO(char const* tensorName) const noexcep
 
 TensorIOMode NvCudaEngine_impl::getTensorIOMode(char const* tensorName) const noexcept
 {
-    // TODO! implement
-    return TensorIOMode::kNONE;
+    return migraphx::contains(std::string(tensorName), "output") ? TensorIOMode::kOUTPUT : TensorIOMode::kINPUT;
 }
 
 int32_t NvCudaEngine_impl::getTensorBytesPerComponent(char const* tensorName) const noexcept

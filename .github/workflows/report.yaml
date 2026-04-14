@@ -85,7 +85,7 @@ jobs:
 
       - name: Install python libraries
         if: steps.dl_art.outcome == 'success'
-        run: pip install tabulate==0.8.9 'pandas>=2.0,<3' 'numpy>=1.26,2' openpyxl==3.1.2
+        run: pip install tabulate==0.8.9 pandas==2.0 numpy==1.26 openpyxl==3.1.2
 
       - name: Copy performance results to repo - PRs
         if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event != 'schedule' && env.PR_NUMBER && env.PR_NUMBER != ''

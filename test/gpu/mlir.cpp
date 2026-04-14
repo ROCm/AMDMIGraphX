@@ -22,10 +22,13 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/mlir.hpp>
+#include <migraphx/gpu/prepare_mlir.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/program.hpp>
@@ -35,6 +38,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/verify_args.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/attention_flags.hpp>
 #include <test.hpp>
@@ -794,8 +798,116 @@ module {
     CHECK(encode(s) == encode(mlir_output_with_attrs));
 }
 
-// Based on rocMLIR mixr-attention-causal.mlir (asymmetric causal: seqQ=4 < seqK=16)
-TEST_CASE(attention_causal)
+static migraphx::literal
+make_causal_mask_maskout(std::size_t seq_q, std::size_t seq_k, std::size_t batch = 1)
+{
+    std::vector<bool> data(batch * seq_q * seq_k);
+    std::int64_t offset = static_cast<std::int64_t>(seq_k) - static_cast<std::int64_t>(seq_q);
+    for(std::size_t b = 0; b < batch; ++b)
+        for(std::size_t i = 0; i < seq_q; ++i)
+            for(std::size_t j = 0; j < seq_k; ++j)
+                data[b * seq_q * seq_k + i * seq_k + j] =
+                    (static_cast<std::int64_t>(j) > static_cast<std::int64_t>(i) + offset);
+    if(batch == 1)
+        return migraphx::literal{{migraphx::shape::bool_type, {seq_q, seq_k}}, data};
+    return migraphx::literal{{migraphx::shape::bool_type, {batch, seq_q, seq_k}}, data};
+}
+
+static migraphx::literal
+make_causal_mask_keep(std::size_t seq_q, std::size_t seq_k, std::size_t batch = 1)
+{
+    std::vector<bool> data(batch * seq_q * seq_k);
+    std::int64_t offset = static_cast<std::int64_t>(seq_k) - static_cast<std::int64_t>(seq_q);
+    for(std::size_t b = 0; b < batch; ++b)
+        for(std::size_t i = 0; i < seq_q; ++i)
+            for(std::size_t j = 0; j < seq_k; ++j)
+                data[b * seq_q * seq_k + i * seq_k + j] =
+                    (static_cast<std::int64_t>(j) <= static_cast<std::int64_t>(i) + offset);
+    if(batch == 1)
+        return migraphx::literal{{migraphx::shape::bool_type, {seq_q, seq_k}}, data};
+    return migraphx::literal{{migraphx::shape::bool_type, {batch, seq_q, seq_k}}, data};
+}
+
+// Detect causal mask: where(mask, -inf, scores) with mask=true means mask-out
+TEST_CASE(attention_detect_causal_maskout)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot_reduce_max_sub_exp_reduce_sum_div_dot(%arg0: !migraphx.shaped<1x64x64xf16, 4096x64x1>, %arg1: !migraphx.shaped<1x64x64xf16, 4096x64x1>, %arg2: !migraphx.shaped<1x64x64xf16, 4096x64x1>) -> !migraphx.shaped<1x64x64xf16, 4096x64x1> attributes ${attrs} {
+    %0 = migraphx.attention %arg0, %arg1, %arg2 {
+    } features = causal : <1x64x64xf16, 4096x64x1>, <1x64x64xf16, 4096x64x1>, <1x64x64xf16, 4096x64x1> -> <1x64x64xf16, 4096x64x1>
+    return %0 : !migraphx.shaped<1x64x64xf16, 4096x64x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto q    = m.add_parameter("x0", {migraphx::shape::half_type, {1, 64, 64}});
+    auto k    = m.add_parameter("x1", {migraphx::shape::half_type, {1, 64, 64}});
+    auto v    = m.add_parameter("x2", {migraphx::shape::half_type, {1, 64, 64}});
+    auto dot1 = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    auto mask_lit = m.add_literal(make_causal_mask_maskout(64, 64));
+    auto mask_bc  = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 64}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 64}}}), ninf);
+    auto where = m.add_instruction(migraphx::make_op("where"), mask_bc, ninf_bc, dot1);
+
+    auto softmax_out = add_softmax(m, where, {1, 64, 64});
+    auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
+    m.add_return({dot2});
+
+    auto s = migraphx::gpu::dump_mlir(m, {}, "attention", 0);
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+}
+
+// Detect causal mask: where(mask, scores, -inf) with mask=true means keep
+TEST_CASE(attention_detect_causal_keep)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_dot_reduce_max_sub_exp_reduce_sum_div_dot(%arg0: !migraphx.shaped<1x64x64xf16, 4096x64x1>, %arg1: !migraphx.shaped<1x64x64xf16, 4096x64x1>, %arg2: !migraphx.shaped<1x64x64xf16, 4096x64x1>) -> !migraphx.shaped<1x64x64xf16, 4096x64x1> attributes ${attrs} {
+    %0 = migraphx.attention %arg0, %arg1, %arg2 {
+    } features = causal : <1x64x64xf16, 4096x64x1>, <1x64x64xf16, 4096x64x1>, <1x64x64xf16, 4096x64x1> -> <1x64x64xf16, 4096x64x1>
+    return %0 : !migraphx.shaped<1x64x64xf16, 4096x64x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto q    = m.add_parameter("x0", {migraphx::shape::half_type, {1, 64, 64}});
+    auto k    = m.add_parameter("x1", {migraphx::shape::half_type, {1, 64, 64}});
+    auto v    = m.add_parameter("x2", {migraphx::shape::half_type, {1, 64, 64}});
+    auto dot1 = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    auto mask_lit = m.add_literal(make_causal_mask_keep(64, 64));
+    auto mask_bc  = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 64}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 64}}}), ninf);
+    auto where = m.add_instruction(migraphx::make_op("where"), mask_bc, dot1, ninf_bc);
+
+    auto softmax_out = add_softmax(m, where, {1, 64, 64});
+    auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
+    m.add_return({dot2});
+
+    auto s = migraphx::gpu::dump_mlir(m, {}, "attention", 0);
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+}
+
+// Detect causal mask with asymmetric Q/K sequence lengths (seqQ=4, seqK=16)
+TEST_CASE(attention_detect_causal_asymmetric)
 {
     std::string mlir_output = R"__migraphx__(
 module {
@@ -807,16 +919,25 @@ module {
 }
 )__migraphx__";
     migraphx::module m;
-    auto q           = m.add_parameter("x0", {migraphx::shape::half_type, {1, 2, 4, 8}});
-    auto k           = m.add_parameter("x1", {migraphx::shape::half_type, {1, 2, 8, 16}});
-    auto v           = m.add_parameter("x2", {migraphx::shape::half_type, {1, 2, 16, 8}});
-    auto dot1        = m.add_instruction(migraphx::make_op("dot"), q, k);
-    auto softmax_out = add_softmax(m, dot1, {1, 2, 4, 16});
+    auto q    = m.add_parameter("x0", {migraphx::shape::half_type, {1, 2, 4, 8}});
+    auto k    = m.add_parameter("x1", {migraphx::shape::half_type, {1, 2, 8, 16}});
+    auto v    = m.add_parameter("x2", {migraphx::shape::half_type, {1, 2, 16, 8}});
+    auto dot1 = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    auto mask_lit = m.add_literal(make_causal_mask_maskout(4, 16));
+    auto mask_bc  = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 16}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 16}}}), ninf);
+    auto where = m.add_instruction(migraphx::make_op("where"), mask_bc, ninf_bc, dot1);
+
+    auto softmax_out = add_softmax(m, where, {1, 2, 4, 16});
     auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
     m.add_return({dot2});
 
-    auto flags = static_cast<std::uint32_t>(migraphx::attention_flags::causal);
-    auto s     = migraphx::gpu::dump_mlir(m, {}, "attention", flags);
+    auto s = migraphx::gpu::dump_mlir(m, {}, "attention", 0);
     if(s.empty())
         return;
     auto mlir_output_with_attrs =
@@ -824,8 +945,8 @@ module {
     CHECK(encode(s) == encode(mlir_output_with_attrs));
 }
 
-// Based on rocMLIR mixr-attention-causal-scale.mlir (causal + scale + bias pre-softmax body)
-TEST_CASE(attention_causal_scale)
+// Causal mask combined with pre-softmax scale+bias
+TEST_CASE(attention_detect_causal_with_scale_bias)
 {
     std::string mlir_output = R"__migraphx__(
 module {
@@ -841,20 +962,30 @@ module {
 }
 )__migraphx__";
     migraphx::module m;
-    auto q           = m.add_parameter("x0", {migraphx::shape::half_type, {1, 7, 3}});
-    auto k           = m.add_parameter("x1", {migraphx::shape::half_type, {1, 3, 7}});
-    auto v           = m.add_parameter("x2", {migraphx::shape::half_type, {1, 7, 3}});
-    auto scale       = m.add_parameter("x3", {migraphx::shape::half_type, {1, 7, 7}});
-    auto bias        = m.add_parameter("x4", {migraphx::shape::half_type, {1, 7, 7}});
-    auto dot1        = m.add_instruction(migraphx::make_op("dot"), q, k);
-    auto scaled      = m.add_instruction(migraphx::make_op("mul"), dot1, scale);
-    auto biased      = m.add_instruction(migraphx::make_op("add"), scaled, bias);
-    auto softmax_out = add_softmax(m, biased, {1, 7, 7});
+    auto q     = m.add_parameter("x0", {migraphx::shape::half_type, {1, 7, 3}});
+    auto k     = m.add_parameter("x1", {migraphx::shape::half_type, {1, 3, 7}});
+    auto v     = m.add_parameter("x2", {migraphx::shape::half_type, {1, 7, 3}});
+    auto scale = m.add_parameter("x3", {migraphx::shape::half_type, {1, 7, 7}});
+    auto bias  = m.add_parameter("x4", {migraphx::shape::half_type, {1, 7, 7}});
+    auto dot1  = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    auto scaled = m.add_instruction(migraphx::make_op("mul"), dot1, scale);
+    auto biased = m.add_instruction(migraphx::make_op("add"), scaled, bias);
+
+    auto mask_lit = m.add_literal(make_causal_mask_maskout(7, 7));
+    auto mask_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 7, 7}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 7, 7}}}), ninf);
+    auto where = m.add_instruction(migraphx::make_op("where"), mask_bc, ninf_bc, biased);
+
+    auto softmax_out = add_softmax(m, where, {1, 7, 7});
     auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
     m.add_return({dot2});
 
-    auto flags = static_cast<std::uint32_t>(migraphx::attention_flags::causal);
-    auto s     = migraphx::gpu::dump_mlir(m, {}, "attention", flags);
+    auto s = migraphx::gpu::dump_mlir(m, {}, "attention", 0);
     if(s.empty())
         return;
     auto mlir_output_with_attrs =
@@ -862,34 +993,214 @@ module {
     CHECK(encode(s) == encode(mlir_output_with_attrs));
 }
 
-TEST_CASE(attention_multi_flags)
+// Non-causal mask should NOT be detected — where stays in pre-softmax body
+TEST_CASE(attention_non_causal_mask_not_detected)
 {
-    std::string mlir_output = R"__migraphx__(
-module {
-  func.func @mlir_dot_reduce_max_sub_exp_reduce_sum_div_dot(%arg0: !migraphx.shaped<1x2x4x8xf16, 64x32x8x1>, %arg1: !migraphx.shaped<1x2x8x16xf16, 256x128x16x1>, %arg2: !migraphx.shaped<1x2x16x8xf16, 256x128x8x1>) -> !migraphx.shaped<1x2x4x8xf16, 64x32x8x1> attributes ${attrs} {
-    %0 = migraphx.attention %arg0, %arg1, %arg2 {
-    } features = "causal|splitkv" : <1x2x4x8xf16, 64x32x8x1>, <1x2x8x16xf16, 256x128x16x1>, <1x2x16x8xf16, 256x128x8x1> -> <1x2x4x8xf16, 64x32x8x1>
-    return %0 : !migraphx.shaped<1x2x4x8xf16, 64x32x8x1>
-  }
-}
-)__migraphx__";
     migraphx::module m;
-    auto q           = m.add_parameter("x0", {migraphx::shape::half_type, {1, 2, 4, 8}});
-    auto k           = m.add_parameter("x1", {migraphx::shape::half_type, {1, 2, 8, 16}});
-    auto v           = m.add_parameter("x2", {migraphx::shape::half_type, {1, 2, 16, 8}});
-    auto dot1        = m.add_instruction(migraphx::make_op("dot"), q, k);
-    auto softmax_out = add_softmax(m, dot1, {1, 2, 4, 16});
+    auto q    = m.add_parameter("x0", {migraphx::shape::half_type, {1, 4, 4}});
+    auto k    = m.add_parameter("x1", {migraphx::shape::half_type, {1, 4, 4}});
+    auto v    = m.add_parameter("x2", {migraphx::shape::half_type, {1, 4, 4}});
+    auto dot1 = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    // Not causal: mask out only column 0 in every row
+    auto mask_lit = m.add_literal(migraphx::literal{{migraphx::shape::bool_type, {4, 4}},
+                                                    {true,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     true,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     true,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     true,
+                                                     false,
+                                                     false,
+                                                     false}});
+    auto mask_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 4}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 4}}}), ninf);
+    auto where = m.add_instruction(migraphx::make_op("where"), mask_bc, ninf_bc, dot1);
+
+    auto softmax_out = add_softmax(m, where, {1, 4, 4});
     auto dot2        = m.add_instruction(migraphx::make_op("dot"), softmax_out, v);
     m.add_return({dot2});
 
-    auto flags = static_cast<std::uint32_t>(migraphx::attention_flags::causal) |
-                 static_cast<std::uint32_t>(migraphx::attention_flags::split_kv);
-    auto s = migraphx::gpu::dump_mlir(m, {}, "attention", flags);
+    auto s = migraphx::gpu::dump_mlir(m, {}, "attention", 0);
     if(s.empty())
         return;
-    auto mlir_output_with_attrs =
-        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
-    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // The output should NOT contain "features = causal" since the mask is not causal
+    EXPECT(s.find("causal") == std::string::npos);
+    // The where should still be in the pre-softmax body
+    EXPECT(s.find("migraphx.where") != std::string::npos);
+}
+
+// --- Tests for prepare_mlir causal detection (no rocMLIR dependency) ---
+
+static bool has_op(const migraphx::module& m, const std::string& name)
+{
+    for(auto ins : migraphx::iterator_for(m))
+    {
+        if(ins->name() == name)
+            return true;
+    }
+    return false;
+}
+
+TEST_CASE(prepare_mlir_causal_maskout)
+{
+    migraphx::module m;
+    auto q    = m.add_parameter("x0", {migraphx::shape::half_type, {1, 8, 8}});
+    auto k    = m.add_parameter("x1", {migraphx::shape::half_type, {1, 8, 8}});
+    auto dot1 = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    auto mask_lit = m.add_literal(make_causal_mask_maskout(8, 8));
+    auto mask_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 8, 8}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 8, 8}}}), ninf);
+    m.add_instruction(migraphx::make_op("where"), mask_bc, ninf_bc, dot1);
+    auto last = std::prev(m.end());
+    m.add_return({last});
+
+    std::uint32_t flags = 0;
+    migraphx::run_passes(
+        m, {migraphx::gpu::prepare_mlir{"attention", &flags}, migraphx::dead_code_elimination{}});
+
+    EXPECT(migraphx::has_flag(static_cast<migraphx::attention_flags>(flags),
+                              migraphx::attention_flags::causal));
+    EXPECT(not has_op(m, "where"));
+}
+
+TEST_CASE(prepare_mlir_causal_keep)
+{
+    migraphx::module m;
+    auto q    = m.add_parameter("x0", {migraphx::shape::half_type, {1, 8, 8}});
+    auto k    = m.add_parameter("x1", {migraphx::shape::half_type, {1, 8, 8}});
+    auto dot1 = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    auto mask_lit = m.add_literal(make_causal_mask_keep(8, 8));
+    auto mask_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 8, 8}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 8, 8}}}), ninf);
+    m.add_instruction(migraphx::make_op("where"), mask_bc, dot1, ninf_bc);
+    auto last = std::prev(m.end());
+    m.add_return({last});
+
+    std::uint32_t flags = 0;
+    migraphx::run_passes(
+        m, {migraphx::gpu::prepare_mlir{"attention", &flags}, migraphx::dead_code_elimination{}});
+
+    EXPECT(migraphx::has_flag(static_cast<migraphx::attention_flags>(flags),
+                              migraphx::attention_flags::causal));
+    EXPECT(not has_op(m, "where"));
+}
+
+TEST_CASE(prepare_mlir_causal_asymmetric)
+{
+    migraphx::module m;
+    auto q    = m.add_parameter("x0", {migraphx::shape::half_type, {1, 2, 4, 8}});
+    auto k    = m.add_parameter("x1", {migraphx::shape::half_type, {1, 2, 8, 16}});
+    auto dot1 = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    auto mask_lit = m.add_literal(make_causal_mask_maskout(4, 16));
+    auto mask_bc  = m.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 16}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 4, 16}}}), ninf);
+    m.add_instruction(migraphx::make_op("where"), mask_bc, ninf_bc, dot1);
+    auto last = std::prev(m.end());
+    m.add_return({last});
+
+    std::uint32_t flags = 0;
+    migraphx::run_passes(
+        m, {migraphx::gpu::prepare_mlir{"attention", &flags}, migraphx::dead_code_elimination{}});
+
+    EXPECT(migraphx::has_flag(static_cast<migraphx::attention_flags>(flags),
+                              migraphx::attention_flags::causal));
+    EXPECT(not has_op(m, "where"));
+}
+
+TEST_CASE(prepare_mlir_non_causal_no_flag)
+{
+    migraphx::module m;
+    auto q    = m.add_parameter("x0", {migraphx::shape::half_type, {1, 4, 4}});
+    auto k    = m.add_parameter("x1", {migraphx::shape::half_type, {1, 4, 4}});
+    auto dot1 = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    // All-zeros mask: masks nothing — not causal
+    auto mask_lit = m.add_literal(migraphx::literal{{migraphx::shape::bool_type, {4, 4}},
+                                                    {false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false,
+                                                     false}});
+    auto mask_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 4}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 4}}}), ninf);
+    m.add_instruction(migraphx::make_op("where"), mask_bc, ninf_bc, dot1);
+    auto last = std::prev(m.end());
+    m.add_return({last});
+
+    std::uint32_t flags = 0;
+    migraphx::run_passes(
+        m, {migraphx::gpu::prepare_mlir{"attention", &flags}, migraphx::dead_code_elimination{}});
+
+    EXPECT(not migraphx::has_flag(static_cast<migraphx::attention_flags>(flags),
+                                  migraphx::attention_flags::causal));
+    EXPECT(has_op(m, "where"));
+}
+
+TEST_CASE(prepare_mlir_no_flags_ptr_skips_causal)
+{
+    migraphx::module m;
+    auto q    = m.add_parameter("x0", {migraphx::shape::half_type, {1, 8, 8}});
+    auto k    = m.add_parameter("x1", {migraphx::shape::half_type, {1, 8, 8}});
+    auto dot1 = m.add_instruction(migraphx::make_op("dot"), q, k);
+
+    auto mask_lit = m.add_literal(make_causal_mask_maskout(8, 8));
+    auto mask_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 8, 8}}}), mask_lit);
+    auto ninf = m.add_literal(migraphx::literal{{migraphx::shape::half_type, {1}},
+                                                {-std::numeric_limits<float>::infinity()}});
+    auto ninf_bc =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 8, 8}}}), ninf);
+    m.add_instruction(migraphx::make_op("where"), mask_bc, ninf_bc, dot1);
+    auto last = std::prev(m.end());
+    m.add_return({last});
+
+    // out_flags is nullptr — causal detection should be skipped
+    migraphx::run_passes(
+        m, {migraphx::gpu::prepare_mlir{{}, nullptr}, migraphx::dead_code_elimination{}});
+
+    EXPECT(has_op(m, "where"));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

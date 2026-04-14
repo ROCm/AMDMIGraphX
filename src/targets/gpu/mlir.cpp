@@ -1375,7 +1375,8 @@ struct mlir_program
     std::string sym_name;
 };
 
-static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
+static void prepare(module& m, const std::string& tag = {}, std::uint32_t* out_flags = nullptr)
+{ run_passes(m, {prepare_mlir{tag, out_flags}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
@@ -1431,7 +1432,7 @@ dump_mlir(module m, const std::vector<shape>& inputs, const std::string& tag, st
     {
         adjust_param_shapes(m, inputs);
     }
-    prepare(m);
+    prepare(m, tag, &flags);
     mlir_program mp;
     mp.parse(*mr, inputs, tag, flags);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
@@ -1517,7 +1518,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
                               std::uint32_t flags)
 {
     adjust_param_shapes(m, in_shapes);
-    prepare(m);
+    prepare(m, tag, &flags);
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;

@@ -26,6 +26,7 @@
 #define MIGRAPHX_GUARD_GPU_PREPARE_MLIR_HPP
 
 #include <migraphx/config.hpp>
+#include <cstdint>
 #include <string>
 
 namespace migraphx {
@@ -38,6 +39,8 @@ namespace gpu {
 struct prepare_mlir
 {
     std::string name() const { return "gpu::prepare_mlir"; }
+    std::string tag          = {};
+    std::uint32_t* out_flags = nullptr;
     void apply(module& m) const;
 };
 

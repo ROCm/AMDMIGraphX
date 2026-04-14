@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/gpu/prepare_mlir.hpp>
+#include <migraphx/attention_flags.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/instruction.hpp>
@@ -33,6 +34,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/ranges.hpp>
 #include <algorithm>
+#include <cmath>
 #include <numeric>
 #include <vector>
 
@@ -129,7 +131,146 @@ struct find_where
     }
 };
 
-// TODO: add matchers for setting attention flags
+static bool is_neg_inf(instruction_ref ins)
+{
+    auto trace_through = [](instruction_ref i) {
+        while(contains({"multibroadcast", "broadcast", "convert", "contiguous"}, i->name()))
+            i = i->inputs().front();
+        return i;
+    };
+    auto lit_ins = trace_through(ins);
+    if(lit_ins->name() != "@literal")
+        return false;
+    bool result = false;
+    lit_ins->get_literal().visit([&](auto v) {
+        result = std::all_of(v.begin(), v.end(), [](auto x) {
+            return std::isinf(static_cast<double>(x)) and static_cast<double>(x) < 0;
+        });
+    });
+    return result;
+}
+
+static bool is_causal_mask(instruction_ref cond, std::size_t seq_q, std::size_t seq_k)
+{
+    if(not cond->can_eval())
+        return false;
+    auto mask_arg = cond->eval();
+    if(mask_arg.empty())
+        return false;
+    auto mask_shape = mask_arg.get_shape();
+    auto lens       = mask_shape.lens();
+    if(lens.size() < 2)
+        return false;
+    auto mask_q = lens[lens.size() - 2];
+    auto mask_k = lens[lens.size() - 1];
+    if(mask_q != seq_q or mask_k != seq_k)
+        return false;
+
+    std::int64_t offset = static_cast<std::int64_t>(seq_k) - static_cast<std::int64_t>(seq_q);
+    bool result         = false;
+    mask_arg.visit([&](auto v) {
+        auto batch_size = v.size() / (mask_q * mask_k);
+        result          = true;
+        for(std::size_t b = 0; b < batch_size and result; ++b)
+        {
+            for(std::size_t i = 0; i < mask_q and result; ++i)
+            {
+                for(std::size_t j = 0; j < mask_k; ++j)
+                {
+                    bool expected_masked =
+                        static_cast<std::int64_t>(j) > static_cast<std::int64_t>(i) + offset;
+                    bool actual = static_cast<bool>(v[b * mask_q * mask_k + i * mask_k + j]);
+                    if(actual != expected_masked)
+                    {
+                        result = false;
+                        break;
+                    }
+                }
+            }
+        }
+    });
+    return result;
+}
+
+struct find_attention_causal
+{
+    std::uint32_t* out_flags;
+
+    auto matcher() const { return match::name("where"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto cond = ins->inputs()[0];
+        auto a    = ins->inputs()[1];
+        auto b    = ins->inputs()[2];
+
+        auto where_shape = ins->get_shape();
+        auto lens        = where_shape.lens();
+        if(lens.size() < 2)
+            return;
+        auto seq_q = lens[lens.size() - 2];
+        auto seq_k = lens[lens.size() - 1];
+
+        // Convention 1: where(mask, -inf, scores) — mask=true means mask out
+        if(is_neg_inf(a) and is_causal_mask(cond, seq_q, seq_k))
+        {
+            m.replace_instruction(ins, b);
+            if(out_flags != nullptr)
+                *out_flags |= static_cast<std::uint32_t>(attention_flags::causal);
+            return;
+        }
+        // Convention 2: where(mask, scores, -inf) — mask=true means keep.
+        // The inverted mask (true = keep) must satisfy: for position (i,j),
+        // mask is true when j <= i + offset (i.e. NOT masked), which is the
+        // bitwise complement of the mask-out convention.
+        if(is_neg_inf(b) and cond->can_eval())
+        {
+            auto mask_arg = cond->eval();
+            if(mask_arg.empty())
+                return;
+            auto mask_shape = mask_arg.get_shape();
+            auto mask_lens  = mask_shape.lens();
+            if(mask_lens.size() < 2)
+                return;
+            auto mask_q = mask_lens[mask_lens.size() - 2];
+            auto mask_k = mask_lens[mask_lens.size() - 1];
+            if(mask_q != seq_q or mask_k != seq_k)
+                return;
+            std::int64_t offset =
+                static_cast<std::int64_t>(seq_k) - static_cast<std::int64_t>(seq_q);
+            bool is_keep_causal = false;
+            mask_arg.visit([&](auto v) {
+                auto batch_size = v.size() / (mask_q * mask_k);
+                is_keep_causal  = true;
+                for(std::size_t bx = 0; bx < batch_size and is_keep_causal; ++bx)
+                {
+                    for(std::size_t i = 0; i < mask_q and is_keep_causal; ++i)
+                    {
+                        for(std::size_t j = 0; j < mask_k; ++j)
+                        {
+                            bool expected_keep = static_cast<std::int64_t>(j) <=
+                                                 static_cast<std::int64_t>(i) + offset;
+                            bool actual =
+                                static_cast<bool>(v[bx * mask_q * mask_k + i * mask_k + j]);
+                            if(actual != expected_keep)
+                            {
+                                is_keep_causal = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+            if(is_keep_causal)
+            {
+                m.replace_instruction(ins, a);
+                if(out_flags != nullptr)
+                    *out_flags |= static_cast<std::uint32_t>(attention_flags::causal);
+            }
+        }
+    }
+};
 
 } // namespace
 
@@ -137,6 +278,8 @@ void prepare_mlir::apply(module& m) const
 {
     match::find_matches(m, find_reduce{}, find_leaky_relu{});
     match::find_matches(m, find_where{});
+    if(tag == "attention" and out_flags != nullptr)
+        match::find_matches(m, find_attention_causal{out_flags});
     run_passes(m, {dead_code_elimination{}});
 }
 

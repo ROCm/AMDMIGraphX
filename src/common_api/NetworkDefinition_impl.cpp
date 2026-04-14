@@ -14,6 +14,21 @@ NvNetworkDefinition_impl::~NvNetworkDefinition_impl()
 	// TODO! implement
 }
 
+void NvNetworkDefinition_impl::setProgram(std::shared_ptr<migraphx::program> program)
+{
+	mProgram = program;
+
+	for(auto param : mProgram->get_main_module()->get_parameters())
+	{
+		mInputTensors.push_back(std::make_unique<Tensor_impl>(param));
+	}
+
+	for(auto param : mProgram->get_main_module()->get_returns())
+	{
+		mOutputTensors.push_back(std::make_unique<Tensor_impl>(param));
+	}
+}
+
 ITensor* NvNetworkDefinition_impl::addInput(char const* name, DataType type, Dims const& dimensions) noexcept
 {
 	// TODO! implement

@@ -6,8 +6,7 @@ namespace nvonnxparser
 {
 
 NvOnnxParser_impl::NvOnnxParser_impl(void* network, void* logger, int version)
-    :   mNetworkDefinition(std::make_shared<nvinfer1::NvNetworkDefinition_impl>(
-            static_cast<nvinfer1::INetworkDefinition*>(network)))
+    :   mNetworkDefinition(static_cast<nvinfer1::NvNetworkDefinition_impl*>(network))
 {
     // TODO! implement
 }
@@ -27,7 +26,14 @@ bool NvOnnxParser_impl::parse(void const* serialized_onnx_model, size_t serializ
 bool NvOnnxParser_impl::parseFromFile(const char* onnxModelFile, int verbosity) noexcept 
 {
     // TODO! implement
-    auto p = migraphx::parse_onnx(onnxModelFile);
+    try
+    {
+        mNetworkDefinition->setProgram(std::make_shared<migraphx::program>(migraphx::parse_onnx(onnxModelFile)));
+    }
+    catch(...)
+    {
+        return false;
+    }
 
     return true;
 }

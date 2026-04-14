@@ -2,6 +2,9 @@
 #define NV_NETWORK_DEFINITION_IMPL_H
 
 #include "migraphx/common_api/NvInfer.h"
+#include "Tensor_impl.hpp"
+
+#include <migraphx/program.hpp>
 
 namespace nvinfer1
 {
@@ -105,8 +108,14 @@ namespace nvinfer1
         bool markUnfusedTensorsAsDebugTensors() noexcept override;
         bool unmarkUnfusedTensorsAsDebugTensors() noexcept override;
 
+        void setProgram(std::shared_ptr<migraphx::program> program);
+
     private:
         IBuilder& mBuilder;
+
+        std::shared_ptr<migraphx::program> mProgram = std::make_shared<migraphx::program>();
+        std::vector<std::unique_ptr<Tensor_impl>> mInputTensors;
+        std::vector<std::unique_ptr<Tensor_impl>> mOutputTensors;
     };
 
 }   // ns:nvinfer1

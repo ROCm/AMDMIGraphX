@@ -572,6 +572,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("write_netron_output",
              [](const migraphx::program& p, const std::string& filename) {
                  std::ofstream os(filename, std::ios::binary);
+                 if(not os.is_open())
+                     throw std::runtime_error("Failed to open file for writing: " + filename);
                  migraphx::write_netron_output(p, os);
              },
              "Write program as ONNX protobuf binary viewable in Netron",

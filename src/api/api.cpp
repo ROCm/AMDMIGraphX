@@ -342,6 +342,9 @@ static void print_program(const program& p) { std::cout << p << std::endl; }
 static void write_netron_output_file(const program& p, const char* filename)
 {
     std::ofstream os(filename, std::ios::binary);
+    if(not os.is_open())
+        MIGRAPHX_THROW(migraphx_status_bad_param,
+                       "Failed to open file for writing: " + std::string(filename));
     write_netron_output(p, os);
 }
 

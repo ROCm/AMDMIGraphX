@@ -36,10 +36,8 @@
 #include <migraphx/source_location.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/time.hpp>
-#include <migraphx/logger.hpp>
 
 #include <array>
-#include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -346,7 +344,7 @@ struct matcher_result
         {
             for(const auto& it : ins_map)
             {
-                log::debug() << it.first << ":";
+                std::cout << it.first << ": \n";
                 it.second->debug_print();
             }
         }
@@ -357,10 +355,9 @@ struct matcher_result
 
     void debug_print() const
     {
-        log::debug() << "matcher_container:";
-        log::debug() << "  instructions:";
+        std::cout << "matcher_container: \n  instructions:";
         instructions.debug_print();
-        log::debug() << "  result:";
+        std::cout << "  result: \n";
         result->debug_print();
     }
 
@@ -448,7 +445,7 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
     return [=, &f](auto& mod, instruction_ref ins) -> bool {
         using microseconds = std::chrono::duration<double, std::micro>;
         if(trace > 1 and trace_enabled)
-            log::trace() << "Running matcher: " << finder_name;
+            std::cout << "Running matcher: " << finder_name << std::endl;
 
         match::matcher_result r;
         double match_time = 0.0;
@@ -464,7 +461,8 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
 
         if(trace > 1 and trace_enabled)
         {
-            log::trace() << "Matcher time for " << finder_name << ": " << match_time << "us";
+            std::cout << "Matcher time for " << finder_name << ": " << match_time << "us"
+                      << std::endl;
         }
 
         // did not match any instruction
@@ -473,7 +471,7 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
 
         if(trace_enabled)
         {
-            log::trace() << "Matched by: " << finder_name;
+            std::cout << "Matched by: " << finder_name << std::endl;
             get_module(mod).debug_print(ins);
         }
         // If its already invalid dont validate it again
@@ -481,9 +479,10 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
         if(trace_enabled)
         {
             if(trace > 1)
-                log::trace() << "Applying matcher: " << finder_name;
+                std::cout << "Applying matcher: " << finder_name << std::endl;
             auto apply_time = time<microseconds>([&] { f.apply(mod, r); });
-            log::trace() << "Apply time for " << finder_name << ": " << apply_time << "us";
+            std::cout << "Apply time for " << finder_name << ": " << apply_time << "us"
+                      << std::endl;
         }
         else
         {
@@ -495,8 +494,8 @@ auto make_match_runner_with_trace(source_location location, Finder& f)
             auto invalid = get_module(mod).validate();
             if(invalid != get_module(mod).end())
             {
-                log::error() << "Invalid program from match: " << finder_name;
-                log::error() << "Invalid instructions:";
+                std::cout << "Invalid program from match: " << finder_name << std::endl;
+                std::cout << "Invalid instructions: " << std::endl;
                 get_module(mod).debug_print(invalid->inputs());
                 get_module(mod).debug_print(invalid);
             }
@@ -553,7 +552,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 return;
             // print running matcher even if it doesn't match anything
             if(trace > 1 and trace_for)
-                log::trace() << "Running matcher: " << matcher_name;
+                std::cout << "Running matcher: " << matcher_name << std::endl;
 
             matcher_result r;
             if(time_matchers or trace_for)
@@ -562,7 +561,8 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 r = match_instruction(get_module(mod), ins, m.matcher());
                 const auto match_time =
                     match_timer.record<std::chrono::duration<double, std::micro>>();
-                log::trace() << "Matcher time for " << matcher_name << ": " << match_time << "us";
+                std::cout << "Matcher time for " << matcher_name << ": " << match_time << "us"
+                          << std::endl;
             }
             else
             {
@@ -575,7 +575,7 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
 
             if(trace > 0 or trace_for)
             {
-                log::trace() << "Matched by: " << matcher_name;
+                std::cout << "Matched by: " << matcher_name << std::endl;
                 get_module(mod).debug_print(ins);
             }
             // If its already invalid dont validate it again
@@ -584,7 +584,8 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 time<std::chrono::duration<double, std::micro>>([&] { m.apply(mod, r); });
             if(time_matchers or trace_for)
             {
-                log::trace() << "Apply time for " << matcher_name << ": " << apply_time << "us";
+                std::cout << "Apply time for " << matcher_name << ": " << apply_time << "us"
+                          << std::endl;
             }
 
             if(validate and not invalidated)
@@ -592,8 +593,8 @@ void find_matches_for(source_location location, Mod& mod, instruction_ref ins, M
                 auto invalid = get_module(mod).validate();
                 if(invalid != get_module(mod).end())
                 {
-                    log::error() << "Invalid program from match: " << matcher_name;
-                    log::error() << "Invalid instructions:";
+                    std::cout << "Invalid program from match: " << matcher_name << std::endl;
+                    std::cout << "Invalid instructions: " << std::endl;
                     get_module(mod).debug_print(invalid->inputs());
                     get_module(mod).debug_print(invalid);
                 }
@@ -765,13 +766,13 @@ inline auto trace(const std::string& s)
 {
     return [=](auto m) {
         return make_basic_fun_matcher([=](matcher_context& ctx, instruction_ref ins) {
-            log::trace() << s << ":";
+            std::cout << s << ": ";
             ctx.debug_print(ins);
             optional<instruction_ref> result = m.match(ctx, ins);
             if(result.has_value())
-                log::trace() << "Found";
+                std::cout << "Found\n";
             else
-                log::trace() << "Not Found";
+                std::cout << "Not Found\n";
             return result;
         });
     };
@@ -784,7 +785,7 @@ inline auto trace_found(const std::string& s)
             optional<instruction_ref> result = m.match(ctx, ins);
             if(result.has_value())
             {
-                log::trace() << "Found: " << s << ":";
+                std::cout << "Found: " << s << ": ";
                 ctx.debug_print(ins);
             }
             return result;
@@ -799,7 +800,7 @@ inline auto trace_not_found(const std::string& s)
             optional<instruction_ref> result = m.match(ctx, ins);
             if(not result.has_value())
             {
-                log::trace() << "Not Found: " << s << ":";
+                std::cout << "Not Found: " << s << ": ";
                 ctx.debug_print(ins);
             }
             return result;

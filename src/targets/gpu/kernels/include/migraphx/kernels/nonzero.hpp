@@ -38,13 +38,13 @@ __device__ void nonzero(Input input, Output output)
 {
     auto idx                     = make_index();
     const auto in_shape          = input.get_shape();
-    const index_int elem_num     = in_shape.elements();
-    const index_int out_elem_num = output.get_shape().elements();
+    const auto elem_num          = in_shape.elements();
+    const auto out_elem_num      = output.get_shape().elements();
 
     // Fill all output to 0 first
     idx.local_stride(out_elem_num, [&](auto j) { output[j] = 0; });
 
-    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
+    constexpr auto block_size = decltype(idx.max_nlocal()){};
     static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
                   "Block size must be a multiple of wavefront size");
     block_scan(
@@ -52,8 +52,8 @@ __device__ void nonzero(Input input, Output output)
         op::sum{},
         0,
         elem_num,
-        [&](index_int j) { return float_equal(input[j], 0) ? 0 : 1; },
-        [&](index_int j, int value) {
+        [&](auto j) { return float_equal(input[j], 0) ? 0 : 1; },
+        [&](auto j, auto value) {
             if(j >= elem_num)
                 return;
             const int scanned  = value;

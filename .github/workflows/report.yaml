@@ -6,10 +6,6 @@ on:
 
 env:
   REPORTS_DIR: migraphx-reports
-  MAIL_TO: dl.dl-migraphx-perfrun@amd.com
-  MAIL_BODY: Scheduled Performance test run on develop branch
-  PERFORMANCE_DIR: performance-backup
-  REPORTS_PATH: temp_reports
 
 jobs:
   post-report:
@@ -83,7 +79,7 @@ jobs:
 
       - name: Setup Python
         if: steps.dl_art.outcome == 'success'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -91,119 +87,15 @@ jobs:
         if: steps.dl_art.outcome == 'success'
         run: pip install tabulate==0.8.9 pandas==1.4.2 numpy==1.22.3 openpyxl==3.1.2
 
-      - name: Execute report script
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
-        run: |
-          mkdir -p ${{ env.REPORTS_PATH }}
-          python3 benchmark-utils/scripts/report.py -t 'test-results' -r ${{ env.REPORTS_PATH }}
-          python3 benchmark-utils/scripts/history.py -n -t 'test-results' -r ${{ env.REPORTS_PATH }}
-          mkdir -p ${{ env.REPORTS_DIR }}/nightly_reports
-          cp -r ${{ env.REPORTS_PATH }}/results-* ${{ env.REPORTS_DIR }}/nightly_reports/ || true
-
-      - name: Copy performance results to repo - PRs
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event != 'schedule' && env.PR_NUMBER && env.PR_NUMBER != ''
-        run: |
-          mkdir -p ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}
-          cp -r test-results/perf-*/. ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }} || true
-          if [ "${{ env.ACCURACY_DIR }}" != "" ]; then
-            mkdir -p ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/accuracy_logs
-            cp -r test-results/${{ env.ACCURACY_DIR }}/. ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/accuracy_logs || true
-          fi
-
-      - name: Copy performance results to repo - develop - nightly or manual
-        if: steps.dl_art.outcome == 'success' && (github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'workflow_dispatch')
-        run: |
-          mkdir -p ${{ env.REPORTS_DIR }}/performance_results/develop/${{ env.GIT_SHA }}
-          cp -r test-results/perf-*/. ${{ env.REPORTS_DIR }}/performance_results/develop/${{ env.GIT_SHA }} || true
-          if [ "${{ env.ACCURACY_DIR }}" != "" ]; then
-            mkdir -p ${{ env.REPORTS_DIR }}/performance_results/develop/${{ env.GIT_SHA }}/accuracy_logs
-            cp -r test-results/${{ env.ACCURACY_DIR }}/. ${{ env.REPORTS_DIR }}/performance_results/develop/${{ env.GIT_SHA }}/accuracy_logs || true
-          fi
-
-      - name: Push results to repo
-        if: steps.dl_art.outcome == 'success'
-        continue-on-error: true
-        run: |
-          cd ${{ env.REPORTS_DIR }}
-          git add .
-          git config --local user.email github-actions@github.com
-          git config --local user.name github-actions
-          git commit -m "Performance results run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -a || true
-          git push
-
-      - name: Execute comment script
-        if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
-        run: |
-          if [ "${{ env.FLAGS }}" == "-r" ]; then
-            flagoptions="-r benchmark-utils/scripts/"
-          else
-            flagoptions="${{ env.FLAGS }}"
-          fi
-          python3 benchmark-utils/scripts/comment.py -t 'test-results' -n "${{ env.RESULT_NUMBER }}" $flagoptions -p
-
-      - name: Create a comment on PR
-        if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
-        uses: marocchino/sticky-pull-request-comment@v2.9.0
-        with:
-          header: performance
-          number: ${{ env.PR_NUMBER }}
+      - name: Publish feedback from performance and accuracy tests
+        if: >-
+          steps.dl_art.outcome == 'success'
+          && github.event.workflow_run.event != 'schedule'
+          && env.PR_NUMBER != ''
+          && env.GIT_SHA != ''
+        env:
           GITHUB_TOKEN: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
-          path: test-results/temp.md
-          recreate: true
-
-      - name: Create accuracy comment on PR
-        if: steps.dl_art.outcome == 'success' && env.PR_NUMBER && env.PR_NUMBER != ''
-        uses: marocchino/sticky-pull-request-comment@v2.9.0
-        with:
-          header: accuracy
-          number: ${{ env.PR_NUMBER }}
-          GITHUB_TOKEN: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
-          path: test-results/${{ env.ACCURACY_DIR }}/results.md
-          recreate: true
-
-      - name : Checkout for backup
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
-        uses: actions/checkout@v4.3.1
-        with:
-          repository: migraphx-benchmark/${{ env.PERFORMANCE_DIR }}
-          path: ${{ env.PERFORMANCE_DIR }}
-          token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
-
-      - name: Backup
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
-        run : |
-          mkdir -p ${{ env.PERFORMANCE_DIR }}/${{ env.ORGANIZATION }}
-          cp -r test-results/perf-* ${{ env.PERFORMANCE_DIR }}/${{ env.ORGANIZATION }} || true
-          cd ${{ env.PERFORMANCE_DIR }}
-          git add .
-          git status
-          git config --local user.email github-actions@github.com
-          git config --local user.name github-actions
-          git commit -m "Backup latest perf results" -a || true
-          git push
-
-      
-      - name: Get latest report
-        id: last_report
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
         run: |
-          cd ${{ env.REPORTS_DIR }}/nightly_reports
-          latest="$(readlink -f $(ls -tp | grep -v /$ | head -1))"
-          echo "latest=$latest" >> $GITHUB_OUTPUT
-      
-      - name: Send mail
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event == 'schedule'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          username: ${{ secrets.MAIL_USERNAME }}
-          password: ${{ secrets.MAIL_PASSWORD }}
-          subject: "Nightly Performance run"
-          to: ${{ env.MAIL_TO }}
-          from: "GH Actions"
-          secure: true
-          body: ${{ env.MAIL_BODY }}
-          ignore_cert: true
-          attachments: ${{ steps.last_report.outputs.latest}}
-          priority: normal
+          python3 benchmark-utils/scripts/perf_compare.py -f ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/results.csv -p ${{ env.PR_NUMBER }}
+          python3 benchmark-utils/scripts/accuracy_comment.py -f ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/accuracy_logs/results.md -p ${{ env.PR_NUMBER }}
+

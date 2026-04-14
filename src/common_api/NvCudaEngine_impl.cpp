@@ -1,5 +1,6 @@
 #include "migraphx/common_api/NvInfer.h"
 #include "NvCudaEngine_impl.hpp"
+#include "NvExecutionContext_impl.hpp"
 
 namespace nvinfer1
 {
@@ -42,8 +43,7 @@ IHostMemory* NvCudaEngine_impl::serialize() const noexcept
 
 IExecutionContext* NvCudaEngine_impl::createExecutionContext(ExecutionContextAllocationStrategy strategy) noexcept
 {
-    // TODO! implement
-    return nullptr;
+    return new NvExecutionContext_impl{mProgram};
 }
 
 IExecutionContext* NvCudaEngine_impl::createExecutionContextWithoutDeviceMemory() noexcept

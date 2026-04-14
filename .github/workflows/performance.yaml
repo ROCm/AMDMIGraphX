@@ -7,6 +7,15 @@ on:
   schedule:
     - cron: "0 7 * * 1-6"
   workflow_dispatch:
+    inputs:
+      perf_source:
+        description: "Data source: 'develop' for nightly/develop data, 'pr' for PR data"
+        required: false
+        default: "develop"
+        type: choice
+        options:
+          - develop
+          - pr
 
 concurrency: 
   group: "perftest-${{ github.head_ref || github.base_ref || 'schedule' }}"
@@ -24,10 +33,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve data source
+        id: source
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SOURCE="${{ inputs.perf_source }}"
+          elif [ "${{ github.event_name }}" = "pull_request_target" ]; then
+            SOURCE="pr"
+          else
+            SOURCE="develop"
+          fi
+
+          if [ "$SOURCE" = "develop" ]; then
+            echo "zip=test/actions/perf_develop/performance-run-data.zip" >> "$GITHUB_OUTPUT"
+          else
+            echo "zip=test/actions/perf_pr/performance-run-data-pr.zip" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Extract performance data
         run: |
           mkdir -p test-results
-          unzip test/actions/perf_develop/performance-run-data.zip -d test-results
+          unzip ${{ steps.source.outputs.zip }} -d test-results
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

@@ -199,7 +199,7 @@ dependency on MLIR C API libraries or `dxgml_ir.dll`.
 
 Use **`generate_migraphx.bat`** at the repo root.  It supports two generators:
 
-### Ninja (default — fastest incremental rebuilds)
+### Ninja (default)
 
 ```bat
 REM Full configure + build (WinRelWithDebInfo preset)
@@ -222,7 +222,7 @@ Available presets: `WinRelWithDebInfo` (default), `WinDebug`, `WinRelease`, `Win
 
 Output directory: `build\<preset>\`  (e.g. `build\WinRelWithDebInfo\bin\amdxgml.dll`)
 
-### Visual Studio 2022 (ClangCL toolset)
+### Visual Studio
 
 **Prerequisite — install two ClangCL components:**
 
@@ -258,7 +258,7 @@ Also accepts Ninja preset names as aliases (`WinRelWithDebInfo` → `RelWithDebI
 
 Output directory: `build_vs\bin\<config>\`  (e.g. `build_vs\bin\RelWithDebInfo\amdxgml.dll`)
 
-### CMake directly (advanced)
+### CMake
 
 ```cmake
 # Ninja (via preset):
@@ -271,7 +271,7 @@ cmake -G "Visual Studio 17 2022" -A x64 -T ClangCL \
 cmake --build build_vs --config RelWithDebInfo --parallel --target amdxgml driver
 ```
 
-### Running tests
+## Running tests
 
 ```bat
 REM ctest parse unit tests (5 tests):

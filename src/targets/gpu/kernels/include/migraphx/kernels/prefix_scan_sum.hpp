@@ -30,42 +30,41 @@
 
 namespace migraphx {
 
+// sliced tensors from slice_schedule cover one axis line
 template <bool Exclusive, bool Reverse, class Input, class Output>
-__device__ void prefix_scan_sum_slice(
-    Input input, Output output, index_int offset, index_int n, index_int axis_stride)
+__device__ void prefix_scan_sum_slice(Input input, Output output)
 {
     auto idx = make_index();
 
-    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
+    constexpr auto block_size = decltype(idx.max_nlocal()){};
     static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
                   "Block size must be a multiple of wavefront size");
+    const index_int n          = input.get_shape().elements();
     const index_int num_chunks = (n + block_size - 1) / block_size;
 
-    auto axis_index = [&](index_int j) {
-        const index_int pos = Reverse ? (n - 1 - j) : j;
-        return offset + pos * axis_stride;
-    };
+    const auto linear = [&](index_int j) { return Reverse ? (n - 1 - j) : j; };
 
-    using value_type = remove_reference_t<decltype(input[axis_index(0)])>;
+    using value_type = remove_reference_t<decltype(*input.data())>;
 
     value_type carry = value_type{0};
     for(index_int chunk = 0; chunk < num_chunks; ++chunk)
     {
         const index_int j = chunk * block_size + idx.local;
-        value_type value  = (j < n) ? input[axis_index(j)] : value_type{0};
+        value_type value  = (j < n) ? input[linear(j)] : value_type{0};
         carry             = block_scan(idx, value, op::sum{}, carry);
         if(j < n)
         {
+            const index_int li = linear(j);
             if constexpr(Exclusive)
             {
                 if(j == 0)
-                    output[axis_index(j)] = value_type{0};
+                    output[li] = value_type{0};
                 else
-                    output[axis_index(j)] = value - input[axis_index(j)];
+                    output[li] = value - input[li];
             }
             else
             {
-                output[axis_index(j)] = value;
+                output[li] = value;
             }
         }
     }

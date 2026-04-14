@@ -32,6 +32,7 @@ namespace gpu {
 
 static const char* const prefix_scan_sum_kernel = R"__migraphx__(
 #include <migraphx/kernels/prefix_scan_sum.hpp>
+#include <migraphx/kernels/slice.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -42,16 +43,10 @@ MIGRAPHX_GLOBAL void prefix_scan_sum_kernel(void* input_p, void* output_p)
 {
     make_tensors()(input_p, output_p)([](auto input, auto output) {
         auto idx = make_index();
-        const index_int nslices = ${nslices};
-        const index_int n = ${n};
-        const index_int axis_stride = ${axis_stride};
-        index_int slice_idx = idx.group;
-        if(slice_idx < nslices)
-        {
-            index_int offset = ${offset_computation};
-            prefix_scan_sum_slice<${exclusive}, ${reverse}>(
-                input, output, offset, n, axis_stride);
-        }
+        slice_schedule<per_block>(idx, slice_axes<${axis}>())(input, output)(
+            [&](auto in_slice, auto out_slice) {
+                prefix_scan_sum_slice<${exclusive}, ${reverse}>(in_slice, out_slice);
+            });
     });
 }
 
@@ -77,10 +72,8 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
         auto exclusive           = v.get("exclusive", false);
         auto reverse             = v.get("reverse", false);
 
-        std::size_t axis = v.at("axis").to<std::size_t>();
-
-        std::size_t n           = output_shape.lens()[axis];
-        std::size_t axis_stride = output_shape.strides()[axis];
+        // axis is normalized earlier via prefix_scan_op
+        const std::size_t axis = v.at("axis").to<std::size_t>();
 
         std::size_t nslices = 1;
         for(std::size_t i = 0; i < output_shape.lens().size(); ++i)
@@ -89,91 +82,12 @@ struct prefix_scan_sum_compiler : compiler<prefix_scan_sum_compiler>
                 nslices *= output_shape.lens()[i];
         }
 
-        auto ndim           = output_shape.lens().size();
-        const auto& lens    = output_shape.lens();
-        const auto& strides = output_shape.strides();
-
-        std::vector<std::size_t> batch_lens;
-        std::vector<std::size_t> batch_strides;
-        for(std::size_t i = 0; i < ndim; ++i)
-        {
-            if(i != axis)
-            {
-                batch_lens.push_back(lens[i]);
-                batch_strides.push_back(strides[i]);
-            }
-        }
-
-        std::string offset_computation = "0";
-        if(not batch_lens.empty())
-        {
-            std::vector<std::size_t> divisors(batch_lens.size());
-            divisors.back() = 1;
-            for(std::size_t i = batch_lens.size() - 1; i > 0; --i)
-            {
-                divisors[i - 1] = divisors[i] * batch_lens[i];
-            }
-
-            std::vector<std::string> terms;
-            for(std::size_t i = 0; i < batch_lens.size(); ++i)
-            {
-                std::string idx_expr;
-                if(divisors[i] == 1)
-                {
-                    idx_expr = "slice_idx";
-                }
-                else
-                {
-                    idx_expr = "(slice_idx / ";
-                    idx_expr += std::to_string(divisors[i]);
-                    idx_expr += ")";
-                }
-
-                if(i > 0)
-                {
-                    std::string wrapped = "(";
-                    wrapped += idx_expr;
-                    wrapped += " % ";
-                    wrapped += std::to_string(batch_lens[i]);
-                    wrapped += ")";
-                    idx_expr = std::move(wrapped);
-                }
-
-                if(batch_strides[i] != 0)
-                {
-                    if(batch_strides[i] == 1)
-                    {
-                        terms.push_back(idx_expr);
-                    }
-                    else
-                    {
-                        idx_expr += " * ";
-                        idx_expr += std::to_string(batch_strides[i]);
-                        terms.push_back(idx_expr);
-                    }
-                }
-            }
-
-            if(not terms.empty())
-            {
-                offset_computation = terms[0];
-                for(std::size_t i = 1; i < terms.size(); ++i)
-                {
-                    offset_computation += " + ";
-                    offset_computation += terms[i];
-                }
-            }
-        }
-
         constexpr std::size_t block_size = 256;
         options.global                   = nslices * block_size;
         options.local                    = block_size;
 
         auto src = interpolate_string(prefix_scan_sum_kernel,
-                                      {{"n", std::to_string(n)},
-                                       {"axis_stride", std::to_string(axis_stride)},
-                                       {"nslices", std::to_string(nslices)},
-                                       {"offset_computation", offset_computation},
+                                      {{"axis", std::to_string(axis)},
                                        {"exclusive", exclusive ? "true" : "false"},
                                        {"reverse", reverse ? "true" : "false"}});
 

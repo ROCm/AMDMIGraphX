@@ -10,6 +10,13 @@ NvCudaEngine_impl::NvCudaEngine_impl(void* logger, int32_t version) noexcept
     mImpl = this;
 }
 
+NvCudaEngine_impl::NvCudaEngine_impl(const std::shared_ptr<migraphx::program>& program) noexcept
+    : mProgram(program), mTensorNames{program->get_parameter_names()}  
+{
+    // TODO! implement
+    mImpl = this;
+}
+
 NvCudaEngine_impl::~NvCudaEngine_impl()
 {
     // TODO! implement

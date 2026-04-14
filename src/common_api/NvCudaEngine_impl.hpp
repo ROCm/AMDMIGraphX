@@ -1,6 +1,8 @@
 #ifndef NV_CUDA_ENGINE_IMPL_H
 #define NV_CUDA_ENGINE_IMPL_H
 
+#include <vector>
+#include <migraphx/program.hpp>
 #include "migraphx/common_api/NvInferRuntime.h"
 
 namespace nvinfer1
@@ -9,6 +11,8 @@ namespace nvinfer1
     {
     public:
         NvCudaEngine_impl(void* logger, int32_t version) noexcept;
+        NvCudaEngine_impl(const std::shared_ptr<migraphx::program>& program) noexcept;
+
         ~NvCudaEngine_impl() override;
 
         // public API
@@ -79,6 +83,10 @@ namespace nvinfer1
         TRT_NODISCARD IExecutionContext* createExecutionContextWithRuntimeConfig(
             IRuntimeConfig* runtimeConfig) noexcept override;
         TRT_NODISCARD IRuntimeConfig* createRuntimeConfig() noexcept override;
+
+    private:
+        std::shared_ptr<migraphx::program> mProgram;
+        std::vector<std::string> mTensorNames;
     };
 } // ns:nvinfer1
 

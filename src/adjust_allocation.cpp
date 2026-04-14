@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -63,8 +64,8 @@ void adjust_allocation::apply(module& m) const
         if(alias_ins->name() != model.name() and alias_ins->name() != "@param")
         {
             if(alias_ins != ins and alias_ins->get_shape() != ins->get_shape())
-                std::cerr << "WARNING: output buffer doesn't match output for "
-                          << ins->get_operator() << std::endl;
+                log::warn() << "output buffer doesn't match output for "
+                          << ins->get_operator();
             continue;
         }
         // shape allocated is different from actual shape

@@ -370,7 +370,7 @@ samplesCommon::OnnxSampleParams initializeSampleParams(const samplesCommon::Args
     }
     params.onnxFileName = "mnist.onnx";
     params.inputTensorNames.push_back("Input3");
-    params.outputTensorNames.push_back("Plus214_Output_0");
+    params.outputTensorNames.push_back("main:#output_0");   // migraphx generated ONNX model has different output tensor name than the original ONNX model
     params.dlaCore = args.useDLACore;
     params.int8 = args.runInInt8;
     params.fp16 = args.runInFp16;

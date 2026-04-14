@@ -1195,7 +1195,7 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 {
     for(auto& pp : this->impl->modules)
     {
-        os << pp.first << ":" << std::endl;https://charliel7.github.io/AMDMIGraphX_test/
+        os << pp.first << ":" << std::endl;
         pp.second.annotate(os, a);
     }
 }
@@ -1320,7 +1320,7 @@ void program::remove_module(const std::string& name)
 
     // if an instruction has an input out side of the current module, need to remove
     // the instruction from its input's outputs
-    auto& mod = impl->modules.at(name);https://charliel7.github.io/AMDMIGraphX_test/
+    auto& mod = impl->modules.at(name);
     for(auto ins : iterator_for(mod))
     {
         auto inputs = ins->inputs();

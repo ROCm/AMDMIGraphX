@@ -51,6 +51,13 @@ if (!$DriverPath -and (Test-Path "$RootDir\build\bin\migraphx-driver.exe")) {
     $DriverPath = "$RootDir\build\bin\migraphx-driver.exe"
     $BinDir     = "$RootDir\build\bin"
 }
+# Visual Studio multi-config layout: build_vs\bin\<Config>\
+if (!$DriverPath) {
+    foreach ($config in @("RelWithDebInfo","Release","Debug","MinSizeRel")) {
+        $candidate = "$RootDir\build_vs\bin\$config\migraphx-driver.exe"
+        if (Test-Path $candidate) { $DriverPath = $candidate; $BinDir = "$RootDir\build_vs\bin\$config"; break }
+    }
+}
 if (!$DriverPath) {
     Log "[ERROR] migraphx-driver.exe not found. Build MIGraphX first."
     exit 1

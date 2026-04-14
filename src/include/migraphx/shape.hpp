@@ -96,15 +96,41 @@ struct MIGRAPHX_EXPORT shape
 
     struct MIGRAPHX_EXPORT dynamic_dimension
     {
-        std::size_t min = 0;
-        std::size_t max = 0;
+        struct interval
+        {
+            std::size_t min;
+            std::size_t max;
+            template <class Self, class F>
+            static auto reflect(Self& self, F f)
+            {
+                return pack(f(self.min, "min"), f(self.max, "max"));
+            }
+            friend bool operator==(const interval& a, const interval& b)
+            {
+                return a.min == b.min and a.max == b.max;
+            }
+            friend bool operator!=(const interval& a, const interval& b) { return not(a == b); }
+        };
+
+        interval range = {0, 0};
         std::set<std::size_t> optimals{};
+
+        dynamic_dimension() = default;
+        dynamic_dimension(std::size_t min_v, std::size_t max_v) : range{min_v, max_v} {}
+        dynamic_dimension(std::size_t min_v, std::size_t max_v, std::set<std::size_t> opt)
+            : range{min_v, max_v}, optimals(std::move(opt))
+        {
+        }
 
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.min, "min"), f(self.max, "max"), f(self.optimals, "optimals"));
+            return pack(f(self.range, "range"), f(self.optimals, "optimals"));
         }
+
+        std::size_t min() const { return range.min; }
+        std::size_t max() const { return range.max; }
+        interval get_interval() const { return range; }
 
         bool is_fixed() const;
         bool has_optimal() const;
@@ -115,8 +141,8 @@ struct MIGRAPHX_EXPORT shape
          */
         std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
         {
-            auto left  = std::max(this->min, other.min);
-            auto right = std::min(this->max, other.max);
+            auto left  = std::max(this->min(), other.min());
+            auto right = std::min(this->max(), other.max());
             if(left <= right)
             {
                 return dynamic_dimension{left, right};

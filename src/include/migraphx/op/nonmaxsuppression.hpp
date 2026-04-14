@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -156,12 +156,12 @@ struct nonmaxsuppression
                 // check that it is only a dynamic number of classes
                 const auto scores_dims = inputs.at(1).dyn_dims();
                 const auto boxes_lens  = inputs.at(0).lens();
-                if(not scores_dims.at(0).is_fixed() or scores_dims.at(0).max != boxes_lens.at(0))
+                if(not scores_dims.at(0).is_fixed() or scores_dims.at(0).max() != boxes_lens.at(0))
                 {
                     MIGRAPHX_THROW("NonMaxSuppression: scores dynamic num_classes; num_batches not "
                                    "fixed or mismatched");
                 }
-                if(not scores_dims.at(2).is_fixed() or scores_dims.at(2).max != boxes_lens.at(1))
+                if(not scores_dims.at(2).is_fixed() or scores_dims.at(2).max() != boxes_lens.at(1))
                 {
                     MIGRAPHX_THROW("NonMaxSuppression: scores dynamic num_classes; "
                                    "spatial_dimension not fixed or mismatches");

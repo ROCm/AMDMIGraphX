@@ -54,7 +54,7 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
         std::transform(dyn_dims.cbegin(),
                        dyn_dims.cend(),
                        std::back_inserter(dims),
-                       [](const auto& d) { return d.max; });
+                       [](const auto& d) { return d.max(); });
         return {shape_type, dims};
     }
     return {shape_type, dyn_dims};

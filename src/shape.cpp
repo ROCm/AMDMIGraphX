@@ -192,7 +192,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](const shape::dynamic_dimension& x) { return x.min; });
+                       [](const shape::dynamic_dimension& x) { return x.min(); });
         return ret;
     }
 
@@ -202,7 +202,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](const shape::dynamic_dimension& x) { return x.max; });
+                       [](const shape::dynamic_dimension& x) { return x.max(); });
         return ret;
     }
 
@@ -321,7 +321,7 @@ bool shape::is_compatible_lens(const shape& actual, const shape& expected)
         return std::equal(actual.lens().begin(),
                           actual.lens().end(),
                           expected.dyn_dims().begin(),
-                          [&](auto a, const auto& e) { return a >= e.min and a <= e.max; });
+                          [&](auto a, const auto& e) { return a >= e.min() and a <= e.max(); });
     }
     return actual.lens() == expected.lens();
 }
@@ -705,14 +705,14 @@ std::vector<std::size_t> shape::max_lens() const
 
 std::vector<std::set<std::size_t>> shape::opt_lens() const { return impl->opt_lens(); }
 
-bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max; }
+bool shape::dynamic_dimension::is_fixed() const { return this->min() == this->max(); }
 
 bool shape::dynamic_dimension::has_optimal() const { return not optimals.empty(); }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t& x)
 {
-    this->min += x;
-    this->max += x;
+    this->range.min += x;
+    this->range.max += x;
     std::set<std::size_t> new_optimals;
     std::transform(this->optimals.begin(),
                    this->optimals.end(),
@@ -724,10 +724,10 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t& x)
 {
-    assert(this->min >= x);
-    assert(this->max >= x);
-    this->min -= x;
-    this->max -= x;
+    assert(this->range.min >= x);
+    assert(this->range.max >= x);
+    this->range.min -= x;
+    this->range.max -= x;
     std::set<std::size_t> new_optimals;
     std::transform(this->optimals.begin(),
                    this->optimals.end(),
@@ -742,8 +742,8 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t& x)
 {
-    this->min *= x;
-    this->max *= x;
+    this->range.min *= x;
+    this->range.max *= x;
     std::set<std::size_t> new_optimals;
     std::transform(this->optimals.begin(),
                    this->optimals.end(),
@@ -755,8 +755,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t
 
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
-    // don't check optimals if both are fixed
-    return (x.min == y.min and x.max == y.max and
+    return (x.min() == y.min() and x.max() == y.max() and
             ((x.is_fixed() and y.is_fixed()) or (x.optimals == y.optimals)));
 }
 
@@ -766,13 +765,14 @@ bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimensio
 }
 std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
-    os << "[ " << x.min << ", " << x.max << ", {" << migraphx::to_string_range(x.optimals) << "} ]";
+    os << "[ " << x.min() << ", " << x.max() << ", {" << migraphx::to_string_range(x.optimals)
+       << "} ]";
     return os;
 }
 
 bool operator==(const shape::dynamic_dimension& x, const std::size_t& y)
 {
-    return x.min == y and x.max == y;
+    return x.min() == y and x.max() == y;
 }
 bool operator==(const std::size_t& x, const shape::dynamic_dimension& y) { return y == x; }
 bool operator!=(const shape::dynamic_dimension& x, const std::size_t& y) { return not(x == y); }

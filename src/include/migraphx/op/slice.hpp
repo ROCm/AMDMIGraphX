@@ -166,7 +166,7 @@ struct slice
                     MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
                 }
                 std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).max};
+                    dds.at(axis) = {0, dds.at(axis).max()};
                 });
             }
             else if(set_attributes == starts_axes)
@@ -177,7 +177,7 @@ struct slice
                     MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
                 }
                 std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).max};
+                    dds.at(axis) = {0, dds.at(axis).max()};
                 });
             }
             else if(set_attributes == starts_ends)
@@ -188,7 +188,7 @@ struct slice
                     MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
                 }
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                    return shape::dynamic_dimension{0, dd.max};
+                    return shape::dynamic_dimension{0, dd.max()};
                 });
             }
             else
@@ -206,7 +206,7 @@ struct slice
                     MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
                 }
                 std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).max};
+                    dds.at(axis) = {0, dds.at(axis).max()};
                 });
             }
             else if(set_attributes == ends_only)
@@ -217,7 +217,7 @@ struct slice
                     MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
                 }
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                    return shape::dynamic_dimension{0, dd.max};
+                    return shape::dynamic_dimension{0, dd.max()};
                 });
             }
             else if(set_attributes == starts_only)
@@ -229,7 +229,7 @@ struct slice
                     MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
                 }
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                    return shape::dynamic_dimension{0, dd.max};
+                    return shape::dynamic_dimension{0, dd.max()};
                 });
             }
             else
@@ -241,7 +241,7 @@ struct slice
         {
             // all 4 inputs (data, inputs_starts, input_ends, input_axes)
             std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                return shape::dynamic_dimension{0, dd.max};
+                return shape::dynamic_dimension{0, dd.max()};
             });
         }
         return shape{input_shape.type(), dds};

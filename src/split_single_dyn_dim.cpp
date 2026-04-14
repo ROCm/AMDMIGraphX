@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -117,9 +117,9 @@ static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimension
  */
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {
-    module_ref mm                               = &mpm.get_module();
-    auto param_names                            = mm->get_parameter_names();
-    auto param_shapes                           = mm->get_parameter_shapes();
+    module_ref mm     = &mpm.get_module();
+    auto param_names  = mm->get_parameter_names();
+    auto param_shapes = mm->get_parameter_shapes();
     optional<std::vector<dynamic_dimensions_check>> dd_check_vec =
         has_one_unique_dyn_dim(param_shapes);
     if(dd_check_vec.has_value() and not any_sm_next(mm, dd_check_vec.value()))
@@ -128,7 +128,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         auto dyn_dim = dd_check_vec->at(0).dd;
         // create submodules for each dimension size
         std::vector<module_ref> submodules;
-        for(size_t dim_size : migraphx::range(dyn_dim.min, dyn_dim.max + 1))
+        for(size_t dim_size : migraphx::range(dyn_dim.min(), dyn_dim.max() + 1))
         {
             auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
             // instruction map for new static shaped submodule parameters
@@ -157,7 +157,7 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         migraphx::shape out_attr = migraphx::shape{output_shapes};
         auto sm_ins              = mm->add_instruction(
             migraphx::make_op("select_module",
-                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             sm_inputs,
             submodules);
         std::vector<instruction_ref> outputs(output_shapes.size());

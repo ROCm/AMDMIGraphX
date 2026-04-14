@@ -120,7 +120,7 @@ struct reduce_op : op_name<Derived>
         if(axes.empty())
         {
             std::transform(dims.begin(), dims.end(), dims.begin(), [](const auto& dim) {
-                return shape::dynamic_dimension{1, dim.max};
+                return shape::dynamic_dimension{1, dim.max()};
             });
         }
         else

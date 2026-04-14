@@ -102,8 +102,8 @@ IErrorRecorder* NvExecutionContext_impl::getErrorRecorder() const noexcept
 
 bool NvExecutionContext_impl::executeV2(void* const* bindings) noexcept
 {
-    // TODO! implement
-    return false;
+    auto result = mProgram->eval(mParamMap);
+    return true;
 }
 
 bool NvExecutionContext_impl::setOptimizationProfileAsync(int32_t profileIndex, hipStream_t stream) noexcept

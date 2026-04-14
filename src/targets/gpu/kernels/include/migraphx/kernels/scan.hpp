@@ -46,10 +46,14 @@ __device__ void wave_scan(index idx, T& output, Op op)
     });
 }
 
-// Block-level inclusive scan using hierarchical wave scans
-// Uses wave_scan for scanning within waves, then combines wave results
+namespace detail {
+
+// Block-level inclusive scan using hierarchical wave scans.
+// Uses wave_scan for scanning within waves, then combines wave results.
+// One block-sized chunk: each thread keeps one lane, value becomes inclusive prefix,
+// return is the chunk total with init folded in. detail-only; block_scan does full n.
 template <class T, class Op>
-__device__ T block_scan(index idx, T& value, Op op, T init)
+__device__ T block_scan_impl(index idx, T& value, Op op, T init)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
 
@@ -65,7 +69,7 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     }
 #endif
 
-    constexpr index_int wave_size   = MIGRAPHX_WAVEFRONTSIZE;
+    constexpr index_int wave_size    = MIGRAPHX_WAVEFRONTSIZE;
     constexpr index_int block_size_v = decltype(idx.max_nlocal())::value;
     static_assert(block_size_v % wave_size == 0, "block size must be a multiple of the wave size");
     constexpr index_int num_waves = block_size_v / wave_size;
@@ -76,8 +80,8 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
     wave_scan<wave_size>(idx, value, op);
 
     // last lane of each wave writes its inclusive-scan total to shared memory
-    const auto wave_id  = idx.wave();
-    const auto lane_id  = idx.local_wave();
+    const auto wave_id = idx.wave();
+    const auto lane_id = idx.local_wave();
     if(lane_id == wave_size - 1)
         wave_prefixes[wave_id] = value;
     __syncthreads();
@@ -100,6 +104,42 @@ __device__ T block_scan(index idx, T& value, Op op, T init)
 
     // return block total, init + sum of all inputs
     return op(init, wave_prefixes[num_waves - 1]);
+}
+
+struct block_scan_no_emit
+{
+    template <class J, class V>
+    __device__ void operator()(J, V) const
+    {
+        (void)0;
+    }
+};
+
+} // namespace detail
+
+// Inclusive prefix over 0..n-1: f(j) loads j, lanes past n use T{} (0 for sum).
+// When n is bigger than the block, chunk in lockstep like block_reduce / local_stride tiling.
+// emit(j, value) after each chunk if you need side effects; default skips. Returns final carry.
+template <class Op, class T, class Index, class F, class Emit = detail::block_scan_no_emit>
+__device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit = Emit{})
+{
+    MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
+    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
+    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
+                  "Block size must be a multiple of wavefront size");
+    const index_int ni        = n;
+    const index_int nchunks = (ni + block_size - 1) / block_size;
+    // Like block_reduce: use invoke_loop so we do not call declval() here (it is __host__-only).
+    using value_t = remove_reference_t<decltype(index::invoke_loop(f, Index{}, _c<0>))>;
+    T carry       = init;
+    for(index_int chunk = 0; chunk < nchunks; ++chunk)
+    {
+        const index_int j = chunk * block_size + idx.local;
+        value_t value     = (j < ni) ? f(static_cast<Index>(j)) : value_t{};
+        carry             = detail::block_scan_impl(idx, value, op, carry);
+        emit(static_cast<Index>(j), value);
+    }
+    return carry;
 }
 
 template <class F>

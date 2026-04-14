@@ -32,7 +32,6 @@ namespace gpu {
 
 static const char* const prefix_scan_sum_kernel = R"__migraphx__(
 #include <migraphx/kernels/prefix_scan_sum.hpp>
-#include <migraphx/kernels/slice.hpp>
 #include <args.hpp>
 
 namespace migraphx {
@@ -42,11 +41,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void prefix_scan_sum_kernel(void* input_p, void* output_p)
 {
     make_tensors()(input_p, output_p)([](auto input, auto output) {
-        auto idx = make_index();
-        slice_schedule<per_block>(idx, slice_axes<${axis}>())(input, output)(
-            [&](auto in_slice, auto out_slice) {
-                prefix_scan_sum_slice<${exclusive}, ${reverse}>(in_slice, out_slice);
-            });
+        prefix_scan_sum<${axis}, ${exclusive}, ${reverse}>(input, output);
     });
 }
 

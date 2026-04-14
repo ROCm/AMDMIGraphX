@@ -27,6 +27,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/scan.hpp>
 #include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/slice.hpp>
 
 namespace migraphx {
 
@@ -39,21 +40,21 @@ __device__ void prefix_scan_sum_slice(Input input, Output output)
     constexpr auto block_size = decltype(idx.max_nlocal()){};
     static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
                   "Block size must be a multiple of wavefront size");
-    const index_int n          = input.get_shape().elements();
-    const index_int num_chunks = (n + block_size - 1) / block_size;
+    const index_int n = input.get_shape().elements();
 
     const auto linear = [&](index_int j) { return Reverse ? (n - 1 - j) : j; };
 
     using value_type = remove_reference_t<decltype(*input.data())>;
 
-    value_type carry = value_type{0};
-    for(index_int chunk = 0; chunk < num_chunks; ++chunk)
-    {
-        const index_int j = chunk * block_size + idx.local;
-        value_type value  = (j < n) ? input[linear(j)] : value_type{0};
-        carry             = block_scan(idx, value, op::sum{}, carry);
-        if(j < n)
-        {
+    block_scan(
+        idx,
+        op::sum{},
+        value_type{0},
+        n,
+        [&](index_int j) { return input[linear(j)]; },
+        [&](index_int j, const value_type& value) {
+            if(j >= n)
+                return;
             const index_int li = linear(j);
             if constexpr(Exclusive)
             {
@@ -66,8 +67,20 @@ __device__ void prefix_scan_sum_slice(Input input, Output output)
             {
                 output[li] = value;
             }
-        }
-    }
+        });
+}
+
+// prefix sum along Axis
+// slice_schedule uses per_block group_stride over slices,
+// each slice is scanned along that axis
+template <index_int Axis, bool Exclusive, bool Reverse, class Input, class Output>
+__device__ void prefix_scan_sum(Input input, Output output)
+{
+    auto idx = make_index();
+    slice_schedule<per_block>(idx, slice_axes<Axis>())(input, output)(
+        [&](auto in_slice, auto out_slice) {
+            prefix_scan_sum_slice<Exclusive, Reverse>(in_slice, out_slice);
+        });
 }
 
 } // namespace migraphx

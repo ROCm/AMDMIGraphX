@@ -528,7 +528,7 @@ struct loader
 
         if(output.empty() and type == "text")
         {
-            std::cout << p;
+            std::cout << p << std::endl;
             return;
         }
 

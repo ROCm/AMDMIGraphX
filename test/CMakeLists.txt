@@ -45,6 +45,8 @@ foreach(TEST ${TESTS})
     rocm_clang_tidy_check(test_${BASE_NAME})
 endforeach()
 
+target_link_libraries(test_netron_output_test onnx-proto)
+
 if(MIGRAPHX_ENABLE_GPU)
     # gpu tests
     file(GLOB GPU_TESTS CONFIGURE_DEPENDS gpu/*.cpp)

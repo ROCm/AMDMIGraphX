@@ -254,9 +254,8 @@ struct compiled_result
         return os;
     }
 
-    program make_program(const std::string& op_name,
-                         const value& problem,
-                         const value& solution) const
+    program
+    make_program(const std::string& op_name, const value& problem, const value& solution) const
     {
         program bench_prog;
         auto* mm = bench_prog.get_main_module();

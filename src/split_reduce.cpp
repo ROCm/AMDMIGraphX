@@ -60,7 +60,7 @@ struct split_fused_reduce
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
         const auto* sm = mods.front();
-        auto names = sm->get_parameter_names();
+        auto names     = sm->get_parameter_names();
         check_shapes{inputs, *this}.has(names.size()).same_ndims();
 
         auto result =

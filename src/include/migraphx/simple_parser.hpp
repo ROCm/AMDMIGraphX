@@ -71,7 +71,8 @@ struct simple_parser
             MIGRAPHX_THROW("Parser advanced past end of buffer");
         if constexpr(AutoSkipWhitespace)
         {
-            pos = std::find_if(pos, buffer.end(), [](auto c) { return not std::isspace(c); });
+            pos = std::find_if(
+                pos, buffer.end(), [](unsigned char c) { return not std::isspace(c); });
         }
     }
 

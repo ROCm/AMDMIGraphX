@@ -102,7 +102,7 @@ auto unpack_container(F f)
     };
 }
 
-struct interval
+struct MIGRAPHX_EXPORT interval
 {
     scalar min = int64_t{0};
     scalar max = int64_t{0};
@@ -222,10 +222,10 @@ expr lit(T v)
     return lit(make_scalar(v));
 }
 
-expr var(std::string name);
-expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
+MIGRAPHX_EXPORT expr var(std::string name);
+MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
 
-expr arg(expr x);
+MIGRAPHX_EXPORT expr arg(expr x);
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 expr arg(T x)
@@ -268,22 +268,22 @@ auto call(std::string name, Eval eval)
     return call(std::move(name), eval, eval);
 }
 
-std::string to_string(const expr& e);
+MIGRAPHX_EXPORT std::string to_string(const expr& e);
 
-expr parse(const std::string& str);
+MIGRAPHX_EXPORT expr parse(const std::string& str);
 
-expr sin(expr e);
-expr cos(expr e);
-expr tan(expr e);
-expr exp(expr e);
-expr log(expr e);
-expr sqrt(expr e);
-expr abs(expr e);
-expr floor(expr e);
-expr ceil(expr e);
-expr pow(expr x, expr y);
-expr min(expr x, expr y);
-expr max(expr x, expr y);
+MIGRAPHX_EXPORT expr sin(expr e);
+MIGRAPHX_EXPORT expr cos(expr e);
+MIGRAPHX_EXPORT expr tan(expr e);
+MIGRAPHX_EXPORT expr exp(expr e);
+MIGRAPHX_EXPORT expr log(expr e);
+MIGRAPHX_EXPORT expr sqrt(expr e);
+MIGRAPHX_EXPORT expr abs(expr e);
+MIGRAPHX_EXPORT expr floor(expr e);
+MIGRAPHX_EXPORT expr ceil(expr e);
+MIGRAPHX_EXPORT expr pow(expr x, expr y);
+MIGRAPHX_EXPORT expr min(expr x, expr y);
+MIGRAPHX_EXPORT expr max(expr x, expr y);
 
 // Pattern matching rewrite DSL
 expr pvar(int id);
@@ -305,7 +305,7 @@ rewrite_rule operator>>(expr pattern, T replacement)
     return {std::move(pattern), lit(replacement)};
 }
 
-expr simplify(const expr& e, const std::vector<rewrite_rule>& rules);
+MIGRAPHX_EXPORT expr simplify(const expr& e, const std::vector<rewrite_rule>& rules);
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const sym::interval& i);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, sym::interval& i);

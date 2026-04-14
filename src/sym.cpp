@@ -1353,7 +1353,7 @@ static expr parse_number(sym_parser& p)
 {
     if((std::isdigit(p.peek_char()) == 0) and p.peek_char() != '.')
         return {};
-    auto token    = p.parse_while([](char c) { return std::isdigit(c) or c == '.'; });
+    auto token    = p.parse_while([](unsigned char c) { return std::isdigit(c) or c == '.'; });
     bool is_float = token.find('.') != std::string_view::npos;
     if(is_float)
         return lit(std::stod(std::string(token)));
@@ -1365,7 +1365,7 @@ static expr parse_func_or_var(sym_parser& p)
     char c = p.peek_char();
     if((std::isalpha(c) == 0) and c != '_')
         return {};
-    auto name = p.parse_while([](char ch) { return std::isalnum(ch) or ch == '_'; });
+    auto name = p.parse_while([](unsigned char ch) { return std::isalnum(ch) or ch == '_'; });
     std::string sname(name);
     if(p.peek_char() != '(')
         return var(sname);

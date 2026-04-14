@@ -2,6 +2,8 @@
 #define NV_BUILDER_IMPL_H
 
 #include <memory>
+#include <vector>
+
 #include "migraphx/common_api/NvInfer.h"
 
 namespace nvinfer1
@@ -42,6 +44,8 @@ namespace nvinfer1
         IPluginRegistry* mPluginRegistry;
         std::unique_ptr<INetworkDefinition> mNetworkDefinition;
         std::unique_ptr<IBuilderConfig> mBuilderConfig;
+
+        std::vector<std::vector<char>> mSerializedNetworks;
     };
 
 }  // ns:nvinfer1

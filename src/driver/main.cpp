@@ -1150,6 +1150,8 @@ int main(int argc, const char* argv[], const char* envp[])
         for(auto&& e : unused_envs)
             migraphx::log::warn() << "Unused environment variable: " << e;
 
+        auto end_time = std::chrono::system_clock::now();
+
         // Print total duration
         auto duration =
             std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);

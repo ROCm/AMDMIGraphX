@@ -49,7 +49,7 @@ nodes are translated to MIGraphX built-in ops during frontend parsing.
 ### Why a hand-rolled text parser?
 
 DxGML `.mlir` files use custom dialect shorthand syntax throughout:
-
+  
 ```mlir
 dxgml.module {
   dxgml.entry_point @name(%arg0: !dxgml.tensor<1x4x2160x3840x!dxgml.float16>) -> !dxgml.tensor<...>
@@ -197,16 +197,89 @@ tooling wrappers can inspect them.
 The frontend is a standalone shared library (`amdxgml`).  It has no
 dependency on MLIR C API libraries or `dxgml_ir.dll`.
 
+Use **`generate_migraphx.bat`** at the repo root.  It supports two generators:
+
+### Ninja (default — fastest incremental rebuilds)
+
+```bat
+REM Full configure + build (WinRelWithDebInfo preset)
+generate_migraphx.bat
+
+REM Rebuild only after code change (skip re-configure)
+generate_migraphx.bat WinRelWithDebInfo --build-only
+
+REM Configure only — inspect cache, do not build
+generate_migraphx.bat WinRelWithDebInfo --no-build
+
+REM Full build + run all DxGML tests
+generate_migraphx.bat WinRelWithDebInfo --run-tests
+
+REM Debug build
+generate_migraphx.bat WinDebug
+```
+
+Available presets: `WinRelWithDebInfo` (default), `WinDebug`, `WinRelease`, `WinMinSizeRel`.
+
+Output directory: `build\<preset>\`  (e.g. `build\WinRelWithDebInfo\bin\amdxgml.dll`)
+
+### Visual Studio 2022 (ClangCL toolset)
+
+> **Note:** The VS + ClangCL build is currently blocked by a template
+> incompatibility in `src/include/migraphx/float8.hpp` when compiled with
+> MSVC headers.  Use the Ninja/Clang build for day-to-day development.
+> The VS generator is provided for IDE navigation (`--no-build`) and may
+> be unblocked in a future MSVC / ClangCL update.
+
+```bat
+REM Generate VS solution for IDE navigation (no build)
+generate_migraphx.bat --vs --no-build
+REM  → open build_vs\migraphx.sln in Visual Studio
+
+REM Configure VS solution + attempt build (RelWithDebInfo)
+generate_migraphx.bat --vs
+
+REM Rebuild without re-configure
+generate_migraphx.bat --vs --build-only
+
+REM Debug config
+generate_migraphx.bat --vs Debug
+
+REM VS build + run all DxGML tests (once build is fixed)
+generate_migraphx.bat --vs --run-tests
+```
+
+Available configs: `RelWithDebInfo` (default), `Debug`, `Release`, `MinSizeRel`.
+Also accepts Ninja preset names as aliases (`WinRelWithDebInfo` → `RelWithDebInfo`).
+
+Output directory (when build succeeds): `build_vs\bin\<config>\`  (e.g. `build_vs\bin\RelWithDebInfo\amdxgml.dll`)
+
+### CMake directly (advanced)
+
 ```cmake
-# Enable / disable:
-cmake -DMIGRAPHX_ENABLE_DXGML=ON ...
+# Ninja (via preset):
+cmake --preset WinRelWithDebInfo -DBUILD_TESTING=ON
+cmake --build build/WinRelWithDebInfo --parallel --target amdxgml driver
 
-# Build:
-ninja amdxgml
+# Visual Studio:
+cmake -G "Visual Studio 17 2022" -A x64 -T ClangCL \
+      -DMIGRAPHX_ENABLE_DXGML=ON -DDXGML_DROP_DIR=<path> ...
+cmake --build build_vs --config RelWithDebInfo --parallel --target amdxgml driver
+```
 
-# Run tests:
-ninja test/dxgml/test
-ctest -R test_dxgml -V
+### Running tests
+
+```bat
+REM ctest parse unit tests (5 tests):
+ctest --test-dir build\WinRelWithDebInfo -R test_dxgml -V
+
+REM Full driver + parse suite (35 driver tests + 4 parse unit tests):
+test\dxgml\run_dxgml_tests.bat
+
+REM Driver tests only:
+test\dxgml\run_dxgml_tests.bat mlir
+
+REM Single model:
+test\dxgml\run_dxgml_tests.bat simple_gemm
 ```
 
 ---

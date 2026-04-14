@@ -40,20 +40,20 @@ if "%1"=="/?"     goto ShowHelp
 REM ---------------------------------------------------------------
 REM Parse all arguments (order-independent flags)
 REM ---------------------------------------------------------------
-set USE_VS=false
-set SKIP_CONFIGURE=false
-set SKIP_BUILD=false
-set RUN_TESTS=false
-set ARG_NAME=
+set "USE_VS=false"
+set "SKIP_CONFIGURE=false"
+set "SKIP_BUILD=false"
+set "RUN_TESTS=false"
+set "ARG_NAME="
 
 :ArgLoop
 if "%~1"=="" goto ArgDone
-if /i "%~1"=="--vs"              ( set USE_VS=true         & shift & goto ArgLoop )
-if /i "%~1"=="--build-only"      ( set SKIP_CONFIGURE=true & shift & goto ArgLoop )
-if /i "%~1"=="--skip-configure"  ( set SKIP_CONFIGURE=true & shift & goto ArgLoop )
-if /i "%~1"=="--no-build"        ( set SKIP_BUILD=true     & shift & goto ArgLoop )
-if /i "%~1"=="--skip-build"      ( set SKIP_BUILD=true     & shift & goto ArgLoop )
-if /i "%~1"=="--run-tests"       ( set RUN_TESTS=true      & shift & goto ArgLoop )
+if /i "%~1"=="--vs"              ( set "USE_VS=true"          & shift & goto ArgLoop )
+if /i "%~1"=="--build-only"      ( set "SKIP_CONFIGURE=true"  & shift & goto ArgLoop )
+if /i "%~1"=="--skip-configure"  ( set "SKIP_CONFIGURE=true"  & shift & goto ArgLoop )
+if /i "%~1"=="--no-build"        ( set "SKIP_BUILD=true"      & shift & goto ArgLoop )
+if /i "%~1"=="--skip-build"      ( set "SKIP_BUILD=true"      & shift & goto ArgLoop )
+if /i "%~1"=="--run-tests"       ( set "RUN_TESTS=true"       & shift & goto ArgLoop )
 REM First non-flag arg is the preset/config name
 if "!ARG_NAME!"=="" set ARG_NAME=%~1
 shift
@@ -236,7 +236,7 @@ if "%USE_VS%"=="true" (
 if errorlevel 1 (
     echo.
     echo ==========================================
-    echo Build FAILED! Check output above.
+    echo Build FAILED - check output above.
     echo ==========================================
     exit /b 1
 )
@@ -269,9 +269,9 @@ echo Running DxGML Parse Tests (ctest)
 echo ==========================================
 echo.
 if "%USE_VS%"=="true" (
-    ctest --test-dir "%BUILD_DIR%" -C %VS_CONFIG% -R "test_dxgml" -V
+    ctest --test-dir "%BUILD_DIR%" -C %VS_CONFIG% -R test_dxgml -V
 ) else (
-    ctest --test-dir "%BUILD_DIR%" -R "test_dxgml" -V
+    ctest --test-dir "%BUILD_DIR%" -R test_dxgml -V
 )
 if errorlevel 1 (
     echo.
@@ -291,29 +291,15 @@ call "%SCRIPT_DIR%test\dxgml\run_dxgml_tests.bat"
 :ShowSummary
 echo.
 echo ==========================================
-echo Done!
+echo Done.
 echo ==========================================
 echo.
-if "%USE_VS%"=="true" (
-    for %%f in ("%BUILD_DIR%\*.sln") do echo Solution     : %%f
-    echo.
-    echo To rebuild (skip reconfigure):
-    echo   generate_migraphx.bat --vs %VS_CONFIG% --build-only
-) else (
-    echo To rebuild (skip reconfigure):
-    echo   generate_migraphx.bat %PRESET% --build-only
-)
-echo.
+echo Build dir    : !BUILD_DIR!
 echo To run DxGML driver tests:
 echo   test\dxgml\run_dxgml_tests.bat
 echo.
-if "%USE_VS%"=="true" (
-    echo To run parse unit tests:
-    echo   ctest --test-dir "%BUILD_DIR%" -C %VS_CONFIG% -R test_dxgml -V
-) else (
-    echo To run parse unit tests:
-    echo   ctest --test-dir "%BUILD_DIR%" -R test_dxgml -V
-)
+echo To run parse unit tests:
+echo   ctest --test-dir "!BUILD_DIR!" -R test_dxgml -V
 echo.
 
 exit /b 0

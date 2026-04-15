@@ -262,8 +262,7 @@ static migraphx::program create_program_with_comment()
 TEST_CASE(comment_eval)
 {
     migraphx::program p = create_program_with_comment();
-    auto result =
-        p.eval({{"x", migraphx::literal{3}.get_argument()}}).back();
+    auto result         = p.eval({{"x", migraphx::literal{3}.get_argument()}}).back();
     EXPECT(result == migraphx::literal{5});
 }
 
@@ -287,8 +286,8 @@ TEST_CASE(comment_as_msgpack)
 
 TEST_CASE(comment_as_file)
 {
-    std::string filename  = "migraphx_comment_program.mxr";
-    migraphx::program p1  = create_program_with_comment();
+    std::string filename = "migraphx_comment_program.mxr";
+    migraphx::program p1 = create_program_with_comment();
     migraphx::save(p1, filename);
     migraphx::program p2 = migraphx::load(filename);
     std::remove(filename.c_str());

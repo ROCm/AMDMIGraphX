@@ -58,6 +58,7 @@ target make_target(const std::string& name)
 {
     if(not contains(target_map(), name))
     {
+#ifndef MIGRAPHX_STATIC_TARGETS
         std::string so_major_version = "." + std::to_string(MIGRAPHX_SO_MAJOR_VERSION);
         auto target_name             = make_shared_object_filename("migraphx_" + name);
 
@@ -77,6 +78,7 @@ target make_target(const std::string& name)
             // Load the library without the so_major_version in the name.
             store_target_lib(dynamic_loader(target_name));
         }
+#endif
     }
     const auto it = target_map().find(name);
     if(it == target_map().end())

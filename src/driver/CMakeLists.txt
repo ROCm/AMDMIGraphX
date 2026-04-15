@@ -50,7 +50,22 @@ rocm_clang_tidy_check(driver)
 file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
 target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
 
-target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
+if(NOT BUILD_SHARED_LIBS)
+    target_link_libraries(driver
+        -Wl,--whole-archive
+        $<TARGET_FILE:migraphx>
+        $<TARGET_FILE:migraphx_gpu>
+        $<TARGET_FILE:migraphx_ref>
+        $<TARGET_FILE:migraphx_onnx>
+        $<TARGET_FILE:migraphx_tf>
+        -Wl,--no-whole-archive
+        migraphx_all_targets migraphx_onnx migraphx_tf)
+    if(MIGRAPHX_ENABLE_MLIR AND NOT WIN32 AND NOT APPLE)
+        target_link_options(driver PRIVATE "-Wl,--exclude-libs,ALL")
+    endif()
+else()
+    target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
+endif()
 
 if(MIGRAPHX_ENABLE_PYTHON)
     target_link_libraries(driver migraphx_py)

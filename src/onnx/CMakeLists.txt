@@ -26,14 +26,18 @@ find_package(protobuf QUIET CONFIG)
 if(protobuf_FOUND)
     add_library(onnx-proto STATIC)
     protobuf_generate(TARGET onnx-proto PROTOS onnx.proto)
-    target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+    target_include_directories(onnx-proto SYSTEM PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+        $<BUILD_INTERFACE:${PROTOBUF_INCLUDE_DIR}>)
     target_link_libraries(onnx-proto PRIVATE ${PROTOBUF_LIBRARY})
     target_link_libraries(onnx-proto PRIVATE protobuf::libprotobuf)
 else()
     find_package(Protobuf REQUIRED)
     protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS onnx.proto)
     add_library(onnx-proto STATIC ${PROTO_SRCS})
-    target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+    target_include_directories(onnx-proto SYSTEM PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+        $<BUILD_INTERFACE:${PROTOBUF_INCLUDE_DIR}>)
     target_link_libraries(onnx-proto PRIVATE ${PROTOBUF_LIBRARY})
 endif()
 
@@ -61,3 +65,7 @@ rocm_install_targets(
   PRIVATE
   TARGETS migraphx_onnx
 )
+
+if(NOT BUILD_SHARED_LIBS)
+    install(TARGETS onnx-proto EXPORT migraphx-targets ARCHIVE DESTINATION lib)
+endif()

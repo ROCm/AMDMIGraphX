@@ -83,6 +83,11 @@ endif()
 
 add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/)
 
+if(NOT BUILD_SHARED_LIBS)
+    install(TARGETS embed_lib_migraphx_kernels EXPORT migraphx-targets ARCHIVE DESTINATION lib)
+    install(TARGETS migraphx_kernels EXPORT migraphx-targets)
+endif()
+
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
@@ -257,8 +262,12 @@ if(MIGRAPHX_ENABLE_MLIR)
     # Make this private to avoid multiple inclusions of LLVM symbols.
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
     # Hide LLVM internals that come from rocMLIR.
-    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
-        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+    if(NOT WIN32 AND NOT APPLE)
+        if(BUILD_SHARED_LIBS)
+            target_link_options(migraphx_gpu PRIVATE "-Wl,--exclude-libs,ALL")
+        else()
+            target_compile_options(migraphx_gpu PRIVATE -fvisibility=hidden)
+        endif()
     endif()
 endif()
 

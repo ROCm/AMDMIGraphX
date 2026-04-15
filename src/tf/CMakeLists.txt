@@ -39,7 +39,9 @@ if(protobuf_FOUND)
             op_def.proto
             versions.proto
     )
-    target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+    target_include_directories(tf-proto SYSTEM PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+        $<BUILD_INTERFACE:${PROTOBUF_INCLUDE_DIR}>)
     target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
     target_link_libraries(tf-proto PRIVATE protobuf::libprotobuf)
 else()
@@ -58,7 +60,9 @@ else()
         versions.proto
     )
     add_library(tf-proto STATIC ${PROTO_SRCS})
-    target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
+    target_include_directories(tf-proto SYSTEM PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+        $<BUILD_INTERFACE:${PROTOBUF_INCLUDE_DIR}>)
     target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
 endif()
 
@@ -86,4 +90,8 @@ rocm_install_targets(
   PRIVATE
   TARGETS migraphx_tf
 )
+
+if(NOT BUILD_SHARED_LIBS)
+    install(TARGETS tf-proto EXPORT migraphx-targets ARCHIVE DESTINATION lib)
+endif()
 

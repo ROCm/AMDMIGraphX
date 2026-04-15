@@ -714,7 +714,7 @@ bool shape::dynamic_dimension::is_fixed() const
     return i.min == i.max;
 }
 
-bool shape::dynamic_dimension::has_optimal() const { return not optimals.empty(); }
+bool shape::dynamic_dimension::has_optimal() const { return not this->get_optimals().empty(); }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t& x)
 {

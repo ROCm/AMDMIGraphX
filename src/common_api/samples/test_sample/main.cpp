@@ -1,3 +1,5 @@
+#define DEFINE_TRT_ENTRYPOINTS 1
+
 #include <migraphx/common_api/test_interface.hpp>
 
 #include <migraphx/program.hpp>

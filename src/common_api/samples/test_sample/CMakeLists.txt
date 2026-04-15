@@ -12,6 +12,8 @@ target_include_directories(test_sample
         ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
+target_compile_definitions(test_sample PRIVATE DEFINE_TRT_ENTRYPOINTS=1)
+
 target_compile_options(test_sample PRIVATE -Wno-unused-parameter -Wno-deprecated-declarations -Wno-documentation)
 
 target_link_libraries(test_sample PRIVATE commonapi migraphx_onnx migraphx_ref migraphx_c migraphx migraphx_all_targets)

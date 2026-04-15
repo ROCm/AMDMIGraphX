@@ -113,45 +113,56 @@ struct MIGRAPHX_EXPORT shape
             friend bool operator!=(const interval& a, const interval& b) { return not(a == b); }
         };
 
-        interval range = {0, 0};
-        std::set<std::size_t> optimals{};
+        std::optional<interval> range;
+        std::optional<std::set<std::size_t>> optimals;
         sym::expr sym_expr;
 
         dynamic_dimension() = default;
-        dynamic_dimension(std::size_t min_v, std::size_t max_v) : range{min_v, max_v}
+        dynamic_dimension(std::size_t min_v, std::size_t max_v)
+            : range{interval{min_v, max_v}}, optimals{std::set<std::size_t>{}}
         {
-            normalize_sym();
         }
         dynamic_dimension(std::size_t min_v, std::size_t max_v, std::set<std::size_t> opt)
-            : range{min_v, max_v}, optimals(std::move(opt))
+            : range{interval{min_v, max_v}},
+              optimals(min_v == max_v ? std::set<std::size_t>{} : std::move(opt))
         {
-            normalize_sym();
         }
-        dynamic_dimension(sym::expr s);
-        dynamic_dimension(std::size_t min_v,
-                          std::size_t max_v,
-                          std::set<std::size_t> opt,
-                          sym::expr s)
-            : range{min_v, max_v}, optimals(std::move(opt)), sym_expr(std::move(s))
+        dynamic_dimension(sym::expr s) : sym_expr(std::move(s))
         {
+            if(sym_expr.empty())
+                MIGRAPHX_THROW(
+                    "dynamic_dimension: cannot construct from an empty symbolic expression");
         }
 
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.range, "range"), f(self.optimals, "optimals"), f(self.sym_expr, "sym"));
+            return pack(
+                f(self.range, "range"), f(self.optimals, "optimals"), f(self.sym_expr, "sym"));
         }
 
-        interval get_interval() const { return range; }
-        std::set<std::size_t> get_optimals() const { return optimals; }
+        interval get_interval() const
+        {
+            if(is_symbolic())
+            {
+                auto ival = sym_expr.eval_interval();
+                if(ival.min < 0 or ival.max < 0)
+                    MIGRAPHX_THROW("dynamic_dimension: symbolic expression has negative bounds");
+                return {static_cast<std::size_t>(ival.min), static_cast<std::size_t>(ival.max)};
+            }
+            return *range;
+        }
+        std::set<std::size_t> get_optimals() const
+        {
+            if(is_symbolic())
+                return sym_expr.eval_optimals();
+            if(optimals.has_value())
+                return *optimals;
+            return {};
+        }
 
         bool is_fixed() const;
         bool is_symbolic() const { return not sym_expr.empty(); }
-        void normalize_sym()
-        {
-            if(is_fixed() and not is_symbolic())
-                sym_expr = sym::lit(range.min);
-        }
         bool has_optimal() const;
 
         /**
@@ -273,6 +284,9 @@ struct MIGRAPHX_EXPORT shape
      */
     static shape
     from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
+    static shape from_permutation(type_t t,
+                                  const std::vector<dynamic_dimension>& dds,
+                                  const std::vector<int64_t>& perm);
 
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
@@ -422,6 +436,8 @@ struct MIGRAPHX_EXPORT shape
 
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
     shape with_lens(const std::vector<std::size_t>& l) const;
+    shape with_lens(type_t t, const std::vector<dynamic_dimension>& dds) const;
+    shape with_lens(const std::vector<dynamic_dimension>& dds) const;
 
     shape with_type(type_t t) const;
 

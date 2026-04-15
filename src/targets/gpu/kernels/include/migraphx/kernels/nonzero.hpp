@@ -58,7 +58,7 @@ __device__ void nonzero(Input input, Output output)
                 return;
             if(float_equal(input[j], 0))
                 return;
-            const auto out_loc = value - 1;
+            const auto out_loc   = value - 1;
             const auto multi_idx = in_shape.multi(j);
             for(auto k = 0; k < multi_idx.size(); ++k)
             {

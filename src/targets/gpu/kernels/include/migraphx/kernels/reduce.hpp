@@ -27,6 +27,7 @@
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
 #include <migraphx/kernels/tuple.hpp>
@@ -295,6 +296,30 @@ constexpr auto make_indices(Size size)
     return make_lazy_inner_storage(size, [](auto j, auto) { return j; });
 }
 
+// Pair (value, index) for arg_reduce reads
+// When val is vectorized along the reduced axis, idx is the packed inner index,
+// each lane must use logical index idx * vec_width + lane so argmax/argmin match scalar code
+template <class V, class I>
+constexpr auto arg_read_vec_pair(V val, I idx)
+{
+    // vec_size<V>() is an integral constant
+    constexpr auto nlanes_v = vec_size<V>();
+    if constexpr(nlanes_v < index_constant<2>{})
+    {
+        return make_tuple(val, idx);
+    }
+    else
+    {
+        auto get_lane = [&](int lane_i) {
+            return make_tuple(vec_at(val, lane_i), idx * nlanes_v + lane_i);
+        };
+        using lane0 = remove_reference_t<decltype(get_lane(0))>;
+        lane0* shape_tag = nullptr;
+        return vec_detail::vec_transform_tuple_transpose_dispatch<nlanes_v()>(
+            get_lane, shape_tag);
+    }
+}
+
 template <class R, class F>
 struct storage_access : F
 {
@@ -326,6 +351,22 @@ constexpr auto compute_reduce_axis()
             return x;
         });
     return make_shape(lens, get_shape_c<Input>{}.strides);
+}
+
+template <index_int... Js, class... Rs, index_int N, class F>
+constexpr auto final_reduce_tuple_of_vecs(detail::seq<Js...>, tuple<vec<Rs, N>...> x, F op)
+{
+    auto lane = [&](int i) { return make_tuple(x[_c<Js>][i]...); };
+    auto acc  = lane(0);
+    for(int i = 1; i < N; ++i)
+        acc = op(acc, lane(i));
+    return acc;
+}
+
+template <class... Rs, index_int N, class F>
+constexpr auto final_reduce(tuple<vec<Rs, N>...> x, F op)
+{
+    return final_reduce_tuple_of_vecs(typename detail::gens<sizeof...(Rs)>::type{}, x, op);
 }
 
 template <class T, class F>

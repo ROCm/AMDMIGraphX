@@ -28,9 +28,23 @@
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/tuple.hpp>
 #include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
+
+namespace vec_detail {
+
+template <class T>
+struct is_kernel_tuple : false_type
+{
+};
+template <class... Ts>
+struct is_kernel_tuple<tuple<Ts...>> : true_type
+{
+};
+
+} // namespace vec_detail
 
 template <class T, index_int N>
 constexpr auto vec_size(vec<T, N>)
@@ -106,6 +120,36 @@ __device__ __host__ auto as_vec(T* x)
 template <class T, index_int N>
 using safe_vec = vec<conditional_t<is_same<T, bool>{}, uint8_t, T>, N>;
 
+namespace vec_detail {
+
+template <index_int Size, class Lane0, index_int... Js, class GetLane>
+constexpr auto vec_transform_tuple_transpose(detail::seq<Js...>, GetLane get_lane)
+{
+    return make_tuple(
+        [&] {
+            using elem_t = remove_reference_t<decltype(declval<Lane0>()[_c<Js>])>;
+            safe_vec<elem_t, Size> r{};
+            for(int i = 0; i < Size; ++i)
+                r[i] = get_lane(i)[_c<Js>];
+            return r;
+        }()...);
+}
+
+template <index_int Size, class... Ts, class GetLane>
+constexpr auto vec_transform_tuple_transpose_tuple(GetLane get_lane, tuple<Ts...>*)
+{
+    return vec_transform_tuple_transpose<Size, tuple<Ts...>>(
+        typename detail::gens<sizeof...(Ts)>::type{}, get_lane);
+}
+
+template <index_int Size, class GetLane, class... Ts>
+constexpr auto vec_transform_tuple_transpose_dispatch(GetLane get_lane, tuple<Ts...>* shape_tag)
+{
+    return vec_transform_tuple_transpose_tuple<Size, Ts...>(get_lane, shape_tag);
+}
+
+} // namespace vec_detail
+
 template <class... Ts>
 constexpr auto vec_transform(Ts... xs)
 {
@@ -122,6 +166,36 @@ constexpr auto vec_transform(Ts... xs)
         else
         {
             return f(xs...);
+        }
+    };
+}
+
+template <class... Ts>
+constexpr auto vec_transform_tuple(Ts... xs)
+{
+    return [=](auto f) {
+        if constexpr(not is_any_vec<Ts...>())
+        {
+            return f(xs...);
+        }
+        else
+        {
+            constexpr auto lane_w = common_vec_size<Ts...>();
+            auto get_lane = [&](auto i) { return f(vec_at(xs, i)...); };
+            using lane0 = remove_reference_t<decltype(f(vec_at(xs, 0)...))>;
+            if constexpr(vec_detail::is_kernel_tuple<lane0>{})
+            {
+                lane0* tag = nullptr;
+                return vec_detail::vec_transform_tuple_transpose_dispatch<lane_w()>(get_lane, tag);
+            }
+            else
+            {
+                using type                      = lane0;
+                safe_vec<type, lane_w()> result = {0};
+                for(int i = 0; i < lane_w(); i++)
+                    result[i] = get_lane(i);
+                return result;
+            }
         }
     };
 }

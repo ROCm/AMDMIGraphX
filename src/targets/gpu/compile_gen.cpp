@@ -431,8 +431,8 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         {
             MIGRAPHX_THROW("Unsupported arg operation");
         }
-        // read creates tuples from (value, index), cast index to index_int
-        read = "[](auto val, auto idx) { return make_tuple(val, static_cast<index_int>(idx)); }";
+        // pack tuples (value, index) per vector lane
+        read = "[](auto val, auto idx) { return reduce::arg_read_vec_pair(val, idx); }";
     }
     else
     {

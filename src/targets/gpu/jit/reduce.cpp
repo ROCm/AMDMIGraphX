@@ -401,13 +401,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto v        = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm      = ins->module_inputs().front();
-        // disable vectorization for argmin/argmax since comparisons don't work with vector types
-        bool has_arg_reduce = std::any_of(rm->begin(), rm->end(), [](const auto& i) {
-            return i.name() == "argmin" or i.name() == "argmax";
-        });
-        if(has_arg_reduce)
-            v["no_vectorize"] = true;
+        auto* rm = ins->module_inputs().front();
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";

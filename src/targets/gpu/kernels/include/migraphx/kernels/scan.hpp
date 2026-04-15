@@ -68,7 +68,7 @@ __device__ T block_scan_impl(index idx, T& value, Op op, T init)
 #endif
 
     constexpr auto block_size = decltype(idx.max_nlocal()){};
-    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
+    MIGRAPHX_ASSERT(block_size % MIGRAPHX_WAVEFRONTSIZE == 0 &&
                   "block size must be a multiple of the wave size");
     constexpr auto num_waves = block_size / MIGRAPHX_WAVEFRONTSIZE;
 
@@ -127,7 +127,6 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
     MIGRAPHX_ASSERT(block_size % MIGRAPHX_WAVEFRONTSIZE == 0 && "block size must be a multiple of the wave size");
     const auto nchunks = (n + block_size - 1) / block_size;
     MIGRAPHX_ASSERT(nchunks > 0);
-    // n may be integral_constant (static shape); j is always runtime index_int.
     using value_t = remove_reference_t<decltype(f(0))>;
     T carry       = init;
     for(auto chunk = 0; chunk < nchunks; ++chunk)

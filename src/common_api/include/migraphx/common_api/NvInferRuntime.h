@@ -5606,7 +5606,7 @@ public:
     virtual AsciiChar const* getPluginNamespace() const noexcept = 0;
 
     IPluginCreatorV3One() = default;
-    virtual ~IPluginCreatorV3One() = default;
+    virtual ~IPluginCreatorV3One() override = default;
 
 protected:
     IPluginCreatorV3One(IPluginCreatorV3One const&) = default;

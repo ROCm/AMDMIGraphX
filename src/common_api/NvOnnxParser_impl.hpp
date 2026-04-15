@@ -2,7 +2,6 @@
 #define NV_ONNX_PARSER_IMPL_H
 
 // #include <migraphx/program.hpp>
-#include <memory>
 
 #include "migraphx/common_api/NvOnnxParser.h"
 #include "NetworkDefinition_impl.hpp"
@@ -41,7 +40,7 @@ namespace nvonnxparser
         bool parseModelProto() noexcept override;
 
     private:
-        std::shared_ptr<nvinfer1::NvNetworkDefinition_impl> mNetworkDefinition;
+        nvinfer1::NvNetworkDefinition_impl* mNetworkDefinition{};
     };
 
 }   // ns:nvonnxparser

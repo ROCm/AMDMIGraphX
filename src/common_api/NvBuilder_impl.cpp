@@ -55,20 +55,14 @@ void NvBuilder_impl::setGpuAllocator(IGpuAllocator* allocator) noexcept
 
 nvinfer1::IBuilderConfig* NvBuilder_impl::createBuilderConfig() noexcept
 {
-    // TODO! implement
     mBuilderConfig = std::make_unique<NvBuilderConfig_impl>();
-    return mBuilderConfig.get();
+    return mBuilderConfig.release();
 }
 
 nvinfer1::INetworkDefinition* NvBuilder_impl::createNetworkV2(NetworkDefinitionCreationFlags flags) noexcept
 {
-    // TODO! implement
-    /*
-    static NvNetworkDefinition_impl networkDefinition(flags);
-    return &networkDefinition;
-    */
     mNetworkDefinition = std::make_unique<NvNetworkDefinition_impl>(flags, *this);
-    return mNetworkDefinition.get();
+    return mNetworkDefinition.release();
 }
 
 nvinfer1::IOptimizationProfile* NvBuilder_impl::createOptimizationProfile() noexcept

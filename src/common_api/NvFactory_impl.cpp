@@ -16,8 +16,14 @@ extern "C" TENSORRTAPI void* createInferRefitter_INTERNAL(void* engine, void* lo
 
 extern "C" TENSORRTAPI void* createNvOnnxParser_INTERNAL(void* network, void* logger, int version) noexcept
 {
-    static nvonnxparser::NvOnnxParser_impl parser(network, logger, version);
-    return &parser;
+    try
+    {
+        return new nvonnxparser::NvOnnxParser_impl(network, logger, version);
+    }
+    catch(...)
+    {
+        return nullptr;
+    }
 }
 
 extern "C" TENSORRTAPI void* createInferRuntime_INTERNAL(void* logger, int32_t version) noexcept

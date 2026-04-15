@@ -699,6 +699,17 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_experimental_custom_op_set_runs_on_of
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_experimental_custom_op_register(migraphx_experimental_custom_op_t experimental_custom_op);
 
+typedef void (*migraphx_trace_callback_t)(size_t instruction_index,
+                                          const char* instruction_name,
+                                          const_migraphx_argument_t result,
+                                          void* data);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
+                                                             migraphx_program_t program,
+                                                             migraphx_program_parameters_t params,
+                                                             migraphx_trace_callback_t callback,
+                                                             void* data);
+
 #ifdef __cplusplus
 }
 #endif

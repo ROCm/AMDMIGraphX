@@ -32,6 +32,7 @@
 #include <migraphx/common.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_convert.hpp>
+#include <migraphx/unfold.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
@@ -121,6 +122,90 @@ struct find_softmax
         auto sumb = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", input->get_shape().lens()}}), sum);
         m.replace_instruction(ins, make_op("div"), exp, sumb);
+    }
+};
+
+// Extend the FP32 upcast range from the dot output through mul/where to
+// softmax. Prevents FP16 overflow in Q*K attention dot products for models
+// with large k_proj.bias values (e.g. Qwen, DeepSeek).
+//
+// The dot stays as dot(f16,f16)->f16. A convert(f16->f32) is inserted on
+// its output, and the intermediate ops (mul, where) are upcasted to f32.
+// MFMA/WMMA accumulates in f32 internally; when fused into an attention
+// kernel, rocMLIR's RemoveRedundantCasts pass preserves the f32 accumulator.
+//
+// Runs before find_softmax_base_ops so that the softmax internals
+// (reduce_max through div) are still in f16 when find_softmax_base_ops
+// processes them.
+struct find_dot_softmax_fp32
+{
+    auto matcher() const { return match::softmax(); }
+
+    // Walk backwards from the softmax input through the attention chain
+    // to find an upstream dot. At each step, follows the non-constant,
+    // non-bool input (the attention data path), skipping constants (scale,
+    // -inf literals) and bool inputs (where conditions/masks).
+    static std::optional<instruction_ref> find_upstream_dot(instruction_ref inp)
+    {
+        auto step = [](instruction_ref current) -> std::optional<instruction_ref> {
+            if(current->name() == "dot")
+                return std::nullopt;
+            if(current->inputs().size() == 1)
+                return current->inputs().front();
+            auto it = std::find_if(
+                current->inputs().begin(), current->inputs().end(), [](instruction_ref input) {
+                    return not input->can_eval() and input->get_shape().type() != shape::bool_type;
+                });
+            if(it == current->inputs().end())
+                return std::nullopt;
+            return *it;
+        };
+        auto chain = unfold(inp, step);
+        auto it    = std::find_if(
+            chain.begin(), chain.end(), [](instruction_ref ins) { return ins->name() == "dot"; });
+        if(it != chain.end())
+            return *it;
+        return std::nullopt;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto inp      = r.instructions["x"];
+        auto inp_type = inp->get_shape().type();
+
+        if(contains({shape::float_type, shape::double_type}, inp_type))
+            return;
+
+        auto dot_opt = find_upstream_dot(inp);
+        if(not dot_opt.has_value())
+            return;
+
+        // Upcast ops between dot (exclusive) and inp (inclusive)
+        auto dot_ins  = *dot_opt;
+        auto pre_inss = find_instructions_between(dot_ins, inp, &m);
+
+        for(const auto& ins : pre_inss)
+        {
+            if(ins == dot_ins)
+                continue;
+
+            std::vector<instruction_ref> ins_inputs_up;
+            std::transform(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                std::back_inserter(ins_inputs_up),
+                [&](auto i) {
+                    if(i->get_shape().type() == shape::bool_type or
+                       i->get_shape().type() == shape::float_type)
+                        return i;
+                    return m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", shape::float_type}}), i);
+                });
+
+            auto ins_up = m.insert_instruction(ins, ins->get_operator(), ins_inputs_up);
+            m.replace_instruction(
+                ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), ins_up);
+        }
     }
 };
 
@@ -264,6 +349,7 @@ void rewrite_reduce::apply(module& m) const
 
     if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
     {
+        match::find_matches(m, find_dot_softmax_fp32{});
         match::find_matches(m, find_softmax_base_ops{});
         migraphx::run_passes(m,
                              {migraphx::eliminate_convert{},

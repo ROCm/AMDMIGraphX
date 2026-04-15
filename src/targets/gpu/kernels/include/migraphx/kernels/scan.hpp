@@ -31,6 +31,8 @@
 
 namespace migraphx {
 
+namespace detail {
+
 // Wave-level inclusive scan using shuffle operations
 // Performs an inclusive prefix scan within a wave using __shfl_up intrinsics
 // This is O(log WaveSize) with no shared memory required
@@ -39,14 +41,11 @@ __device__ void wave_scan(index idx, T& output, Op op)
 {
     const unsigned int lane_id = idx.local_subwave<WaveSize>();
     repeat_up_by_2_c<WaveSize>([&](auto offset_ic) {
-        constexpr unsigned int offset = static_cast<unsigned int>(decltype(offset_ic)::value);
-        T value                       = readlane_up<offset, WaveSize>(output);
-        if(lane_id >= offset)
+        T value                       = readlane_up<offset_ic, WaveSize>(output);
+        if(lane_id >= offset_ic)
             output = op(value, output);
     });
 }
-
-namespace detail {
 
 // Block-level inclusive scan using hierarchical wave scans.
 // Uses wave_scan for scanning within waves, then combines wave results.

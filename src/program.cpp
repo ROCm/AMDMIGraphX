@@ -314,7 +314,8 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
             }
         }
     }
-    this->finalize();
+    if(string_value_of(MIGRAPHX_GPU_ARCH{}).empty())
+        this->finalize();
 }
 
 void program::compile(const target& t, compile_options options)
@@ -332,6 +333,7 @@ void program::compile(const target& t, compile_options options)
     auto&& passes = t.get_passes(this->impl->contexts.front(), options);
     run_passes(*this, passes, options.trace);
     auto mods = this->get_modules();
+    bool cross_compiling = not string_value_of(MIGRAPHX_GPU_ARCH{}).empty();
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {
@@ -348,7 +350,8 @@ void program::compile(const target& t, compile_options options)
             MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
                            std::to_string(index));
         }
-        mod->finalize(this->impl->contexts);
+        if(not cross_compiling)
+            mod->finalize(this->impl->contexts);
     }
 }
 

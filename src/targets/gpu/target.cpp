@@ -92,12 +92,16 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_ARCH)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_NUM_CU)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_NUM_CHIPLETS)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.load_problem_cache();
+    if(not ctx.is_cross_compile())
+        ctx.load_problem_cache();
 
     // clang-format off
     return
@@ -110,14 +114,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         eliminate_identity{},
         dead_code_elimination{},
-        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
-        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
-        simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(ctx) and gpu::gfx_has_fp8fnuz_intrinsics(ctx), fp8_ocp_to_fnuz{}),
+        enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(ctx) and gpu::gfx_has_fp8fnuz_intrinsics(ctx), dead_code_elimination{}),
+        simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics(ctx)},
         enable_pass(not mlir_enabled(), rewrite_quantization{}),
         dead_code_elimination{},
         rewrite_rnn{},
         dead_code_elimination{},
-        eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
+        eliminate_data_type_for_gpu{.disable_64bit = options.fast_math, .ctx = &ctx},
         rewrite_resize{.affine_only = true},
         dead_code_elimination{},
         simplify_reshapes{.enable_gather_rewrite = true},
@@ -205,13 +209,38 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const { return context(gpu::get_device_id()); }
+migraphx::context target::get_context() const
+{
+    auto arch = string_value_of(MIGRAPHX_GPU_ARCH{});
+    if(not arch.empty())
+    {
+        auto num_cu       = value_of(MIGRAPHX_GPU_NUM_CU{}, 120);
+        auto num_chiplets = value_of(MIGRAPHX_GPU_NUM_CHIPLETS{}, 1);
+        return context(std::move(arch), num_cu, num_chiplets);
+    }
+    return context(gpu::get_device_id());
+}
 
-argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
+argument target::copy_to(const argument& arg) const
+{
+    if(not string_value_of(MIGRAPHX_GPU_ARCH{}).empty())
+        MIGRAPHX_THROW("Cannot copy data in cross-compilation mode");
+    return gpu::to_gpu(arg);
+}
 
-argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }
+argument target::copy_from(const argument& arg) const
+{
+    if(not string_value_of(MIGRAPHX_GPU_ARCH{}).empty())
+        MIGRAPHX_THROW("Cannot copy data in cross-compilation mode");
+    return gpu::from_gpu(arg);
+}
 
-argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
+argument target::allocate(const shape& s) const
+{
+    if(not string_value_of(MIGRAPHX_GPU_ARCH{}).empty())
+        MIGRAPHX_THROW("Cannot allocate GPU memory in cross-compilation mode");
+    return gpu::allocate_gpu(s);
+}
 
 MIGRAPHX_REGISTER_TARGET(target);
 

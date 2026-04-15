@@ -1002,7 +1002,7 @@ static expr_ptr node_from_value(const value& v)
     const auto& type = v.at("type").get_string();
     if(type == "int")
     {
-        return make_integer(v.at("value").get_int64());
+        return make_integer(v.at("value").to<int64_t>());
     }
     else if(type == "sym")
     {
@@ -1010,24 +1010,24 @@ static expr_ptr node_from_value(const value& v)
     }
     else if(type == "add")
     {
-        auto constant = v.at("constant").get_int64();
+        auto constant = v.at("constant").to<int64_t>();
         term_map terms;
         for(const auto& t : v.at("terms"))
         {
             auto term   = node_from_value(t.at("expr"));
-            auto coeff  = t.at("coeff").get_int64();
+            auto coeff  = t.at("coeff").to<int64_t>();
             terms[term] = coeff;
         }
         return build_add(constant, std::move(terms));
     }
     else if(type == "mul")
     {
-        auto coefficient = v.at("coeff").get_int64();
+        auto coefficient = v.at("coeff").to<int64_t>();
         factor_map factors;
         for(const auto& f : v.at("factors"))
         {
             auto base     = node_from_value(f.at("expr"));
-            auto exp      = f.at("exp").get_int64();
+            auto exp      = f.at("exp").to<int64_t>();
             factors[base] = exp;
         }
         return build_mul(coefficient, std::move(factors));

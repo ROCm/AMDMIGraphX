@@ -23,6 +23,7 @@
  */
 
 #include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/permutation.hpp>
@@ -32,6 +33,9 @@
 #include <numeric>
 #include <migraphx/verify.hpp>
 #include "test.hpp"
+
+using migraphx::sym::lit;
+using migraphx::sym::var;
 
 TEST_CASE(test_shape_default)
 {
@@ -441,7 +445,9 @@ TEST_CASE(test_shape_static_to_dynamic)
 {
     migraphx::shape s0{migraphx::shape::float_type, {1, 2, 4, 4}};
     migraphx::shape s1 = s0.to_dynamic();
-    migraphx::shape s2{migraphx::shape::float_type, {{1, 1}, {2, 2}, {4, 4}, {4, 4}}};
+    migraphx::shape s2{migraphx::shape::float_type,
+                       {{1, 1}, {2, 2}, {4, 4}, {4, 4}},
+                       {lit(32), lit(16), lit(4), lit(1)}};
     EXPECT(s1 == s2);
 }
 
@@ -461,7 +467,8 @@ TEST_CASE(test_shape_subshapes_to_dynamic)
     migraphx::shape s1                       = s0.to_dynamic();
     std::vector<migraphx::shape> sub_shapes1 = {};
     sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 4}}});
-    sub_shapes1.push_back(migraphx::shape{migraphx::shape::float_type, {{3, 3}, {4, 4}, {5, 5}}});
+    sub_shapes1.push_back(migraphx::shape{
+        migraphx::shape::float_type, {{3, 3}, {4, 4}, {5, 5}}, {lit(20), lit(5), lit(1)}});
     migraphx::shape s2{sub_shapes1};
     EXPECT(s1 == s2);
 }
@@ -1270,6 +1277,251 @@ TEST_CASE(shape_same_lens_static_dynamic)
     migraphx::shape s3{migraphx::shape::float_type, {{1, 1}, {2, 4}, {8, 8}}};
     EXPECT(migraphx::shape::same_lens(s1, s2));
     EXPECT(not migraphx::shape::same_lens(s1, s3));
+}
+
+// ===================================================================
+// Symbolic dynamic_dimension tests
+// ===================================================================
+
+TEST_CASE(test_dd_symbolic_add_size_t)
+{
+    auto n = var("n");
+    migraphx::shape::dynamic_dimension dd{1, 8, {4}, n};
+    dd += 2;
+    EXPECT(dd.min == 3);
+    EXPECT(dd.max == 10);
+    EXPECT(dd.sym_expr == n + 2);
+}
+
+TEST_CASE(test_dd_symbolic_sub_size_t)
+{
+    auto n = var("n");
+    migraphx::shape::dynamic_dimension dd{3, 8, {4}, n};
+    dd -= 1;
+    EXPECT(dd.min == 2);
+    EXPECT(dd.max == 7);
+    EXPECT(dd.sym_expr == n - 1);
+}
+
+TEST_CASE(test_dd_symbolic_mul_size_t)
+{
+    auto n = var("n");
+    migraphx::shape::dynamic_dimension dd{1, 8, {4}, n};
+    dd *= 3;
+    EXPECT(dd.min == 3);
+    EXPECT(dd.max == 24);
+    EXPECT(dd.sym_expr == n * 3);
+}
+
+TEST_CASE(test_dd_symbolic_div_size_t)
+{
+    auto n = var("n");
+    migraphx::shape::dynamic_dimension dd{4, 16, {8}, n};
+    dd /= 2;
+    EXPECT(dd.min == 2);
+    EXPECT(dd.max == 8);
+    EXPECT(dd.sym_expr == n / 2);
+}
+
+TEST_CASE(test_dd_symbolic_add_dd)
+{
+    auto n = var("n");
+    auto c = var("c");
+    migraphx::shape::dynamic_dimension a{1, 8, {}, n};
+    migraphx::shape::dynamic_dimension b{2, 4, {}, c};
+    auto r = a + b;
+    EXPECT(r.min == 3);
+    EXPECT(r.max == 12);
+    EXPECT(r.sym_expr == n + c);
+}
+
+TEST_CASE(test_dd_symbolic_sub_dd)
+{
+    auto n = var("n");
+    auto k = var("k");
+    migraphx::shape::dynamic_dimension a{4, 16, {}, n};
+    migraphx::shape::dynamic_dimension b{1, 4, {}, k};
+    auto r = a - b;
+    EXPECT(r.min == 0);
+    EXPECT(r.max == 15);
+    EXPECT(r.sym_expr == n - k);
+}
+
+TEST_CASE(test_dd_symbolic_mul_dd)
+{
+    auto n = var("n");
+    auto c = var("c");
+    migraphx::shape::dynamic_dimension a{1, 8, {}, n};
+    migraphx::shape::dynamic_dimension b{2, 4, {}, c};
+    auto r = a * b;
+    EXPECT(r.min == 2);
+    EXPECT(r.max == 32);
+    EXPECT(r.sym_expr == n * c);
+}
+
+TEST_CASE(test_dd_symbolic_div_dd)
+{
+    auto n = var("n");
+    auto k = var("k");
+    migraphx::shape::dynamic_dimension a{4, 16, {}, n};
+    migraphx::shape::dynamic_dimension b{2, 4, {}, k};
+    auto r = a / b;
+    EXPECT(r.min == 1);
+    EXPECT(r.max == 8);
+    EXPECT(r.sym_expr == n / k);
+}
+
+TEST_CASE(test_dd_symbolic_plus_fixed)
+{
+    auto n = var("n");
+    migraphx::shape::dynamic_dimension a{1, 8, {}, n};
+    migraphx::shape::dynamic_dimension b{3, 3};
+    auto r = a + b;
+    EXPECT(not r.sym_expr.empty());
+    EXPECT(r.sym_expr == n + 3);
+    EXPECT(r.min == 4);
+    EXPECT(r.max == 11);
+}
+
+TEST_CASE(test_dd_nonfixed_nonsymbolic_plus_symbolic_drops_sym)
+{
+    auto c = var("c");
+    migraphx::shape::dynamic_dimension a{1, 8, {}};
+    migraphx::shape::dynamic_dimension b{2, 4, {}, c};
+    auto r = a + b;
+    EXPECT(r.sym_expr.empty());
+    EXPECT(r.min == 3);
+    EXPECT(r.max == 12);
+}
+
+TEST_CASE(test_dd_nonsymbolic_remains_nonsymbolic)
+{
+    migraphx::shape::dynamic_dimension a{1, 8, {}};
+    migraphx::shape::dynamic_dimension b{2, 4, {}};
+    auto r = a + b;
+    EXPECT(r.sym_expr.empty());
+}
+
+TEST_CASE(test_dd_equality_with_sym)
+{
+    auto n = var("n");
+    auto c = var("c");
+    migraphx::shape::dynamic_dimension a{1, 8, {}, n};
+    migraphx::shape::dynamic_dimension b{1, 8, {}, n};
+    migraphx::shape::dynamic_dimension d2{1, 8, {}, c};
+    migraphx::shape::dynamic_dimension d{1, 8, {}};
+    EXPECT(a == b);
+    EXPECT(a != d2);
+    EXPECT(a != d);
+}
+
+TEST_CASE(test_symbolic_shape_construction)
+{
+    auto n = var("n");
+    migraphx::shape sh{migraphx::shape::float_type,
+                       {{1, 8, {}, n}, {3, 3}, {224, 224}},
+                       {n * lit(3) * lit(224), lit(224), lit(1)}};
+    EXPECT(sh.dynamic());
+    EXPECT(sh.symbolic());
+    EXPECT(sh.dyn_dims().size() == 3);
+    EXPECT(sh.dyn_strides().size() == 3);
+}
+
+TEST_CASE(test_symbolic_stride_auto_compute)
+{
+    auto n = var("n");
+    auto s = var("s");
+    migraphx::shape sh{migraphx::shape::float_type, {{1, 8, {}, n}, {1, 16, {}, s}, {4, 4}}};
+    EXPECT(sh.symbolic());
+    EXPECT(sh.dyn_strides().size() == 3);
+    EXPECT(sh.dyn_strides()[2] == lit(1));
+    EXPECT(sh.dyn_strides()[1] == lit(4));
+    EXPECT(sh.dyn_strides()[0] == s * 4);
+}
+
+TEST_CASE(test_symbolic_to_static)
+{
+    auto n = var("n");
+    auto s = var("s");
+    migraphx::shape sh{migraphx::shape::float_type, {{1, 8, {}, n}, {1, 16, {}, s}, {4, 4}}};
+    std::unordered_map<migraphx::sym::expr, std::size_t> symbol_map = {{n, 2}, {s, 8}};
+    auto s_static                                                   = sh.to_static(symbol_map);
+    EXPECT(not s_static.dynamic());
+    EXPECT(s_static.lens() == std::vector<std::size_t>{2, 8, 4});
+    EXPECT(s_static.strides() == std::vector<std::size_t>{32, 4, 1});
+}
+
+TEST_CASE(test_symbolic_shape_serialize)
+{
+    auto n = var("n");
+    auto s = var("s");
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 8, {}, n}, {1, 16, {}, s}, {4, 4}}};
+    auto v  = migraphx::to_value(s1);
+    auto s2 = migraphx::from_value<migraphx::shape>(v);
+    EXPECT(s1 == s2);
+    EXPECT(s2.symbolic());
+    EXPECT(s2.dyn_strides().size() == 3);
+    EXPECT(s2.dyn_strides()[0] == s * 4);
+    EXPECT(s2.dyn_strides()[2] == lit(1));
+}
+
+TEST_CASE(test_symbolic_shape_equality)
+{
+    auto n = var("n");
+    auto c = var("c");
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 8, {}, n}, {3, 3}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 8, {}, n}, {3, 3}}};
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 8, {}, c}, {3, 3}}};
+    EXPECT(s1 == s2);
+    EXPECT(s1 != s3);
+}
+
+TEST_CASE(test_symbolic_shape_print)
+{
+    auto n      = var("n");
+    auto c      = var("c");
+    auto to_str = [](const migraphx::shape& sh) {
+        std::stringstream ss;
+        ss << sh;
+        return ss.str();
+    };
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 8, {}, n}, {3, 3}, {4, 4}}};
+    migraphx::shape s2{migraphx::shape::float_type, {{1, 8, {}, n}, {3, 3}, {4, 4}}};
+    migraphx::shape s3{migraphx::shape::float_type, {{1, 8, {}, c}, {3, 3}, {4, 4}}};
+    EXPECT(to_str(s1) == to_str(s2));
+    EXPECT(to_str(s1) != to_str(s3));
+}
+
+TEST_CASE(dd_intersection_symbolic_with_range)
+{
+    auto n = var("n");
+    migraphx::shape::dynamic_dimension a{1, 32, {}, n};
+    migraphx::shape::dynamic_dimension b{2, 6};
+    auto result = a.intersection(b);
+    EXPECT(result.has_value());
+    EXPECT(result->min == 2);
+    EXPECT(result->max == 6);
+    EXPECT(result->sym_expr.empty());
+}
+
+TEST_CASE(dd_intersection_symbolic_same_symbol)
+{
+    auto n = var("n");
+    migraphx::shape::dynamic_dimension a{1, 32, {}, n};
+    migraphx::shape::dynamic_dimension b{1, 32, {}, n};
+    auto result = a.intersection(b);
+    EXPECT(result.has_value());
+    EXPECT(*result == a);
+}
+
+TEST_CASE(dd_intersection_symbolic_different_symbol)
+{
+    auto n = var("n");
+    auto m = var("m");
+    migraphx::shape::dynamic_dimension a{1, 32, {}, n};
+    migraphx::shape::dynamic_dimension b{1, 16, {}, m};
+    auto result = a.intersection(b);
+    EXPECT(not result.has_value());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

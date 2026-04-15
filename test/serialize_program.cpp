@@ -26,6 +26,7 @@
 #include <migraphx/load_save.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 
@@ -138,6 +139,26 @@ TEST_CASE(program_with_module)
     migraphx::program p2;
     p2.from_value(v);
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(symbolic_shape_msgpack_roundtrip)
+{
+    using migraphx::shape;
+    using dd = shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("n");
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    shape s{shape::float_type, {dd{1, 8, {}, n}, {3, 3}, {4, 4}}};
+    auto x = mm->add_parameter("x", s);
+    auto r = mm->add_instruction(migraphx::make_op("relu"), x);
+    mm->add_return({r});
+
+    migraphx::file_options options;
+    options.format           = "msgpack";
+    std::vector<char> buffer = migraphx::save_buffer(p, options);
+    migraphx::program p2     = migraphx::load_buffer(buffer, options);
+    EXPECT(p.sort() == p2.sort());
 }
 
 static migraphx::program create_program_with_debug_symbols()

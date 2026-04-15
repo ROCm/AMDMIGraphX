@@ -699,7 +699,7 @@ struct find_flash_decoding
         module_ref mpm_flash_mod = mpm.create_module(new_mod_name, std::move(m_flash_decode));
         mpm_flash_mod->set_bypass();
 
-        flags = flags | attention_flags::lse_output | attention_flags::flash_decoding;
+        flags = flags | attention_flags::lse_output | attention_flags::split_kv;
         // insert the new group op, which returns a tuple of O' and LSE
         auto new_group_ins = mm.insert_instruction(
             attn_group_ins,

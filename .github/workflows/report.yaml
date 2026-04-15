@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Download artifacts
         id: dl_art
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.1
         continue-on-error: true
         with:
           name: performance-run-data
@@ -46,11 +46,11 @@ jobs:
                 ;;
             esac
             ACCURACY_DIR=$(grep '^ACCURACY_DIR=' test-results/env_vars.env | cut -d= -f2)
-            if [[ "$ACCURACY_DIR" =~ ^accuracy ]]; then
+            if [[ "$ACCURACY_DIR" =~ ^accuracy[A-Za-z0-9_/-]*$ ]]; then
               echo "ACCURACY_DIR=$ACCURACY_DIR" >> $GITHUB_ENV
             fi
             GIT_SHA=$(grep '^GIT_SHA=' test-results/env_vars.env | cut -d= -f2)
-            if [[ "$GIT_SHA" =~ ^[A-Za-z0-9]+$ ]]; then
+            if [[ "$GIT_SHA" =~ ^[0-9a-f]{6,40}$ ]]; then
               echo "GIT_SHA=$GIT_SHA" >> $GITHUB_ENV
             fi
             ORGANIZATION=$(grep '^ORGANIZATION=' test-results/env_vars.env | cut -d= -f2)
@@ -59,19 +59,19 @@ jobs:
             else
               echo "ORGANIZATION=AMD" >> $GITHUB_ENV
             fi
-          fi      
-        
+          fi
+
       - name: Checkout report's repo
         if: steps.dl_art.outcome == 'success'
-        uses: actions/checkout@v4.3.1
+        uses: actions/checkout@v6
         with:
           repository: ROCm/${{ env.REPORTS_DIR }}
           path: ${{ env.REPORTS_DIR }}
           token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
-      
+
       - name: Checkout utils repo
         if: steps.dl_art.outcome == 'success'
-        uses: actions/checkout@v4.3.1
+        uses: actions/checkout@v6
         with:
           repository: ROCm/migraphx-benchmark-utils
           path: benchmark-utils
@@ -81,23 +81,60 @@ jobs:
         if: steps.dl_art.outcome == 'success'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.12'
 
       - name: Install python libraries
         if: steps.dl_art.outcome == 'success'
-        run: pip install tabulate==0.8.9 pandas==1.4.2 numpy==1.22.3 openpyxl==3.1.2
+        run: pip install tabulate pandas numpy openpyxl
+
+      - name: Copy performance results to repo - PRs
+        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event != 'schedule' && env.PR_NUMBER
+        run: |
+          mkdir -p "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA"
+          cp -r test-results/perf-*/. "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA" || true
+          if [ -n "$ACCURACY_DIR" ]; then
+            mkdir -p "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA/accuracy_logs"
+            cp -r "test-results/$ACCURACY_DIR/." "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA/accuracy_logs" || true
+          fi
+          echo "REPOFILEPATH=$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA" >> $GITHUB_ENV
+
+      - name: Copy performance results to repo - develop - nightly or manual
+        if: steps.dl_art.outcome == 'success' && !env.PR_NUMBER
+        run: |
+          mkdir -p "$REPORTS_DIR/performance_results/develop/$GIT_SHA"
+          cp -r test-results/perf-*/. "$REPORTS_DIR/performance_results/develop/$GIT_SHA" || true
+          if [ -n "$ACCURACY_DIR" ]; then
+            mkdir -p "$REPORTS_DIR/performance_results/develop/$GIT_SHA/accuracy_logs"
+            cp -r "test-results/$ACCURACY_DIR/." "$REPORTS_DIR/performance_results/develop/$GIT_SHA/accuracy_logs" || true
+          fi
+          echo "REPOFILEPATH=$REPORTS_DIR/performance_results/develop/$GIT_SHA" >> $GITHUB_ENV
+
+      - name: Push results to repo
+        if: steps.dl_art.outcome == 'success'
+        continue-on-error: true
+        run: |
+          cd "$REPORTS_DIR"
+          git add .
+          git config --local user.email github-actions@github.com
+          git config --local user.name github-actions
+          git commit -m "Performance results run https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -a || true
+          push_ok=false
+          for i in 1 2 3; do
+            git pull --rebase && git push && push_ok=true && break
+            sleep 5
+          done
+          if [ "$push_ok" != "true" ]; then
+            echo "::warning::Failed to push performance results after 3 attempts"
+          fi
 
       - name: Publish feedback from performance and accuracy tests
         if: >-
           steps.dl_art.outcome == 'success'
           && github.event.workflow_run.event != 'schedule'
           && env.PR_NUMBER
-          && env.GIT_SHA
-          && env.PR_NUMBER != ''
-          && env.GIT_SHA != ''
         env:
           GITHUB_TOKEN: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
         run: |
-          python3 benchmark-utils/scripts/perf_compare.py -f ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/results.csv -p ${{ env.PR_NUMBER }}
-          python3 benchmark-utils/scripts/accuracy_comment.py -f ${{ env.REPORTS_DIR }}/performance_results/PRs/PR-${{ env.PR_NUMBER }}/${{ env.GIT_SHA }}/accuracy_logs/results.md -p ${{ env.PR_NUMBER }}
+          python3 benchmark-utils/scripts/perf_compare.py -f $REPOFILEPATH/results.csv -p $PR_NUMBER
+          python3 benchmark-utils/scripts/accuracy_comment.py -f $REPOFILEPATH/accuracy_logs/results.md -p $PR_NUMBER
 

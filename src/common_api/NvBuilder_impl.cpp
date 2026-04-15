@@ -1,3 +1,7 @@
+// TODO! remove when all methods are implemented
+#include "pass_warning.hpp"
+//
+
 #include <migraphx/register_target.hpp>
 #include <migraphx/load_save.hpp>
 
@@ -15,42 +19,42 @@ namespace nvinfer1
 NvBuilder_impl::NvBuilder_impl(void* logger, int32_t version) noexcept
     :  mPluginRegistry(nullptr), mNetworkDefinition(nullptr)
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", false);
     mImpl = this;
 }
 
 NvBuilder_impl::~NvBuilder_impl()
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", false);
 }
 
 bool NvBuilder_impl::platformHasFastFp16() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return true;
 }
 
 bool NvBuilder_impl::platformHasFastInt8() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return true;
 }
 
 int32_t NvBuilder_impl::getMaxDLABatchSize() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0;
 }
 
 int32_t NvBuilder_impl::getNbDLACores() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0;
 }
 
 void NvBuilder_impl::setGpuAllocator(IGpuAllocator* allocator) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 nvinfer1::IBuilderConfig* NvBuilder_impl::createBuilderConfig() noexcept
@@ -67,7 +71,7 @@ nvinfer1::INetworkDefinition* NvBuilder_impl::createNetworkV2(NetworkDefinitionC
 
 nvinfer1::IOptimizationProfile* NvBuilder_impl::createOptimizationProfile() noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
@@ -77,18 +81,18 @@ void NvBuilder_impl::setErrorRecorder(IErrorRecorder* recorder) noexcept
 
 IErrorRecorder* NvBuilder_impl::getErrorRecorder() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
 void NvBuilder_impl::reset() noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 bool NvBuilder_impl::platformHasTf32() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
@@ -117,51 +121,51 @@ nvinfer1::IHostMemory* NvBuilder_impl::buildSerializedNetwork(INetworkDefinition
 
 bool NvBuilder_impl::isNetworkSupported(INetworkDefinition const& network, IBuilderConfig const& config) const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 ILogger* NvBuilder_impl::getLogger() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
 bool NvBuilder_impl::setMaxThreads(int32_t maxThreads) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 int32_t NvBuilder_impl::getMaxThreads() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0;
 }
 
 IPluginRegistry& NvBuilder_impl::getPluginRegistry() noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return *reinterpret_cast<IPluginRegistry*>(mPluginRegistry);
 }
 
 ICudaEngine* NvBuilder_impl::buildEngineWithConfig(INetworkDefinition& network, IBuilderConfig& config) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
 bool NvBuilder_impl::buildSerializedNetworkToStream(
     INetworkDefinition& network, IBuilderConfig& config, IStreamWriter& writer) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 nvinfer1::IHostMemory* NvBuilder_impl::buildSerializedNetworkWithKernelText(
     INetworkDefinition& network, IBuilderConfig& config, IHostMemory*& kernelText) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 

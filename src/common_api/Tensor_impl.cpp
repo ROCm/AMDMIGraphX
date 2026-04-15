@@ -1,3 +1,7 @@
+// TODO! remove when all methods are implemented
+#include "pass_warning.hpp"
+//
+
 #include "Tensor_impl.hpp"
 #include "Helper.hpp"
 
@@ -6,7 +10,7 @@ namespace nvinfer1
 
 Tensor_impl::Tensor_impl() noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", false);
     mImpl = this;
 }
 
@@ -17,136 +21,135 @@ Tensor_impl::Tensor_impl(migraphx::instruction_ref ins) noexcept : mIns{ins}
 
 Tensor_impl::~Tensor_impl()
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", false);
 }
 
 void Tensor_impl::setName(char const* name) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 char const* Tensor_impl::getName() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
 void Tensor_impl::setDimensions(Dims const& dimensions) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 Dims Tensor_impl::getDimensions() const noexcept
 {
-    // TODO! implement
     return helper::toDimensions(mIns->get_shape());
 }
 
 void Tensor_impl::setType(DataType type) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 DataType Tensor_impl::getType() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return DataType::kFLOAT;
 }
 
 bool Tensor_impl::setDynamicRange(float min, float max) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 bool Tensor_impl::isNetworkInput() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 bool Tensor_impl::isNetworkOutput() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 void Tensor_impl::setBroadcastAcrossBatch(bool broadcastAcrossBatch) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 bool Tensor_impl::getBroadcastAcrossBatch() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 TensorLocation Tensor_impl::getLocation() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return TensorLocation::kDEVICE;
 }
 
 void Tensor_impl::setLocation(TensorLocation location) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 bool Tensor_impl::dynamicRangeIsSet() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 void Tensor_impl::resetDynamicRange() noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 float Tensor_impl::getDynamicRangeMin() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0.0f;
 }
 
 float Tensor_impl::getDynamicRangeMax() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0.0f;
 }
 
 void Tensor_impl::setAllowedFormats(TensorFormats formats) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 TensorFormats Tensor_impl::getAllowedFormats() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0;
 }
 
 bool Tensor_impl::isShapeTensor() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 bool Tensor_impl::isExecutionTensor() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 void Tensor_impl::setDimensionName(int32_t index, char const* name) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 char const* Tensor_impl::getDimensionName(int32_t index) const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 

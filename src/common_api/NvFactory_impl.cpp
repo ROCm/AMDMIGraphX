@@ -1,3 +1,7 @@
+// TODO! remove when all methods are implemented
+#include "pass_warning.hpp"
+//
+
 #include "migraphx/common_api/NvInferRuntime.h"
 
 #include "NvBuilder_impl.hpp"
@@ -11,6 +15,7 @@ extern "C" TENSORRTAPI void* createInferBuilder_INTERNAL(void* logger, int32_t v
 
 extern "C" TENSORRTAPI void* createInferRefitter_INTERNAL(void* engine, void* logger, int32_t version) noexcept
 {
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 

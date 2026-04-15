@@ -1,3 +1,7 @@
+// TODO! remove when all methods are implemented
+#include "pass_warning.hpp"
+//
+
 #include "NvRuntime_impl.hpp"
 
 #include <migraphx/program.hpp>
@@ -10,19 +14,19 @@ namespace nvinfer1
 
 NvRuntime_impl::NvRuntime_impl(void* logger, int32_t version) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", false);
     mImpl = this;
 }
 
 NvRuntime_impl::~NvRuntime_impl()
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", false);
 }
 
 // public API
 IRuntime* NvRuntime_impl::getPImpl() noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
@@ -51,115 +55,115 @@ nvinfer1::ICudaEngine* NvRuntime_impl::deserializeCudaEngine(void const* blob, s
 
 nvinfer1::ICudaEngine* NvRuntime_impl::deserializeCudaEngine(IStreamReader& streamReader) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
 void NvRuntime_impl::setDLACore(int32_t dlaCore) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 int32_t NvRuntime_impl::getDLACore() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0;
 }
 
 int32_t NvRuntime_impl::getNbDLACores() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0;
 }
 
 void NvRuntime_impl::setGpuAllocator(IGpuAllocator* allocator) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 void NvRuntime_impl::setErrorRecorder(IErrorRecorder* recorder) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 IErrorRecorder* NvRuntime_impl::getErrorRecorder() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
 ILogger* NvRuntime_impl::getLogger() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
 bool NvRuntime_impl::setMaxThreads(int32_t maxThreads) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 int32_t NvRuntime_impl::getMaxThreads() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0;
 }
 
 void NvRuntime_impl::setTemporaryDirectory(char const*) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 char const* NvRuntime_impl::getTemporaryDirectory() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
 void NvRuntime_impl::setTempfileControlFlags(TempfileControlFlags) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 TempfileControlFlags NvRuntime_impl::getTempfileControlFlags() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return 0;
 }
 
 IPluginRegistry& NvRuntime_impl::getPluginRegistry() noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return *reinterpret_cast<IPluginRegistry*>(mPluginRegistry);
 }
 
 void NvRuntime_impl::setPluginRegistryParent(IPluginRegistry* parent) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 IRuntime* NvRuntime_impl::loadRuntime(char const* path) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 
 void NvRuntime_impl::setEngineHostCodeAllowed(bool allowed) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
 }
 
 bool NvRuntime_impl::getEngineHostCodeAllowed() const noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return false;
 }
 
 // Added in TensorRT version 10.7
 nvinfer1::ICudaEngine* NvRuntime_impl::deserializeCudaEngineV2(IStreamReaderV2& streamReader) noexcept
 {
-    // TODO! implement
+    pass_warning("TODO! implement me!", true);
     return nullptr;
 }
 

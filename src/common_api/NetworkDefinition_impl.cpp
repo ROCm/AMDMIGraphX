@@ -1,3 +1,7 @@
+// TODO! remove when all methods are implemented
+#include "pass_warning.hpp"
+//
+
 #include "NetworkDefinition_impl.hpp"
 
 namespace nvinfer1
@@ -5,13 +9,13 @@ namespace nvinfer1
 
 NvNetworkDefinition_impl::NvNetworkDefinition_impl(NetworkDefinitionCreationFlags flags, IBuilder& builder) noexcept : mBuilder{builder}
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", false);
 	mImpl = this;
 }
 
 NvNetworkDefinition_impl::~NvNetworkDefinition_impl()
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", false);
 }
 
 const migraphx::program* NvNetworkDefinition_impl::getProgram() const
@@ -36,74 +40,74 @@ void NvNetworkDefinition_impl::setProgram(std::shared_ptr<migraphx::program> pro
 
 ITensor* NvNetworkDefinition_impl::addInput(char const* name, DataType type, Dims const& dimensions) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 void NvNetworkDefinition_impl::markOutput(ITensor& tensor) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return;
 }
 
 IActivationLayer* NvNetworkDefinition_impl::addActivation(ITensor& input, ActivationType type) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 ILRNLayer* NvNetworkDefinition_impl::addLRN(ITensor& input, int64_t window, float alpha, float beta, float k) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IScaleLayer* NvNetworkDefinition_impl::addScale(
     ITensor& input, ScaleMode mode, Weights shift, Weights scale, Weights power) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 ISoftMaxLayer* NvNetworkDefinition_impl::addSoftMax(ITensor& input) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IConcatenationLayer* NvNetworkDefinition_impl::addConcatenation(ITensor* const* inputs, int32_t nbInputs) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IElementWiseLayer* NvNetworkDefinition_impl::addElementWise(ITensor& input1, ITensor& input2, ElementWiseOperation op) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IUnaryLayer* NvNetworkDefinition_impl::addUnary(ITensor& input, UnaryOperation operation) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IShuffleLayer* NvNetworkDefinition_impl::addShuffle(ITensor& input) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 int32_t NvNetworkDefinition_impl::getNbLayers() const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return 0;
 }
 
 ILayer* NvNetworkDefinition_impl::getLayer(int32_t index) const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
@@ -131,117 +135,117 @@ IReduceLayer* NvNetworkDefinition_impl::addReduce(
     ITensor& input, ReduceOperation operation, uint32_t reduceAxes, bool keepDimensions) noexcept
    
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 ITopKLayer* NvNetworkDefinition_impl::addTopK(ITensor& input, TopKOperation op, int32_t k, uint32_t reduceAxes) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IGatherLayer* NvNetworkDefinition_impl::addGather(ITensor& data, ITensor& indices, int32_t axis) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IRaggedSoftMaxLayer* NvNetworkDefinition_impl::addRaggedSoftMax(ITensor& input, ITensor& bounds) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IMatrixMultiplyLayer* NvNetworkDefinition_impl::addMatrixMultiply(
     ITensor& input0, MatrixOperation op0, ITensor& input1, MatrixOperation op1) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IConstantLayer* NvNetworkDefinition_impl::addConstant(Dims const& dimensions, Weights weights) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IIdentityLayer* NvNetworkDefinition_impl::addIdentity(ITensor& input) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 void NvNetworkDefinition_impl::removeTensor(ITensor& tensor) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return;
 }
 
 void NvNetworkDefinition_impl::unmarkOutput(ITensor& tensor) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return;
 }
 
 IPluginV2Layer* NvNetworkDefinition_impl::addPluginV2(ITensor* const* inputs, int32_t nbInputs, IPluginV2& plugin) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IPluginV3Layer* NvNetworkDefinition_impl::addPluginV3(ITensor* const* inputs, int32_t nbInputs, ITensor* const* shapeInputs,
     int32_t nbShapeInputs, IPluginV3& plugin) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 ISliceLayer* NvNetworkDefinition_impl::addSlice(ITensor& input, Dims const& start, Dims const& size, Dims const& stride) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr; 
 }
 
 void NvNetworkDefinition_impl::setName(char const* name) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return;
 }
 
 char const* NvNetworkDefinition_impl::getName() const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IShapeLayer* NvNetworkDefinition_impl::addShape(ITensor& input) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 bool NvNetworkDefinition_impl::hasImplicitBatchDimension() const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 bool NvNetworkDefinition_impl::markOutputForShapes(ITensor& tensor) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 bool NvNetworkDefinition_impl::unmarkOutputForShapes(ITensor& tensor) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 IParametricReLULayer* NvNetworkDefinition_impl::addParametricReLU(ITensor& input, ITensor& slope) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
@@ -249,13 +253,13 @@ IConvolutionLayer* NvNetworkDefinition_impl::NvNetworkDefinition_impl::addConvol
     ITensor& input, int64_t nbOutputMaps, Dims const& kernelSize, Weights kernelWeights, Weights biasWeights) noexcept
    
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IPoolingLayer* NvNetworkDefinition_impl::addPoolingNd(ITensor& input, PoolingType type, Dims const& windowSize) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
@@ -263,257 +267,257 @@ IDeconvolutionLayer* NvNetworkDefinition_impl::addDeconvolutionNd(
     ITensor& input, int64_t nbOutputMaps, Dims const& kernelSize, Weights kernelWeights, Weights biasWeights) noexcept
    
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IScaleLayer* NvNetworkDefinition_impl::addScaleNd(
     ITensor& input, ScaleMode mode, Weights shift, Weights scale, Weights power, int32_t channelAxis) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IResizeLayer* NvNetworkDefinition_impl::addResize(ITensor& input) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 ILoop* NvNetworkDefinition_impl::addLoop() noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 ISelectLayer* NvNetworkDefinition_impl::addSelect(ITensor& condition, ITensor& thenInput, ITensor& elseInput) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IFillLayer* NvNetworkDefinition_impl::addFill(Dims const& dimensions, FillOperation op) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IPaddingLayer* NvNetworkDefinition_impl::addPaddingNd(ITensor& input, Dims const& prePadding, Dims const& postPadding) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 bool NvNetworkDefinition_impl::setWeightsName(Weights weights, char const* name) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 void NvNetworkDefinition_impl::setErrorRecorder(IErrorRecorder* recorder) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return;
 }
 
 IErrorRecorder* NvNetworkDefinition_impl::getErrorRecorder() const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IDequantizeLayer* NvNetworkDefinition_impl::addDequantize(ITensor& input, ITensor& scale) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IQuantizeLayer* NvNetworkDefinition_impl::addQuantize(ITensor& input, ITensor& scale) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IGatherLayer* NvNetworkDefinition_impl::addGatherV2(ITensor& data, ITensor& indices, GatherMode mode) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IIfConditional* NvNetworkDefinition_impl::addIfConditional() noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IScatterLayer* NvNetworkDefinition_impl::addScatter(ITensor& data, ITensor& indices, ITensor& updates, ScatterMode mode) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IEinsumLayer* NvNetworkDefinition_impl::addEinsum(ITensor* const* inputs, int32_t nbInputs, char const* equation) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IAssertionLayer* NvNetworkDefinition_impl::addAssertion(ITensor& condition, char const* message) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IOneHotLayer* NvNetworkDefinition_impl::addOneHot(ITensor& indices, ITensor& values, ITensor& depth, int32_t axis) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 INonZeroLayer* NvNetworkDefinition_impl::addNonZero(ITensor& input) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IGridSampleLayer* NvNetworkDefinition_impl::addGridSample(ITensor& input, ITensor& grid) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 INMSLayer* NvNetworkDefinition_impl::addNMS(ITensor& boxes, ITensor& scores, ITensor& maxOutputBoxesPerClass) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IReverseSequenceLayer* NvNetworkDefinition_impl::addReverseSequence(ITensor& input, ITensor& sequenceLens) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 INormalizationLayer* NvNetworkDefinition_impl::addNormalization(
     ITensor& input, ITensor& scale, ITensor& bias, uint32_t axesMask) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 ICastLayer* NvNetworkDefinition_impl::addCast(ITensor& input, DataType toType) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IBuilder& NvNetworkDefinition_impl::getBuilder() const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return mBuilder;
 }
 
 NetworkDefinitionCreationFlags NvNetworkDefinition_impl::getFlags() const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return 0;
 }
 
 bool NvNetworkDefinition_impl::getFlag(NetworkDefinitionCreationFlag networkDefinitionCreationFlag) const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 IQuantizeLayer* NvNetworkDefinition_impl::addQuantizeV2(ITensor& input, ITensor& scale, DataType outputType) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IDequantizeLayer* NvNetworkDefinition_impl::addDequantizeV2(ITensor& input, ITensor& scale, DataType outputType) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IFillLayer* NvNetworkDefinition_impl::addFillV2(Dims const& dimensions, FillOperation op, DataType outputType) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 bool NvNetworkDefinition_impl::markDebug(ITensor& tensor) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 bool NvNetworkDefinition_impl::unmarkDebug(ITensor& tensor) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 bool NvNetworkDefinition_impl::isDebugTensor(ITensor const& tensor) const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 bool NvNetworkDefinition_impl::markWeightsRefittable(char const* name) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 bool NvNetworkDefinition_impl::unmarkWeightsRefittable(char const* name) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 bool NvNetworkDefinition_impl::areWeightsMarkedRefittable(char const* name) const noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 ISqueezeLayer* NvNetworkDefinition_impl::addSqueeze(ITensor& input, ITensor& axes) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IUnsqueezeLayer* NvNetworkDefinition_impl::addUnsqueeze(ITensor& input, ITensor& axes) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 IDynamicQuantizeLayer* NvNetworkDefinition_impl::addDynamicQuantize(
     ITensor& input, int32_t axis, int32_t blockSize, DataType toType, DataType scaleType) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 ICumulativeLayer* NvNetworkDefinition_impl::addCumulative(
     ITensor& input, ITensor& axis, CumulativeOperation operation, bool exclusive, bool reverse) noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return nullptr;
 }
 
 bool NvNetworkDefinition_impl::markUnfusedTensorsAsDebugTensors() noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 
 bool NvNetworkDefinition_impl::unmarkUnfusedTensorsAsDebugTensors() noexcept
 {
-	// TODO! implement
+	pass_warning("TODO! implement me!", true);
 	return false;
 }
 

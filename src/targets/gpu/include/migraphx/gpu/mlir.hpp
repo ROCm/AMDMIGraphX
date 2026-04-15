@@ -39,10 +39,7 @@ struct module;
 namespace gpu {
 
 MIGRAPHX_GPU_EXPORT std::string dump_mlir(module m);
-MIGRAPHX_GPU_EXPORT std::string dump_mlir(module m,
-                                          const std::vector<shape>& inputs,
-                                          const std::string& tag = "",
-                                          std::uint32_t flags    = 0);
+MIGRAPHX_GPU_EXPORT std::string dump_mlir(module m, const std::vector<shape>& inputs);
 MIGRAPHX_GPU_EXPORT void
 dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::path& location);
 
@@ -61,9 +58,7 @@ MIGRAPHX_GPU_EXPORT void adjust_param_shapes(module& m, const std::vector<shape>
 MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
                                                   module m,
                                                   const std::vector<shape>& in_shapes,
-                                                  const value& solution,
-                                                  const std::string& tag = "",
-                                                  std::uint32_t flags    = 0);
+                                                  const value& solution);
 
 MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
                                                 instruction_ref ins,

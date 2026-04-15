@@ -32,7 +32,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
-#include <migraphx/attention_flags.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
@@ -48,7 +47,6 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-// Version 5 adds migraphx.attention op support (rocMLIR PR #2316)
 #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
@@ -77,8 +75,8 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/logger.hpp>
 #include <deque>
-#include <migraphx/functional.hpp>
 #include <variant>
 #include <fstream>
 #include <sstream>
@@ -617,7 +615,6 @@ struct mlir_program
         return result;
     }
 
-    // builds func.func operation & its region/block
     MlirBlock insert(MlirBlock body,
                      const module& m,
                      const std::vector<shape>& outputs,
@@ -642,13 +639,13 @@ struct mlir_program
         auto ops = create_operation_state("func.func");
         ops.add_attributes({{"function_type", make_function_type(input_shapes, outputs)},
                             {"sym_name", sym_name},
-                            {"kernel", std::string("mixr")},
-                            {"arch", target_arch},
-                            {"num_cu", num_cu},
-                            {"num_chiplets", num_chiplets}});
+                            {"rock.kernel", std::string("mixr")},
+                            {"rock.arch", target_arch},
+                            {"rock.num_cu", num_cu},
+                            {"rock.num_chiplets", num_chiplets}});
         if(enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
         {
-            ops.add_attributes({{"enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
+            ops.add_attributes({{"rock.enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
         }
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
@@ -823,20 +820,7 @@ struct mlir_program
         };
     }
 
-    void add_literal_attribute(mlir_operation_state& ops, instruction_ref ins)
-    {
-        literal r            = ins->get_literal();
-        MlirType shaped_type = make_mlir_shaped(ins->get_shape());
-        MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
-        MlirAttribute mlir_value_attr =
-            mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
-        ops.add_attributes({{"value", mlir_value_attr}});
-    }
-
-    void parse(const module& m,
-               const std::vector<shape>& input_shapes = {},
-               const std::string& tag                 = "",
-               std::uint32_t flags                    = 0)
+    void parse(const module& m, const std::vector<shape>& input_shapes = {})
     {
         validate(m);
         sym_name   = get_symbol_name(m);
@@ -844,20 +828,9 @@ struct mlir_program
         std::unordered_map<instruction_ref, MlirValue> ins_map;
         auto output_shapes = get_output_shapes(m, input_shapes);
         auto fbody         = insert(mbody, m, output_shapes, ins_map);
-        auto get_shape     = make_get_shape_for_mlir(m, output_shapes);
 
-        if(tag == "attention")
-            parse_attention(m, fbody, ins_map, get_shape, flags);
-        else
-            parse_default(m, fbody, ins_map, get_shape);
-    }
+        auto get_shape_for_mlir = make_get_shape_for_mlir(m, output_shapes);
 
-    template <class GetShape>
-    void parse_default(const module& m,
-                       MlirBlock fbody,
-                       std::unordered_map<instruction_ref, MlirValue>& ins_map,
-                       GetShape get_shape)
-    {
         for(auto ins : iterator_for(m))
         {
             if(ins->name() == "@param")
@@ -867,17 +840,23 @@ struct mlir_program
                 ins_map[ins] = ins_map[ins->inputs().at(0)];
                 continue;
             }
-
             auto name = get_name(ins);
             auto ops  = create_operation_state(name);
             ops.add_attribute_value(get_operator_value(ins));
 
+            // handles single output
             if(ins->name() != "@return")
-                ops.add_results({get_shape(ins)});
+                ops.add_results({get_shape_for_mlir(ins)});
 
             if(ins->name() == "@literal")
             {
-                add_literal_attribute(ops, ins);
+                literal r = ins->get_literal();
+
+                MlirType shaped_type = make_mlir_shaped(ins->get_shape());
+                MlirType tensor_type = rocmlirMIXRShapedTypeAsTensor(shaped_type);
+                MlirAttribute mlir_value_attr =
+                    mlirDenseElementsAttrRawBufferGet(tensor_type, r.get_shape().bytes(), r.data());
+                ops.add_attributes({{"value", mlir_value_attr}});
             }
 
             if(ins->name() == "convolution" or ins->name() == "dot")
@@ -893,6 +872,8 @@ struct mlir_program
             {
                 if(ins->inputs().size() == 4)
                 {
+                    // Specify operand segment sizes BEFORE creating the operation so MLIR sees it.
+                    // Use the canonical MLIR attribute name 'operandSegmentSizes'.
                     const std::vector<int> seg_sizes = {1, 1, 1, 1};
                     ops.set_operand_segment_sizes(seg_sizes);
                 }
@@ -913,239 +894,6 @@ struct mlir_program
             }
         }
     }
-
-    template <class GetShape>
-    void parse_attention(const module& m,
-                         MlirBlock fbody,
-                         std::unordered_map<instruction_ref, MlirValue>& ins_map,
-                         GetShape get_shape,
-                         std::uint32_t flags)
-    {
-        auto [dot1, dot2]    = find_attention_dots(m);
-        auto attention_core  = find_attention_core(dot1, dot2);
-        auto pre_softmax_ops = find_pre_softmax_ops(m, dot1, attention_core);
-        auto external_inputs = find_pre_softmax_external_inputs(pre_softmax_ops, dot1);
-
-        for(auto ins : iterator_for(m))
-        {
-            if(ins->name() == "@param")
-                continue;
-            if(is_skipped(ins))
-            {
-                ins_map[ins] = ins_map[ins->inputs().at(0)];
-                continue;
-            }
-
-            if(contains(attention_core, ins) and ins != dot2)
-                continue;
-
-            if(ins == dot2)
-            {
-                auto q_val = ins_map.at(dot1->inputs()[0]);
-                auto k_val = ins_map.at(dot1->inputs()[1]);
-                auto v_val = ins_map.at(dot2->inputs()[1]);
-
-                std::vector<MlirValue> attn_operands = {q_val, k_val, v_val};
-                for(auto ext : external_inputs)
-                    attn_operands.push_back(ins_map.at(ext));
-
-                auto attn_ops = create_operation_state("migraphx.attention");
-                attn_ops.add_operands(attn_operands);
-                attn_ops.add_results({get_shape(dot2)});
-
-                const std::vector<int> seg_sizes = {
-                    1, 1, 1, static_cast<int>(external_inputs.size()), 0, 0};
-                attn_ops.set_operand_segment_sizes(seg_sizes);
-
-                if(flags != 0)
-                {
-                    MlirType i32_type = mlirIntegerTypeGet(ctx.get(), 32);
-                    MlirAttribute features_attr =
-                        mlirIntegerAttrGet(i32_type, static_cast<int64_t>(flags));
-                    attn_ops.add_attributes({{"features", features_attr}});
-                }
-
-                // if(pre_softmax_ops.empty())
-                //{
-                //     mlir_region region = mlirRegionCreate();
-                //     mlir_block block   = mlirBlockCreate(0, nullptr, nullptr);
-                //     mlirRegionAppendOwnedBlock(region.get(), block.release());
-                //     attn_ops.add_region(std::move(region));
-                // }
-                // else
-                //{
-                //     attn_ops.add_region(
-                //         build_pre_softmax_region(pre_softmax_ops, dot1, external_inputs));
-                // }
-                mlir_region region = mlirRegionCreate();
-                mlir_block block   = mlirBlockCreate(0, nullptr, nullptr);
-                mlirRegionAppendOwnedBlock(region.get(), block.release());
-                attn_ops.add_region(std::move(region));
-
-                auto results = insert(fbody, std::move(attn_ops));
-                assert(results.size() == 1);
-                ins_map[dot2] = results.front();
-                continue;
-            }
-
-            auto name = get_name(ins);
-            auto ops  = create_operation_state(name);
-            ops.add_attribute_value(get_operator_value(ins));
-
-            if(ins->name() != "@return")
-                ops.add_results({get_shape(ins)});
-
-            if(ins->name() == "@literal")
-            {
-                add_literal_attribute(ops, ins);
-            }
-
-            std::vector<MlirValue> inputs;
-            transform(
-                ins->inputs(), std::back_inserter(inputs), [&](auto i) { return ins_map.at(i); });
-            ops.add_operands(inputs);
-
-            auto outputs = insert(fbody, std::move(ops));
-
-            if(ins->name() != "@return")
-            {
-                assert(outputs.size() == 1);
-                ins_map[ins] = outputs.front();
-            }
-        }
-    }
-
-    // Find dot1 and dot2 instructions of attention
-    static std::pair<instruction_ref, instruction_ref> find_attention_dots(const module& m)
-    {
-        std::vector<instruction_ref> dots;
-        for(auto ins : iterator_for(m))
-        {
-            if(ins->name() == "dot")
-                dots.push_back(ins);
-        }
-        if(dots.size() < 2)
-            MIGRAPHX_THROW("Attention submodule must contain at least 2 dot instructions");
-        return {dots[0], dots[1]};
-    }
-
-    // Get instructions between dot1 and dot2 of attention
-    static std::unordered_set<instruction_ref> find_attention_core(instruction_ref dot1,
-                                                                   instruction_ref dot2)
-    {
-        std::unordered_set<instruction_ref> core;
-        core.insert(dot1);
-        core.insert(dot2);
-        fix([&](auto self, auto ins) {
-            if(contains(core, ins) or ins->name() == "@param" or ins->name() == "@literal")
-                return;
-            if(ins->can_eval())
-                return;
-            core.insert(ins);
-            for(auto input : ins->inputs())
-                self(input);
-        })(dot2->inputs()[0]);
-        return core;
-    }
-
-    // find the pre-softmax operations.
-    // TODO: this can be done in the same DFS of find_attention_core
-    static std::vector<instruction_ref>
-    find_pre_softmax_ops(const module& m,
-                         instruction_ref dot1,
-                         const std::unordered_set<instruction_ref>& attention_core)
-    {
-        std::vector<instruction_ref> post_order;
-        std::unordered_set<instruction_ref> visited;
-        fix([&](auto self, auto ins) {
-            for(auto output : ins->outputs())
-            {
-                if(not m.has_instruction(output))
-                    continue;
-                if(not contains(attention_core, output))
-                    continue;
-                if(output->name() == "reduce_max")
-                    continue;
-                if(not visited.insert(output).second)
-                    continue;
-                self(output);
-                post_order.push_back(output);
-            }
-        })(dot1);
-        std::reverse(post_order.begin(), post_order.end());
-        return post_order;
-    }
-
-    // Get inputs to the attention pre-softmax that are not in the attention_core
-    static std::vector<instruction_ref>
-    find_pre_softmax_external_inputs(const std::vector<instruction_ref>& pre_softmax_ops,
-                                     instruction_ref dot1)
-    {
-        std::unordered_set<instruction_ref> internal(pre_softmax_ops.begin(),
-                                                     pre_softmax_ops.end());
-        internal.insert(dot1);
-        std::vector<instruction_ref> external;
-        std::unordered_set<instruction_ref> seen;
-        for(auto op : pre_softmax_ops)
-        {
-            for(auto input : op->inputs())
-            {
-                if(not contains(internal, input) and seen.insert(input).second)
-                    external.push_back(input);
-            }
-        }
-        return external;
-    }
-
-    // mlir_region build_pre_softmax_region(const std::vector<instruction_ref>& pre_softmax_ops,
-    //                                      instruction_ref dot1,
-    //                                      const std::vector<instruction_ref>& external_inputs)
-    //{
-    //     std::vector<MlirType> block_arg_types;
-    //     block_arg_types.push_back(make_mlir_shaped(get_shape_for_mlir(dot1)));
-    //     for(auto ext : external_inputs)
-    //         block_arg_types.push_back(make_mlir_shaped(get_shape_for_mlir(ext)));
-
-    //    std::vector<MlirLocation> block_arg_locs(block_arg_types.size(), location);
-    //    mlir_region region = mlirRegionCreate();
-    //    mlir_block block =
-    //        mlirBlockCreate(block_arg_types.size(), block_arg_types.data(),
-    //        block_arg_locs.data());
-    //    MlirBlock block_raw = block.get();
-    //    mlirRegionAppendOwnedBlock(region.get(), block.release());
-
-    //    std::unordered_map<instruction_ref, MlirValue> region_map;
-    //    region_map[dot1] = mlirBlockGetArgument(block_raw, 0);
-    //    for(std::size_t i = 0; i < external_inputs.size(); ++i)
-    //        region_map[external_inputs[i]] = mlirBlockGetArgument(block_raw, i + 1);
-
-    //    MlirValue last_result{};
-    //    for(auto op : pre_softmax_ops)
-    //    {
-    //        auto op_state = create_operation_state(get_name(op));
-    //        op_state.add_attribute_value(get_operator_value(op));
-    //        op_state.add_results({make_mlir_shaped(get_shape_for_mlir(op))});
-
-    //        if(op->name() == "@literal")
-    //            add_literal_attribute(op_state, op);
-
-    //        std::vector<MlirValue> op_inputs;
-    //        for(auto input : op->inputs())
-    //            op_inputs.push_back(region_map.at(input));
-    //        op_state.add_operands(op_inputs);
-
-    //        auto op_results = insert(block_raw, std::move(op_state));
-    //        assert(op_results.size() == 1);
-    //        region_map[op] = op_results.front();
-    //        last_result    = op_results.front();
-    //    }
-
-    //    auto yield_state = create_operation_state("migraphx.yield");
-    //    yield_state.add_operands({last_result});
-    //    insert(block_raw, std::move(yield_state));
-
-    //    return region;
-    //}
 
     void run_high_level_pipeline()
     {
@@ -1236,7 +984,8 @@ struct mlir_program
         MIGRAPHX_THROW("Failed to compile mlir program");
     }
 
-    void set_tuning(const value& v) MIGRAPHX_TIDY_CONST
+    // NOLINTNEXTLINE(readability-make-member-function-const)
+    void set_tuning(const value& v)
     {
         const auto* str = v.if_string();
         if(str == nullptr)
@@ -1339,10 +1088,8 @@ struct mlir_program
         else
         {
             found_table = false;
-            std::cerr
-                << "WARNING: MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
-                   "optimal performance."
-                << std::endl;
+            log::warn() << "MLIR tuning db not found. Please set MIGRAPHX_MLIR_TUNING_DB for "
+                           "optimal performance.";
         }
         return std::make_pair(std::move(tuning_table), found_table);
     }
@@ -1357,16 +1104,15 @@ struct mlir_program
                 mlirRockTuningGetKey(mmodule.get(), prob_config.data(), prob_config.size());
             if(prob_config_bytes >= prob_config.size())
             {
-                std::cerr << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
-                          << " bytes" << std::endl;
+                log::error() << "MLIR tuning key overflowed buffer, needed " << prob_config_bytes
+                             << " bytes";
                 return false;
             }
             std::string prob_config_str(prob_config.begin(),
                                         prob_config.begin() + prob_config_bytes);
             if(tuning_table.second)
             {
-                std::cerr << "NOTE: MLIR tuning table did not include a key for " << prob_config_str
-                          << std::endl;
+                log::info() << "MLIR tuning table did not include a key for " << prob_config_str;
             }
             dump_tuning_cfg(prob_config_str);
             return false;
@@ -1434,8 +1180,7 @@ static void replace_params_with_literals(module& m, const std::vector<instructio
     }
 }
 
-std::string
-dump_mlir(module m, const std::vector<shape>& inputs, const std::string& tag, std::uint32_t flags)
+std::string dump_mlir(module m, const std::vector<shape>& inputs)
 {
     const_module_ref mr = &m;
     if(not inputs.empty())
@@ -1444,7 +1189,7 @@ dump_mlir(module m, const std::vector<shape>& inputs, const std::string& tag, st
     }
     prepare(m);
     mlir_program mp;
-    mp.parse(*mr, inputs, tag, flags);
+    mp.parse(*mr, inputs);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     return mlir_print(&mlirOperationPrint, mod_op);
 }
@@ -1507,7 +1252,7 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
 
     auto name = compute_dump_name(m, ".mlir");
     auto f    = location / name;
-    std::cout << "Dumping MLIR file to: " << f << std::endl;
+    log::info() << "Dumping MLIR file to: " << f;
 
     mlir_program mp;
     mp.parse(m, inputs);
@@ -1518,14 +1263,12 @@ void dump_mlir_to_file(module m, const std::vector<shape>& inputs, const fs::pat
     write_string(f, mlir_str);
 }
 
-std::string dump_mlir(module m) { return dump_mlir(std::move(m), {}, "", 0); }
+std::string dump_mlir(module m) { return dump_mlir(std::move(m), {}); }
 
 mlir_code_object compile_mlir(const context& migraphx_ctx,
                               module m,
                               const std::vector<shape>& in_shapes,
-                              const value& solution,
-                              const std::string& tag,
-                              std::uint32_t flags)
+                              const value& solution)
 {
     adjust_param_shapes(m, in_shapes);
     prepare(m);
@@ -1539,8 +1282,9 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     }
 
     mlir_program mp;
+
     mp.set_gpu_properties(migraphx_ctx);
-    mp.parse(m, in_shapes, tag, flags);
+    mp.parse(m, in_shapes);
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1639,7 +1383,7 @@ void dump_mlir_to_mxr(module m,
     }
     auto name = compute_dump_name(m, ".mxr");
     auto f    = location / name;
-    std::cout << "Dumping MXR file to: " << f << std::endl;
+    log::info() << "Dumping MXR file to: " << f;
     save(program{std::move(m)}, f.string());
 }
 
@@ -1652,24 +1396,16 @@ void use(T&)
 
 std::string dump_mlir(module) { return {}; }
 
-std::string
-dump_mlir(module m, const std::vector<shape>& inputs, const std::string& tag, std::uint32_t flags)
+std::string dump_mlir(module m, const std::vector<shape>& inputs)
 {
     use(m);
     use(inputs);
-    use(tag);
-    use(flags);
     return {};
 }
 
 // Disabling clang-tidy warning on non-real useage.
 // NOLINTBEGIN(performance-unnecessary-value-param)
-mlir_code_object compile_mlir(const context&,
-                              module,
-                              const std::vector<shape>&,
-                              const value&,
-                              const std::string&,
-                              std::uint32_t)
+mlir_code_object compile_mlir(const context&, module, const std::vector<shape>&, const value&)
 {
     return {};
 }

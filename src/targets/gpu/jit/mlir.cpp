@@ -200,21 +200,9 @@ struct mlir_compiler : compiler<mlir_compiler>
     }
 
     compiler_replace
-    compile(context& ctx, instruction_ref ins, const operation& op, const value& solution) const
+    compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
         auto* smod = ins->module_inputs().front();
-
-        auto op_val = op.to_value();
-        auto tag    = op_val["tag"].to<std::string>();
-        auto flags  = op_val["flags"].to<std::uint32_t>();
-        if(tag == "attention")
-        {
-            auto cr =
-                insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution, tag, flags));
-            set_fill_map(cr, *smod);
-            return cr;
-        }
-
         assert(smod->get_parameter_names().size() == ins->inputs().size() - 1);
         auto gemm_like_ins = std::find_if(smod->begin(), smod->end(), [&](const auto& i) {
             return contains({"dot", "quant_dot", "convolution", "quant_convolution"}, i.name());

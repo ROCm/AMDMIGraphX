@@ -41,7 +41,7 @@ __device__ void wave_scan(index idx, T& output, Op op)
 {
     const unsigned int lane_id = idx.local_subwave<WaveSize>();
     repeat_up_by_2_c<WaveSize>([&](auto offset_ic) {
-        T value                       = readlane_up<offset_ic, WaveSize>(output);
+        T value = readlane_up<offset_ic, WaveSize>(output);
         if(lane_id >= offset_ic)
             output = op(value, output);
     });
@@ -68,7 +68,8 @@ __device__ T block_scan_impl(index idx, T& value, Op op, T init)
 #endif
 
     constexpr auto block_size = decltype(idx.max_nlocal()){};
-    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0, "block size must be a multiple of the wave size");
+    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
+                  "block size must be a multiple of the wave size");
     constexpr auto num_waves = block_size / MIGRAPHX_WAVEFRONTSIZE;
 
     __shared__ uninitialized_buffer<T, num_waves> wave_prefixes;

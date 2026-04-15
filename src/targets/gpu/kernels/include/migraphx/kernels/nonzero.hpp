@@ -62,7 +62,7 @@ __device__ void nonzero(Input input, Output output)
             const auto multi_idx = in_shape.multi(j);
             for(auto k = 0; k < multi_idx.size(); ++k)
             {
-                output[k * elem_num + out_loc] = multi_idx[k];
+                output[make_array<index_int>(k, out_loc)] = multi_idx[k];
             }
         });
 }

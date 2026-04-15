@@ -104,21 +104,13 @@ __device__ T block_scan_impl(index idx, T& value, Op op, T init)
     return op(init, wave_prefixes[num_waves - 1]);
 }
 
-struct block_scan_no_emit
-{
-    template <class J, class V>
-    __device__ void operator()(J, V) const
-    {
-        (void)0;
-    }
-};
-
 } // namespace detail
 
-// Inclusive prefix over 0..n-1: f(j) loads j, lanes past n use T{} (0 for sum).
-// When n is bigger than the block, chunk in lockstep like block_reduce / local_stride tiling.
-// Primary API is block_scan(idx, op, init, n, f). Optional emit(j, value) overload for side
-// effects after each chunk. Both return final carry.
+// Inclusive prefix over 0..n-1: f(j) loads j, lanes past n use value_t{} so every
+// thread still participates in block_scan_impl.
+// Tiling uses idx.local_stride up to n_aligned = nchunks * block_size
+// Primary API is block_scan(idx, op, init, n, f) which writes back via f(j) = value.
+// Optional emit(j, value) overload when load and store differ. Both return final carry.
 template <class Op, class T, class Index, class F, class Emit>
 __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
 {
@@ -127,22 +119,21 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
     MIGRAPHX_ASSERT(block_size % MIGRAPHX_WAVEFRONTSIZE == 0 && "block size must be a multiple of the wave size");
     const auto nchunks = (n + block_size - 1) / block_size;
     MIGRAPHX_ASSERT(nchunks > 0);
-    using value_t = remove_reference_t<decltype(f(0))>;
-    T carry       = init;
-    for(auto chunk = 0; chunk < nchunks; ++chunk)
-    {
-        const auto j = chunk * block_size + idx.local;
-        value_t value     = (j < n) ? f(j) : value_t{};
-        carry             = detail::block_scan_impl(idx, value, op, carry);
+    const auto n_aligned = nchunks * block_size;
+    using value_t   = remove_reference_t<decltype(f(0))>;
+    value_t carry   = init;
+    idx.local_stride(n_aligned, [&](auto j) {
+        value_t value = (j < n) ? f(j) : value_t{};
+        carry           = detail::block_scan_impl(idx, value, op, carry);
         emit(j, value);
-    }
+    });
     return carry;
 }
 
 template <class Op, class T, class Index, class F>
 __device__ auto block_scan(index idx, Op op, T init, Index n, F f)
 {
-    return block_scan(idx, op, init, n, f, detail::block_scan_no_emit{});
+    return block_scan(idx, op, init, n, f, [&](auto j, auto value) { f(j) = value; });
 }
 
 template <class F>

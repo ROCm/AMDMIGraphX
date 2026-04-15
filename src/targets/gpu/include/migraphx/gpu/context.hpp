@@ -42,6 +42,7 @@
 #include <migraphx/gpu/hsa_chiplet.hpp>
 #include <unordered_map>
 #include <memory>
+#include <cstring>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,6 +65,25 @@ struct hip_device
 
         // Set the device prior to Events that get created within a Context.
         set_device(device_id);
+
+        for(std::size_t i = 0; i < n; i++)
+            add_stream();
+    }
+
+    hip_device(std::string arch_name,
+               std::size_t cu_count,
+               std::size_t chiplets,
+               std::size_t n = 1)
+        : cross_compile_mode(true), chiplet_count_override(chiplets)
+    {
+        std::memset(&device_props, 0, sizeof(device_props));
+        std::strncpy(
+            device_props.gcnArchName, arch_name.c_str(), sizeof(device_props.gcnArchName) - 1);
+        device_props.gcnArchName[sizeof(device_props.gcnArchName) - 1] = '\0';
+        device_props.warpSize                    = 64;
+        device_props.maxThreadsPerMultiProcessor = 2048;
+        device_props.maxThreadsPerBlock          = 1024;
+        device_props.multiProcessorCount         = cu_count;
 
         for(std::size_t i = 0; i < n; i++)
             add_stream();
@@ -211,7 +231,14 @@ struct hip_device
 
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
 
-    std::size_t get_chiplet_count() const { return get_hsa_chiplet_count(device_id); }
+    std::size_t get_chiplet_count() const
+    {
+        if(cross_compile_mode)
+            return chiplet_count_override;
+        return get_hsa_chiplet_count(device_id);
+    }
+
+    bool is_cross_compile() const { return cross_compile_mode; }
 
     std::size_t get_max_workitems_per_cu() const
     {
@@ -223,8 +250,10 @@ struct hip_device
     std::size_t get_wavefront_size() const { return device_props.warpSize; }
 
     private:
-    std::size_t device_id      = 0;
-    std::size_t current_stream = 0;
+    std::size_t device_id              = 0;
+    std::size_t current_stream         = 0;
+    bool cross_compile_mode            = false;
+    std::size_t chiplet_count_override = 1;
     std::vector<stream> streams;
     hipDeviceProp_t device_props;
 
@@ -256,6 +285,13 @@ struct context
     {
     }
 
+    context(std::string arch_name, std::size_t cu_count, std::size_t chiplets)
+        : current_device(std::make_shared<hip_device>(
+              std::move(arch_name), cu_count, chiplets, value_of(MIGRAPHX_NSTREAMS{}, 1))),
+          pc(std::make_shared<auto_save_problem_cache>())
+    {
+    }
+
     hip_device& get_current_device()
     {
         assert(current_device != nullptr);
@@ -266,6 +302,11 @@ struct context
     {
         assert(current_device != nullptr);
         return *current_device;
+    }
+
+    bool is_cross_compile() const
+    {
+        return current_device != nullptr and current_device->is_cross_compile();
     }
 
     bool get_exhaustive_tune_flag() const { return exhaustive_tune; }
@@ -292,7 +333,12 @@ struct context
     hipEvent_t get_event(std::size_t i) const { return events.at(i).get(); }
 
     std::vector<argument> literals{};
-    void finish() const { get_stream().wait(); }
+    void finish() const
+    {
+        if(is_cross_compile())
+            MIGRAPHX_THROW("Cannot execute in cross-compilation mode");
+        get_stream().wait();
+    }
 
     static hip_event_ptr create_event()
     {
@@ -336,6 +382,8 @@ struct context
 
     void wait_for(any_ptr queue)
     {
+        if(is_cross_compile())
+            MIGRAPHX_THROW("Cannot execute in cross-compilation mode");
         auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed to record: " + hip_error(status));
@@ -345,6 +393,8 @@ struct context
 
     void finish_on(any_ptr queue)
     {
+        if(is_cross_compile())
+            MIGRAPHX_THROW("Cannot execute in cross-compilation mode");
         get_stream().record(finish_event.get());
 
         auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
@@ -352,7 +402,12 @@ struct context
             MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
     }
 
-    any_ptr get_queue() { return get_stream().get(); }
+    any_ptr get_queue()
+    {
+        if(is_cross_compile())
+            MIGRAPHX_THROW("Cannot execute in cross-compilation mode");
+        return get_stream().get();
+    }
 
     std::pair<hipEvent_t, hipEvent_t> get_perf_events() const
     {

@@ -370,9 +370,8 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 
 #endif // MIGRAPHX_USE_HIPRTC
 
-bool hip_has_flags(const std::vector<std::string>& flags)
+bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)
 {
-    std::string src = " ";
     src_file input{"main.cpp", src};
     std::vector<src_file> srcs = {input};
 
@@ -387,6 +386,8 @@ bool hip_has_flags(const std::vector<std::string>& flags)
         return false;
     }
 }
+
+bool hip_has_flags(const std::vector<std::string>& flags) { return hip_can_compile(" ", flags); }
 
 std::string enum_params(std::size_t count, std::string param)
 {

@@ -93,9 +93,6 @@ struct miopen_apply
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_extend_op("fixed_pad");
-        add_extend_op("rnn_var_sl_last_output");
-        add_extend_op("rnn_var_sl_shift_output");
-        add_extend_op("rnn_var_sl_shift_sequence");
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN

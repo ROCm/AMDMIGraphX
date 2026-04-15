@@ -32,19 +32,6 @@ jobs:
             fi
           fi
           if [ -f test-results/env_vars.env ]; then
-            RESULT_NUMBER=$(grep '^RESULT_NUMBER=' test-results/env_vars.env | cut -d= -f2)
-            if [[ "$RESULT_NUMBER" =~ ^[0-9]+$ ]]; then
-              echo "RESULT_NUMBER=$RESULT_NUMBER" >> $GITHUB_ENV
-            fi
-            FLAGS=$(grep '^FLAGS=' test-results/env_vars.env | cut -d= -f2)
-            case "$FLAGS" in
-              "-r"|"-m"|"-s")
-                echo "FLAGS=$FLAGS" >> $GITHUB_ENV
-                ;;
-              *)
-                echo "FLAGS=-r" >> $GITHUB_ENV
-                ;;
-            esac
             ACCURACY_DIR=$(grep '^ACCURACY_DIR=' test-results/env_vars.env | cut -d= -f2)
             if [[ "$ACCURACY_DIR" =~ ^accuracy[A-Za-z0-9_/-]*$ ]]; then
               echo "ACCURACY_DIR=$ACCURACY_DIR" >> $GITHUB_ENV
@@ -52,12 +39,6 @@ jobs:
             GIT_SHA=$(grep '^GIT_SHA=' test-results/env_vars.env | cut -d= -f2)
             if [[ "$GIT_SHA" =~ ^[0-9a-f]{6,40}$ ]]; then
               echo "GIT_SHA=$GIT_SHA" >> $GITHUB_ENV
-            fi
-            ORGANIZATION=$(grep '^ORGANIZATION=' test-results/env_vars.env | cut -d= -f2)
-            if [[ "$ORGANIZATION" =~ ^[A-Za-z0-9_-]+$ ]]; then
-              echo "ORGANIZATION=$ORGANIZATION" >> $GITHUB_ENV
-            else
-              echo "ORGANIZATION=AMD" >> $GITHUB_ENV
             fi
           fi
 
@@ -88,7 +69,7 @@ jobs:
         run: pip install tabulate==0.9.0 pandas==2.2.3 numpy==2.1.3 openpyxl==3.1.5
 
       - name: Copy performance results to repo - PRs
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event != 'schedule' && env.PR_NUMBER
+        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event != 'schedule' && env.PR_NUMBER && env.GIT_SHA
         run: |
           mkdir -p "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA"
           cp -r test-results/perf-*/. "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA" || true
@@ -99,7 +80,7 @@ jobs:
           echo "REPOFILEPATH=$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA" >> $GITHUB_ENV
 
       - name: Copy performance results to repo - develop - nightly or manual
-        if: steps.dl_art.outcome == 'success' && !env.PR_NUMBER
+        if: steps.dl_art.outcome == 'success' && !env.PR_NUMBER && env.GIT_SHA
         run: |
           mkdir -p "$REPORTS_DIR/performance_results/develop/$GIT_SHA"
           cp -r test-results/perf-*/. "$REPORTS_DIR/performance_results/develop/$GIT_SHA" || true
@@ -132,6 +113,7 @@ jobs:
           steps.dl_art.outcome == 'success'
           && github.event.workflow_run.event != 'schedule'
           && env.PR_NUMBER
+          && env.GIT_SHA
         env:
           GITHUB_TOKEN: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
         run: |

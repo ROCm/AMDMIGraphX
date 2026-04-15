@@ -129,7 +129,7 @@ struct MIGRAPHX_EXPORT shape
         }
 
         interval get_interval() const { return range; }
-        const std::set<std::size_t>& get_optimals() const { return optimals; }
+        std::set<std::size_t> get_optimals() const { return optimals; }
 
         bool is_fixed() const;
         bool has_optimal() const;

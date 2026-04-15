@@ -158,10 +158,11 @@ struct convolution
                 auto s        = stride[i];
                 if(x_shape.dynamic())
                 {
-                    auto x = x_shape.dyn_dims()[i + 2];
+                    auto x      = x_shape.dyn_dims()[i + 2];
+                    auto x_opts = x.get_optimals();
                     std::set<std::size_t> optimals{};
-                    std::transform(x.get_optimals().begin(),
-                                   x.get_optimals().end(),
+                    std::transform(x_opts.begin(),
+                                   x_opts.end(),
                                    std::inserter(optimals, optimals.begin()),
                                    [&](auto o) { return ceil_div(o, s); });
                     auto x_interval = x.get_interval();

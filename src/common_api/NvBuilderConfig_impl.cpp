@@ -138,6 +138,7 @@ namespace nvinfer1
     hipStream_t NvBuilderConfig_impl::getProfileStream() const noexcept
     {
         // TODO! implement
+        return nullptr;
     }
 
     int32_t NvBuilderConfig_impl::addOptimizationProfile(IOptimizationProfile const* profile) noexcept

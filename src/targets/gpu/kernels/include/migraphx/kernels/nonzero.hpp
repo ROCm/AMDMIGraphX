@@ -56,13 +56,11 @@ __device__ void nonzero(Input input, Output output)
         [&](auto j, auto value) {
             if(j >= elem_num)
                 return;
-            const int scanned  = value;
-            const auto out_loc = scanned - 1;
             if(float_equal(input[j], 0))
                 return;
-
+            const auto out_loc = value - 1;
             const auto multi_idx = in_shape.multi(j);
-            for(index_int k = 0; k < multi_idx.size(); ++k)
+            for(auto k = 0; k < multi_idx.size(); ++k)
             {
                 output[k * elem_num + out_loc] = multi_idx[k];
             }

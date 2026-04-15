@@ -1200,6 +1200,25 @@ TEST_CASE(concat_transpose4)
     EXPECT(m1 == m);
 }
 
+TEST_CASE(concat_transpose_singleton_swapped_axes)
+{
+    migraphx::module m;
+
+    auto s  = migraphx::shape{migraphx::shape::float_type, {1, 1, 4}};
+    auto x  = m.add_parameter("x", s);
+    auto y  = m.add_parameter("y", s);
+    auto xt = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
+    auto yt = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), y);
+    auto concat = m.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), xt, yt);
+    auto t =
+        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), concat);
+    m.add_return({t});
+
+    auto out_shape = m.get_output_shapes().back();
+    run_pass(m);
+    EXPECT(m.get_output_shapes().back().lens() == out_shape.lens());
+}
+
 TEST_CASE(concat_unsqueeze)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {11008, 4096}};

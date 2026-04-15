@@ -658,13 +658,12 @@ struct find_concat_transpose
         auto ins          = mr.result;
         auto trans_inputs = ins->inputs();
         auto s            = trans_inputs.front()->get_shape();
-        assert(s.transposed());
+        auto permutation  = any_cast<op::transpose>(trans_inputs.front()->get_operator()).dims;
         auto op          = any_cast<op::concat>(ins->get_operator());
-        auto permutation = find_permutation(s);
 
         // permutation should be the same for all inputs
         if(not std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
-               return (find_permutation(in->get_shape()) == permutation);
+               return (any_cast<op::transpose>(in->get_operator()).dims == permutation);
            }))
         {
             return;

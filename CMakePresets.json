@@ -4,82 +4,73 @@
         {
             "name": "WinBase",
             "cacheVariables": {
+                "CMAKE_MAKE_PROGRAM": "$env{JOM_INSTALL_DIR}/jom.exe",
                 "CMAKE_C_COMPILER": "$env{ROCM_DIR}/bin/clang.exe",
                 "CMAKE_CXX_COMPILER": "$env{ROCM_DIR}/bin/clang++.exe",
                 "GPU_TARGETS": "$env{GPU_TARGETS}",
                 "MIGRAPHX_USE_HIPRTC": "ON",
                 "MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS": "ON",
-                "CMAKE_COMPILE_WARNING_AS_ERROR": "ON",
-                "MIGRAPHX_ENABLE_PYTHON": "OFF",
-                "MIGRAPHX_ENABLE_TENSORFLOW": "OFF",
-                "MIGRAPHX_ENABLE_ONNX": "OFF",
-                "MIGRAPHX_ENABLE_DXGML": "ON",
-                "DXGML_DROP_DIR": "$env{DXGML_DROP_DIR}",
-                "MIGRAPHX_USE_ROCBLAS": "OFF",
-                "MIGRAPHX_USE_HIPBLASLT": "OFF",
-                "MIGRAPHX_USE_MIOPEN": "OFF",
-                "MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS": "ON",
-                "BUILD_TESTING": "OFF"
+                "CMAKE_COMPILE_WARNING_AS_ERROR": "ON"
             },
-            "generator": "Ninja"
-        },
-        {
-            "name": "WinRelWithDebInfo",
-            "inherits": "WinBase",
-            "displayName": "AMDMIGraphX.WML RelWithDebInfo (Windows)",
-            "description": "AMDMIGraphX.WML RelWithDebInfo with Ninja generator (Windows)",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-                "CMAKE_PREFIX_PATH": "$env{ROCM_INSTALL_DIR}/rocMLIR.WML/${presetName};${sourceDir}/depend/${presetName}"
-            },
-            "binaryDir": "${sourceDir}/build/WinRelWithDebInfo"
-        },
-        {
-            "name": "WinDebug",
-            "inherits": "WinBase",
-            "displayName": "AMDMIGraphX.WML Debug (Windows)",
-            "description": "AMDMIGraphX.WML Debug with Ninja generator (Windows)",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_PREFIX_PATH": "$env{ROCM_INSTALL_DIR}/rocMLIR.WML/${presetName};${sourceDir}/depend/${presetName}"
-            },
-            "binaryDir": "${sourceDir}/build/WinDebug"
+            "generator": "NMake Makefiles JOM"
         },
         {
             "name": "WinMinSizeRel",
             "inherits": "WinBase",
-            "displayName": "AMDMIGraphX.WML MinSizeRel (Windows)",
-            "description": "AMDMIGraphX.WML MinSizeRel with Ninja generator (Windows)",
+            "displayName": "AMDMIGraphX MinSizeRel (Windows)",
+            "description": "AMDMIGraphX MinSizeRel with NMake Makefiles JOM generator (Windows)",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "MinSizeRel",
-                "CMAKE_PREFIX_PATH": "$env{ROCM_INSTALL_DIR}/rocMLIR.WML/${presetName};${sourceDir}/depend/${presetName}"
+                "CMAKE_PREFIX_PATH": "${sourceDir}/depend/MinSizeRel;C:\\opt\\rocMLIR\\MinSizeRel;C:/opt/rocm"
             },
-            "binaryDir": "${sourceDir}/build/WinMinSizeRel"
+            "binaryDir": "${sourceDir}/build/MinSizeRel"
+        },
+        {
+            "name": "WinDebug",
+            "inherits": "WinBase",
+            "displayName": "AMDMIGraphX Debug (Windows)",
+            "description": "AMDMIGraphX Debug with NMake Makefiles JOM generator (Windows)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_PREFIX_PATH": "${sourceDir}/depend/Debug;C:\\opt\\rocMLIR\\Debug;C:/opt/rocm"
+            },
+            "binaryDir": "${sourceDir}/build/Debug"
+        },
+        {
+            "name": "WinRelWithDebInfo",
+            "inherits": "WinBase",
+            "displayName": "AMDMIGraphX RelWithDebInfo (Windows)",
+            "description": "AMDMIGraphX RelWithDebInfo with NMake Makefiles JOM generator (Windows)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_PREFIX_PATH": "${sourceDir}/depend/RelWithDebInfo;C:\\opt\\rocMLIR\\RelWithDebInfo;C:/opt/rocm"
+            },
+            "binaryDir": "${sourceDir}/build/RelWithDebInfo"
         },
         {
             "name": "WinRelease",
             "inherits": "WinBase",
-            "displayName": "AMDMIGraphX.WML Release (Windows)",
-            "description": "AMDMIGraphX.WML Release with Ninja generator (Windows)",
+            "displayName": "AMDMIGraphX Release (Windows)",
+            "description": "AMDMIGraphX Release with NMake Makefiles JOM generator (Windows)",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_PREFIX_PATH": "$env{ROCM_INSTALL_DIR}/rocMLIR.WML/${presetName};${sourceDir}/depend/${presetName}"
+                "CMAKE_PREFIX_PATH": "${sourceDir}/depend/Release;C:\\opt\\rocMLIR\\Release;C:/opt/rocm"
             },
-            "binaryDir": "${sourceDir}/build/WinRelease"
+            "binaryDir": "${sourceDir}/build/Release"
         }
     ],
     "buildPresets": [
         {
-            "name": "WinRelWithDebInfo",
-            "configurePreset": "WinRelWithDebInfo"
+            "name": "WinMinSizeRel",
+            "configurePreset": "WinMinSizeRel"
         },
         {
             "name": "WinDebug",
             "configurePreset": "WinDebug"
         },
         {
-            "name": "WinMinSizeRel",
-            "configurePreset": "WinMinSizeRel"
+            "name": "WinRelWithDebInfo",
+            "configurePreset": "WinRelWithDebInfo"
         },
         {
             "name": "WinRelease",
@@ -88,8 +79,8 @@
     ],
     "testPresets": [
         {
-            "name": "WinRelWithDebInfo",
-            "configurePreset": "WinRelWithDebInfo",
+            "name": "WinMinSizeRel",
+            "configurePreset": "WinMinSizeRel",
             "output": {
                 "outputOnFailure": true
             },
@@ -110,8 +101,8 @@
             }
         },
         {
-            "name": "WinMinSizeRel",
-            "configurePreset": "WinMinSizeRel",
+            "name": "WinRelWithDebInfo",
+            "configurePreset": "WinRelWithDebInfo",
             "output": {
                 "outputOnFailure": true
             },

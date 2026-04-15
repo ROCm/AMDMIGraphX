@@ -48,14 +48,14 @@ set "ARG_NAME="
 
 :ArgLoop
 if "%~1"=="" goto ArgDone
-if /i "%~1"=="--vs"              ( set "USE_VS=true"          & shift & goto ArgLoop )
-if /i "%~1"=="--build-only"      ( set "SKIP_CONFIGURE=true"  & shift & goto ArgLoop )
-if /i "%~1"=="--skip-configure"  ( set "SKIP_CONFIGURE=true"  & shift & goto ArgLoop )
-if /i "%~1"=="--no-build"        ( set "SKIP_BUILD=true"      & shift & goto ArgLoop )
-if /i "%~1"=="--skip-build"      ( set "SKIP_BUILD=true"      & shift & goto ArgLoop )
-if /i "%~1"=="--run-tests"       ( set "RUN_TESTS=true"       & shift & goto ArgLoop )
+if /i "%~1"=="--vs"              ( set "USE_VS=true"         & shift & goto ArgLoop )
+if /i "%~1"=="--build-only"      ( set "SKIP_CONFIGURE=true" & shift & goto ArgLoop )
+if /i "%~1"=="--skip-configure"  ( set "SKIP_CONFIGURE=true" & shift & goto ArgLoop )
+if /i "%~1"=="--no-build"        ( set "SKIP_BUILD=true"     & shift & goto ArgLoop )
+if /i "%~1"=="--skip-build"      ( set "SKIP_BUILD=true"     & shift & goto ArgLoop )
+if /i "%~1"=="--run-tests"       ( set "RUN_TESTS=true"      & shift & goto ArgLoop )
 REM First non-flag arg is the preset/config name
-if "!ARG_NAME!"=="" set ARG_NAME=%~1
+if "!ARG_NAME!"=="" set "ARG_NAME=%~1"
 shift
 goto ArgLoop
 :ArgDone
@@ -66,19 +66,26 @@ REM ---------------------------------------------------------------
 if "%GPU_TARGETS%"==""      set GPU_TARGETS=gfx1100;gfx1150;gfx1151;gfx1201;gfx1200
 if "%ROCM_DIR%"==""         set ROCM_DIR=C:\opt\rocm
 if "%ROCM_INSTALL_DIR%"=="" set ROCM_INSTALL_DIR=C:\opt
-if "%DXGML_DROP_DIR%"==""   set DXGML_DROP_DIR=C:\Users\hisha\Documents\shared_drive\DxML\DXGML-Drop4.1-x64
+if "%DXGML_DROP_DIR%"==""   set DXGML_DROP_DIR=C:\Users\hubertgu\Documents\DXGML-Drop4.0-x64
+if "%JOM_INSTALL_DIR%"==""   set JOM_INSTALL_DIR=C:\tools\jom
+set ROCM_DIR_CMAKE=%ROCM_DIR:\=/%
 
 set SCRIPT_DIR=%~dp0
 
 REM ---------------------------------------------------------------
 REM Mode: Ninja (preset) vs Visual Studio
 REM ---------------------------------------------------------------
-if "%USE_VS%"=="true" goto SetupVS
+if /i "!USE_VS!"=="true" goto SetupVS
 
 REM --- Ninja / preset mode ---
 set PRESET=!ARG_NAME!
 if "!PRESET!"=="" set PRESET=WinRelWithDebInfo
-set BUILD_DIR=%SCRIPT_DIR%build\%PRESET%
+set PRESET_BUILD_DIR=!PRESET!
+if /i "!PRESET_BUILD_DIR!"=="WinDebug"          set PRESET_BUILD_DIR=Debug
+if /i "!PRESET_BUILD_DIR!"=="WinRelWithDebInfo" set PRESET_BUILD_DIR=RelWithDebInfo
+if /i "!PRESET_BUILD_DIR!"=="WinRelease"        set PRESET_BUILD_DIR=Release
+if /i "!PRESET_BUILD_DIR!"=="WinMinSizeRel"     set PRESET_BUILD_DIR=MinSizeRel
+set BUILD_DIR=%SCRIPT_DIR%build\!PRESET_BUILD_DIR!
 set MODE_DESC=Ninja  (preset: %PRESET%)
 goto PrintInfo
 
@@ -120,9 +127,38 @@ echo ==========================================
 echo.
 
 cd /d "%SCRIPT_DIR%"
-cmake --preset %PRESET% ^
-      -DBUILD_TESTING=ON ^
-      -DGPU_TARGETS="%GPU_TARGETS%"
+set "CONFIGURE_FAILED=false"
+if exist "%ROCM_DIR%\bin\llvm-rc.exe" (
+    cmake --preset %PRESET% ^
+        -DBUILD_TESTING=ON ^
+        -DGPU_TARGETS="%GPU_TARGETS%" ^
+          -DCMAKE_RC_COMPILER=%ROCM_DIR_CMAKE%/bin/llvm-rc.exe
+) else (
+    cmake --preset %PRESET% ^
+        -DBUILD_TESTING=ON ^
+        -DGPU_TARGETS="%GPU_TARGETS%"
+)
+
+if errorlevel 1 set "CONFIGURE_FAILED=true"
+
+if "%CONFIGURE_FAILED%"=="true" (
+    if exist "%BUILD_DIR%\CMakeCache.txt" (
+        echo.
+        echo Configure failed; clearing stale cache and retrying once...
+        rd /s /q "%BUILD_DIR%"
+        echo.
+        if exist "%ROCM_DIR%\bin\llvm-rc.exe" (
+            cmake --preset %PRESET% ^
+                -DBUILD_TESTING=ON ^
+                -DGPU_TARGETS="%GPU_TARGETS%" ^
+                -DCMAKE_RC_COMPILER=%ROCM_DIR_CMAKE%/bin/llvm-rc.exe
+        ) else (
+            cmake --preset %PRESET% ^
+                -DBUILD_TESTING=ON ^
+                -DGPU_TARGETS="%GPU_TARGETS%"
+        )
+    )
+)
 
 if errorlevel 1 (
     echo.
@@ -150,7 +186,7 @@ cd /d "%BUILD_DIR%"
 cmake -G "Visual Studio 17 2022" ^
       -A x64 ^
       -T ClangCL ^
-      -DCMAKE_PREFIX_PATH="%ROCM_INSTALL_DIR%/rocMLIR.WML/WinRelWithDebInfo;%SCRIPT_DIR%depend/WinRelWithDebInfo" ^
+    -DCMAKE_PREFIX_PATH="%ROCM_INSTALL_DIR%/rocMLIR/%VS_CONFIG%;%SCRIPT_DIR%/depend/%VS_CONFIG%" ^
       -DGPU_TARGETS="%GPU_TARGETS%" ^
       -DMIGRAPHX_ENABLE_DXGML=ON ^
       -DDXGML_DROP_DIR="%DXGML_DROP_DIR%" ^
@@ -236,7 +272,7 @@ if "%USE_VS%"=="true" (
 if errorlevel 1 (
     echo.
     echo ==========================================
-    echo Build FAILED - check output above.
+    echo Build FAILED! Check output above.
     echo ==========================================
     exit /b 1
 )
@@ -269,9 +305,9 @@ echo Running DxGML Parse Tests (ctest)
 echo ==========================================
 echo.
 if "%USE_VS%"=="true" (
-    ctest --test-dir "%BUILD_DIR%" -C %VS_CONFIG% -R test_dxgml -V
+    ctest --test-dir "%BUILD_DIR%" -C %VS_CONFIG% -R "test_dxgml" -V
 ) else (
-    ctest --test-dir "%BUILD_DIR%" -R test_dxgml -V
+    ctest --test-dir "%BUILD_DIR%" -R "test_dxgml" -V
 )
 if errorlevel 1 (
     echo.
@@ -291,15 +327,29 @@ call "%SCRIPT_DIR%test\dxgml\run_dxgml_tests.bat"
 :ShowSummary
 echo.
 echo ==========================================
-echo Done.
+echo Done!
 echo ==========================================
 echo.
-echo Build dir    : !BUILD_DIR!
+if "%USE_VS%"=="true" (
+    for %%f in ("%BUILD_DIR%\*.sln") do echo Solution     : %%f
+    echo.
+    echo To rebuild (skip reconfigure):
+    echo   generate_migraphx.bat --vs %VS_CONFIG% --build-only
+) else (
+    echo To rebuild (skip reconfigure):
+    echo   generate_migraphx.bat %PRESET% --build-only
+)
+echo.
 echo To run DxGML driver tests:
 echo   test\dxgml\run_dxgml_tests.bat
 echo.
-echo To run parse unit tests:
-echo   ctest --test-dir "!BUILD_DIR!" -R test_dxgml -V
+if "%USE_VS%"=="true" (
+    echo To run parse unit tests:
+    echo   ctest --test-dir "%BUILD_DIR%" -C %VS_CONFIG% -R test_dxgml -V
+) else (
+    echo To run parse unit tests:
+    echo   ctest --test-dir "%BUILD_DIR%" -R test_dxgml -V
+)
 echo.
 
 exit /b 0

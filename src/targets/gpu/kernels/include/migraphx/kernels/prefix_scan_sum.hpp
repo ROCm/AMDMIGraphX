@@ -36,16 +36,9 @@ template <bool Exclusive, bool Reverse, class Input, class Output>
 __device__ void prefix_scan_sum_slice(Input input, Output output)
 {
     auto idx = make_index();
-
-    constexpr auto block_size = decltype(idx.max_nlocal()){};
-    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
-                  "Block size must be a multiple of wavefront size");
-    const index_int n = input.get_shape().elements();
-
-    const auto linear = [&](index_int j) { return Reverse ? (n - 1 - j) : j; };
-
+    const auto n = input.get_shape().elements();
+    const auto linear = [&](auto j) { return Reverse ? (n - 1 - j) : j; };
     using value_type = remove_reference_t<decltype(*input.data())>;
-
     block_scan(
         idx,
         op::sum{},
@@ -53,13 +46,12 @@ __device__ void prefix_scan_sum_slice(Input input, Output output)
         n,
         [&](index_int j) { return input[linear(j)]; },
         [&](index_int j, const value_type& value) {
-            if(j >= n)
-                return;
+            MIGRAPHX_ASSERT(j < n);
             const index_int li = linear(j);
             if constexpr(Exclusive)
             {
                 if(j == 0)
-                    output[li] = value_type{0};
+                    output[li] = 0;
                 else
                     output[li] = value - input[li];
             }

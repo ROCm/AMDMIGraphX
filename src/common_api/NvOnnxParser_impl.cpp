@@ -88,6 +88,7 @@ void NvOnnxParser_impl::setFlags(OnnxParserFlags onnxParserFlags) noexcept
 OnnxParserFlags NvOnnxParser_impl::getFlags() const noexcept 
 {
     // TODO! implement
+    return 0;
 }
 
 void NvOnnxParser_impl::clearFlag(OnnxParserFlag onnxParserFlag) noexcept 

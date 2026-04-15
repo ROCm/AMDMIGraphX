@@ -37,7 +37,6 @@
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
-#include <migraphx/logger.hpp>
 #include <onnx.pb.h>
 
 namespace migraphx {
@@ -134,16 +133,15 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
         // if curr_ins has a dynamic output shape use 2 input broadcast
         if(curr_ins->get_shape().dynamic())
         {
-            bias_bcast =
-                mod->add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
+            bias_bcast = add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
         }
         else
         {
-            bias_bcast = mod->add_instruction(
+            bias_bcast = add_instruction(
                 make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
                 args[2]);
         }
-        return mod->add_instruction(make_op("add"), curr_ins, bias_bcast);
+        return add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
     return curr_ins;
 }
@@ -319,24 +317,31 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-static void print_added_instructions(module* mod,
-                                     const std::vector<instruction_ref>& args,
-                                     const std::vector<instruction_ref>& result)
+/**
+ * Get the instructions added by the parser not in `args`.
+ * Does a DFS through inputs of result up to the instructions `args`.
+ */
+static std::vector<instruction_ref>
+get_added_instructions(const std::vector<instruction_ref>& args,
+                       const std::vector<instruction_ref>& result)
 {
     // Print instructions added by the parser not in args
     std::vector<instruction_ref> added_instructions;
+    // Set for checking added_instructions faster
+    std::unordered_set<instruction_ref> visit_set;
     fix([&](auto self, const auto& r) {
         for(auto ins : r)
         {
             if(contains(args, ins))
                 continue;
-            if(contains(added_instructions, ins))
+            if(contains(visit_set, ins))
                 continue;
             self(ins->inputs());
             added_instructions.push_back(ins);
+            visit_set.insert(ins);
         }
     })(result);
-    mod->debug_print(added_instructions);
+    return added_instructions;
 }
 
 static bool is_type_packed_int4(const onnx::TensorProto& t)
@@ -351,7 +356,7 @@ parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto&
     for(auto&& f : graph.initializer())
     {
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
-            log::trace() << "initializer: " << f.name();
+            std::cout << "initializer: " << f.name() << std::endl;
         // backup instructions in parent mod
         auto pt  = parser.parse_tensor(f);
         auto lit = mod->add_literal(pt);
@@ -551,7 +556,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     }
     else
     {
-        log::warn() << "onnx model is not topologically sorted. Attempting to sort...";
+        std::cerr << "Warning: onnx model is not topologically sorted. Attempting to sort..."
+                  << std::endl;
         node_indices = toposort(graph);
     }
 
@@ -567,13 +573,11 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         const onnx::NodeProto& node = graph.node(node_index);
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
         {
-            std::ostringstream ss;
-            ss << "operator: " << node.op_type() << '\t' << node.name();
+            std::cout << "operator: " << node.op_type() << '\t' << node.name() << std::endl;
             for(auto&& attr : node.attribute())
             {
-                ss << "\n    " << attr.name() << " = " << to_string(attr);
+                std::cout << "    " << attr.name() << " = " << to_string(attr) << std::endl;
             }
-            log::trace() << ss.str();
         }
 
         std::vector<instruction_ref> args;
@@ -593,6 +597,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
 
         std::vector<instruction_ref> result;
         std::size_t output_num = node.output().size();
+        std::string node_name  = node.op_type() + "_" + std::to_string(mod->size());
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)
@@ -602,21 +607,32 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
         else
         {
-            std::string node_name = node.op_type() + "_" + std::to_string(mod->size());
-            result                = ops[node.op_type()](
+            result = ops[node.op_type()](
                 *this, {get_attributes(node), output_num, node_name, mod}, args);
         }
-
         output_num = std::min<std::size_t>(output_num, result.size());
         std::transform(node.output().begin(),
                        node.output().begin() + output_num,
                        result.begin(),
                        std::inserter(instructions, instructions.end()),
                        [](auto&& x, auto&& y) { return std::make_pair(x, y); });
-
+        std::vector<instruction_ref> added_instructions;
+        if(this->use_debug_symbols or enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
+        {
+            added_instructions = get_added_instructions(args, result);
+        }
+        if(this->use_debug_symbols)
+        {
+            std::string debug_symbol =
+                node.name().empty() ? std::string("migx_uid:") + node_name : node.name();
+            for(auto ins : added_instructions)
+            {
+                mod->add_debug_symbols(ins, {debug_symbol});
+            }
+        }
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
         {
-            print_added_instructions(mod, args, result);
+            mod->debug_print(added_instructions);
         }
     }
 

@@ -103,7 +103,6 @@ struct logger_options
 {
     std::string log_level;
     std::vector<std::string> log_files;
-    bool disable_log_header = false;
 
     void parse(migraphx::driver::argument_parser& ap)
     {
@@ -127,10 +126,6 @@ struct logger_options
            ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
            ap.append(),
            ap.nargs(2));
-        ap(disable_log_header,
-           {"--disable-log-header"},
-           ap.help("Disable log header (timestamp, severity, location)"),
-           ap.set_value(true));
         ap.post_action([this](auto&&) { this->apply(); });
     }
 
@@ -145,10 +140,6 @@ struct logger_options
         for(const auto& log_file : log_files)
         {
             migraphx::log::add_file_logger(log_file);
-        }
-        if(disable_log_header)
-        {
-            migraphx::log::set_show_header(false);
         }
     }
 
@@ -200,6 +191,7 @@ struct loader
     bool replace_literals       = false;
     bool brief                  = false;
     bool verbose                = false;
+    bool use_debug_symbols      = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -232,6 +224,11 @@ struct loader
            ap.help("Skip unknown operators when parsing and continue to parse."),
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
+        ap(use_debug_symbols,
+           {"--debug-symbols"},
+           ap.help(
+               "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
+           ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
@@ -419,6 +416,7 @@ struct loader
         }
         options.skip_unknown_operators = skip_unknown_operators;
         options.print_program_on_error = true;
+        options.use_debug_symbols      = use_debug_symbols;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;
@@ -1099,12 +1097,6 @@ int main(int argc, const char* argv[], const char* envp[])
     std::vector<std::string> args(argv + 1, argv + argc);
     // Save original args for display purposes before they get modified
     const std::vector<std::string> original_args = args;
-
-    // Check for --disable-log-header early, before any logging
-    if(std::find(args.begin(), args.end(), "--disable-log-header") != args.end())
-    {
-        migraphx::log::set_show_header(false);
-    }
 
     migraphx::driver::argument_parser ap;
 

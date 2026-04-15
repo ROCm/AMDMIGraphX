@@ -136,5 +136,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
         run: |
           python3 benchmark-utils/scripts/perf_compare.py -f $REPOFILEPATH/results.csv -p $PR_NUMBER
-          python3 benchmark-utils/scripts/accuracy_comment.py -f $REPOFILEPATH/accuracy_logs/results.md -p $PR_NUMBER
+          if [ -n "$ACCURACY_DIR" ] && [ -f "$REPOFILEPATH/accuracy_logs/results.md" ]; then
+            python3 benchmark-utils/scripts/accuracy_comment.py -f $REPOFILEPATH/accuracy_logs/results.md -p $PR_NUMBER
+          fi
 

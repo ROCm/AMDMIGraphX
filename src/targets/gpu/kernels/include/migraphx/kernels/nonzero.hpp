@@ -52,7 +52,7 @@ __device__ void nonzero(Input input, Output output)
         op::sum{},
         0,
         elem_num,
-        [&](auto j) { return float_equal(input[j], 0) ? 0 : 1; },
+        [&](auto j) -> uint8_t { return float_equal(input[j], 0) ? 0 : 1; },
         [&](auto j, auto value) {
             if(j >= elem_num)
                 return;

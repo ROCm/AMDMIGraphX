@@ -123,19 +123,17 @@ template <class Op, class T, class Index, class F, class Emit>
 __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
-    constexpr index_int block_size = decltype(idx.max_nlocal())::value;
-    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
-                  "Block size must be a multiple of wavefront size");
-    const index_int ni      = n;
-    const index_int nchunks = (ni + block_size - 1) / block_size;
+    constexpr auto block_size = decltype(idx.max_nlocal()){};
+    MIGRAPHX_ASSERT(block_size % MIGRAPHX_WAVEFRONTSIZE == 0 && "block size must be a multiple of the wave size");
+    const auto nchunks = (n + block_size - 1) / block_size;
     MIGRAPHX_ASSERT(nchunks > 0);
     // n may be integral_constant (static shape); j is always runtime index_int.
-    using value_t = remove_reference_t<decltype(f(index_int{}))>;
+    using value_t = remove_reference_t<decltype(f(0))>;
     T carry       = init;
-    for(index_int chunk = 0; chunk < nchunks; ++chunk)
+    for(auto chunk = 0; chunk < nchunks; ++chunk)
     {
-        const index_int j = chunk * block_size + idx.local;
-        value_t value     = (j < ni) ? f(j) : value_t{};
+        const auto j = chunk * block_size + idx.local;
+        value_t value     = (j < n) ? f(j) : value_t{};
         carry             = detail::block_scan_impl(idx, value, op, carry);
         emit(j, value);
     }

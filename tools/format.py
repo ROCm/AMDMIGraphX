@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@ from git_tools import get_changed_files, get_merge_base, get_top, run
 
 CLANG_FORMAT_PATH = '/opt/rocm/llvm/bin'
 
-EXCLUDE_FILES = ['requirements.in', 'onnx.proto', 'pr-review-config.json']
+EXCLUDE_FILES = ['requirements.in', 'onnx.proto']
 
 CLANG_EXTENSIONS = ('.c', '.cpp', '.hpp', '.h', '.cl', '.hip', '.in')
 YAPF_EXTENSIONS = ('.py')
@@ -55,10 +55,13 @@ def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
     files = [
         f for f in files if f.endswith(CLANG_EXTENSIONS) and not is_excluded(f)
     ]
-    run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
-        files,
-        cwd=get_top(),
-        verbose=True)
+    if files:
+        run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
+            files,
+            cwd=get_top(),
+            verbose=True)
+    else:
+        print("No modified cpp files to format")
 
 
 def yapf_format(against, apply=False):

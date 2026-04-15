@@ -94,8 +94,6 @@ bool NvBuilder_impl::platformHasTf32() const noexcept
 
 nvinfer1::IHostMemory* NvBuilder_impl::buildSerializedNetwork(INetworkDefinition& network, IBuilderConfig& config) noexcept
 {
-    // TODO! implement
-
     auto& nw_impl = static_cast<NvNetworkDefinition_impl&>(network);
     migraphx::program prog = *nw_impl.getProgram();
 
@@ -103,7 +101,7 @@ nvinfer1::IHostMemory* NvBuilder_impl::buildSerializedNetwork(INetworkDefinition
     {
         prog.compile(migraphx::make_target("gpu"));
     }
-    catch(migraphx::exception& e)
+    catch(migraphx::exception& /*e*/)
     {
         // TODO write to error recorder/logger
         return nullptr;

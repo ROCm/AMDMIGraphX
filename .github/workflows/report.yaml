@@ -99,7 +99,7 @@ jobs:
           echo "REPOFILEPATH=$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA" >> $GITHUB_ENV
 
       - name: Copy performance results to repo - develop - nightly or manual
-        if: steps.dl_art.outcome == 'success' && (github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'workflow_dispatch')
+        if: steps.dl_art.outcome == 'success' && !env.PR_NUMBER
         run: |
           mkdir -p "$REPORTS_DIR/performance_results/develop/$GIT_SHA"
           cp -r test-results/perf-*/. "$REPORTS_DIR/performance_results/develop/$GIT_SHA" || true

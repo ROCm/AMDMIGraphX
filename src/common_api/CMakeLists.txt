@@ -9,7 +9,7 @@ target_include_directories(commonapi
 )
 
 # only temporary:
-target_compile_options(commonapi PRIVATE -Wno-unused-parameter -Wno-deprecated-declarations)
+target_compile_options(commonapi PRIVATE -Wno-unused-parameter -Wno-deprecated-declarations -Wno-documentation)
 
 # set_target_properties(commonapi PROPERTIES OUTPUT_NAME "commonapi")
 set_target_properties(commonapi PROPERTIES EXPORT_NAME commonapi)

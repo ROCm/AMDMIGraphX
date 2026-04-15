@@ -35,10 +35,10 @@ namespace migraphx {
 template <bool Exclusive, bool Reverse, class Input, class Output>
 __device__ void prefix_scan_sum_slice(Input input, Output output)
 {
-    auto idx = make_index();
-    const auto n = input.get_shape().elements();
+    auto idx          = make_index();
+    const auto n      = input.get_shape().elements();
     const auto linear = [&](auto j) { return Reverse ? (n - 1 - j) : j; };
-    using value_type = remove_reference_t<decltype(*input.data())>;
+    using value_type  = remove_reference_t<decltype(*input.data())>;
     block_scan(
         idx,
         op::sum{},

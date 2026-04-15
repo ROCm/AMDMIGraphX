@@ -46,7 +46,6 @@ __device__ void prefix_scan_sum_slice(Input input, Output output)
         n,
         [&](index_int j) { return input[linear(j)]; },
         [&](index_int j, const value_type& value) {
-            MIGRAPHX_ASSERT(j < n);
             const index_int li = linear(j);
             if constexpr(Exclusive)
             {

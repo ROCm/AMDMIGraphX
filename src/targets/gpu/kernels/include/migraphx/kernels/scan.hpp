@@ -106,9 +106,10 @@ __device__ T block_scan_impl(index idx, T& value, Op op, T init)
 
 } // namespace detail
 
-// Inclusive prefix over 0..n-1: f(j) loads j, lanes past n use value_t{} so every
+// Inclusive prefix over 0..n-1: f(j) loads j < n, lanes past n use value_t{} so every
 // thread still participates in block_scan_impl.
-// Tiling uses idx.local_stride up to n_aligned = nchunks * block_size
+// tiling uses n_aligned = nchunks * block_size
+// emit / writeback run only for j < n so callers are not invoked past the logical range.
 // Primary API is block_scan(idx, op, init, n, f) which writes back via f(j) = value.
 // Optional emit(j, value) overload when load and store differ. Both return final carry.
 template <class Op, class T, class Index, class F, class Emit>
@@ -126,7 +127,8 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
     idx.local_stride(n_aligned, [&](auto j) {
         value_t value = (j < n) ? f(j) : value_t{};
         carry         = detail::block_scan_impl(idx, value, op, carry);
-        emit(j, value);
+        if(j < n)
+            emit(j, value);
     });
     return carry;
 }
@@ -134,7 +136,10 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
 template <class Op, class T, class Index, class F>
 __device__ auto block_scan(index idx, Op op, T init, Index n, F f)
 {
-    return block_scan(idx, op, init, n, f, [&](auto j, auto value) { f(j) = value; });
+    return block_scan(idx, op, init, n, f, [&](auto j, auto value) {
+        if(j < n)
+            f(j) = value;
+    });
 }
 
 template <class F>

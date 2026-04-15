@@ -30,7 +30,6 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -43,7 +42,6 @@
 #include <array>
 #include <algorithm>
 #include <cstdarg>
-#include <sstream>
 
 namespace migraphx {
 
@@ -1790,35 +1788,6 @@ extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
         *out = allocate<migraphx_arguments_t>(
             migraphx::run_async((program->object), (params->object), (s), (name)));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
-                                                      migraphx_program_t program,
-                                                      migraphx_program_parameters_t params,
-                                                      migraphx_trace_callback_t callback,
-                                                      void* data)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(program == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
-        if(params == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
-        if(callback == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter callback: Null pointer");
-        migraphx::execution_environment exec_env;
-        const auto* mm = (program->object).get_main_module();
-        exec_env.trace = [callback, data, mm](migraphx::instruction_ref ins,
-                                              const migraphx::argument& output) {
-            auto idx = std::distance(mm->begin(), ins);
-            std::ostringstream oss;
-            oss << ins->get_operator();
-            auto name = oss.str();
-            migraphx_argument arg_handle(output);
-            callback(idx, name.c_str(), &arg_handle, data);
-        };
-        *out = allocate<migraphx_arguments_t>((program->object).eval((params->object), exec_env));
     });
     return api_error_result;
 }

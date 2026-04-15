@@ -301,7 +301,8 @@ struct find_channelwise_convolution
         auto weights     = ins->inputs().back();
         auto num_spatial = ins->get_shape().ndim() - 2;
 
-        if(input->get_shape().type() != shape::float_type)
+        if(input->get_shape().type() != shape::float_type and
+           input->get_shape().type() != shape::half_type)
             return;
 
         auto v        = ins->get_operator().to_value();

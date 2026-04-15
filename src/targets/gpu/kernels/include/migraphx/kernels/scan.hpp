@@ -60,28 +60,26 @@ __device__ T block_scan_impl(index idx, T& value, Op op, T init)
     // like block_reduce: one wave fits in registers/shuffles, skip LDS wave prefix pass
     if constexpr(decltype(idx.nlocal()){} == MIGRAPHX_WAVEFRONTSIZE)
     {
-        constexpr unsigned int wave_size = MIGRAPHX_WAVEFRONTSIZE;
-        wave_scan<wave_size>(idx, value, op);
-        const T last_raw = readlane<wave_size - 1, wave_size>(value);
+        wave_scan<MIGRAPHX_WAVEFRONTSIZE>(idx, value, op);
+        const T last_raw = readlane<MIGRAPHX_WAVEFRONTSIZE - 1, MIGRAPHX_WAVEFRONTSIZE>(value);
         value            = op(init, value);
         return op(init, last_raw);
     }
 #endif
 
-    constexpr index_int wave_size    = MIGRAPHX_WAVEFRONTSIZE;
-    constexpr index_int block_size_v = decltype(idx.max_nlocal())::value;
-    static_assert(block_size_v % wave_size == 0, "block size must be a multiple of the wave size");
-    constexpr index_int num_waves = block_size_v / wave_size;
+    constexpr auto block_size = decltype(idx.max_nlocal()){};
+    static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0, "block size must be a multiple of the wave size");
+    constexpr auto num_waves = block_size / MIGRAPHX_WAVEFRONTSIZE;
 
     __shared__ uninitialized_buffer<T, num_waves> wave_prefixes;
 
     // scan within wave
-    wave_scan<wave_size>(idx, value, op);
+    wave_scan<MIGRAPHX_WAVEFRONTSIZE>(idx, value, op);
 
     // last lane of each wave writes its inclusive-scan total to shared memory
     const auto wave_id = idx.wave();
     const auto lane_id = idx.local_wave();
-    if(lane_id == wave_size - 1)
+    if(lane_id == MIGRAPHX_WAVEFRONTSIZE - 1)
         wave_prefixes[wave_id] = value;
     __syncthreads();
 
@@ -89,7 +87,7 @@ __device__ T block_scan_impl(index idx, T& value, Op op, T init)
     if(idx.local < num_waves)
     {
         T prefix = wave_prefixes[idx.local];
-        wave_scan<wave_size>(idx, prefix, op);
+        wave_scan<MIGRAPHX_WAVEFRONTSIZE>(idx, prefix, op);
         wave_prefixes[idx.local] = prefix;
     }
     __syncthreads();

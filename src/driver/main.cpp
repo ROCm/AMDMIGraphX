@@ -63,7 +63,6 @@
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
-#include <iomanip>
 #include <optional>
 #include <sstream>
 
@@ -88,15 +87,6 @@ get_unrecognized_migraphx_envs(const char* envp[],
             unused_migx_env.push_back(e);
     }
     return unused_migx_env;
-}
-
-std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_clock> time)
-{
-    auto now_in_time_t   = std::chrono::system_clock::to_time_t(time);
-    auto* now_as_tm_date = std::localtime(&now_in_time_t);
-    std::stringstream ss;
-    ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
-    return ss.str();
 }
 
 struct logger_options

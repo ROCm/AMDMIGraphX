@@ -41,6 +41,7 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -254,13 +255,10 @@ struct compiled_result
         return os;
     }
 
-    program
-    make_program(const std::string& op_name, const value& problem, const value& solution) const
+    program make_program() const
     {
         program bench_prog;
         auto* mm = bench_prog.get_main_module();
-
-        mm->add_instruction(builtin::comment{op_name, problem, solution}, {});
 
         std::vector<instruction_ref> bench_ins_inputs;
         std::transform(ins->inputs().begin(),
@@ -420,8 +418,6 @@ struct compile_plan
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
             std::cout << "Problem: " << config->problem << std::endl;
-        std::vector<optional<program>> bench_progs;
-        bench_progs.reserve(results.size());
         std::vector<double> times;
         times.reserve(results.size());
         std::transform(results.begin(),
@@ -435,23 +431,20 @@ struct compile_plan
                            {
                                if(trace_level > 1)
                                    std::cout << "No binary" << std::endl;
-                               bench_progs.push_back(nullopt);
                                return std::numeric_limits<double>::max();
                            }
                            if(trace_level > 2)
                                std::cout << *cr << std::endl;
-                           auto bench_prog =
-                               cr->make_program(preop.name(), config->problem, solution);
+                           auto bench_prog = cr->make_program();
                            if(trace_level > 2)
                                std::cout << bench_prog << std::endl;
                            auto t = time_program(*ctx,
-                                                 bench_prog,
+                                                 std::move(bench_prog),
                                                  cr->replace.fill_map,
                                                  /* bundle */ 10,
                                                  /* nrun */ 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
-                           bench_progs.push_back(std::move(bench_prog));
                            return t;
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
@@ -479,24 +472,27 @@ struct compile_plan
         cr.replace.replace(m, cr.ins);
     }
 
-    void save_binaries(program& bench_mxr) const
+    void save_binaries(const fs::path& mxr_dir) const
     {
         if(not config.has_value())
             return;
-        const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
         for(auto i : range(results.size()))
         {
             if(not results[i].has_value())
                 continue;
             const auto& solution = config->solutions[i];
-            if(trace_level > 0)
-                std::cout << "Saving benchmark binary: " << preop.name()
-                          << " problem=" << config->problem << " solution=" << solution
-                          << std::endl;
-            auto bench_prog = results[i]->make_program(preop.name(), config->problem, solution);
-            std::string mod_name =
-                preop.name() + "_" + std::to_string(i) + "_" + to_string(config->problem);
-            bench_mxr.create_module(mod_name, std::move(*bench_prog.get_main_module()));
+            auto bench_prog      = results[i]->make_program();
+            auto* mm             = bench_prog.get_main_module();
+            std::string comment_text =
+                preop.name() + " problem=" + to_string(config->problem) +
+                " solution=" + to_string(solution);
+            mm->add_instruction(builtin::comment{comment_text}, {});
+            auto problem_hash =
+                std::hash<std::string>{}(to_string(config->problem));
+            auto mxr_file = mxr_dir / (preop.name() + "_" + std::to_string(i) +
+                                        "_" + std::to_string(problem_hash) + ".mxr");
+            log::info() << "Saving benchmark binary: " << mxr_file;
+            save(bench_prog, mxr_file.string());
         }
     }
 };
@@ -539,15 +535,21 @@ struct compile_manager
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
         bool dump_mxr              = not mxr_path.empty();
-        program bench_mxr;
 
+        if(dump_mxr)
+        {
+            fs::create_directories(fs::path(mxr_path));
+        }
+
+        bool has_binaries = false;
         for(const auto& cp : cps)
         {
             if(cp.results.empty())
                 continue;
             if(dump_mxr and cp.results.size() > 1)
             {
-                cp.save_binaries(bench_mxr);
+                cp.save_binaries(fs::path(mxr_path));
+                has_binaries = true;
             }
             else
             {
@@ -555,17 +557,11 @@ struct compile_manager
             }
         }
 
-        if(dump_mxr and bench_mxr.get_modules().size() > 1)
+        if(has_binaries)
         {
-            fs::path mxr_dir(mxr_path);
-            fs::create_directories(mxr_dir);
-            auto clk      = std::chrono::steady_clock::now().time_since_epoch().count();
-            auto mxr_file = mxr_dir / ("benchmark_" + std::to_string(clk) + ".mxr");
-            save(bench_mxr, mxr_file.string());
-            std::cout << "Saved benchmark MXR to: " << mxr_file << std::endl;
             MIGRAPHX_THROW(
-                "Benchmark MXR dumped to " + mxr_file.string() +
-                ". Run the MXR to create a problem cache, then recompile with the cache.");
+                "Benchmark MXR files dumped to " + mxr_path +
+                ". Run the MXR files to create a problem cache, then recompile with the cache.");
         }
 
         // Remove compile_plan already executed

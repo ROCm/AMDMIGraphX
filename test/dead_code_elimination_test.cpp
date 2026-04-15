@@ -315,11 +315,7 @@ TEST_CASE(comment_not_eliminated)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_instruction(migraphx::make_op("@comment",
-                                          {{"op_name", "test_op"},
-                                           {"problem", migraphx::value("key1")},
-                                           {"solution", migraphx::value("sol1")}}),
-                        {});
+    mm->add_instruction(migraphx::make_op("@comment", {{"text", "test comment"}}), {});
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);

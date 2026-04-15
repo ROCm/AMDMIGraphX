@@ -28,7 +28,6 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/reflect.hpp>
-#include <migraphx/value.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -38,15 +37,12 @@ namespace builtin {
 
 struct comment
 {
-    std::string op_name;
-    value problem;
-    value solution;
+    std::string text;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(
-            f(self.op_name, "op_name"), f(self.problem, "problem"), f(self.solution, "solution"));
+        return pack(f(self.text, "text"));
     }
 
     std::string name() const { return "@comment"; }
@@ -58,8 +54,7 @@ struct comment
 
     friend std::ostream& operator<<(std::ostream& os, const comment& op)
     {
-        os << op.name() << ":" << op.op_name << " problem=" << op.problem
-           << " solution=" << op.solution;
+        os << op.name() << ": " << op.text;
         return os;
     }
 };

@@ -49,6 +49,8 @@ __device__ void prefix_scan_sum_slice(Input input, Output output)
             const index_int li = linear(j);
             if constexpr(Exclusive)
             {
+                // TODO: optimization so we don't have to read from global memory
+                // by adding an optional parameter to the emitter to return f(j)
                 if(j == 0)
                     output[li] = 0;
                 else

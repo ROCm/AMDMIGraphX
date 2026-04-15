@@ -69,7 +69,7 @@ __device__ T block_scan_impl(index idx, T& value, Op op, T init)
 
     constexpr auto block_size = decltype(idx.max_nlocal()){};
     MIGRAPHX_ASSERT(block_size % MIGRAPHX_WAVEFRONTSIZE == 0 &&
-                  "block size must be a multiple of the wave size");
+                    "block size must be a multiple of the wave size");
     constexpr auto num_waves = block_size / MIGRAPHX_WAVEFRONTSIZE;
 
     __shared__ uninitialized_buffer<T, num_waves> wave_prefixes;
@@ -116,15 +116,16 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
 {
     MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
     constexpr auto block_size = decltype(idx.max_nlocal()){};
-    MIGRAPHX_ASSERT(block_size % MIGRAPHX_WAVEFRONTSIZE == 0 && "block size must be a multiple of the wave size");
+    MIGRAPHX_ASSERT(block_size % MIGRAPHX_WAVEFRONTSIZE == 0 &&
+                    "block size must be a multiple of the wave size");
     const auto nchunks = (n + block_size - 1) / block_size;
     MIGRAPHX_ASSERT(nchunks > 0);
     const auto n_aligned = nchunks * block_size;
-    using value_t   = remove_reference_t<decltype(f(0))>;
-    value_t carry   = init;
+    using value_t        = remove_reference_t<decltype(f(0))>;
+    value_t carry        = init;
     idx.local_stride(n_aligned, [&](auto j) {
         value_t value = (j < n) ? f(j) : value_t{};
-        carry           = detail::block_scan_impl(idx, value, op, carry);
+        carry         = detail::block_scan_impl(idx, value, op, carry);
         emit(j, value);
     });
     return carry;

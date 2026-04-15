@@ -211,7 +211,7 @@ static void set_output_names(tf_options& options, std::vector<const char*> names
 static std::vector<argument>
 run_async(program& p, const parameter_map& params, void* s, std::string_view name)
 {
-    execution_environment exec_env{any_ptr(s, name), true, {}};
+    execution_environment exec_env{any_ptr(s, name), true};
     return p.eval(params, exec_env);
 }
 

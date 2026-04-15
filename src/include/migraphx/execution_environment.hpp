@@ -36,7 +36,7 @@ struct execution_environment
 {
     any_ptr queue = any_ptr{};
     bool async    = false;
-    std::function<void(instruction_ref, const argument&)> trace;
+    std::function<void(instruction_ref, const argument&)> trace = nullptr;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

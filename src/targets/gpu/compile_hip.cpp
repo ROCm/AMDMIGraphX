@@ -162,7 +162,7 @@ struct hiprtc_program
     void compile(const std::vector<std::string>& options, bool quiet = false) const
     {
         if(enabled(MIGRAPHX_TRACE_HIPRTC{}))
-            log::trace() << "hiprtc " << join_strings(options, " ") << " " << cpp_name;
+            std::cout << "hiprtc " << join_strings(options, " ") << " " << cpp_name << std::endl;
         std::vector<const char*> c_options;
         std::transform(options.begin(),
                        options.end(),
@@ -239,7 +239,7 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            log::trace() << std::string(src.content);
+            std::cout << std::string(src.content) << std::endl;
         }
     }
 
@@ -355,13 +355,14 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
         {
             if(src.path.extension() != ".cpp")
                 continue;
-            log::trace() << std::string(src.content);
+            std::cout << std::string(src.content) << std::endl;
         }
     }
 
     if(enabled(MIGRAPHX_GPU_DUMP_ASM{}))
     {
-        log::trace() << assemble(compiler).compile(srcs).data();
+
+        std::cout << assemble(compiler).compile(srcs).data() << std::endl;
     }
 
     return {compiler.compile(srcs)};
@@ -369,9 +370,8 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 
 #endif // MIGRAPHX_USE_HIPRTC
 
-bool hip_has_flags(const std::vector<std::string>& flags)
+bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)
 {
-    std::string src = " ";
     src_file input{"main.cpp", src};
     std::vector<src_file> srcs = {input};
 
@@ -386,6 +386,8 @@ bool hip_has_flags(const std::vector<std::string>& flags)
         return false;
     }
 }
+
+bool hip_has_flags(const std::vector<std::string>& flags) { return hip_can_compile(" ", flags); }
 
 std::string enum_params(std::size_t count, std::string param)
 {

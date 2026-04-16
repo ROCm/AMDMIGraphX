@@ -95,9 +95,6 @@ struct miopen_apply
         add_extend_op("fixed_pad");
         add_extend_op("nonzero");
         add_extend_op("prefix_scan_sum");
-        add_extend_op("rnn_var_sl_last_output");
-        add_extend_op("rnn_var_sl_shift_output");
-        add_extend_op("rnn_var_sl_shift_sequence");
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN

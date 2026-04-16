@@ -54,7 +54,7 @@ __device__ void nonzero(Input input, Output output)
         elem_num,
         [&](auto j) -> uint8_t { return float_equal(input[j], 0) ? 0 : 1; },
         [&](auto j, auto value) {
-            MIGRAPHX_ASSERT(j < elem_num)
+            MIGRAPHX_ASSERT(j < elem_num);
             if(float_equal(input[j], 0))
                 return;
             const auto out_loc   = value - 1;

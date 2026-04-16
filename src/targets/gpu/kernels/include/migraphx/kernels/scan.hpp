@@ -108,7 +108,7 @@ __device__ T block_scan_impl(index idx, T& value, Op op, T init)
 
 // Inclusive prefix over 0..n-1: f(j) loads j < n, lanes past n use value_t{} so every
 // thread still participates in block_scan_impl.
-// tiling uses n_aligned = nchunks * block_size
+// tiling uses n_aligned = block_size * ceil_div(n, block_size)
 // emit / writeback run only for j < n so callers are not invoked past the logical range.
 // Primary API is block_scan(idx, op, init, n, f) which writes back via f(j) = value.
 // Optional emit(j, value) overload when load and store differ. Both return final carry.
@@ -119,9 +119,7 @@ __device__ auto block_scan(index idx, Op op, T init, Index n, F f, Emit emit)
     constexpr auto block_size = decltype(idx.max_nlocal()){};
     MIGRAPHX_ASSERT(block_size % MIGRAPHX_WAVEFRONTSIZE == 0 &&
                     "block size must be a multiple of the wave size");
-    const auto nchunks = (n + block_size - 1) / block_size;
-    MIGRAPHX_ASSERT(nchunks > 0);
-    const auto n_aligned = nchunks * block_size;
+    const auto n_aligned = block_size * ceil_div(n, block_size);
     using value_t        = remove_reference_t<decltype(f(0))>;
     value_t carry        = init;
     idx.local_stride(n_aligned, [&](auto j) {

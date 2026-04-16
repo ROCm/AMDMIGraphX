@@ -51,16 +51,17 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
                    [](const auto& i) { return instruction::get_output_alias(i); });
 
     std::size_t index = 0;
-    auto last_ins = std::prev(mod.end());
-    if(mod.has_debug_symbols() and last_ins->name() == "@return" and not last_ins->get_debug_symbols().empty())
+    auto last_ins     = std::prev(mod.end());
+    if(mod.has_debug_symbols() and last_ins->name() == "@return" and
+       not last_ins->get_debug_symbols().empty())
+    {
+        const auto& output_symbols = last_ins->get_debug_symbols();
+        for(auto os : range(output_symbols.begin(), output_symbols.end()))
         {
-            const auto& output_symbols = last_ins->get_debug_symbols();
-            for(auto os : range(output_symbols.begin(), output_symbols.end()))
-            {
-                mod_output_names[alloc_aliases.at(index)] = os;
-                ++index;
-            }
-            return mod_output_names;
+            mod_output_names[alloc_aliases.at(index)] = os;
+            ++index;
+        }
+        return mod_output_names;
     }
     if(mod.name().empty())
     {

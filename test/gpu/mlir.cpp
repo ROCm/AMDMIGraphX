@@ -732,7 +732,7 @@ module {
 )__migraphx__";
     migraphx::module m;
     auto x5       = m.add_parameter("x5", {migraphx::shape::float_type, {1, 1000}});
-    auto x4       = m.add_parameter("x4", {migraphx::shape::float_type, {64, 1, 1}});
+    auto x4       = m.add_parameter("x4", {migraphx::shape::float_type, {64, 1, 1000}, {1 ,1, 64}});
     auto x3       = m.add_parameter("x3", {migraphx::shape::float_type, {1, 64, 1}});
     auto x2       = m.add_parameter("x2", {migraphx::shape::fp4x2_type, {1000, 1024}});
     auto x1       = m.add_parameter("x1", {migraphx::shape::fp4x2_type, {1, 1024}});

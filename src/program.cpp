@@ -585,6 +585,22 @@ std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
     return generic_eval(*this, ctx, params, [](auto&&, auto f) { return f(); });
 }
 
+static void print_trace_buffer(const argument& buffer, int trace_level)
+{
+    if(trace_level == 2)
+    {
+        std::cout << "Output has " << to_string_range(classify_argument(buffer)) << std::endl;
+        std::cout << "Output: ";
+        preview_argument(std::cout, buffer);
+        std::cout << std::endl;
+        print_statistics(std::cout, buffer);
+    }
+    else
+    {
+        std::cout << "Output: " << buffer << std::endl;
+    }
+}
+
 std::vector<argument> program::eval(const parameter_map& params,
                                     execution_environment exec_env) const
 {
@@ -661,20 +677,7 @@ std::vector<argument> program::eval(const parameter_map& params,
                 std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
                 if(trace_level > 1 and is_inspectable(ins->name()) and not result.empty())
                 {
-                    auto buffer = copy_to_host(result, ins->get_target_id());
-                    if(trace_level == 2)
-                    {
-                        std::cout << "Output has " << to_string_range(classify_argument(buffer))
-                                  << std::endl;
-                        std::cout << "Output: ";
-                        preview_argument(std::cout, buffer);
-                        std::cout << std::endl;
-                        print_statistics(std::cout, buffer);
-                    }
-                    else
-                    {
-                        std::cout << "Output: " << buffer << std::endl;
-                    }
+                    print_trace_buffer(copy_to_host(result, ins->get_target_id()), trace_level);
                 }
                 return result;
             });

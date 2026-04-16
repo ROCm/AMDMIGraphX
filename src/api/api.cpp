@@ -395,36 +395,22 @@ static void register_custom_op(const CustomOp& op)
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
 
-} // namespace migraphx
-
-extern "C" migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
-                                                      migraphx_program_t program,
-                                                      migraphx_program_parameters_t params,
-                                                      migraphx_trace_callback_t callback,
-                                                      void* data)
+static std::vector<argument>
+run_trace(program& p, const parameter_map& params, migraphx_trace_callback_t callback, void* data)
 {
-    auto api_error_result = migraphx::try_([&] {
-        if(program == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
-        if(params == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
-        if(callback == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter callback: Null pointer");
-        migraphx::execution_environment exec_env;
-        const auto* mm = (program->object).get_main_module();
-        exec_env.trace = [callback, data, mm](migraphx::instruction_ref ins,
-                                              const migraphx::argument& output) {
-            auto idx = std::distance(mm->begin(), ins);
-            std::ostringstream oss;
-            oss << ins->get_operator();
-            auto name = oss.str();
-            migraphx_argument arg_handle(output);
-            callback(idx, name.c_str(), &arg_handle, data);
-        };
-        *out = allocate<migraphx_arguments_t>((program->object).eval((params->object), exec_env));
-    });
-    return api_error_result;
+    execution_environment exec_env;
+    const auto* mm = p.get_main_module();
+    exec_env.trace = [callback, data, mm](instruction_ref ins, const argument& output) {
+        auto idx = std::distance(mm->begin(), ins);
+        std::ostringstream oss;
+        oss << ins->get_operator();
+        auto name = oss.str();
+        callback(idx, name.c_str(), reinterpret_cast<const_migraphx_argument_t>(&output), data);
+    };
+    return p.eval(params, exec_env);
 }
+
+} // namespace migraphx
 
 template <class T, class U, class Target = std::remove_pointer_t<T>>
 static Target* object_cast(U* x)
@@ -1819,6 +1805,23 @@ extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
         *out = allocate<migraphx_arguments_t>(
             migraphx::run_async((program->object), (params->object), (s), (name)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
+                                                      migraphx_program_t program,
+                                                      migraphx_program_parameters_t params,
+                                                      migraphx_trace_callback_t callback,
+                                                      void* data)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        if(params == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
+        *out = allocate<migraphx_arguments_t>(
+            migraphx::run_trace((program->object), (params->object), (callback), (data)));
     });
     return api_error_result;
 }

@@ -267,6 +267,14 @@ def module(h):
              returns='migraphx::instruction_ref')
 
 
+api.c_header_preamble.append("""
+typedef void (*migraphx_trace_callback_t)(size_t instruction_index,
+                                          const char* instruction_name,
+                                          const_migraphx_argument_t result,
+                                          void* data);
+""")
+
+
 @auto_handle()
 def program(h):
     h.constructor('create')
@@ -296,6 +304,13 @@ def program(h):
                  s='void*',
                  name='const char *'),
              invoke='migraphx::run_async($@)',
+             returns='std::vector<migraphx::argument>')
+    h.method('run_trace',
+             api.params(
+                 params='std::unordered_map<std::string, migraphx::argument>',
+                 callback='migraphx_trace_callback_t',
+                 data='void*'),
+             invoke='migraphx::run_trace($@)',
              returns='std::vector<migraphx::argument>')
     h.method('equal',
              api.params(x='const migraphx::program&'),

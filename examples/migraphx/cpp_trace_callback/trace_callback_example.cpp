@@ -22,8 +22,9 @@
  * THE SOFTWARE.
  */
 
-#include <cstring>
+#include <algorithm>
 #include <iostream>
+#include <numeric>
 #include <string>
 #include <vector>
 #include <migraphx/migraphx.hpp>
@@ -37,12 +38,11 @@ static void print_values(const migraphx::argument& arg, std::size_t max_elems = 
         return;
     }
     auto lens      = shape.lengths();
-    std::size_t sz = 1;
-    for(auto l : lens)
-        sz *= l;
-    auto n = std::min<std::size_t>(sz, max_elems);
+    auto sz        = std::accumulate(lens.begin(), lens.end(), std::size_t{1}, std::multiplies<>{});
+    auto n         = std::min<std::size_t>(sz, max_elems);
     std::vector<float> data(n);
-    std::memcpy(data.data(), arg.data(), n * sizeof(float));
+    auto* src = static_cast<const float*>(arg.data());
+    std::copy(src, src + n, data.data());
     std::cout << "[";
     for(std::size_t i = 0; i < n; i++)
     {

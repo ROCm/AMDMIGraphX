@@ -118,6 +118,11 @@ typedef const struct migraphx_modules* const_migraphx_modules_t;
 typedef struct migraphx_module* migraphx_module_t;
 typedef const struct migraphx_module* const_migraphx_module_t;
 
+typedef void (*migraphx_trace_callback_t)(size_t instruction_index,
+                                          const char* instruction_name,
+                                          const_migraphx_argument_t result,
+                                          void* data);
+
 typedef struct migraphx_program* migraphx_program_t;
 typedef const struct migraphx_program* const_migraphx_program_t;
 
@@ -476,6 +481,12 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_program_run_async(migraphx_arguments_
                                                              void* s,
                                                              const char* name);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
+                                                             migraphx_program_t program,
+                                                             migraphx_program_parameters_t params,
+                                                             migraphx_trace_callback_t callback,
+                                                             void* data);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_equal(bool* out,
                                                          const_migraphx_program_t program,
                                                          const_migraphx_program_t x);
@@ -698,17 +709,6 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_experimental_custom_op_set_runs_on_of
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_experimental_custom_op_register(migraphx_experimental_custom_op_t experimental_custom_op);
-
-typedef void (*migraphx_trace_callback_t)(size_t instruction_index,
-                                          const char* instruction_name,
-                                          const_migraphx_argument_t result,
-                                          void* data);
-
-MIGRAPHX_C_EXPORT migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
-                                                             migraphx_program_t program,
-                                                             migraphx_program_parameters_t params,
-                                                             migraphx_trace_callback_t callback,
-                                                             void* data);
 
 #ifdef __cplusplus
 }

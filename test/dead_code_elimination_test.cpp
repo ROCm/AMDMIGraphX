@@ -320,8 +320,8 @@ TEST_CASE(comment_not_eliminated)
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);
     run_pass(p);
-    EXPECT(std::any_of(
-        mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "@comment"; }));
+    EXPECT(
+        std::any_of(mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "@comment"; }));
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
 }

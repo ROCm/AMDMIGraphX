@@ -33,9 +33,11 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/transform_view.hpp>
+#include <migraphx/logger.hpp>
 #include <map>
 #include <unordered_set>
 #include <deque>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -57,13 +59,16 @@ static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim, Proj
 
 [[maybe_unused]] static void debug_print(const std::vector<dimension::sub>& subs)
 {
-    std::cout << '[' << stream_range(subs) << "]\n";
+    std::ostringstream ss;
+    ss << '[' << stream_range(subs) << "]";
+    log::debug() << ss.str();
 }
 [[maybe_unused]] static void debug_print(const dimension& dim) { debug_print(dim.subdimensions); }
 [[maybe_unused]] static void debug_print(const std::vector<dimension>& dims)
 {
-    stream_write_value(std::cout, dims);
-    std::cout << std::endl;
+    std::ostringstream ss;
+    stream_write_value(ss, dims);
+    log::debug() << ss.str();
 }
 
 shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::size_t>& dims)
@@ -733,7 +738,6 @@ struct rebase_ambiguity_resolver
         }
     }
 
-    private:
     shape_transform_descriptor* desc;
     const std::vector<std::size_t>* dims;
     std::multimap<std::size_t, std::size_t> shortage_axes;

@@ -27,7 +27,7 @@ if(protobuf_FOUND)
     add_library(tf-proto STATIC ${PROTO_SRCS})
     protobuf_generate(
         TARGET tf-proto
-        PROTOS 
+        PROTOS
             graph.proto
             node_def.proto
             attr_value.proto

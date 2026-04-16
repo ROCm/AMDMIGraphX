@@ -36,7 +36,6 @@
 #include <migraphx/param_utils.hpp>
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
-#include <migraphx/split_reduce.hpp>
 #include <optional>
 
 namespace migraphx {
@@ -575,10 +574,7 @@ bool is_pointwise_op_supported_by_mlir_for_input(const instruction& i)
     return is_pointwise_op_supported_by_mlir(i);
 }
 
-bool is_reduce(const instruction& ins)
-{
-    return contains(ins.name(), "reduce") or ins.name() == "argmin" or ins.name() == "argmax";
-}
+bool is_reduce(const instruction& ins) { return contains(ins.name(), "reduce"); }
 
 MIGRAPHX_PRED_MATCHER(mlir_split_reduce, instruction_ref ins)
 {
@@ -708,7 +704,7 @@ struct find_mlir_split_reduce
  * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
  * into a mlir_op with submodule.
  */
-struct find_mlir_fused_ops : match::supports_dynamic_shapes
+struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;

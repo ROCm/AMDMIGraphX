@@ -59,10 +59,7 @@ migraphx_generate_export_header(migraphx_c DIRECTORY migraphx/api)
 # migraphx_c is stable API interface library. SO version of this should be 
 # bumped when binary compatibility is broken. 
 rocm_set_soversion(migraphx_c 3.0)
-add_version_resource(
-    TARGET migraphx_c
-    DESCRIPTION "MIGraphX C API - Stable C Interface"
-)   
+rocm_add_version_resource(migraphx_c "AMD MIGraphX" "MIGraphX C API - Stable C Interface")
 
 if(BUILD_TESTING)
     target_compile_definitions(migraphx_c PRIVATE MIGRAPHX_BUILD_TESTING)

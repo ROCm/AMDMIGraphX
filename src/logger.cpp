@@ -37,6 +37,10 @@
 #include <sstream>
 #include <vector>
 
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
 #ifdef _WIN32
 // cppcheck-suppress [definePrefix, defineUpperCase]
 #define localtime_r(time_t, tm) localtime_s(tm, time_t)
@@ -97,17 +101,64 @@ static color severity_color(severity s)
     return color::reset;
 }
 
-// Create the default stderr sink
+static auto& show_header_flag()
+{
+    static std::atomic<bool> show{true};
+    return show;
+}
+
+void set_show_header(bool show) { show_header_flag().store(show); }
+
+bool get_show_header() { return show_header_flag().load(); }
+
+static auto& severity_explicit_flag()
+{
+    static std::atomic<bool> flag{false};
+    return flag;
+}
+
+bool is_severity_explicit() { return severity_explicit_flag().load(); }
+
+// Helper to format the log prefix
+static std::string format_prefix(severity s, source_location loc)
+{
+    std::ostringstream ss;
+    ss << format_timestamp() << " [" << to_string(s) << "] [" << loc.file_name() << ":"
+       << loc.line() << "] ";
+    return ss.str();
+}
+
+// Create the default stderr sink (handles multi-line messages)
 static sink make_stderr_sink()
 {
     return [](severity s, std::string_view msg, source_location loc) {
-        std::cerr << severity_color(s) << format_timestamp() << " [" << to_string(s) << "] ["
-                  << loc.file_name() << ":" << loc.line() << "] " << msg << color::reset
-                  << std::endl;
+        bool show_hdr      = get_show_header();
+        std::string prefix = show_hdr ? format_prefix(s, loc) : "";
+        auto col           = show_hdr ? severity_color(s) : color::reset;
+
+        // Handle multi-line messages by prefixing each line
+        std::string_view remaining = msg;
+        while(not remaining.empty())
+        {
+            auto newline_pos = remaining.find('\n');
+            std::string_view line;
+            if(newline_pos == std::string_view::npos)
+            {
+                line      = remaining;
+                remaining = {};
+            }
+            else
+            {
+                line      = remaining.substr(0, newline_pos);
+                remaining = remaining.substr(newline_pos + 1);
+            }
+
+            std::cerr << col << prefix << line << color::reset << std::endl;
+        }
     };
 }
 
-// Create a file sink
+// Create a file sink (handles multi-line messages)
 static sink make_file_sink(const std::string& filename)
 {
     auto file = std::make_shared<std::ofstream>(filename, std::ios::app);
@@ -116,10 +167,36 @@ static sink make_file_sink(const std::string& filename)
         std::cerr << "Failed to open log file: " << filename << std::endl;
     }
     return [file](severity s, std::string_view msg, source_location loc) {
-        if(file->is_open())
+        if(not file->is_open())
+            return;
+
+        bool show_hdr      = get_show_header();
+        std::string prefix = show_hdr ? format_prefix(s, loc) : "";
+
+        // Handle multi-line messages by prefixing each line
+        std::string_view remaining = msg;
+        bool first_line            = true;
+        while(not remaining.empty())
         {
-            *file << format_timestamp() << " [" << to_string(s) << "] [" << loc.file_name() << ":"
-                  << loc.line() << "] " << msg << std::endl;
+            auto newline_pos = remaining.find('\n');
+            std::string_view line;
+            if(newline_pos == std::string_view::npos)
+            {
+                line      = remaining;
+                remaining = {};
+            }
+            else
+            {
+                line      = remaining.substr(0, newline_pos);
+                remaining = remaining.substr(newline_pos + 1);
+            }
+
+            // Skip empty trailing line (from trailing newline)
+            if(line.empty() and remaining.empty() and not first_line)
+                break;
+
+            *file << prefix << line << std::endl;
+            first_line = false;
         }
     };
 }
@@ -142,16 +219,33 @@ static void update_enabled_level(const std::vector<std::optional<sink_entry>>& s
     max_enabled_level().store(max_level);
 }
 
+static severity default_log_level()
+{
+#ifdef _WIN32
+    char** envp = _environ;
+#else
+    char** envp = environ;
+#endif
+    char** end = envp;
+    while(*end != nullptr)
+        ++end;
+    if(std::any_of(envp, end, [](const char* e) {
+           return std::string_view(e).compare(0, 15, "MIGRAPHX_TRACE_") == 0;
+       }))
+        return severity::trace;
+    return severity::info;
+}
+
 // Thread-safe access to sinks (stderr sink is automatically initialized at index 0)
 static void access_sinks(const std::function<void(std::vector<std::optional<sink_entry>>&)>& f)
 {
     static std::mutex m;
     static auto sinks = []() {
+        if(not env("MIGRAPHX_LOG_LEVEL").empty())
+            severity_explicit_flag().store(true);
         // cppcheck-suppress migraphx-RedundantCast
         auto level = static_cast<severity>(
-            value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(severity::info)));
-
-        // If MIGRAPHX_LOG_LEVEL is set, this will store the value into the atomic when first called
+            value_of(MIGRAPHX_LOG_LEVEL{}, static_cast<size_t>(default_log_level())));
         max_enabled_level().store(level);
         return std::vector<std::optional<sink_entry>>{sink_entry{make_stderr_sink(), level}};
     }();
@@ -193,6 +287,7 @@ void remove_sink(size_t id)
 
 void set_severity(severity level, size_t id)
 {
+    severity_explicit_flag().store(true);
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         if(id < sinks.size() and sinks[id].has_value())
         {

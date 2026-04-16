@@ -106,10 +106,7 @@ endif()
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
-add_version_resource(
-    TARGET migraphx_device
-    DESCRIPTION "MIGraphX Device Library - GPU Device Operations"
-)
+rocm_add_version_resource(migraphx_device "AMD MIGraphX" "MIGraphX Device Library - GPU Device Operations")
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
@@ -259,10 +256,7 @@ if (MIGRAPHX_USE_MIOPEN)
         INCLUDES migraphx/gpu/context.hpp)
 endif()
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
-add_version_resource(
-    TARGET migraphx_gpu
-    DESCRIPTION "MIGraphX GPU Target - AMD GPU Acceleration"
-)
+rocm_add_version_resource(migraphx_gpu "AMD MIGraphX" "MIGraphX GPU Target - AMD GPU Acceleration")
 rocm_clang_tidy_check(migraphx_gpu)
 
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
@@ -281,7 +275,7 @@ if(MIGRAPHX_ENABLE_MLIR)
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
-    # HIPRTC workaround for CMake versin 4.0+
+    # HIPRTC workaround for CMake version 4.0+
     if(CMAKE_VERSION VERSION_GREATER_EQUAL 4)
         set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE INTERNAL "" FORCE)
     endif()

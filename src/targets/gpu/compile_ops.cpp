@@ -37,6 +37,7 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
+#include <migraphx/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -161,6 +162,8 @@ struct dynamic_code_object_op
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation
         module static_submod;
+        auto op_name          = any_cast<precompile_op>(pre_op).op.name();
+        auto runtime_mod_name = "runtime_mod:" + op_name;
         if(not module_args.empty())
         {
             auto pnames = module_args.front()->get_parameter_names();
@@ -174,11 +177,11 @@ struct dynamic_code_object_op
                            });
             static_submod = module_args.front()->with_static_shapes(mod_arg_shapes);
             static_submod.set_bypass(true);
+            runtime_mod_name = "runtime_mod:" + module_args.front()->name();
         }
 
         // Create runtime module which will be compiled and cached
-        auto name        = "runtime_mod:" + module_args.front()->name();
-        auto runtime_mod = module(name);
+        auto runtime_mod = module(runtime_mod_name);
         std::vector<instruction_ref> args_ins;
         std::vector<size_t> idx(static_args.size());
         std::iota(std::begin(idx), std::end(idx), 0);
@@ -187,8 +190,8 @@ struct dynamic_code_object_op
                        idx.begin(),
                        std::back_inserter(args_ins),
                        [&](const auto& arg, const auto& i) {
-                           return runtime_mod.add_parameter(name + ":x" + std::to_string(i),
-                                                            arg.get_shape());
+                           return runtime_mod.add_parameter(
+                               runtime_mod_name + ":x" + std::to_string(i), arg.get_shape());
                        });
         instruction_ref ins;
         if(not module_args.empty())
@@ -272,7 +275,7 @@ struct compile_plan
             {
                 const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
                 if(trace_level > 0)
-                    std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
+                    log::error() << "Exception in " + preop.name() + ": " + e.what();
                 results[i] = nullopt;
             }
             catch(...)
@@ -303,7 +306,7 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}))
+                if(skip_benchmark or enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
@@ -367,8 +370,7 @@ struct compile_plan
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
         if(trace_level > 0 and not results.empty())
         {
-            std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
-                      << std::endl;
+            log::trace() << "Benchmarking " << preop.name() << ": " << results.size() << " configs";
         }
         if(results.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
@@ -383,7 +385,7 @@ struct compile_plan
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
-            std::cout << "Problem: " << config->problem << std::endl;
+            log::trace() << "Problem: " << config->problem;
         std::vector<double> times;
         times.reserve(results.size());
         std::transform(results.begin(),
@@ -392,15 +394,15 @@ struct compile_plan
                        std::back_inserter(times),
                        [&](const auto& cr, const auto& solution) {
                            if(trace_level > 1)
-                               std::cout << "Benchmarking solution: " << solution << std::endl;
+                               log::trace() << "Benchmarking solution: " << solution;
                            if(not cr.has_value())
                            {
                                if(trace_level > 1)
-                                   std::cout << "No binary" << std::endl;
+                                   log::trace() << "No binary";
                                return std::numeric_limits<double>::max();
                            }
                            if(trace_level > 2)
-                               std::cout << *cr << std::endl;
+                               log::trace() << *cr;
                            /*
                            create a small program with insturction being compiled and call "replace"
                            on that which would insert all the compiled code objects, prefills etc.
@@ -430,14 +432,14 @@ struct compile_plan
                                           memory_coloring{"hip::allocate"},
                                       });
                            if(trace_level > 2)
-                               std::cout << bench_prog << std::endl;
+                               log::trace() << bench_prog;
                            auto t = time_program(*ctx,
                                                  bench_prog,
                                                  cr->replace.fill_map,
                                                  /* bundle */ 10,
                                                  /* nrun */ 20);
                            if(trace_level > 1)
-                               std::cout << t << "ms" << std::endl;
+                               log::trace() << t << "ms";
                            return t;
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
@@ -445,7 +447,7 @@ struct compile_plan
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(trace_level > 0)
         {
-            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
+            log::trace() << "Fastest solution: " << config->solutions.at(i);
             ctx->get_problem_cache().save();
         }
         if(not results[i].has_value())
@@ -453,8 +455,8 @@ struct compile_plan
                            problem_string() + "\n\n" + print_modules());
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
-        if(trace_level > 1 and skipped > 0)
-            std::cout << "Skipped " << skipped << " configs for " << preop.name() << std::endl;
+        if(trace_level > 0 && skipped > 0)
+            log::trace() << "Skipped " << skipped << " configs for " << preop.name();
 
         return *results[i];
     }

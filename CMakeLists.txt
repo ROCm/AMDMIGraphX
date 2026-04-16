@@ -60,32 +60,33 @@ option(MIGRAPHX_ENABLE_TENSORFLOW "Enable TensorFlow integration" ON)
 option(MIGRAPHX_ENABLE_ONNX "Enable ONNX model import" ON)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binay Analyzer" OFF)
+    option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binary Analyzer" OFF)
     option(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES "Use Spectre-mitigated libraries" OFF)
-    if(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS)
-        message(STATUS "Control Flow Guard enabled")
-        if(MSVC AND MSVC_VERSION GREATER_EQUAL 1900)
+    if(MSVC AND MSVC_VERSION GREATER_EQUAL 1900)
+        if(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS)
+            message(STATUS "Control Flow Guard enabled")
             add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/guard:cf>)
             add_link_options(/guard:cf /DYNAMICBASE)
-        elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        endif()
+        if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
+            message(STATUS "Using Spectre-mitigated libraries")
+            add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/Qspectre>)
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        if(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS)
+            message(STATUS "Control Flow Guard enabled")
             add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:SHELL:-Xclang -cfguard>")
             add_link_options(-Wl,-guard:cf)
         endif()
+        if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
+            message(WARNING "Spectre-mitigated libraries are not yet available for Clang in this project.")
+        endif()
     endif()
-    if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
-        message(STATUS "Using Spectre-mitigated libraries")
-        add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/Qspectre>)
-    endif()
-endif()
-
-if(WIN32)
-option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
-else()
-option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
 endif()
 
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
 
 if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
     message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
@@ -93,7 +94,6 @@ endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
-
 option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
 
 # Strip symbols for release
@@ -108,20 +108,6 @@ else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
 
-find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
-if (NOT HALF_INCLUDE_DIR)
-    message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
-else()
-    message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
-endif()
-
-include(CheckTypeSize)
-set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
-set(CMAKE_EXTRA_INCLUDE_FILES half.hpp)
-check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
-set(CMAKE_REQUIRED_INCLUDES)
-set(CMAKE_EXTRA_INCLUDE_FILES)
-
 include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
@@ -129,7 +115,6 @@ option(BUILD_DEV "Build for development purpose only" OFF)
 rocm_setup_version(VERSION 2.16.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
-include(AddVersionResource)
 
 option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
@@ -423,5 +408,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
+    DEPENDS ${DEPENDS_HIP_RUNTIME} ${PACKAGE_DEPENDS}
 )

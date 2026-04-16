@@ -358,7 +358,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 if(relements >= (block_size - 1) * 256)
                     algo = "block_large";
                 options.set_launch_params(
-                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
+                    v, compute_global_for(ctx, nelements * block_size / 4, 256), block_size);
             }
             else
             {

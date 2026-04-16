@@ -453,6 +453,27 @@ struct reducer_base
     }
 };
 
+template <index_int Block, class N>
+constexpr auto global_block_stride(index idx, N n)
+{
+    return [=](auto f) {
+        const auto m = n / _c<Block>;
+        idx.global_stride(m, [&](auto j) {
+            const auto jblock = j * Block;
+            repeat_c<Block>([&](auto k) { f(jblock + k); });
+        });
+        const auto mblock = m * _c<Block>;
+        if(mblock < n)
+        {
+            repeat_c<Block>([&](auto k) {
+                const auto i = m + k;
+                if(i < n)
+                    f(i);
+            });
+        }
+    };
+}
+
 struct block
 {
     template <class Slicer>
@@ -520,10 +541,16 @@ struct block
     static __device__ void run(F f)
     {
         auto idx                 = make_index();
-        constexpr auto nelements = get_shape_c<Output>{}.elements();
-        idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
-            const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
-            f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
+        constexpr auto nelements = get_shape_c<Output>{}.elements() / _c<4>;
+        idx.group_stride(nelements, [&](auto i) {
+            const auto out_indices = generate_array(_c<4>, [&](auto j) {
+                return i + j;
+            });
+            // const auto out_idx = get_shape_c<Output>{}.multi(i / idx.nlocal());
+            f(out_indices, generate_tuple(_c<4>, [&](auto j) {
+                const auto out_idx = get_shape_c<Output>{}.multi(i + j);
+                return make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); });
+            }));
         });
     }
 };
@@ -762,21 +789,41 @@ simple_reduce(Op op, T init, Input input, Output output, ReadInput read, WriteOu
 template <class Algo, class Reduced, class Output, class Assign, class F>
 __device__ void fused_reduce(Output output_pack, Assign assign, F f)
 {
-    Algo::template run<Reduced>([&](auto out_idx, auto r) {
-        auto result_tuple = f(r, out_idx);
-        unpack_each(
+    Algo::template run<Reduced>([&](auto out_indices, auto rs) {
+        auto result_tuples = generate_array(rs.size(), [&](auto i) {
+            return f(rs[i], get_shape_c<Reduced>{}.multi(out_indices[i]));
+        });
+        repeat(rs.size(), [&](auto i) {
+            unpack_each(
             [&](auto output, auto result) {
                 if constexpr(reduce::is_inner_storage<decltype(result)>{})
                 {
-                    r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
+                    rs[i].inner([&](auto& y, auto x) { assign(y, x); })(output, result);
                 }
                 else
                 {
-                    r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
+                    // rs[i].outer([&] { assign(output[out_indices[i]], implicit_conversion(result)); });
+                    assign(output[out_indices[0] + i], implicit_conversion(result));;
                 }
             },
             output_pack,
-            result_tuple);
+            result_tuples[i]);
+        });
+        // auto result_tuple = f(r, out_indices);
+
+        // unpack_each(
+        //     [&](auto output, auto result) {
+        //         if constexpr(reduce::is_inner_storage<decltype(result)>{})
+        //         {
+        //             r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
+        //         }
+        //         else
+        //         {
+        //             r.outer([&] { assign(output[out_idx], implicit_conversion(result)); });
+        //         }
+        //     },
+        //     output_pack,
+        //     result_tuple);
     });
 }
 

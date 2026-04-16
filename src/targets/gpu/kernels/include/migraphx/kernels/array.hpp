@@ -360,6 +360,13 @@ constexpr auto make_const_array(T x, Ts... xs)
     return integral_const_array<typename T::value_type, x, xs...>{};
 }
 
+template <class N, class F>
+constexpr auto generate_array(N n, F f)
+{
+    using type = decltype(f(_c<0>));
+    return sequence_c<n>([=](auto... is) { return array<type, n>{f(is)...}; });
+}
+
 template <class T, class N, class F>
 constexpr auto generate_array(N n, F f)
 {

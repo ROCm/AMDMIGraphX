@@ -116,7 +116,7 @@ vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<
     std::vector<std::size_t> sizes;
     if(broadcasted and over > 8)
         sizes.push_back(8);
-    if(over > 4)
+    // if(over > 4)
         sizes.push_back(4);
     sizes.push_back(2);
     return elements(axis, inputs, sizes);

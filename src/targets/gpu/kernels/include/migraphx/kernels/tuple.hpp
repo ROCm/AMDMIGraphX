@@ -172,12 +172,20 @@ struct tuple : tuple_detail::tuple_base<Ts...>
     friend constexpr bool operator>(const tuple& x, const tuple& y) { return y < x; }
     friend constexpr bool operator<=(const tuple& x, const tuple& y) { return not(x > y); }
     friend constexpr bool operator>=(const tuple& x, const tuple& y) { return not(x < y); }
+
+    constexpr index_constant<sizeof...(Ts)> size() const { return {}; }
 };
 
 template <class... Ts>
 constexpr tuple<Ts...> make_tuple(Ts... xs)
 {
     return {xs...};
+}
+
+template <class N, class F>
+constexpr auto generate_tuple(N n, F f)
+{
+    return sequence_c<n>([=](auto... is) { return make_tuple(f(is)...); });
 }
 
 } // namespace migraphx

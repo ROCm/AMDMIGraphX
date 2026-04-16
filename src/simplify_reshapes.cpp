@@ -443,16 +443,15 @@ struct find_op_shape_transform_op
             return;
         }
 
-        auto reshape_input =
-            [&](const auto& ins_to_insert, const auto& gdesc, bool no_broadcast = false) {
-                return [&, no_broadcast](auto input) {
-                    auto gops = generate(gdesc, input->get_shape(), no_broadcast);
-                    return std::accumulate(
-                        gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
-                            return m.insert_instruction(ins_to_insert, op, start);
-                        });
-                };
+        auto reshape_input = [&](const auto& ins_to_insert, const auto& gdesc) {
+            return [&](auto input) {
+                auto gops = generate(gdesc, input->get_shape());
+                return std::accumulate(
+                    gops.begin(), gops.end(), input, [&](auto start, const auto& op) {
+                        return m.insert_instruction(ins_to_insert, op, start);
+                    });
             };
+        };
         auto x_inputs = x_ins->inputs();
         std::transform(x_inputs.begin(),
                        x_inputs.end(),

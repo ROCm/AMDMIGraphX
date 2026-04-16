@@ -37,10 +37,9 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
-std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
-{
-    std::unordered_map<instruction_ref, std::string> mod_output_names;
 
+std::vector<instruction_ref> get_alloc_aliases(const module& mod)
+{
     auto returns = mod.get_returns();
     // Collect all allocation aliases from each return value
     std::vector<instruction_ref> alloc_aliases;
@@ -49,20 +48,16 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
                    returns.end(),
                    join_back_inserter(alloc_aliases),
                    [](const auto& i) { return instruction::get_output_alias(i); });
+    return alloc_aliases;
+}
+
+// Create output parameter names
+std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
+{
+    std::unordered_map<instruction_ref, std::string> mod_output_names;
+    auto alloc_aliases= get_alloc_aliases(mod);
 
     std::size_t index = 0;
-    auto last_ins     = std::prev(mod.end());
-    if(mod.has_debug_symbols() and last_ins->name() == "@return" and
-       not last_ins->get_debug_symbols().empty())
-    {
-        const auto& output_symbols = last_ins->get_debug_symbols();
-        for(auto os : range(output_symbols.begin(), output_symbols.end()))
-        {
-            mod_output_names[alloc_aliases.at(index)] = os;
-            ++index;
-        }
-        return mod_output_names;
-    }
     if(mod.name().empty())
     {
         // Single return with empty module name: all aliases get "output" or "output_N"
@@ -88,6 +83,28 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
     }
 
     return mod_output_names;
+}
+
+// Get debug symbols for output parameters from the `return` instruction
+std::unordered_map<instruction_ref, std::set<std::string>> get_output_debug_symbols(const module& mod)
+{
+    std::unordered_map<instruction_ref, std::set<std::string>> mod_output_debug_symbols;
+    auto last_ins     = std::prev(mod.end());
+    if(mod.has_debug_symbols() and last_ins->name() == "@return" and
+       not last_ins->get_debug_symbols().empty())
+    {
+        auto alloc_aliases = get_alloc_aliases(mod);
+
+        std::size_t index = 0;
+        const auto& output_symbols = last_ins->get_debug_symbols();
+        for(auto os : range(output_symbols.begin(), output_symbols.end()))
+        {
+            mod_output_debug_symbols[alloc_aliases.at(index)] = {os};
+            ++index;
+        }
+        return mod_output_debug_symbols;
+    }
+    return mod_output_debug_symbols;
 }
 
 void insert_copy(module& m, const allocation_model& model)
@@ -153,6 +170,7 @@ void replace_allocate::apply(module_pass_manager& mpm) const
     if(not root_offload_copy and model.needs_out_params())
         insert_copy(m, model);
     auto mod_output_names = create_output_names(m);
+    auto mod_output_debug_symbols = get_output_debug_symbols(m);
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "allocate")
@@ -162,6 +180,10 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         if(not root_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
         {
             auto out_param = m.add_parameter(mod_output_names[ins], s);
+            if(contains(mod_output_debug_symbols, ins))
+            {
+                m.add_debug_symbols(out_param, mod_output_debug_symbols[ins]);
+            }
             m.replace_instruction(ins, out_param);
         }
         else

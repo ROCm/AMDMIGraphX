@@ -69,7 +69,6 @@ TEST_CASE(test_stream_override_get)
     EXPECT(stream.get() != internal);
     EXPECT(stream.has_external_stream());
 
-    stream.clear_external_stream();
 
     EXPECT(stream.get() == internal);
     EXPECT(not stream.has_external_stream());
@@ -86,7 +85,6 @@ TEST_CASE(test_stream_override_get_queue)
     ctx.get_stream().set_external_stream(ext.get());
     EXPECT(ctx.get_queue().get<hipStream_t>() == ext.get());
 
-    ctx.get_stream().clear_external_stream();
     EXPECT(ctx.get_queue().get<hipStream_t>() == original_queue);
 }
 

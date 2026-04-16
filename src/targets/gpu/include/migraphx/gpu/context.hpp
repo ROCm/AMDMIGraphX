@@ -161,13 +161,6 @@ struct hip_device
 #endif
         }
 
-        void clear_external_stream()
-        {
-            // No-op: keep external stream bound to avoid repeated
-            // miopenSetStream/rocblas_set_stream rebinding on the next call.
-            // A different stream passed to set_external_stream will replace it.
-        }
-
         bool has_external_stream() const { return external_stream != nullptr; }
 
         void wait() const

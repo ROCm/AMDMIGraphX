@@ -293,7 +293,11 @@ constexpr lazy_inner_storage<Size, F> make_lazy_inner_storage(Size, F f)
 template <class Size>
 constexpr auto make_indices(Size size)
 {
-    return make_lazy_inner_storage(size, [](auto j, auto) { return j; });
+    // lazy_inner_storage is decltype(f(0, _c<0>))
+    // 0 is an int, so need to return index_int explicitly so arg reads 
+    // and inits agree on the index slot type
+    return make_lazy_inner_storage(
+        size, [](auto j, auto) -> index_int { return j + 0u; });
 }
 
 // Pair (value, index) for arg_reduce reads
@@ -310,7 +314,7 @@ constexpr auto arg_read_vec_pair(V val, I idx)
     }
     else
     {
-        auto get_lane = [&](int lane_i) {
+        auto get_lane = [&](index_int lane_i) {
             return make_tuple(vec_at(val, lane_i), idx * nlanes_v + lane_i);
         };
         using lane0 = remove_reference_t<decltype(get_lane(0))>;

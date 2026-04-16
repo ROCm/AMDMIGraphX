@@ -37,9 +37,9 @@ static void print_values(const migraphx::argument& arg, std::size_t max_elems = 
         std::cout << "(tuple)";
         return;
     }
-    auto lens      = shape.lengths();
-    auto sz        = std::accumulate(lens.begin(), lens.end(), std::size_t{1}, std::multiplies<>{});
-    auto n         = std::min<std::size_t>(sz, max_elems);
+    auto lens = shape.lengths();
+    auto sz   = std::accumulate(lens.begin(), lens.end(), std::size_t{1}, std::multiplies<>{});
+    auto n    = std::min<std::size_t>(sz, max_elems);
     std::vector<float> data(n);
     auto* src = static_cast<const float*>(arg.data());
     std::copy(src, src + n, data.data());

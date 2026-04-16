@@ -760,7 +760,7 @@ module {
     auto mlir_output_with_attrs =
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
-    EXPECT(verify_mlir(m));
+    // Don't verify here. Tests with a verify test instead.
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

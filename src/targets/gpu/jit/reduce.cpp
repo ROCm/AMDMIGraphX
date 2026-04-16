@@ -401,7 +401,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto v        = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm = ins->module_inputs().front();
+        auto* rm      = ins->module_inputs().front();
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";

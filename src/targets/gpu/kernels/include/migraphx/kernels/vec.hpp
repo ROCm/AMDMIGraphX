@@ -125,14 +125,13 @@ namespace vec_detail {
 template <index_int Size, class Lane0, index_int... Js, class GetLane>
 constexpr auto vec_transform_tuple_transpose(detail::seq<Js...>, GetLane get_lane)
 {
-    return make_tuple(
-        [&] {
-            using elem_t = remove_reference_t<decltype(declval<Lane0>()[_c<Js>])>;
-            safe_vec<elem_t, Size> r{};
-            for(int i = 0; i < Size; ++i)
-                r[i] = get_lane(i)[_c<Js>];
-            return r;
-        }()...);
+    return make_tuple([&] {
+        using elem_t = remove_reference_t<decltype(declval<Lane0>()[_c<Js>])>;
+        safe_vec<elem_t, Size> r{};
+        for(int i = 0; i < Size; ++i)
+            r[i] = get_lane(i)[_c<Js>];
+        return r;
+    }()...);
 }
 
 template <index_int Size, class... Ts, class GetLane>
@@ -181,8 +180,8 @@ constexpr auto vec_transform_tuple(Ts... xs)
         else
         {
             constexpr auto lane_w = common_vec_size<Ts...>();
-            auto get_lane = [&](auto i) { return f(vec_at(xs, i)...); };
-            using lane0 = remove_reference_t<decltype(f(vec_at(xs, 0)...))>;
+            auto get_lane         = [&](auto i) { return f(vec_at(xs, i)...); };
+            using lane0           = remove_reference_t<decltype(f(vec_at(xs, 0)...))>;
             if constexpr(vec_detail::is_kernel_tuple<lane0>{})
             {
                 lane0* tag = nullptr;

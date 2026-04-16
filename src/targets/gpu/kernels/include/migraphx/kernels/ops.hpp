@@ -150,14 +150,15 @@ struct argmin
     {
         return x([&](auto xv, auto xi) {
             return y([&](auto yv, auto yi) {
-                return vec_transform_tuple(xv, xi, yv, yi)([=](auto ax, auto ai, auto ay, auto ayi) {
-                    auto a = make_tuple(ax, ai);
-                    auto b = make_tuple(ay, ayi);
-                    if constexpr(SelectLast)
-                        return migraphx::min(a, b, compare_pair(less{}, greater{}));
-                    else
-                        return migraphx::min(a, b, compare_pair(less{}, less{}));
-                });
+                return vec_transform_tuple(xv, xi, yv, yi)(
+                    [=](auto ax, auto ai, auto ay, auto ayi) {
+                        auto a = make_tuple(ax, ai);
+                        auto b = make_tuple(ay, ayi);
+                        if constexpr(SelectLast)
+                            return migraphx::min(a, b, compare_pair(less{}, greater{}));
+                        else
+                            return migraphx::min(a, b, compare_pair(less{}, less{}));
+                    });
             });
         });
     }
@@ -175,14 +176,15 @@ struct argmax
     {
         return x([&](auto xv, auto xi) {
             return y([&](auto yv, auto yi) {
-                return vec_transform_tuple(xv, xi, yv, yi)([=](auto ax, auto ai, auto ay, auto ayi) {
-                    auto a = make_tuple(ax, ai);
-                    auto b = make_tuple(ay, ayi);
-                    if constexpr(SelectLast)
-                        return migraphx::max(a, b, compare_pair(less{}, less{}));
-                    else
-                        return migraphx::max(a, b, compare_pair(less{}, greater{}));
-                });
+                return vec_transform_tuple(xv, xi, yv, yi)(
+                    [=](auto ax, auto ai, auto ay, auto ayi) {
+                        auto a = make_tuple(ax, ai);
+                        auto b = make_tuple(ay, ayi);
+                        if constexpr(SelectLast)
+                            return migraphx::max(a, b, compare_pair(less{}, less{}));
+                        else
+                            return migraphx::max(a, b, compare_pair(less{}, greater{}));
+                    });
             });
         });
     }

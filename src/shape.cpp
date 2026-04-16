@@ -1104,7 +1104,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const shape::dyna
     return apply_op(
         *this,
         x,
-        [](auto& a, auto& b) { return a + b; },
+        [](const auto& a, const auto& b) { return a + b; },
         [](auto& lhs, const auto& rhs) {
             auto lhs_fixed = lhs.is_fixed();
             auto rhs_fixed = rhs.is_fixed();
@@ -1129,7 +1129,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const shape::dyna
     return apply_op(
         *this,
         x,
-        [](auto& a, auto& b) { return a - b; },
+        [](const auto& a, const auto& b) { return a - b; },
         [](auto& lhs, const auto& rhs) {
             auto lhs_fixed = lhs.is_fixed();
             auto rhs_fixed = rhs.is_fixed();
@@ -1153,7 +1153,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const shape::dyna
     return apply_op(
         *this,
         x,
-        [](auto& a, auto& b) { return a * b; },
+        [](const auto& a, const auto& b) { return a * b; },
         [](auto& lhs, const auto& rhs) {
             auto lhs_fixed = lhs.is_fixed();
             auto rhs_fixed = rhs.is_fixed();
@@ -1182,7 +1182,7 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator/=(const shape::dyna
     return apply_op(
         *this,
         x,
-        [](auto& a, auto& b) { return a / b; },
+        [](const auto& a, const auto& b) { return a / b; },
         [](auto& lhs, const auto& rhs) {
             auto lhs_fixed = lhs.is_fixed();
             auto rhs_fixed = rhs.is_fixed();

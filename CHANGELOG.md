@@ -17,6 +17,7 @@ Full documentation for MIGraphX is available at
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
 * Added JIT compiler for `multinomial` operation (#4721).
+* Added build support for python 3.14 (#4754).
 * Added debug symbols for MIGraphX instructions such that parsed and compiled instructions can be tracked back to their ONNX origin node (#4626)
 
 ### Changed
@@ -27,6 +28,7 @@ Full documentation for MIGraphX is available at
 * Updated the ONNX clip operator to support opset 13 (#4518).
 * Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
 * Replaced usages of `std::cout` and `std::cerr` with the logger (#4732)
+* Converted RNN variable sequence length operations (`rnn_var_sl_shift_sequence`, `rnn_var_sl_shift_output`, `rnn_var_sl_last_output`) from device implementation to JIT compilation (#4755).
 
 ### Resolved issues
 

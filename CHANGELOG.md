@@ -15,6 +15,7 @@ Full documentation for MIGraphX is available at
 * Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
+* Added trace callback function to allow inspection of instruction output buffers. See `examples/migraphx/cpp_trace_callback` for an example. (#4780).
 
 ### Changed
 

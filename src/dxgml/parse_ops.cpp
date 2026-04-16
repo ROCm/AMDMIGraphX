@@ -710,6 +710,171 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     if(name == "null_ptr")
         return mm->add_literal(literal{});
 
+    // --- shape ---
+    // dxgml_op.shape(%x) -> !dxgml.tensor<Nx!dxgml.int64>
+    // Returns a 1-D int64 tensor containing the runtime shape of the input.
+    // Map to MIGraphX dimensions_of which returns all dims as a 1-D int64 tensor.
+    if(name == "shape")
+        return mm->add_instruction(make_op("dimensions_of", {{"start", 0}, {"end", static_cast<int64_t>(inputs[0]->get_shape().ndim())}}), inputs[0]);
+
+    // --- depth_to_space ---
+    // dxgml_op.depth_to_space(%x) { block_size, depth_space_order } -> T
+    // Decomposes into reshape -> transpose -> reshape (same as ONNX DepthToSpace).
+    // DxGML orders: depth_space_order_column_row_depth  -> DCR perm {0,3,4,1,5,2}
+    //               depth_space_order_row_column_depth  -> CRD perm {0,1,4,2,5,3}
+    if(name == "depth_to_space")
+    {
+        int64_t blocksize = get_int(*this, attrs_block, "block_size");
+        std::string order = get_attr_str(attrs_block, "depth_space_order");
+        auto s            = inputs[0]->get_shape();
+        auto lens1        = s.lens();
+        auto lens2        = s.lens();
+        std::size_t divisor = static_cast<std::size_t>(blocksize * blocksize);
+        if((lens2[1] % divisor) != 0)
+            MIGRAPHX_THROW("DxGML depth_to_space: channels not divisible by block_size^2");
+        lens2[1] /= divisor;
+        lens2[2] = lens2[2] * static_cast<std::size_t>(blocksize);
+        lens2[3] = lens2[3] * static_cast<std::size_t>(blocksize);
+        lens1.push_back(lens1[2]);
+        lens1.push_back(lens1[3]);
+        lens1[2] = static_cast<std::size_t>(blocksize);
+        std::vector<int64_t> perm;
+        // column_row_depth = DCR: expand as (N, bs, bs, C/(bs^2), H, W), perm 0,3,4,1,5,2
+        if(order.find("column_row_depth") != std::string::npos)
+        {
+            lens1[3] = lens1[1] / divisor;
+            lens1[1] = static_cast<std::size_t>(blocksize);
+            perm     = {0, 3, 4, 1, 5, 2};
+        }
+        // row_column_depth = CRD: expand as (N, C/(bs^2), bs, bs, H, W), perm 0,1,4,2,5,3
+        else if(order.find("row_column_depth") != std::string::npos)
+        {
+            lens1[1] /= divisor;
+            lens1[3] = static_cast<std::size_t>(blocksize);
+            perm     = {0, 1, 4, 2, 5, 3};
+        }
+        else
+            MIGRAPHX_THROW("DxGML depth_to_space: unknown order: " + order);
+        auto r1 = mm->add_instruction(make_op("reshape", {{"dims", lens1}}), inputs[0]);
+        auto r2 = mm->add_instruction(make_op("transpose", {{"permutation", perm}}), r1);
+        return mm->add_instruction(make_op("reshape", {{"dims", lens2}}), r2);
+    }
+
+    // --- dequantize_linear ---
+    // dxgml_op.dequantize_linear(x, scale [, zero_point]) { axis, block_size } -> T
+    // Maps directly to MIGraphX dequantizelinear (2 or 3 inputs).
+    // Note: block_size is a DxGML attribute that the MIGraphX op handles implicitly via
+    // the scale tensor shape; no extra attribute needed on the MIGraphX side.
+    if(name == "dequantize_linear")
+        return mm->add_instruction(make_op("dequantizelinear"), inputs);
+
+    // --- rotary_embedding ---
+    // dxgml_op.rotary_embedding(input, cos_cache, sin_cache, pos_ids)
+    //   { interleaved, num_heads, rotary_embedding_dim }
+    // input    : (B, S, num_heads * head_size)  [BSH layout]
+    // cos/sin  : (max_seq_len, rotary_embedding_dim/2)
+    // pos_ids  : (B, S) int64
+    // output   : same shape as input
+    //
+    // Decomposition (non-interleaved, matching ONNX RotaryEmbedding parser):
+    //   1. Gather cos/sin rows indexed by pos_ids -> (B, S, rot_dim/2)
+    //   2. Repeat last dim: concat(cache, cache) -> (B, S, rot_dim)
+    //   3. Broadcast to (B, num_heads, S, rot_dim)
+    //   4. split input into rotary part and tail (if head_dim > rot_dim)
+    //   5. neg_half = concat(-x[rot/2:rot], x[0:rot/2])  (90-degree rotation)
+    //   6. out = x * cos + neg_half * sin
+    //   7. concat rotary result with tail, reshape back to BSH
+    if(name == "rotary_embedding")
+    {
+        auto input      = inputs[0]; // (B, S, H)
+        auto cos_cache  = inputs[1]; // (max_seq, rot_dim/2)
+        auto sin_cache  = inputs[2]; // (max_seq, rot_dim/2)
+        auto pos_ids    = inputs[3]; // (B, S)
+
+        int64_t num_heads   = get_int(*this, attrs_block, "num_heads");
+        int64_t rot_dim     = get_int(*this, attrs_block, "rotary_embedding_dim");
+        int64_t interleaved = get_int(*this, attrs_block, "interleaved");
+
+        auto in_lens    = input->get_shape().lens();
+        int64_t B       = static_cast<int64_t>(in_lens[0]);
+        int64_t S       = static_cast<int64_t>(in_lens[1]);
+        int64_t H       = static_cast<int64_t>(in_lens[2]);
+        int64_t head_sz = H / num_heads;
+
+        // Reshape input to (B, num_heads, S, head_sz) for per-head processing
+        auto x = mm->add_instruction(
+            make_op("reshape", {{"dims", {B, num_heads, S, head_sz}}}), input);
+
+        // Slice rotary and tail parts along head_sz axis
+        auto x_rot = mm->add_instruction(
+            make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {rot_dim}}}), x);
+        instruction_ref x_tail;
+        bool has_tail = (head_sz > rot_dim);
+        if(has_tail)
+            x_tail = mm->add_instruction(
+                make_op("slice", {{"axes", {3}}, {"starts", {rot_dim}}, {"ends", {head_sz}}}), x);
+
+        // Gather cache rows: pos_ids (B,S) -> indices into cache (max_seq, rot_dim/2)
+        // Reshape pos_ids to (B, S, 1) for gathernd
+        auto pos_rs = mm->add_instruction(
+            make_op("reshape", {{"dims", {B, S, 1}}}), pos_ids);
+        auto cos_g = mm->add_instruction(make_op("gathernd", {{"batch_dims", 0}}), cos_cache, pos_rs);
+        auto sin_g = mm->add_instruction(make_op("gathernd", {{"batch_dims", 0}}), sin_cache, pos_rs);
+        // cos_g / sin_g: (B, S, rot_dim/2) — duplicate to (B, S, rot_dim)
+        cos_g = mm->add_instruction(make_op("concat", {{"axis", 2}}), cos_g, cos_g);
+        sin_g = mm->add_instruction(make_op("concat", {{"axis", 2}}), sin_g, sin_g);
+        // Reshape to (B, 1, S, rot_dim) and broadcast to (B, num_heads, S, rot_dim)
+        cos_g = mm->add_instruction(make_op("reshape", {{"dims", {B, 1, S, rot_dim}}}), cos_g);
+        sin_g = mm->add_instruction(make_op("reshape", {{"dims", {B, 1, S, rot_dim}}}), sin_g);
+        cos_g = mm->add_instruction(
+            make_op("multibroadcast", {{"out_lens", {B, num_heads, S, rot_dim}}}), cos_g);
+        sin_g = mm->add_instruction(
+            make_op("multibroadcast", {{"out_lens", {B, num_heads, S, rot_dim}}}), sin_g);
+
+        instruction_ref rot_out;
+        if(interleaved)
+        {
+            // Interleaved: pair (x[0],x[1]), (x[2],x[3])... rotate each pair
+            // neg_half: reshape to (..., rot_dim/2, 2), swap, neg odds, flatten back
+            auto rs = mm->add_instruction(
+                make_op("reshape", {{"dims", {B, num_heads, S, rot_dim / 2, 2}}}), x_rot);
+            auto evens = mm->add_instruction(
+                make_op("slice", {{"axes", {4}}, {"starts", {0}}, {"ends", {1}}}), rs);
+            auto odds  = mm->add_instruction(
+                make_op("slice", {{"axes", {4}}, {"starts", {1}}, {"ends", {2}}}), rs);
+            auto neg_odds = mm->add_instruction(make_op("neg"), odds);
+            auto swapped  = mm->add_instruction(make_op("concat", {{"axis", 4}}), neg_odds, evens);
+            auto neg_half = mm->add_instruction(
+                make_op("reshape", {{"dims", {B, num_heads, S, rot_dim}}}), swapped);
+            auto mul_cos  = mm->add_instruction(make_op("mul"), x_rot, cos_g);
+            auto mul_sin  = mm->add_instruction(make_op("mul"), neg_half, sin_g);
+            rot_out = mm->add_instruction(make_op("add"), mul_cos, mul_sin);
+        }
+        else
+        {
+            // Non-interleaved: neg_half = concat(-x[rot/2:rot], x[0:rot/2])
+            auto x_pos = mm->add_instruction(
+                make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {rot_dim / 2}}}), x_rot);
+            auto x_neg = mm->add_instruction(
+                make_op("slice", {{"axes", {3}}, {"starts", {rot_dim / 2}}, {"ends", {rot_dim}}}), x_rot);
+            auto neg_x_neg = mm->add_instruction(make_op("neg"), x_neg);
+            auto neg_half  = mm->add_instruction(make_op("concat", {{"axis", 3}}), neg_x_neg, x_pos);
+            auto mul_cos   = mm->add_instruction(make_op("mul"), x_rot, cos_g);
+            auto mul_sin   = mm->add_instruction(make_op("mul"), neg_half, sin_g);
+            rot_out = mm->add_instruction(make_op("add"), mul_cos, mul_sin);
+        }
+
+        // Reassemble: concat rotary result with tail (if any)
+        instruction_ref full;
+        if(has_tail)
+            full = mm->add_instruction(make_op("concat", {{"axis", 3}}), rot_out, x_tail);
+        else
+            full = rot_out;
+
+        // Reshape back to BSH layout (B, S, H)
+        return mm->add_instruction(make_op("reshape", {{"dims", {B, S, H}}}), full);
+    }
+
     // --- Unknown ---
     if(!opts.skip_unknown_operators)
         MIGRAPHX_THROW("DxGML: unhandled op: " + name);

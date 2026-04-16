@@ -87,5 +87,8 @@ depend*/
 # local Python virtual environment
 .venv/
 
+# debug dump folders
+*dump*
+
 # Ignore CMakePresets.json
 #CMakePresets.json

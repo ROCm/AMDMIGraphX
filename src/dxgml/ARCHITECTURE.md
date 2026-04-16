@@ -273,6 +273,8 @@ cmake --build build_vs --config RelWithDebInfo --parallel --target amdxgml drive
 
 ## Running tests
 
+### Parse + driver tests (CPU only)
+
 ```bat
 REM ctest parse unit tests (5 tests):
 ctest --test-dir build\WinRelWithDebInfo -R test_dxgml -V
@@ -287,6 +289,51 @@ REM Single model:
 test\dxgml\run_dxgml_tests.bat simple_gemm
 ```
 
+### GPU execution tests
+
+`test\dxgml\run_dxgml_gpu_tests.bat` runs models on the local GPU using
+`migraphx-driver`.  Five modes are available:
+
+| Mode | Driver command | What it does |
+|------|---------------|--------------|
+| `parse` | `read --dxgml` | Parse only — no GPU involved |
+| `compile` | `compile --dxgml --gpu` | Compile to GPU kernels, no execution |
+| `run` | `run --dxgml --gpu` | Compile + execute on GPU, no validation |
+| `verify` | `verify --dxgml --gpu --atol --rtol` | GPU execution validated against CPU reference (**default**) |
+| `profile` | `rocprofv2 --kernel-trace -- … run --dxgml --gpu` | GPU kernel trace via rocprofv2 (falls back to rocprof or plain run) |
+
+```bat
+REM Verify all models (default):
+test\dxgml\run_dxgml_gpu_tests.bat
+
+REM Explicit mode:
+test\dxgml\run_dxgml_gpu_tests.bat verify
+test\dxgml\run_dxgml_gpu_tests.bat parse
+test\dxgml\run_dxgml_gpu_tests.bat compile
+test\dxgml\run_dxgml_gpu_tests.bat run
+test\dxgml\run_dxgml_gpu_tests.bat profile
+
+REM Single model (any mode):
+test\dxgml\run_dxgml_gpu_tests.bat verify conv_act_add
+test\dxgml\run_dxgml_gpu_tests.bat compile conv_example
+test\dxgml\run_dxgml_gpu_tests.bat profile simple_gemm
+
+REM Verify all + save full driver output:
+test\dxgml\run_dxgml_gpu_tests.bat verify dump
+```
+
+**Tolerances** (verify mode):
+- fp16 models: `--atol 1e-2 --rtol 1e-2`
+- fp32 models (`conv_example`): `--atol 1e-4 --rtol 1e-4`
+
+**Profiling output** is written to `test\dxgml\dump\profile_<model>\` — one
+subdirectory per model containing the rocprofv2 CSV kernel trace and a
+`driver_output.txt`.  `rocprofv2` is preferred; the script falls back to
+legacy `rocprof` if only that is on PATH, and to an un-instrumented `run`
+if neither profiler is found (still useful for wall-clock timing).
+
+**Log file**: every run appends results to `test\dxgml\dump\gpu_run_results.log`.
+
 ---
 
 ## Test Layout
@@ -294,12 +341,17 @@ test\dxgml\run_dxgml_tests.bat simple_gemm
 ```
 test/dxgml/
   include/
-    dxgml_test.hpp          helper: read_dxgml(), embedded file access
-  mlir/                     embedded MLIR fixtures (CompilationInput files)
+    dxgml_test.hpp              helper: read_dxgml(), embedded file access
+  mlir/                         embedded MLIR fixtures (CompilationInput files)
   parse/
     conv_relu_test.cpp
     gelu_test.cpp
     relu_erf_test.cpp
     standalone_cluster_test.cpp
-    debug_parse_test.cpp    diagnostic: try-catch all fixtures, print results
+    debug_parse_test.cpp        diagnostic: try-catch all fixtures, print results
+  run_dxgml_tests.bat           CPU parse + driver test runner
+  run_dxgml_tests.ps1           PowerShell implementation
+  run_dxgml_gpu_tests.bat       GPU test runner (parse/compile/run/verify/profile)
+  run_dxgml_gpu_tests.ps1       PowerShell implementation
+  dump/                         Log and dump output directory (git-ignored)
 ```

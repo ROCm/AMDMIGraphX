@@ -30,6 +30,7 @@ jobs:
           environment: github-pages
           onlyRemoveDeployments: true
   deploy:
+    needs: cleanup
     runs-on: ubuntu-latest
     environment:
       name: github-pages

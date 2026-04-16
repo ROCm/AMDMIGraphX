@@ -58,6 +58,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # Used by get_config only; call_reusable `with` cannot reference env—defaults repeated there as literals.
   MIGRAPHX_MODEL_PATH_DEFAULT: /migraphx-models
   MIGRAPHX_PERF_WORKSPACE_DEFAULT: /mnt/migraphx-perf-work
   MIGRAPHX_RUNNER_LABEL: linux-migraphx-mi250-1
@@ -144,9 +145,9 @@ jobs:
       result_number: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.result_number || needs.get_config.outputs.perf_number }}
       flags: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.flags || needs.get_config.outputs.perf_flag }}
       model_timeout: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.model_timeout || needs.get_config.outputs.perf_timeout }}
-      # github.event.inputs is only set on workflow_dispatch; always fall back to get_config then workflow env
-      model_path: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.model_path || needs.get_config.outputs.model_path || env.MIGRAPHX_MODEL_PATH_DEFAULT }}
-      perf_workspace: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.perf_workspace || needs.get_config.outputs.perf_workspace || env.MIGRAPHX_PERF_WORKSPACE_DEFAULT }}
-      runs_on: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.runner_label || needs.get_config.outputs.runner_label || env.MIGRAPHX_RUNNER_LABEL }}
+      # workflow_call `with` cannot use `env`; duplicate defaults here (must match workflow env above).
+      model_path: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.model_path || needs.get_config.outputs.model_path || '/migraphx-models' }}
+      perf_workspace: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.perf_workspace || needs.get_config.outputs.perf_workspace || '/mnt/migraphx-perf-work' }}
+      runs_on: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.runner_label || needs.get_config.outputs.runner_label || 'linux-migraphx-mi250-1' }}
     secrets:
       BENCHMARK_UTILS_READ_TOKEN: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}

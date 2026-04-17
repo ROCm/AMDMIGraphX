@@ -55,7 +55,7 @@ std::vector<instruction_ref> get_alloc_aliases(const module& mod)
 std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
 {
     std::unordered_map<instruction_ref, std::string> mod_output_names;
-    auto alloc_aliases= get_alloc_aliases(mod);
+    auto alloc_aliases = get_alloc_aliases(mod);
 
     std::size_t index = 0;
     if(mod.name().empty())
@@ -97,7 +97,7 @@ std::unordered_map<instruction_ref, std::set<std::string>> get_output_debug_symb
 
         std::size_t index = 0;
         const auto& output_symbols = last_ins->get_debug_symbols();
-        for(auto os : range(output_symbols.begin(), output_symbols.end()))
+        for(const auto& os : range(output_symbols.begin(), output_symbols.end()))
         {
             mod_output_debug_symbols[alloc_aliases.at(index)] = {os};
             ++index;

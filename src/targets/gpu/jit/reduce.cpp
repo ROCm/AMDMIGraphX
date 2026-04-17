@@ -381,7 +381,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 // TileSize parallel accumulators per thread. Only safe on
                 // simple single-reduce modules (auto_tile_ok signaled by
                 // compile()); ignored otherwise.
-                bool auto_tile_ok = v.get("auto_tile_ok", false) and noutputs == 1;
+                bool auto_tile_ok     = v.get("auto_tile_ok", false) and noutputs == 1;
                 std::size_t auto_tile = 1;
                 if(auto_tile_ok)
                 {
@@ -471,15 +471,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         // parallel_reduce (which already uses arrays via the read wrapping).
         if(not v.contains("auto_tile_ok"))
         {
-            auto n_reduce = std::count_if(rm->begin(), rm->end(), [](const auto& i) {
+            auto n_reduce             = std::count_if(rm->begin(), rm->end(), [](const auto& i) {
                 return contains(i.name(), "reduce") and not starts_with(i.name(), "gpu::");
             });
-            bool has_gpu_tuple_reduce =
-                std::any_of(rm->begin(), rm->end(), [](const auto& i) {
-                    return i.name() == "gpu::parallel_reduce" or i.name() == "gpu::arg_reduce";
-                });
-            v["auto_tile_ok"] =
-                n_reduce == 1 and not has_gpu_tuple_reduce and not has_arg_reduce;
+            bool has_gpu_tuple_reduce = std::any_of(rm->begin(), rm->end(), [](const auto& i) {
+                return i.name() == "gpu::parallel_reduce" or i.name() == "gpu::arg_reduce";
+            });
+            v["auto_tile_ok"] = n_reduce == 1 and not has_gpu_tuple_reduce and not has_arg_reduce;
         }
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";

@@ -744,7 +744,7 @@ struct tile_subwave_parallel
             }
             else
             {
-                auto slices = this->slice(x); // array<tensor_view, TileSize>
+                auto slices        = this->slice(x); // array<tensor_view, TileSize>
                 using slice_type   = remove_cv_t<remove_reference_t<decltype(slices[0])>>;
                 using element_type = typename slice_type::type;
                 using array_type   = array<element_type, TileSize>;

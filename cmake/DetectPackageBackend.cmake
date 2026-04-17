@@ -29,12 +29,12 @@
 #   "default"  - Traditional ROCm with deb/rpm packages
 #
 # Preferred usage (explicit):
-#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x ..
+#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DGPU_ARCH_FOR_THEROCK=gfx120x ..
 #
 # If MIGRAPHX_PACKAGE_BACKEND is not set, falls back to auto-detection via
 # dpkg/rpm to check for installed amdrocm-runtime packages.
 #
-# When MIGRAPHX_PACKAGE_BACKEND=therock, MIGRAPHX_THEROCK_GPU_ARCH must be set
+# When MIGRAPHX_PACKAGE_BACKEND=therock, GPU_ARCH_FOR_THEROCK must be set
 # to the target GPU architecture family that follows TheRock packaging requirements.
 
 function(_detect_therock_via_package_manager)
@@ -77,7 +77,7 @@ function(detect_package_backend)
         if(_THEROCK_DETECTED)
             set(_default_backend "therock")
             message(STATUS "MIGraphX package backend auto-detected: therock (amdrocm-runtime found)")
-            message(STATUS "  Hint: prefer explicit -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=<arch>")
+            message(STATUS "  Hint: prefer explicit -DMIGRAPHX_PACKAGE_BACKEND=therock -DGPU_ARCH_FOR_THEROCK=<arch>")
         else()
             set(_default_backend "default")
         endif()
@@ -95,21 +95,21 @@ function(detect_package_backend)
     endif()
 
     if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
-        if(DEFINED ENV{MIGRAPHX_THEROCK_GPU_ARCH})
-            set(_default_gpu_arch "$ENV{MIGRAPHX_THEROCK_GPU_ARCH}")
+        if(DEFINED ENV{GPU_ARCH_FOR_THEROCK})
+            set(_default_gpu_arch "$ENV{GPU_ARCH_FOR_THEROCK}")
         else()
             set(_default_gpu_arch "")
         endif()
-        set(MIGRAPHX_THEROCK_GPU_ARCH "${_default_gpu_arch}" CACHE STRING
+        set(GPU_ARCH_FOR_THEROCK "${_default_gpu_arch}" CACHE STRING
             "TheRock GPU architecture family suffix (e.g. gfx120x ..)")
 
-        if(MIGRAPHX_THEROCK_GPU_ARCH STREQUAL "")
+        if(GPU_ARCH_FOR_THEROCK STREQUAL "")
             message(FATAL_ERROR
-                "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH to be set. "
-                "Example: cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x ..")
+                "MIGRAPHX_PACKAGE_BACKEND=therock requires GPU_ARCH_FOR_THEROCK to be set. "
+                "Example: cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DGPU_ARCH_FOR_THEROCK=gfx120x ..")
         endif()
 
-        message(STATUS "MIGraphX package backend: therock (GPU arch: ${MIGRAPHX_THEROCK_GPU_ARCH})")
+        message(STATUS "MIGraphX package backend: therock (GPU arch: ${GPU_ARCH_FOR_THEROCK})")
     else()
         message(STATUS "MIGraphX package backend: default (traditional ROCm)")
     endif()

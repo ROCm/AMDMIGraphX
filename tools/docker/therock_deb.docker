@@ -71,8 +71,8 @@ RUN pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.g
 ENV PATH=/opt/rocm/bin:$PATH
 
 # Expose GPU arch for CMake packaging, particularly for TheRock:
-#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=$MIGRAPHX_THEROCK_GPU_ARCH
-ENV MIGRAPHX_THEROCK_GPU_ARCH=${GPU_ARCH}
+#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DGPU_ARCH_FOR_THEROCK=$GPU_ARCH_FOR_THEROCK
+ENV GPU_ARCH_FOR_THEROCK=${GPU_ARCH}
 
 # Set locale
 RUN locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8

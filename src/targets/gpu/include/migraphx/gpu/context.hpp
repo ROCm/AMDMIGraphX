@@ -40,9 +40,9 @@
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/hsa_chiplet.hpp>
+#include <migraphx/gpu/cross_compile_device.hpp>
 #include <unordered_map>
 #include <memory>
-#include <cstring>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -70,23 +70,12 @@ struct hip_device
             add_stream();
     }
 
-    hip_device(std::string arch_name,
-               std::size_t cu_count,
-               std::size_t chiplets,
-               std::size_t n = 1)
-        : cross_compile_mode(true), chiplet_count_override(chiplets)
+    hip_device(std::string arch_name, std::size_t cu_count, std::size_t chiplets)
+        : cross_compile_mode(true),
+          chiplet_count_override(chiplets),
+          device_props(make_cross_compile_device_props(arch_name, cu_count))
     {
-        std::memset(&device_props, 0, sizeof(device_props));
-        std::strncpy(
-            device_props.gcnArchName, arch_name.c_str(), sizeof(device_props.gcnArchName) - 1);
-        device_props.gcnArchName[sizeof(device_props.gcnArchName) - 1] = '\0';
-        device_props.warpSize                    = 64;
-        device_props.maxThreadsPerMultiProcessor = 2048;
-        device_props.maxThreadsPerBlock          = 1024;
-        device_props.multiProcessorCount         = cu_count;
-
-        for(std::size_t i = 0; i < n; i++)
-            add_stream();
+        add_stream();
     }
 
     struct stream
@@ -287,7 +276,7 @@ struct context
 
     context(std::string arch_name, std::size_t cu_count, std::size_t chiplets)
         : current_device(std::make_shared<hip_device>(
-              std::move(arch_name), cu_count, chiplets, value_of(MIGRAPHX_NSTREAMS{}, 1))),
+              std::move(arch_name), cu_count, chiplets)),
           pc(std::make_shared<auto_save_problem_cache>())
     {
     }

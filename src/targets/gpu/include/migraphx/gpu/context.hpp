@@ -275,8 +275,7 @@ struct context
     }
 
     context(std::string arch_name, std::size_t cu_count, std::size_t chiplets)
-        : current_device(std::make_shared<hip_device>(
-              std::move(arch_name), cu_count, chiplets)),
+        : current_device(std::make_shared<hip_device>(std::move(arch_name), cu_count, chiplets)),
           pc(std::make_shared<auto_save_problem_cache>())
     {
     }

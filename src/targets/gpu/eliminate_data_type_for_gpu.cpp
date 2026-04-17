@@ -131,8 +131,7 @@ void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
 {
     std::set<shape::type_t> unsupported_floats;
     // No BF-16 Support on Navi21
-    if(ctx != nullptr ? not gpu::gfx_has_bf16_intrinsics(*ctx)
-                      : not gpu::gfx_has_bf16_intrinsics())
+    if(ctx != nullptr ? not gpu::gfx_has_bf16_intrinsics(*ctx) : not gpu::gfx_has_bf16_intrinsics())
     {
         unsupported_floats.insert(shape::bf16_type);
     }

@@ -69,6 +69,7 @@ TEST_CASE(test_stream_override_get)
     EXPECT(stream.get() != internal);
     EXPECT(stream.has_external_stream());
 
+    stream.set_external_stream(nullptr);
 
     EXPECT(stream.get() == internal);
     EXPECT(not stream.has_external_stream());
@@ -84,6 +85,8 @@ TEST_CASE(test_stream_override_get_queue)
 
     ctx.get_stream().set_external_stream(ext.get());
     EXPECT(ctx.get_queue().get<hipStream_t>() == ext.get());
+
+    ctx.get_stream().set_external_stream(nullptr);
 
     EXPECT(ctx.get_queue().get<hipStream_t>() == original_queue);
 }
@@ -254,8 +257,7 @@ TEST_CASE(test_wait_for_null_stream_uses_event_fallback)
 {
     migraphx::gpu::context ctx{};
 
-    hipStream_t null_stream = nullptr;
-    migraphx::any_ptr queue(null_stream);
+    migraphx::any_ptr queue{};
 
     hipStream_t internal_before = ctx.get_queue().get<hipStream_t>();
 
@@ -295,8 +297,7 @@ TEST_CASE(test_fallback_event_path_produces_correct_results)
     auto out  = migraphx::fill_argument(out_shape, 0);
     auto gout = migraphx::gpu::to_gpu(out);
 
-    hipStream_t null_stream = nullptr;
-    auto results = p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {null_stream, true});
+    auto results = p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {migraphx::any_ptr{}, true});
 
     EXPECT(not results.empty());
 

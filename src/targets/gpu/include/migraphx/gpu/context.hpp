@@ -364,7 +364,11 @@ struct context
 
     void wait_for(any_ptr queue)
     {
-        auto *ext = queue.get<hipStream_t>();
+        if(get_stream().has_external_stream())
+            return;
+        if(queue.unsafe_get() == nullptr)
+            return;
+        auto* ext = queue.get<hipStream_t>();
         if(ext == nullptr)
         {
             auto status = hipEventRecord(begin_event.get(), ext);
@@ -380,13 +384,17 @@ struct context
 
     void finish_on(any_ptr queue)
     {
-        if(not get_stream().has_external_stream())
+        if(get_stream().has_external_stream())
         {
-            get_stream().record(finish_event.get());
-            auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
-            if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
+            get_stream().set_external_stream(nullptr);
+            return;
         }
+        if(queue.unsafe_get() == nullptr)
+            return;
+        get_stream().record(finish_event.get());
+        auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
     }
 
     any_ptr get_queue() { return get_stream().get(); }

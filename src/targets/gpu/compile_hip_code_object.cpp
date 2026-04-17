@@ -122,9 +122,6 @@ static std::vector<std::string> get_compiler_warnings()
     if(hip_has_flags({"-Werror", "-Wnrvo"}))
         warnings.push_back("-Wno-nrvo");
 
-    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
-        warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
-
     return warnings;
 }
 

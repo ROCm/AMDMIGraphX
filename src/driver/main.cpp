@@ -128,6 +128,7 @@ struct loader
     bool skip_unknown_operators = false;
     bool brief                  = false;
     bool verbose                = false;
+    std::string dxgml_resources_file;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -153,6 +154,11 @@ struct loader
 #endif
 #ifdef MIGRAPHX_ENABLE_DXGML
         ap(file_type, {"--dxgml"}, ap.help("Load as DxGML MLIR dialect (.mlir)"), ap.set_value("dxgml"));
+        ap(dxgml_resources_file,
+           {"--dxgml-resources"},
+           ap.help("Path to a companion resources file (e.g. resources.mlir) containing "
+                   "weight tensor data. When supplied with --dxgml, constant_resource "
+                   "operands are loaded as literal values instead of random @params."));
 #endif
         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
@@ -422,6 +428,7 @@ struct loader
                 dxgml_options options;
                 options.skip_unknown_operators = skip_unknown_operators;
                 options.print_program_on_error = true;
+                options.resources_file         = dxgml_resources_file;
                 p = parse_dxgml(file, options);
             }
 #endif

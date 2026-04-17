@@ -159,7 +159,8 @@ $pass = 0; $fail = 0; $skip = 0
 # -------------------------------------------------------------------
 function RunTest([string]$mlirFile, [string]$name,
                  [string]$atol = "1e-2", [string]$rtol = "1e-2",
-                 [int]$timeoutSec = 180) {
+                 [int]$timeoutSec = 180,
+                 [string[]]$ExtraArgs = @()) {
     if (!(Test-Path $mlirFile)) {
         Log "  [SKIP] $name - file not found"
         $script:skip++; return
@@ -171,13 +172,13 @@ function RunTest([string]$mlirFile, [string]$name,
 
     switch ($script:Mode) {
         "parse" {
-            $execArgs = @("read", $mlirFile, "--dxgml")
+            $execArgs = @("read", $mlirFile, "--dxgml") + $ExtraArgs
         }
         "compile" {
-            $execArgs = @("compile", $mlirFile, "--dxgml", "--gpu")
+            $execArgs = @("compile", $mlirFile, "--dxgml", "--gpu") + $ExtraArgs
         }
         "run" {
-            $execArgs = @("run", $mlirFile, "--dxgml", "--gpu")
+            $execArgs = @("run", $mlirFile, "--dxgml", "--gpu") + $ExtraArgs
         }
         "profile" {
             # rocprofv2: --output-directory <dir> --kernel-trace -- <exe> <args>
@@ -185,7 +186,7 @@ function RunTest([string]$mlirFile, [string]$name,
             $profDir = "$script:DumpDir\profile_$name"
             if (!(Test-Path $profDir)) { New-Item -ItemType Directory -Path $profDir | Out-Null }
 
-            $driverCore = @("run", $mlirFile, "--dxgml", "--gpu")
+            $driverCore = @("run", $mlirFile, "--dxgml", "--gpu") + $ExtraArgs
 
             if ($script:RocprofPath -and ($script:RocprofPath -match "rocprofv2")) {
                 $execPath = $script:RocprofPath
@@ -211,7 +212,7 @@ function RunTest([string]$mlirFile, [string]$name,
                 "--dxgml", "--gpu",
                 "--atol", $atol,
                 "--rtol", $rtol
-            )
+            ) + $ExtraArgs
         }
     }
 
@@ -315,6 +316,15 @@ function RunAllTests {
     Log "--- CNN models ---"
     RunTest "$MlirDir\model3\model.mlir"                       "model3"                 -atol "1e-2" -rtol "1e-2" -timeoutSec 300
     RunTest "$MlirDir\model3\model_test.mlir"                  "model3_test"            -atol "1e-2" -rtol "1e-2" -timeoutSec 300
+
+    Log ""
+    Log "--- Large models ---"
+    $phiModel = "$MlirDir\phi_silica_qdq\model.mlir"
+    $phiRes   = "$MlirDir\phi_silica_qdq\resources.mlir"
+    # Pass --dxgml-resources when available so constants are loaded as literals
+    # with real weight data rather than random @param values.
+    $phiExtra = if (Test-Path $phiRes) { @("--dxgml-resources", $phiRes) } else { @() }
+    RunTest $phiModel "phi_silica_qdq" -atol "1e-2" -rtol "1e-2" -timeoutSec 600 -ExtraArgs $phiExtra
 }
 
 # -------------------------------------------------------------------
@@ -358,7 +368,8 @@ switch -Wildcard ($Suite.ToLower()) {
             if ($_.BaseName -ieq $Suite -or $_.Name -ieq $Suite) {
                 $atol = "1e-2"; $rtol = "1e-2"
                 if ($_.Name -match "conv_example") { $atol = "1e-4"; $rtol = "1e-4" }
-                RunTest $_.FullName $Suite -atol $atol -rtol $rtol -timeoutSec 300
+                $timeout = if ($_.DirectoryName -match "phi_silica_qdq") { 600 } else { 300 }
+                RunTest $_.FullName $Suite -atol $atol -rtol $rtol -timeoutSec $timeout
                 $script:found = $true
             }
         }

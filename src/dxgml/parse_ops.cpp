@@ -30,6 +30,7 @@
 #include <migraphx/op/common.hpp>
 
 #include <unordered_map>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -172,6 +173,22 @@ static instruction_ref parse_constant(dxgml_parser& self, const std::string& ope
     std::string type_str   = inner.substr(colon_pos + sep.size());
 
     shape sh = self.parse_tensor_type(type_str);
+
+    // If the resource map has weight data for this constant, emit a literal.
+    // This happens when the caller supplied a --dxgml-resources file (or when the
+    // model's own {-# dialect_resources #-} block contained non-empty data).
+    auto it = self.resource_map.find(param_name);
+    if(it != self.resource_map.end())
+    {
+        const auto& raw = it->second;
+        if(raw.size() == sh.bytes())
+            return self.mm->add_literal(literal{sh, raw.data()});
+        // Size mismatch — warn and fall through to @param so parsing continues.
+        std::cerr << "[DxGML] Warning: resource '" << param_name << "' has "
+                  << raw.size() << " bytes, expected " << sh.bytes()
+                  << " — using @param\n";
+    }
+
     // Constants must be appended after entry-point arg parameters, not prepended.
     // insert_parameter(end(),...) places them after all currently-existing instructions.
     return self.mm->insert_parameter(self.mm->end(), param_name, sh);

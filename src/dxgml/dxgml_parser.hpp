@@ -51,6 +51,16 @@ struct dxgml_parser
     /// SSA name → instruction_ref (populated as we walk ops).
     std::unordered_map<std::string, instruction_ref> value_map;
 
+    /// Resource name → raw bytes decoded from the {-# dialect_resources #-} block.
+    /// Populated by load_resources() before op parsing begins.
+    /// Used by parse_constant() to emit add_literal instead of a named parameter when data is present.
+    std::unordered_map<std::string, std::vector<char>> resource_map;
+
+    /// Parse a dialect_resources block (from the model text or an external file)
+    /// and populate resource_map.  Safe to call multiple times; later calls merge
+    /// into the existing map (external file overrides inline values for the same key).
+    void load_resources(const std::string& resources_text);
+
     /// Parse DxGML MLIR text and populate `prog`.
     void parse_from_string(const std::string& mlir_text);
 

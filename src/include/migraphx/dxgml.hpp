@@ -59,6 +59,13 @@ struct dxgml_options
     /// Dump the ISA / device assembly produced by the GPU back-end.
     /// On AMD hardware this is the GCN/RDNA assembly embedded in the code object.
     bool dump_isa = false;
+
+    /// Path to a companion resources file (e.g. resources.mlir) that contains a
+    /// {-# dialect_resources: { dxgml: { NAME: "0xHEX..." } } #-} block with
+    /// weight tensor data.  When set, dxgml_op.constant operands whose resource
+    /// name is found in the file are resolved to literal values instead of
+    /// named parameter inputs.  Ignored when empty.
+    std::string resources_file;
 };
 
 /// Parse a DxGML MLIR dialect file (.mlir) and return a MIGraphX program.

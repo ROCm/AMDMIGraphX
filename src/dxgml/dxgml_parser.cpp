@@ -27,6 +27,7 @@
 #include <migraphx/module.hpp>
 
 #include <string>
+#include <fstream>
 #include <sstream>
 #include <vector>
 #include <cctype>
@@ -373,6 +374,12 @@ struct EntryPointData
     std::string body;     // body block text (between the matching braces)
     bool found = false;
 };
+
+// ---------------------------------------------------------------------------
+// dialect_resources hex-blob decoder
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 
 static EntryPointData extract_entry_point(const std::string& src)
 {
@@ -813,12 +820,116 @@ void dxgml_parser::parse_entry_point(const std::string& arg_list_str, const std:
 }
 
 // ---------------------------------------------------------------------------
+// Resource-map loading
+// ---------------------------------------------------------------------------
+
+/// Parse resources from an already-open stream, line by line.
+/// Each data line has the form:   NAME: "0xHEX",
+/// This avoids reading the entire (potentially multi-GB) file into memory.
+static void load_resources_from_stream(std::istream& in,
+                                       std::unordered_map<std::string, std::vector<char>>& out)
+{
+    bool in_dxgml_section = false;
+    std::string line;
+    while(std::getline(in, line))
+    {
+        // Detect start of the dxgml: { section
+        if(!in_dxgml_section)
+        {
+            auto p = line.find("dxgml:");
+            if(p != std::string::npos)
+                in_dxgml_section = true;
+            continue;
+        }
+
+        // A closing brace alone ends the section
+        auto trim_line = trim(line);
+        if(trim_line == "}" || trim_line == "}," || trim_line == "#-}")
+            break;
+
+        // Look for NAME: "0xHEX"[,]
+        auto colon = line.find(':');
+        if(colon == std::string::npos)
+            continue;
+        std::string name = trim(line.substr(0, colon));
+
+        auto q1 = line.find('"', colon + 1);
+        if(q1 == std::string::npos)
+            continue;
+        ++q1; // skip opening quote
+
+        auto q2 = line.find('"', q1);
+        if(q2 == std::string::npos)
+            continue;
+
+        // Decode the hex blob in-place without copying the whole string.
+        // The hex value is line[q1..q2).
+        const char* hex_ptr = line.data() + q1;
+        std::size_t hex_len = q2 - q1;
+
+        if(hex_len < 2 || hex_ptr[0] != '0' ||
+           (hex_ptr[1] != 'x' && hex_ptr[1] != 'X'))
+            continue;
+        const std::size_t data_start = 2;
+        if((hex_len - data_start) % 2 != 0)
+            continue;
+
+        auto from_hex = [](char c) -> int {
+            if(c >= '0' && c <= '9') return c - '0';
+            if(c >= 'a' && c <= 'f') return c - 'a' + 10;
+            if(c >= 'A' && c <= 'F') return c - 'A' + 10;
+            return -1;
+        };
+
+        std::size_t num_bytes = (hex_len - data_start) / 2;
+        if(num_bytes < 4) // must have at least the 4-byte MLIR header
+            continue;
+
+        std::vector<char> bytes;
+        bytes.reserve(num_bytes - 4); // skip 4-byte MLIR header
+        bool bad = false;
+        // Skip first 4 decoded bytes (MLIR alignment header = 01 00 00 00)
+        std::size_t i = data_start + 8; // +8 hex chars = skip 4 bytes
+        for(; i < hex_len; i += 2)
+        {
+            int h = from_hex(hex_ptr[i]);
+            int l = from_hex(hex_ptr[i + 1]);
+            if(h < 0 || l < 0) { bad = true; break; }
+            bytes.push_back(static_cast<char>((h << 4) | l));
+        }
+        if(bad || name.empty())
+            continue;
+
+        out[name] = std::move(bytes);
+    }
+}
+
+void dxgml_parser::load_resources(const std::string& resources_text)
+{
+    std::istringstream ss(resources_text);
+    load_resources_from_stream(ss, resource_map);
+}
+
+// ---------------------------------------------------------------------------
 // Top-level parse
 // ---------------------------------------------------------------------------
 
 void dxgml_parser::parse_from_string(const std::string& mlir_text)
 {
     mm = prog.get_main_module();
+
+    // Load weight data from the resources block embedded in the model file (if any)
+    load_resources(mlir_text);
+
+    // Load weight data from an external resources file if one was specified.
+    // Stream line-by-line to avoid loading potentially multi-GB files into memory.
+    if(!opts.resources_file.empty())
+    {
+        std::ifstream rf(opts.resources_file);
+        if(!rf)
+            MIGRAPHX_THROW("DxGML: cannot open resources file: " + opts.resources_file);
+        load_resources_from_stream(rf, resource_map);
+    }
 
     auto ep = extract_entry_point(mlir_text);
     if(!ep.found)

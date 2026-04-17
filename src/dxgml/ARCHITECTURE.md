@@ -92,9 +92,91 @@ impractical.  The custom text parser avoids this entirely.
 ### Constant parameters
 
 `dxgml_op.constant(#dxgml.constant_resource<NAME : TYPE>)` represents a named
-weight tensor.  These become `@param` instructions (callers supply the weight data
-at runtime).  Constants are inserted with `insert_parameter(module::end(), ...)` so
-they appear in source order, after the entry-point argument parameters.
+weight tensor.  By default these become `@param` instructions (callers supply the
+weight data at runtime).  When a resources file is provided (see below), matching
+constants become `@literal` instructions with the decoded weight data embedded
+directly in the program.  Constants are inserted with
+`insert_parameter(module::end(), ...)` so they appear in source order, after the
+entry-point argument parameters.
+
+### External weight loading (`--dxgml-resources`)
+
+Large models store weight tensor data in a companion `resources.mlir` file whose
+`{-# dialect_resources #-}` block contains one hex-encoded blob per weight:
+
+```
+{-#
+  dialect_resources: {
+    dxgml: {
+      _conv1.weight: "0x01000000AABBCC...",
+      _fc1.bias:     "0x010000003F800000",
+      ...
+    }
+  }
+#-}
+```
+
+**Hex blob format** (MLIR dense_resource_blob):
+- Starts with `0x`
+- First **4 bytes** are the MLIR alignment header (`01 00 00 00`) — always skipped
+- Remaining bytes are the raw little-endian tensor payload, matching `shape.bytes()` exactly
+
+**How the parser loads it:**
+
+`dxgml_parser::load_resources_from_stream()` reads the file **line by line** —
+it never loads the whole file into memory.  For each entry line it:
+1. Extracts the resource NAME (up to the `:`)
+2. Finds the quoted hex string
+3. Decodes the hex in-place, skipping the 4-byte MLIR header
+4. Stores the raw bytes in `resource_map[NAME]`
+
+`dxgml_parser::load_resources()` (used for inline text) wraps the string in an
+`istringstream` and calls the same function.
+
+In `parse_from_string()`, resources are loaded in two passes before op parsing begins:
+1. Inline: `load_resources(mlir_text)` — handles models that embed the block internally
+2. External file: stream directly from `opts.resources_file` via `load_resources_from_stream()`
+
+Then in `parse_constant()`, after computing the shape:
+
+```
+resource_map.find(NAME)
+  found + size matches shape.bytes() → mm->add_literal(literal{sh, raw.data()})
+  found + size mismatch              → stderr warning, fall through to @param
+  not found                          → @param (random data at runtime)
+```
+
+Size mismatches occur for int4-packed quantized weights, where the resource stores
+two int4 values per byte but the shape describes the logical int8 element count.
+
+**Using it from the driver:**
+
+```bat
+REM Parse only — verify weights load as @literal
+migraphx-driver.exe read --dxgml model.mlir --dxgml-resources resources.mlir --text
+
+REM GPU verify with real weights
+migraphx-driver.exe verify --dxgml model.mlir --dxgml-resources resources.mlir --gpu --atol 1e-2 --rtol 1e-2
+```
+
+**Using it from the GPU test script:**
+
+`run_dxgml_gpu_tests.ps1` passes `--dxgml-resources` automatically for models that
+have a companion resources file.  The `RunTest` function accepts an `$ExtraArgs`
+parameter; the phi_silica_qdq entry uses it as follows:
+
+```powershell
+$phiModel = "$MlirDir\phi_silica_qdq\model.mlir"
+$phiRes   = "$MlirDir\phi_silica_qdq\resources.mlir"
+$phiExtra = if (Test-Path $phiRes) { @("--dxgml-resources", $phiRes) } else { @() }
+RunTest $phiModel "phi_silica_qdq" -atol "1e-2" -rtol "1e-2" -timeoutSec 600 -ExtraArgs $phiExtra
+```
+
+If `resources.mlir` is absent the test still runs, using random `@param` data.
+
+**Performance note:** a typical resources file for a large model is several GB.
+The streaming parser keeps peak memory usage proportional to the largest single
+tensor's decoded byte array, not the total file size.
 
 ---
 
@@ -154,7 +236,7 @@ they appear in source order, after the entry-point argument parameters.
 | `squeeze` | `squeeze` | `axes` |
 | `unsqueeze` | `unsqueeze` | `axes` |
 | `flatten` | `flatten` | `axis` |
-| `constant` | `@param` | Named weight parameter |
+| `constant` | `@literal` / `@param` | Named weight — `@literal` when `--dxgml-resources` supplies data; `@param` otherwise |
 
 ---
 
@@ -320,6 +402,22 @@ test\dxgml\run_dxgml_gpu_tests.bat profile simple_gemm
 
 REM Verify all + save full driver output:
 test\dxgml\run_dxgml_gpu_tests.bat verify dump
+```
+
+**Loading real weights during GPU tests:**
+
+Models that ship a companion `resources.mlir` file (e.g. `phi_silica_qdq`) have
+weight data automatically injected via `--dxgml-resources`.  The script checks for
+the file at `$MlirDir\<model>\resources.mlir` and passes the flag only when found,
+so tests still run (with random weights) when the resources file is absent.
+
+To inject weights manually for a single model:
+
+```bat
+migraphx-driver.exe verify ^
+    --dxgml test\dxgml\mlir\phi_silica_qdq\model.mlir ^
+    --dxgml-resources test\dxgml\mlir\phi_silica_qdq\resources.mlir ^
+    --gpu --atol 1e-2 --rtol 1e-2
 ```
 
 **Tolerances** (verify mode):

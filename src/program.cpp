@@ -82,7 +82,9 @@ struct program_impl
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
 program::program(module m) : impl(std::make_unique<program_impl>())
-{ this->create_module("main", std::move(m)); }
+{
+    this->create_module("main", std::move(m));
+}
 
 program::program(program&&) noexcept = default;
 program::~program() noexcept         = default;
@@ -159,10 +161,7 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
     return mm->get_parameter_shapes();
 }
 
-int program::get_program_file_version() const
-{
-    return program_file_version;
-}
+int program::get_program_file_version() const { return program_file_version; }
 
 std::size_t program::size() const { return impl->modules.size(); }
 

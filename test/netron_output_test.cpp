@@ -44,9 +44,9 @@ static void set_value_info(onnx::ValueInfoProto* vi,
 }
 
 static void add_initializer(onnx::GraphProto* graph,
-                             const std::string& name,
-                             int data_type,
-                             const std::vector<int64_t>& dims)
+                            const std::string& name,
+                            int data_type,
+                            const std::vector<int64_t>& dims)
 {
     auto* init = graph->add_initializer();
     init->set_name(name);
@@ -56,10 +56,10 @@ static void add_initializer(onnx::GraphProto* graph,
 }
 
 static onnx::NodeProto* add_node(onnx::GraphProto* graph,
-                                  const std::string& op_type,
-                                  const std::string& name,
-                                  const std::vector<std::string>& inputs,
-                                  const std::vector<std::string>& outputs)
+                                 const std::string& op_type,
+                                 const std::string& name,
+                                 const std::vector<std::string>& inputs,
+                                 const std::vector<std::string>& outputs)
 {
     auto* node = graph->add_node();
     node->set_op_type(op_type);
@@ -71,9 +71,8 @@ static onnx::NodeProto* add_node(onnx::GraphProto* graph,
     return node;
 }
 
-static void add_string_attribute(onnx::NodeProto* node,
-                                  const std::string& name,
-                                  const std::string& value)
+static void
+add_string_attribute(onnx::NodeProto* node, const std::string& name, const std::string& value)
 {
     auto* attr = node->add_attribute();
     attr->set_name(name);
@@ -121,7 +120,7 @@ TEST_CASE(netron_output_with_literal)
 
     auto x   = mm->add_parameter("x", {migraphx::shape::float_type, {2, 3}});
     auto lit = mm->add_literal(migraphx::literal{{migraphx::shape::float_type, {2, 3}},
-                                                  {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}});
+                                                 {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f}});
     auto sum = mm->add_instruction(migraphx::make_op("add"), x, lit);
     mm->add_return({sum});
 
@@ -154,8 +153,8 @@ TEST_CASE(netron_output_multiple_types)
     mm->add_parameter("f", {migraphx::shape::uint8_type, {2, 3}});
     mm->add_parameter("g", {migraphx::shape::bf16_type, {2, 3}});
 
-    auto lit = mm->add_literal(migraphx::literal{{migraphx::shape::int32_type, {2, 3}},
-                                                  {1, 2, 3, 4, 5, 6}});
+    auto lit = mm->add_literal(
+        migraphx::literal{{migraphx::shape::int32_type, {2, 3}}, {1, 2, 3, 4, 5, 6}});
     auto sum = mm->add_instruction(migraphx::make_op("add"), a, lit);
     mm->add_return({sum});
 
@@ -197,10 +196,10 @@ TEST_CASE(netron_output_op_attributes_and_chain)
 
     onnx::GraphProto expected;
     auto* sm_node = add_node(&expected,
-                              "softmax",
-                              "main:softmax:@2",
-                              {"main:@param:x:@1"},
-                              {"main:softmax:@2->main:add:@3"});
+                             "softmax",
+                             "main:softmax:@2",
+                             {"main:@param:x:@1"},
+                             {"main:softmax:@2->main:add:@3"});
     add_string_attribute(sm_node, "axis", "1");
     add_node(&expected,
              "add",
@@ -210,8 +209,10 @@ TEST_CASE(netron_output_op_attributes_and_chain)
     set_value_info(expected.add_input(), "main:@param:y:@0", onnx::TensorProto::FLOAT, {2, 3});
     set_value_info(expected.add_input(), "main:@param:x:@1", onnx::TensorProto::FLOAT, {2, 3});
     set_value_info(expected.add_output(), "main:@return:@4", onnx::TensorProto::FLOAT, {2, 3});
-    set_value_info(
-        expected.add_value_info(), "main:softmax:@2->main:add:@3", onnx::TensorProto::FLOAT, {2, 3});
+    set_value_info(expected.add_value_info(),
+                   "main:softmax:@2->main:add:@3",
+                   onnx::TensorProto::FLOAT,
+                   {2, 3});
 
     EXPECT(parse_graph(os.str()).SerializeAsString() == expected.SerializeAsString());
 }
@@ -232,10 +233,10 @@ TEST_CASE(netron_output_debug_symbols)
 
     onnx::GraphProto expected;
     auto* node = add_node(&expected,
-                           "add",
-                           "main:add:@2",
-                           {"main:@param:x:@1", "main:@param:y:@0"},
-                           {"main:@return:@3"});
+                          "add",
+                          "main:add:@2",
+                          {"main:@param:x:@1", "main:@param:y:@0"},
+                          {"main:@return:@3"});
     add_string_attribute(node, "debug symbols", "origin_op:Add, test_file.onnx:42");
     set_value_info(expected.add_input(), "main:@param:y:@0", onnx::TensorProto::FLOAT, {2, 3});
     set_value_info(expected.add_input(), "main:@param:x:@1", onnx::TensorProto::FLOAT, {2, 3});

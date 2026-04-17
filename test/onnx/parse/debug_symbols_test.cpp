@@ -63,3 +63,27 @@ TEST_CASE(debug_symbols_migx_names)
     auto prog                 = read_onnx("conv_bias_test.onnx", options);
     EXPECT(p == prog);
 }
+
+TEST_CASE(debug_symbols_return_single_output)
+{
+    migraphx::onnx_options options;
+    options.use_debug_symbols = true;
+    auto prog                 = read_onnx("conv_transpose_test.onnx", options);
+    auto* mm                  = prog.get_main_module();
+    auto ret_ins              = std::prev(mm->end());
+    EXPECT(ret_ins->name() == "@return");
+    std::set<std::string> expected = {"@output_0:\"y\""};
+    EXPECT(ret_ins->get_debug_symbols() == expected);
+}
+
+TEST_CASE(debug_symbols_return_multi_output)
+{
+    migraphx::onnx_options options;
+    options.use_debug_symbols = true;
+    auto prog                 = read_onnx("topk_test.onnx", options);
+    auto* mm                  = prog.get_main_module();
+    auto ret_ins              = std::prev(mm->end());
+    EXPECT(ret_ins->name() == "@return");
+    std::set<std::string> expected = {"@output_0:\"val\"", "@output_1:\"indices\""};
+    EXPECT(ret_ins->get_debug_symbols() == expected);
+}

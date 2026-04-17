@@ -1,7 +1,6 @@
 FROM ubuntu:24.04
 
 ARG GPU_ARCH=gfx120x
-ARG ROCM_VERSION=7.13
 ARG ROCM_RELEASE_URL=https://rocm.nightlies.amd.com/deb/20260401-23832802691
 
 # Support multiarch

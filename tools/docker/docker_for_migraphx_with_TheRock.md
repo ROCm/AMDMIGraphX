@@ -12,13 +12,11 @@ The Dockerfile accepts the following build arguments:
 | Argument | Description |
 |----------|-------------|
 | `GPU_ARCH` | Target GPU architecture family. Determines which TheRock ROCm packages (`amdrocm-core-*`, `amdrocm-blas-*`, `amdrocm-dnn-*`, etc.) are installed, and sets the `GPU_ARCH_FOR_THEROCK` environment variable for CMake packaging. |
-| `ROCM_VERSION` | ROCm version identifier. |
 | `ROCM_RELEASE_URL` | URL of the TheRock ROCm apt repository to install packages from. |
 
 ```bash
 docker build \
     --build-arg GPU_ARCH=<gpu_arch> \
-    --build-arg ROCM_VERSION=<rocm_version> \
     --build-arg ROCM_RELEASE_URL=<rocm_release_url> \
     -t migraphx-therock:<gpu_arch> \
     -f tools/docker/therock_deb.docker \

@@ -731,26 +731,25 @@ module {
 }
 )__migraphx__";
     migraphx::module m;
-    auto x5       = m.add_parameter("x5", {migraphx::shape::float_type, {1, 1000}});
-    auto x4       = m.add_parameter("x4", {migraphx::shape::float_type, {64, 1, 1000}, {1 ,1, 64}});
-    auto x3       = m.add_parameter("x3", {migraphx::shape::float_type, {1, 64, 1}});
-    auto x2       = m.add_parameter("x2", {migraphx::shape::fp4x2_type, {1000, 1024}});
-    auto x1       = m.add_parameter("x1", {migraphx::shape::fp4x2_type, {1, 1024}});
-    auto unpack1  = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x1);
-    auto unpack2  = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x2);
-    auto trans    = m.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), unpack2);
-    auto mbcast1  = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 32}}}), x3);
-    auto reshape1 = m.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {1, 2048}}}), mbcast1);
-    auto mbcast2  = m.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {64, 32, 1000}}}), x4);
-    auto reshape2 = m.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {2048, 1000}}}), mbcast2);
-    auto qdot     = m.add_instruction(
-            migraphx::make_op("quant_dot"), unpack1, trans, reshape1, reshape2);
-    auto add      = m.add_instruction(migraphx::make_op("add"), qdot, x5);
+    auto x5      = m.add_parameter("x5", {migraphx::shape::float_type, {1, 1000}});
+    auto x4      = m.add_parameter("x4", {migraphx::shape::float_type, {64, 1, 1000}, {1, 1, 64}});
+    auto x3      = m.add_parameter("x3", {migraphx::shape::float_type, {1, 64, 1}});
+    auto x2      = m.add_parameter("x2", {migraphx::shape::fp4x2_type, {1000, 1024}});
+    auto x1      = m.add_parameter("x1", {migraphx::shape::fp4x2_type, {1, 1024}});
+    auto unpack1 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x1);
+    auto unpack2 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x2);
+    auto trans =
+        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), unpack2);
+    auto mbcast1 =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 32}}}), x3);
+    auto reshape1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2048}}}), mbcast1);
+    auto mbcast2 =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 32, 1000}}}), x4);
+    auto reshape2 =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {2048, 1000}}}), mbcast2);
+    auto qdot =
+        m.add_instruction(migraphx::make_op("quant_dot"), unpack1, trans, reshape1, reshape2);
+    auto add = m.add_instruction(migraphx::make_op("add"), qdot, x5);
     m.add_return({add});
 
     auto s = migraphx::gpu::dump_mlir(m);

@@ -547,6 +547,21 @@ static bool check_sorted(const onnx::GraphProto& graph,
     return true;
 }
 
+static void set_return_ins_debug_symbols(module* mod, const std::vector<std::string>& prog_output_names, instruction_ref ret_ins)
+{
+    int num_width = std::to_string(prog_output_names.size() - 1).size();
+    std::set<std::string> output_symbols;
+    for(auto i : range(prog_output_names.size()))
+    {
+        std::ostringstream oss;
+        oss << "@output_";
+        oss << std::setw(num_width) << std::setfill('0') << i;
+        oss << ":" << prog_output_names[i];
+        output_symbols.insert(oss.str());
+    }
+    mod->add_debug_symbols(ret_ins, output_symbols);
+}
+
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
@@ -671,21 +686,6 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     }
 
     return output_ins;
-}
-
-static void set_return_ins_debug_symbols(module* mod, const std::vector<std::string>& prog_output_names, instruction_ref ret_ins)
-{
-    int num_width = std::to_string(prog_output_names.size() - 1).size();
-    std::set<std::string> output_symbols;
-    for(auto i : range(prog_output_names.size()))
-    {
-        std::ostringstream oss;
-        oss << "@output_";
-        oss << std::setw(num_width) << std::setfill('0') << i;
-        oss << ":\"" << prog_output_names[i] << "\"";
-        output_symbols.insert(oss.str());
-    }
-    mod->add_debug_symbols(ret_ins, output_symbols);
 }
 
 literal onnx_parser::parse_value(const onnx::AttributeProto& attr) const

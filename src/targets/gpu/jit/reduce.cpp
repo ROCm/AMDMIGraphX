@@ -125,7 +125,12 @@ static std::string get_reduce_algo(context& ctx, const std::vector<shape>& input
     });
     if(is_strided_reduce)
         return "lane";
-    if(relements <= ctx.get_current_device().get_wavefront_size())
+    // Prefer "wave" when the reduction fits within a small multiple of the
+    // wavefront: each thread handles `relements / wavefront` elements with
+    // independent accumulator loads (better ILP), and no LDS or cross-wave
+    // barrier is needed.
+    auto wavefront = ctx.get_current_device().get_wavefront_size();
+    if(relements <= wavefront * 8)
         return "wave";
     return "block";
 }
@@ -307,7 +312,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
         fused_reduce<reduce::${algo}, ${reduced}>(y, ${assign}{}, partial(${lambda})(xs...));
     });
 }
-    
+
 }
 
 } // namespace migraphx
@@ -364,9 +369,14 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             {
                 auto subwave_size = v.get("subwave_size", compute_subwave_size(ctx, relements));
                 algo              = "subwave<" + std::to_string(subwave_size) + ">";
-                options.set_launch_params(v,
-                                          compute_global_for(ctx, nelements * subwave_size, 256),
-                                          ctx.get_current_device().get_wavefront_size());
+                // Pack multiple subwaves per workgroup so each WG handles multiple
+                // outputs. This amortizes kernarg loads and lets the compiler
+                // issue independent memory loads across the subwaves in parallel.
+                auto wavefront_size = ctx.get_current_device().get_wavefront_size();
+                std::size_t default_block = std::max<std::size_t>(wavefront_size, 128);
+                auto block_local          = v.get("block_size", default_block);
+                options.set_launch_params(
+                    v, compute_global_for(ctx, nelements * subwave_size, 256), block_local);
             }
         }
         else if(algo == "lane")

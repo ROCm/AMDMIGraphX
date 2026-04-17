@@ -297,7 +297,8 @@ TEST_CASE(test_fallback_event_path_produces_correct_results)
     auto out  = migraphx::fill_argument(out_shape, 0);
     auto gout = migraphx::gpu::to_gpu(out);
 
-    auto results = p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {migraphx::any_ptr{}, true});
+    auto results =
+        p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {migraphx::any_ptr{}, true});
 
     EXPECT(not results.empty());
 

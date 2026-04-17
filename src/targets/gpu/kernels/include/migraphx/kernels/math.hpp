@@ -26,6 +26,7 @@
 
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/vec.hpp>
+#include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
 #include <migraphx/kernels/hip.hpp>
@@ -312,6 +313,14 @@ template <class T, class U>
 constexpr auto convert(U v)
 {
     return vec_transform(v)([](auto x) -> T { return static_cast<T>(x); });
+}
+
+// Element-wise convert on migraphx::array so the array-accumulator path in
+// tile_subwave_parallel can reuse the existing pointwise codegen.
+template <class T, class U, index_int N>
+constexpr auto convert(array<U, N> v)
+{
+    return v.apply([](auto x) { return convert<T>(x); });
 }
 
 template <class T, class U>

@@ -566,6 +566,20 @@ std::string generate_reduce(module m, const std::string& name)
             const auto& x = names.at(ins->inputs().front());
             return "r.inner(op::id{})(" + x + ")";
         }
+        if(ins->name() == "gpu::sched_barrier")
+        {
+            auto mask     = ins->get_operator().to_value()["mask"].to<std::size_t>();
+            const auto& x = names.at(ins->inputs().front());
+            // Emit the intrinsic as a side effect and then yield the input
+            // unchanged (the comma operator preserves the value).
+            return "(__builtin_amdgcn_sched_barrier(" + std::to_string(mask) + "), " + x + ")";
+        }
+        if(ins->name() == "gpu::set_priority")
+        {
+            auto prio     = ins->get_operator().to_value()["priority"].to<std::size_t>();
+            const auto& x = names.at(ins->inputs().front());
+            return "(__builtin_amdgcn_s_setprio(" + std::to_string(prio) + "), " + x + ")";
+        }
         MIGRAPHX_THROW("Unknown operator: " + ins->name());
     });
     f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
@@ -583,7 +597,12 @@ static std::vector<std::string> get_op_names(const module& m)
     {
         if(starts_with(ins.name(), "@"))
             continue;
-        if(contains({"multibroadcast", "contiguous", "identity"}, ins.name()))
+        if(contains({"multibroadcast",
+                     "contiguous",
+                     "identity",
+                     "gpu::sched_barrier",
+                     "gpu::set_priority"},
+                    ins.name()))
             continue;
         if(ins.name() == "pointwise")
         {

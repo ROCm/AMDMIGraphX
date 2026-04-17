@@ -29,11 +29,14 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/op/identity.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REDUCE_SET_PRIORITY);
 
 struct parallel_reduce
 {
@@ -97,6 +100,57 @@ struct make_indices
     }
 };
 MIGRAPHX_REGISTER_OP(make_indices);
+
+// sched_barrier is an identity op that, when emitted by generate_reduce, inserts
+// a `__builtin_amdgcn_sched_barrier(mask)` intrinsic so the compiler cannot move
+// instructions across the barrier that match the mask. Use it to enforce a
+// specific instruction ordering (e.g. keep memory loads issued before compute).
+struct sched_barrier
+{
+    std::size_t mask = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.mask, "mask"));
+    }
+
+    std::string name() const { return "gpu::sched_barrier"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.size() != 1)
+            MIGRAPHX_THROW("gpu::sched_barrier expects exactly 1 input");
+        return inputs.front();
+    }
+};
+MIGRAPHX_REGISTER_OP(sched_barrier);
+
+// set_priority is an identity op that emits `__builtin_amdgcn_s_setprio(priority)`
+// so the wave running the kernel gets the given scheduler priority (0-3). Higher
+// priorities keep the wave on-CU longer relative to peers; insert this at the
+// hot path of a latency-bound reduction so the scheduler favors draining its
+// memory ops.
+struct set_priority
+{
+    std::size_t priority = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.priority, "priority"));
+    }
+
+    std::string name() const { return "gpu::set_priority"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        if(inputs.size() != 1)
+            MIGRAPHX_THROW("gpu::set_priority expects exactly 1 input");
+        return inputs.front();
+    }
+};
+MIGRAPHX_REGISTER_OP(set_priority);
 
 namespace {
 
@@ -190,6 +244,20 @@ void fuse_reductions(module& m)
     m.sort();
 }
 
+// Wrap every reduce instruction's first input with a set_priority(3) identity op
+// so the generated kernel raises its scheduler priority before it issues its
+// global loads. This helps latency-bound reductions where many workgroups are
+// simultaneously waiting on scalar-cache / kernarg traffic.
+void insert_set_priority(module& m, std::size_t priority)
+{
+    for(auto ins : find_reduce(m))
+    {
+        auto input = ins->inputs().front();
+        auto p     = m.insert_instruction(ins, set_priority{priority}, input);
+        instruction::replace_argument(ins, input, p);
+    }
+}
+
 } // namespace
 
 void prepare_reduce::apply(module& m) const
@@ -197,6 +265,10 @@ void prepare_reduce::apply(module& m) const
     // rewrite argmin/argmax to handle tuples
     rewrite_arg_reduce(m);
     fuse_reductions(m);
+    // Experimental: raise scheduler priority at the hot path of each reduce so
+    // the scheduler keeps the wave on-CU instead of context-switching mid-load.
+    if(enabled(MIGRAPHX_REDUCE_SET_PRIORITY{}))
+        insert_set_priority(m, 3);
 }
 
 } // namespace gpu

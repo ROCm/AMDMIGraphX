@@ -270,6 +270,24 @@ struct inner_storage_tag
 template <class T>
 using is_inner_storage = is_base_of<inner_storage_tag, remove_cv_t<remove_reference_t<T>>>;
 
+// is_tile_result detects migraphx::array<T, N>. fused_reduce uses it to fan
+// out one array result into N writes at consecutive output positions.
+template <class T>
+struct is_tile_result : false_type
+{
+};
+template <class T, index_int N>
+struct is_tile_result<array<T, N>> : true_type
+{
+};
+
+template <class T>
+struct tile_result_size;
+template <class T, index_int N>
+struct tile_result_size<array<T, N>> : index_constant<N>
+{
+};
+
 template <class Size, class F>
 struct lazy_inner_storage : inner_storage_tag
 {
@@ -387,7 +405,12 @@ struct reducer_base
     template <class F>
     __device__ auto inner_sliced(F f) const
     {
-        return [=](auto&&... xs) { return f(get_size(xs...), make_inner_slice(xs)...); };
+        // Dispatch make_inner_slice through the derived reducer so subclasses
+        // can override it (e.g. tile_subwave_parallel assembles arrays here).
+        auto&& derived = static_cast<const Derived&>(*this);
+        return [f, &derived](auto&&... xs) {
+            return f(derived.get_size(xs...), derived.make_inner_slice(xs)...);
+        };
     }
 
     template <class T>
@@ -662,6 +685,165 @@ struct subwave
 
 using wave = subwave<MIGRAPHX_WAVEFRONTSIZE>;
 
+// tile_subwave distributes the same work as subwave but each workgroup handles
+// TileSize consecutive outputs per subwave. The loop over tiles is explicitly
+// unrolled so the compiler can interleave loads of the later tiles with the
+// DPP reduction and final store of the earlier tiles. Since there are no LDS
+// barriers, this amortizes kernarg loads over more work and gives more
+// memory-level parallelism per workgroup.
+template <index_int TileSize, unsigned int SubWaveSize>
+struct tile_subwave : subwave<SubWaveSize>
+{
+    template <class Output, class F>
+    static __device__ void run(F f)
+    {
+        auto idx                 = make_index();
+        constexpr auto nelements = get_shape_c<Output>{}.elements();
+        static_assert(nelements % TileSize == 0,
+                      "tile_subwave requires output nelements divisible by TileSize");
+        constexpr auto n_groups = nelements / TileSize;
+        idx.global_stride(n_groups * idx.nlocal_subwave<SubWaveSize>(), [&](auto i) {
+            const auto group = i / idx.nlocal_subwave<SubWaveSize>();
+#pragma unroll
+            for(index_int t = 0; t < TileSize; ++t)
+            {
+                const auto out_idx = get_shape_c<Output>{}.multi(group * TileSize + t);
+                f(out_idx, subwave<SubWaveSize>::make(idx, [=](auto input) {
+                      return reduce_slice<Output>(input, out_idx);
+                  }));
+            }
+        });
+    }
+};
+
+// tile_subwave_parallel distributes TileSize outputs per subwave as *parallel*
+// accumulators: each thread holds an array<T, TileSize>, and at every reduction
+// step it reads one value from each of TileSize sliced input views (one per
+// output position). All TileSize chains issue their loads independently, so
+// the compiler can schedule them together (no register-reuse serialization).
+// The reduce returns an array<T, TileSize>; fused_reduce fans that out into
+// TileSize stores. op::sum, op::max, etc. already work element-wise on
+// array<T, N>, and dpp_op's union-reinterpret handles arrays up to 16 bytes.
+template <index_int TileSize, unsigned int SubWaveSize>
+struct tile_subwave_parallel
+{
+    template <class Slicer>
+    struct reducer : reducer_base<reducer<Slicer>>
+    {
+        index idx;
+        Slicer slice; // Returns array<tensor_view, TileSize>
+
+        // Replace the single-slice accessor in reducer_base: each call returns
+        // array<T, TileSize> assembled from the TileSize parallel slices.
+        template <class T>
+        __device__ decltype(auto) make_inner_slice(T&& x) const
+        {
+            if constexpr(is_inner_storage<T>{})
+            {
+                return static_cast<T&&>(x);
+            }
+            else
+            {
+                auto slices = this->slice(x); // array<tensor_view, TileSize>
+                using slice_type   = remove_cv_t<remove_reference_t<decltype(slices[0])>>;
+                using element_type = typename slice_type::type;
+                using array_type   = array<element_type, TileSize>;
+                return make_storage_access<array_type>([slices](auto i, auto...) {
+                    array_type result{};
+#pragma unroll
+                    for(index_int t = 0; t < TileSize; ++t)
+                    {
+                        result[t] = slices[t][i];
+                    }
+                    return result;
+                });
+            }
+        }
+
+        template <class Op, class T, class Read, class N, class... Ts>
+        __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
+        {
+            return subwave_reduce<SubWaveSize>(idx, op, init, n, [&](auto j, auto d) {
+                return final_reduce(read(xs(j, d)...), op);
+            });
+        }
+
+        template <class F>
+        __device__ void outer(F f) const
+        {
+            if(idx.local_subwave<SubWaveSize>() == 0)
+                f();
+        }
+
+        template <class T, index_int N, class Size>
+        struct inner_storage : inner_storage_tag
+        {
+            using type = T;
+            array<T, N> arr;
+            constexpr Size rsize() const { return {}; }
+            template <class U, class V>
+            constexpr auto& operator()(U, V d) const
+            {
+                return arr[d];
+            }
+            template <class U, class V>
+            constexpr auto& operator()(U, V d)
+            {
+                return arr[d];
+            }
+        };
+
+        template <class F, class N, class... Ts>
+        __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
+        {
+            idx.local_subwave_stride<SubWaveSize>(n, [&](auto j, auto d) { f(xs(j, d)...); });
+        }
+
+        template <class R, class F, class N, class... Ts>
+        __device__ auto inner_impl(F f, N n, Ts&&... xs) const
+        {
+            using max_iterations =
+                decltype(idx.max_local_subwave_stride_iterations<SubWaveSize>(n));
+            inner_storage<R, max_iterations{}, N> storage;
+            idx.local_subwave_stride<SubWaveSize>(
+                n, [&](auto j, auto d) { storage(j, d) = f(xs(j, d)...); });
+            return storage;
+        }
+    };
+
+    template <class Slicer>
+    static __device__ auto make(index idx, Slicer slicer)
+    {
+        return reducer<Slicer>{{}, idx, slicer};
+    }
+
+    template <class Output, class F>
+    static __device__ void run(F f)
+    {
+        auto idx                 = make_index();
+        constexpr auto nelements = get_shape_c<Output>{}.elements();
+        static_assert(nelements % TileSize == 0,
+                      "tile_subwave_parallel requires output nelements divisible by TileSize");
+        constexpr auto n_groups = nelements / TileSize;
+        idx.global_stride(n_groups * idx.nlocal_subwave<SubWaveSize>(), [&](auto i) {
+            const auto group     = i / idx.nlocal_subwave<SubWaveSize>();
+            const auto base_flat = group * TileSize;
+            const auto out_idx   = get_shape_c<Output>{}.multi(base_flat);
+            f(out_idx, make(idx, [=](auto input) {
+                  using slice_type = decltype(reduce_slice<Output>(input, out_idx));
+                  array<slice_type, TileSize> slices;
+#pragma unroll
+                  for(index_int t = 0; t < TileSize; ++t)
+                  {
+                      const auto idx_t = get_shape_c<Output>{}.multi(base_flat + t);
+                      slices[t]        = reduce_slice<Output>(input, idx_t);
+                  }
+                  return slices;
+              }));
+        });
+    }
+};
+
 struct lane
 {
     template <class Slicer>
@@ -766,9 +948,25 @@ __device__ void fused_reduce(Output output_pack, Assign assign, F f)
         auto result_tuple = f(r, out_idx);
         unpack_each(
             [&](auto output, auto result) {
+                using result_t = remove_cv_t<remove_reference_t<decltype(result)>>;
                 if constexpr(reduce::is_inner_storage<decltype(result)>{})
                 {
                     r.inner([&](auto& y, auto x) { assign(y, x); })(output, result);
+                }
+                else if constexpr(reduce::is_tile_result<result_t>{})
+                {
+                    // tile_subwave_parallel returns an array<T, TileSize>: fan out
+                    // to TileSize consecutive output positions starting at out_idx.
+                    constexpr index_int tile_size = reduce::tile_result_size<result_t>{};
+                    r.outer([&] {
+                        const auto base_flat = get_shape_c<Reduced>{}.index(out_idx);
+#pragma unroll
+                        for(index_int t = 0; t < tile_size; ++t)
+                        {
+                            const auto out_idx_t = get_shape_c<Reduced>{}.multi(base_flat + t);
+                            assign(output[out_idx_t], implicit_conversion(result[t]));
+                        }
+                    });
                 }
                 else
                 {

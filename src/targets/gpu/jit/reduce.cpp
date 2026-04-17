@@ -368,7 +368,52 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             else
             {
                 auto subwave_size = v.get("subwave_size", compute_subwave_size(ctx, relements));
-                algo              = "subwave<" + std::to_string(subwave_size) + ">";
+                // Optional output tiling. Two strategies:
+                //   - "tile_subwave" (sequential): each subwave runs `output_tile`
+                //     reductions back-to-back (unrolled).
+                //   - "tile_subwave_parallel" (parallel accumulators): each thread
+                //     holds array<T, output_tile> and every reduction step reads
+                //     from `output_tile` slices in parallel; results fan out into
+                //     `output_tile` stores. The parallel form breaks the single-
+                //     accumulator register chain so the compiler can issue all
+                //     loads together instead of serializing per tile.
+                // output_tile chooses tile_subwave_parallel which maintains
+                // TileSize parallel accumulators per thread. Only safe on
+                // simple single-reduce modules (auto_tile_ok signaled by
+                // compile()); ignored otherwise.
+                bool auto_tile_ok = v.get("auto_tile_ok", false) and noutputs == 1;
+                std::size_t auto_tile = 1;
+                if(auto_tile_ok)
+                {
+                    auto cu_count = ctx.get_current_device().get_cu_count();
+                    // Each WG produces (subwaves_per_wg * tile) outputs. With
+                    // block=128 / wavefront=32 that's 4*tile; on wavefront=64
+                    // it's 2*tile. Target ~1 WG/CU after tiling.
+                    auto subwaves_per_wg = std::max<std::size_t>(1, 128 / subwave_size);
+                    auto target = nelements / std::max<std::size_t>(1, subwaves_per_wg * cu_count);
+                    for(std::size_t cand : {4, 2})
+                    {
+                        if(target >= cand and nelements % cand == 0)
+                        {
+                            auto_tile = cand;
+                            break;
+                        }
+                    }
+                }
+                auto output_tile = v.get("output_tile", auto_tile);
+                auto tile_mode   = v.get("tile_mode", std::string{"parallel"});
+                if(output_tile > 1 and nelements % output_tile == 0)
+                {
+                    const auto algo_name =
+                        tile_mode == "sequential" ? "tile_subwave" : "tile_subwave_parallel";
+                    algo = std::string{algo_name} + "<" + std::to_string(output_tile) + ", " +
+                           std::to_string(subwave_size) + ">";
+                }
+                else
+                {
+                    algo        = "subwave<" + std::to_string(subwave_size) + ">";
+                    output_tile = 1;
+                }
                 // Pack multiple subwaves per workgroup so each WG handles multiple
                 // outputs. This amortizes kernarg loads and lets the compiler
                 // issue independent memory loads across the subwaves in parallel.
@@ -376,7 +421,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 std::size_t default_block = std::max<std::size_t>(wavefront_size, 128);
                 auto block_local          = v.get("block_size", default_block);
                 options.set_launch_params(
-                    v, compute_global_for(ctx, nelements * subwave_size, 256), block_local);
+                    v,
+                    compute_global_for(ctx, nelements * subwave_size / output_tile, 256),
+                    block_local);
             }
         }
         else if(algo == "lane")
@@ -418,6 +465,22 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         });
         if(has_arg_reduce)
             v["no_vectorize"] = true;
+        // Signal to compile_op whether auto-tiling is safe. It is safe only
+        // when the module has exactly one reduce (so the array-accumulator
+        // path has a single accumulator chain to tile), no arg-reduce, and no
+        // parallel_reduce (which already uses arrays via the read wrapping).
+        if(not v.contains("auto_tile_ok"))
+        {
+            auto n_reduce = std::count_if(rm->begin(), rm->end(), [](const auto& i) {
+                return contains(i.name(), "reduce") and not starts_with(i.name(), "gpu::");
+            });
+            bool has_gpu_tuple_reduce =
+                std::any_of(rm->begin(), rm->end(), [](const auto& i) {
+                    return i.name() == "gpu::parallel_reduce" or i.name() == "gpu::arg_reduce";
+                });
+            v["auto_tile_ok"] =
+                n_reduce == 1 and not has_gpu_tuple_reduce and not has_arg_reduce;
+        }
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";

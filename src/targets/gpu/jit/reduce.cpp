@@ -372,7 +372,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 // Pack multiple subwaves per workgroup so each WG handles multiple
                 // outputs. This amortizes kernarg loads and lets the compiler
                 // issue independent memory loads across the subwaves in parallel.
-                auto wavefront_size = ctx.get_current_device().get_wavefront_size();
+                auto wavefront_size       = ctx.get_current_device().get_wavefront_size();
                 std::size_t default_block = std::max<std::size_t>(wavefront_size, 128);
                 auto block_local          = v.get("block_size", default_block);
                 options.set_launch_params(

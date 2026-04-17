@@ -27,6 +27,7 @@ Full documentation for MIGraphX is available at
 * Updated the ONNX clip operator to support opset 13 (#4518).
 * Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
 * Replaced usages of `std::cout` and `std::cerr` with the logger (#4732)
+* Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
 
 ### Resolved issues
 

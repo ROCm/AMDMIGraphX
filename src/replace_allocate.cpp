@@ -86,16 +86,17 @@ std::unordered_map<instruction_ref, std::string> create_output_names(const modul
 }
 
 // Get debug symbols for output parameters from the `return` instruction
-std::unordered_map<instruction_ref, std::set<std::string>> get_output_debug_symbols(const module& mod)
+std::unordered_map<instruction_ref, std::set<std::string>>
+get_output_debug_symbols(const module& mod)
 {
     std::unordered_map<instruction_ref, std::set<std::string>> mod_output_debug_symbols;
-    auto last_ins     = std::prev(mod.end());
+    auto last_ins = std::prev(mod.end());
     if(mod.has_debug_symbols() and last_ins->name() == "@return" and
        not last_ins->get_debug_symbols().empty())
     {
         auto alloc_aliases = get_alloc_aliases(mod);
 
-        std::size_t index = 0;
+        std::size_t index          = 0;
         const auto& output_symbols = last_ins->get_debug_symbols();
         for(const auto& os : range(output_symbols.begin(), output_symbols.end()))
         {
@@ -169,7 +170,7 @@ void replace_allocate::apply(module_pass_manager& mpm) const
     }
     if(not root_offload_copy and model.needs_out_params())
         insert_copy(m, model);
-    auto mod_output_names = create_output_names(m);
+    auto mod_output_names         = create_output_names(m);
     auto mod_output_debug_symbols = get_output_debug_symbols(m);
     for(auto ins : iterator_for(m))
     {

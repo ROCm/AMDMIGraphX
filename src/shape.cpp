@@ -244,6 +244,24 @@ struct shape_impl
         return std::accumulate(strides.begin(), strides.end(), zero) == zero;
     }
 
+    // Check if strides are in descending order, which is a
+    // requirement for a shape to be considered standard layout.
+    //
+    // For symbolic strides (sym::expr), std::is_sorted cannot be used directly
+    // because sym::expr::operator< performs interval-based comparison: it
+    // evaluates the difference at the min and max of all variables' ranges. When
+    // a symbolic dimension variable has min=1, it can take unit value, collapsing
+    // stride products and making the comparison undetermined or wrong.
+    //
+    // Example: strides {1, n, n*c} with n in [1,8], c in [1,16].
+    //   Comparing n vs n*c: diff = n*c - n = n*(c-1).
+    //   At all-min (n=1,c=1): diff=0.  At all-max (n=8,c=16): diff=120.
+    //   operator< sees range [0,120] -- neither strictly positive nor
+    //   non-positive -- and throws "undetermined". But the shape is clearly
+    //   transposed for all non-degenerate dimension values.
+    //
+    // To avoid these issues, symbolic strides are evaluated at their max variable
+    // values where no dimension is degenerate (unit), then sorted concretely.
     template <class T>
     static bool is_sorted_strides(const std::vector<T>& strides)
     {

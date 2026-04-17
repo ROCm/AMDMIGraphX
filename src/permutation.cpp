@@ -54,6 +54,11 @@ std::vector<int64_t> find_permutation(const shape& s)
     std::iota(result.begin(), result.end(), 0);
     if(s.symbolic())
     {
+        // Evaluate symbolic strides/dims at their interval max to get concrete
+        // values for sorting. We use max rather than min because when min=1,
+        // stride products collapse (e.g. n*c with n=1,c=1 gives 1) making
+        // distinct strides appear equal. Max values preserve the structural
+        // ordering. See is_sorted_strides comment in shape.cpp.
         const auto& strides = s.dyn_strides();
         const auto& dds     = s.dyn_dims();
         std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {

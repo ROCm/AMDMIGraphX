@@ -547,7 +547,9 @@ static bool check_sorted(const onnx::GraphProto& graph,
     return true;
 }
 
-static void set_return_ins_debug_symbols(module* mod, const std::vector<std::string>& prog_output_names, instruction_ref ret_ins)
+static void set_return_ins_debug_symbols(module* mod,
+                                         const std::vector<std::string>& prog_output_names,
+                                         instruction_ref ret_ins)
 {
     int num_width = std::to_string(prog_output_names.size() - 1).size();
     std::set<std::string> output_symbols;

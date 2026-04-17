@@ -93,6 +93,18 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 
+namespace {
+
+bool prefer_channels_last(const context& ctx)
+{
+    if(not env(MIGRAPHX_ENABLE_NHWC::value()).empty())
+        return enabled(MIGRAPHX_ENABLE_NHWC{});
+
+    return gfx_prefers_nhwc_layout(ctx.get_current_device().get_gfx_name());
+}
+
+} // namespace
+
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);
@@ -131,7 +143,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         rewrite_gelu{options.fast_math},
         optimize_module{},
-        layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
+        layout_convolution{.channels_last = prefer_channels_last(ctx) and not options.disable_nhwc},
         dead_code_elimination{},
         fuse_horizontal{},
         dead_code_elimination{},
@@ -162,6 +174,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         fuse_concat{},
         dead_code_elimination{},
         auto_contiguous{},
+        dead_code_elimination{},
+        eliminate_contiguous{"contiguous"},
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},

@@ -48,6 +48,22 @@ TEST_CASE(gpu_context_serialize)
     EXPECT(v == v1);
 }
 
+TEST_CASE(gpu_context_recommended_stream_count)
+{
+    EXPECT(migraphx::gpu::recommend_stream_count_for_compute_units(16) == 1);
+    EXPECT(migraphx::gpu::recommend_stream_count_for_compute_units(32) == 2);
+    EXPECT(migraphx::gpu::recommend_stream_count_for_compute_units(64) == 3);
+    EXPECT(migraphx::gpu::recommend_stream_count_for_compute_units(96) == 4);
+}
+
+TEST_CASE(gpu_context_default_stream_count_matches_heuristic)
+{
+    migraphx::gpu::context ctx{0};
+    auto expected = migraphx::gpu::resolve_stream_count(0);
+    auto streams  = ctx.to_value().at("streams").without_key().to<std::size_t>();
+    EXPECT(streams == expected);
+}
+
 TEST_CASE(context_queue)
 {
     migraphx::context ctx = migraphx::gpu::context{0, 3};

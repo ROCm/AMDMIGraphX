@@ -30,6 +30,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/compile_options.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/program.hpp>
@@ -134,7 +135,9 @@ static void quantize_8bits(program& prog,
 
     // use the calibration data to compute the quantization scale
     auto capture_prog = prog;
-    capture_prog.compile(t);
+    compile_options capture_compile_options;
+    capture_compile_options.disable_nhwc = true;
+    capture_prog.compile(t, capture_compile_options);
 
     // use all calibration data to run the program to calculate the
     // quantization scale and shift

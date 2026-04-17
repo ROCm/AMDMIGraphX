@@ -163,6 +163,7 @@ add_library(migraphx_gpu
     compile_miopen.cpp
     compile_pointwise.cpp
     compiler.cpp
+    cross_compile_device.cpp
     device_name.cpp
     eliminate_data_type_for_gpu.cpp
     fixed_pad.cpp

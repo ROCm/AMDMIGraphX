@@ -262,12 +262,8 @@ if(MIGRAPHX_ENABLE_MLIR)
     # Make this private to avoid multiple inclusions of LLVM symbols.
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
     # Hide LLVM internals that come from rocMLIR.
-    if(NOT WIN32 AND NOT APPLE)
-        if(BUILD_SHARED_LIBS)
-            target_link_options(migraphx_gpu PRIVATE "-Wl,--exclude-libs,ALL")
-        else()
-            target_compile_options(migraphx_gpu PRIVATE -fvisibility=hidden)
-        endif()
+    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
+        target_link_options(migraphx_gpu PRIVATE "-Wl,--exclude-libs,ALL")
     endif()
 endif()
 

@@ -51,6 +51,10 @@ file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
 target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
 
 if(NOT BUILD_SHARED_LIBS)
+    # Static archives only pull in objects that resolve undefined symbols.
+    # MIGRAPHX_REGISTER_OP/MIGRAPHX_REGISTER_TARGET use static initializers
+    # in translation units with no other referenced symbols, so the linker
+    # drops them without --whole-archive.
     target_link_libraries(driver
         -Wl,--whole-archive
         $<TARGET_FILE:migraphx>

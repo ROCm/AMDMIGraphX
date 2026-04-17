@@ -73,19 +73,6 @@ endif()
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 
-if(NOT BUILD_SHARED_LIBS)
-    add_compile_definitions(
-        MIGRAPHX_STATIC_DEFINE
-        MIGRAPHX_C_STATIC_DEFINE
-        MIGRAPHX_GPU_STATIC_DEFINE
-        MIGRAPHX_DEVICE_STATIC_DEFINE
-        MIGRAPHX_REF_STATIC_DEFINE
-        MIGRAPHX_ONNX_STATIC_DEFINE
-        MIGRAPHX_TF_STATIC_DEFINE
-        MIGRAPHX_STATIC_TARGETS
-    )
-endif()
-
 option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
 
 # Strip symbols for release

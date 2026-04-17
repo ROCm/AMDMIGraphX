@@ -337,6 +337,10 @@ rocm_install_targets(
 )
 target_link_libraries(migraphx PUBLIC migraphx_version)
 
+if(NOT BUILD_SHARED_LIBS)
+    target_compile_definitions(migraphx PRIVATE MIGRAPHX_STATIC_TARGETS)
+endif()
+
 if(NOT WIN32)
     check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
     if(HAS_LIB_STD_FILESYSTEM)

@@ -1,27 +1,30 @@
 FROM ubuntu:24.04
 
 ARG GPU_ARCH=gfx120x
-ARG ROCM_RELEASE_URL=https://rocm.nightlies.amd.com/deb/20260401-23832802691
+ARG ROCM_RELEASE_URL=https://rocm.nightlies.amd.com/deb/20260414-24379014014
 
 # Support multiarch
 RUN dpkg --add-architecture i386
 
-# Install rocm key
-RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
-    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
+# Install apt repository signing key for LLVM.
+# ROCm nightlies do not serve a signed Release file yet, so we cannot use
+# signed-by= for them and no ROCm key is imported here.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates gnupg2 curl && \
+    curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg
 
-# Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] ${ROCM_RELEASE_URL} stable main > /etc/apt/sources.list.d/rocm.list'
+# Add rocm repository.
+# ROCm nightlies currently serve an unsigned Release (no InRelease / Release.gpg),
+# so trusted=yes is required. Switch to signed-by= once upstream signs the repo.
+RUN sh -c "echo deb [arch=amd64 trusted=yes] ${ROCM_RELEASE_URL} stable main > /etc/apt/sources.list.d/rocm.list"
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
 
 # Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
-RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
-    add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main"
+RUN sh -c "echo deb [arch=amd64 signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main > /etc/apt/sources.list.d/llvm.list"
 
 # Install dependencies
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     apt-utils \
     bison \
     build-essential \
@@ -48,7 +51,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rm -rf /var/lib/apt/lists/*
 
 # Install rocm libraries
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     amdrocm-runtime \
     amdrocm-runtime-dev \
     amdrocm-llvm \

@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/memory_coloring.hpp>
+#include <migraphx/logger.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
@@ -161,6 +162,8 @@ struct dynamic_code_object_op
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation
         module static_submod;
+        auto op_name          = any_cast<precompile_op>(pre_op).op.name();
+        auto runtime_mod_name = "runtime_mod:" + op_name;
         if(not module_args.empty())
         {
             auto pnames = module_args.front()->get_parameter_names();
@@ -174,11 +177,11 @@ struct dynamic_code_object_op
                            });
             static_submod = module_args.front()->with_static_shapes(mod_arg_shapes);
             static_submod.set_bypass(true);
+            runtime_mod_name = "runtime_mod:" + module_args.front()->name();
         }
 
         // Create runtime module which will be compiled and cached
-        auto name        = "runtime_mod:" + module_args.front()->name();
-        auto runtime_mod = module(name);
+        auto runtime_mod = module(runtime_mod_name);
         std::vector<instruction_ref> args_ins;
         std::vector<size_t> idx(static_args.size());
         std::iota(std::begin(idx), std::end(idx), 0);
@@ -187,8 +190,8 @@ struct dynamic_code_object_op
                        idx.begin(),
                        std::back_inserter(args_ins),
                        [&](const auto& arg, const auto& i) {
-                           return runtime_mod.add_parameter(name + ":x" + std::to_string(i),
-                                                            arg.get_shape());
+                           return runtime_mod.add_parameter(
+                               runtime_mod_name + ":x" + std::to_string(i), arg.get_shape());
                        });
         instruction_ref ins;
         if(not module_args.empty())
@@ -303,7 +306,7 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}))
+                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
@@ -454,7 +457,7 @@ struct compile_plan
         auto skipped = std::count_if(
             results.begin(), results.end(), [](const auto& cr) { return not cr.has_value(); });
         if(skipped > 0)
-            std::cout << "Skipped " << skipped << " configs for " << preop.name() << std::endl;
+            log::info() << "Skipped " << skipped << " configs for " << preop.name();
 
         return *results[i];
     }

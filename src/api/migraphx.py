@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -369,6 +369,11 @@ def onnx_options(h):
         'set_external_data_path',
         api.params(external_data_path='const char*'),
         invoke='migraphx::set_external_data_path($@)',
+    )
+    h.method(
+        'set_use_debug_symbols',
+        api.params(value='bool'),
+        invoke='migraphx::set_use_debug_symbols($@)',
     )
 
 

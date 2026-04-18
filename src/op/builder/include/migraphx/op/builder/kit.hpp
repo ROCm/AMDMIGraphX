@@ -25,10 +25,7 @@ struct kit : auto_register<register_kit_action, T>
 {
     void apply() const {}
 
-    std::string derived_prefix() const
-    {
-        return static_cast<const T&>(*this).prefix();
-    }
+    std::string derived_prefix() const { return static_cast<const T&>(*this).prefix(); }
 
     op_builder_if from_op(const std::string& op_name) const
     {
@@ -37,11 +34,10 @@ struct kit : auto_register<register_kit_action, T>
                                  const std::vector<instruction_ref>& args,
                                  const std::vector<module_ref>& module_args,
                                  const value& options) -> std::vector<instruction_ref> {
-                                auto opd = make_op(op_name, options);
-                                return {m.insert_instruction(ins, opd, args, module_args)};
-                           },
-                           [=] { return make_op(op_name).to_value(); }};
-
+                                 auto opd = make_op(op_name, options);
+                                 return {m.insert_instruction(ins, opd, args, module_args)};
+                             },
+                             [=] { return make_op(op_name).to_value(); }};
     }
 
     op_builder_if from_builder(const std::string& op_builder) const
@@ -56,12 +52,10 @@ struct kit : auto_register<register_kit_action, T>
                                  const std::vector<instruction_ref>& args,
                                  const std::vector<module_ref>& module_args,
                                  const value& options) {
-                                
-                                auto cargs = insert_common_args(m, ins, args, coptions);
-                                return obi.bld_func(m, ins, cargs, module_args, options);
-                           },
-                           [=] { return obi.to_val_func(); }};
-
+                                 auto cargs = insert_common_args(m, ins, args, coptions);
+                                 return obi.bld_func(m, ins, cargs, module_args, options);
+                             },
+                             [=] { return obi.to_val_func(); }};
     }
 
     void ops(const std::initializer_list<std::string>& op_names) const
@@ -72,7 +66,8 @@ struct kit : auto_register<register_kit_action, T>
         }
     }
 
-    void common_ops(const std::initializer_list<std::string>& op_names, common_options coptions = {}) const
+    void common_ops(const std::initializer_list<std::string>& op_names,
+                    common_options coptions = {}) const
     {
         for(const auto& name : op_names)
         {

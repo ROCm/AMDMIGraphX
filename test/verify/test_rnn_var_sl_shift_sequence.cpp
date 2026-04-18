@@ -21,42 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
-#define MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/nonzero.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include <migraphx/serialize.hpp>
 
-struct context;
+#include <migraphx/op/common.hpp>
 
-struct hip_nonzero
+struct test_rnn_var_sl_shift_sequence : verify_program<test_rnn_var_sl_shift_sequence>
 {
-    op::nonzero op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    migraphx::program create_program() const
     {
-        return migraphx::reflect(self.op, f);
-    }
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape hs_shape{migraphx::shape::float_type, {4, 3, 8}};
+        migraphx::shape sl_shape{migraphx::shape::int32_type, {3}};
 
-    std::string name() const { return "gpu::nonzero"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
+        auto hs = mm->add_parameter("hidden_states", hs_shape);
+        auto sl = mm->add_literal(migraphx::literal{sl_shape, {4, 2, 3}});
+        mm->add_instruction(migraphx::make_op("rnn_var_sl_shift_sequence"), hs, sl);
+        return p;
     }
+    std::string section() const { return "rnn"; }
 };
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif

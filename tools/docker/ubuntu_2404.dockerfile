@@ -7,17 +7,17 @@ RUN dpkg --add-architecture i386
 
 # Install rocm key
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
-    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
+    curl -fsSL http://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm-keyring.gpg
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.1.1/ noble main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c "echo 'deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/rocm-keyring.gpg] http://repo.radeon.com/rocm/apt/7.1.1/ noble main' > /etc/apt/sources.list.d/rocm.list"
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
 
 # Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
-RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
-    add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main"
+RUN curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /etc/apt/trusted.gpg.d/llvm-archive-keyring.gpg && \
+    sh -c "echo 'deb [signed-by=/etc/apt/trusted.gpg.d/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main' > /etc/apt/sources.list.d/llvm-toolchain-noble-17.list"
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
@@ -131,5 +131,5 @@ ENV LD_LIBRARY_PATH=$PREFIX/lib
 ENV UBSAN_OPTIONS=print_stacktrace=1
 # Disable odr detection since its broken with shared libraries
 # See: https://github.com/google/sanitizers/issues/1017
-ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
+ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1:detect_odr_violation=0
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer

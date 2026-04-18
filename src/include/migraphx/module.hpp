@@ -24,9 +24,6 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MODULE_HPP
 
-#include <list>
-#include <unordered_set>
-#include <unordered_map>
 #include <migraphx/operation.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/builtin.hpp>
@@ -38,6 +35,10 @@
 #include <migraphx/config.hpp>
 #include <algorithm>
 #include <iostream>
+#include <list>
+#include <set>
+#include <unordered_set>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -81,6 +82,13 @@ struct MIGRAPHX_EXPORT module
     bool bypass() const;
     void set_bypass(bool b = true);
 
+    /// If any instructions in this module have debug symbols
+    bool has_debug_symbols() const;
+    /// Merge given symbols with instruction's symbols
+    void add_debug_symbols(instruction_ref ins, const std::set<std::string>& symbols);
+    /// Clear all debug symbols from instruction
+    void remove_debug_symbols(instruction_ref ins);
+
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_same<Ts, instruction_ref>{}...)>
     instruction_ref add_instruction(operation op, Ts... args)
     {
@@ -113,14 +121,27 @@ struct MIGRAPHX_EXPORT module
     }
     instruction_ref replace_instruction(instruction_ref ins,
                                         const operation& op,
-                                        std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST;
+                                        std::vector<instruction_ref> args);
 
     instruction_ref replace_instruction(instruction_ref ins,
                                         const operation& op,
                                         std::vector<instruction_ref> args,
-                                        std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST;
+                                        std::vector<module_ref> module_args);
 
     instruction_ref replace_instruction(instruction_ref ins, instruction_ref rep);
+
+    struct instruction_replacement
+    {
+        instruction_ref ins;
+        operation op;
+        std::vector<instruction_ref> args;
+        std::vector<module_ref> module_args;
+    };
+
+    /// Replaces an array of instructions within the same function to properly handle debug symbols
+    /// propagation. Returns vector of instruction_ref to replaced instructions.
+    std::vector<instruction_ref>
+    batch_replace_instruction(const std::vector<instruction_replacement>& replacers);
 
     instruction_ref remove_instruction(instruction_ref ins);
     instruction_ref remove_instructions(instruction_ref first, instruction_ref last);
@@ -214,7 +235,7 @@ struct MIGRAPHX_EXPORT module
         std::vector<std::size_t> scalar_const_out_lens = {};
     };
 
-    /// Compute a new ouput shape by replacing each parameter with input
+    /// Compute a new output shape by replacing each parameter with input
     /// shapes passed in.
     std::vector<shape> compute_shapes(const std::vector<shape>& inputs,
                                       compute_shapes_options options) const;

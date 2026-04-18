@@ -63,13 +63,13 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Layernorm fusion is not used.
 
-  * - | ``MIGRAPHX_DISABLE_MIOPEN_POOLING``
-      | When set, MIGraphX pooling is used instead of MIOpen pooling.
+  * - | ``MIGRAPHX_ENABLE_MIOPEN_POOLING``
+      | When set, MIOpen pooling is used instead of MIGraphX pooling.
       
-    - | ``1``: Use MIGraphX pooling.
+    - | ``1``: Use MIOpen pooling.
       | ``0``: Returns to default behavior.
 
-      | Default: MIOpen pooling is used.
+      | Default: MIGraphX pooling is used.
 
   * - | ``MIGRAPHX_USE_FAST_SOFTMAX``
       | Turns on fast softmax optimization to speed up softmax computations.
@@ -733,5 +733,13 @@ Advanced settings
       | Sets the number of timing runs for each configuration bundle being benchmarked. 
       
     - Takes a positive integer.
+
+  * - | ``MIGRAPHX_SKIP_BENCHMARKING``
+      | When set, skips MIGraphX and rocMLIR kernel benchmarking and compiles with the first available solution.
+      
+    - | ``1``: Skip benchmarking.
+      | ``0``: Returns to default behavior.
+
+      | Default: Benchmarking is not skipped.
 
 

@@ -37,6 +37,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REDUCE_SET_PRIORITY);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REDUCE_SET_PRIORITY_VALUE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REDUCE_SCHED_BARRIER);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REDUCE_SCHED_BARRIER_MASK);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REDUCE_HINT_AT);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REDUCE_PRIORITY_BRACKET);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REDUCE_PRIORITY_BRACKET_HI);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_REDUCE_PRIORITY_BRACKET_LO);
 
 struct parallel_reduce
 {
@@ -244,17 +251,90 @@ void fuse_reductions(module& m)
     m.sort();
 }
 
-// Wrap every reduce instruction's first input with a set_priority(3) identity op
-// so the generated kernel raises its scheduler priority before it issues its
-// global loads. This helps latency-bound reductions where many workgroups are
-// simultaneously waiting on scalar-cache / kernarg traffic.
-void insert_set_priority(module& m, std::size_t priority)
+// Insert a scheduler-hint op (gpu::set_priority or gpu::sched_barrier) into the
+// reduce module at a configurable insertion point. The insertion wraps one of
+// the reduce instruction's inputs so the side-effecting intrinsic fires at a
+// specific point in the generated C++ (before-reduce, after-reduce, etc.).
+//
+// `hint_at` values:
+//   "reduce" (default): wrap the reduce's input (fires after pointwise, before
+//                       the reduce operator is evaluated)
+//   "first":  wrap the first non-param op's first input (fires first in the
+//             fused_reduce_op body)
+//   "pre_write": wrap the reduce's output (fires after reduce, before the
+//                outer-write lambda)
+//   "all":    wrap both the first op's input and the reduce's input
+enum class hint_location
+{
+    reduce_input,
+    first_op,
+    reduce_output,
+    all
+};
+
+static hint_location parse_hint_location(const std::string& s)
+{
+    if(s == "first")
+        return hint_location::first_op;
+    if(s == "pre_write")
+        return hint_location::reduce_output;
+    if(s == "all")
+        return hint_location::all;
+    return hint_location::reduce_input;
+}
+
+template <class InsertOp>
+static void wrap_reduce_input(module& m, InsertOp make_inst)
 {
     for(auto ins : find_reduce(m))
     {
         auto input = ins->inputs().front();
-        auto p     = m.insert_instruction(ins, set_priority{priority}, input);
+        auto p     = m.insert_instruction(ins, make_inst(), input);
         instruction::replace_argument(ins, input, p);
+    }
+}
+
+template <class InsertOp>
+static void wrap_reduce_output(module& m, InsertOp make_inst)
+{
+    for(auto ins : find_reduce(m))
+    {
+        // Insert immediately after the reduce; redirect all downstream users.
+        auto p = m.insert_instruction(std::next(ins), make_inst(), ins);
+        m.replace_instruction(ins, p);
+        // The replace above substitutes `p` for all external references to
+        // `ins`, but `p` itself depends on `ins`, so the chain is intact.
+    }
+}
+
+template <class InsertOp>
+static void wrap_first_op(module& m, InsertOp make_inst)
+{
+    auto it = std::find_if(m.begin(), m.end(), [](const auto& i) {
+        return i.name() != "@param" and i.name() != "@literal";
+    });
+    if(it == m.end() or it->inputs().empty())
+        return;
+    auto first_input = it->inputs().front();
+    if(first_input->name() != "@param" and first_input->name() != "@literal")
+        return;
+    auto p = m.insert_instruction(it, make_inst(), first_input);
+    instruction::replace_argument(it, first_input, p);
+}
+
+template <class InsertOp>
+static void insert_hint(module& m, hint_location where, InsertOp make_inst)
+{
+    switch(where)
+    {
+    case hint_location::first_op: wrap_first_op(m, make_inst); break;
+    case hint_location::reduce_output: wrap_reduce_output(m, make_inst); break;
+    case hint_location::all:
+        wrap_first_op(m, make_inst);
+        wrap_reduce_input(m, make_inst);
+        break;
+    case hint_location::reduce_input:
+    default: wrap_reduce_input(m, make_inst); break;
     }
 }
 
@@ -265,10 +345,35 @@ void prepare_reduce::apply(module& m) const
     // rewrite argmin/argmax to handle tuples
     rewrite_arg_reduce(m);
     fuse_reductions(m);
-    // Experimental: raise scheduler priority at the hot path of each reduce so
-    // the scheduler keeps the wave on-CU instead of context-switching mid-load.
+
+    // Experimental: scheduler hint ops inserted in the reduce module. Tune via:
+    //   MIGRAPHX_REDUCE_SET_PRIORITY=1
+    //   MIGRAPHX_REDUCE_SET_PRIORITY_VALUE=<0..3>   (default 3)
+    //   MIGRAPHX_REDUCE_SCHED_BARRIER=1
+    //   MIGRAPHX_REDUCE_SCHED_BARRIER_MASK=<bitmask>  (default 0 = no-reorder)
+    //   MIGRAPHX_REDUCE_HINT_AT=<reduce|first|pre_write|all>  (default reduce)
+    const auto where = parse_hint_location(string_value_of(MIGRAPHX_REDUCE_HINT_AT{}, "reduce"));
     if(enabled(MIGRAPHX_REDUCE_SET_PRIORITY{}))
-        insert_set_priority(m, 3);
+    {
+        auto prio = value_of(MIGRAPHX_REDUCE_SET_PRIORITY_VALUE{}, 3);
+        insert_hint(m, where, [=]() -> operation { return set_priority{prio}; });
+    }
+    if(enabled(MIGRAPHX_REDUCE_SCHED_BARRIER{}))
+    {
+        auto mask = value_of(MIGRAPHX_REDUCE_SCHED_BARRIER_MASK{}, 0);
+        insert_hint(m, where, [=]() -> operation { return sched_barrier{mask}; });
+    }
+    // Common pattern: raise priority at reduce start (so the scheduler drains
+    // the global loads ahead of other waves) and lower it back to 0 just
+    // before the store so the scheduler doesn't hold the wave past the last
+    // useful work. Enabled via MIGRAPHX_REDUCE_PRIORITY_BRACKET=1.
+    if(enabled(MIGRAPHX_REDUCE_PRIORITY_BRACKET{}))
+    {
+        auto hi = value_of(MIGRAPHX_REDUCE_PRIORITY_BRACKET_HI{}, 3);
+        auto lo = value_of(MIGRAPHX_REDUCE_PRIORITY_BRACKET_LO{}, 0);
+        wrap_first_op(m, [=]() -> operation { return set_priority{hi}; });
+        wrap_reduce_output(m, [=]() -> operation { return set_priority{lo}; });
+    }
 }
 
 } // namespace gpu

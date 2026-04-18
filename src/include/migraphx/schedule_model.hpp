@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -69,7 +69,7 @@ struct MIGRAPHX_EXPORT schedule_model
 {
     //
     std::size_t concurrency() const;
-    //
+    // (optional)
     std::size_t split_threshold() const;
     //
     void sched(module& m, instruction_ref ins, std::size_t n) const;
@@ -86,6 +86,17 @@ struct MIGRAPHX_EXPORT schedule_model
 struct schedule_model
 {
     private:
+    template <class T>
+    static auto private_detail_te_default_split_threshold(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.split_threshold())
+    { return private_detail_te_self.split_threshold(); }
+
+    template <class T>
+    static std::size_t private_detail_te_default_split_threshold(float, T&& private_detail_te_self)
+    {
+        return [](const auto&) { return std::size_t{2}; }(private_detail_te_self);
+    }
+
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
     {
@@ -103,6 +114,8 @@ struct schedule_model
     template <class PrivateDetailTypeErasedT>
     using private_te_constraints_impl =
         decltype(std::declval<PrivateDetailTypeErasedT>().concurrency(),
+                 private_detail_te_default_split_threshold(
+                     char(0), std::declval<PrivateDetailTypeErasedT>()),
                  std::declval<PrivateDetailTypeErasedT>().sched(std::declval<module&>(),
                                                                 std::declval<instruction_ref>(),
                                                                 std::declval<std::size_t>()),
@@ -118,19 +131,6 @@ struct schedule_model
     template <class PrivateDetailTypeErasedT>
     using private_te_constraints = private_te_constraints_impl<
         typename private_te_unwrap_reference<private_te_pure<PrivateDetailTypeErasedT>>::type>;
-
-    template <class PrivateDetailTypeErasedT>
-    static auto private_te_split_threshold_impl(const PrivateDetailTypeErasedT& value, int)
-        -> decltype(value.split_threshold())
-    {
-        return value.split_threshold();
-    }
-
-    template <class PrivateDetailTypeErasedT>
-    static std::size_t private_te_split_threshold_impl(const PrivateDetailTypeErasedT&, long)
-    {
-        return 2;
-    }
 
     public:
     // Constructors
@@ -155,7 +155,7 @@ struct schedule_model
         typename = private_te_constraints<PrivateDetailTypeErasedT>,
         typename = typename std::enable_if<
             not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, schedule_model>{}>::type>
-    schedule_model& operator=(PrivateDetailTypeErasedT&& value)
+    schedule_model& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -282,42 +282,26 @@ struct schedule_model
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        {
-            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
-        }
+        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::size_t concurrency() const override { return private_detail_te_value.concurrency(); }
 
         std::size_t split_threshold() const override
-        {
-            return private_te_split_threshold_impl(private_detail_te_value, 0);
-        }
+        { return private_detail_te_default_split_threshold(char(0), private_detail_te_value); }
 
         void sched(module& m, instruction_ref ins, std::size_t n) const override
-        {
-
-            private_detail_te_value.sched(m, ins, n);
-        }
+        { private_detail_te_value.sched(m, ins, n); }
 
         void wait(module& m, instruction_ref ins, std::size_t wait_id) const override
-        {
-
-            private_detail_te_value.wait(m, ins, wait_id);
-        }
+        { private_detail_te_value.wait(m, ins, wait_id); }
 
         void record(module& m, instruction_ref ins, std::size_t wait_id) const override
-        {
-
-            private_detail_te_value.record(m, ins, wait_id);
-        }
+        { private_detail_te_value.record(m, ins, wait_id); }
 
         std::size_t weight(const operation& op) const override
-        {
-
-            return private_detail_te_value.weight(op);
-        }
+        { return private_detail_te_value.weight(op); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -333,9 +317,7 @@ struct schedule_model
     };
 
     bool private_detail_te_handle_empty() const
-    {
-        return private_detail_te_handle_mem_var == nullptr;
-    }
+    { return private_detail_te_handle_mem_var == nullptr; }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -356,15 +338,11 @@ struct schedule_model
 
 template <typename ValueType>
 inline const ValueType* any_cast(const schedule_model* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType* any_cast(schedule_model* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType& any_cast(schedule_model& x)

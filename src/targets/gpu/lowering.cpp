@@ -154,19 +154,7 @@ struct miopen_apply
             // output with copy output
             for(const auto& in : inputs)
             {
-                instruction_ref p_output = in;
-                // If an input is already a host value wrapped in a transient
-                // copy_to_gpu, reuse the original host value for the final return
-                // instead of copying it back from the GPU.
-                if(in->name() == "hip::copy_to_gpu")
-                {
-                    p_output = in->inputs().front();
-                }
-                else
-                {
-                    p_output =
-                        mod->insert_instruction(ret, make_op("hip::copy_from_gpu"), in);
-                }
+                auto p_output = mod->insert_instruction(ret, make_op("hip::copy_from_gpu"), in);
                 instruction::replace_argument(ret, in, p_output);
             }
         }
@@ -268,9 +256,7 @@ struct miopen_apply
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
-    {
-        return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
-    }
+    { return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}})); }
 
 #if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
     template <typename Op>
@@ -597,9 +583,7 @@ struct miopen_apply
 };
 
 void lowering::apply(module_pass_manager& mpm) const
-{
-    miopen_apply{&mpm.get_module(), &mpm, this}.apply();
-}
+{ miopen_apply{&mpm.get_module(), &mpm, this}.apply(); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

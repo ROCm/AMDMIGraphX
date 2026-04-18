@@ -135,7 +135,7 @@ struct schedule_model_test
     std::shared_ptr<instruction_map> ins2stream = std::make_shared<instruction_map>();
     std::shared_ptr<int_map> wait2stream        = std::make_shared<int_map>();
     std::shared_ptr<wait_map> ins2wait_for      = std::make_shared<wait_map>();
-    std::size_t min_partition_threshold        = 2;
+    std::size_t min_partition_threshold         = 2;
     std::size_t concurrency() const { return 4; }
     std::size_t split_threshold() const { return min_partition_threshold; }
     void sched(migraphx::module&, migraphx::instruction_ref ins, std::size_t n) const
@@ -1010,7 +1010,8 @@ TEST_CASE(unused_param_test)
 TEST_CASE(split_threshold_test)
 {
     auto count_waits = [](migraphx::module& m) {
-        return std::count_if(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "wait_event"; });
+        return std::count_if(
+            m.begin(), m.end(), [](const auto& ins) { return ins.name() == "wait_event"; });
     };
 
     auto add_graph = [](migraphx::module& m) {

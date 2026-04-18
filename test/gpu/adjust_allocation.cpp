@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,6 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/replace_allocate.hpp>
-#include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/op/add.hpp>
@@ -132,38 +131,6 @@ TEST_CASE(no_copy_dead_param)
 
     auto p1 = create_program();
     auto p2 = create_gpu_program();
-
-    run_lowering(p1, true);
-    EXPECT(p1 == p2);
-}
-
-TEST_CASE(offload_copy_reuses_host_return)
-{
-    auto create_program = [] {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto l = mm->add_literal(migraphx::generate_literal(s));
-        auto alloc =
-            mm->add_instruction(migraphx::make_op("hip::allocate", {{"shape", to_value(s)}}));
-        auto gpu = mm->add_instruction(migraphx::make_op("hip::copy_to_gpu"), l, alloc);
-        mm->add_return({gpu});
-
-        return p;
-    };
-
-    auto create_expected = [] {
-        migraphx::program p;
-        auto* mm = p.get_main_module();
-        migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-        auto l = mm->add_literal(migraphx::generate_literal(s));
-        mm->add_return({l});
-
-        return p;
-    };
-
-    auto p1 = create_program();
-    auto p2 = create_expected();
 
     run_lowering(p1, true);
     EXPECT(p1 == p2);

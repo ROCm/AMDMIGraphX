@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,6 +48,8 @@ struct schedule_model
 {
     /// Get the number of concurrent instruction allowed
     std::size_t concurrency() const;
+    /// Get the minimum accumulated weight required to split a partition
+    std::size_t split_threshold() const;
     /// Schedule a concurrent instruction
     void sched(module& m, instruction_ref ins, std::size_t n) const;
     // Insert necessary waits before an instruction
@@ -63,6 +65,10 @@ struct schedule_model
 <%
 interface('schedule_model',
     virtual('concurrency', returns='std::size_t', const=True),
+    virtual('split_threshold',
+            returns='std::size_t',
+            const=True,
+            default='[](const auto&) { return std::size_t{2}; }'),
     virtual('sched', m='module&', ins='instruction_ref', n='std::size_t', const=True),
     virtual('wait', m='module&', ins='instruction_ref', wait_id='std::size_t', const=True),
     virtual('record', m='module&', ins='instruction_ref', wait_id='std::size_t', const=True),

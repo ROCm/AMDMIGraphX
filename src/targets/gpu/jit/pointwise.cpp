@@ -89,8 +89,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
         auto block_size = compute_block_size(ctx, nelements, pointwise_block_limit);
         // auto t = tile{};
         if(t.ntiles == 0)
-            options.set_launch_params(
-                v, compute_global_for(ctx, nelements, 256), block_size);
+            options.set_launch_params(v, compute_global_for(ctx, nelements, 256), block_size);
         else
             options.set_launch_params(
                 v, compute_global_for(ctx, t.ntiles * t.block_size, 256), t.block_size);

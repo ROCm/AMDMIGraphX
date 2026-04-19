@@ -255,7 +255,7 @@ struct find_mul_dot
 {
     auto matcher() const
     {
-        auto constant            = match::is_constant(not_from_int4());
+        auto constant = match::is_constant(not_from_int4());
         auto is_dot_const_inputs =
             match::name("dot")(match::any_of[match::inputs()](constant), match::used_once());
         return match::name("mul")(match::either_arg(0, 1)(
@@ -792,7 +792,7 @@ struct find_inner_broadcast
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins               = r.result;
+        auto ins = r.result;
         if(ins->get_operator().name() == "layout")
             return;
         const auto& broadcasts = ins->inputs();
@@ -950,11 +950,12 @@ struct find_concat_op
     {
         auto concat_lens = ins.front()->get_shape().lens();
         concat_lens.erase(concat_lens.begin() + axis);
+        auto front_type = ins.front()->get_shape().type();
 
         return std::all_of(ins.begin(), ins.end(), [&](auto i) {
             auto lens = i->get_shape().lens();
             lens.erase(lens.begin() + axis);
-            return lens == concat_lens;
+            return lens == concat_lens and i->get_shape().type() == front_type;
         });
     }
 
@@ -1033,8 +1034,8 @@ struct find_concat_op
         };
         auto pred = [](auto i, auto j) {
             return i->get_operator() == j->get_operator() and
-                   i->inputs().size() == i->inputs().size() and
-                   i->outputs().size() == i->outputs().size();
+                   i->inputs().size() == j->inputs().size() and
+                   i->outputs().size() == j->outputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
         if(args.size() == 1)
@@ -1635,6 +1636,12 @@ struct find_add_convs
 
 MIGRAPHX_PRED_MATCHER(horiz_conv_dot, instruction_ref ins)
 {
+    // early return if there are less than 2 outputs
+    if(ins->outputs().size() < 2)
+    {
+        return false;
+    }
+
     // checking size to prevent matching block quantized quant_dot for now
     auto pred = [&](auto name) {
         return [=](auto i) {
@@ -1704,19 +1711,17 @@ struct find_conv_dot_horiz_fusion
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
             auto fused     = m.insert_instruction(std::next(input), op, input, concat);
+            std::vector<module::instruction_replacement> replacers;
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
-                auto outputs = arg->outputs();
-
                 int64_t len = arg->get_shape().lens()[axis];
-                m.replace_instruction(
-                    arg,
-                    make_op("slice",
-                            {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
-                    fused);
+                auto slice_op = make_op(
+                    "slice", {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}});
+                replacers.push_back(module::instruction_replacement{arg, slice_op, {fused}, {}});
                 offset += len;
             }
+            m.batch_replace_instruction(replacers);
         };
 
         auto outputs = ins->outputs();
@@ -1880,6 +1885,52 @@ struct find_rsqrt
         auto x_ins = r.instructions["x"];
 
         m.replace_instruction(ins, make_op("rsqrt"), x_ins);
+    }
+};
+
+// log(exp(x)) -> x
+struct find_log_exp
+{
+    auto matcher() const
+    {
+        auto bind_x = match::args(match::any().bind("x"));
+        return match::name("log")(match::arg(0)(match::name("exp")(bind_x)));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+
+        m.replace_instruction(ins, x_ins);
+    }
+};
+
+// log(x / y) -> log(x) - log(y)
+struct find_log_div
+{
+    auto matcher() const
+    {
+        auto exp            = match::name("exp");
+        auto reduce_sum_exp = match::name("reduce_sum")(match::arg(0)(exp));
+        auto broadcast_reduce_sum_exp =
+            match::name("multibroadcast")(match::arg(0)(reduce_sum_exp));
+        auto positive = match::any_of(exp, reduce_sum_exp, broadcast_reduce_sum_exp);
+
+        auto div_args = match::args(positive.bind("x"), positive.bind("y"));
+        auto div_op   = match::name("div")(match::used_once(), div_args);
+        return match::name("log")(match::args(div_op));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto y_ins = r.instructions["y"];
+
+        auto logx = m.insert_instruction(ins, make_op("log"), x_ins);
+        auto logy = m.insert_instruction(ins, make_op("log"), y_ins);
+        m.replace_instruction(ins, make_op("sub"), logx, logy);
     }
 };
 
@@ -2118,11 +2169,215 @@ struct find_split_transpose
     }
 };
 
+// When a convolution's input is a spatially-broadcast tensor (e.g. a bias
+// vector broadcast to [N, IC, H, W] with stride-0 spatial dims), the full
+// spatial convolution is redundant.
+//
+// Zero padding: reduce_sum + dot + broadcast.
+//
+// Non-zero padding (stride=1, dilation=1): run a minimal kernel-sized convolution,
+// then reconstruct the full output.
+struct find_conv_broadcast_input
+{
+    auto matcher() const
+    {
+        return match::name("convolution")(match::args(
+            match::name("broadcast", "multibroadcast")(match::args(match::any().bind("x")))
+                .bind("bcast"),
+            match::is_constant().bind("w")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins       = r.result;
+        auto x_ins     = r.instructions["x"];
+        auto w_ins     = r.instructions["w"];
+        auto bcast_ins = r.instructions["bcast"];
+
+        auto conv_val = ins->get_operator().to_value();
+        if(conv_val["group"].to<int>() != 1)
+            return;
+        if(conv_val["padding_mode"].to<int>() != 0)
+            return;
+
+        const auto& x_shape = x_ins->get_shape();
+        const auto& w_shape = w_ins->get_shape();
+
+        const auto& x_lens = x_shape.lens();
+        if(x_lens.size() > 2 and
+           std::any_of(x_lens.begin() + 2, x_lens.end(), [](auto l) { return l != 1; }))
+            return;
+
+        auto ndim        = w_shape.ndim();
+        auto num_spatial = ndim - 2;
+        auto oc          = w_shape.lens()[0];
+        auto ic          = w_shape.lens()[1];
+        auto out_lens    = ins->get_shape().lens();
+        auto n           = out_lens[0];
+
+        if(x_shape.elements() != n * ic)
+            return;
+
+        auto padding = conv_val["padding"].to_vector<std::size_t>();
+        bool has_padding =
+            std::any_of(padding.begin(), padding.end(), [](auto p) { return p != 0; });
+
+        if(has_padding)
+        {
+            auto stride = conv_val["stride"].to_vector<std::size_t>();
+            if(std::any_of(stride.begin(), stride.end(), [](auto s) { return s != 1; }))
+                return;
+            auto dilation = conv_val["dilation"].to_vector<std::size_t>();
+            if(std::any_of(dilation.begin(), dilation.end(), [](auto d) { return d != 1; }))
+                return;
+            if(padding.size() == num_spatial)
+            {
+                std::vector<std::size_t> asym = padding;
+                asym.insert(asym.end(), padding.begin(), padding.end());
+                padding = std::move(asym);
+            }
+
+            if(std::any_of(range(num_spatial).begin(), range(num_spatial).end(), [&](auto i) {
+                   return out_lens[i + 2] <= (padding[i] + padding[i + num_spatial]);
+               }))
+                return;
+
+            apply_small_conv(
+                m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
+        }
+        else
+        {
+            apply_dot_broadcast(m, ins, x_ins, w_ins, out_lens, x_shape, n, oc, ic, ndim);
+        }
+    }
+
+    static void apply_dot_broadcast(module& m,
+                                    instruction_ref ins,
+                                    instruction_ref x_ins,
+                                    instruction_ref w_ins,
+                                    const std::vector<std::size_t>& out_lens,
+                                    const shape& x_shape,
+                                    std::size_t n,
+                                    std::size_t oc,
+                                    std::size_t ic,
+                                    std::size_t ndim)
+    {
+        std::vector<int64_t> spatial_axes(ndim - 2);
+        std::iota(spatial_axes.begin(), spatial_axes.end(), 2);
+
+        auto w_reduced =
+            m.insert_instruction(ins, make_op("reduce_sum", {{"axes", spatial_axes}}), w_ins);
+        auto w_2d = m.insert_instruction(
+            ins, make_op("reshape", {{"dims", std::vector<std::size_t>{oc, ic}}}), w_reduced);
+        auto w_t = m.insert_instruction(
+            ins, make_op("transpose", {{"permutation", std::vector<int64_t>{1, 0}}}), w_2d);
+
+        instruction_ref x_2d;
+        if(x_shape.ndim() == 1 and n == 1)
+            x_2d = m.insert_instruction(
+                ins, make_op("unsqueeze", {{"axes", std::vector<int64_t>{0}}}), x_ins);
+        else
+            x_2d = m.insert_instruction(
+                ins, make_op("reshape", {{"dims", std::vector<std::size_t>{n, ic}}}), x_ins);
+        auto dot_result = m.insert_instruction(ins, make_op("dot"), x_2d, w_t);
+        auto dot_unsqueezed =
+            m.insert_instruction(ins, make_op("unsqueeze", {{"axes", spatial_axes}}), dot_result);
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", out_lens}}), dot_unsqueezed);
+    }
+
+    static void apply_small_conv(module& m,
+                                 instruction_ref ins,
+                                 instruction_ref x_ins,
+                                 instruction_ref w_ins,
+                                 instruction_ref bcast_ins,
+                                 const std::vector<std::size_t>& out_lens,
+                                 const shape& w_shape,
+                                 const std::vector<std::size_t>& padding,
+                                 std::size_t num_spatial)
+    {
+        auto small_lens = w_shape.lens();
+        auto bcast_lens = bcast_ins->get_shape().lens();
+        small_lens[0]   = bcast_lens[0];
+        small_lens[1]   = bcast_lens[1];
+
+        auto bcast_val        = bcast_ins->get_operator().to_value();
+        bcast_val["out_lens"] = small_lens;
+        auto small_bcast = m.insert_instruction(ins, make_op(bcast_ins->name(), bcast_val), x_ins);
+
+        auto small_conv = m.insert_instruction(ins, ins->get_operator(), small_bcast, w_ins);
+
+        instruction_ref current = small_conv;
+        for(std::size_t i = 0; i < num_spatial; i++)
+        {
+            auto p_start      = padding[i];
+            auto p_end        = padding[i + num_spatial];
+            auto full_dim     = out_lens[i + 2];
+            auto axis         = i + 2;
+            auto interior_len = full_dim - p_start - p_end;
+            if(interior_len == 1)
+                continue;
+
+            std::vector<instruction_ref> pieces;
+
+            if(p_start > 0)
+            {
+                pieces.push_back(m.insert_instruction(
+                    ins,
+                    make_op("slice", {{"axes", {axis}}, {"starts", {0}}, {"ends", {p_start}}}),
+                    current));
+            }
+
+            auto center = m.insert_instruction(
+                ins,
+                make_op("slice",
+                        {{"axes", {axis}}, {"starts", {p_start}}, {"ends", {p_start + 1}}}),
+                current);
+            auto center_lens  = center->get_shape().lens();
+            center_lens[axis] = interior_len;
+            pieces.push_back(m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", center_lens}}), center));
+
+            if(p_end > 0)
+            {
+                pieces.push_back(m.insert_instruction(ins,
+                                                      make_op("slice",
+                                                              {{"axes", {axis}},
+                                                               {"starts", {p_start + 1}},
+                                                               {"ends", {p_start + 1 + p_end}}}),
+                                                      current));
+            }
+
+            current = m.insert_instruction(ins, make_op("concat", {{"axis", axis}}), pieces);
+        }
+
+        m.replace_instruction(ins, current);
+    }
+};
+
+struct find_pow2
+{
+    auto matcher() const
+    {
+        return match::name("pow")(match::arg(0)(match::any().bind("x")),
+                                  match::arg(1)(match::has_value(2.0f, 0, 1)));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins   = r.result;
+        auto x_ins = r.instructions["x"];
+        auto mul   = m.insert_instruction(ins, make_op("mul"), x_ins, x_ins);
+        m.replace_instruction(ins, mul);
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
     m.repeat_while_changes(8, [&] {
         match::find_matches(m,
+                            find_conv_broadcast_input{},
                             find_inner_broadcast{},
                             find_dot_broadcast{},
                             find_double_add_lit_broadcast{},
@@ -2144,12 +2399,16 @@ void simplify_algebra::apply(module& m) const
                             find_div_const{},
                             find_sub_const{},
                             find_rsqrt{},
+                            find_log_exp{},
+                            find_log_div{},
                             find_concat_conv{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},
                             find_split_reshape{},
-                            find_split_transpose{});
+                            find_split_transpose{},
+                            find_pow2{});
+
         dead_code_elimination{}.apply(m);
     });
 }

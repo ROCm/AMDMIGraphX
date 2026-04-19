@@ -178,6 +178,11 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
     options.limit_max_iterations = value;
 }
 
+static void set_use_debug_symbols(onnx_options& options, bool value)
+{
+    options.use_debug_symbols = value;
+}
+
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
@@ -259,7 +264,7 @@ static void add_op_name(quantize_int8_options& options, const char* name)
     options.op_names.insert(name);
 }
 
-static void add_calibration_data(quantize_int8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_int8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }
@@ -279,7 +284,7 @@ struct quantize_fp8_options
     std::vector<parameter_map> calibration = {};
 };
 
-static void add_calibration_data(quantize_fp8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_fp8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }

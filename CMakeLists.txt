@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
-    message(FATAL_ERROR "The binary and source directroy cannot be the same")
+    message(FATAL_ERROR "The binary and source directory cannot be the same")
 endif()
 
 # Setup valid strings for build type
@@ -87,19 +87,7 @@ else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
 
-find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
-if (NOT HALF_INCLUDE_DIR)
-    message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
-else()
-    message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
-endif()
-
-include(CheckTypeSize)
-set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
-set(CMAKE_EXTRA_INCLUDE_FILES half.hpp)
-check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
-set(CMAKE_REQUIRED_INCLUDES)
-set(CMAKE_EXTRA_INCLUDE_FILES)
+option(MIGRAPHX_USE_EIGEN "Enable Eigen for optimized ref GEMM" ON)
 
 include(ROCMSetupVersion)
 
@@ -285,6 +273,11 @@ rocm_enable_cppcheck(
         portability
     SUPPRESS
         ConfigurationNotChecked
+        duplInheritedMember
+        assertWithSideEffect
+        returnByReference
+        throwInEntryPoint
+        redundantCopyLocalConst
         unmatchedSuppression
         unusedFunction
         ctuPointerArith
@@ -308,6 +301,7 @@ rocm_enable_cppcheck(
         migraphx-RedundantLocalVariable:*src/api/api.cpp
         migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
+    EXHAUSTIVE
     INCONCLUSIVE
     RULE_FILE
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/rules.xml
@@ -324,11 +318,18 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/device/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/api/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/onnx/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/op/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/tf/include
     DEFINE
         MIGRAPHX_MLIR=1
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
         MIGRAPHX_USE_MIOPEN=1
+        MIGRAPHX_NGLOBAL=1024
+        MIGRAPHX_NLOCAL=256
+        MIGRAPHX_WAVEFRONTSIZE=64
         BUILD_DEV=
         __device__=
         __host__=
@@ -339,6 +340,7 @@ rocm_enable_cppcheck(
         HAS_HALF_V1
         TYPE_ERASED_DECLARATION
         NDEBUG
+        MIGRAPHX_GUARD_TEST_TEST_HPP
 )
 
 include(ROCMCreatePackage)
@@ -388,5 +390,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
+    DEPENDS ${DEPENDS_HIP_RUNTIME} ${PACKAGE_DEPENDS}
 )

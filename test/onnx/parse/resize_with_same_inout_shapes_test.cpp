@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,16 +29,23 @@ TEST_CASE(resize_with_same_inout_shapes_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
 
-    std::vector<float> ds = {1, 3, 5};
-    migraphx::shape ss{migraphx::shape::int64_type, {3}};
-    mm->add_literal(migraphx::literal{ss, ds});
+    std::vector<int64_t> out_len = {1, 3, 5};
+    migraphx::shape so{migraphx::shape::int64_type, {3}};
+    mm->add_literal(migraphx::literal(so, out_len));
 
     migraphx::shape sx{migraphx::shape::float_type, {1, 3, 5}};
     auto inx = mm->add_parameter("X", sx);
 
     mm->add_instruction(migraphx::make_op("undefined"));
 
-    mm->add_return({inx});
+    // sizes attribute used directly to avoid float rounding of non-integer scales
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"sizes", {1, 3, 5}},
+                                               {"mode", "linear"},
+                                               {"coordinate_transformation_mode", "half_pixel"}}),
+                            inx);
+    mm->add_return({r});
 
     auto prog = read_onnx("resize_with_same_inout_shapes_test.onnx");
 

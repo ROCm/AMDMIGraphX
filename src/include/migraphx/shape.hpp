@@ -96,15 +96,40 @@ struct MIGRAPHX_EXPORT shape
 
     struct MIGRAPHX_EXPORT dynamic_dimension
     {
-        std::size_t min = 0;
-        std::size_t max = 0;
+        struct interval
+        {
+            std::size_t min = 0;
+            std::size_t max = 0;
+            template <class Self, class F>
+            static auto reflect(Self& self, F f)
+            {
+                return pack(f(self.min, "min"), f(self.max, "max"));
+            }
+            friend bool operator==(const interval& a, const interval& b)
+            {
+                return a.min == b.min and a.max == b.max;
+            }
+            friend bool operator!=(const interval& a, const interval& b) { return not(a == b); }
+        };
+
+        interval range = {0, 0};
         std::set<std::size_t> optimals{};
+
+        dynamic_dimension() = default;
+        dynamic_dimension(std::size_t min_v, std::size_t max_v) : range{min_v, max_v} {}
+        dynamic_dimension(std::size_t min_v, std::size_t max_v, std::set<std::size_t> opt)
+            : range{min_v, max_v}, optimals(std::move(opt))
+        {
+        }
 
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.min, "min"), f(self.max, "max"), f(self.optimals, "optimals"));
+            return pack(f(self.range, "range"), f(self.optimals, "optimals"));
         }
+
+        interval get_interval() const { return range; }
+        std::set<std::size_t> get_optimals() const { return optimals; }
 
         bool is_fixed() const;
         bool has_optimal() const;
@@ -115,8 +140,10 @@ struct MIGRAPHX_EXPORT shape
          */
         std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
         {
-            auto left  = std::max(this->min, other.min);
-            auto right = std::min(this->max, other.max);
+            auto this_interval  = this->get_interval();
+            auto other_interval = other.get_interval();
+            auto left           = std::max(this_interval.min, other_interval.min);
+            auto right          = std::min(this_interval.max, other_interval.max);
             if(left <= right)
             {
                 return dynamic_dimension{left, right};
@@ -290,6 +317,20 @@ struct MIGRAPHX_EXPORT shape
     /// Map element index to multi-dimensional index and put them them into location provided by
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
+
+    /// Map element index to multi-dimensional index and return them as an
+    /// array of size N. If the rank is smaller then N, the remaining
+    /// dimensions will be set to 0. If the rank is larger than N, an
+    /// exception will be thrown.
+    template <std::size_t N>
+    std::array<std::size_t, N> multi(std::size_t idx) const
+    {
+        std::array<std::size_t, N> result{};
+        if(N < this->ndim())
+            MIGRAPHX_THROW("SHAPE: multi() called with array size less than number of dimensions");
+        this->multi_copy(idx, result.data(), result.data() + this->ndim());
+        return result;
+    }
 
     /// Check if a multi-dimensional index is within bounds for the shape.
     bool multi_within_bounds(std::vector<std::size_t> multi) const;

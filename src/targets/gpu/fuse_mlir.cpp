@@ -201,7 +201,7 @@ struct mlir_op
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
-        module_ref mod = mods[0];
+        const_module_ref mod = mods[0];
         check_shapes{inputs, *this, true}.has_at_least(1);
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
@@ -549,7 +549,6 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
 bool is_reduce_op_supported_by_mlir(const instruction& i)
 {
     using type_t                                      = shape::type_t;
-    const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
                                                          type_t::half_type,
@@ -705,7 +704,7 @@ struct find_mlir_split_reduce
  * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
  * into a mlir_op with submodule.
  */
-struct find_mlir_fused_ops : match::supports_dynamic_shapes
+struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;

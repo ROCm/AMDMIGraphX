@@ -26,7 +26,6 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-
 TEST_CASE(array_feature_extractor_2d_test)
 {
     // For this case, X's shape is [3, 4], Y's shape is [2] (two indices)
@@ -35,9 +34,7 @@ TEST_CASE(array_feature_extractor_2d_test)
     p.compile(migraphx::make_target("ref"));
 
     migraphx::shape x_shape{migraphx::shape::float_type, {3, 4}};
-    std::vector<float> x_data = {1.0, 2.0, 3.0, 4.0,
-                            5.0, 6.0, 7.0, 8.0,
-                            9.0, 10.0, 11.0, 12.0};
+    std::vector<float> x_data = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0};
 
     migraphx::shape y_shape{migraphx::shape::int64_type, {2}};
     std::vector<int64_t> y_data = {0, 2};
@@ -45,7 +42,7 @@ TEST_CASE(array_feature_extractor_2d_test)
     migraphx::parameter_map params;
     params["X"] = migraphx::argument(x_shape, x_data.data());
     params["Y"] = migraphx::argument(y_shape, y_data.data());
-    
+
     auto result = p.eval(params).back();
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });

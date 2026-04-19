@@ -11,7 +11,7 @@ The Dockerfile accepts the following build arguments:
 
 | Argument | Description |
 |----------|-------------|
-| `GPU_ARCH` | Target GPU architecture family. Determines which TheRock ROCm packages (`amdrocm-core-*`, `amdrocm-blas-*`, `amdrocm-dnn-*`, etc.) are installed, and sets the `GPU_ARCH_FOR_THEROCK` environment variable for CMake packaging. |
+| `GPU_ARCH` | Target GPU architecture family. Determines which TheRock ROCm packages (`amdrocm-core-*`, `amdrocm-blas-*`, `amdrocm-dnn-*`, etc.) are installed, and sets the `GPU_ARCH_FOR_THEROCK` environment variable, which CMake reads as the default value of `MIGRAPHX_THEROCK_GPU_ARCH` cache variable. |
 | `ROCM_RELEASE_URL` | URL of the TheRock ROCm apt repository to install packages from. |
 
 ```bash
@@ -46,7 +46,7 @@ If the build fails due to GPU architecture detection issues, retry with the expl
 ```bash
 rbuild build -d depend -B build \
     -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*') \
-    -DMIGRAPHX_PACKAGE_BACKEND=therock -DGPU_ARCH_FOR_THEROCK=$GPU_ARCH_FOR_THEROCK
+    -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=$GPU_ARCH_FOR_THEROCK
 ```
 
 ### 4. Package (optional)

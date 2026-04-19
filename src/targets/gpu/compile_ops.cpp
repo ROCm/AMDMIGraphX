@@ -539,7 +539,6 @@ struct compile_manager
             fs::create_directories(fs::path(mxr_path));
         }
 
-        bool has_binaries = false;
         for(const auto& cp : cps)
         {
             if(cp.results.empty())
@@ -547,7 +546,6 @@ struct compile_manager
             if(dump_mxr and cp.results.size() > 1)
             {
                 cp.save_binaries(fs::path(mxr_path));
-                has_binaries = true;
             }
             else
             {
@@ -555,7 +553,7 @@ struct compile_manager
             }
         }
 
-        if(has_binaries)
+        if(dump_mxr)
         {
             MIGRAPHX_THROW(
                 "Benchmark MXR files dumped to " + mxr_path +

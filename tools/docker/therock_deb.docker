@@ -21,7 +21,7 @@ RUN sh -c "echo deb [arch=amd64 trusted=yes] ${ROCM_RELEASE_URL} stable main > /
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
 
 # Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
-RUN sh -c "echo deb [arch=amd64 signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main > /etc/apt/sources.list.d/llvm.list"
+RUN sh -c "echo deb [arch=amd64 signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-17 main > /etc/apt/sources.list.d/llvm.list"
 
 # Install dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \

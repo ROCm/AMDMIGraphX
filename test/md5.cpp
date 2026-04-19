@@ -52,7 +52,7 @@ TEST_CASE(md5_rfc_alphanumeric)
 TEST_CASE(md5_rfc_digits)
 {
     EXPECT(migraphx::md5("1234567890123456789012345678901234567890"
-                        "1234567890123456789012345678901234567890") ==
+                         "1234567890123456789012345678901234567890") ==
            "57edf4a22be3c955ac49da2e2107b67a");
 }
 
@@ -122,7 +122,7 @@ TEST_CASE(md5_trailing_null)
 // High-byte input — make sure bytes aren't sign-extended.
 TEST_CASE(md5_high_bytes)
 {
-    const std::string s(16, static_cast<char>(0xff));
+    const std::string s(16, '\xff');
     EXPECT(migraphx::md5(s) == "8d79cbc9a4ecdde112fc91ba625b13c2");
 }
 

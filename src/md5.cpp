@@ -71,41 +71,34 @@ std::array<u32, 4> process_block(std::array<u32, 4> state, std::array<u8, block_
         return v;
     });
 
-    u32 a = state[0];
-    u32 b = state[1];
-    u32 c = state[2];
-    u32 d = state[3];
+    // v holds the round state; after each step v[0] is overwritten with the new
+    // 'b' and std::rotate shifts the labels so that (a, b, c, d) tracks the
+    // canonical MD5 register carousel (a <- d, b <- new_b, c <- b, d <- c).
+    std::array<u32, 4> v = state;
+    auto& [a, b, c, d]   = v;
 
     for(u32 i = 0; i < 64; ++i)
     {
-        u32 f = 0;
-        u32 g = 0;
+        std::array<u32, 2> fg{};
         if(i < 16)
         {
-            f = (b & c) | ((~b) & d);
-            g = i;
+            fg = {(b & c) | ((~b) & d), i};
         }
         else if(i < 32)
         {
-            f = (d & b) | ((~d) & c);
-            g = (5u * i + 1u) % 16u;
+            fg = {(d & b) | ((~d) & c), (5u * i + 1u) % 16u};
         }
         else if(i < 48)
         {
-            f = b ^ c ^ d;
-            g = (3u * i + 5u) % 16u;
+            fg = {b ^ c ^ d, (3u * i + 5u) % 16u};
         }
         else
         {
-            f = c ^ (b | (~d));
-            g = (7u * i) % 16u;
+            fg = {c ^ (b | (~d)), (7u * i) % 16u};
         }
 
-        const u32 new_b = b + rotate_left(a + f + sine_table[i] + m[g], shifts[i]);
-        a               = d;
-        d               = c;
-        c               = b;
-        b               = new_b;
+        a = b + rotate_left(a + fg[0] + sine_table[i] + m[fg[1]], shifts[i]);
+        std::rotate(v.begin(), v.end() - 1, v.end());
     }
 
     return {state[0] + a, state[1] + b, state[2] + c, state[3] + d};

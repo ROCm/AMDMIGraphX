@@ -62,8 +62,7 @@ constexpr u32 load_le32(const u8* p)
     return u32{p[0]} | (u32{p[1]} << 8u) | (u32{p[2]} << 16u) | (u32{p[3]} << 24u);
 }
 
-std::array<u32, 4> process_block(std::array<u32, 4> state,
-                                 std::array<u8, block_size> block)
+std::array<u32, 4> process_block(std::array<u32, 4> state, std::array<u8, block_size> block)
 {
     std::array<u32, 16> m{};
     std::generate(m.begin(), m.end(), [p = block.data()]() mutable {

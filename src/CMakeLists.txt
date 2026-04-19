@@ -94,6 +94,7 @@ add_library(migraphx
     load_save.cpp
     logger.cpp
     make_op.cpp
+    md5.cpp
     memory_coloring.cpp
     module.cpp
     msgpack.cpp

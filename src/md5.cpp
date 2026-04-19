@@ -62,10 +62,11 @@ constexpr u32 load_le32(const u8* p)
     return u32{p[0]} | (u32{p[1]} << 8u) | (u32{p[2]} << 16u) | (u32{p[3]} << 24u);
 }
 
-void process_block(std::array<u32, 4>& state, const u8* block)
+std::array<u32, 4> process_block(std::array<u32, 4> state,
+                                 std::array<u8, block_size> block)
 {
     std::array<u32, 16> m{};
-    std::generate(m.begin(), m.end(), [p = block]() mutable {
+    std::generate(m.begin(), m.end(), [p = block.data()]() mutable {
         const u32 v = load_le32(p);
         p += 4;
         return v;
@@ -108,10 +109,7 @@ void process_block(std::array<u32, 4>& state, const u8* block)
         b               = new_b;
     }
 
-    state[0] += a;
-    state[1] += b;
-    state[2] += c;
-    state[3] += d;
+    return {state[0] + a, state[1] + b, state[2] + c, state[3] + d};
 }
 
 std::string digest_to_hex(const std::array<u32, 4>& state)
@@ -138,30 +136,33 @@ std::string md5(const std::string_view& str)
     const std::size_t full_blocks = str.size() / block_size;
     const std::size_t remainder   = str.size() % block_size;
 
+    std::array<u8, block_size> block{};
     for(std::size_t i = 0; i < full_blocks; ++i)
     {
-        process_block(state, data + (i * block_size));
+        std::copy_n(data + (i * block_size), block_size, block.begin());
+        state = process_block(state, block);
     }
 
     // Final block(s): remaining bytes, a 0x80 terminator, zero fill, and the
     // message bit length in the last 8 bytes (little-endian). Two blocks are
     // needed when the bit-length field no longer fits in the current block.
-    std::array<u8, 2 * block_size> tail{};
-    std::copy_n(data + (full_blocks * block_size), remainder, tail.begin());
-    tail[remainder] = 0x80;
+    std::array<std::array<u8, block_size>, 2> tail{};
+    std::copy_n(data + (full_blocks * block_size), remainder, tail[0].begin());
+    tail[0][remainder] = 0x80;
 
-    const std::size_t pad_blocks = (remainder < block_size - 8) ? 1 : 2;
-    const std::size_t tail_size  = pad_blocks * block_size;
-    u64 bit_length               = u64{str.size()} * 8u;
-    for(auto it = tail.begin() + tail_size - 8; it != tail.begin() + tail_size; ++it)
+    const bool need_two = (remainder >= block_size - 8);
+    u64 bit_length      = u64{str.size()} * 8u;
+    auto& last          = need_two ? tail[1] : tail[0];
+    for(auto it = last.end() - 8; it != last.end(); ++it)
     {
         *it = static_cast<u8>(bit_length);
         bit_length >>= 8u;
     }
 
-    for(std::size_t i = 0; i < pad_blocks; ++i)
+    state = process_block(state, tail[0]);
+    if(need_two)
     {
-        process_block(state, tail.data() + (i * block_size));
+        state = process_block(state, tail[1]);
     }
 
     return digest_to_hex(state);

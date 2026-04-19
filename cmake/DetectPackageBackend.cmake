@@ -104,12 +104,6 @@ function(detect_package_backend)
         set(MIGRAPHX_THEROCK_GPU_ARCH "${_default_gpu_arch}" CACHE STRING
             "TheRock GPU architecture family suffix (e.g. gfx120x ..)")
 
-        if(MIGRAPHX_THEROCK_GPU_ARCH STREQUAL "")
-            message(FATAL_ERROR
-                "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH to be set. "
-                "Example: cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x ..")
-        endif()
-
         message(STATUS "MIGraphX package backend: therock (GPU arch: ${MIGRAPHX_THEROCK_GPU_ARCH})")
     else()
         message(STATUS "MIGraphX package backend: default (traditional ROCm)")

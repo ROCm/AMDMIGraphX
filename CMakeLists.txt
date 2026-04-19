@@ -368,6 +368,9 @@ foreach(py_file ${backend_files})
 endforeach(py_file)
 
 if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+    if(NOT MIGRAPHX_THEROCK_GPU_ARCH)
+        message(FATAL_ERROR "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH (e.g. -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x).")
+    endif()
     # TheRock amdrocm packages (RFC0009-OS-Packaging-Requirements):
     #   Gfxarch=False packages: amdrocm-{component}
     #   Gfxarch=True  packages: amdrocm-{component}-{gpu_arch}

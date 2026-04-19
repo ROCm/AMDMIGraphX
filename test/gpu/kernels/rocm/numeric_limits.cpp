@@ -113,5 +113,6 @@ TEST_CASE(all)
 #ifdef __FLT16_MAX__
     test_numeric_limits_all<_Float16>();
 #endif
+    test_numeric_limits_all<__bf16>();
     test_numeric_limits_all<foo, false>();
 }

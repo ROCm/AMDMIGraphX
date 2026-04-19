@@ -208,6 +208,36 @@ struct numeric_limits_fp16
 };
 #endif
 
+struct numeric_limits_bf16
+{
+    using type = __bf16;
+
+    static constexpr type from_bits(unsigned short bits) noexcept
+    {
+        return __builtin_bit_cast(type, bits);
+    }
+
+    static constexpr const int digits   = 8;
+    static constexpr const int digits10 = 2;
+    static constexpr type min() noexcept { return from_bits(0x0080); }
+    static constexpr type max() noexcept { return from_bits(0x7f7f); }
+
+    static constexpr const int radix = __FLT_RADIX__;
+    static constexpr type epsilon() noexcept { return from_bits(0x3c00); }
+
+    static constexpr const int min_exponent   = -125;
+    static constexpr const int min_exponent10 = -37;
+    static constexpr const int max_exponent   = 128;
+    static constexpr const int max_exponent10 = 38;
+
+    static constexpr type infinity() noexcept { return from_bits(0x7f80); }
+    // NOLINTNEXTLINE(readability-identifier-naming)
+    static constexpr type quiet_NaN() noexcept { return from_bits(0x7fc0); }
+    // NOLINTNEXTLINE(readability-identifier-naming)
+    static constexpr type signaling_NaN() noexcept { return from_bits(0x7fa0); }
+    static constexpr type denorm_min() noexcept { return from_bits(0x0001); }
+};
+
 } // namespace detail
 
 template <class T>
@@ -301,6 +331,7 @@ ROCM_DEFINE_NUMERIC_LIMITS_FLOAT(double, numeric_limits_double);
 #ifdef __FLT16_MAX__
 ROCM_DEFINE_NUMERIC_LIMITS_FLOAT(_Float16, numeric_limits_fp16);
 #endif
+ROCM_DEFINE_NUMERIC_LIMITS_FLOAT(__bf16, numeric_limits_bf16);
 
 } // namespace ROCM_INLINE_NS
 } // namespace rocm

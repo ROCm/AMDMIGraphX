@@ -66,10 +66,9 @@ constexpr u32 load_le32(const u8* p)
 std::array<u32, 4> process_block(std::array<u32, 4> state, std::array<u8, block_size> block)
 {
     std::array<u32, 16> m{};
-    std::generate(m.begin(), m.end(), [p = block.data()]() mutable {
-        const u32 v = load_le32(p);
-        p += 4;
-        return v;
+    const auto word_indices = range(m.size());
+    std::transform(word_indices.begin(), word_indices.end(), m.begin(), [&](std::ptrdiff_t i) {
+        return load_le32(block.data() + (i * 4));
     });
 
     // v holds the round state; after each step v[0] is overwritten with the new

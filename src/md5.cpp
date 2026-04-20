@@ -37,10 +37,10 @@ namespace {
 constexpr std::size_t block_size = 64;
 
 // Per-round shift amounts (RFC 1321 section 3.4).
-constexpr std::array<std::uint32_t, 64> shifts = {7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
-                                        5, 9,  14, 20, 5, 9,  14, 20, 5, 9,  14, 20, 5, 9,  14, 20,
-                                        4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-                                        6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21};
+constexpr std::array<std::uint32_t, 64> shifts = {
+    7,  12, 17, 22, 7,  12, 17, 22, 7,  12, 17, 22, 7,  12, 17, 22, 5,  9,  14, 20, 5,  9,
+    14, 20, 5,  9,  14, 20, 5,  9,  14, 20, 4,  11, 16, 23, 4,  11, 16, 23, 4,  11, 16, 23,
+    4,  11, 16, 23, 6,  10, 15, 21, 6,  10, 15, 21, 6,  10, 15, 21, 6,  10, 15, 21};
 
 // Sine-derived constants: floor(2^32 * abs(sin(i + 1))), i = 0..63.
 constexpr std::array<std::uint32_t, 64> sine_table = {
@@ -53,16 +53,20 @@ constexpr std::array<std::uint32_t, 64> sine_table = {
     0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
     0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391};
 
-constexpr std::uint32_t rotate_left(std::uint32_t x, std::uint32_t n) { return (x << n) | (x >> (32u - n)); }
+constexpr std::uint32_t rotate_left(std::uint32_t x, std::uint32_t n)
+{
+    return (x << n) | (x >> (32u - n));
+}
 
 template <class It>
 constexpr std::uint32_t load_le32(It p)
 {
-    return std::uint32_t{p[0]} | (std::uint32_t{p[1]} << 8u) | (std::uint32_t{p[2]} << 16u) | (std::uint32_t{p[3]} << 24u);
+    return std::uint32_t{p[0]} | (std::uint32_t{p[1]} << 8u) | (std::uint32_t{p[2]} << 16u) |
+           (std::uint32_t{p[3]} << 24u);
 }
 
 std::array<std::uint32_t, 4> process_block(std::array<std::uint32_t, 4> state,
-                                 const std::array<std::uint8_t, block_size>& block)
+                                           const std::array<std::uint8_t, block_size>& block)
 {
     std::array<std::uint32_t, 16> m{};
     const auto word_indices = range(m.size());
@@ -131,7 +135,7 @@ std::string md5(const std::string_view& str)
     tail[0][remainder] = 0x80;
 
     const bool need_two    = (remainder >= block_size - 8);
-    const std::uint64_t bit_length   = std::uint64_t{str.size()} * 8u;
+    const std::uint64_t bit_length = std::uint64_t{str.size()} * 8u;
     auto& last             = need_two ? tail[1] : tail[0];
     const auto bit_indices = range(8);
     transform_partial_sum(

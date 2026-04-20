@@ -74,11 +74,12 @@ std::array<std::uint32_t, 4> process_block(std::array<std::uint32_t, 4> state,
         return load_le32(block.begin() + (i * 4));
     });
 
-    // v holds the round state; after each step v[0] is overwritten with the new
-    // 'b' and std::rotate shifts the labels so that (a, b, c, d) tracks the
-    // canonical MD5 register carousel (a <- d, b <- new_b, c <- b, d <- c).
+    // Each round writes the freshly computed value into slot a, then
+    // std::rotate shifts v right by one so the structured bindings realign
+    // onto the canonical MD5 register carousel for the next iteration:
+    // a <- d, b <- a (the just-computed value), c <- b, d <- c.
     std::array<std::uint32_t, 4> v = state;
-    auto& [a, b, c, d]   = v;
+    auto& [a, b, c, d]             = v;
 
     for(std::uint32_t i = 0; i < 64; ++i)
     {

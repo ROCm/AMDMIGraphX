@@ -459,6 +459,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("name", [](migraphx::instruction_ref i) { return i->name(); })
         .def("get_literal",
              [](migraphx::instruction_ref i) { return i->get_literal().get_argument(); })
+        .def("get_debug_symbols",
+             [](migraphx::instruction_ref i) { return i->get_debug_symbols(); })
         .def(py::hash(py::self))
         .def(py::self == py::self)
         .def(py::self != py::self);
@@ -534,6 +536,20 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("macro"),
             py::arg("args"),
             py::arg("mod_args") = std::vector<migraphx::module*>{})
+        .def("has_debug_symbols", &migraphx::module::has_debug_symbols)
+        .def(
+            "add_debug_symbols",
+            [](migraphx::module& mm,
+               migraphx::instruction_ref ins,
+               const std::set<std::string>& symbols) { mm.add_debug_symbols(ins, symbols); },
+            py::arg("ins"),
+            py::arg("symbols"))
+        .def(
+            "remove_debug_symbols",
+            [](migraphx::module& mm, migraphx::instruction_ref ins) {
+                mm.remove_debug_symbols(ins);
+            },
+            py::arg("ins"))
         .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })
         .def(
             "__iter__",

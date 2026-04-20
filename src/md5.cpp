@@ -129,14 +129,16 @@ std::string md5(const std::string_view& str)
     std::copy_n(data + (full_blocks * block_size), remainder, tail[0].begin());
     tail[0][remainder] = 0x80;
 
-    const bool need_two = (remainder >= block_size - 8);
-    u64 bit_length      = u64{str.size()} * 8u;
-    auto& last          = need_two ? tail[1] : tail[0];
-    for(auto it = last.end() - 8; it != last.end(); ++it)
-    {
-        *it = static_cast<u8>(bit_length);
-        bit_length >>= 8u;
-    }
+    const bool need_two    = (remainder >= block_size - 8);
+    const u64 bit_length   = u64{str.size()} * 8u;
+    auto& last             = need_two ? tail[1] : tail[0];
+    const auto bit_indices = range(8);
+    transform_partial_sum(
+        bit_indices.begin(),
+        bit_indices.end(),
+        last.end() - 8,
+        [](u64 acc, u64) { return acc >> 8u; },
+        [&](auto) { return bit_length; });
 
     state = process_block(state, tail[0]);
     if(need_two)

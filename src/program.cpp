@@ -42,6 +42,7 @@
 #include <migraphx/supported_segments.hpp>
 #include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
+#include <migraphx/logger.hpp>
 
 #include <iostream>
 #include <queue>
@@ -834,9 +835,9 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::cerr << "[WARNING]: MXR File was created using MIGraphX version: " << migx_version
-                  << ", while installed MIGraphX is at version: " << get_migraphx_version()
-                  << ", operators implementation could be mismatched.\n";
+        log::warn() << "MXR File was created using MIGraphX version: " << migx_version
+                    << ", while installed MIGraphX is at version: " << get_migraphx_version()
+                    << ", operators implementation could be mismatched.";
     }
 
     migraphx::from_value(v.at("targets"), this->impl->targets);
@@ -1007,7 +1008,7 @@ void program::perf_report(
 
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, [&](auto ins, const auto& ins_names) {
-        instruction::print(std::cout, ins, ins_names);
+        instruction::print(os, ins, ins_names);
 
         // skip return instruction
         if(ins->name() == "@return")
@@ -1197,7 +1198,7 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 {
     for(auto& pp : this->impl->modules)
     {
-        std::cout << pp.first << ":" << std::endl;
+        os << pp.first << ":" << std::endl;
         pp.second.annotate(os, a);
     }
 }

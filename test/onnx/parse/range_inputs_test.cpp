@@ -21,42 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
-#define MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/nonzero.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct hip_nonzero
+TEST_CASE(range_inputs_test)
 {
-    op::nonzero op;
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto start = mm->add_parameter("start", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
+    auto limit = mm->add_parameter("limit", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
+    auto delta = mm->add_parameter("delta", migraphx::shape{migraphx::shape::float_type, {1}, {0}});
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
+    mm->add_instruction(migraphx::make_op("dynamic_range"), start, limit, delta);
 
-    std::string name() const { return "gpu::nonzero"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
-};
+    auto prog = optimize_onnx("range_inputs_test.onnx");
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+    EXPECT(p == prog);
+}

@@ -250,28 +250,27 @@ inline std::string to_hex_string(const Range& r, bool lsb = false)
 {
     constexpr std::array<char, 16> hex_digits = {
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-    return std::accumulate(
-        r.begin(), r.end(), std::string{}, [&](std::string acc, const auto& x) {
-            using T      = std::make_unsigned_t<std::decay_t<decltype(x)>>;
-            const auto u = static_cast<T>(x);
-            const auto to_byte = [&](std::ptrdiff_t b) -> std::uint8_t {
-                return (u >> (b * 8u)) & 0xffu;
-            };
-            const auto append_hex = [&](std::string s, std::uint8_t byte) {
-                s.push_back(hex_digits[byte >> 4u]);
-                s.push_back(hex_digits[byte & 0x0fu]);
-                return s;
-            };
-            const auto bytes = range(sizeof(T));
-            if(lsb)
-            {
-                return transform_accumulate(
-                    bytes.begin(), bytes.end(), std::move(acc), append_hex, to_byte);
-            }
-            const auto rbytes = reverse(bytes);
+    return std::accumulate(r.begin(), r.end(), std::string{}, [&](std::string acc, const auto& x) {
+        using T            = std::make_unsigned_t<std::decay_t<decltype(x)>>;
+        const auto u       = static_cast<T>(x);
+        const auto to_byte = [&](std::ptrdiff_t b) -> std::uint8_t {
+            return (u >> (b * 8u)) & 0xffu;
+        };
+        const auto append_hex = [&](std::string s, std::uint8_t byte) {
+            s.push_back(hex_digits[byte >> 4u]);
+            s.push_back(hex_digits[byte & 0x0fu]);
+            return s;
+        };
+        const auto bytes = range(sizeof(T));
+        if(lsb)
+        {
             return transform_accumulate(
-                rbytes.begin(), rbytes.end(), std::move(acc), append_hex, to_byte);
-        });
+                bytes.begin(), bytes.end(), std::move(acc), append_hex, to_byte);
+        }
+        const auto rbytes = reverse(bytes);
+        return transform_accumulate(
+            rbytes.begin(), rbytes.end(), std::move(acc), append_hex, to_byte);
+    });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

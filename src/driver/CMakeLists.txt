@@ -48,13 +48,18 @@ else()
     # be run without manually extending PATH.  The list covers the DLLs that are
     # dynamically loaded by migraphx_gpu at startup (HIP runtime + HIPRTC).
     set(ROCM_BIN_DIR "C:/opt/rocm/bin" CACHE PATH
-        "Directory containing ROCm runtime DLLs (amdhip64_6.dll, hiprtc*.dll, ...)")
+        "Directory containing ROCm runtime DLLs (amdhip64_*.dll, hiprtc*.dll, ...)")
 
-    set(ROCM_RUNTIME_DLLS
-        amdhip64_6.dll
-        hiprtc0604.dll
-        hiprtc-builtins0604.dll
-    )
+    # Detect DLL names at configure time by globbing — handles ROCm 6 and ROCm 7 without manual edits.
+    file(GLOB _amdhip   "${ROCM_BIN_DIR}/amdhip64_*.dll")
+    file(GLOB _hiprtc   "${ROCM_BIN_DIR}/hiprtc[0-9]*.dll")
+    file(GLOB _hiprtcbi "${ROCM_BIN_DIR}/hiprtc-builtins*.dll")
+
+    set(ROCM_RUNTIME_DLLS)
+    foreach(_dll IN LISTS _amdhip _hiprtc _hiprtcbi)
+        get_filename_component(_name "${_dll}" NAME)
+        list(APPEND ROCM_RUNTIME_DLLS "${_name}")
+    endforeach()
 
     foreach(DLL IN LISTS ROCM_RUNTIME_DLLS)
         add_custom_command(

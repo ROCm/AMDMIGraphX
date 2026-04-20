@@ -88,6 +88,19 @@ def parse_args():
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
 
+    parser.add_argument('--ort-intra-op-num-threads',
+                        dest="ort_intra_op_num_threads",
+                        type=int,
+                        default=None,
+                        help='Set onnxruntime SessionOptions.intra_op_num_threads. '
+                             'Default (None) lets ORT auto-size the intra-op thread '
+                             'pool from the host CPU count and pin each worker to a '
+                             'specific CPU. In a container/cgroup with a cpuset '
+                             'smaller than the host, those pins fail with EINVAL and '
+                             'ORT floods stderr with "pthread_setaffinity_np failed" '
+                             'errors. Specifying this value explicitly (e.g. to the '
+                             'container-visible CPU count) disables that pinning.')
+
     parser.add_argument('--show-test-data',
                         dest='show_data',
                         action='store_true',
@@ -271,6 +284,10 @@ def main():
     if use_onnx:
         sess_op = ort.SessionOptions()
         sess_op.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+
+        if args.ort_intra_op_num_threads is not None:
+            sess_op.intra_op_num_threads = args.ort_intra_op_num_threads
+            sess_op.inter_op_num_threads = 1
 
         if args.ort_logging:
             sess_op.log_verbosity_level = 0

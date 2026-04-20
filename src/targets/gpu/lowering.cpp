@@ -93,8 +93,6 @@ struct miopen_apply
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_extend_op("fixed_pad");
-        add_extend_op("nonzero");
-        add_extend_op("prefix_scan_sum");
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN

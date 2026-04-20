@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/md5.hpp>
+#include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -104,20 +105,6 @@ std::array<u32, 4> process_block(std::array<u32, 4> state, std::array<u8, block_
     return {state[0] + a, state[1] + b, state[2] + c, state[3] + d};
 }
 
-std::string digest_to_hex(const std::array<u32, 4>& state)
-{
-    constexpr std::array<char, 16> hex = {
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-    std::string out(32, '0');
-    for(std::size_t i = 0; i < 16; ++i)
-    {
-        const u8 byte    = (state[i / 4] >> ((i % 4) * 8u)) & 0xffu;
-        out[2 * i]       = hex[byte >> 4u];
-        out[(2 * i) + 1] = hex[byte & 0x0fu];
-    }
-    return out;
-}
-
 } // namespace
 
 std::string md5(const std::string_view& str)
@@ -157,7 +144,7 @@ std::string md5(const std::string_view& str)
         state = process_block(state, tail[1]);
     }
 
-    return digest_to_hex(state);
+    return to_hex_string(state, true);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -66,7 +66,7 @@ constexpr std::uint32_t load_le32(It p)
 }
 
 std::array<std::uint32_t, 4> process_block(std::array<std::uint32_t, 4> state,
-                                           const std::array<std::uint8_t, block_size>& block)
+                                           std::array<std::uint8_t, block_size> block)
 {
     std::array<std::uint32_t, 16> m{};
     const auto word_indices = range(m.size());

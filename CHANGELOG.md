@@ -31,6 +31,7 @@ Full documentation for MIGraphX is available at
 * Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
 * Replaced usages of `std::cout` and `std::cerr` with the logger (#4732)
 * Converted RNN variable sequence length operations (`rnn_var_sl_shift_sequence`, `rnn_var_sl_shift_output`, `rnn_var_sl_last_output`) from device implementation to JIT compilation (#4755).
+* Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
 
 ### Resolved issues
 

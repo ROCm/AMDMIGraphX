@@ -279,7 +279,7 @@ struct loader
            ap.set_value("binary"));
         ap(output_type,
            {"--netron"},
-           ap.help("Print out program as Netron readable json."),
+           ap.help("Print out program as ONNX protobuf binary viewable in Netron."),
            ap.set_value("netron"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
@@ -543,7 +543,7 @@ struct loader
         else if(type == "binary")
             write(*os, save_buffer(p));
         else if(type == "netron")
-            *os << make_netron_output(p) << std::endl;
+            write_netron_output(p, *os);
     }
 };
 

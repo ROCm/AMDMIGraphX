@@ -297,6 +297,10 @@ def program(h):
              invoke='migraphx::get_output_shapes($@)',
              returns='std::vector<migraphx::shape>')
     h.method('print', invoke='migraphx::print_program($@)', const=True)
+    h.method('write_netron_output',
+             api.params(filename='const char*'),
+             invoke='migraphx::write_netron_output_file($@)',
+             const=True)
     h.method('sort')
     h.method('run',
              api.params(

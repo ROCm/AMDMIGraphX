@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -60,6 +60,7 @@ add_api_test(lookup test_lookup.cpp ${TEST_ONNX_DIR})
 add_api_test(module_construct test_module_construct.cpp ${TEST_ONNX_DIR})
 add_api_test(dynamic_shape test_dynamic_shape.cpp ${TEST_ONNX_DIR})
 add_api_test(ref test_cpu.cpp ${TEST_ONNX_DIR})
+add_api_test(netron_output test_netron_output.cpp ${TEST_ONNX_DIR})
 add_api_test(save_load test_save_load.cpp ${TEST_ONNX_DIR})
 add_api_test(op test_op_construct.cpp ${TEST_ONNX_DIR})
 add_c_api_test(c_op test_c_op_construct.c ${TEST_ONNX_DIR})

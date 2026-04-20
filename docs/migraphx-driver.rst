@@ -86,7 +86,7 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --binary
       - Prints the program in binary format
    *  - --netron
-      - Prints the program in Netron viewable JSON format
+      - Prints the program as ONNX protobuf binary viewable in Netron
    *  - --output | -o
       - Writes output in a file
    *  - --fill0

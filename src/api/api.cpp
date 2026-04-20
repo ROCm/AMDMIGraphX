@@ -39,7 +39,9 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/source_location.hpp>
+#include <migraphx/netron_output.hpp>
 #include <array>
+#include <fstream>
 #include <algorithm>
 #include <cstdarg>
 
@@ -336,6 +338,15 @@ static std::vector<argument> run(program& p, const parameter_map& params) { retu
 static std::vector<shape> get_output_shapes(program& p) { return p.get_output_shapes(); }
 
 static void print_program(const program& p) { std::cout << p << std::endl; }
+
+static void write_netron_output_file(const program& p, const char* filename)
+{
+    std::ofstream os(filename, std::ios::binary);
+    if(not os.is_open())
+        MIGRAPHX_THROW(migraphx_status_bad_param,
+                       "Failed to open file for writing: " + std::string(filename));
+    write_netron_output(p, os);
+}
 
 static void print_module(const module& m) { std::cout << m << std::endl; }
 
@@ -1752,6 +1763,17 @@ extern "C" migraphx_status migraphx_program_print(const_migraphx_program_t progr
         if(program == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
         migraphx::print_program((program->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_program_write_netron_output(const_migraphx_program_t program,
+                                                                const char* filename)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        migraphx::write_netron_output_file((program->object), (filename));
     });
     return api_error_result;
 }

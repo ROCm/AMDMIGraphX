@@ -440,7 +440,7 @@ struct loader
             {
                 file_type = get_file_type(file);
             }
-            log::info() << "Reading: " << file;
+            std::cout << "Reading: " << file << std::endl;
             if(file_type == "onnx")
             {
                 p = parse_onnx(file, get_onnx_options());
@@ -718,7 +718,7 @@ struct compiler
                 }
             }
 
-            log::info() << "The program is already compiled, skipping compilation ...";
+            std::cout << "The program is already compiled, skipping compilation ..." << std::endl;
             if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
             {
                 log::warn() << "Quantization options are ignored as the program is already "
@@ -729,30 +729,30 @@ struct compiler
         auto t = ct.get_target();
         if(to_fp16)
         {
-            log::info() << "Quantizing to fp16 ...";
+            std::cout << "Quantizing to fp16 ..." << std::endl;
             quantize_fp16(p);
         }
         if(to_bf16)
         {
-            log::info() << "Quantizing to bf16 ...";
+            std::cout << "Quantizing to bf16 ..." << std::endl;
             quantize_bf16(p);
         }
         if(to_int8)
         {
-            log::info() << "Quantizing to int8 ...";
+            std::cout << "Quantizing to int8 ..." << std::endl;
             quantize_int8(p, t, {host_params(p)});
         }
         if(to_fp8)
         {
-            log::info() << "Quantizing to fp8 ...";
+            std::cout << "Quantizing to fp8 ..." << std::endl;
             quantize_fp8(p, t, {host_params(p)});
         }
         if(to_int4)
         {
-            log::info() << "Quantizing weights to int4 ...";
+            std::cout << "Quantizing weights to int4 ..." << std::endl;
             quantize_int4_weights(p);
         }
-        log::info() << "Compiling ...";
+        std::cout << "Compiling ..." << std::endl;
         p.compile(t, co);
         l.save(p);
         return p;
@@ -838,9 +838,9 @@ struct verify : command<verify>
         }
 
         auto tols = get_tolerances(p, vo, rms_tol, atol, rtol);
-        log::info() << "rms_tol: " << tols.rms_tol;
-        log::info() << "atol: " << tols.atol;
-        log::info() << "rtol: " << tols.rtol;
+        std::cout << "rms_tol: " << tols.rms_tol << std::endl;
+        std::cout << "atol: " << tols.atol << std::endl;
+        std::cout << "rtol: " << tols.rtol << std::endl;
 
         if(per_instruction)
         {
@@ -877,7 +877,7 @@ struct run_cmd : command<run_cmd>
     void run()
     {
         auto p = c.compile();
-        log::info() << "Allocating params ...";
+        std::cout << "Allocating params ..." << std::endl;
         auto m = c.params(p);
         p.eval(m);
         std::cout << p << std::endl;
@@ -897,9 +897,9 @@ struct time_cmd : command<time_cmd>
     void run()
     {
         auto p = c.compile();
-        log::info() << "Allocating params ...";
+        std::cout << "Allocating params ..." << std::endl;
         auto m = c.params(p);
-        log::info() << "Running ...";
+        std::cout << "Running ..." << std::endl;
         double t = time_run(p, m, n);
         std::cout << "Total time: " << t << "ms" << std::endl;
     }
@@ -923,9 +923,9 @@ struct perf : command<perf>
     void run()
     {
         auto p = c.compile();
-        log::info() << "Allocating params ...";
+        std::cout << "Allocating params ..." << std::endl;
         auto m = c.params(p);
-        log::info() << "Running performance report ...";
+        std::cout << "Running performance report ..." << std::endl;
         p.perf_report(std::cout, n, m, c.l.batch, detailed);
     }
 };
@@ -938,9 +938,9 @@ struct roctx : command<roctx>
     void run()
     {
         auto p = c.compile();
-        log::info() << "Allocating params ...";
+        std::cout << "Allocating params ..." << std::endl;
         auto m = c.params(p);
-        log::info() << "rocTX:\tLoading rocTX library...";
+        std::cout << "rocTX:\tLoading rocTX library..." << std::endl;
         auto rtx = create_marker_roctx();
         p.mark(m, std::move(rtx));
     }
@@ -1124,7 +1124,7 @@ int main(int argc, const char* argv[], const char* envp[])
 
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
-        migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
+        std::cout << "Running [ " << get_version() << " ]: " << driver_invocation << std::endl;
 
         auto start_time = std::chrono::system_clock::now();
 
@@ -1133,8 +1133,8 @@ int main(int argc, const char* argv[], const char* envp[])
         // Dump all the MIGraphX (consumed) Environment Variables:
         const auto mgx_env_map = migraphx::get_all_envs();
         for(auto&& [k, v] : mgx_env_map)
-            migraphx::log::info() << k << "=" << v
-                                  << "\\"; // backslash(s) to facilitate cut-n-paste
+            std::cout << k << "=" << v << "\\"
+                      << std::endl; // backslash(s) to facilitate cut-n-paste
 
         auto unused_envs = get_unrecognized_migraphx_envs(envp, mgx_env_map);
         for(auto&& e : unused_envs)
@@ -1145,8 +1145,8 @@ int main(int argc, const char* argv[], const char* envp[])
         // Print total duration
         auto duration =
             std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
-        migraphx::log::info() << "[ " << get_version() << " ] Complete(" << duration.count()
-                              << "s): " << driver_invocation;
+        std::cout << "[ " << get_version() << " ] Complete(" << duration.count()
+                  << "s): " << driver_invocation << std::endl;
     }
     else
     {

@@ -77,6 +77,7 @@ add_library(migraphx
     fp_to_double.cpp
     fp8_ocp_to_fnuz.cpp
     fuse_attention.cpp
+    fuse_flash_decoding_reduce.cpp
     fuse_concat.cpp
     fuse_horizontal.cpp
     fuse_pointwise.cpp

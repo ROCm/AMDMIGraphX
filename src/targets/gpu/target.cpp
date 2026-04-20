@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
 #include <migraphx/fuse_attention.hpp>
+#include <migraphx/fuse_flash_decoding_reduce.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
 #include <migraphx/fuse_pointwise_reduce.hpp>
@@ -150,6 +151,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
                                                    .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
         dead_code_elimination{},
+        fuse_flash_decoding_reduce{},
         optimize_module{},
         fuse_pointwise_reduce{},
         dead_code_elimination{},

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,7 @@
 #include <migraphx/run_loop.hpp>
 #include <migraphx/gpu/loop.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/fill.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <unordered_map>
 
 namespace migraphx {
@@ -79,7 +79,7 @@ struct gpu_loop
             lens[0]   = elem_num;
             shape ss{s.type(), lens};
             assert(ss.bytes() + iter * size <= out.get_shape().bytes());
-            device::fill(ctx.get_stream().get(), argument(ss, out.data() + iter * size), 0);
+            gpu_fill(ctx, argument(ss, out.data() + iter * size), 0);
         }
     }
 

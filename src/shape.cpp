@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -130,7 +130,7 @@ struct shape_impl
     {
         if(not m_dyn_dims.empty())
         {
-            auto maxes = max_lens();
+            auto maxes          = max_lens();
             std::size_t max_val = std::numeric_limits<std::size_t>::max();
 
             return std::accumulate(
@@ -192,7 +192,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](const shape::dynamic_dimension& x) { return x.min; });
+                       [](const shape::dynamic_dimension& x) { return x.get_interval().min; });
         return ret;
     }
 
@@ -202,7 +202,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](const shape::dynamic_dimension& x) { return x.max; });
+                       [](const shape::dynamic_dimension& x) { return x.get_interval().max; });
         return ret;
     }
 
@@ -212,7 +212,7 @@ struct shape_impl
         std::transform(m_dyn_dims.cbegin(),
                        m_dyn_dims.cend(),
                        ret.begin(),
-                       [](const shape::dynamic_dimension& x) { return x.optimals; });
+                       [](const shape::dynamic_dimension& x) { return x.get_optimals(); });
         return ret;
     }
 
@@ -310,6 +310,25 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
     });
 }
 
+bool shape::is_compatible_lens(const shape& actual, const shape& expected)
+{
+    if(actual.dynamic())
+        return expected.dynamic() and actual.dyn_dims() == expected.dyn_dims();
+    if(expected.dynamic())
+    {
+        if(actual.ndim() != expected.ndim())
+            return false;
+        return std::equal(actual.lens().begin(),
+                          actual.lens().end(),
+                          expected.dyn_dims().begin(),
+                          [&](auto a, const auto& e) {
+                              auto expected_interval = e.get_interval();
+                              return a >= expected_interval.min and a <= expected_interval.max;
+                          });
+    }
+    return actual.lens() == expected.lens();
+}
+
 bool shape::is_unsigned(shape::type_t t)
 {
     bool result = false;
@@ -390,9 +409,9 @@ std::size_t shape::ndim() const
 {
     if(this->dynamic())
     {
-        return dyn_dims().size();
+        return impl->m_dyn_dims.size();
     }
-    return lens().size();
+    return impl->m_lens.size();
 }
 
 std::size_t shape::elements() const { return impl->elements(); }
@@ -670,7 +689,7 @@ bool shape::computable() const { return is_computable(this->type()); }
 
 const std::vector<shape::dynamic_dimension>& shape::dyn_dims() const
 {
-    if(not this->dynamic())
+    if(ndim() > 0 and not this->dynamic())
     {
         MIGRAPHX_THROW("SHAPE: dyn_dims() called on a static shape");
     }
@@ -689,14 +708,18 @@ std::vector<std::size_t> shape::max_lens() const
 
 std::vector<std::set<std::size_t>> shape::opt_lens() const { return impl->opt_lens(); }
 
-bool shape::dynamic_dimension::is_fixed() const { return this->min == this->max; }
+bool shape::dynamic_dimension::is_fixed() const
+{
+    auto i = this->get_interval();
+    return i.min == i.max;
+}
 
-bool shape::dynamic_dimension::has_optimal() const { return not optimals.empty(); }
+bool shape::dynamic_dimension::has_optimal() const { return not this->get_optimals().empty(); }
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t& x)
 {
-    this->min += x;
-    this->max += x;
+    this->range.min += x;
+    this->range.max += x;
     std::set<std::size_t> new_optimals;
     std::transform(this->optimals.begin(),
                    this->optimals.end(),
@@ -708,10 +731,10 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator+=(const std::size_t
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t& x)
 {
-    assert(this->min >= x);
-    assert(this->max >= x);
-    this->min -= x;
-    this->max -= x;
+    assert(this->range.min >= x);
+    assert(this->range.max >= x);
+    this->range.min -= x;
+    this->range.max -= x;
     std::set<std::size_t> new_optimals;
     std::transform(this->optimals.begin(),
                    this->optimals.end(),
@@ -726,8 +749,8 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator-=(const std::size_t
 
 shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t& x)
 {
-    this->min *= x;
-    this->max *= x;
+    this->range.min *= x;
+    this->range.max *= x;
     std::set<std::size_t> new_optimals;
     std::transform(this->optimals.begin(),
                    this->optimals.end(),
@@ -739,9 +762,8 @@ shape::dynamic_dimension& shape::dynamic_dimension::operator*=(const std::size_t
 
 bool operator==(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
 {
-    // don't check optimals if both are fixed
-    return (x.min == y.min and x.max == y.max and
-            ((x.is_fixed() and y.is_fixed()) or (x.optimals == y.optimals)));
+    return (x.get_interval() == y.get_interval() and
+            ((x.is_fixed() and y.is_fixed()) or (x.get_optimals() == y.get_optimals())));
 }
 
 bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimension& y)
@@ -750,13 +772,16 @@ bool operator!=(const shape::dynamic_dimension& x, const shape::dynamic_dimensio
 }
 std::ostream& operator<<(std::ostream& os, const shape::dynamic_dimension& x)
 {
-    os << "[ " << x.min << ", " << x.max << ", {" << migraphx::to_string_range(x.optimals) << "} ]";
+    auto x_interval = x.get_interval();
+    os << "[ " << x_interval.min << ", " << x_interval.max << ", {"
+       << migraphx::to_string_range(x.get_optimals()) << "} ]";
     return os;
 }
 
 bool operator==(const shape::dynamic_dimension& x, const std::size_t& y)
 {
-    return x.min == y and x.max == y;
+    auto x_interval = x.get_interval();
+    return x_interval.min == y and x_interval.max == y;
 }
 bool operator==(const std::size_t& x, const shape::dynamic_dimension& y) { return y == x; }
 bool operator!=(const shape::dynamic_dimension& x, const std::size_t& y) { return not(x == y); }
@@ -828,6 +853,11 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
     return os;
 }
 
+bool shape::same_lens(const shape& x, const shape& y)
+{
+    return x.to_dynamic().dyn_dims() == y.to_dynamic().dyn_dims();
+}
+
 shape::type_t shape::parse_type(const std::string& s)
 {
     static const std::unordered_map<std::string, shape::type_t> m = {
@@ -842,6 +872,8 @@ shape::type_t shape::parse_type(const std::string& s)
 }
 
 const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
+
+void shape::debug_print() const { std::cout << *this << std::endl; }
 
 std::vector<shape> flatten(const std::vector<shape>& shapes)
 {

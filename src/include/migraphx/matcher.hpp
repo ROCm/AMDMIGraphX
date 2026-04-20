@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -835,6 +835,12 @@ inline auto ndim(std::size_t n)
         [=](instruction_ref ins) { return ins->get_shape().ndim() == n; });
 }
 
+inline auto nelements(std::size_t n)
+{
+    return make_basic_pred_matcher(
+        [=](instruction_ref ins) { return ins->get_shape().elements() == n; });
+}
+
 MIGRAPHX_PRED_MATCHER(not_tuple, instruction_ref ins)
 {
     return ins->get_shape().type() != shape::tuple_type;
@@ -1204,7 +1210,11 @@ auto pointwise(Ms... ms)
     return match::has_attribute("pointwise")(ms...);
 }
 
-MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
+MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins)
+{
+    return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
+           ins->name() == "argmax";
+}
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

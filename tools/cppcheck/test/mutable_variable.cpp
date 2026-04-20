@@ -23,13 +23,14 @@
  *
  */
 // Test for MutableVariable check
+// cppcheck-suppress-file unusedStructMember
 
 void test_mutable_public_member()
 {
     class TestClass
     {
         public:
-        // TODO: migraphx-MutableVariable not triggered
+        // cppcheck-suppress migraphx-MutableVariable
         mutable int x;
     };
 }
@@ -39,7 +40,7 @@ void test_mutable_flag()
     class TestClass
     {
         public:
-        // TODO: migraphx-MutableVariable not triggered
+        // cppcheck-suppress migraphx-MutableVariable
         mutable bool flag;
     };
 }
@@ -49,7 +50,7 @@ void test_mutable_private_member()
     class TestClass
     {
         private:
-        // TODO: migraphx-MutableVariable not triggered
+        // cppcheck-suppress migraphx-MutableVariable
         mutable double value;
 
         public:

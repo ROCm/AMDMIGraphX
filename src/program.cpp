@@ -42,6 +42,7 @@
 #include <migraphx/supported_segments.hpp>
 #include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
+#include <migraphx/logger.hpp>
 
 #include <iostream>
 #include <queue>
@@ -691,7 +692,7 @@ static std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 7;
+const int program_file_version = 8;
 
 value program::to_value() const
 {
@@ -736,12 +737,14 @@ value program::to_value() const
                                    [&](auto mod_ref) { return mod_ref->name(); });
                     node["module_inputs"] = module_inputs;
                 }
-
+                if(not ins->get_debug_symbols().empty())
+                {
+                    node["debug_symbols"] = migraphx::to_value(ins->get_debug_symbols());
+                }
                 nodes.push_back(node);
             },
             names);
-        mod_val["nodes"] = nodes;
-
+        mod_val["nodes"]         = nodes;
         module_vals[mod->name()] = mod_val;
     }
 
@@ -815,6 +818,10 @@ static void mod_from_val(module_ref mod,
             }
         }
         output->set_normalized(normalized);
+        if(node.contains("debug_symbols"))
+        {
+            output->add_debug_symbols(from_value<std::set<std::string>>(node.at("debug_symbols")));
+        }
         instructions[node.at("output").to<std::string>()] = output;
     }
 }
@@ -834,9 +841,9 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::cerr << "[WARNING]: MXR File was created using MIGraphX version: " << migx_version
-                  << ", while installed MIGraphX is at version: " << get_migraphx_version()
-                  << ", operators implementation could be mismatched.\n";
+        log::warn() << "MXR File was created using MIGraphX version: " << migx_version
+                    << ", while installed MIGraphX is at version: " << get_migraphx_version()
+                    << ", operators implementation could be mismatched.";
     }
 
     migraphx::from_value(v.at("targets"), this->impl->targets);
@@ -1007,7 +1014,7 @@ void program::perf_report(
 
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, [&](auto ins, const auto& ins_names) {
-        instruction::print(std::cout, ins, ins_names);
+        instruction::print(os, ins, ins_names);
 
         // skip return instruction
         if(ins->name() == "@return")
@@ -1049,10 +1056,10 @@ void program::perf_report(
     os << percentile_90_time << "ms, " << percentile_95_time << "ms, " << percentile_99_time
        << "ms)" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
-    os << "Overhead time: " << overhead_time << "ms"
-       << ", " << calculate_overhead_time << "ms" << std::endl;
-    os << "Overhead: " << std::round(overhead_percent) << "%"
-       << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
+    os << "Overhead time: " << overhead_time << "ms" << ", " << calculate_overhead_time << "ms"
+       << std::endl;
+    os << "Overhead: " << std::round(overhead_percent) << "%" << ", "
+       << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
@@ -1197,7 +1204,7 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 {
     for(auto& pp : this->impl->modules)
     {
-        std::cout << pp.first << ":" << std::endl;
+        os << pp.first << ":" << std::endl;
         pp.second.annotate(os, a);
     }
 }
@@ -1368,7 +1375,7 @@ program& program::sort()
         current_mod->sort();
         mqueue.pop();
         auto child_mods = current_mod->get_sub_modules(true);
-        for(auto& sub_mod : child_mods)
+        for(const auto& sub_mod : child_mods)
         {
             mqueue.push(sub_mod);
         }
@@ -1376,7 +1383,10 @@ program& program::sort()
     return *this;
 }
 
-bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
+bool operator==(const program& x, const program& y)
+{
+    return migraphx::to_string(x) == migraphx::to_string(y);
+}
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

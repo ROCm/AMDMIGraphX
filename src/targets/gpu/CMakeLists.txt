@@ -23,6 +23,11 @@
 # ####################################################################################
 
 find_package(hip REQUIRED)
+
+if(NOT WIN32)
+    find_package(hsa-runtime64 REQUIRED CONFIG)
+    message(STATUS "MIGraphX is using HSA runtime for chiplet query")
+endif()
 if(NOT GPU_TARGETS)
     set(fatal_msg "HIP package is broken and has no GPU_TARGETS. Please pass GPU_TARGETS to cmake.")
     if(NOT WIN32)
@@ -57,7 +62,7 @@ else()
 endif()
 
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    find_package(composable_kernel 1.0.0 REQUIRED COMPONENTS jit_library)
+    find_package(composable_kernel_host 1.0.0 REQUIRED)
 endif()
 
 if(BUILD_DEV)
@@ -114,13 +119,18 @@ target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_WAV
 target_include_directories(compile_migraphx_gpu_kernels INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/>)
 target_link_libraries(compile_migraphx_gpu_kernels INTERFACE compile_for_gpu)
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(compile_migraphx_gpu_kernels INTERFACE composable_kernel::jit_library)
+    target_link_libraries(compile_migraphx_gpu_kernels INTERFACE composable_kernel::ck_host)
 endif()
 
 add_library(migraphx_gpu_kernel_file_check EXCLUDE_FROM_ALL)
 
+set(CK_TIDY_SKIP_KERNEL_FILES "ck" "ck_gemm" "ck_gemm_softmax_gemm")
 foreach(KERNEL_FILE ${KERNEL_FILES})
     get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE} NAME_WE)
+    # Temporary workaround for tidy issue that arises from the fact that CK no longer exposes headers to the host code
+    if(${KERNEL_BASE_FILE} IN_LIST CK_TIDY_SKIP_KERNEL_FILES)
+        continue()
+    endif()
     file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
     target_sources(migraphx_gpu_kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
 endforeach()
@@ -144,8 +154,6 @@ endif()
 add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
-    argmax.cpp
-    argmin.cpp
     code_object_op.cpp
     compile_ops.cpp
     compile_gen.cpp
@@ -165,15 +173,13 @@ add_library(migraphx_gpu
     hip.cpp
     hipblaslt.cpp
     hip_gemm_impl.cpp
+    hsa_chiplet.cpp
     kernel.cpp
     lowering.cpp
-    logsoftmax.cpp
     loop.cpp
     lrn.cpp
     mlir.cpp
-    multinomial.cpp
     no_device.cpp
-    nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
     prepare_mlir.cpp
@@ -181,8 +187,6 @@ add_library(migraphx_gpu
     perfdb.cpp
     pooling.cpp
     problem_cache.cpp
-    reverse.cpp
-    rnn_variable_seq_lens.cpp
     rocblas.cpp
     schedule_model.cpp
     sync_device.cpp
@@ -204,15 +208,8 @@ function(register_migraphx_gpu_ops PREFIX)
 endfunction()
 
 register_migraphx_gpu_ops(hip_
-    argmax
-    argmin
     fixed_pad
-    logsoftmax
     loop
-    multinomial
-    nonzero
-    prefix_scan_sum
-    reverse
     topk
 )
 if (MIGRAPHX_USE_MIOPEN)
@@ -227,10 +224,6 @@ register_migraphx_gpu_ops(miopen_
     contiguous
 )
 endif()
-register_op(migraphx_gpu
-    HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
-    OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
-    INCLUDES migraphx/gpu/context.hpp)
 if(MIGRAPHX_USE_ROCBLAS)
     register_op(migraphx_gpu
         HEADER migraphx/gpu/gemm.hpp
@@ -398,8 +391,13 @@ else()
     target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 endif()
 target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
+
+# Link HSA runtime for chiplet query (Linux only)
+if(NOT WIN32)
+    target_link_libraries(migraphx_gpu PRIVATE hsa-runtime64::hsa-runtime64)
+endif()
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
-    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::jit_library)
+    target_link_libraries(migraphx_gpu PRIVATE composable_kernel::ck_host)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
 endif()
 
@@ -412,3 +410,4 @@ rocm_install_targets(
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+

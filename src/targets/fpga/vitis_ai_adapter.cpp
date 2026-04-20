@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include "migraphx/module.hpp"
 
 #include "migraphx/stringutils.hpp"
+#include <migraphx/logger.hpp>
 namespace vitis_ai {
 
 migraphx::shape x_model::get_shape() const { return shape; };
@@ -35,7 +36,7 @@ void x_model::set_shape(migraphx::shape s) { shape = s; }
 
 x_model create_xmodel(migraphx::const_module_ref mod)
 {
-    std::cout << "Calling an external function: create_xmodel!\n";
+    migraphx::log::debug() << "Calling an external function: create_xmodel!";
     x_model xmodel;
     xmodel.set_shape(migraphx::shape(mod->get_output_shapes()));
     return xmodel;
@@ -43,19 +44,19 @@ x_model create_xmodel(migraphx::const_module_ref mod)
 
 migraphx::argument execute(const x_model& xmodel,
                            const migraphx::shape& output_shape,
-                           std::vector<migraphx::argument>& args)
+                           const std::vector<migraphx::argument>& args)
 {
     (void)xmodel;
 
-    std::cout << "Calling an external function: execute!\n";
-
-    std::cout << "Output Shape: " << output_shape << std::endl;
-    std::cout << "Args: " << args.size() << std::endl;
+    std::ostringstream ss;
+    ss << "Calling an external function: execute!\n";
+    ss << "Output Shape: " << output_shape << "\n";
+    ss << "Args: " << args.size() << "\n";
     for(const auto& arg : args)
     {
-        std::cout << "  " << arg.get_shape() << std::endl;
+        ss << "  " << arg.get_shape() << "\n";
     }
-    std::cout << std::endl;
+    migraphx::log::debug() << ss.str();
 
     migraphx::argument result{output_shape};
 

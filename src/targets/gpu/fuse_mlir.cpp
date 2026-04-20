@@ -177,7 +177,7 @@ struct mlir_op
     // Check if the shape can be created from a transpose/broadcast/slice
     static bool is_mlir_compatible(const shape& s)
     {
-        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1)
+        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1 or s.dynamic())
             return true;
         auto ns = reorder_shape(s, find_permutation(s));
         std::vector<std::size_t> stride_ratios;
@@ -201,8 +201,8 @@ struct mlir_op
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
-        module_ref mod = mods[0];
-        check_shapes{inputs, *this}.has_at_least(1);
+        const_module_ref mod = mods[0];
+        check_shapes{inputs, *this, true}.has_at_least(1);
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
 
@@ -319,6 +319,8 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(ins->name() != "dot" and ins->name() != "quant_dot")
             return false;
+        if(ins->get_shape().dynamic())
+            return true;
         // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS/hipBLASLt should
         // have the support for it.
         if(contains(fp8_types{}.get(), ins->get_shape().type()))
@@ -355,6 +357,8 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
+        if(ins->get_shape().dynamic())
+            return true;
         auto input = ins->inputs().front()->get_shape();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
@@ -545,7 +549,6 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
 bool is_reduce_op_supported_by_mlir(const instruction& i)
 {
     using type_t                                      = shape::type_t;
-    const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
                                                          type_t::half_type,
@@ -977,7 +980,7 @@ struct find_mlir_fused_geg_ops
 };
 
 template <auto Matcher>
-struct find_mlir_standalone_op
+struct find_mlir_standalone_op : match::supports_dynamic_shapes
 {
     mlir_mode mode       = mlir_mode::none;
     std::size_t* counter = nullptr;

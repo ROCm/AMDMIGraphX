@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -178,6 +178,11 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
     options.limit_max_iterations = value;
 }
 
+static void set_use_debug_symbols(onnx_options& options, bool value)
+{
+    options.use_debug_symbols = value;
+}
+
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
@@ -259,7 +264,7 @@ static void add_op_name(quantize_int8_options& options, const char* name)
     options.op_names.insert(name);
 }
 
-static void add_calibration_data(quantize_int8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_int8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }
@@ -279,7 +284,7 @@ struct quantize_fp8_options
     std::vector<parameter_map> calibration = {};
 };
 
-static void add_calibration_data(quantize_fp8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_fp8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }
@@ -377,19 +382,9 @@ struct custom_operation
         return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
 
-    std::ptrdiff_t output_alias(std::vector<shape> inputs) const
+    std::vector<std::size_t> output_alias(std::vector<shape> inputs) const
     {
-        auto alias_vec = op.output_alias(std::move(inputs));
-        // TODO: For now, only support one output alias
-        if(alias_vec.empty())
-        {
-            return -1;
-        }
-        if(alias_vec.size() > 1)
-        {
-            MIGRAPHX_THROW("Currently, CustomOps in MIGraphX only supports one output_alias");
-        }
-        return alias_vec.front();
+        return op.output_alias(std::move(inputs));
     }
 
     bool runs_on_offload_target() const { return op.runs_on_offload_target(); }
@@ -1997,6 +1992,17 @@ migraphx_onnx_options_set_external_data_path(migraphx_onnx_options_t onnx_option
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
         migraphx::set_external_data_path((onnx_options->object), (external_data_path));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        migraphx::set_use_debug_symbols((onnx_options->object), (value));
     });
     return api_error_result;
 }

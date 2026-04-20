@@ -29,7 +29,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-static void insert_miopen_pooling(std::set<std::string>& u)
+static void insert_miopen_pooling([[maybe_unused]] std::set<std::string>& u)
 {
 #if MIGRAPHX_USE_MIOPEN
     u.insert("pooling");
@@ -47,17 +47,16 @@ static void insert_gemm_conv(std::set<std::string>& u)
 static eliminate_data_type for_device_functions()
 {
     std::set<shape::type_t> unsupported_types(shape::types().begin(), shape::types().end());
-    unsupported_types.erase(shape::type_t::float_type);
-    unsupported_types.erase(shape::type_t::half_type);
-    unsupported_types.erase(shape::type_t::bool_type);
-    unsupported_types.erase(shape::type_t::int8_type);
-    unsupported_types.erase(shape::type_t::uint8_type);
-    unsupported_types.erase(shape::type_t::int32_type);
-    unsupported_types.erase(shape::type_t::bf16_type);
-    unsupported_types.erase(shape::type_t::tuple_type);
+    unsupported_types.erase(shape::float_type);
+    unsupported_types.erase(shape::half_type);
+    unsupported_types.erase(shape::bool_type);
+    unsupported_types.erase(shape::int8_type);
+    unsupported_types.erase(shape::uint8_type);
+    unsupported_types.erase(shape::int32_type);
+    unsupported_types.erase(shape::bf16_type);
+    unsupported_types.erase(shape::tuple_type);
 
     std::set<std::string> device_functions = {
-        "logsoftmax",
         "nonzero",
         "prefix_scan_sum",
         "rnn_var_sl_shift_output",
@@ -66,7 +65,7 @@ static eliminate_data_type for_device_functions()
         "argmin",
     };
 
-    return eliminate_data_type{unsupported_types, shape::type_t::float_type, device_functions};
+    return eliminate_data_type{unsupported_types, shape::float_type, device_functions};
 }
 
 static eliminate_data_type for_fp8fnuz()
@@ -132,14 +131,25 @@ static eliminate_data_type for_gemm_conv()
 
 void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
 {
-    std::set<shape::type_t> unsupported_types;
+    std::set<shape::type_t> unsupported_floats;
     // No BF-16 Support on Navi21
     if(not gpu::gfx_has_bf16_intrinsics())
     {
-        unsupported_types.insert(shape::type_t::bf16_type);
+        unsupported_floats.insert(shape::bf16_type);
     }
-    if(not unsupported_types.empty())
-        mpm.run_pass(eliminate_data_type{unsupported_types, shape::type_t::float_type});
+    if(disable_64bit)
+    {
+        unsupported_floats.insert(shape::double_type);
+    }
+    if(not unsupported_floats.empty())
+        mpm.run_pass(eliminate_data_type{unsupported_floats, shape::float_type});
+
+    if(disable_64bit)
+    {
+        // TODO: Check for large tensors
+        mpm.run_pass(eliminate_data_type{{shape::int64_type}, shape::int32_type});
+        mpm.run_pass(eliminate_data_type{{shape::uint64_type}, shape::uint32_type});
+    }
 
     // workaround for rocBLAS unsupported error when using uint8 in quant_dot, quant_convolution &
     // pooling

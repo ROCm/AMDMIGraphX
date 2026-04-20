@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -147,10 +147,12 @@ struct parse_mxquantizedequantize : op_parser<parse_mxquantizedequantize>
             padding.at(fast_axis * 2 + 1) = 1;
             q_ins = info.add_instruction(make_op("pad", {{"pads", padding}}), q_ins);
         }
-        auto pack_ins   = info.add_instruction(make_op("pack_fp4"),
-                                             q_ins); // output is fp4x2_type
-        auto unpack_ins = info.add_instruction(make_op("unpack_fp4"),
-                                               pack_ins); // output is fp8e4m3fn_type
+        // output is fp4x2_type
+        auto pack_ins = info.add_instruction(make_op("pack_fp4", {{"axis", fast_axis}}), q_ins);
+        // output is fp8e4m3fn_type
+        auto unpack_ins =
+            info.add_instruction(make_op("unpack_fp4", {{"axis", fast_axis}}), pack_ins);
+
         if(odd_fast_axis)
         {
             // slice off padded values

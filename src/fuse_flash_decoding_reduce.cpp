@@ -22,17 +22,42 @@
  * THE SOFTWARE.
  *
  */
+#include "migraphx/check_shapes.hpp"
 #include <migraphx/fuse_flash_decoding_reduce.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/register_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+struct ck_tile_splitkv_combine 
+{
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "gpu::ck_tile_splitkv_combine"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).same_ndims().min_ndims(4).max_ndims(5);
+        auto o_shape   = inputs[0];
+        auto o_lens    = o_shape.lens();
+        auto split_axis = o_lens.size() - 3;
+        o_lens.erase(o_lens.begin() + split_axis);
+        return {o_shape.type(), o_lens};
+    }
+
+};
+MIGRAPHX_REGISTER_OP(ck_tile_splitkv_combine);
 
 struct find_flash_decoding_reduce
 {
@@ -65,14 +90,20 @@ struct find_flash_decoding_reduce
         auto rsum_bcast = match::name("multibroadcast")(match::arg(0)(rsum));
         auto scale_div  = match::name("div")(match::arg(0)(lse_exp), match::arg(1)(rsum_bcast));
 
-        // div -> multibroadcast -> convert
-        auto scale_bcast   = match::name("multibroadcast")(match::arg(0)(scale_div));
-        auto scale_convert = match::name("convert")(match::arg(0)(scale_bcast));
+        // div -> multibroadcast -> convert  (fuse_attention output)
+        // OR div -> convert -> multibroadcast  (after simplify_reshapes)
+        auto bcast_then_convert =
+            match::name("convert")(match::arg(0)(
+                match::name("multibroadcast")(match::arg(0)(scale_div))));
+        auto convert_then_bcast =
+            match::name("multibroadcast")(match::arg(0)(
+                match::name("convert")(match::arg(0)(scale_div))));
+        auto scale = match::any_of(bcast_then_convert, convert_then_bcast);
 
         // mul(operand, scale) -> reduce_sum -> squeeze
         auto operand  = match::any().bind("o");
         auto scaled   = match::name("mul")(match::arg(0)(operand),
-                                         match::arg(1)(scale_convert));
+                                         match::arg(1)(scale));
         auto reduced  = match::name("reduce_sum")(match::arg(0)(scaled));
         auto squeezed = match::name("squeeze")(match::arg(0)(reduced)).bind("squeeze");
 

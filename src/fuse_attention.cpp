@@ -32,6 +32,8 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
 #include <optional>
+#include <migraphx/register_op.hpp>
+#include <migraphx/check_shapes.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -43,6 +45,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_NUM_SPLITS);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_MAX_SPLITS);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FLASH_DECODING_THRESHOLD);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
 
 // Helper function to get config value with priority: struct member (if not default) > env var >
 // default
@@ -307,6 +310,46 @@ struct find_attention
         }
     }
 };
+
+struct ck_tile_splitkv
+{
+    std::size_t num_splits = 2;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.num_splits, "num_splits"));
+    }
+
+    std::string name() const { return "gpu::ck_tile_splitkv"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        std::cout << "compute_shape" << std::endl;
+        check_shapes{inputs, *this}.has(3).same_ndims().min_ndims(3).max_ndims(4);
+
+        const auto& q_shape = inputs[0];
+        const auto& v_shape = inputs[2];
+
+        auto q_lens     = q_shape.lens();
+        auto split_axis = q_lens.size() - 2;
+        auto seq_len    = q_lens[split_axis];
+        auto head_dim   = v_shape.lens().back();
+
+        std::vector<std::size_t> o_lens(q_lens.begin(), q_lens.begin() + split_axis);
+        o_lens.push_back(num_splits);
+        o_lens.push_back(seq_len);
+        o_lens.push_back(head_dim);
+
+        // LSE has same shape but last dim is 1
+        auto lse_lens   = o_lens;
+        lse_lens.back() = 1;
+
+        std::cout << "compute shape before return" << std::endl;
+        return shape{{shape{q_shape.type(), o_lens}, shape{shape::float_type, lse_lens}}};
+    }
+};
+MIGRAPHX_REGISTER_OP(ck_tile_splitkv);
 
 struct find_flash_decoding
 {
@@ -691,16 +734,29 @@ struct find_flash_decoding
         mpm_flash_mod->set_bypass();
 
         // insert the new group op, which returns a tuple of O' and LSE
-        auto new_group_ins = mm.insert_instruction(attn_group_ins,
-                                                   make_op("group", {{"tag", "attention"}}),
-                                                   new_group_inputs,
-                                                   {mpm_flash_mod});
+        instruction_ref new_group_ins;
+        if(not enabled(MIGRAPHX_ENABLE_CK{}))
+        {
+            new_group_ins = mm.insert_instruction(attn_group_ins,
+                                                  make_op("group", {{"tag", "attention"}}),
+                                                  new_group_inputs,
+                                                  {mpm_flash_mod});
+        }
+        else
+        {
+            std::cout << "CK enabled" << std::endl;
+            new_group_ins = mm.insert_instruction(
+                attn_group_ins,
+                make_op("gpu::ck_tile_splitkv", {{"num_splits", actual_groups}}),
+                {q_orig, k_orig, v_orig});
+        }
 
         // unpack O' and LSE
         auto partial_output_o_prime = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group_ins);
         auto lse = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
+            std::cout << "after get_tuple_elem" << std::endl;
 
         // kernel 2
         // the partial outputs O'[g] are already weighted by their group's softmax,
@@ -708,16 +764,19 @@ struct find_flash_decoding
         // To combine: weight by exp(LSE[g]) / sum_g(exp(LSE[g']))
 
         // compute global max for numerical stability
+        std::cout << g_axis << std::endl;
         auto lse_max =
             mm.insert_instruction(attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
         auto lse_max_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}),
             lse_max);
+        std::cout << "1" << std::endl;
 
         // exp(LSE - max_LSE)
         auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
         auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
+        std::cout << "2" << std::endl;
 
         // sum across groups
         auto lse_sum = mm.insert_instruction(
@@ -726,6 +785,7 @@ struct find_flash_decoding
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
             lse_sum);
+        std::cout << "3" << std::endl;
 
         // scale factor: exp(LSE[g] - max_LSE) / sum(exp(LSE - max_LSE))
         auto scale = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
@@ -734,6 +794,7 @@ struct find_flash_decoding
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
             scale);
+        std::cout << "4" << std::endl;
 
         // convert scale to match the type of partial_output_o_prime
         auto output_type     = partial_output_o_prime->get_shape().type();
@@ -751,6 +812,7 @@ struct find_flash_decoding
         // squeeze G to match the original output shape
         auto final_squeezed_o = mm.insert_instruction(
             attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
+        std::cout << "5" << std::endl;
 
         // if padding was applied, slice to remove it
         instruction_ref final_result = final_squeezed_o;
@@ -772,6 +834,11 @@ struct find_flash_decoding
 
         // replace the original group instruction with the final result
         mm.replace_instruction(attn_group_ins, final_result);
+        std::cout << "6" << std::endl;
+        std::cout << mm << std::endl;
+        // std::cout << "===============" << std::endl;
+        // std::cout << new_group_ins->module_inputs().front()->name() << std::endl;
+        // std::cout << *new_group_ins->module_inputs().front() << std::endl;
     }
 };
 
@@ -992,7 +1059,10 @@ void fuse_attention::apply(module_pass_manager& mpm) const
                                 .configured_threshold      = flash_decoding_threshold,
                                 .configured_max_splits     = flash_decoding_max_splits,
                                 .configured_min_chunk_size = flash_decoding_min_chunk_size});
+        std::cout << "before dead code elimination" << std::endl;
         mpm.run_pass(dead_code_elimination{});
+        std::cout << "after dead code elimination" << std::endl;
+        std::cout << mpm.get_module() << std::endl;
     }
 }
 

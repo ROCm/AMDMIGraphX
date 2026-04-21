@@ -152,8 +152,7 @@ constexpr auto vec_transform_tuple_transpose(GetLane get_lane)
 {
     using lane0 = remove_reference_t<decltype(declval<GetLane>()(_c<0>))>;
     return generate_tuple(decltype(declval<lane0>().size()){}, [&](auto j) {
-        return generate_vec(index_constant<Size>{},
-                            [&](auto i) { return get_lane(i)[j]; });
+        return generate_vec(index_constant<Size>{}, [&](auto i) { return get_lane(i)[j]; });
     });
 }
 

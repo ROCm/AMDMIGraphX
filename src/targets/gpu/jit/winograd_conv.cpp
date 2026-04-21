@@ -72,10 +72,10 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const std::size_t H = y_lens.at(2);
         const std::size_t W = y_lens.at(3);
 
-        const std::size_t tiles_h        = (H + 1) / 2;
-        const std::size_t tiles_w        = (W + 1) / 2;
-        const std::size_t tiles_per_img  = tiles_h * tiles_w;
-        const std::size_t total_tiles    = N * tiles_per_img;
+        const std::size_t tiles_h       = (H + 1) / 2;
+        const std::size_t tiles_w       = (W + 1) / 2;
+        const std::size_t tiles_per_img = tiles_h * tiles_w;
+        const std::size_t total_tiles   = N * tiles_per_img;
 
         // Tuning parameters.
         std::size_t k_per_block     = v.get("k_per_block", std::size_t{32});
@@ -89,9 +89,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
             op_n = 1;
 
         // Ensure K_PER_BLOCK / TILES_PER_BLOCK are multiples of op_m/op_n.
-        auto align = [](std::size_t v_, std::size_t a) {
-            return ((v_ + a - 1) / a) * a;
-        };
+        auto align      = [](std::size_t v_, std::size_t a) { return ((v_ + a - 1) / a) * a; };
         k_per_block     = align(k_per_block, op_m);
         tiles_per_block = align(tiles_per_block, op_n);
 
@@ -136,26 +134,23 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                               bool exhaustive) const
     {
         tuning_config tc;
-        auto shapes = to_shapes(ins->inputs());
-        tc.problem  = to_value(shapes);
-        const std::size_t wave =
-            ctx.get_current_device().get_wavefront_size();
+        auto shapes                 = to_shapes(ins->inputs());
+        tc.problem                  = to_value(shapes);
+        const std::size_t wave      = ctx.get_current_device().get_wavefront_size();
         const std::size_t max_block = 1024;
 
         auto add = [&](std::size_t kb, std::size_t tb, std::size_t om, std::size_t on) {
             if(kb % om != 0 or tb % on != 0)
                 return;
-            const auto t_k     = kb / om;
-            const auto t_t     = tb / on;
-            const auto block   = t_k * t_t;
+            const auto t_k   = kb / om;
+            const auto t_t   = tb / on;
+            const auto block = t_k * t_t;
             if(block < wave or block > max_block)
                 return;
             if((block % wave) != 0)
                 return;
-            tc.solutions.push_back({{"k_per_block", kb},
-                                    {"tiles_per_block", tb},
-                                    {"op_m", om},
-                                    {"op_n", on}});
+            tc.solutions.push_back(
+                {{"k_per_block", kb}, {"tiles_per_block", tb}, {"op_m", om}, {"op_n", on}});
         };
 
         if(exhaustive)

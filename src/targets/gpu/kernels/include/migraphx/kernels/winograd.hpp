@@ -57,9 +57,8 @@ inline __device__ void set_prio()
 // fp16 packed dot product: returns acc + a.x*b.x + a.y*b.y as fp32.
 inline __device__ float dot2_acc(vec<half, 2> a, vec<half, 2> b, float acc)
 {
-#if defined(__gfx10__) || defined(__gfx11__) || defined(__gfx1100__) ||   \
-    defined(__gfx1101__) || defined(__gfx1102__) || defined(__gfx1103__) || \
-    defined(__gfx1200__) || defined(__gfx1201__)
+#if defined(__gfx10__) || defined(__gfx11__) || defined(__gfx1100__) || defined(__gfx1101__) || \
+    defined(__gfx1102__) || defined(__gfx1103__) || defined(__gfx1200__) || defined(__gfx1201__)
     return __builtin_amdgcn_fdot2(a, b, acc, false);
 #else
     return acc + static_cast<float>(a[0]) * static_cast<float>(b[0]) +
@@ -80,7 +79,7 @@ __device__ __attribute__((const)) array<T, 16> input_transform(array<T, 16> d)
     });
     array<T, 16> v{};
     repeat_c<4>([&](auto i) {
-        auto base   = i * 4u;
+        auto base    = i * 4u;
         v[base + 0u] = t[base + 0u] - t[base + 2u];
         v[base + 1u] = t[base + 1u] + t[base + 2u];
         v[base + 2u] = t[base + 2u] - t[base + 1u];
@@ -96,9 +95,9 @@ __device__ __attribute__((const)) array<T, 16> filter_transform(array<T, 9> g)
     const auto half = T{0.5};
     array<T, 12> u{};
     repeat_c<3>([&](auto j) {
-        auto g0 = g[0u * 3u + j];
-        auto g1 = g[1u * 3u + j];
-        auto g2 = g[2u * 3u + j];
+        auto g0        = g[0u * 3u + j];
+        auto g1        = g[1u * 3u + j];
+        auto g2        = g[2u * 3u + j];
         u[0u * 3u + j] = g0;
         u[1u * 3u + j] = half * (g0 + g1 + g2);
         u[2u * 3u + j] = half * (g0 - g1 + g2);
@@ -106,10 +105,10 @@ __device__ __attribute__((const)) array<T, 16> filter_transform(array<T, 9> g)
     });
     array<T, 16> uu{};
     repeat_c<4>([&](auto i) {
-        auto u0   = u[i * 3u + 0u];
-        auto u1   = u[i * 3u + 1u];
-        auto u2   = u[i * 3u + 2u];
-        auto base = i * 4u;
+        auto u0       = u[i * 3u + 0u];
+        auto u1       = u[i * 3u + 1u];
+        auto u2       = u[i * 3u + 2u];
+        auto base     = i * 4u;
         uu[base + 0u] = u0;
         uu[base + 1u] = half * (u0 + u1 + u2);
         uu[base + 2u] = half * (u0 - u1 + u2);
@@ -129,10 +128,10 @@ __device__ __attribute__((const)) array<T, 4> output_transform(array<Acc, 16> m)
     });
     array<T, 4> y{};
     repeat_c<2>([&](auto i) {
-        auto r0 = r[i * 4u + 0u];
-        auto r1 = r[i * 4u + 1u];
-        auto r2 = r[i * 4u + 2u];
-        auto r3 = r[i * 4u + 3u];
+        auto r0        = r[i * 4u + 0u];
+        auto r1        = r[i * 4u + 1u];
+        auto r2        = r[i * 4u + 2u];
+        auto r3        = r[i * 4u + 3u];
         y[i * 2u + 0u] = static_cast<T>(r0 + r1 + r2);
         y[i * 2u + 1u] = static_cast<T>(r1 - r2 - r3);
     });
@@ -157,8 +156,7 @@ load_tile(X x, index_int n, index_int c, diff_int r0, diff_int c0)
             const bool w_ok   = (ww >= 0 and ww < diff_int{W_in});
             if(h_ok and w_ok)
             {
-                d[ii * 4u + jj] =
-                    x[make_array<index_int>(n, c, index_int(hh), index_int(ww))];
+                d[ii * 4u + jj] = x[make_array<index_int>(n, c, index_int(hh), index_int(ww))];
             }
         });
     });
@@ -169,8 +167,7 @@ load_tile(X x, index_int n, index_int c, diff_int r0, diff_int c0)
 // (3, 1) we can copy the 9 contiguous halves with a single memcpy so the
 // compiler can issue a wider global load.
 template <class T, class W>
-__device__ __attribute__((const)) array<T, 9>
-load_filter(W w, index_int k, index_int c)
+__device__ __attribute__((const)) array<T, 9> load_filter(W w, index_int k, index_int c)
 {
     constexpr auto ws = typename W::shape_type{};
     array<T, 9> g{};
@@ -240,11 +237,11 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
     constexpr auto W_out   = _c<index_int{y_shape.lens[3]}>;
     constexpr auto C_      = _c<index_int{x_shape.lens[1]}>;
 
-    constexpr auto t_h     = (H_out + 1u) / 2u;
-    constexpr auto t_w     = (W_out + 1u) / 2u;
-    constexpr auto t_pi    = t_h * t_w;
-    constexpr auto total_  = N_ * t_pi;
-    constexpr auto tblk    = (total_ + TILES_PER_BLOCK - 1u) / TILES_PER_BLOCK;
+    constexpr auto t_h    = (H_out + 1u) / 2u;
+    constexpr auto t_w    = (W_out + 1u) / 2u;
+    constexpr auto t_pi   = t_h * t_w;
+    constexpr auto total_ = N_ * t_pi;
+    constexpr auto tblk   = (total_ + TILES_PER_BLOCK - 1u) / TILES_PER_BLOCK;
     (void)0;
 
     const index_int group      = idx.group;
@@ -256,9 +253,9 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
 
     // LDS shapes [e, k, ch] and [e, t, ch]: ch (0/1) is the channel pair,
     // OP_M/OP_N neighbors contiguous so vec loads fit ds_load_b{32,64,128}.
-    constexpr index_int CH = 2u;
-    constexpr auto u_shape = make_shape(index_ints<16u, K_PER_BLOCK, CH>{});
-    constexpr auto v_shape = make_shape(index_ints<16u, TILES_PER_BLOCK, CH>{});
+    constexpr index_int CH  = 2u;
+    constexpr auto u_shape  = make_shape(index_ints<16u, K_PER_BLOCK, CH>{});
+    constexpr auto v_shape  = make_shape(index_ints<16u, TILES_PER_BLOCK, CH>{});
     constexpr index_int U_N = 16u * K_PER_BLOCK * CH;
     constexpr index_int V_N = 16u * TILES_PER_BLOCK * CH;
 
@@ -332,14 +329,12 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
         array<array<out_type, OP_M * 2u>, 16> u_all;
         array<array<out_type, OP_N * 2u>, 16> v_all;
         repeat_c<16>([&](auto e) {
-            __builtin_memcpy(
-                u_all[e].data(),
-                &u_lds[make_array<index_int>(e, k_in_grid * OP_M, 0u)],
-                sizeof(u_all[e]));
-            __builtin_memcpy(
-                v_all[e].data(),
-                &v_lds[make_array<index_int>(e, t_in_grid * OP_N, 0u)],
-                sizeof(v_all[e]));
+            __builtin_memcpy(u_all[e].data(),
+                             &u_lds[make_array<index_int>(e, k_in_grid * OP_M, 0u)],
+                             sizeof(u_all[e]));
+            __builtin_memcpy(v_all[e].data(),
+                             &v_lds[make_array<index_int>(e, t_in_grid * OP_N, 0u)],
+                             sizeof(v_all[e]));
         });
         set_prio<1>();
         repeat_c<16>([&](auto e) {
@@ -351,10 +346,10 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
                         // Fuse both channels of the pair into one v_dot2.
                         vec<half, 2> up;
                         vec<half, 2> vp;
-                        up[0] = u_all[e][m * 2u + 0u];
-                        up[1] = u_all[e][m * 2u + 1u];
-                        vp[0] = v_all[e][nn * 2u + 0u];
-                        vp[1] = v_all[e][nn * 2u + 1u];
+                        up[0]   = u_all[e][m * 2u + 0u];
+                        up[1]   = u_all[e][m * 2u + 1u];
+                        vp[0]   = v_all[e][nn * 2u + 0u];
+                        vp[1]   = v_all[e][nn * 2u + 1u];
                         acc[ai] = dot2_acc(vp, up, acc[ai]);
                     }
                     else
@@ -380,17 +375,15 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
             const index_int my_tile = tile_block * TILES_PER_BLOCK + t_in_grid * OP_N + nn;
             if(my_tile >= total_)
                 return;
-            const index_int n_    = my_tile / t_pi;
-            const index_int t_img = my_tile % t_pi;
-            const index_int th    = t_img / t_w;
-            const index_int tw    = t_img % t_w;
+            const index_int n_     = my_tile / t_pi;
+            const index_int t_img  = my_tile % t_pi;
+            const index_int th     = t_img / t_w;
+            const index_int tw     = t_img % t_w;
             const index_int base_h = th * 2u;
             const index_int base_w = tw * 2u;
 
             array<Acc, 16> m16;
-            repeat_c<16>([&](auto e) {
-                m16[e] = acc[(m * OP_N + nn) * 16u + e];
-            });
+            repeat_c<16>([&](auto e) { m16[e] = acc[(m * OP_N + nn) * 16u + e]; });
             const auto yt = output_transform<out_type>(m16);
             repeat_c<2>([&](auto ii) {
                 repeat_c<2>([&](auto jj) {
@@ -398,8 +391,7 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
                     const index_int w_out = base_w + jj;
                     if(h_out < H_out and w_out < W_out)
                     {
-                        y[make_array<index_int>(n_, my_k, h_out, w_out)] =
-                            yt[ii * 2u + jj];
+                        y[make_array<index_int>(n_, my_k, h_out, w_out)] = yt[ii * 2u + jj];
                     }
                 });
             });
@@ -408,15 +400,16 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
 }
 
 // Wrapper that picks the right accumulator type per element type.
-template <index_int K_PER_BLOCK, index_int TILES_PER_BLOCK, index_int OP_M, index_int OP_N,
-          class X, class W, class Y>
+template <index_int K_PER_BLOCK,
+          index_int TILES_PER_BLOCK,
+          index_int OP_M,
+          index_int OP_N,
+          class X,
+          class W,
+          class Y>
 __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
 {
-    winograd_conv_f2x3_s1_mn<K_PER_BLOCK,
-                             TILES_PER_BLOCK,
-                             OP_M,
-                             OP_N,
-                             float>(x, w, y);
+    winograd_conv_f2x3_s1_mn<K_PER_BLOCK, TILES_PER_BLOCK, OP_M, OP_N, float>(x, w, y);
 }
 
 template <index_int K_PER_BLOCK, index_int TILES_PER_BLOCK, class X, class W, class Y>

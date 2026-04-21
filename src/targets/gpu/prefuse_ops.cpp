@@ -366,8 +366,7 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_compatible, instruction_ref ins)
     auto w_lens = ins->inputs().back()->get_shape().lens();
     if(w_lens.size() != 4 or w_lens[2] != 3 or w_lens[3] != 3)
         return false;
-    if(not all_of(v.at("padding"),
-                  [](const value& x) { return x.to<std::size_t>() == 1; }))
+    if(not all_of(v.at("padding"), [](const value& x) { return x.to<std::size_t>() == 1; }))
         return false;
     return true;
 }

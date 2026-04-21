@@ -432,7 +432,7 @@ void reduce_op::set(instruction_ref ins, const operation& op)
             MIGRAPHX_THROW("Unsupported arg operation");
         }
         // pack tuples (value, index) per vector lane
-        read = "[](auto val, auto idx) { return reduce::arg_read_vec_pair(val, idx); }";
+        read = "[](auto val, auto idx) { return make_tuple(val, idx); }";
     }
     else
     {
@@ -487,30 +487,28 @@ static std::vector<std::size_t> get_rlens(const module& m)
     return reduce->get_shape().lens();
 }
 
-// we need to know if arg_reduce ops are present in the module (top-level or
-// nested in pointwise) so inner length matches vector packed reads for vectorized make_indices
-static bool module_has_arg_reduce(const module& m)
+// we need to know if make_indices appears (top-level or nested in pointwise) so we only mark
+// out_idx unused when no make_indices_from(..., out_idx) is emitted
+static bool module_has_make_indices(const module& m)
 {
     return std::any_of(m.begin(), m.end(), [&](const auto& ins) {
-        if(ins.name() == "gpu::arg_reduce")
+        if(ins.name() == "gpu::make_indices")
             return true;
         if(ins.name() == "pointwise" and not ins.module_inputs().empty())
-            return module_has_arg_reduce(*ins.module_inputs().front());
+            return module_has_make_indices(*ins.module_inputs().front());
         return false;
     });
 }
 
 std::string
-generate_reduce(module m, const std::string& name, const fused_reduce_indices_spec* fused_indices)
+generate_reduce(module m, const std::string& name, const std::string& reduced_ty_expr)
 {
     preload_params(m);
     run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
     m.sort();
-    const bool has_arg_reduce = fused_indices != nullptr and module_has_arg_reduce(m);
     cpp_generator g;
     g.always_return_tuple();
-    auto param_shapes = m.get_parameter_shapes();
-    auto rlens        = get_rlens(m);
+    auto rlens = get_rlens(m);
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
@@ -573,17 +571,12 @@ generate_reduce(module m, const std::string& name, const fused_reduce_indices_sp
         }
         if(ins->name() == "gpu::make_indices")
         {
-            auto size = ins->get_operator().to_value()["size"].to<std::size_t>();
-            // make sure to use the reduced index count when values are vec packed so lazy indices
-            // match reducer get_size
-            if(fused_indices != nullptr and fused_indices->vec_pack > 1 and has_arg_reduce and
-               fused_indices->faxis < fused_indices->reduction_lens.size() and
-               fused_indices->reduction_lens[fused_indices->faxis] == size and
-               size % fused_indices->vec_pack == 0)
-            {
-                size /= fused_indices->vec_pack;
-            }
-            return "reduce::make_indices(_c<" + std::to_string(size) + ">)";
+            if(ins->inputs().size() != 1)
+                MIGRAPHX_THROW("gpu::make_indices expects one value tensor operand");
+            if(reduced_ty_expr.empty())
+                MIGRAPHX_THROW("gpu::make_indices requires reduced output type expression for codegen");
+            const auto& val = names.at(ins->inputs().front());
+            return "reduce::make_indices_from<" + reduced_ty_expr + ">(" + val + ", out_idx)";
         }
         if(ins->name() == "identity")
         {
@@ -595,7 +588,8 @@ generate_reduce(module m, const std::string& name, const fused_reduce_indices_sp
     f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
     f.add_generic_param("r");
     f.add_generic_param("out_idx");
-    f.unused_param("out_idx");
+    if(not module_has_make_indices(m))
+        f.unused_param("out_idx");
     g.create_function(f);
     return g.str();
 }

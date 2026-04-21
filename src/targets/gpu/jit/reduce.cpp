@@ -330,15 +330,6 @@ struct fused_emit_plan
     std::string algo;
     std::size_t block_tile = 0;
     std::size_t subwave_sz = 0;
-
-    fused_reduce_indices_spec indices_spec() const
-    {
-        fused_reduce_indices_spec s;
-        s.vec_pack       = vec.size;
-        s.faxis          = faxis;
-        s.reduction_lens = reduction_shape.lens();
-        return s;
-    }
 };
 
 fused_emit_plan
@@ -450,8 +441,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto* rm             = ins->module_inputs().front();
         auto shapes          = to_shapes(ins->inputs());
         const auto emit_plan = compute_fused_emit_plan(ctx, shapes, v);
-        const auto idx_spec  = emit_plan.indices_spec();
-        v["preamble"]        = generate_reduce(*rm, "fused_reduce_op", &idx_spec);
+        const std::string reduced_ty =
+            "decltype(" + generate_make_shape(emit_plan.reduce_output_shape) + ")";
+        v["preamble"] = generate_reduce(*rm, "fused_reduce_op", reduced_ty);
         v["lambda"]          = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]          = generate_name_from_ops(*rm) + "_kernel";
         return compile_op(ctx, shapes, v);

@@ -299,24 +299,52 @@ constexpr auto make_indices(Size size)
     return make_lazy_inner_storage(size, [](auto j, auto) -> index_int { return j + 0u; });
 }
 
-// Pair (value, index) for arg_reduce reads
-// When val is vectorized along the reduced axis, idx is the packed inner index,
-// each lane must use logical index idx * vec_width + lane so argmax/argmin match scalar code
-template <class V, class I>
-constexpr auto arg_read_vec_pair(V val, I idx)
+// Lazy index stream for arg_reduce reads
+// Inner extent matches the value stream so the reducer does not disagree on inner length.
+// When values are scalar along the inner axis, the index is the inner step j, and when
+// values are vectorized along the reduced axis, j is the packed inner index and each lane
+// uses logical index j * vec_width + lane so argmin/argmax match scalar code
+template <class Output, class Input, class OutIdx>
+constexpr auto make_indices_from(Input&& input, OutIdx out_idx)
 {
-    // vec_size<V>() is an integral constant
-    constexpr auto nlanes_v = vec_size<V>();
-    if constexpr(nlanes_v < index_constant<2>{})
+    using in_t = remove_cv_t<remove_reference_t<Input>>;
+    if constexpr(is_inner_storage<in_t>{})
     {
-        return make_tuple(val, idx);
+        (void)out_idx;
+        const auto n = input.rsize();
+        using elem   = remove_reference_t<decltype(declval<in_t&>()(0, _c<0>))>;
+        constexpr auto nlanes_v = vec_size<elem>();
+        if constexpr(nlanes_v < index_constant<2>{})
+        {
+            return make_lazy_inner_storage(n, [](auto j, auto) -> index_int { return j + 0u; });
+        }
+        else
+        {
+            return make_lazy_inner_storage(n, [nlanes_v](auto j, auto) {
+                return vec_generate<nlanes_v()>([nlanes_v, j](auto i) -> index_int {
+                    return j * nlanes_v() + i;
+                });
+            });
+        }
     }
     else
     {
-        auto get_lane = [&](index_int lane_i) {
-            return make_tuple(vec_at(val, lane_i), idx * nlanes_v + lane_i);
-        };
-        return migraphx::vec_detail::vec_transform_tuple_transpose<nlanes_v()>(get_lane);
+        auto sliced             = reduce_slice<Output>(input, out_idx);
+        using elem              = remove_reference_t<decltype(sliced[_c<0>])>;
+        const auto n            = sliced.size();
+        constexpr auto nlanes_v = vec_size<elem>();
+        if constexpr(nlanes_v < index_constant<2>{})
+        {
+            return make_lazy_inner_storage(n, [](auto j, auto) -> index_int { return j + 0u; });
+        }
+        else
+        {
+            return make_lazy_inner_storage(n, [nlanes_v](auto j, auto) {
+                return vec_generate<nlanes_v()>([nlanes_v, j](auto i) -> index_int {
+                    return j * nlanes_v() + i;
+                });
+            });
+        }
     }
 }
 

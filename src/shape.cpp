@@ -92,6 +92,9 @@ struct shape_impl
         : m_type(t), m_dyn_dims(std::move(dims)), m_dyn_strides(std::move(dstrides))
     {
         assert(m_dyn_strides.size() == m_dyn_dims.size());
+        assert(std::all_of(m_dyn_strides.begin(), m_dyn_strides.end(), [](const auto& s) {
+            return s.eval_interval().min >= 0;
+        }));
         auto dim_exprs = sym_dims();
         std::vector<sym::expr> filtered_strides;
         for(std::size_t i = 0; i < m_dyn_strides.size(); i++)
@@ -244,24 +247,22 @@ struct shape_impl
         return std::accumulate(strides.begin(), strides.end(), zero) == zero;
     }
 
-    // Check if strides are in descending order, which is a
-    // requirement for a shape to be considered standard layout.
+    // Check if strides are in descending order (standard layout).
     //
-    // For symbolic strides (sym::expr), std::is_sorted cannot be used directly
-    // because sym::expr::operator< performs interval-based comparison: it
-    // evaluates the difference at the min and max of all variables' ranges. When
-    // a symbolic dimension variable has min=1, it can take unit value, collapsing
-    // stride products and making the comparison undetermined or wrong.
+    // For symbolic strides we evaluate at max variable values rather than using
+    // sym::expr::operator<. This relies on three assumptions:
     //
-    // Example: strides {1, n, n*c} with n in [1,8], c in [1,16].
-    //   Comparing n vs n*c: diff = n*c - n = n*(c-1).
-    //   At all-min (n=1,c=1): diff=0.  At all-max (n=8,c=16): diff=120.
-    //   operator< sees range [0,120] -- neither strictly positive nor
-    //   non-positive -- and throws "undetermined". But the shape is clearly
-    //   transposed for all non-degenerate dimension values.
+    //  1. Symbolic strides are products of dimension variables times constant
+    //     factors — no symbolic divisors. All stride-producing paths (compute_strides,
+    //     step, reshape_lazy) enforce this.
+    //  2. Strides originate from compute_strides() or permutations thereof
+    //     (reorder_shape / from_permutation), not arbitrary user construction.
+    //  3. Because strides are products of dims (all >= 1), the ordering at max
+    //     evaluation is consistent with all non-degenerate runtime evaluations.
     //
-    // To avoid these issues, symbolic strides are evaluated at their max variable
-    // values where no dimension is degenerate (unit), then sorted concretely.
+    // Strict symbolic comparison (operator<) is insufficient: when any dim has
+    // min=1 (e.g. seq_len in LLM decoding), stride products collapse and the
+    // comparison throws "undetermined".
     template <class T>
     static bool is_sorted_strides(const std::vector<T>& strides)
     {

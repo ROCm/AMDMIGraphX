@@ -1779,6 +1779,17 @@ TEST_CASE(reorder_shape_symbolic)
     EXPECT(reordered.dyn_dims().size() == s.dyn_dims().size());
 }
 
+TEST_CASE(find_permutation_symbolic_stride_ordering_reversal)
+{
+    auto a = var("a", {1, 16});
+    auto b = var("b", {1, 4});
+    auto c = var("c", {1, 8});
+    // a/b has interval [0, 16], c has interval [1, 8].
+    // At max: 16 > 8 (a/b sorted first), at min: 0 < 1 (reversal).
+    migraphx::shape s{migraphx::shape::float_type, {dd{a}, dd{c}}, {a / b, c}};
+    EXPECT(test::throws([&] { migraphx::find_permutation(s); }));
+}
+
 TEST_CASE(test_symbolic_elements_via_to_static)
 {
     auto n = var("n", {1, 8});

@@ -24,6 +24,11 @@ Tensor_impl::~Tensor_impl()
     pass_warning("TODO! implement me!", false);
 }
 
+migraphx::instruction_ref Tensor_impl::getInstruction() const noexcept
+{
+    return mIns;
+}
+
 void Tensor_impl::setName(char const* name) noexcept
 {
     pass_warning("TODO! implement me!", true);

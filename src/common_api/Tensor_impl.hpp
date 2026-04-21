@@ -39,6 +39,8 @@ namespace nvinfer1
         void setDimensionName(int32_t index, char const* name) noexcept override;
         char const* getDimensionName(int32_t index) const noexcept override;
 
+        migraphx::instruction_ref getInstruction() const noexcept;
+
     private:
         migraphx::instruction_ref mIns;
     };

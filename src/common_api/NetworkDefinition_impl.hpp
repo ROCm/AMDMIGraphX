@@ -3,10 +3,11 @@
 
 #include <vector>
 
+#include <migraphx/program.hpp>
+
 #include "migraphx/common_api/NvInfer.h"
 #include "Tensor_impl.hpp"
-
-#include <migraphx/program.hpp>
+#include "layers/Layer_impl.hpp"
 
 namespace nvinfer1
 {
@@ -119,6 +120,7 @@ namespace nvinfer1
         std::shared_ptr<migraphx::program> mProgram = std::make_shared<migraphx::program>();
         std::vector<std::unique_ptr<Tensor_impl>> mInputTensors;
         std::vector<std::unique_ptr<Tensor_impl>> mOutputTensors;
+        std::vector<std::unique_ptr<Layer_impl>> mLayers;
     };
 
 }   // ns:nvinfer1

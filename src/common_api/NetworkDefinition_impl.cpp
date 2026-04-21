@@ -5,6 +5,9 @@
 #include "Helper.hpp"
 #include "NetworkDefinition_impl.hpp"
 
+// layers
+#include "layers/ConstantLayer_impl.hpp"
+
 namespace nvinfer1
 {
 
@@ -170,8 +173,8 @@ IMatrixMultiplyLayer* NvNetworkDefinition_impl::addMatrixMultiply(
 
 IConstantLayer* NvNetworkDefinition_impl::addConstant(Dims const& dimensions, Weights weights) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	mLayers.push_back(std::make_unique<ConstantLayer_impl>(dimensions, weights, mProgram));
+    return dynamic_cast<IConstantLayer*>(mLayers.back().get());
 }
 
 IIdentityLayer* NvNetworkDefinition_impl::addIdentity(ITensor& input) noexcept

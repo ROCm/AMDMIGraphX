@@ -138,8 +138,8 @@ template <class N, class F>
 constexpr auto generate_vec(N n, F f)
 {
     return sequence(n, [&](auto... is) {
-        constexpr index_int sz = decltype(n)::value;
-        using elem             = decltype(f(_c<0>));
+        constexpr index_int sz = n;
+        using elem               = decltype(f(_c<0>));
         return safe_vec<elem, sz>{f(is)...};
     });
 }

@@ -43,13 +43,20 @@ module attributes {gpu.container_module} {
       %cos_cache = dxgml_op.constant(#dxgml.constant_resource<attn.cos_cache : !dxgml.tensor<4096x48x!dxgml.float16>>)
       %sin_cache = dxgml_op.constant(#dxgml.constant_resource<attn.sin_cache : !dxgml.tensor<4096x48x!dxgml.float16>>)
 
+      // total_sequence_length scalar: past_seq(128) + current_seq(1) = 129
+      %total_seq = dxgml_op.constant(#dxgml.dense_integer_elements<[129]> : !dxgml.tensor<1x!dxgml.int32>)
+
       // Null pointer for optional GQA inputs not used in this configuration
       %null = dxgml_op.null_ptr
 
+      // Shape tensors for reshape ops
+      %shape_qkv_split = dxgml_op.constant(#dxgml.dense_integer_elements<[1, 1, 3, 3072]> : !dxgml.tensor<4x!dxgml.int64>)
+      %shape_flat      = dxgml_op.constant(#dxgml.dense_integer_elements<[1, 1, 3072]>    : !dxgml.tensor<3x!dxgml.int64>)
+
       // ---- Step 1: Reshape QKV to expose Q/K/V split ----
       //   (1, 1, 9216) -> (1, 1, 3, 3072)  where 3072 = 32 heads * 96 head_dim
-      %qkv_split = dxgml_op.reshape(%qkv)
-        : (!dxgml.tensor<1x1x9216x!dxgml.float16>)
+      %qkv_split = dxgml_op.reshape(%qkv, %shape_qkv_split)
+        : (!dxgml.tensor<1x1x9216x!dxgml.float16>, !dxgml.tensor<4x!dxgml.int64>)
         -> !dxgml.tensor<1x1x3x3072x!dxgml.float16>
 
       // ---- Steps 2-3: Transpose past KV to GQA-internal layout ----
@@ -89,8 +96,8 @@ module attributes {gpu.container_module} {
         -> !dxgml.tensor<1x1x1x3072x!dxgml.float16>
 
       // Reshape V slice to merged format for GQA: (1,1,1,3072) -> (1,1,3072)
-      %v = dxgml_op.reshape(%v_raw)
-        : (!dxgml.tensor<1x1x1x3072x!dxgml.float16>)
+      %v = dxgml_op.reshape(%v_raw, %shape_flat)
+        : (!dxgml.tensor<1x1x1x3072x!dxgml.float16>, !dxgml.tensor<3x!dxgml.int64>)
         -> !dxgml.tensor<1x1x3072x!dxgml.float16>
 
       // ---- Steps 7-8: Rotary position embedding on Q and K ----
@@ -98,58 +105,66 @@ module attributes {gpu.container_module} {
       //   rotary_embedding_dim = 96 (full head_dim for phi_silica)
 
       // Reshape Q/K slices to flat: (1,1,1,3072) -> (1,1,3072)
-      %q_flat = dxgml_op.reshape(%q_raw)
-        : (!dxgml.tensor<1x1x1x3072x!dxgml.float16>)
+      %q_flat = dxgml_op.reshape(%q_raw, %shape_flat)
+        : (!dxgml.tensor<1x1x1x3072x!dxgml.float16>, !dxgml.tensor<3x!dxgml.int64>)
         -> !dxgml.tensor<1x1x3072x!dxgml.float16>
 
-      %k_flat = dxgml_op.reshape(%k_raw)
-        : (!dxgml.tensor<1x1x1x3072x!dxgml.float16>)
+      %k_flat = dxgml_op.reshape(%k_raw, %shape_flat)
+        : (!dxgml.tensor<1x1x1x3072x!dxgml.float16>, !dxgml.tensor<3x!dxgml.int64>)
         -> !dxgml.tensor<1x1x3072x!dxgml.float16>
 
       // Step 7: RotaryEmbedding on Q
-      %q = dxgml_op.rotary_embedding(%q_flat, %cos_cache, %sin_cache, %pos_ids) {
+      %q = dxgml_op.rotary_embedding(%q_flat, %cos_cache, %sin_cache, %pos_ids, %null) {
         interleaved          = #dxgml.integer<0 : !dxgml.int64>,
         num_heads            = #dxgml.integer<32 : !dxgml.int64>,
         rotary_embedding_dim = #dxgml.integer<96 : !dxgml.int64>
       } : (!dxgml.tensor<1x1x3072x!dxgml.float16>,
            !dxgml.tensor<4096x48x!dxgml.float16>,
            !dxgml.tensor<4096x48x!dxgml.float16>,
-           !dxgml.tensor<1x1x!dxgml.int64>)
+           !dxgml.tensor<1x1x!dxgml.int64>,
+           !dxgml.null)
         -> !dxgml.tensor<1x1x3072x!dxgml.float16>
 
       // Step 8: RotaryEmbedding on K
-      %k = dxgml_op.rotary_embedding(%k_flat, %cos_cache, %sin_cache, %pos_ids) {
+      %k = dxgml_op.rotary_embedding(%k_flat, %cos_cache, %sin_cache, %pos_ids, %null) {
         interleaved          = #dxgml.integer<0 : !dxgml.int64>,
         num_heads            = #dxgml.integer<32 : !dxgml.int64>,
         rotary_embedding_dim = #dxgml.integer<96 : !dxgml.int64>
       } : (!dxgml.tensor<1x1x3072x!dxgml.float16>,
            !dxgml.tensor<4096x48x!dxgml.float16>,
            !dxgml.tensor<4096x48x!dxgml.float16>,
-           !dxgml.tensor<1x1x!dxgml.int64>)
+           !dxgml.tensor<1x1x!dxgml.int64>,
+           !dxgml.null)
         -> !dxgml.tensor<1x1x3072x!dxgml.float16>
 
-      // ---- Step 9: Group Query Attention ----
-      //   Q: (1,1,3072), K: (1,1,3072), V: (1,1,3072)
-      //   past_k_t: (1,128,32,96), past_v_t: (1,128,32,96)
-      //   output: (1,1,3072), present_k: (1,129,32,96), present_v: (1,129,32,96)
+      // ---- Step 9: Group Query Attention (Drop 6.0 signature) ----
+      //   Inputs (14): query, key, value, past_key, past_value,
+      //                seqlens_k, total_sequence_length,
+      //                cos_cache, sin_cache, position_ids,
+      //                attention_bias, head_sink, k_scale, v_scale
+      //   Outputs (4): output, present_key, present_value, output_qk_matrix(null)
       //   scale = 1/sqrt(96) ≈ 0.10206207261596576
       %output, %present_key, %present_value, %output_qk_matrix =
         dxgml_op.group_query_attention["GroupQueryAttention"](
             %q, %k, %v,
             %past_k_t, %past_v_t,
-            %pos_ids, %seqlens,
-            %null, %null, %null, %null, %null)
-        {kv_num_heads = #dxgml.integer<32 : !dxgml.int64>,
-         num_heads    = #dxgml.integer<32 : !dxgml.int64>,
+            %seqlens, %total_seq,
+            %cos_cache, %sin_cache, %pos_ids,
+            %null, %null, %null, %null)
+        {num_heads    = #dxgml.integer<32 : !dxgml.int64>,
+         kv_num_heads = #dxgml.integer<32 : !dxgml.int64>,
          scale        = #dxgml.float<0.10206207261596576 : !dxgml.float32>}
         : (!dxgml.tensor<1x1x3072x!dxgml.float16>,
            !dxgml.tensor<1x1x3072x!dxgml.float16>,
            !dxgml.tensor<1x1x3072x!dxgml.float16>,
            !dxgml.tensor<1x128x32x96x!dxgml.float16>,
            !dxgml.tensor<1x128x32x96x!dxgml.float16>,
-           !dxgml.tensor<1x1x!dxgml.int64>,
            !dxgml.tensor<1x!dxgml.int32>,
-           !dxgml.null, !dxgml.null, !dxgml.null, !dxgml.null, !dxgml.null)
+           !dxgml.tensor<1x!dxgml.int32>,
+           !dxgml.tensor<4096x48x!dxgml.float16>,
+           !dxgml.tensor<4096x48x!dxgml.float16>,
+           !dxgml.tensor<1x1x!dxgml.int64>,
+           !dxgml.null, !dxgml.null, !dxgml.null, !dxgml.null)
         -> (!dxgml.tensor<1x1x3072x!dxgml.float16>,
             !dxgml.tensor<1x129x32x96x!dxgml.float16>,
             !dxgml.tensor<1x129x32x96x!dxgml.float16>,

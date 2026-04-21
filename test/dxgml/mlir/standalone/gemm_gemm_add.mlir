@@ -24,17 +24,20 @@ module attributes {gpu.container_module} {
     } {
       %W1 = dxgml_op.constant(#dxgml.constant_resource<branch1.weight : !dxgml.tensor<8x16x!dxgml.float16>>)
       %W2 = dxgml_op.constant(#dxgml.constant_resource<branch2.weight : !dxgml.tensor<8x16x!dxgml.float16>>)
+      %null = dxgml_op.null_ptr
 
       // Step 1: Linear projection of stream 1  A(4x8) @ W1(8x16) -> (4x16)
-      %out1 = dxgml_op.gemm(%A, %W1)
+      %out1 = dxgml_op.gemm(%A, %W1, %null)
         : (!dxgml.tensor<4x8x!dxgml.float16>,
-           !dxgml.tensor<8x16x!dxgml.float16>)
+           !dxgml.tensor<8x16x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<4x16x!dxgml.float16>
 
       // Step 2: Linear projection of stream 2  B(4x8) @ W2(8x16) -> (4x16)
-      %out2 = dxgml_op.gemm(%B, %W2)
+      %out2 = dxgml_op.gemm(%B, %W2, %null)
         : (!dxgml.tensor<4x8x!dxgml.float16>,
-           !dxgml.tensor<8x16x!dxgml.float16>)
+           !dxgml.tensor<8x16x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<4x16x!dxgml.float16>
 
       // Step 3: Elementwise add — combine both branches

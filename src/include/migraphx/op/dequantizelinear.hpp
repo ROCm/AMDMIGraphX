@@ -49,7 +49,22 @@ struct dequantizelinear
     std::string name() const { return "dequantizelinear"; }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.same_dims().has(2, 3);
+        check_shapes{inputs, *this}.has(2, 3);
+        auto& x     = inputs[0];
+        auto& scale = inputs[1];
+        // Allow block-quantized scales: scale rank must equal input rank and each
+        // scale dim must evenly divide (or equal 1 for broadcast on) the input dim.
+        // Per-tensor (scalar) and per-channel (1-D) scales are also accepted.
+        if(not scale.scalar() and scale.lens().size() != 1)
+        {
+            if(scale.lens().size() != x.lens().size())
+                MIGRAPHX_THROW("DEQUANTIZELINEAR: scale rank mismatch");
+            for(std::size_t i = 0; i < scale.lens().size(); ++i)
+            {
+                if(scale.lens()[i] != 1 and x.lens()[i] % scale.lens()[i] != 0)
+                    MIGRAPHX_THROW("DEQUANTIZELINEAR: scale dim not a factor of input dim");
+            }
+        }
         if(inputs.size() == 3 and inputs[0].type() != inputs[2].type())
         {
             MIGRAPHX_THROW("DEQUANTIZELINEAR: Zero point and input should be the same type.");

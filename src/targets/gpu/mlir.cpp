@@ -682,7 +682,7 @@ struct mlir_program
         if(is_reshape(op.name()))
             v = {{"dims", ins->get_shape().lens()}};
 
-        if(contains({"convolution", "quant_convolution", "convolution_backwards"}, op.name()))
+        if(contains({"convolution", "quant_convolution", "convolution_backwards", "qconv"}, op.name()))
         {
             // Adjust symetrical padding
             if(v.at("padding").size() == v.at("stride").size())
@@ -821,6 +821,21 @@ struct mlir_program
                     const std::vector<int> seg_sizes = {1, 1, 0, 0};
                     ops.set_operand_segment_sizes(seg_sizes);
                 }
+            }
+            // qgemm: {act, weight, scale [, zp]}
+            // Segment layout: act=1, weight=1, scale=1, zp=0 or 1
+            if(ins->name() == "qgemm")
+            {
+                const int has_zp = static_cast<int>(ins->inputs().size() == 4);
+                const std::vector<int> seg_sizes = {1, 1, 1, has_zp};
+                ops.set_operand_segment_sizes(seg_sizes);
+            }
+            // qconv: {act, weight, scale [, zp]}  (same segment layout as qgemm)
+            if(ins->name() == "qconv")
+            {
+                const int has_zp = static_cast<int>(ins->inputs().size() == 4);
+                const std::vector<int> seg_sizes = {1, 1, 1, has_zp};
+                ops.set_operand_segment_sizes(seg_sizes);
             }
             ops.add_operands(inputs);
 
@@ -1153,7 +1168,7 @@ static std::string compute_dump_name(const module& m, const std::string& ext)
     std::vector<instruction_ref> sizes;
     for(auto ins : iterator_for(m))
     {
-        if(contains({"quant_convolution", "quant_dot", "convolution", "dot"}, ins->name()))
+        if(contains({"quant_convolution", "quant_dot", "convolution", "dot", "qgemm", "qconv"}, ins->name()))
             sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
     auto shape_str = "_" + shape::to_sizes_string(to_shapes(sizes));
@@ -1325,7 +1340,7 @@ void dump_mlir_to_mxr(module m,
     std::vector<instruction_ref> sizes;
     for(auto ins : iterator_for(m))
     {
-        if(contains({"quant_convolution", "quant_dot", "convolution", "dot"}, ins->name()))
+        if(contains({"quant_convolution", "quant_dot", "convolution", "dot", "qgemm", "qconv"}, ins->name()))
             sizes.insert(sizes.end(), ins->inputs().begin(), ins->inputs().end());
     }
     auto name = compute_dump_name(m, ".mxr");

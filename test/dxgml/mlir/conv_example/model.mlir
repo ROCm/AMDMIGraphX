@@ -55,7 +55,9 @@ module attributes {gpu.container_module} {
         -> !dxgml.tensor<1x64x16x16x!dxgml.float32>
 
       // Step 2: Batch normalization  (epsilon=1e-5)
-      %bn = dxgml_op.batch_normalization(%conv, %bn_scale, %bn_bias, %bn_mean, %bn_var) {
+      //   Drop 6.0 arg order: (input, mean, variance, scale, bias)
+      %bn = dxgml_op.batch_normalization(%conv, %bn_mean, %bn_var, %bn_scale, %bn_bias) {
+        spatial = #dxgml.bool<true>,
         epsilon = #dxgml.float<1.0e-05 : !dxgml.float64>
       } : (!dxgml.tensor<1x64x16x16x!dxgml.float32>,
            !dxgml.tensor<64x!dxgml.float32>,
@@ -75,9 +77,10 @@ module attributes {gpu.container_module} {
         strides       = #dxgml.dense_integer_elements<[2, 2]> : !dxgml.tensor<2x!dxgml.int64>,
         window_size   = #dxgml.dense_integer_elements<[3, 3]> : !dxgml.tensor<2x!dxgml.int64>,
         start_padding = #dxgml.dense_integer_elements<[0, 0]> : !dxgml.tensor<2x!dxgml.int64>,
-        end_padding   = #dxgml.dense_integer_elements<[0, 0]> : !dxgml.tensor<2x!dxgml.int64>
+        end_padding   = #dxgml.dense_integer_elements<[0, 0]> : !dxgml.tensor<2x!dxgml.int64>,
+        dilations     = #dxgml.dense_integer_elements<[1, 1]> : !dxgml.tensor<2x!dxgml.int64>
       } : (!dxgml.tensor<1x64x16x16x!dxgml.float32>)
-        -> (!dxgml.tensor<1x64x7x7x!dxgml.float32>)
+        -> !dxgml.tensor<1x64x7x7x!dxgml.float32>
 
       dxgml.return %pool : !dxgml.tensor<1x64x7x7x!dxgml.float32>
     }

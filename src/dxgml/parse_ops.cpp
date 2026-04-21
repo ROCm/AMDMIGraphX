@@ -439,8 +439,9 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     {
         std::string ret = extract_ret_type(type_sig);
         shape out_shape = parse_tensor_type(ret);
+        // Drop 6.0: reshape takes 2 operands (input, shape_tensor); only pass input[0]
         return mm->add_instruction(
-            make_op("reshape", {{"dims", out_shape.lens()}}), inputs);
+            make_op("reshape", {{"dims", out_shape.lens()}}), inputs[0]);
     }
 
     // --- Transpose ---
@@ -778,12 +779,53 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
     }
 
     // --- dequantize_linear ---
-    // dxgml_op.dequantize_linear(x, scale [, zero_point]) { axis, block_size } -> T
-    // Maps directly to MIGraphX dequantizelinear (2 or 3 inputs).
-    // Note: block_size is a DxGML attribute that the MIGraphX op handles implicitly via
-    // the scale tensor shape; no extra attribute needed on the MIGraphX side.
+    // dxgml_op.dequantize_linear(x, scale [, zero_point]) { axis, block_size [, output_dtype] }
+    // Maps to MIGraphX dequantizelinear (2 or 3 inputs).
+    // The optional output_dtype attribute requests a specific output type (e.g. float16);
+    // dequantizelinear always outputs in the scale's type, so add a convert if they differ.
     if(name == "dequantize_linear")
-        return mm->add_instruction(make_op("dequantizelinear"), inputs);
+    {
+        auto dq = mm->add_instruction(make_op("dequantizelinear"), inputs);
+        // Check if the declared output type differs from what dequantizelinear produces.
+        std::string ret_str = extract_ret_type(type_sig);
+        if(!ret_str.empty())
+        {
+            try
+            {
+                shape declared = parse_tensor_type(ret_str);
+                if(declared.type() != dq->get_shape().type())
+                    dq = mm->add_instruction(
+                        make_op("convert", {{"target_type", declared.type()}}), dq);
+            }
+            catch(...)
+            {
+            }
+        }
+        return dq;
+    }
+
+    // --- lp_normalization ---
+    // dxgml_op.lp_normalization(%x) { axis, p, epsilon } -> T
+    // With p=2 (L2 norm): out = x / sqrt(sum(x*x, axis) + epsilon)
+    //                          = x * rsqrt(reduce_sum(x*x, axis) + epsilon)
+    // Broadcast the scalar norm back to input shape.
+    if(name == "lp_normalization")
+    {
+        auto x    = inputs[0];
+        auto lens = x->get_shape().lens();
+        int64_t rank = static_cast<int64_t>(lens.size());
+        int64_t ax_raw = get_int_or(*this, attrs_block, "axis", -1);
+        int64_t ax = (ax_raw < 0) ? rank + ax_raw : ax_raw;
+
+        auto x2      = mm->add_instruction(make_op("mul"), x, x);
+        auto sum_sq  = mm->add_instruction(
+            make_op("reduce_sum", {{"axes", {ax}}}), x2);
+        // Broadcast norm to input shape for elementwise ops
+        auto norm_bc = mm->add_instruction(
+            make_op("multibroadcast", {{"out_lens", lens}}), sum_sq);
+        auto inv_norm = mm->add_instruction(make_op("rsqrt"), norm_bc);
+        return mm->add_instruction(make_op("mul"), x, inv_norm);
+    }
 
     // --- rotary_embedding ---
     // dxgml_op.rotary_embedding(input, cos_cache, sin_cache, pos_ids)
@@ -806,7 +848,13 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
         auto input      = inputs[0]; // (B, S, H)
         auto cos_cache  = inputs[1]; // (max_seq, rot_dim/2)
         auto sin_cache  = inputs[2]; // (max_seq, rot_dim/2)
-        auto pos_ids    = inputs[3]; // (B, S)
+        // pos_ids is at index 3 (Nemotron: 4-arg form) or index 4 (phi_silica: 5-arg form
+        // with a null sentinel at index 3). Skip empty/null inputs after the 3 caches.
+        instruction_ref pos_ids = inputs.back();
+        for(std::size_t i = 3; i < inputs.size(); ++i)
+        {
+            if(inputs[i]->get_shape().elements() > 0) { pos_ids = inputs[i]; break; }
+        }
 
         int64_t num_heads   = get_int(*this, attrs_block, "num_heads");
         int64_t rot_dim     = get_int(*this, attrs_block, "rotary_embedding_dim");

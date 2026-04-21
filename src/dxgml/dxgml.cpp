@@ -24,6 +24,9 @@
 #include <migraphx/dxgml.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/fuse_dxgml_dequant.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 #include "dxgml_parser.hpp"
 
 #include <fstream>
@@ -114,6 +117,12 @@ program parse_dxgml_string(const std::string& mlir_text, const dxgml_options& op
     {
         parser.parse_from_string(mlir_text);
     }
+
+    // Apply DxGML-specific IR passes: fuse weight-only dequant into quant_dot/quant_conv
+    migraphx::run_passes(*parser.prog.get_main_module(), {
+        fuse_dxgml_dequant{},
+        dead_code_elimination{},
+    });
 
     if(options.dump_migraphx_ops)
         std::cerr << "[DxGML] MIGraphX ops after parsing:\n" << parser.prog << "\n";

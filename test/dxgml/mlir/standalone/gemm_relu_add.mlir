@@ -19,10 +19,13 @@ module attributes {gpu.container_module} {
       torch.onnx_meta.producer_name = "pytorch",
       torch.onnx_meta.producer_version = "2.0.0"
     } {
+      %null = dxgml_op.null_ptr
+
       // Step 1: Matrix multiply  A(4x8) @ B(8x16) -> gemm(4x16)
-      %gemm = dxgml_op.gemm(%A, %B)
+      %gemm = dxgml_op.gemm(%A, %B, %null)
         : (!dxgml.tensor<4x8x!dxgml.float16>,
-           !dxgml.tensor<8x16x!dxgml.float16>)
+           !dxgml.tensor<8x16x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<4x16x!dxgml.float16>
 
       // Step 2: ReLU activation

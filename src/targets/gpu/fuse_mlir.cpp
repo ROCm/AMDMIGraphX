@@ -318,12 +318,15 @@ auto is_mlir_dot(mlir_mode mode)
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
         if(mode == mlir_mode::none)
             return false;
-        if(ins->name() != "dot" and ins->name() != "quant_dot")
+        if(ins->name() != "dot" and ins->name() != "quant_dot" and ins->name() != "qgemm")
             return false;
         // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS/hipBLASLt should
         // have the support for it.
         if(contains(fp8_types{}.get(), ins->get_shape().type()))
             return false;
+        // qgemm always goes to rocMLIR (in-kernel dequant)
+        if(ins->name() == "qgemm")
+            return true;
         // MX types quantization has 4 inputs
         // having all MX GEMM go to MLIR
         if(ins->inputs().size() == 4)
@@ -354,8 +357,12 @@ auto is_mlir_conv(mlir_mode mode)
     return match::make_basic_pred_matcher([=](instruction_ref ins) {
         if(mode == mlir_mode::none)
             return false;
-        if(ins->name() != "convolution" and ins->name() != "quant_convolution")
+        if(ins->name() != "convolution" and ins->name() != "quant_convolution" and
+           ins->name() != "qconv")
             return false;
+        // qconv always goes to rocMLIR (in-kernel dequant)
+        if(ins->name() == "qconv")
+            return true;
         auto input = ins->inputs().front()->get_shape();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();

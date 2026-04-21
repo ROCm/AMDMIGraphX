@@ -34,9 +34,11 @@ module attributes {gpu.container_module} {
       torch.onnx_meta.producer_name = "pytorch",
       torch.onnx_meta.producer_version = "2.0.0"
     } {
+      %null = dxgml_op.null_ptr
+
       // Step 1: Matrix multiplication  A(2x4) @ B(4x3) -> gemm(2x3)
-      %gemm = dxgml_op.gemm (%A, %B)
-        : (!dxgml.tensor<2x4x!dxgml.float16>, !dxgml.tensor<4x3x!dxgml.float16>)
+      %gemm = dxgml_op.gemm (%A, %B, %null)
+        : (!dxgml.tensor<2x4x!dxgml.float16>, !dxgml.tensor<4x3x!dxgml.float16>, !dxgml.null)
         -> !dxgml.tensor<2x3x!dxgml.float16>
 
       // Step 2: Add bias

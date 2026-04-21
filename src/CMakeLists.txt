@@ -120,6 +120,7 @@ add_library(migraphx
     rewrite_reduce.cpp
     rewrite_dot.cpp
     simplify_qdq.cpp
+    fuse_dxgml_dequant.cpp
     split_reduce.cpp
     sqlite.cpp
     rewrite_gelu.cpp
@@ -260,6 +261,8 @@ register_migraphx_ops(
     quant_convolution
     quant_dot
     quantizelinear
+    qgemm
+    qconv
     random_uniform
     random_seed
     recip

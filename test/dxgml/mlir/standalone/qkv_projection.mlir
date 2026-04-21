@@ -35,6 +35,7 @@ module attributes {gpu.container_module} {
       // Q and K projection weights
       %wq = dxgml_op.constant(#dxgml.constant_resource<proj.wq : !dxgml.tensor<32x16x!dxgml.float16>>)
       %wk = dxgml_op.constant(#dxgml.constant_resource<proj.wk : !dxgml.tensor<32x16x!dxgml.float16>>)
+      %null = dxgml_op.null_ptr
 
       // Step 1: Transpose NHWC -> NCHW  [N,H,W,C] -> [N,C,H,W]  (0,3,1,2)
       %nchw = dxgml_op.transpose(%input_nhwc) {
@@ -44,14 +45,15 @@ module attributes {gpu.container_module} {
 
       // Step 2: Pointwise 1x1 convolution — channel expansion 16 -> 32
       //   stride=1, pad=0, 1x1 kernel: spatial unchanged (4x4 -> 4x4)
-      %conv_out = dxgml_op.convolution(%nchw, %conv_w) {
+      %conv_out = dxgml_op.convolution(%nchw, %conv_w, %null) {
         group_count   = #dxgml.integer<1 : !dxgml.int64>,
         dilations     = #dxgml.dense_integer_elements<[1, 1]> : !dxgml.tensor<2x!dxgml.int64>,
         start_padding = #dxgml.dense_integer_elements<[0, 0]> : !dxgml.tensor<2x!dxgml.int64>,
         end_padding   = #dxgml.dense_integer_elements<[0, 0]> : !dxgml.tensor<2x!dxgml.int64>,
         strides       = #dxgml.dense_integer_elements<[1, 1]> : !dxgml.tensor<2x!dxgml.int64>
       } : (!dxgml.tensor<1x16x4x4x!dxgml.float16>,
-           !dxgml.tensor<32x16x1x1x!dxgml.float16>)
+           !dxgml.tensor<32x16x1x1x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<1x32x4x4x!dxgml.float16>
 
       // Step 3: Transpose NCHW -> NHWC  [N,C,H,W] -> [N,H,W,C]  (0,2,3,1)
@@ -64,16 +66,18 @@ module attributes {gpu.container_module} {
       // Step 4: Q projection — batched dot over (H,W) positions
       //   (1,4,4,32) @ (32,16) -> (1,4,4,16)
       //   Weight is unsqueeze+broadcast to (1,4,32,16) before dot
-      %q_proj = dxgml_op.gemm(%features, %wq)
+      %q_proj = dxgml_op.gemm(%features, %wq, %null)
         : (!dxgml.tensor<1x4x4x32x!dxgml.float16>,
-           !dxgml.tensor<32x16x!dxgml.float16>)
+           !dxgml.tensor<32x16x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<1x4x4x16x!dxgml.float16>
 
       // Step 5: K projection — same shape, independent weights
       //   (1,4,4,32) @ (32,16) -> (1,4,4,16)
-      %k_proj = dxgml_op.gemm(%features, %wk)
+      %k_proj = dxgml_op.gemm(%features, %wk, %null)
         : (!dxgml.tensor<1x4x4x32x!dxgml.float16>,
-           !dxgml.tensor<32x16x!dxgml.float16>)
+           !dxgml.tensor<32x16x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<1x4x4x16x!dxgml.float16>
 
       // Step 6: Add Q + K  (e.g. combined attention logit or dual-path fusion)

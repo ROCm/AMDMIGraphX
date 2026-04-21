@@ -20,16 +20,18 @@ module attributes {gpu.container_module} {
       torch.onnx_meta.producer_version = "2.0.0"
     } {
       %weight = dxgml_op.constant(#dxgml.constant_resource<conv.weight : !dxgml.tensor<8x4x3x3x!dxgml.float16>>)
+      %null = dxgml_op.null_ptr
 
       // Step 1: Convolution  1x4x10x10 -> 1x8x8x8
-      %conv = dxgml_op.convolution(%input, %weight) {
+      %conv = dxgml_op.convolution(%input, %weight, %null) {
         group_count   = #dxgml.integer<1 : !dxgml.int64>,
         dilations     = #dxgml.dense_integer_elements<[1, 1]> : !dxgml.tensor<2x!dxgml.int64>,
         start_padding = #dxgml.dense_integer_elements<[0, 0]> : !dxgml.tensor<2x!dxgml.int64>,
         end_padding   = #dxgml.dense_integer_elements<[0, 0]> : !dxgml.tensor<2x!dxgml.int64>,
         strides       = #dxgml.dense_integer_elements<[1, 1]> : !dxgml.tensor<2x!dxgml.int64>
       } : (!dxgml.tensor<1x4x10x10x!dxgml.float16>,
-           !dxgml.tensor<8x4x3x3x!dxgml.float16>)
+           !dxgml.tensor<8x4x3x3x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<1x8x8x8x!dxgml.float16>
 
       // Step 2: ReLU activation

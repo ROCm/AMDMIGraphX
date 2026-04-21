@@ -1,17 +1,9 @@
 
 =====================================================
-DxGML Test Suite - FULL RUN
+DxGML Test Suite - MLIR Driver Tests
 =====================================================
-Arch:   gfx1201
 Driver: C:\Develop\AMDMIGraphX.WML\build\WinRelWithDebInfo\bin\migraphx-driver.exe
-Dump:   C:\Develop\AMDMIGraphX.WML\test\dxgml\dump  (enabled: False)
 Log:    C:\Develop\AMDMIGraphX.WML\test\dxgml\dump\run_results.log
-
---- Parse Unit Tests (C++ test binaries) ---
-  [PASS] ConvRelu parse
-  [PASS] Gelu parse
-  [PASS] ReluErf parse
-  [PASS] StandaloneCluster parse
 
 --- MLIR Driver Tests ---
 [simple models]
@@ -30,6 +22,9 @@ Log:    C:\Develop\AMDMIGraphX.WML\test\dxgml\dump\run_results.log
   [PASS] qkv_projection
   [PASS] qkv_projection_2
   [PASS] gqa_attention
+  [PASS] qconv_int8_sym
+  [PASS] qconv_int8_zp
+  [PASS] qconv_int8_relu
 [CNN models]
   [PASS] model1
   [PASS] model1_test
@@ -50,6 +45,8 @@ Log:    C:\Develop\AMDMIGraphX.WML\test\dxgml\dump\run_results.log
   [PASS] nemotron_decoder_test
   [PASS] nemotron_prefill_test
   [PASS] phi_silica_qdq
+[PSU models]
+  [PASS] psu_model
 
 =====================================================
 Results: 35 passed, 0 failed, 0 skipped

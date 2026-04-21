@@ -137,6 +137,9 @@ function RunMlirSuite {
     RunDriverTest "$MlirDir\standalone\qkv_projection.mlir"          "qkv_projection"
     RunDriverTest "$MlirDir\standalone\qkv_projection_2.mlir"        "qkv_projection_2"
     RunDriverTest "$MlirDir\standalone\gqa_attention.mlir"           "gqa_attention"
+    RunDriverTest "$MlirDir\standalone\qconv_int8_sym.mlir"          "qconv_int8_sym"
+    RunDriverTest "$MlirDir\standalone\qconv_int8_zp.mlir"           "qconv_int8_zp"
+    RunDriverTest "$MlirDir\standalone\qconv_int8_relu.mlir"         "qconv_int8_relu"
 
     Log "[CNN models]"
     RunDriverTest "$MlirDir\model1\model.mlir"      "model1"
@@ -159,7 +162,10 @@ function RunMlirSuite {
     RunDriverTest "$MlirDir\nemotron\model_pre-fill.mlir"     "nemotron_prefill"
     RunDriverTest "$MlirDir\nemotron\model_decoder_test.mlir" "nemotron_decoder_test"
     RunDriverTest "$MlirDir\nemotron\model_pre-fill_test.mlir" "nemotron_prefill_test"
-    RunDriverTest "$MlirDir\phi_silica_qdq\model.mlir"        "phi_silica_qdq"
+    RunDriverTest "$MlirDir\phi_silica_qdq\model_test.mlir"   "phi_silica_qdq"
+
+    Log "[PSU models]"
+    RunDriverTest "$MlirDir\psu_model\model_test.mlir"        "psu_model"
 }
 
 # --- Dispatch ---

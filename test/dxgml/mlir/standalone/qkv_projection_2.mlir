@@ -31,6 +31,7 @@ module attributes {gpu.container_module} {
       %conv_w = dxgml_op.constant(#dxgml.constant_resource<qkv.conv_weight : !dxgml.tensor<9216x3072x1x1x!dxgml.float16>>)
       %lora_a = dxgml_op.constant(#dxgml.constant_resource<qkv.lora_a : !dxgml.tensor<3072x32x!dxgml.float16>>)
       %lora_b = dxgml_op.constant(#dxgml.constant_resource<qkv.lora_b : !dxgml.tensor<32x9216x!dxgml.float16>>)
+      %null = dxgml_op.null_ptr
 
       // ---- Base path: 1x1 convolution branch ----
 
@@ -42,14 +43,15 @@ module attributes {gpu.container_module} {
 
       // Step 2: 1x1 conv — channel expansion 3072 -> 9216 (QKV projection)
       //   stride=1, pad=0, spatial 1x1 -> 1x1 unchanged
-      %conv_out = dxgml_op.convolution(%nchw, %conv_w) {
+      %conv_out = dxgml_op.convolution(%nchw, %conv_w, %null) {
         group_count   = #dxgml.integer<1 : !dxgml.int64>,
         dilations     = #dxgml.dense_integer_elements<[1, 1]> : !dxgml.tensor<2x!dxgml.int64>,
         start_padding = #dxgml.dense_integer_elements<[0, 0]> : !dxgml.tensor<2x!dxgml.int64>,
         end_padding   = #dxgml.dense_integer_elements<[0, 0]> : !dxgml.tensor<2x!dxgml.int64>,
         strides       = #dxgml.dense_integer_elements<[1, 1]> : !dxgml.tensor<2x!dxgml.int64>
       } : (!dxgml.tensor<1x3072x1x1x!dxgml.float16>,
-           !dxgml.tensor<9216x3072x1x1x!dxgml.float16>)
+           !dxgml.tensor<9216x3072x1x1x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<1x9216x1x1x!dxgml.float16>
 
       // Step 3: Transpose NCHW -> NHWC  [N,C,H,W] -> [N,H,W,C]  (0,2,3,1)
@@ -61,15 +63,17 @@ module attributes {gpu.container_module} {
       // ---- LoRA path: low-rank adaptation ----
 
       // Step 4: LoRA down-projection  (1,1,1,3072) @ (3072,32) -> (1,1,1,32)
-      %lora_down = dxgml_op.gemm(%input_nhwc, %lora_a)
+      %lora_down = dxgml_op.gemm(%input_nhwc, %lora_a, %null)
         : (!dxgml.tensor<1x1x1x3072x!dxgml.float16>,
-           !dxgml.tensor<3072x32x!dxgml.float16>)
+           !dxgml.tensor<3072x32x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<1x1x1x32x!dxgml.float16>
 
       // Step 5: LoRA up-projection  (1,1,1,32) @ (32,9216) -> (1,1,1,9216)
-      %lora_up = dxgml_op.gemm(%lora_down, %lora_b)
+      %lora_up = dxgml_op.gemm(%lora_down, %lora_b, %null)
         : (!dxgml.tensor<1x1x1x32x!dxgml.float16>,
-           !dxgml.tensor<32x9216x!dxgml.float16>)
+           !dxgml.tensor<32x9216x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<1x1x1x9216x!dxgml.float16>
 
       // Step 6: Merge — add base conv output and LoRA contribution

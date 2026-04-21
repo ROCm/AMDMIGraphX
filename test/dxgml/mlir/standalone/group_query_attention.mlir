@@ -44,31 +44,41 @@ module attributes {gpu.container_module} {
       // Attention scale: 1 / sqrt(head_dim=8) broadcast to scores shape (2, 4, 4)
       %scale = dxgml_op.constant(#dxgml.constant_resource<attn.scale : !dxgml.tensor<1x1x1x!dxgml.float16>>)
 
+      %null = dxgml_op.null_ptr
+
+      // Shape tensors for reshape ops
+      %shape_q3d     = dxgml_op.constant(#dxgml.dense_integer_elements<[4, 2, 8]>  : !dxgml.tensor<3x!dxgml.int64>)
+      %shape_kv3d    = dxgml_op.constant(#dxgml.dense_integer_elements<[4, 1, 8]>  : !dxgml.tensor<3x!dxgml.int64>)
+      %shape_merged  = dxgml_op.constant(#dxgml.dense_integer_elements<[4, 16]>    : !dxgml.tensor<2x!dxgml.int64>)
+
       // ---- Q, K, V projections ----
 
       // Q: (4, 16) @ (16, 16) -> (4, 16)
-      %q_flat = dxgml_op.gemm(%hidden_states, %wq)
+      %q_flat = dxgml_op.gemm(%hidden_states, %wq, %null)
         : (!dxgml.tensor<4x16x!dxgml.float16>,
-           !dxgml.tensor<16x16x!dxgml.float16>)
+           !dxgml.tensor<16x16x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<4x16x!dxgml.float16>
 
       // K: (4, 16) @ (16, 8) -> (4, 8)
-      %k_flat = dxgml_op.gemm(%hidden_states, %wk)
+      %k_flat = dxgml_op.gemm(%hidden_states, %wk, %null)
         : (!dxgml.tensor<4x16x!dxgml.float16>,
-           !dxgml.tensor<16x8x!dxgml.float16>)
+           !dxgml.tensor<16x8x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<4x8x!dxgml.float16>
 
       // V: (4, 16) @ (16, 8) -> (4, 8)
-      %v_flat = dxgml_op.gemm(%hidden_states, %wv)
+      %v_flat = dxgml_op.gemm(%hidden_states, %wv, %null)
         : (!dxgml.tensor<4x16x!dxgml.float16>,
-           !dxgml.tensor<16x8x!dxgml.float16>)
+           !dxgml.tensor<16x8x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<4x8x!dxgml.float16>
 
       // ---- Reshape + Transpose to (num_heads, S, head_dim) ----
 
       // Q: (4, 16) -> (4, 2, 8)
-      %q_3d = dxgml_op.reshape(%q_flat)
-        : (!dxgml.tensor<4x16x!dxgml.float16>)
+      %q_3d = dxgml_op.reshape(%q_flat, %shape_q3d)
+        : (!dxgml.tensor<4x16x!dxgml.float16>, !dxgml.tensor<3x!dxgml.int64>)
         -> !dxgml.tensor<4x2x8x!dxgml.float16>
 
       // Q: (4, 2, 8) -> (2, 4, 8)
@@ -78,8 +88,8 @@ module attributes {gpu.container_module} {
         -> !dxgml.tensor<2x4x8x!dxgml.float16>
 
       // K: (4, 8) -> (4, 1, 8)
-      %k_3d = dxgml_op.reshape(%k_flat)
-        : (!dxgml.tensor<4x8x!dxgml.float16>)
+      %k_3d = dxgml_op.reshape(%k_flat, %shape_kv3d)
+        : (!dxgml.tensor<4x8x!dxgml.float16>, !dxgml.tensor<3x!dxgml.int64>)
         -> !dxgml.tensor<4x1x8x!dxgml.float16>
 
       // K: (4, 1, 8) -> (1, 4, 8)
@@ -89,8 +99,8 @@ module attributes {gpu.container_module} {
         -> !dxgml.tensor<1x4x8x!dxgml.float16>
 
       // V: (4, 8) -> (4, 1, 8)
-      %v_3d = dxgml_op.reshape(%v_flat)
-        : (!dxgml.tensor<4x8x!dxgml.float16>)
+      %v_3d = dxgml_op.reshape(%v_flat, %shape_kv3d)
+        : (!dxgml.tensor<4x8x!dxgml.float16>, !dxgml.tensor<3x!dxgml.int64>)
         -> !dxgml.tensor<4x1x8x!dxgml.float16>
 
       // V: (4, 1, 8) -> (1, 4, 8)
@@ -122,9 +132,10 @@ module attributes {gpu.container_module} {
         -> !dxgml.tensor<2x8x4x!dxgml.float16>
 
       // Attention scores: Q(2,4,8) @ K^T(2,8,4) -> (2,4,4)
-      %scores = dxgml_op.gemm(%q, %k_t)
+      %scores = dxgml_op.gemm(%q, %k_t, %null)
         : (!dxgml.tensor<2x4x8x!dxgml.float16>,
-           !dxgml.tensor<2x8x4x!dxgml.float16>)
+           !dxgml.tensor<2x8x4x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<2x4x4x!dxgml.float16>
 
       // Scale: multiply scores by 1/sqrt(head_dim)
@@ -140,9 +151,10 @@ module attributes {gpu.container_module} {
         -> !dxgml.tensor<2x4x4x!dxgml.float16>
 
       // Weighted sum: attn_weights(2,4,4) @ V(2,4,8) -> (2,4,8)
-      %attn_out = dxgml_op.gemm(%attn_weights, %v)
+      %attn_out = dxgml_op.gemm(%attn_weights, %v, %null)
         : (!dxgml.tensor<2x4x4x!dxgml.float16>,
-           !dxgml.tensor<2x4x8x!dxgml.float16>)
+           !dxgml.tensor<2x4x8x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<2x4x8x!dxgml.float16>
 
       // ---- Merge heads ----
@@ -154,14 +166,15 @@ module attributes {gpu.container_module} {
         -> !dxgml.tensor<4x2x8x!dxgml.float16>
 
       // Reshape: (4, 2, 8) -> (4, 16)
-      %attn_merged = dxgml_op.reshape(%attn_t)
-        : (!dxgml.tensor<4x2x8x!dxgml.float16>)
+      %attn_merged = dxgml_op.reshape(%attn_t, %shape_merged)
+        : (!dxgml.tensor<4x2x8x!dxgml.float16>, !dxgml.tensor<2x!dxgml.int64>)
         -> !dxgml.tensor<4x16x!dxgml.float16>
 
       // ---- Output projection: (4, 16) @ (16, 16) -> (4, 16) ----
-      %result = dxgml_op.gemm(%attn_merged, %wo)
+      %result = dxgml_op.gemm(%attn_merged, %wo, %null)
         : (!dxgml.tensor<4x16x!dxgml.float16>,
-           !dxgml.tensor<16x16x!dxgml.float16>)
+           !dxgml.tensor<16x16x!dxgml.float16>,
+           !dxgml.null)
         -> !dxgml.tensor<4x16x!dxgml.float16>
 
       dxgml.return %result : !dxgml.tensor<4x16x!dxgml.float16>

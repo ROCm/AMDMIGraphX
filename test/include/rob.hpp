@@ -37,8 +37,8 @@ struct stowed
     static typename Tag::type value;
 };
 template <class Tag>
-// NOLINTNEXTLINE
-typename Tag::type stowed<Tag>::value;
+// cppcheck-suppress migraphx-AvoidNestedValue
+typename Tag::type stowed<Tag>::value; // NOLINT
 
 template <class Tag, typename Tag::type X>
 struct stow_private

@@ -212,16 +212,12 @@ struct float8
 
     constexpr bool operator<(const float8& rhs) const
     {
-        const auto we   = static_cast<float>(*this);
-        const auto them = static_cast<float>(rhs);
-        return we < them;
+        return static_cast<float>(*this) < static_cast<float>(rhs);
     }
 
     constexpr bool operator>(const float8& rhs) const
     {
-        const auto we   = static_cast<float>(*this);
-        const auto them = static_cast<float>(rhs);
-        return we > them;
+        return static_cast<float>(*this) > static_cast<float>(rhs);
     }
 };
 

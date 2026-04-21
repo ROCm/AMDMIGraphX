@@ -1028,6 +1028,7 @@ auto args(Ms... ms)
 {
     return sequence_c<sizeof...(Ms)>([=](auto... is) {
         // It needs to be written as `decltype(is)::value` for gcc 5
+        // cppcheck-suppress migraphx-AvoidNestedValue 
         return args_impl(args_impl_ints<decltype(is)::value...>{}, ms...);
     });
 }

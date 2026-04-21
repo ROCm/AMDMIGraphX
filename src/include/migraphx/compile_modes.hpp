@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <cstdint>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,6 +39,7 @@ enum class compile_modes
 };
 
 MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(uint8_t mode);
+MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(const std::string& mode);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

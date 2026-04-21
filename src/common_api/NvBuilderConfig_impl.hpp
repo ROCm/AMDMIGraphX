@@ -78,6 +78,9 @@ namespace nvinfer1
         int64_t getL2LimitForTiling() const noexcept override;
         bool setRemoteAutoTuningConfig(char const* config) noexcept override;
         char const* getRemoteAutoTuningConfig() const noexcept override;
+
+    private:
+        BuilderFlags mBldrFlags;
     };
 
 } // ns:nvinfer1

@@ -9,6 +9,7 @@
 namespace nvinfer1
 {
     NvBuilderConfig_impl::NvBuilderConfig_impl() noexcept
+        : mBldrFlags{0}
     {
         pass_warning("TODO! implement me!", false);
         mImpl = this;
@@ -54,29 +55,27 @@ namespace nvinfer1
 
     void NvBuilderConfig_impl::setFlags(BuilderFlags builderFlags) noexcept
     {
-        pass_warning("TODO! implement me!", true);
+        mBldrFlags = builderFlags;
     }
 
     BuilderFlags NvBuilderConfig_impl::getFlags() const noexcept
     {
-        pass_warning("TODO! implement me!", true);
-        return 0;
+        return mBldrFlags;
     }
 
     void NvBuilderConfig_impl::clearFlag(BuilderFlag builderFlag) noexcept
     {
-        pass_warning("TODO! implement me!", true);
+        mBldrFlags &= ~(1U << static_cast<uint32_t>(builderFlag));
     }
 
     void NvBuilderConfig_impl::setFlag(BuilderFlag builderFlag) noexcept
     {
-        pass_warning("TODO! implement me!", true);
+        mBldrFlags |= (1U << static_cast<uint32_t>(builderFlag));
     }
 
     bool NvBuilderConfig_impl::getFlag(BuilderFlag builderFlag) const noexcept
     {
-        pass_warning("TODO! implement me!", true);
-        return false;
+        return (mBldrFlags & (1U << static_cast<uint32_t>(builderFlag))) != 0;
     }
 
     void NvBuilderConfig_impl::setDeviceType(ILayer const* layer, DeviceType deviceType) noexcept

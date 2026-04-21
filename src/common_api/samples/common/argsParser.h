@@ -86,11 +86,11 @@ inline bool parseArgs(Args& args, int32_t argc, char* argv[])
     {
         int32_t arg;
         static struct option long_options[]
-            = {{"help", no_argument, 0, 'h'}, {"datadir", required_argument, 0, 'd'}, {"int8", no_argument, 0, 'i'},
-                {"fp16", no_argument, 0, 'f'}, {"bf16", no_argument, 0, 'z'}, {"columnOrder", no_argument, 0, 'c'},
-                {"saveEngine", required_argument, 0, 's'}, {"loadEngine", required_argument, 0, 'o'},
-                {"useDLACore", required_argument, 0, 'u'}, {"batch", required_argument, 0, 'b'},
-                {"timingCacheFile", required_argument, 0, 't'}, {nullptr, 0, nullptr, 0}};
+            = {{"help", no_argument, nullptr, 'h'}, {"datadir", required_argument, nullptr, 'd'}, {"int8", no_argument, nullptr, 'i'},
+                {"fp16", no_argument, nullptr, 'f'}, {"bf16", no_argument, nullptr, 'z'}, {"columnOrder", no_argument, nullptr, 'c'},
+                {"saveEngine", required_argument, nullptr, 's'}, {"loadEngine", required_argument, nullptr, 'o'},
+                {"useDLACore", required_argument, nullptr, 'u'}, {"batch", required_argument, nullptr, 'b'},
+                {"timingCacheFile", required_argument, nullptr, 't'}, {nullptr, 0, nullptr, 0}};
         int32_t option_index = 0;
         arg = getopt_long(argc, argv, "hd:iu", long_options, &option_index);
         if (arg == -1)

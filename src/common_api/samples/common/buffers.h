@@ -394,7 +394,7 @@ public:
     //!
     //! \brief Copy the contents of input host buffers to input device buffers asynchronously.
     //!
-    void copyInputToDeviceAsync(hipStream_t const& stream = 0)
+    void copyInputToDeviceAsync(hipStream_t const& stream = nullptr)
     {
         memcpyBuffers(true, false, true, stream);
     }
@@ -402,7 +402,7 @@ public:
     //!
     //! \brief Copy the contents of output device buffers to output host buffers asynchronously.
     //!
-    void copyOutputToHostAsync(hipStream_t const& stream = 0)
+    void copyOutputToHostAsync(hipStream_t const& stream = nullptr)
     {
         memcpyBuffers(false, true, true, stream);
     }
@@ -424,7 +424,7 @@ private:
         return mEngine->getTensorIOMode(tensorName.c_str()) == nvinfer1::TensorIOMode::kINPUT;
     }
 
-    void memcpyBuffers(bool const copyInput, bool const deviceToHost, bool const async, hipStream_t const& stream = 0)
+    void memcpyBuffers(bool const copyInput, bool const deviceToHost, bool const async, hipStream_t const& stream = nullptr)
     {
         for (auto const& n : mNames)
         {

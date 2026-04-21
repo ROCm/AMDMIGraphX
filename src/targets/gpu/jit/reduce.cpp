@@ -365,6 +365,8 @@ compute_fused_emit_plan(context& ctx, const std::vector<shape>& inputs, const va
     p.nelements = p.reduce_output_shape.elements();
     p.algo      = v.get("algo", get_reduce_algo(ctx, p.virtual_inputs, p.reduction_shape.lens()));
     bool no_vectorize = v.get("no_vectorize", false);
+    if(p.algo != "block" and p.algo != "wave" and p.algo != "lane")
+        MIGRAPHX_THROW("Unknown reduce algo: " + p.algo);
     if(p.algo == "block" or p.algo == "wave")
     {
         if(p.reduce_output_shape.lens()[p.faxis] == 1 and not no_vectorize)
@@ -382,11 +384,6 @@ compute_fused_emit_plan(context& ctx, const std::vector<shape>& inputs, const va
             p.subwave_sz = v.get("subwave_size", compute_subwave_size(ctx, relements));
             p.algo       = "subwave<" + std::to_string(p.subwave_sz) + ">";
         }
-    }
-    else if(p.algo == "lane") {}
-    else
-    {
-        MIGRAPHX_THROW("Unknown reduce algo: " + p.algo);
     }
     return p;
 }

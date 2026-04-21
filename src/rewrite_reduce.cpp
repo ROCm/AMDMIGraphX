@@ -32,8 +32,10 @@
 #include <migraphx/common.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>
 #include <migraphx/eliminate_convert.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/unfold.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <unordered_set>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
 
@@ -42,23 +44,88 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
+// Walk forward through single-consumer ops looking for an instruction with
+// the given name. Returns start itself if it already matches.
+static std::optional<instruction_ref> find_downstream_named(instruction_ref start,
+                                                            const std::string& target)
+{
+    auto path = get_output_path(start);
+    auto it   = std::find_if(
+        path.begin(), path.end(), [&](instruction_ref ins) { return ins->name() == target; });
+    if(it == path.end())
+        return std::nullopt;
+    return *it;
+}
+
+// Walk backward through the data-flow chain looking for an instruction with
+// the given name. Returns start itself if it already matches. Single-input ops
+// are followed directly; multi-input ops follow the first non-constant,
+// non-bool input.
+static std::optional<instruction_ref> find_upstream_named(instruction_ref start,
+                                                          const std::string& target)
+{
+    auto path = unfold(start, [](instruction_ref current) -> std::optional<instruction_ref> {
+        const auto& inputs = current->inputs();
+        if(inputs.empty())
+            return std::nullopt;
+        if(inputs.size() == 1)
+            return inputs.front();
+        auto it = std::find_if(inputs.begin(), inputs.end(), [](instruction_ref i) {
+            return not i->can_eval() and i->get_shape().type() != shape::bool_type;
+        });
+        if(it == inputs.end())
+            return std::nullopt;
+        return *it;
+    });
+    auto it = std::find_if(
+        path.begin(), path.end(), [&](instruction_ref ins) { return ins->name() == target; });
+    if(it == path.end())
+        return std::nullopt;
+    return *it;
+}
+
+// Scan the module for attention dots by matching the decomposed softmax
+// pattern (match::softmax matches the final div). A softmax whose input
+// reaches a dot upstream and whose output reaches another dot downstream
+// identifies the Q*K^T and softmax*V dots of attention; both are marked so
+// find_dot leaves them alone.
+static std::unordered_set<instruction_ref> collect_attention_dots(module& m)
+{
+    std::unordered_set<instruction_ref> result;
+    for(auto ins : iterator_for(m))
+    {
+        auto r = match::match_instruction(m, ins, match::softmax());
+        if(r.result == m.end())
+            continue;
+        auto x     = r.instructions["x"];
+        auto q_dot = find_upstream_named(x, "dot");
+        auto v_dot = find_downstream_named(ins, "dot");
+        if(q_dot.has_value() and v_dot.has_value())
+        {
+            result.insert(*q_dot);
+            result.insert(*v_dot);
+        }
+    }
+    return result;
+}
+
 struct find_dot
 {
+    std::unordered_set<instruction_ref> attention_dots;
+
     auto matcher() const { return match::name("dot"); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins     = r.result;
+        auto ins = r.result;
+        if(attention_dots.count(ins) != 0)
+            return;
         auto a_mat   = ins->inputs().front();
         auto b_mat   = ins->inputs().back();
         auto a_shape = a_mat->get_shape();
         auto b_shape = b_mat->get_shape();
         auto ndim    = a_shape.ndim();
-        auto batch   = std::accumulate(
-            a_shape.lens().begin(), a_shape.lens().end() - 2, 1, std::multiplies<>{});
-        if(batch != 1)
-            return;
-        auto rows = a_shape.lens().at(ndim - 2);
+        auto rows    = a_shape.lens().at(ndim - 2);
         if(rows > 2)
             return;
 
@@ -343,9 +410,11 @@ struct find_reduce_mean
 
 void rewrite_reduce::apply(module& m) const
 {
-    match::find_matches(m, find_dot{});
     match::find_matches(m, find_logsoftmax{});
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
+    // Match the decomposed softmax pattern to identify dots participating in
+    // attention (Q*K^T and softmax*V) so find_dot can skip them.
+    match::find_matches(m, find_dot{collect_attention_dots(m)});
 
     if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
     {

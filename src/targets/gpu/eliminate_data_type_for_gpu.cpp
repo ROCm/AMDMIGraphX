@@ -68,11 +68,17 @@ static eliminate_data_type for_device_functions()
     return eliminate_data_type{unsupported_types, shape::float_type, device_functions};
 }
 
+template <class F>
+static auto query_device(const context* ctx, F f)
+{
+    return ctx != nullptr ? f(*ctx) : f();
+}
+
 static eliminate_data_type for_fp8fnuz(const context* ctx)
 {
     std::set<std::string> unsupported_ops = {};
 
-    if(ctx != nullptr ? not hipblaslt_supported(*ctx) : not hipblaslt_supported())
+    if(not query_device(ctx, [](auto&&... args) { return hipblaslt_supported(args...); }))
     {
         unsupported_ops.insert("dot");
         unsupported_ops.insert("quant_dot");
@@ -80,8 +86,7 @@ static eliminate_data_type for_fp8fnuz(const context* ctx)
 
     insert_miopen_pooling(unsupported_ops);
 
-    if(ctx != nullptr ? not gpu::gfx_has_fp8fnuz_intrinsics(*ctx)
-                      : not gpu::gfx_has_fp8fnuz_intrinsics())
+    if(not query_device(ctx, [](auto&&... args) { return gfx_has_fp8fnuz_intrinsics(args...); }))
     {
         insert_gemm_conv(unsupported_ops);
     }
@@ -93,7 +98,7 @@ static eliminate_data_type for_fp8ocp(const context* ctx)
 {
     std::set<std::string> unsupported_ops = {};
 
-    if(ctx != nullptr ? not hipblaslt_supported(*ctx) : not hipblaslt_supported())
+    if(not query_device(ctx, [](auto&&... args) { return hipblaslt_supported(args...); }))
     {
         unsupported_ops.insert("dot");
         unsupported_ops.insert("quant_dot");
@@ -101,8 +106,7 @@ static eliminate_data_type for_fp8ocp(const context* ctx)
 
     insert_miopen_pooling(unsupported_ops);
 
-    if(ctx != nullptr ? not gpu::gfx_has_fp8ocp_intrinsics(*ctx)
-                      : not gpu::gfx_has_fp8ocp_intrinsics())
+    if(not query_device(ctx, [](auto&&... args) { return gfx_has_fp8ocp_intrinsics(args...); }))
     {
         insert_gemm_conv(unsupported_ops);
     }
@@ -131,7 +135,7 @@ void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
 {
     std::set<shape::type_t> unsupported_floats;
     // No BF-16 Support on Navi21
-    if(ctx != nullptr ? not gpu::gfx_has_bf16_intrinsics(*ctx) : not gpu::gfx_has_bf16_intrinsics())
+    if(not query_device(ctx, [](auto&&... args) { return gfx_has_bf16_intrinsics(args...); }))
     {
         unsupported_floats.insert(shape::bf16_type);
     }

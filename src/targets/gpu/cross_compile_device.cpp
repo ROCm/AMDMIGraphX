@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/cross_compile_device.hpp>
-#include <cstring>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -31,8 +31,9 @@ namespace gpu {
 hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, std::size_t cu_count)
 {
     hipDeviceProp_t props{};
-    std::strncpy(props.gcnArchName, arch_name.c_str(), sizeof(props.gcnArchName) - 1);
-    props.gcnArchName[sizeof(props.gcnArchName) - 1] = '\0';
+    auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
+    std::copy_n(arch_name.begin(), n, props.gcnArchName);
+    props.gcnArchName[n] = '\0';
     // these are placeholders
     props.warpSize                    = 64;
     props.maxThreadsPerMultiProcessor = 2048;

@@ -70,7 +70,7 @@ struct hip_device
             add_stream();
     }
 
-    hip_device(std::string arch_name, std::size_t cu_count, std::size_t chiplets)
+    hip_device(const std::string& arch_name, std::size_t cu_count, std::size_t chiplets)
         : cross_compile_mode(true),
           chiplet_count_override(chiplets),
           device_props(make_cross_compile_device_props(arch_name, cu_count))
@@ -274,8 +274,8 @@ struct context
     {
     }
 
-    context(std::string arch_name, std::size_t cu_count, std::size_t chiplets)
-        : current_device(std::make_shared<hip_device>(std::move(arch_name), cu_count, chiplets)),
+    context(const std::string& arch_name, std::size_t cu_count, std::size_t chiplets)
+        : current_device(std::make_shared<hip_device>(arch_name, cu_count, chiplets)),
           pc(std::make_shared<auto_save_problem_cache>())
     {
     }

@@ -400,8 +400,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto v        = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm    = ins->module_inputs().front();
-        auto shapes = to_shapes(ins->inputs());
+        auto* rm                                     = ins->module_inputs().front();
+        auto shapes                                  = to_shapes(ins->inputs());
         const shape reduce_output_shape_for_preamble = [&] {
             auto assign         = v.get("assign", "assign_none");
             auto axes           = v.at("axes").to_vector<std::size_t>();

@@ -491,17 +491,13 @@ static std::vector<std::size_t> get_rlens(const module& m)
 // nested in pointwise) so inner length matches vector packed reads for vectorized make_indices
 static bool module_has_arg_reduce(const module& m)
 {
-    for(const auto& ins : m)
-    {
+    return std::any_of(m.begin(), m.end(), [&](const auto& ins) {
         if(ins.name() == "gpu::arg_reduce")
             return true;
         if(ins.name() == "pointwise" and not ins.module_inputs().empty())
-        {
-            if(module_has_arg_reduce(*ins.module_inputs().front()))
-                return true;
-        }
-    }
-    return false;
+            return module_has_arg_reduce(*ins.module_inputs().front());
+        return false;
+    });
 }
 
 std::string
@@ -510,7 +506,7 @@ generate_reduce(module m, const std::string& name, const fused_reduce_indices_sp
     preload_params(m);
     run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
     m.sort();
-    const bool has_arg_reduce = fused_indices != nullptr && module_has_arg_reduce(m);
+    const bool has_arg_reduce = fused_indices != nullptr and module_has_arg_reduce(m);
     cpp_generator g;
     g.always_return_tuple();
     auto param_shapes = m.get_parameter_shapes();

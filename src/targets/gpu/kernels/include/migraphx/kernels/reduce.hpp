@@ -311,8 +311,8 @@ constexpr auto make_indices_from(Input&& input, OutIdx out_idx)
     if constexpr(is_inner_storage<in_t>{})
     {
         (void)out_idx;
-        const auto n = input.rsize();
-        using elem   = remove_reference_t<decltype(declval<in_t&>()(0, _c<0>))>;
+        const auto n            = input.rsize();
+        using elem              = remove_reference_t<decltype(declval<in_t&>()(0, _c<0>))>;
         constexpr auto nlanes_v = vec_size<elem>();
         if constexpr(nlanes_v < index_constant<2>{})
         {
@@ -321,9 +321,8 @@ constexpr auto make_indices_from(Input&& input, OutIdx out_idx)
         else
         {
             return make_lazy_inner_storage(n, [nlanes_v](auto j, auto) {
-                return vec_generate<nlanes_v()>([nlanes_v, j](auto i) -> index_int {
-                    return j * nlanes_v() + i;
-                });
+                return vec_generate<nlanes_v()>(
+                    [nlanes_v, j](auto i) -> index_int { return j * nlanes_v() + i; });
             });
         }
     }
@@ -340,9 +339,8 @@ constexpr auto make_indices_from(Input&& input, OutIdx out_idx)
         else
         {
             return make_lazy_inner_storage(n, [nlanes_v](auto j, auto) {
-                return vec_generate<nlanes_v()>([nlanes_v, j](auto i) -> index_int {
-                    return j * nlanes_v() + i;
-                });
+                return vec_generate<nlanes_v()>(
+                    [nlanes_v, j](auto i) -> index_int { return j * nlanes_v() + i; });
             });
         }
     }

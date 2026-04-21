@@ -444,8 +444,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         const std::string reduced_ty =
             "decltype(" + generate_make_shape(emit_plan.reduce_output_shape) + ")";
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op", reduced_ty);
-        v["lambda"]          = "MIGRAPHX_LIFT(fused_reduce_op)";
-        v["kernel"]          = generate_name_from_ops(*rm) + "_kernel";
+        v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
+        v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
         return compile_op(ctx, shapes, v);
     }
 

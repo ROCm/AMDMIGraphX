@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1333,6 +1333,26 @@ TEST_CASE(concat_convert_fusion)
             concat);
         m2.add_instruction(pass_op{}, concath);
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(concat_convert_mismatched_input_types)
+{
+    auto sx = migraphx::shape{migraphx::shape::float_type, {1, 128}};
+    auto sy = migraphx::shape{migraphx::shape::int32_type, {1, 64}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", sx);
+        auto y  = m1.add_parameter("y", sy);
+        auto xc = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), x);
+        auto yc = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bf16_type}}), y);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), xc, yc);
+        m1.add_instruction(pass_op{}, concat);
+    }
+    auto m2 = m1;
+    run_pass(m1);
     EXPECT(m1 == m2);
 }
 

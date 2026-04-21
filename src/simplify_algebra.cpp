@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,12 +68,14 @@ static auto from_int4()
 {
     return match::make_predicate_matcher([](instruction_ref start) {
         return fix<bool>([&](auto self, instruction_ref ins) {
-            auto alias = instruction::get_output_alias(ins);
-            if(contains({"reshape", "dequantizelinear"}, alias->name()))
-                return self(alias->inputs().front());
-            if(alias->name() == "concat")
-                return all_of(alias->inputs(), self);
-            return alias->name() == "unpack_int4";
+            auto aliases = instruction::get_output_alias(ins);
+            return std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
+                if(contains({"reshape", "dequantizelinear"}, alias->name()))
+                    return self(alias->inputs().front());
+                if(alias->name() == "concat")
+                    return all_of(alias->inputs(), self);
+                return alias->name() == "unpack_int4";
+            });
         })(start);
     });
 }
@@ -948,11 +950,12 @@ struct find_concat_op
     {
         auto concat_lens = ins.front()->get_shape().lens();
         concat_lens.erase(concat_lens.begin() + axis);
+        auto front_type = ins.front()->get_shape().type();
 
         return std::all_of(ins.begin(), ins.end(), [&](auto i) {
             auto lens = i->get_shape().lens();
             lens.erase(lens.begin() + axis);
-            return lens == concat_lens;
+            return lens == concat_lens and i->get_shape().type() == front_type;
         });
     }
 
@@ -1031,8 +1034,8 @@ struct find_concat_op
         };
         auto pred = [](auto i, auto j) {
             return i->get_operator() == j->get_operator() and
-                   i->inputs().size() == i->inputs().size() and
-                   i->outputs().size() == i->outputs().size();
+                   i->inputs().size() == j->inputs().size() and
+                   i->outputs().size() == j->outputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
         if(args.size() == 1)

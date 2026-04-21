@@ -316,10 +316,7 @@ constexpr auto arg_read_vec_pair(V val, I idx)
         auto get_lane = [&](index_int lane_i) {
             return make_tuple(vec_at(val, lane_i), idx * nlanes_v + lane_i);
         };
-        using lane0      = remove_reference_t<decltype(get_lane(0))>;
-        lane0* shape_tag = nullptr;
-        return migraphx::vec_detail::vec_transform_tuple_transpose_dispatch<nlanes_v()>(get_lane,
-                                                                                        shape_tag);
+        return migraphx::vec_detail::vec_transform_tuple_transpose<nlanes_v()>(get_lane);
     }
 }
 

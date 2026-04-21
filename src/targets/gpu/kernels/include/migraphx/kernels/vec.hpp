@@ -146,29 +146,15 @@ constexpr auto generate_vec(N n, F f)
 
 namespace vec_detail {
 
-template <index_int Size, class Lane0, index_int... Js, class GetLane>
-constexpr auto vec_transform_tuple_transpose(detail::seq<Js...>, GetLane get_lane)
+// Repack lane-wise tuples so each tuple field becomes one vector of length Size across lanes
+template <index_int Size, class GetLane>
+constexpr auto vec_transform_tuple_transpose(GetLane get_lane)
 {
-    return make_tuple([&] {
-        using elem_t = remove_reference_t<decltype(declval<Lane0>()[_c<Js>])>;
-        safe_vec<elem_t, Size> r{};
-        for(int i = 0; i < Size; ++i)
-            r[i] = get_lane(i)[_c<Js>];
-        return r;
-    }()...);
-}
-
-template <index_int Size, class... Ts, class GetLane>
-constexpr auto vec_transform_tuple_transpose_tuple(GetLane get_lane, tuple<Ts...>*)
-{
-    return vec_transform_tuple_transpose<Size, tuple<Ts...>>(
-        typename detail::gens<sizeof...(Ts)>::type{}, get_lane);
-}
-
-template <index_int Size, class GetLane, class... Ts>
-constexpr auto vec_transform_tuple_transpose_dispatch(GetLane get_lane, tuple<Ts...>* shape_tag)
-{
-    return vec_transform_tuple_transpose_tuple<Size, Ts...>(get_lane, shape_tag);
+    using lane0 = remove_reference_t<decltype(declval<GetLane>()(_c<0>))>;
+    return generate_tuple(decltype(declval<lane0>().size()){}, [&](auto j) {
+        return generate_vec(index_constant<Size>{},
+                            [&](auto i) { return get_lane(i)[j]; });
+    });
 }
 
 } // namespace vec_detail

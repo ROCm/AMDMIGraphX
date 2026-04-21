@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/stringutils.hpp>
 
 #include <cstdio>
 
@@ -292,6 +293,14 @@ TEST_CASE(comment_as_file)
     migraphx::program p2 = migraphx::load(filename);
     std::remove(filename.c_str());
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(comment_print)
+{
+    migraphx::program p = create_program_with_comment();
+    auto s              = migraphx::to_string(p);
+    EXPECT(s.find("@comment") != std::string::npos);
+    EXPECT(s.find("gpu::mlir_op test") != std::string::npos);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

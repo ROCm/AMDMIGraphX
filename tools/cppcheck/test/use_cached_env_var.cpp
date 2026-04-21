@@ -5,7 +5,7 @@
 #include <string>
 #include <map>
 
-#define DECLARE_ENV_VAR(x)               \
+#define DECLARE_ENV_VAR(x)                        \
     struct x /* NOLINT */                         \
     {                                             \
         static const char* value() { return #x; } \
@@ -75,4 +75,3 @@ void test_value_of_direct_fallback()
     auto e = value_of(TEST_VAR::value(), 1);
     (void)e;
 }
-

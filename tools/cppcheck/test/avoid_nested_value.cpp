@@ -49,12 +49,10 @@ struct value
     value(int y);
 };
 
-value::value(int y)
-: x(y)
-{}
+value::value(int y) : x(y) {}
 
-}
-}
+} // namespace n1
+} // namespace a
 
 namespace b {
 a::value test_value_as_class()
@@ -62,4 +60,4 @@ a::value test_value_as_class()
     a::value v(42);
     return v;
 }
-}
+} // namespace b

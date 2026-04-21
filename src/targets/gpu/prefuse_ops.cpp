@@ -41,6 +41,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WINOGRAD);
 
 namespace {
 
@@ -317,6 +318,88 @@ struct find_channelwise_convolution
     }
 };
 
+struct winograd_conv
+{
+    std::vector<std::size_t> padding;
+
+    std::string name() const { return "gpu::winograd_conv"; }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.padding, "padding"));
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).same_ndims();
+        auto x_lens = inputs[0].lens();
+        auto w_lens = inputs[1].lens();
+        std::vector<std::size_t> out_lens;
+        out_lens.push_back(x_lens[0]);
+        out_lens.push_back(w_lens[0]);
+        for(std::size_t i = 0; i < 2; i++)
+        {
+            std::size_t total_pad = 0;
+            if(i < padding.size())
+                total_pad += padding[i];
+            if(i + 2 < padding.size())
+                total_pad += padding[i + 2];
+            out_lens.push_back(x_lens[i + 2] + total_pad - w_lens[i + 2] + 1);
+        }
+        return inputs[0].with_lens(out_lens);
+    }
+};
+MIGRAPHX_REGISTER_OP(winograd_conv);
+
+MIGRAPHX_PRED_MATCHER(conv_winograd_compatible, instruction_ref ins)
+{
+    if(ins->name() != "convolution")
+        return false;
+    auto v = ins->get_operator().to_value();
+    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    if(v.at("group").to<std::size_t>() != 1)
+        return false;
+    auto w_lens = ins->inputs().back()->get_shape().lens();
+    if(w_lens.size() != 4 or w_lens[2] != 3 or w_lens[3] != 3)
+        return false;
+    if(not all_of(v.at("padding"),
+                  [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    return true;
+}
+
+struct find_winograd_convolution
+{
+    auto matcher() const { return conv_winograd_compatible(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto input   = ins->inputs().front();
+        auto weights = ins->inputs().back();
+
+        const auto t = input->get_shape().type();
+        if(t != shape::half_type and t != shape::float_type)
+            return;
+        if(input->get_shape().lens().size() != 4)
+            return;
+
+        auto v        = ins->get_operator().to_value();
+        auto pad_vals = v.at("padding");
+        std::vector<std::size_t> padding;
+        std::transform(pad_vals.begin(),
+                       pad_vals.end(),
+                       std::back_inserter(padding),
+                       [](const value& x) { return x.to<std::size_t>(); });
+
+        m.replace_instruction(ins, winograd_conv{std::move(padding)}, input, weights);
+    }
+};
+
 void inline_group_sub_module(module_pass_manager& mpm)
 {
     auto& m = mpm.get_module();
@@ -346,6 +429,8 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     if(is_navi)
         match::find_matches(mpm.get_module(), find_channelwise_convolution{});
+    if(enabled(MIGRAPHX_ENABLE_WINOGRAD{}))
+        match::find_matches(mpm.get_module(), find_winograd_convolution{});
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))
     {
         inline_group_sub_module(mpm);

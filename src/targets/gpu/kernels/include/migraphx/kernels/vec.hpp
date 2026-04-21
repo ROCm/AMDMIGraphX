@@ -139,7 +139,7 @@ constexpr auto generate_vec(N n, F f)
 {
     return sequence(n, [&](auto... is) {
         constexpr index_int sz = decltype(n)::value;
-        using elem               = decltype(f(_c<0>));
+        using elem             = decltype(f(_c<0>));
         return safe_vec<elem, sz>{f(is)...};
     });
 }
@@ -201,10 +201,8 @@ constexpr auto vec_transform_tuple(Ts... xs)
         if constexpr(is_any_vec<Ts...>())
         {
             constexpr auto size = common_vec_size<Ts...>();
-            auto at   = [](auto i) {
-                return [=](auto x) { return vec_at(x, i); };
-            };
-            auto vals = generate_tuple(size, [&](auto i) { return f(at(i)(xs)...); });
+            auto at             = [](auto i) { return [=](auto x) { return vec_at(x, i); }; };
+            auto vals           = generate_tuple(size, [&](auto i) { return f(at(i)(xs)...); });
 
             using lane0 = remove_reference_t<decltype(f(vec_at(xs, _c<0>)...))>;
             if constexpr(vec_detail::is_kernel_tuple<lane0>{})

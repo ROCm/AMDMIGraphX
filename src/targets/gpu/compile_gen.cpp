@@ -504,15 +504,13 @@ static bool module_has_arg_reduce(const module& m)
     return false;
 }
 
-std::string generate_reduce(module m,
-                            const std::string& name,
-                            const fused_reduce_indices_spec* fused_indices)
+std::string
+generate_reduce(module m, const std::string& name, const fused_reduce_indices_spec* fused_indices)
 {
     preload_params(m);
     run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
     m.sort();
-    const bool has_arg_reduce =
-        fused_indices != nullptr && module_has_arg_reduce(m);
+    const bool has_arg_reduce = fused_indices != nullptr && module_has_arg_reduce(m);
     cpp_generator g;
     g.always_return_tuple();
     auto param_shapes = m.get_parameter_shapes();

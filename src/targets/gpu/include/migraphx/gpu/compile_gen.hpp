@@ -103,10 +103,8 @@ struct fused_reduce_indices_spec
     std::vector<std::size_t> reduction_lens;
 };
 
-MIGRAPHX_GPU_EXPORT std::string
-generate_reduce(module m,
-                const std::string& name,
-                const fused_reduce_indices_spec* fused_indices = nullptr);
+MIGRAPHX_GPU_EXPORT std::string generate_reduce(
+    module m, const std::string& name, const fused_reduce_indices_spec* fused_indices = nullptr);
 
 std::string generate_name_from_ops(const module& m, const std::string& postname = "");
 

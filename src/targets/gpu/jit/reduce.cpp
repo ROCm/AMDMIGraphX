@@ -328,8 +328,8 @@ struct fused_emit_plan
     vectorize vec{};
     std::size_t nelements = 0;
     std::string algo;
-    std::size_t block_tile  = 0;
-    std::size_t subwave_sz  = 0;
+    std::size_t block_tile = 0;
+    std::size_t subwave_sz = 0;
 
     fused_reduce_indices_spec indices_spec() const
     {
@@ -341,15 +341,14 @@ struct fused_emit_plan
     }
 };
 
-fused_emit_plan compute_fused_emit_plan(context& ctx,
-                                        const std::vector<shape>& inputs,
-                                        const value& v)
+fused_emit_plan
+compute_fused_emit_plan(context& ctx, const std::vector<shape>& inputs, const value& v)
 {
     fused_emit_plan p;
-    p.assign = v.get("assign", "assign_none");
-    auto axes = v.at("axes").to_vector<std::size_t>();
-    p.finputs = flatten(inputs);
-    p.noutputs = p.finputs.size() - inputs.size() + 1;
+    p.assign            = v.get("assign", "assign_none");
+    auto axes           = v.at("axes").to_vector<std::size_t>();
+    p.finputs           = flatten(inputs);
+    p.noutputs          = p.finputs.size() - inputs.size() + 1;
     auto virtual_inputs = p.finputs;
     virtual_inputs.push_back(get_reduced_shape(get_input_shape(p.finputs), axes));
     virtual_inputs.push_back(get_output_shape(get_input_shape(p.finputs), axes));
@@ -384,9 +383,7 @@ fused_emit_plan compute_fused_emit_plan(context& ctx,
             p.algo       = "subwave<" + std::to_string(p.subwave_sz) + ">";
         }
     }
-    else if(p.algo == "lane")
-    {
-    }
+    else if(p.algo == "lane") {}
     else
     {
         MIGRAPHX_THROW("Unknown reduce algo: " + p.algo);
@@ -412,15 +409,14 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(plan.block_tile != 0)
         {
             options.set_launch_params(
-                v,
-                compute_global_for(ctx, plan.nelements * plan.block_tile, 256),
-                plan.block_tile);
+                v, compute_global_for(ctx, plan.nelements * plan.block_tile, 256), plan.block_tile);
         }
         else if(plan.subwave_sz != 0)
         {
-            options.set_launch_params(v,
-                                      compute_global_for(ctx, plan.nelements * plan.subwave_sz, 256),
-                                      ctx.get_current_device().get_wavefront_size());
+            options.set_launch_params(
+                v,
+                compute_global_for(ctx, plan.nelements * plan.subwave_sz, 256),
+                ctx.get_current_device().get_wavefront_size());
         }
         else if(plan.algo == "lane")
         {
@@ -454,8 +450,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto v        = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm    = ins->module_inputs().front();
-        auto shapes = to_shapes(ins->inputs());
+        auto* rm             = ins->module_inputs().front();
+        auto shapes          = to_shapes(ins->inputs());
         const auto emit_plan = compute_fused_emit_plan(ctx, shapes, v);
         const auto idx_spec  = emit_plan.indices_spec();
         v["preamble"]        = generate_reduce(*rm, "fused_reduce_op", &idx_spec);

@@ -20,39 +20,44 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_MARKER_HPP
-#define MIGRAPHX_GUARD_MARKER_HPP
 
-#include <cassert>
-#include <string>
-#include <functional>
-#include <memory>
+// cppcheck-suppress-file noExplicitConstructor
+
 #include <type_traits>
-#include <utility>
-#include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/program.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+void test_type_trait()
+{
+    // cppcheck-suppress migraphx-AvoidNestedValue
+    static_assert(std::is_same<int, int>::value);
+}
 
-#ifdef DOXYGEN
+auto test_generic_var()
+{
+    return [](auto i) {
+        // cppcheck-suppress migraphx-AvoidNestedValue
+        return decltype(i)::value;
+    };
+}
 
-/// Marker is an interface to general marking functions, such as rocTX markers.
+namespace a {
+inline namespace n1 {
+struct value
+{
+    int x;
+    value(int y);
+};
 
-#else
+value::value(int y) : x(y) {}
 
-<%
-interface('marker',
-           virtual('mark_start', ins_ref = 'instruction_ref', returns = 'void'),
-           virtual('mark_start', prog = 'const program&', returns = 'void'),
-           virtual('mark_stop', ins = 'instruction_ref', returns = 'void'),
-           virtual('mark_stop', prog = 'const program&', returns = 'void')
-        ) %>
-#endif
+} // namespace n1
+} // namespace a
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+namespace b {
+a::value test_value_as_class()
+{
+    a::value v(42);
+    return v;
+}
+} // namespace b

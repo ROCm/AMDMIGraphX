@@ -20,7 +20,19 @@ namespace helper
         case migraphx::shape::type_t::uint8_type: return nvinfer1::DataType::kUINT8;
         case migraphx::shape::type_t::fp8e4m3fnuz_type: return nvinfer1::DataType::kFP8;
         case migraphx::shape::type_t::int64_type: return nvinfer1::DataType::kINT64;
-        default: MIGRAPHX_THROW("Type not supported");
+
+        case migraphx::shape::type_t::double_type:
+        case migraphx::shape::type_t::uint16_type:
+        case migraphx::shape::type_t::int16_type:
+        case migraphx::shape::type_t::uint32_type:
+        case migraphx::shape::type_t::uint64_type:
+        case migraphx::shape::type_t::fp8e4m3fn_type:
+        case migraphx::shape::type_t::fp8e5m2_type:
+        case migraphx::shape::type_t::bf16_type:
+        case migraphx::shape::type_t::fp8e5m2fnuz_type:
+        case migraphx::shape::type_t::tuple_type:
+        case migraphx::shape::type_t::fp4x2_type:
+            MIGRAPHX_THROW("Type not supported");
         }
     }
 
@@ -36,7 +48,12 @@ namespace helper
         case nvinfer1::DataType::kUINT8: return migraphx::shape::type_t::uint8_type;
         case nvinfer1::DataType::kFP8: return migraphx::shape::type_t::fp8e4m3fnuz_type;
         case nvinfer1::DataType::kINT64: return migraphx::shape::type_t::int64_type;
-        default: MIGRAPHX_THROW("Type not supported");
+
+        case nvinfer1::DataType::kBF16:
+        case nvinfer1::DataType::kINT4:
+        case nvinfer1::DataType::kFP4:
+        case nvinfer1::DataType::kE8M0:
+            MIGRAPHX_THROW("Type not supported");
         }
     }
 

@@ -2,6 +2,7 @@
 #include "pass_warning.hpp"
 //
 
+#include "Helper.hpp"
 #include "NetworkDefinition_impl.hpp"
 
 namespace nvinfer1
@@ -40,8 +41,11 @@ void NvNetworkDefinition_impl::setProgram(std::shared_ptr<migraphx::program> pro
 
 ITensor* NvNetworkDefinition_impl::addInput(char const* name, DataType type, Dims const& dimensions) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	auto* mm = mProgram->get_main_module();
+	auto input = mm->add_parameter(name, migraphx::shape{helper::fromDataType(type), helper::dimsToVec(dimensions)});
+	mInputTensors.push_back(std::make_unique<Tensor_impl>(input));
+	auto* ret = mInputTensors.back().get();
+	return ret;
 }
 
 void NvNetworkDefinition_impl::markOutput(ITensor& tensor) noexcept

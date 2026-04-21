@@ -487,11 +487,32 @@ static std::vector<std::size_t> get_rlens(const module& m)
     return reduce->get_shape().lens();
 }
 
-std::string generate_reduce(module m, const std::string& name)
+// we need to know if arg_reduce ops are present in the module (top-level or
+// nested in pointwise) so inner length matches vector packed reads for vectorized make_indices
+static bool module_has_arg_reduce(const module& m)
+{
+    for(const auto& ins : m)
+    {
+        if(ins.name() == "gpu::arg_reduce")
+            return true;
+        if(ins.name() == "pointwise" and not ins.module_inputs().empty())
+        {
+            if(module_has_arg_reduce(*ins.module_inputs().front()))
+                return true;
+        }
+    }
+    return false;
+}
+
+std::string generate_reduce(module m,
+                            const std::string& name,
+                            const fused_reduce_indices_spec* fused_indices)
 {
     preload_params(m);
     run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
     m.sort();
+    const bool has_arg_reduce =
+        fused_indices != nullptr && module_has_arg_reduce(m);
     cpp_generator g;
     g.always_return_tuple();
     auto param_shapes = m.get_parameter_shapes();
@@ -559,6 +580,15 @@ std::string generate_reduce(module m, const std::string& name)
         if(ins->name() == "gpu::make_indices")
         {
             auto size = ins->get_operator().to_value()["size"].to<std::size_t>();
+            // make sure to use the reduced index count when values are vec packed so lazy indices
+            // match reducer get_size
+            if(fused_indices != nullptr and fused_indices->vec_pack > 1 and has_arg_reduce and
+               fused_indices->faxis < fused_indices->reduction_lens.size() and
+               fused_indices->reduction_lens[fused_indices->faxis] == size and
+               size % fused_indices->vec_pack == 0)
+            {
+                size /= fused_indices->vec_pack;
+            }
             return "reduce::make_indices(_c<" + std::to_string(size) + ">)";
         }
         if(ins->name() == "identity")

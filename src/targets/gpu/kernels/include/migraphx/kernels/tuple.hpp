@@ -180,5 +180,22 @@ constexpr tuple<Ts...> make_tuple(Ts... xs)
     return {xs...};
 }
 
+// zip tuples of the same arity
+template <class T, class... Ts>
+constexpr auto tuple_transform(T x, Ts... xs)
+{
+    return [=](auto f) {
+        return sequence(x.size(), [&](auto... is) { return make_tuple(f(x[is], xs[is]...)...); });
+    };
+}
+
+// Build a tuple with one element per index: the callback runs for each index implied
+// by the length n, and n is fixed at compile time
+template <class N, class F>
+constexpr auto generate_tuple(N n, F f)
+{
+    return sequence(n, [&](auto... is) { return make_tuple(f(is)...); });
+}
+
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_KERNELS_TUPLE_HPP

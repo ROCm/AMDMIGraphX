@@ -73,6 +73,12 @@ constexpr auto is_any_vec()
         return bool_constant<((vec_size<Ts>() + ...) > 0)>{};
 }
 
+template <class... Ts>
+constexpr auto is_any_vec(Ts...)
+{
+    return is_any_vec<Ts...>();
+}
+
 template <class T, class I>
 constexpr auto vec_at(T x, I i)
 {
@@ -99,6 +105,12 @@ constexpr auto common_vec_size()
     })(vec_size<Ts>()...);
 }
 
+template <class... Ts>
+constexpr auto common_vec_size(Ts...)
+{
+    return common_vec_size<Ts...>();
+}
+
 // Bools can not be used as a vector type so convert it to uint8
 template <class T>
 __device__ __host__ T* remove_bool(T* x)
@@ -119,6 +131,18 @@ __device__ __host__ auto as_vec(T* x)
 
 template <class T, index_int N>
 using safe_vec = vec<conditional_t<is_same<T, bool>{}, uint8_t, T>, N>;
+
+// Build a vector with one element per index: the callback runs for each index implied
+// by the length n, and n is fixed at compile time
+template <class N, class F>
+constexpr auto generate_vec(N n, F f)
+{
+    return sequence(n, [&](auto... is) {
+        constexpr index_int sz = decltype(n)::value;
+        using elem               = decltype(f(_c<0>));
+        return safe_vec<elem, sz>{f(is)...};
+    });
+}
 
 namespace vec_detail {
 
@@ -173,28 +197,30 @@ template <class... Ts>
 constexpr auto vec_transform_tuple(Ts... xs)
 {
     return [=](auto f) {
-        if constexpr(not is_any_vec<Ts...>())
+        // join + lift pattern can fail to instantiate under HIPRTC when xs are scalars
+        if constexpr(is_any_vec<Ts...>())
         {
-            return f(xs...);
-        }
-        else
-        {
-            constexpr auto lane_w = common_vec_size<Ts...>();
-            auto get_lane         = [&](auto i) { return f(vec_at(xs, i)...); };
-            using lane0           = remove_reference_t<decltype(f(vec_at(xs, 0)...))>;
+            constexpr auto size = common_vec_size<Ts...>();
+            auto at   = [](auto i) {
+                return [=](auto x) { return vec_at(x, i); };
+            };
+            auto vals = generate_tuple(size, [&](auto i) { return f(at(i)(xs)...); });
+
+            using lane0 = remove_reference_t<decltype(f(vec_at(xs, _c<0>)...))>;
             if constexpr(vec_detail::is_kernel_tuple<lane0>{})
             {
-                lane0* tag = nullptr;
-                return vec_detail::vec_transform_tuple_transpose_dispatch<lane_w()>(get_lane, tag);
+                return generate_tuple(vals[_c<0>].size(), [&](auto j) {
+                    return generate_vec(size, [&](auto i) { return vals[i][j]; });
+                });
             }
             else
             {
-                using type                      = lane0;
-                safe_vec<type, lane_w()> result = {0};
-                for(int i = 0; i < lane_w(); i++)
-                    result[i] = get_lane(i);
-                return result;
+                return generate_vec(size, [&](auto i) { return vals[i]; });
             }
+        }
+        else
+        {
+            return f(xs...);
         }
     };
 }

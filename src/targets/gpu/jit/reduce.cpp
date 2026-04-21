@@ -314,81 +314,134 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
+namespace {
+
+struct fused_emit_plan
+{
+    std::string assign;
+    std::vector<shape> finputs;
+    std::size_t noutputs = 0;
+    std::vector<shape> virtual_inputs;
+    shape reduction_shape;
+    shape reduce_output_shape;
+    std::size_t faxis = 0;
+    vectorize vec{};
+    std::size_t nelements = 0;
+    std::string algo;
+    std::size_t block_tile  = 0;
+    std::size_t subwave_sz  = 0;
+
+    fused_reduce_indices_spec indices_spec() const
+    {
+        fused_reduce_indices_spec s;
+        s.vec_pack       = vec.size;
+        s.faxis          = faxis;
+        s.reduction_lens = reduction_shape.lens();
+        return s;
+    }
+};
+
+fused_emit_plan compute_fused_emit_plan(context& ctx,
+                                        const std::vector<shape>& inputs,
+                                        const value& v)
+{
+    fused_emit_plan p;
+    p.assign = v.get("assign", "assign_none");
+    auto axes = v.at("axes").to_vector<std::size_t>();
+    p.finputs = flatten(inputs);
+    p.noutputs = p.finputs.size() - inputs.size() + 1;
+    auto virtual_inputs = p.finputs;
+    virtual_inputs.push_back(get_reduced_shape(get_input_shape(p.finputs), axes));
+    virtual_inputs.push_back(get_output_shape(get_input_shape(p.finputs), axes));
+    virtual_inputs = reduce_dims(normalize_permutation(virtual_inputs));
+    if(p.assign != "assign_none")
+        virtual_inputs = split_reduce(virtual_inputs);
+    p.reduce_output_shape = virtual_inputs.back();
+    virtual_inputs.pop_back();
+    p.reduction_shape = virtual_inputs.back();
+    virtual_inputs.pop_back();
+    p.virtual_inputs = std::move(virtual_inputs);
+
+    p.faxis     = find_fast_axis({p.virtual_inputs.front()});
+    p.nelements = p.reduce_output_shape.elements();
+    p.algo      = v.get("algo", get_reduce_algo(ctx, p.virtual_inputs, p.reduction_shape.lens()));
+    bool no_vectorize = v.get("no_vectorize", false);
+    if(p.algo == "block" or p.algo == "wave")
+    {
+        if(p.reduce_output_shape.lens()[p.faxis] == 1 and not no_vectorize)
+            p.vec = vectorize::elements(ctx, p.faxis, p.virtual_inputs);
+        const auto relements = p.reduction_shape.elements() / p.vec.size;
+        if(p.algo == "block")
+        {
+            p.block_tile = v.get("block_size", compute_block_size(ctx, relements, 256));
+            assert(p.block_tile > 0);
+            if(relements >= (p.block_tile - 1) * 256)
+                p.algo = "block_large";
+        }
+        else
+        {
+            p.subwave_sz = v.get("subwave_size", compute_subwave_size(ctx, relements));
+            p.algo       = "subwave<" + std::to_string(p.subwave_sz) + ">";
+        }
+    }
+    else if(p.algo == "lane")
+    {
+    }
+    else
+    {
+        MIGRAPHX_THROW("Unknown reduce algo: " + p.algo);
+    }
+    return p;
+}
+
+} // namespace
+
 struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {
     std::vector<std::string> names() const { return {"fused_reduce", "split_fused_reduce"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto assign         = v.get("assign", "assign_none");
-        auto axes           = v.at("axes").to_vector<std::size_t>();
-        auto finputs        = flatten(inputs);
-        auto noutputs       = finputs.size() - inputs.size() + 1;
-        auto virtual_inputs = finputs;
-        virtual_inputs.push_back(get_reduced_shape(get_input_shape(finputs), axes));
-        virtual_inputs.push_back(get_output_shape(get_input_shape(finputs), axes));
-        virtual_inputs           = reduce_dims(normalize_permutation(virtual_inputs));
-        if(assign != "assign_none")
-            virtual_inputs = split_reduce(virtual_inputs);
-        auto reduce_output_shape = virtual_inputs.back();
-        virtual_inputs.pop_back();
-        auto reduction_shape = virtual_inputs.back();
-        virtual_inputs.pop_back();
+        const auto plan = compute_fused_emit_plan(ctx, inputs, v);
 
         hip_compile_options options;
-        options.inputs         = finputs;
+        options.inputs         = plan.finputs;
         options.output         = inputs.back();
-        options.virtual_inputs = virtual_inputs;
-        auto faxis             = find_fast_axis({options.virtual_inputs.front()});
-        vectorize vec{};
-        auto nelements = reduce_output_shape.elements();
-        auto algo =
-            v.get("algo", get_reduce_algo(ctx, options.virtual_inputs, reduction_shape.lens()));
-        bool no_vectorize = v.get("no_vectorize", false);
-        if(algo == "block" or algo == "wave")
+        options.virtual_inputs = plan.virtual_inputs;
+
+        if(plan.block_tile != 0)
         {
-            // Vectorize if the axis is a reduction axis (but not for argmin/argmax)
-            if(reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
-                vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
-            auto relements  = reduction_shape.elements() / vec.size;
-            if(algo == "block")
-            {
-                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
-                assert(block_size > 0);
-                if(relements >= (block_size - 1) * 256)
-                    algo = "block_large";
-                options.set_launch_params(
-                    v, compute_global_for(ctx, nelements * block_size, 256), block_size);
-            }
-            else
-            {
-                auto subwave_size = v.get("subwave_size", compute_subwave_size(ctx, relements));
-                algo              = "subwave<" + std::to_string(subwave_size) + ">";
-                options.set_launch_params(v,
-                                          compute_global_for(ctx, nelements * subwave_size, 256),
-                                          ctx.get_current_device().get_wavefront_size());
-            }
+            options.set_launch_params(
+                v,
+                compute_global_for(ctx, plan.nelements * plan.block_tile, 256),
+                plan.block_tile);
         }
-        else if(algo == "lane")
+        else if(plan.subwave_sz != 0)
         {
-            options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
+            options.set_launch_params(v,
+                                      compute_global_for(ctx, plan.nelements * plan.subwave_sz, 256),
+                                      ctx.get_current_device().get_wavefront_size());
+        }
+        else if(plan.algo == "lane")
+        {
+            options.set_launch_params(v, compute_global_for(ctx, plan.nelements, 256));
         }
         else
         {
-            MIGRAPHX_THROW("Unknown reduce algo: " + algo);
+            MIGRAPHX_THROW("Unknown reduce algo: " + plan.algo);
         }
         options.kernel_name = v.get("kernel", "reduce_kernel");
         auto src            = interpolate_string(
             fused_reduce_kernel,
             {{"kernel", options.kernel_name},
-                        {"params", enum_params(finputs.size(), "void * private_p")},
-                        {"args", enum_params(finputs.size(), "private_p")},
-                        {"assign", assign},
-                        {"algo", algo},
-                        {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
+                        {"params", enum_params(plan.finputs.size(), "void * private_p")},
+                        {"args", enum_params(plan.finputs.size(), "private_p")},
+                        {"assign", plan.assign},
+                        {"algo", plan.algo},
+                        {"reduced", "decltype(" + generate_make_shape(plan.reduce_output_shape) + ")"},
                         {"lambda", v.at("lambda").to<std::string>()},
-                        {"transformers", make_transformer_args(vec)},
-                        {"noutputs", std::to_string(noutputs)},
+                        {"transformers", make_transformer_args(plan.vec)},
+                        {"noutputs", std::to_string(plan.noutputs)},
                         {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
         return compile_hip_code_object(ctx, src, options);
@@ -401,11 +454,14 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto v        = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm      = ins->module_inputs().front();
-        v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
-        v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
-        v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
-        return compile_op(ctx, to_shapes(ins->inputs()), v);
+        auto* rm    = ins->module_inputs().front();
+        auto shapes = to_shapes(ins->inputs());
+        const auto emit_plan = compute_fused_emit_plan(ctx, shapes, v);
+        const auto idx_spec  = emit_plan.indices_spec();
+        v["preamble"]        = generate_reduce(*rm, "fused_reduce_op", &idx_spec);
+        v["lambda"]          = "MIGRAPHX_LIFT(fused_reduce_op)";
+        v["kernel"]          = generate_name_from_ops(*rm) + "_kernel";
+        return compile_op(ctx, shapes, v);
     }
 
     optional<tuning_config> get_tuning_config(const context& ctx,

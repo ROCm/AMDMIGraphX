@@ -467,17 +467,17 @@ TEST_CASE(softmax_dot_scale_left)
     migraphx::module m1;
     {
         auto [dot, scale_bc] = make_graph(m1, dot_shape, k_shape, scale_shape);
-        auto v       = m1.add_parameter("v", v_shape);
-        auto mul     = m1.add_instruction(migraphx::make_op("mul"), scale_bc, dot);
-        auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mul);
-        auto dot_v   = m1.add_instruction(migraphx::make_op("dot"), softmax, v);
+        auto v               = m1.add_parameter("v", v_shape);
+        auto mul             = m1.add_instruction(migraphx::make_op("mul"), scale_bc, dot);
+        auto softmax         = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mul);
+        auto dot_v           = m1.add_instruction(migraphx::make_op("dot"), softmax, v);
         m1.add_return({dot_v});
     }
 
     migraphx::module m2;
     {
         auto [dot, scale_bc] = make_graph(m2, dot_shape, k_shape, scale_shape);
-        auto v       = m2.add_parameter("v", v_shape);
+        auto v               = m2.add_parameter("v", v_shape);
         auto cvt_scale       = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale_bc);
         auto cvt_dot = m2.add_instruction(

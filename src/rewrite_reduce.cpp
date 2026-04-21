@@ -77,7 +77,7 @@ static std::optional<instruction_ref> find_upstream_named(instruction_ref start,
             return std::nullopt;
         return *it;
     });
-    auto it = std::find_if(
+    auto it   = std::find_if(
         path.begin(), path.end(), [&](instruction_ref ins) { return ins->name() == target; });
     if(it == path.end())
         return std::nullopt;

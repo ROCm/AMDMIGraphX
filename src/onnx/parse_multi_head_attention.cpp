@@ -210,19 +210,24 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         }
     }
 
+    bool is_optional_arg(const std::vector<instruction_ref>& args, size_t index) const
+    {
+        return args.at(index)->get_shape().elements() == 0 or args.at(index)->name() == "undefined";
+    }
+
     void check_key_padding_mask(const std::vector<instruction_ref>& args,
                                 multi_head_attention_parameters& params) const
     {
-        if(args.size() > 4 and args.at(4)->name() != "undefined")
+        if(args.size() > 4)
         {
             // Skip validation if the mask is empty (optional input not provided)
-            if(args.at(4)->get_shape().elements() == 0)
+            if(is_optional_arg(args, 4))
                 return;
 
             const auto key_pad_lens     = args.at(4)->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
             const auto key_pad_type     = args.at(4)->get_shape().type();
-            
+
             if(key_pad_type != shape::int32_type)
                 MIGRAPHX_THROW("MultiHeadAttention: Key padding mask must be a int32 tensor");
 
@@ -284,8 +289,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     void check_bias(const std::vector<instruction_ref>& args,
                     multi_head_attention_parameters& params) const
     {
-        if(args.size() > 3 and args.at(3)->name() != "undefined")
+        if(args.size() > 3)
         {
+            if(is_optional_arg(args, 3))
+                return;
+
             auto bias      = args.at(3);
             auto bias_lens = bias->get_shape().lens();
 
@@ -308,8 +316,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     void check_attention_bias(const std::vector<instruction_ref>& args,
                               const multi_head_attention_parameters& params) const
     {
-        if(args.size() > 5 and args.at(5)->name() != "undefined")
+        if(args.size() > 5)
         {
+            if(is_optional_arg(args, 5))
+                return;
+
             const auto attn_bias_lens = args.at(5)->get_shape().lens();
 
             if(attn_bias_lens.size() != 4)
@@ -341,7 +352,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             return;
 
         // Skip validation if past_key is empty (optional input not provided)
-        if(args.at(6)->get_shape().elements() == 0)
+        if(is_optional_arg(args, 6))
             return;
 
         const auto past_key_lens = args.at(6)->get_shape().lens();
@@ -365,7 +376,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             return;
 
         // Skip validation if past_value is empty (optional input not provided)
-        if(args.at(7)->get_shape().elements() == 0)
+        if(is_optional_arg(args, 7))
             return;
 
         const auto past_value_lens = args.at(7)->get_shape().lens();
@@ -388,7 +399,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             return;
 
         // Skip if either past_key or past_value is empty
-        if(args.at(6)->get_shape().elements() == 0 or args.at(7)->get_shape().elements() == 0)
+        if(is_optional_arg(args, 6) or is_optional_arg(args, 7))
             return;
 
         const auto past_key_lens   = args.at(6)->get_shape().lens();
@@ -404,7 +415,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             return;
 
         // Skip validation if past_sequence_length is empty
-        if(args.at(8)->get_shape().elements() == 0)
+        if(is_optional_arg(args, 8))
             return;
 
         const auto past_seq_len_type = args.at(8)->get_shape().type();

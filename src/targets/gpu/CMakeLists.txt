@@ -180,7 +180,6 @@ add_library(migraphx_gpu
     lrn.cpp
     mlir.cpp
     no_device.cpp
-    nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
     prepare_mlir.cpp
@@ -211,8 +210,6 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     fixed_pad
     loop
-    nonzero
-    prefix_scan_sum
     topk
 )
 if (MIGRAPHX_USE_MIOPEN)

@@ -113,8 +113,8 @@ static std::vector<std::string> get_compiler_warnings()
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");
 
-    if(hip_has_flags({"-Werror", "-Wnrvo"}))
-        warnings.push_back("-Wno-nrvo");
+    // if(hip_has_flags({"-Werror", "-Wnrvo"}))
+    //     warnings.push_back("-Wno-nrvo");
 
     if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
         warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
@@ -245,6 +245,10 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
                           options.kernel_name,
                           options.global,
                           options.local,
+                          options.global_y,
+                          options.global_z,
+                          options.local_y,
+                          options.local_z,
                           options.inputs,
                           options.output,
                           options.output_arg};

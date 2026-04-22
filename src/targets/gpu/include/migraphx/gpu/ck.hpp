@@ -92,7 +92,7 @@ static inline const std::vector<src_file>& ck_headers()
 static std::unordered_map<std::string, std::string> create_ck_tile_header_strings()
 {
     std::unordered_map<std::string, std::string> result;
-    auto tile_headers = ck::host::GetTileHeaders();
+    auto tile_headers = ck::host::GetTileHeadersForRTC();
 
     std::transform(
         tile_headers.begin(), tile_headers.end(), std::inserter(result, result.begin()), [&](auto& p) {

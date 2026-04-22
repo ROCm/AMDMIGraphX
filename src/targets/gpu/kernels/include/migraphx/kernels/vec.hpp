@@ -33,19 +33,6 @@
 
 namespace migraphx {
 
-namespace vec_detail {
-
-template <class T>
-struct is_kernel_tuple : false_type
-{
-};
-template <class... Ts>
-struct is_kernel_tuple<tuple<Ts...>> : true_type
-{
-};
-
-} // namespace vec_detail
-
 template <class T, index_int N>
 constexpr auto vec_size(vec<T, N>)
 {
@@ -162,7 +149,7 @@ constexpr auto vec_transform_tuple_vec_lanes_impl(F f, Ts... xs)
     auto at       = [](auto i) { return [=](auto x) { return vec_at(x, i); }; };
     auto get_lane = [&](auto i) { return f(at(i)(xs)...); };
     using lane0   = remove_reference_t<decltype(get_lane(_c<0>))>;
-    if constexpr(is_kernel_tuple<lane0>{})
+    if constexpr(is_tuple<lane0>{})
         return vec_transform_tuple_transpose<Size>(get_lane);
     else
         return generate_vec(index_constant<Size>{}, [&](auto i) { return get_lane(i); });

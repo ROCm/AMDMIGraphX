@@ -174,6 +174,16 @@ struct tuple : tuple_detail::tuple_base<Ts...>
     friend constexpr bool operator>=(const tuple& x, const tuple& y) { return not(x < y); }
 };
 
+template <class T>
+struct is_tuple : false_type
+{
+};
+
+template <class... Ts>
+struct is_tuple<tuple<Ts...>> : true_type
+{
+};
+
 template <class... Ts>
 constexpr tuple<Ts...> make_tuple(Ts... xs)
 {

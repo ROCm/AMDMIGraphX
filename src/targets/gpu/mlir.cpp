@@ -956,8 +956,8 @@ struct mlir_program
         run_backend_pipeline(solution.to<std::string>());
 
         code_object_op op{};
-        op.symbol_name                = sym_name;
-        op.code_object                = get_binary();
+        op.symbol_name = sym_name;
+        op.code_object = get_binary();
         // TODO: update code_object_op to use cluster size
         std::tie(std::ignore, op.global, op.local) = get_launch_params();
         return op;
@@ -1134,8 +1134,8 @@ struct mlir_program
     mlir_logger logger;
     problem_params pp;
     std::deque<std::string> strings{};
-    std::string target_arch = "";
-    std::size_t num_cu      = 0;
+    std::string target_arch  = "";
+    std::size_t num_cu       = 0;
     std::size_t num_chiplets = 0;
     std::string sym_name;
 };

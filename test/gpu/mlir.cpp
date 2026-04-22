@@ -104,7 +104,7 @@ static migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     migraphx::gpu::context ctx;
     auto shapes = to_shapes(inputs);
     // compile_mlir requires a tuning solution (perfConfig) for the backend pipeline
-    auto tc     = get_tuning_config_mlir(ctx, create_mlir_submodule(mmlir), shapes, false);
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(mmlir), shapes, false);
     migraphx::gpu::mlir_code_object mco =
         compile_mlir(ctx, create_mlir_submodule(mmlir), shapes, tc.solutions.front());
     migraphx::gpu::insert_mlir(*mm, mm->end(), mco.cop, inputs);

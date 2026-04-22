@@ -436,9 +436,9 @@ struct compile_plan
                            if(trace_level > 2)
                                std::cout << *cr << std::endl;
                            /*
-                           create a small program with insturction being
-                           compiled and call "replace" on that which would insert all the compiled
-                           code objects, prefills etc. necessary to run candidate code object
+                           create a small program with insturction being compiled and call "replace"
+                           on that which would insert all the compiled code objects, prefills etc.
+                           necessary to run candidate code object
                            */
                            auto bench_prog = cr->make_program();
                            if(trace_level > 2)

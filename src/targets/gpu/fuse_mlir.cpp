@@ -1497,6 +1497,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     std::size_t counter     = 0;
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
+    const bool is_gfx12 = starts_with(device_name, "gfx12");
 
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))
@@ -1521,7 +1522,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     {
         match::find_matches(
             mpm,
-            find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+            find_mlir_fused_geg_ops{.conv_mode = is_gfx12 ? mlir_mode::none
+                                                          : get_mode("fused_convolution",
+                                                                     mlir_mode::fast),
                                     .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
                                     .gfx_name  = device_name,
                                     .enable_geg_multi_out_intermediates =
@@ -1531,12 +1534,16 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+        find_mlir_fused_ops{.conv_mode = is_gfx12 ? mlir_mode::none
+                                                  : get_mode("fused_convolution",
+                                                             mlir_mode::fast),
                             .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
+        find_mlir_standalone_conv_op{.mode    = is_gfx12 ? mlir_mode::none
+                                                         : get_mode("convolution",
+                                                                    mlir_mode::fast),
                                      .counter = &counter},
         find_mlir_standalone_conv_backwards_op{
             .mode    = get_mode("convolution_backwards",
@@ -1549,7 +1556,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     {
         match::find_matches(
             mpm,
-            find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
+            find_mlir_split_reduce{.conv_mode = is_gfx12 ? mlir_mode::none
+                                                         : get_mode("fused_convolution",
+                                                                    mlir_mode::fast),
                                    .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
     }
 

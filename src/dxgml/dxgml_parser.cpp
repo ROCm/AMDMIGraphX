@@ -500,6 +500,51 @@ void dxgml_parser::parse_entry_point(const std::string& arg_list_str, const std:
 
     // Scan for SSA assignments and dxgml.return
     std::size_t pos = 0;
+    static std::size_t missing_ret_counter = 0;
+
+    auto parse_return_types = [&](const std::string& stmt) {
+        std::vector<std::string> ret_types;
+        auto colon = stmt.find(':');
+        if(colon == std::string::npos)
+            return ret_types;
+        std::string type_part = trim(stmt.substr(colon + 1));
+        std::string cur;
+        int depth = 0;
+        for(char c : type_part)
+        {
+            if(c == '<' || c == '(')
+                ++depth;
+            else if(c == '>' || c == ')')
+                --depth;
+            if(c == ',' && depth == 0)
+            {
+                if(not trim(cur).empty())
+                    ret_types.push_back(trim(cur));
+                cur.clear();
+            }
+            else
+            {
+                cur += c;
+            }
+        }
+        if(not trim(cur).empty())
+            ret_types.push_back(trim(cur));
+        return ret_types;
+    };
+
+    auto make_missing_return = [&](const std::string& name, const std::string& type_str) {
+        try
+        {
+            auto sh = parse_tensor_type(type_str);
+            auto pname = "__missing_ret_" + name + "_" + std::to_string(missing_ret_counter++);
+            return mm->add_parameter(pname, sh);
+        }
+        catch(...)
+        {
+            return mm->add_literal(literal{});
+        }
+    };
+
     while(pos < flat.size())
     {
         // Skip whitespace
@@ -517,13 +562,25 @@ void dxgml_parser::parse_entry_point(const std::string& arg_list_str, const std:
             std::string stmt = flat.substr(pos, end != std::string::npos ? end - pos : std::string::npos);
             // Extract %name tokens
             auto names = parse_operand_names(stmt);
+            auto ret_types = parse_return_types(stmt);
             std::vector<instruction_ref> rets;
-            for(const auto& n : names)
+            for(std::size_t i = 0; i < names.size(); ++i)
             {
+                const auto& n = names[i];
                 auto it = value_map.find(n);
                 if(it == value_map.end())
-                    MIGRAPHX_THROW("DxGML: undefined SSA value in dxgml.return: %" + n);
-                rets.push_back(it->second);
+                {
+                    if(not opts.skip_unknown_operators)
+                        MIGRAPHX_THROW("DxGML: undefined SSA value in dxgml.return: %" + n);
+                    auto rtype = i < ret_types.size() ? ret_types[i] : std::string{};
+                    auto placeholder = make_missing_return(n, rtype);
+                    value_map[n] = placeholder;
+                    rets.push_back(placeholder);
+                }
+                else
+                {
+                    rets.push_back(it->second);
+                }
             }
             mm->add_return(rets);
             break; // return terminates the function
@@ -536,13 +593,25 @@ void dxgml_parser::parse_entry_point(const std::string& arg_list_str, const std:
             auto end = flat.find_first_of(";", pos);
             std::string stmt = flat.substr(pos, end != std::string::npos ? end - pos : std::string::npos);
             auto names = parse_operand_names(stmt);
+            auto ret_types = parse_return_types(stmt);
             std::vector<instruction_ref> rets;
-            for(const auto& n : names)
+            for(std::size_t i = 0; i < names.size(); ++i)
             {
+                const auto& n = names[i];
                 auto it = value_map.find(n);
                 if(it == value_map.end())
-                    MIGRAPHX_THROW("DxGML: undefined SSA value in return: %" + n);
-                rets.push_back(it->second);
+                {
+                    if(not opts.skip_unknown_operators)
+                        MIGRAPHX_THROW("DxGML: undefined SSA value in return: %" + n);
+                    auto rtype = i < ret_types.size() ? ret_types[i] : std::string{};
+                    auto placeholder = make_missing_return(n, rtype);
+                    value_map[n] = placeholder;
+                    rets.push_back(placeholder);
+                }
+                else
+                {
+                    rets.push_back(it->second);
+                }
             }
             mm->add_return(rets);
             break;
@@ -582,6 +651,9 @@ void dxgml_parser::parse_entry_point(const std::string& arg_list_str, const std:
                 continue;
             }
             std::string op_name = full_op_name.substr(dxgml_op_pfx.size());
+            auto op_alias = op_name.find('[');
+            if(op_alias != std::string::npos)
+                op_name = op_name.substr(0, op_alias);
 
             // After op name, find '('.
             // Some ops (e.g. dxgml_op.null_ptr) have no argument list at all.

@@ -75,17 +75,61 @@ static std::vector<std::string> split_operands(const std::string& s)
 // Returns only those that start with '%' (skips attribute operands like #dxgml.*).
 static std::vector<instruction_ref>
 collect_inputs(const std::string& operands_raw,
-               const std::unordered_map<std::string, instruction_ref>& value_map,
-               const std::string& op_name)
+               std::unordered_map<std::string, instruction_ref>& value_map,
+               dxgml_parser& self,
+               const std::string& op_name,
+               const std::string& type_sig)
 {
     auto names = split_operands(operands_raw);
     std::vector<instruction_ref> inputs;
+    static std::size_t undef_counter = 0;
+
+    auto make_fallback_input = [&](const std::string& missing_name) -> instruction_ref {
+        // In skip-unknown mode, do not abort on unresolved SSA references.
+        // Try to create a placeholder with the op output shape so rank/type-sensitive
+        // downstream ops can continue parsing.
+        std::string ret_type;
+        auto arrow = type_sig.rfind("->");
+        if(arrow != std::string::npos)
+        {
+            auto after = type_sig.find_first_not_of(" \t", arrow + 2);
+            if(after != std::string::npos)
+                ret_type = trim(type_sig.substr(after));
+        }
+
+        instruction_ref placeholder;
+        if(not ret_type.empty())
+        {
+            try
+            {
+                auto sh = self.parse_tensor_type(ret_type);
+                auto pname = "__undef_" + missing_name + "_" + std::to_string(undef_counter++);
+                placeholder = self.mm->add_parameter(pname, sh);
+            }
+            catch(...)
+            {
+            }
+        }
+        if(placeholder == instruction_ref{})
+            placeholder = self.mm->add_literal(literal{});
+        return placeholder;
+    };
+
     for(const auto& n : names)
     {
         auto it = value_map.find(n);
         if(it == value_map.end())
-            MIGRAPHX_THROW("DxGML op '" + op_name + "': undefined SSA value: %" + n);
-        inputs.push_back(it->second);
+        {
+            if(not self.opts.skip_unknown_operators)
+                MIGRAPHX_THROW("DxGML op '" + op_name + "': undefined SSA value: %" + n);
+            auto placeholder = make_fallback_input(n);
+            value_map[n]     = placeholder;
+            inputs.push_back(placeholder);
+        }
+        else
+        {
+            inputs.push_back(it->second);
+        }
     }
     return inputs;
 }
@@ -252,7 +296,7 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
         return parse_constant(*this, operands_raw);
 
     // Collect tensor inputs from the SSA operand list
-    auto inputs = collect_inputs(operands_raw, value_map, name);
+    auto inputs = collect_inputs(operands_raw, value_map, *this, name, type_sig);
 
     // --- Unary elementwise ---
     static const std::unordered_map<std::string, std::string> unary_map = {

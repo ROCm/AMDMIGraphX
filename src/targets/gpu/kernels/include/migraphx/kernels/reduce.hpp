@@ -333,7 +333,7 @@ constexpr auto compute_reduce_axis()
 }
 
 template <index_int... Js, class... Rs, index_int N, class F>
-constexpr auto final_reduce_tuple_of_vecs(detail::seq<Js...>, tuple<vec<Rs, N>...> x, F op)
+constexpr auto final_reduce_tuple_of_vecs(tuple<vec<Rs, N>...> x, F op, index_constant<Js>...)
 {
     auto lane = [&](int i) { return make_tuple(x[_c<Js>][i]...); };
     auto acc  = lane(0);
@@ -345,7 +345,8 @@ constexpr auto final_reduce_tuple_of_vecs(detail::seq<Js...>, tuple<vec<Rs, N>..
 template <class... Rs, index_int N, class F>
 constexpr auto final_reduce(tuple<vec<Rs, N>...> x, F op)
 {
-    return final_reduce_tuple_of_vecs(typename detail::gens<sizeof...(Rs)>::type{}, x, op);
+    return sequence_c<sizeof...(Rs)>(
+        [&](auto... is) { return final_reduce_tuple_of_vecs(x, op, is...); });
 }
 
 template <class T, class F>

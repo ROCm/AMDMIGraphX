@@ -35,6 +35,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace builtin {
 
+// Builtin `@comment` op to store problem key and solution for generating a
+// .mxr file for benchmarking.
 struct comment
 {
     std::string text;

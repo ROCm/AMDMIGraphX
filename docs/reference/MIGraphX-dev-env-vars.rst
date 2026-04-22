@@ -742,4 +742,26 @@ Advanced settings
 
       | Default: Benchmarking is not skipped.
 
+  * - | ``MIGRAPHX_GPU_ARCH``
+      | Enables cross-compilation mode by specifying a target GPU architecture without requiring a physical GPU.
+      | When set, kernel benchmarking and finalization are skipped. MIOpen, hipBLASLt, and CK operations are currently not supported in this mode.
+      
+    - | Takes a valid GPU architecture string (e.g. ``gfx942``, ``gfx1100``).
+
+      | Default: Not set. A physical GPU is used.
+
+  * - | ``MIGRAPHX_GPU_NUM_CU``
+      | Sets the number of compute units for cross-compilation mode. Only used when ``MIGRAPHX_GPU_ARCH`` is set.
+      
+    - | Takes a positive integer.
+
+      | Default: ``120``
+
+  * - | ``MIGRAPHX_GPU_NUM_CHIPLETS``
+      | Sets the number of chiplets (XCCs) for cross-compilation mode. Only used when ``MIGRAPHX_GPU_ARCH`` is set.
+      
+    - | Takes a positive integer.
+
+      | Default: ``1``
+
 

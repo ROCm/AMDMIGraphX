@@ -431,7 +431,7 @@ struct reducer_base
                 return vec_size<remove_reference_t<decltype(declval<slice_t>()[_c<0>])>>();
             }
         }();
-        if constexpr(nlanes_v < index_constant<2>{})
+        if constexpr(nlanes_v < 2)
         {
             return make_lazy_inner_storage(n, [](auto j, auto) -> index_int { return j + 0u; });
         }

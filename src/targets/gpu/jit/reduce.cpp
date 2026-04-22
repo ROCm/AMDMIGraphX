@@ -400,23 +400,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto v        = op.to_value();
         for(const auto& x : solution)
             v.insert(x);
-        auto* rm                                     = ins->module_inputs().front();
-        auto shapes                                  = to_shapes(ins->inputs());
-        const shape reduce_output_shape_for_preamble = [&] {
-            auto assign         = v.get("assign", "assign_none");
-            auto axes           = v.at("axes").to_vector<std::size_t>();
-            auto finputs        = flatten(shapes);
-            auto virtual_inputs = finputs;
-            virtual_inputs.push_back(get_reduced_shape(get_input_shape(finputs), axes));
-            virtual_inputs.push_back(get_output_shape(get_input_shape(finputs), axes));
-            virtual_inputs = reduce_dims(normalize_permutation(virtual_inputs));
-            if(assign != "assign_none")
-                virtual_inputs = split_reduce(virtual_inputs);
-            return virtual_inputs.back();
-        }();
-        const std::string reduced_ty =
-            "decltype(" + generate_make_shape(reduce_output_shape_for_preamble) + ")";
-        v["preamble"] = generate_reduce(*rm, "fused_reduce_op", reduced_ty);
+        auto* rm      = ins->module_inputs().front();
+        auto shapes   = to_shapes(ins->inputs());
+        v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
         return compile_op(ctx, shapes, v);

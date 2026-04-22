@@ -500,7 +500,7 @@ static bool module_has_make_indices(const module& m)
     });
 }
 
-std::string generate_reduce(module m, const std::string& name, const std::string& reduced_ty_expr)
+std::string generate_reduce(module m, const std::string& name)
 {
     preload_params(m);
     run_passes(m, {optimize_module{}, prepare_reduce{}, optimize_module{}});
@@ -572,11 +572,8 @@ std::string generate_reduce(module m, const std::string& name, const std::string
         {
             if(ins->inputs().size() != 1)
                 MIGRAPHX_THROW("gpu::make_indices expects one value tensor operand");
-            if(reduced_ty_expr.empty())
-                MIGRAPHX_THROW(
-                    "gpu::make_indices requires reduced output type expression for codegen");
             const auto& val = names.at(ins->inputs().front());
-            return "reduce::make_indices_from<" + reduced_ty_expr + ">(" + val + ", out_idx)";
+            return "r.make_indices_from(" + val + ", out_idx)";
         }
         if(ins->name() == "identity")
         {

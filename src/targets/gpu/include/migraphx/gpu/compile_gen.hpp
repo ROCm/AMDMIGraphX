@@ -95,10 +95,7 @@ std::string make_transformer_args(const Ts&... xs)
 std::string
 generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple = false);
 
-// reduced_ty_expr: fused reduced output shape type string for the kernel preamble
-// only needed when the submodule emits index generation for arg reduce
-MIGRAPHX_GPU_EXPORT std::string
-generate_reduce(module m, const std::string& name, const std::string& reduced_ty_expr = {});
+MIGRAPHX_GPU_EXPORT std::string generate_reduce(module m, const std::string& name);
 
 std::string generate_name_from_ops(const module& m, const std::string& postname = "");
 

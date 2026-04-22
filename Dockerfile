@@ -86,7 +86,7 @@ RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
 RUN ldconfig
 
 # ATT library
-RUN sudo wget -O /opt/rocm/lib/librocprof-trace-decoder.so https://github.com/ROCm/rocprof-trace-decoder/raw/refs/heads/amd-mainline/releases/linux_glibc_2_28_x86_64/librocprof-trace-decoder.so
+RUN wget -O /opt/rocm/lib/librocprof-trace-decoder.so https://github.com/ROCm/rocprof-trace-decoder/raw/7e58204a955e5787b9b38087f3ad502f07ff78ef/releases/linux_glibc_2_28_x86_64/librocprof-trace-decoder.so
 
 # Workaround broken miopen cmake files
 RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake

@@ -78,6 +78,269 @@ TEST_CASE(softmax_upcast)
     }));
 }
 
+// Skinny dot [M=1, K] @ [K, N] gets rewritten to mul + reduce_sum.
+TEST_CASE(dot_skinny_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {128, 4}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", a_shape);
+        auto b   = m1.add_parameter("b", b_shape);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("a", a_shape);
+        auto b = m2.add_parameter("b", b_shape);
+        auto a_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), a);
+        auto b_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), b);
+        auto b_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 2, 0}}}), b_unsq);
+        auto a_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 4, 128}}}), a_unsq);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a_bc, b_trans);
+        auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), red);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Skinny dot with M=2 also gets rewritten.
+TEST_CASE(dot_skinny_m2_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {2, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {128, 4}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", a_shape);
+        auto b   = m1.add_parameter("b", b_shape);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("a", a_shape);
+        auto b = m2.add_parameter("b", b_shape);
+        auto a_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), a);
+        auto a_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 4, 128}}}), a_unsq);
+        auto b_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), b);
+        auto b_bc = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4, 128}}}), b_trans);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a_bc, b_bc);
+        auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), mul);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {2}}}), red);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// rows > 2 exceeds the skinny threshold so the dot is left alone.
+TEST_CASE(dot_wide_no_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {3, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {128, 4}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", a_shape);
+        auto b   = m1.add_parameter("b", b_shape);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a   = m2.add_parameter("a", a_shape);
+        auto b   = m2.add_parameter("b", b_shape);
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a, b);
+        m2.add_return({dot});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Batched skinny dot [B, M=1, K] @ [B, K, N] gets rewritten.
+TEST_CASE(dot_batched_skinny_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {4, 1, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {4, 128, 8}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", a_shape);
+        auto b   = m1.add_parameter("b", b_shape);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("a", a_shape);
+        auto b = m2.add_parameter("b", b_shape);
+        auto a_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), a);
+        auto b_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), b);
+        auto b_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), b_unsq);
+        auto a_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {4, 1, 8, 128}}}), a_unsq);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a_bc, b_trans);
+        auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), mul);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), red);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Batched dot with M=2 gets rewritten too.
+TEST_CASE(dot_batched_m2_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 12, 2, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {1, 12, 128, 64}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", a_shape);
+        auto b   = m1.add_parameter("b", b_shape);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("a", a_shape);
+        auto b = m2.add_parameter("b", b_shape);
+        auto a_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), a);
+        auto a_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 64, 128}}}), a_unsq);
+        auto b_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {2}}}), b);
+        auto b_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 2, 4, 3}}}), b_unsq);
+        auto b_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 64, 128}}}), b_trans);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a_bc, b_bc);
+        auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {4}}}), mul);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {4}}}), red);
+        m2.add_return({sq});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Batched dot feeding a softmax that returns (no downstream dot) is not
+// attention; find_dot rewrites the dot and find_softmax decomposes the softmax.
+// Using float_type avoids the fp16->fp32 upcast wrapping.
+TEST_CASE(dot_softmax_return_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 12, 1, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {1, 12, 128, 128}};
+    migraphx::module m1;
+    {
+        auto a       = m1.add_parameter("a", a_shape);
+        auto b       = m1.add_parameter("b", b_shape);
+        auto dot     = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), dot);
+        m1.add_return({softmax});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("a", a_shape);
+        auto b = m2.add_parameter("b", b_shape);
+        auto a_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), a);
+        auto b_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), b);
+        auto b_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 4, 2}}}), b_unsq);
+        auto a_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 128, 128}}}), a_unsq);
+        auto mul = m2.add_instruction(migraphx::make_op("mul"), a_bc, b_trans);
+        auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {4}}}), mul);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {4}}}), red);
+        auto rmax =
+            m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), sq);
+        auto rmax_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 128}}}), rmax);
+        auto sub  = m2.add_instruction(migraphx::make_op("sub"), sq, rmax_bc);
+        auto exp  = m2.add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto rsum_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 128}}}), rsum);
+        auto div = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+        m2.add_return({div});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// dot -> mul -> softmax -> return: still not attention (no dot after softmax).
+TEST_CASE(dot_mul_softmax_return_rewrite)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 12, 1, 128}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {1, 12, 128, 128}};
+    migraphx::shape scale_shape{migraphx::shape::float_type, {1}};
+    migraphx::module m1;
+    {
+        auto a        = m1.add_parameter("a", a_shape);
+        auto b        = m1.add_parameter("b", b_shape);
+        auto scale    = m1.add_parameter("scale", scale_shape);
+        auto scale_bc = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 128}}}), scale);
+        auto dot     = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        auto mul     = m1.add_instruction(migraphx::make_op("mul"), dot, scale_bc);
+        auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mul);
+        m1.add_return({softmax});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a        = m2.add_parameter("a", a_shape);
+        auto b        = m2.add_parameter("b", b_shape);
+        auto scale    = m2.add_parameter("scale", scale_shape);
+        auto scale_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 128}}}), scale);
+        auto a_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), a);
+        auto b_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), b);
+        auto b_trans = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 4, 2}}}), b_unsq);
+        auto a_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 128, 128}}}), a_unsq);
+        auto mul_ab = m2.add_instruction(migraphx::make_op("mul"), a_bc, b_trans);
+        auto red = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {4}}}), mul_ab);
+        auto sq  = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {4}}}), red);
+        auto mul_scale = m2.add_instruction(migraphx::make_op("mul"), sq, scale_bc);
+        auto rmax      = m2.add_instruction(
+            migraphx::make_op("reduce_max", {{"axes", {3}}}), mul_scale);
+        auto rmax_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 128}}}), rmax);
+        auto sub  = m2.add_instruction(migraphx::make_op("sub"), mul_scale, rmax_bc);
+        auto exp  = m2.add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto rsum_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 1, 128}}}), rsum);
+        auto div = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+        m2.add_return({div});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(softmax_dot_scale_where_fp32_convert_after)
 {
     migraphx::shape dot_shape{migraphx::shape::half_type, {1, 12, 1, 128}};

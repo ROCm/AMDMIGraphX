@@ -417,17 +417,17 @@ struct reducer_base
     // Lazy index stream for arg_reduce reads: inner length follows get_size; lane width follows
     // one inner read (lazy/pooled inner) or one sliced element (tensor), matching value reads.
     template <class Input, class OutIdx>
-    __device__ constexpr auto make_indices_from(Input&& input,
+    __device__ constexpr auto make_indices_from(const Input& input,
                                                 [[maybe_unused]] OutIdx out_idx) const
     {
         const auto n            = this->get_size(input);
-        using in_t              = remove_cv_t<remove_reference_t<Input>>;
+        using in_t              = remove_cv_t<Input>;
         constexpr auto nlanes_v = [&] {
             if constexpr(is_inner_storage<in_t>{})
-                return vec_size<remove_reference_t<decltype(declval<in_t&>()(0, _c<0>))>>();
+                return vec_size<remove_reference_t<decltype(declval<const in_t&>()(0, _c<0>))>>();
             else
             {
-                using slice_t = decltype(declval<const Derived&>().slice(declval<Input>()));
+                using slice_t = decltype(declval<const Derived&>().slice(declval<const Input&>()));
                 return vec_size<remove_reference_t<decltype(declval<slice_t>()[_c<0>])>>();
             }
         }();

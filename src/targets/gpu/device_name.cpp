@@ -66,15 +66,11 @@ static bool gfx_has_fp8fnuz_intrinsics_impl(const std::string& gfx_name)
     return (starts_with(gfx_name, "gfx94"));
 }
 
-bool gfx_has_fp8fnuz_intrinsics()
-{
-    return gfx_has_fp8fnuz_intrinsics_impl(get_gfx_name(get_device_name()));
-}
+bool gfx_has_fp8fnuz_intrinsics() { return gfx_has_fp8fnuz_intrinsics_impl(get_gfx_name(get_device_name())); }
 
 bool gfx_has_fp8fnuz_intrinsics(const context& ctx)
 {
-    return gfx_has_fp8fnuz_intrinsics_impl(
-        get_gfx_name(ctx.get_current_device().get_device_name()));
+    return gfx_has_fp8fnuz_intrinsics_impl(get_gfx_name(ctx.get_current_device().get_device_name()));
 }
 
 static bool gfx_has_fp8ocp_intrinsics_impl(const std::string& gfx_name)
@@ -84,10 +80,7 @@ static bool gfx_has_fp8ocp_intrinsics_impl(const std::string& gfx_name)
     return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
 }
 
-bool gfx_has_fp8ocp_intrinsics()
-{
-    return gfx_has_fp8ocp_intrinsics_impl(get_gfx_name(get_device_name()));
-}
+bool gfx_has_fp8ocp_intrinsics() { return gfx_has_fp8ocp_intrinsics_impl(get_gfx_name(get_device_name())); }
 
 bool gfx_has_fp8ocp_intrinsics(const context& ctx)
 {
@@ -99,10 +92,7 @@ static bool gfx_has_bf16_intrinsics_impl(const std::string& gfx_name)
     return not(starts_with(gfx_name, "gfx1030"));
 }
 
-bool gfx_has_bf16_intrinsics()
-{
-    return gfx_has_bf16_intrinsics_impl(get_gfx_name(get_device_name()));
-}
+bool gfx_has_bf16_intrinsics() { return gfx_has_bf16_intrinsics_impl(get_gfx_name(get_device_name())); }
 
 bool gfx_has_bf16_intrinsics(const context& ctx)
 {

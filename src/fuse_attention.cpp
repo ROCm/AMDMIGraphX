@@ -790,23 +790,24 @@ struct find_kv_cache_attention
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
         auto queries = match::name("slice");
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
-        auto scale   = match::name("mul")(match::any_arg(0, 1)(gemm1));
+        auto gemm1_maybe_cvt = match::skip(match::name("convert"))(gemm1);
+        auto scale           = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
         auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
-        auto attn_scores       = match::any_of(scale, gemm1);
+        auto attn_scores       = match::any_of(scale, gemm1_maybe_cvt);
         auto causal_mask =
             match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
         auto conv_grtr         = match::name("convert")(match::arg(0)(match::name("greater")));
         auto local_window_comp = match::skip(match::name(skip_set))(conv_grtr);
         auto local_window_mask =
             match::name("where")(match::arg(0)(match::any_of(local_window_comp, broadcasted_const)),
-                                 match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
+                                 match::arg(2)(match::any_of(causal_mask, scale, gemm1_maybe_cvt)));
         auto greater = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
         auto conv_greater =
             match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
         auto bc_greater = match::name("multibroadcast")(match::arg(0)(conv_greater));
         auto mask       = match::name("where")(
             match::arg(0)(bc_greater),
-            match::arg(2)(match::any_of(local_window_mask, causal_mask, scale, gemm1)));
+            match::arg(2)(match::any_of(local_window_mask, causal_mask, scale, gemm1_maybe_cvt)));
         auto attn_probabilities = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(mask)));
         auto values =

@@ -21,59 +21,60 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREFIX_SCAN_SUM_HPP
-#define MIGRAPHX_GUARD_GPU_PREFIX_SCAN_SUM_HPP
-
-#include <migraphx/gpu/name.hpp>
-#include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/prefix_scan_sum.hpp>
-#include <migraphx/op/prefix_scan_sum.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/shape.hpp>
-#include <migraphx/argument.hpp>
-#include <migraphx/config.hpp>
-#include <utility>
-#include <iostream>
+#include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-struct context;
+// NOLINTNEXTLINE
+static const char* const multinomial_kernel = R"__migraphx__(
+#include <migraphx/kernels/multinomial.hpp>
+#include <args.hpp>
 
-struct hip_prefix_scan_sum : oper<hip_prefix_scan_sum>
+namespace migraphx {
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void multinomial_kernel(void* cdf_data, void* dist_data, void* output_data)
 {
-    op::prefix_scan_sum op;
+    make_tensors()(cdf_data, dist_data, output_data)([](auto cdf, auto dist, auto output) {
+        multinomial(cdf, dist, output);
+    });
+}
 
-    template <class Self, class T>
-    static auto reflect(Self& self, T f)
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
+struct multinomial_compiler : compiler<multinomial_compiler>
+{
+    std::vector<std::string> names() const { return {"multinomial"}; }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        return migraphx::reflect(self.op, f);
+        hip_compile_options options;
+        const auto& out_s = inputs.back();
+        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
+        options.inputs         = inputs;
+        options.output         = out_s;
+        options.kernel_name    = "multinomial_kernel";
+        options.virtual_inputs = inputs;
+
+        return compile_hip_code_object(ctx, multinomial_kernel, options);
     }
 
-    shape compute_shape(const std::vector<shape>& inputs) const
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        std::vector<shape> in_shapes{inputs};
-        in_shapes.pop_back();
-        check_shapes{in_shapes, *this}.standard();
-        return op.normalize_compute_shape(in_shapes);
-    }
-
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::prefix_scan_sum(
-            ctx.get_stream().get(), args[1], args[0], op.axis, op.exclusive, op.reverse);
-        return args[1];
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
     }
 };
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_PREFIX_SCAN_SUM_HPP

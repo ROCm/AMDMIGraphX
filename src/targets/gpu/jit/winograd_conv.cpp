@@ -42,7 +42,11 @@ extern "C" {
 MIGRAPHX_GLOBAL void winograd_kernel(void* x_p, void* w_p, void* y_p)
 {
     make_tensors()(x_p, w_p, y_p)([](auto x, auto w, auto y) {
-        winograd_conv_f2x3_s1_mn<${k_per_block}, ${tiles_per_block}, ${op_m}, ${op_n}>(x, w, y);
+        winograd_conv_f2x3_s1_mn<${k_per_block},
+                                 ${tiles_per_block},
+                                 ${op_m},
+                                 ${op_n},
+                                 ${lds_ring}>(x, w, y);
     });
 }
 
@@ -82,6 +86,11 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         std::size_t tiles_per_block = v.get("tiles_per_block", std::size_t{32});
         std::size_t op_m            = v.get("op_m", std::size_t{2});
         std::size_t op_n            = v.get("op_n", std::size_t{2});
+        std::size_t lds_ring        = v.get("lds_ring", std::size_t{1});
+        if(lds_ring < 1)
+            lds_ring = 1;
+        if(lds_ring > 4)
+            lds_ring = 4;
 
         if(op_m == 0)
             op_m = 1;
@@ -114,7 +123,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                       {{"k_per_block", std::to_string(k_per_block)},
                                        {"tiles_per_block", std::to_string(tiles_per_block)},
                                        {"op_m", std::to_string(op_m)},
-                                       {"op_n", std::to_string(op_n)}});
+                                       {"op_n", std::to_string(op_n)},
+                                       {"lds_ring", std::to_string(lds_ring)}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -139,7 +149,11 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const std::size_t wave      = ctx.get_current_device().get_wavefront_size();
         const std::size_t max_block = 1024;
 
-        auto add = [&](std::size_t kb, std::size_t tb, std::size_t om, std::size_t on) {
+        auto add = [&](std::size_t kb,
+                       std::size_t tb,
+                       std::size_t om,
+                       std::size_t on,
+                       std::size_t lr) {
             if(kb % om != 0 or tb % on != 0)
                 return;
             const auto t_k   = kb / om;
@@ -149,8 +163,11 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                 return;
             if((block % wave) != 0)
                 return;
-            tc.solutions.push_back(
-                {{"k_per_block", kb}, {"tiles_per_block", tb}, {"op_m", om}, {"op_n", on}});
+            tc.solutions.push_back({{"k_per_block", kb},
+                                    {"tiles_per_block", tb},
+                                    {"op_m", om},
+                                    {"op_n", on},
+                                    {"lds_ring", lr}});
         };
 
         if(exhaustive)
@@ -159,36 +176,51 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                 for(auto tb : {2, 4, 8, 16, 32, 64, 128})
                     for(auto om : {1, 2, 4})
                         for(auto on : {1, 2, 4})
-                            add(kb, tb, om, on);
+                            for(auto lr : {1, 2})
+                                add(kb, tb, om, on, lr);
         }
         else
         {
             // Ordered roughly by expected performance for medium/large problems.
-            add(32, 32, 2, 2);
-            add(16, 32, 2, 2);
-            add(32, 16, 2, 2);
-            add(16, 16, 2, 2);
-            add(64, 16, 4, 2);
-            add(16, 64, 2, 4);
-            add(64, 32, 4, 2);
-            add(32, 64, 2, 4);
-            add(64, 64, 4, 4);
-            add(32, 32, 1, 2);
-            add(32, 32, 2, 1);
-            add(16, 16, 1, 1);
+            add(32, 32, 2, 2, 1);
+            add(16, 32, 2, 2, 1);
+            add(32, 16, 2, 2, 1);
+            add(16, 16, 2, 2, 1);
+            add(64, 16, 4, 2, 1);
+            add(16, 64, 2, 4, 1);
+            add(64, 32, 4, 2, 1);
+            add(32, 64, 2, 4, 1);
+            add(64, 64, 4, 4, 1);
+            add(32, 32, 1, 2, 1);
+            add(32, 32, 2, 1, 1);
+            add(16, 16, 1, 1, 1);
+            // Double-buffered variants - good for spatial-heavy problems.
+            add(16, 16, 2, 2, 2);
+            add(16, 32, 2, 2, 2);
+            add(32, 16, 2, 2, 2);
+            add(16, 16, 1, 1, 2);
+            add(8, 16, 1, 1, 2);
+            add(16, 8, 1, 1, 2);
             // Fallbacks for tiny problems where total tiles or K is small.
-            add(8, 8, 1, 1);
-            add(4, 16, 1, 1);
-            add(16, 4, 1, 1);
-            add(2, 32, 1, 1);
-            add(32, 2, 1, 1);
-            add(8, 16, 1, 1);
-            add(16, 8, 1, 1);
-            add(4, 32, 1, 1);
-            add(32, 4, 1, 1);
-            add(8, 32, 1, 1);
-            add(32, 8, 1, 1);
+            add(8, 8, 1, 1, 1);
+            add(4, 16, 1, 1, 1);
+            add(16, 4, 1, 1, 1);
+            add(2, 32, 1, 1, 1);
+            add(32, 2, 1, 1, 1);
+            add(8, 16, 1, 1, 1);
+            add(16, 8, 1, 1, 1);
+            add(4, 32, 1, 1, 1);
+            add(32, 4, 1, 1, 1);
+            add(8, 32, 1, 1, 1);
+            add(32, 8, 1, 1, 1);
         }
+        // Default fallback - 1x1 single-buffer.
+        if(tc.solutions.empty())
+            tc.solutions.push_back({{"k_per_block", 16},
+                                    {"tiles_per_block", 16},
+                                    {"op_m", 1},
+                                    {"op_n", 1},
+                                    {"lds_ring", 1}});
         if(tc.solutions.empty())
             tc.solutions.push_back(
                 {{"k_per_block", 16}, {"tiles_per_block", 16}, {"op_m", 1}, {"op_n", 1}});

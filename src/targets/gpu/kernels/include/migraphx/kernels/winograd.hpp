@@ -45,6 +45,34 @@ inline __device__ void sched_barrier_full()
 #endif
 }
 
+// Sched group barrier: tells the scheduler "issue N instructions of mask M
+// before any later instruction". Mirrors MIOpen's pattern of forcing a tight
+// run of v_dot2 / v_pk_fma without any intervening LDS or VMEM instructions.
+//   mask 0x004 = MFMA / VALU
+//   mask 0x008 = VMEM read
+//   mask 0x040 = LDS read
+//   mask 0x080 = LDS write
+//   mask 0x100 = VMEM write
+template <unsigned Mask, unsigned N>
+inline __device__ void sched_group()
+{
+#if defined(__AMDGCN__)
+    __builtin_amdgcn_sched_group_barrier(Mask, N, 0);
+#endif
+}
+
+// s_clause N: declare the next N+1 memory operations as a single clause so
+// the hardware can issue them back-to-back without arbitration overhead.
+// Used by MIOpen around tight ds_load_b128 / global_load groups.
+template <unsigned int N>
+inline __device__ void s_clause()
+{
+#if defined(__AMDGCN__)
+    static_assert(N >= 1 and N <= 64, "s_clause length out of range");
+    asm volatile("s_clause %0" ::"n"(N - 1) : "memory");
+#endif
+}
+
 template <int Prio>
 inline __device__ void set_prio()
 {
@@ -504,6 +532,7 @@ template <index_int K_PER_BLOCK,
           index_int TILES_PER_BLOCK,
           index_int OP_M,
           index_int OP_N,
+          index_int LDS_RING,
           class Acc,
           class X,
           class W,
@@ -552,13 +581,22 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
     const index_int k_in_grid  = local / T_T;
     const index_int t_in_grid  = local % T_T;
 
-    // LDS shapes [e, k, ch] and [e, t, ch]: ch (0/1) is the channel pair,
-    // OP_M/OP_N neighbors contiguous so vec loads fit ds_load_b{32,64,128}.
-    constexpr index_int CH  = 2u;
-    constexpr auto u_shape  = make_shape(index_ints<16u, K_PER_BLOCK, CH>{});
-    constexpr auto v_shape  = make_shape(index_ints<16u, TILES_PER_BLOCK, CH>{});
-    constexpr index_int U_N = 16u * K_PER_BLOCK * CH;
-    constexpr index_int V_N = 16u * TILES_PER_BLOCK * CH;
+    // LDS shapes [buf, e, k, ch] and [buf, e, t, ch]. NBUF is the ring depth:
+    // - NBUF=1: single-buffer (sync between stage and gemm each iter)
+    // - NBUF=2: classic double-buffer (stage p+1 while computing p)
+    // - NBUF=N: deeper ring lets the hardware overlap multiple in-flight
+    //   stages (matches MIOpen's offset:12288 / offset:36864 pattern)
+    //
+    // CH = 2 channels packed per LDS slot (one channel pair). The GEMM uses
+    // v_dot2_f32_f16 / two v_fma_f32 per pair so this is the natural unit.
+    constexpr index_int CH   = 2u;
+    constexpr index_int NBUF = LDS_RING;
+    constexpr auto u_shape =
+        make_shape(index_ints<NBUF, 16u, K_PER_BLOCK, CH>{});
+    constexpr auto v_shape =
+        make_shape(index_ints<NBUF, 16u, TILES_PER_BLOCK, CH>{});
+    constexpr index_int U_N = NBUF * 16u * K_PER_BLOCK * CH;
+    constexpr index_int V_N = NBUF * 16u * TILES_PER_BLOCK * CH;
 
     __shared__ uninitialized_buffer<out_type, U_N> u_smem;
     __shared__ uninitialized_buffer<out_type, V_N> v_smem;
@@ -570,13 +608,11 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
 
     constexpr diff_int pad = 1;
 
-    constexpr index_int n_pairs = (C_ + 1u) / 2u;
-    for(index_int p = 0; p < n_pairs; ++p)
-    {
+    // Stage one channel pair into the given LDS slot.
+    auto stage_pair = [&](index_int p, index_int slot) {
         const index_int c_a = p * 2u;
         const index_int c_b = c_a + 1u;
 
-        // ----- Cooperative filter staging.
         idx.local_stride(_c<K_PER_BLOCK>, [&](auto kk) {
             const index_int my_k = k_block * K_PER_BLOCK + kk;
             array<out_type, 9> g_a{};
@@ -591,12 +627,11 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
             const auto u_a = filter_transform(g_a);
             const auto u_b = filter_transform(g_b);
             repeat_c<16>([&](auto e) {
-                u_lds[make_array<index_int>(e, kk, 0u)] = u_a[e];
-                u_lds[make_array<index_int>(e, kk, 1u)] = u_b[e];
+                u_lds[make_array<index_int>(slot, e, kk, 0u)] = u_a[e];
+                u_lds[make_array<index_int>(slot, e, kk, 1u)] = u_b[e];
             });
         });
 
-        // ----- Cooperative input staging.
         idx.local_stride(_c<TILES_PER_BLOCK>, [&](auto tt) {
             const index_int tile_g = tile_block * TILES_PER_BLOCK + tt;
             array<out_type, 16> d_a{};
@@ -617,35 +652,28 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
             const auto v_a = input_transform(d_a);
             const auto v_b = input_transform(d_b);
             repeat_c<16>([&](auto e) {
-                v_lds[make_array<index_int>(e, tt, 0u)] = v_a[e];
-                v_lds[make_array<index_int>(e, tt, 1u)] = v_b[e];
+                v_lds[make_array<index_int>(slot, e, tt, 0u)] = v_a[e];
+                v_lds[make_array<index_int>(slot, e, tt, 1u)] = v_b[e];
             });
         });
+    };
 
-        __syncthreads();
-
-        // ----- GEMM phase: outer product of OP_M filters x OP_N inputs.
-        // Load all 16 elements' worth of filter/input packs up-front so the
-        // compiler can interleave LDS loads with the math pipeline.
+    // GEMM consume from the given LDS slot.
+    auto gemm_pair = [&](index_int slot) {
+        // Up-front bulk LDS load: gives the compiler the freedom to schedule
+        // ds_load_b{32,64,128} contiguously and overlap with the FMA pipeline.
         array<array<out_type, OP_M * 2u>, 16> u_all;
         array<array<out_type, OP_N * 2u>, 16> v_all;
         repeat_c<16>([&](auto e) {
-            __builtin_memcpy(u_all[e].data(),
-                             &u_lds[make_array<index_int>(e, k_in_grid * OP_M, 0u)],
-                             sizeof(u_all[e]));
-            __builtin_memcpy(v_all[e].data(),
-                             &v_lds[make_array<index_int>(e, t_in_grid * OP_N, 0u)],
-                             sizeof(v_all[e]));
+            __builtin_memcpy(
+                u_all[e].data(),
+                &u_lds[make_array<index_int>(slot, e, k_in_grid * OP_M, 0u)],
+                sizeof(u_all[e]));
+            __builtin_memcpy(
+                v_all[e].data(),
+                &v_lds[make_array<index_int>(slot, e, t_in_grid * OP_N, 0u)],
+                sizeof(v_all[e]));
         });
-        set_prio<1>();
-        // Inline-asm GEMM step. For fp16, gemm_step_h dispatches to
-        // __builtin_amdgcn_fdot2 (v_dot2_f32_f16). For fp32, gemm_step_f
-        // emits two v_fma_f32 (one per channel of the pair). The transform's
-        // row stage is done after the loop using output_transform_row_asm
-        // which itself emits a tight inline-asm block of v_add/v_sub
-        // interleaved across the 4 j-columns - the compiler dual-issues
-        // these with the surrounding code, giving the desired GEMM+xform
-        // overlap without the register pressure of incremental r partials.
         repeat_c<16>([&](auto e) {
             repeat_c<OP_M>([&](auto m) {
                 repeat_c<OP_N>([&](auto nn) {
@@ -671,8 +699,47 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
                 });
             });
         });
-        set_prio<0>();
-        __syncthreads();
+    };
+
+    constexpr index_int n_blocks = (C_ + 1u) / 2u;
+    if constexpr(NBUF == 1u)
+    {
+        // Single-buffer: stage, sync, compute, sync.
+        for(index_int p = 0; p < n_blocks; ++p)
+        {
+            stage_pair(p, 0u);
+            __syncthreads();
+            set_prio<1>();
+            gemm_pair(0u);
+            set_prio<0>();
+            __syncthreads();
+        }
+    }
+    else
+    {
+        // Software-pipelined channel loop with multi-buffered LDS:
+        //   prologue: stage(0) into slot 0
+        //   loop p in [0, n-1):
+        //     stage(p+1) into slot (p+1)%NBUF
+        //     gemm(p)    from slot (p)%NBUF
+        //     sync (one barrier per iter instead of two)
+        //   epilogue: gemm(n-1) from slot (n-1)%NBUF
+        if constexpr(n_blocks > 0u)
+        {
+            stage_pair(0u, 0u);
+            __syncthreads();
+            set_prio<1>();
+            for(index_int p = 0; p + 1u < n_blocks; ++p)
+            {
+                const index_int cur  = p % NBUF;
+                const index_int next = (p + 1u) % NBUF;
+                stage_pair(p + 1u, next);
+                gemm_pair(cur);
+                __syncthreads();
+            }
+            gemm_pair((n_blocks - 1u) % NBUF);
+            set_prio<0>();
+        }
     }
 
     // ----- Output transform + store.
@@ -771,23 +838,31 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
     }
 }
 
-// Wrapper that picks the right accumulator type per element type.
+// Wrapper that picks the right accumulator type per element type. Defaults
+// LDS_RING to 1 (single-buffered) - tunings that benefit from a ring buffer
+// can call the templated form directly.
 template <index_int K_PER_BLOCK,
           index_int TILES_PER_BLOCK,
           index_int OP_M,
           index_int OP_N,
+          index_int LDS_RING,
           class X,
           class W,
           class Y>
 __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
 {
-    winograd_conv_f2x3_s1_mn<K_PER_BLOCK, TILES_PER_BLOCK, OP_M, OP_N, float>(x, w, y);
+    winograd_conv_f2x3_s1_mn<K_PER_BLOCK,
+                             TILES_PER_BLOCK,
+                             OP_M,
+                             OP_N,
+                             LDS_RING,
+                             float>(x, w, y);
 }
 
 template <index_int K_PER_BLOCK, index_int TILES_PER_BLOCK, class X, class W, class Y>
 __device__ void winograd_conv_f2x3_s1(X x, W w, Y y)
 {
-    winograd_conv_f2x3_s1_mn<K_PER_BLOCK, TILES_PER_BLOCK, 1u, 1u>(x, w, y);
+    winograd_conv_f2x3_s1_mn<K_PER_BLOCK, TILES_PER_BLOCK, 1u, 1u, 1u>(x, w, y);
 }
 
 } // namespace migraphx

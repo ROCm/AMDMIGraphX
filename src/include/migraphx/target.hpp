@@ -108,21 +108,15 @@ argument target_allocate(T& x, const shape&)
 
 template <class T>
 argument copy_to_target(T&, const argument& arg)
-{
-    return arg;
-}
+{ return arg; }
 
 template <class T>
 argument copy_from_target(T&, const argument& arg)
-{
-    return arg;
-}
+{ return arg; }
 
 template <class T>
 supported_segments target_find_supported(T&, const_module_ref, support_metric)
-{
-    return {};
-}
+{ return {}; }
 
 #ifdef TYPE_ERASED_DECLARATION
 
@@ -156,62 +150,46 @@ struct target
                                                          const_module_ref mod,
                                                          support_metric m)
         -> decltype(private_detail_te_self.find_supported(mod, m))
-    {
-        return private_detail_te_self.find_supported(mod, m);
-    }
+    { return private_detail_te_self.find_supported(mod, m); }
 
     template <class T>
     static supported_segments private_detail_te_default_find_supported(float,
                                                                        T&& private_detail_te_self,
                                                                        const_module_ref mod,
                                                                        support_metric m)
-    {
-        return target_find_supported(private_detail_te_self, mod, m);
-    }
+    { return target_find_supported(private_detail_te_self, mod, m); }
 
     template <class T>
     static auto
     private_detail_te_default_copy_to(char, T&& private_detail_te_self, const argument& input)
         -> decltype(private_detail_te_self.copy_to(input))
-    {
-        return private_detail_te_self.copy_to(input);
-    }
+    { return private_detail_te_self.copy_to(input); }
 
     template <class T>
     static argument
     private_detail_te_default_copy_to(float, T&& private_detail_te_self, const argument& input)
-    {
-        return copy_to_target(private_detail_te_self, input);
-    }
+    { return copy_to_target(private_detail_te_self, input); }
 
     template <class T>
     static auto
     private_detail_te_default_copy_from(char, T&& private_detail_te_self, const argument& input)
         -> decltype(private_detail_te_self.copy_from(input))
-    {
-        return private_detail_te_self.copy_from(input);
-    }
+    { return private_detail_te_self.copy_from(input); }
 
     template <class T>
     static argument
     private_detail_te_default_copy_from(float, T&& private_detail_te_self, const argument& input)
-    {
-        return copy_from_target(private_detail_te_self, input);
-    }
+    { return copy_from_target(private_detail_te_self, input); }
 
     template <class T>
     static auto private_detail_te_default_allocate(char, T&& private_detail_te_self, const shape& s)
         -> decltype(private_detail_te_self.allocate(s))
-    {
-        return private_detail_te_self.allocate(s);
-    }
+    { return private_detail_te_self.allocate(s); }
 
     template <class T>
     static argument
     private_detail_te_default_allocate(float, T&& private_detail_te_self, const shape& s)
-    {
-        return target_allocate(private_detail_te_self, s);
-    }
+    { return target_allocate(private_detail_te_self, s); }
 
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
@@ -273,7 +251,7 @@ struct target
               typename = private_te_constraints<PrivateDetailTypeErasedT>,
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, target>{}>::type>
-    target& operator=(PrivateDetailTypeErasedT&& value)
+    target& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -407,19 +385,14 @@ struct target
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        {
-            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
-        }
+        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::string name() const override { return private_detail_te_value.name(); }
 
         std::vector<pass> get_passes(context& ctx, const compile_options& options) const override
-        {
-
-            return private_detail_te_value.get_passes(ctx, options);
-        }
+        { return private_detail_te_value.get_passes(ctx, options); }
 
         context get_context() const override { return private_detail_te_value.get_context(); }
 
@@ -431,22 +404,13 @@ struct target
         }
 
         argument copy_to(const argument& input) const override
-        {
-
-            return private_detail_te_default_copy_to(char(0), private_detail_te_value, input);
-        }
+        { return private_detail_te_default_copy_to(char(0), private_detail_te_value, input); }
 
         argument copy_from(const argument& input) const override
-        {
-
-            return private_detail_te_default_copy_from(char(0), private_detail_te_value, input);
-        }
+        { return private_detail_te_default_copy_from(char(0), private_detail_te_value, input); }
 
         argument allocate(const shape& s) const override
-        {
-
-            return private_detail_te_default_allocate(char(0), private_detail_te_value, s);
-        }
+        { return private_detail_te_default_allocate(char(0), private_detail_te_value, s); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -462,9 +426,7 @@ struct target
     };
 
     bool private_detail_te_handle_empty() const
-    {
-        return private_detail_te_handle_mem_var == nullptr;
-    }
+    { return private_detail_te_handle_mem_var == nullptr; }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -485,15 +447,11 @@ struct target
 
 template <typename ValueType>
 inline const ValueType* any_cast(const target* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType* any_cast(target* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType& any_cast(target& x)

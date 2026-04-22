@@ -138,7 +138,7 @@ struct stream_model
         typename = private_te_constraints<PrivateDetailTypeErasedT>,
         typename = typename std::enable_if<
             not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, stream_model>{}>::type>
-    stream_model& operator=(PrivateDetailTypeErasedT&& value)
+    stream_model& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -265,43 +265,26 @@ struct stream_model
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        {
-            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
-        }
+        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::size_t get_nstream() const override { return private_detail_te_value.get_nstream(); }
 
         std::size_t get_stream(instruction_ref ins) const override
-        {
-
-            return private_detail_te_value.get_stream(ins);
-        }
+        { return private_detail_te_value.get_stream(ins); }
 
         std::size_t get_event_id(instruction_ref ins) const override
-        {
-
-            return private_detail_te_value.get_event_id(ins);
-        }
+        { return private_detail_te_value.get_event_id(ins); }
 
         bool has_stream(instruction_ref ins) const override
-        {
-
-            return private_detail_te_value.has_stream(ins);
-        }
+        { return private_detail_te_value.has_stream(ins); }
 
         bool is_record(instruction_ref ins) const override
-        {
-
-            return private_detail_te_value.is_record(ins);
-        }
+        { return private_detail_te_value.is_record(ins); }
 
         bool is_wait(instruction_ref ins) const override
-        {
-
-            return private_detail_te_value.is_wait(ins);
-        }
+        { return private_detail_te_value.is_wait(ins); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -317,9 +300,7 @@ struct stream_model
     };
 
     bool private_detail_te_handle_empty() const
-    {
-        return private_detail_te_handle_mem_var == nullptr;
-    }
+    { return private_detail_te_handle_mem_var == nullptr; }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -340,15 +321,11 @@ struct stream_model
 
 template <typename ValueType>
 inline const ValueType* any_cast(const stream_model* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType* any_cast(stream_model* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType& any_cast(stream_model& x)

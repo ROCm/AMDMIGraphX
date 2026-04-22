@@ -38,40 +38,9 @@ namespace migraphx {
 
 namespace winograd {
 
-inline __device__ void sched_barrier_full()
-{
-#if defined(__AMDGCN__)
-    __builtin_amdgcn_sched_barrier(0);
-#endif
-}
-
-// Sched group barrier: tells the scheduler "issue N instructions of mask M
-// before any later instruction". Mirrors MIOpen's pattern of forcing a tight
-// run of v_dot2 / v_pk_fma without any intervening LDS or VMEM instructions.
-//   mask 0x004 = MFMA / VALU
-//   mask 0x008 = VMEM read
-//   mask 0x040 = LDS read
-//   mask 0x080 = LDS write
-//   mask 0x100 = VMEM write
-template <unsigned Mask, unsigned N>
-inline __device__ void sched_group()
-{
-#if defined(__AMDGCN__)
-    __builtin_amdgcn_sched_group_barrier(Mask, N, 0);
-#endif
-}
-
-// s_clause N: declare the next N+1 memory operations as a single clause so
-// the hardware can issue them back-to-back without arbitration overhead.
-// Used by MIOpen around tight ds_load_b128 / global_load groups.
-template <unsigned int N>
-inline __device__ void s_clause()
-{
-#if defined(__AMDGCN__)
-    static_assert(N >= 1 and N <= 64, "s_clause length out of range");
-    asm volatile("s_clause %0" ::"n"(N - 1) : "memory");
-#endif
-}
+// ----------------------------------------------------------------------------
+//   Wavefront scheduling helpers (mirror MIOpen's gfx12 fp16_dot2 pattern)
+// ----------------------------------------------------------------------------
 
 template <int Prio>
 inline __device__ void set_prio()
@@ -84,7 +53,30 @@ inline __device__ void set_prio()
 #endif
 }
 
+inline __device__ void sched_barrier_full()
+{
+#if defined(__AMDGCN__)
+    __builtin_amdgcn_sched_barrier(0);
+#endif
+}
+
+// s_clause N: declare the next N+1 memory ops as a single hardware clause.
+// MIOpen uses `s_clause 0x7` (= 8 ops) ahead of ds_load runs.
+template <unsigned int N>
+inline __device__ void s_clause()
+{
+#if defined(__AMDGCN__)
+    static_assert(N >= 1 and N <= 64);
+    asm volatile("s_clause %0" ::"n"(N - 1) : "memory");
+#endif
+}
+
+// ----------------------------------------------------------------------------
+//   Arithmetic primitives
+// ----------------------------------------------------------------------------
+
 // fp16 packed dot product: returns acc + a.x*b.x + a.y*b.y as fp32.
+// Maps to v_dot2_f32_f16 on gfx10+/gfx11+/gfx12.
 inline __device__ float dot2_acc(vec<half, 2> a, vec<half, 2> b, float acc)
 {
 #if defined(__gfx10__) || defined(__gfx11__) || defined(__gfx1100__) || defined(__gfx1101__) || \
@@ -96,12 +88,8 @@ inline __device__ float dot2_acc(vec<half, 2> a, vec<half, 2> b, float acc)
 #endif
 }
 
-// DPP quad-permutation. Lane[i] receives lane[Pat>>(2i) & 3]'s value within a
-// 4-lane group. Implemented via __builtin_amdgcn_mov_dpp on AMDGCN; falls back
-// to identity on host. Used by the MIOpen-style wave reductions that emit
-// `v_mov_b32 ... quad_perm:[a,b,c,d]`. The convenience aliases below match
-// the patterns that MIOpen's gfx12 fp16_dot2 Winograd kernel uses.
-//   Pat = (l0 & 3) | ((l1 & 3) << 2) | ((l2 & 3) << 4) | ((l3 & 3) << 6).
+// DPP quad-permutation. lane[i] receives lane[Pat>>(2i) & 3]'s value within a
+// 4-lane group. MIOpen's `v_mov_b32 ... quad_perm:[a,b,c,d]` analogue.
 template <unsigned int Pat, class T>
 inline __device__ T dpp_quad_perm(T x)
 {
@@ -112,82 +100,66 @@ inline __device__ T dpp_quad_perm(T x)
     return __builtin_bit_cast(T, yu);
 }
 
-// Identity quad permutation pattern: lane[i] receives lane[i]'s own value.
-// Encodes [0,1,2,3].
-constexpr unsigned int dpp_identity_pat = 0u | (1u << 2) | (2u << 4) | (3u << 6);
+// MIOpen-exact `v_mov_b32 vDst, vSrc quad_perm:[a,b,c,d]` via inline asm.
+// Encodes the lane permutation as ASCII so the assembler builds the DPP
+// modifier byte-for-byte the way MIOpen does.
+#define MIGRAPHX_WINOGRAD_QUAD_PERM(NAME, A, B, C, D)                            \
+    template <class T>                                                           \
+    inline __device__ T NAME(T x)                                                \
+    {                                                                            \
+        static_assert(sizeof(T) == 4, "quad_perm only handles 32-bit operands"); \
+        T y;                                                                     \
+        asm("v_mov_b32 %[y], %[x] quad_perm:[" #A "," #B "," #C "," #D           \
+            "] row_mask:0xf bank_mask:0xf"                                       \
+            : [y] "=v"(y)                                                        \
+            : [x] "v"(x));                                                       \
+        return y;                                                                \
+    }
 
-// Generic DPP+GEMM compose. The intrinsic version below uses
-// `__builtin_amdgcn_mov_dpp` (compile-time pattern) and a regular
-// fused-multiply-add. The half and float overloads after this declaration
-// emit the same operation as a single inline-asm block of
-// `v_mov_b32 ... quad_perm:[..]` followed by `v_dot2_f32_f16` / `v_fma_f32`,
-// matching MIOpen's interleaving pattern verbatim.
-template <unsigned int Pat, class T, class Acc>
-inline __device__ Acc dpp_gemm_step(Acc acc, T u, T v)
-{
-    auto us = dpp_quad_perm<Pat>(u);
-    return acc + static_cast<Acc>(us) * static_cast<Acc>(v);
-}
-
-// fp16 inline asm: v_mov_b32 quad_perm + v_dot2_f32_f16. Pat must be a
-// compile-time literal so the inline-asm string can interpolate it.
-template <unsigned int Pat>
-inline __device__ float dpp_gemm_step_h(float acc, vec<half, 2> u, vec<half, 2> v)
-{
+// The exact patterns MIOpen emits in its gfx12 fp16_dot2 Winograd asm.
 #if defined(__AMDGCN__)
-    vec<half, 2> us;
-    asm("v_mov_b32_dpp %[us], %[u] dpp8:[%c[p0],%c[p1],%c[p2],%c[p3],4,5,6,7]\n"
-        "v_dot2_f32_f16 %[a], %[us], %[v], %[a]\n"
-        : [a] "+v"(acc), [us] "=&v"(us)
-        : [u] "v"(u),
-          [v] "v"(v),
-          [p0] "n"((Pat >> 0) & 0x3),
-          [p1] "n"((Pat >> 2) & 0x3),
-          [p2] "n"((Pat >> 4) & 0x3),
-          [p3] "n"((Pat >> 6) & 0x3));
-    return acc;
+MIGRAPHX_WINOGRAD_QUAD_PERM(dpp_perm_2211, 2, 2, 1, 1)
+MIGRAPHX_WINOGRAD_QUAD_PERM(dpp_perm_1111, 1, 1, 1, 1)
+MIGRAPHX_WINOGRAD_QUAD_PERM(dpp_perm_2222, 2, 2, 2, 2)
+MIGRAPHX_WINOGRAD_QUAD_PERM(dpp_perm_3333, 3, 3, 3, 3)
+MIGRAPHX_WINOGRAD_QUAD_PERM(dpp_perm_0001, 0, 0, 0, 1)
+MIGRAPHX_WINOGRAD_QUAD_PERM(dpp_perm_0021, 0, 0, 2, 1)
 #else
-    auto us = dpp_quad_perm<Pat>(u);
-    return dot2_acc(us, v, acc);
+template <class T> inline __device__ T dpp_perm_2211(T x) { return dpp_quad_perm<0x55u | (2u<<4) | (2u<<6)>(x); }
+template <class T> inline __device__ T dpp_perm_1111(T x) { return dpp_quad_perm<0x55u>(x); }
+template <class T> inline __device__ T dpp_perm_2222(T x) { return dpp_quad_perm<0xAAu>(x); }
+template <class T> inline __device__ T dpp_perm_3333(T x) { return dpp_quad_perm<0xFFu>(x); }
+template <class T> inline __device__ T dpp_perm_0001(T x) { return dpp_quad_perm<0x40u>(x); }
+template <class T> inline __device__ T dpp_perm_0021(T x) { return dpp_quad_perm<0x60u>(x); }
 #endif
-}
 
-// fp32 inline asm: v_mov_b32 quad_perm + v_fma_f32 (one channel).
-template <unsigned int Pat>
-inline __device__ float dpp_gemm_step_f(float acc, float u, float v)
-{
+// row_shl:N via inline asm: lane[i] reads lane[i+N] within row of 16.
+// MIOpen-exact `v_mov_b32 vDst, vSrc row_shl:N row_mask:0xf bank_mask:0xf`.
+#define MIGRAPHX_WINOGRAD_ROW_SHL(NAME, N)                                       \
+    template <class T>                                                           \
+    inline __device__ T NAME(T x)                                                \
+    {                                                                            \
+        static_assert(sizeof(T) == 4, "row_shl only handles 32-bit operands");   \
+        T y;                                                                     \
+        asm("v_mov_b32 %[y], %[x] row_shl:" #N " row_mask:0xf bank_mask:0xf"     \
+            : [y] "=v"(y)                                                        \
+            : [x] "v"(x));                                                       \
+        return y;                                                                \
+    }
+
 #if defined(__AMDGCN__)
-    float us;
-    asm("v_mov_b32_dpp %[us], %[u] dpp8:[%c[p0],%c[p1],%c[p2],%c[p3],4,5,6,7]\n"
-        "v_fma_f32 %[a], %[us], %[v], %[a]\n"
-        : [a] "+v"(acc), [us] "=&v"(us)
-        : [u] "v"(u),
-          [v] "v"(v),
-          [p0] "n"((Pat >> 0) & 0x3),
-          [p1] "n"((Pat >> 2) & 0x3),
-          [p2] "n"((Pat >> 4) & 0x3),
-          [p3] "n"((Pat >> 6) & 0x3));
-    return acc;
+MIGRAPHX_WINOGRAD_ROW_SHL(dpp_row_shl_4, 4)
+MIGRAPHX_WINOGRAD_ROW_SHL(dpp_row_shl_8, 8)
+MIGRAPHX_WINOGRAD_ROW_SHL(dpp_row_shl_12, 12)
 #else
-    auto us = dpp_quad_perm<Pat>(u);
-    return acc + us * v;
+template <class T> inline __device__ T dpp_row_shl_4(T x) { return x; }
+template <class T> inline __device__ T dpp_row_shl_8(T x) { return x; }
+template <class T> inline __device__ T dpp_row_shl_12(T x) { return x; }
 #endif
-}
 
-// Plain GEMM-only step. fp16 uses the intrinsic to guarantee v_dot2_f32_f16
-// (otherwise the compiler may emit v_fma_mix_f32). fp32 uses plain math so
-// the compiler is free to schedule the two FMAs.
-inline __device__ float gemm_step_h(float acc, vec<half, 2> u, vec<half, 2> v)
-{
-    return dot2_acc(u, v, acc);
-}
-
-inline __device__ float gemm_step_f(float acc, float u0, float v0, float u1, float v1)
-{
-    acc = __builtin_fmaf(u0, v0, acc);
-    acc = __builtin_fmaf(u1, v1, acc);
-    return acc;
-}
+// ----------------------------------------------------------------------------
+//   Winograd F(2x2, 3x3) transforms
+// ----------------------------------------------------------------------------
 
 // B^T * d * B for F(2x2, 3x3). Returns the transformed 4x4 tile.
 template <class T>
@@ -202,11 +174,11 @@ __device__ __attribute__((const)) array<T, 16> input_transform(array<T, 16> d)
     });
     array<T, 16> v{};
     repeat_c<4>([&](auto i) {
-        auto base    = i * 4u;
-        v[base + 0u] = t[base + 0u] - t[base + 2u];
-        v[base + 1u] = t[base + 1u] + t[base + 2u];
-        v[base + 2u] = t[base + 2u] - t[base + 1u];
-        v[base + 3u] = t[base + 1u] - t[base + 3u];
+        const auto base = i * 4u;
+        v[base + 0u]    = t[base + 0u] - t[base + 2u];
+        v[base + 1u]    = t[base + 1u] + t[base + 2u];
+        v[base + 2u]    = t[base + 2u] - t[base + 1u];
+        v[base + 3u]    = t[base + 1u] - t[base + 3u];
     });
     return v;
 }
@@ -218,9 +190,9 @@ __device__ __attribute__((const)) array<T, 16> filter_transform(array<T, 9> g)
     const auto half = T{0.5};
     array<T, 12> u{};
     repeat_c<3>([&](auto j) {
-        auto g0        = g[0u * 3u + j];
-        auto g1        = g[1u * 3u + j];
-        auto g2        = g[2u * 3u + j];
+        const auto g0  = g[0u * 3u + j];
+        const auto g1  = g[1u * 3u + j];
+        const auto g2  = g[2u * 3u + j];
         u[0u * 3u + j] = g0;
         u[1u * 3u + j] = half * (g0 + g1 + g2);
         u[2u * 3u + j] = half * (g0 - g1 + g2);
@@ -228,69 +200,20 @@ __device__ __attribute__((const)) array<T, 16> filter_transform(array<T, 9> g)
     });
     array<T, 16> uu{};
     repeat_c<4>([&](auto i) {
-        auto u0       = u[i * 3u + 0u];
-        auto u1       = u[i * 3u + 1u];
-        auto u2       = u[i * 3u + 2u];
-        auto base     = i * 4u;
-        uu[base + 0u] = u0;
-        uu[base + 1u] = half * (u0 + u1 + u2);
-        uu[base + 2u] = half * (u0 - u1 + u2);
-        uu[base + 3u] = u2;
+        const auto u0   = u[i * 3u + 0u];
+        const auto u1   = u[i * 3u + 1u];
+        const auto u2   = u[i * 3u + 2u];
+        const auto base = i * 4u;
+        uu[base + 0u]   = u0;
+        uu[base + 1u]   = half * (u0 + u1 + u2);
+        uu[base + 2u]   = half * (u0 - u1 + u2);
+        uu[base + 3u]   = u2;
     });
     return uu;
 }
 
-// First stage of the output transform: r = A^T * M. Accumulates into 4x2.
-// We cast to out_type here so the second stage can use packed fp16 ops on
-// half-type outputs. Keeps the final A step independent of the GEMM tail.
-template <class T, class Acc>
-__device__ __attribute__((const)) array<T, 8> output_transform_row(array<Acc, 16> m)
-{
-    array<T, 8> r{};
-    repeat_c<4>([&](auto j) {
-        r[0u * 4u + j] = static_cast<T>(m[0u * 4u + j] + m[1u * 4u + j] + m[2u * 4u + j]);
-        r[1u * 4u + j] = static_cast<T>(m[1u * 4u + j] - m[2u * 4u + j] - m[3u * 4u + j]);
-    });
-    return r;
-}
-
-// Second stage: y = r * A. Produces the 2x2 output tile.
-template <class T>
-__device__ __attribute__((const)) array<T, 4> output_transform_col(array<T, 8> r)
-{
-    array<T, 4> y{};
-    repeat_c<2>([&](auto i) {
-        auto r0        = r[i * 4u + 0u];
-        auto r1        = r[i * 4u + 1u];
-        auto r2        = r[i * 4u + 2u];
-        auto r3        = r[i * 4u + 3u];
-        y[i * 2u + 0u] = r0 + r1 + r2;
-        y[i * 2u + 1u] = r1 - r2 - r3;
-    });
-    return y;
-}
-
-// Single-shot transform, kept for reference and for paths that don't need
-// the two-stage pipeline.
-template <class T, class Acc>
-__device__ __attribute__((const)) array<T, 4> output_transform(array<Acc, 16> m)
-{
-    return output_transform_col(output_transform_row<T>(m));
-}
-
-// Inline-asm fp32 row-stage transform. The DPP modifier is fused directly
-// into v_add_f32 / v_sub_f32 (which are VOP2 and support DPP natively on
-// gfx10+), mirroring MIOpen's pattern of fusing the lane shuffle into the
-// arithmetic op rather than emitting a separate v_mov_b32_dpp. The chosen
-// dpp_ctrl is `0xe4` = quad_perm:[0,1,2,3] (identity), which is the only
-// pattern that preserves the per-thread data layout while still routing the
-// operand through the DPP unit. Switching to a wave-distributed accumulator
-// layout means changing only this dpp_ctrl literal to a real cross-lane
-// pattern (e.g. `0x108` for row_shr:8) without restructuring the asm.
-//
-// 16 ops total (one v_add or v_sub per pair of column writes), interleaved
-// across the 4 j-columns so the hardware can dual-issue them.
-inline __device__ array<float, 8> output_transform_row_asm(array<float, 16> m)
+// Inline-asm fp32 row-stage transform (A^T * M). DPP fused into v_add/v_sub.
+inline __device__ array<float, 8> output_transform_row_asm_f(array<float, 16> m)
 {
     array<float, 8> r;
 #if defined(__AMDGCN__)
@@ -310,30 +233,12 @@ inline __device__ array<float, 8> output_transform_row_asm(array<float, 16> m)
         "v_sub_f32 %[r12], %[r12], %[m32]\n"
         "v_add_f32 %[r03], %[r03], %[m23] quad_perm:[0,1,2,3] row_mask:0xf bank_mask:0xf\n"
         "v_sub_f32 %[r13], %[r13], %[m33]\n"
-        : [r00] "=&v"(r[0]),
-          [r01] "=&v"(r[1]),
-          [r02] "=&v"(r[2]),
-          [r03] "=&v"(r[3]),
-          [r10] "=&v"(r[4]),
-          [r11] "=&v"(r[5]),
-          [r12] "=&v"(r[6]),
-          [r13] "=&v"(r[7])
-        : [m00] "v"(m[0]),
-          [m01] "v"(m[1]),
-          [m02] "v"(m[2]),
-          [m03] "v"(m[3]),
-          [m10] "v"(m[4]),
-          [m11] "v"(m[5]),
-          [m12] "v"(m[6]),
-          [m13] "v"(m[7]),
-          [m20] "v"(m[8]),
-          [m21] "v"(m[9]),
-          [m22] "v"(m[10]),
-          [m23] "v"(m[11]),
-          [m30] "v"(m[12]),
-          [m31] "v"(m[13]),
-          [m32] "v"(m[14]),
-          [m33] "v"(m[15]));
+        : [r00] "=&v"(r[0]), [r01] "=&v"(r[1]), [r02] "=&v"(r[2]), [r03] "=&v"(r[3]),
+          [r10] "=&v"(r[4]), [r11] "=&v"(r[5]), [r12] "=&v"(r[6]), [r13] "=&v"(r[7])
+        : [m00] "v"(m[0]), [m01] "v"(m[1]), [m02] "v"(m[2]), [m03] "v"(m[3]),
+          [m10] "v"(m[4]), [m11] "v"(m[5]), [m12] "v"(m[6]), [m13] "v"(m[7]),
+          [m20] "v"(m[8]), [m21] "v"(m[9]), [m22] "v"(m[10]), [m23] "v"(m[11]),
+          [m30] "v"(m[12]), [m31] "v"(m[13]), [m32] "v"(m[14]), [m33] "v"(m[15]));
 #else
     repeat_c<4>([&](auto j) {
         r[0u * 4u + j] = m[0u * 4u + j] + m[1u * 4u + j] + m[2u * 4u + j];
@@ -343,10 +248,8 @@ inline __device__ array<float, 8> output_transform_row_asm(array<float, 16> m)
     return r;
 }
 
-// Inline-asm fp32 column-stage transform: the second pass of the output
-// transform. DPP modifier fused into v_add_f32 / v_sub_f32 (same approach as
-// the row stage). 8 ops total interleaved across the 2 i-rows.
-inline __device__ array<float, 4> output_transform_col_asm(array<float, 8> r)
+// Inline-asm fp32 column-stage transform (R * A). DPP fused into v_add/v_sub.
+inline __device__ array<float, 4> output_transform_col_asm_f(array<float, 8> r)
 {
     array<float, 4> y;
 #if defined(__AMDGCN__)
@@ -359,14 +262,8 @@ inline __device__ array<float, 4> output_transform_col_asm(array<float, 8> r)
         "v_add_f32 %[y10], %[y10], %[r12] quad_perm:[0,1,2,3] row_mask:0xf bank_mask:0xf\n"
         "v_sub_f32 %[y11], %[y11], %[r13]\n"
         : [y00] "=&v"(y[0]), [y01] "=&v"(y[1]), [y10] "=&v"(y[2]), [y11] "=&v"(y[3])
-        : [r00] "v"(r[0]),
-          [r01] "v"(r[1]),
-          [r02] "v"(r[2]),
-          [r03] "v"(r[3]),
-          [r10] "v"(r[4]),
-          [r11] "v"(r[5]),
-          [r12] "v"(r[6]),
-          [r13] "v"(r[7]));
+        : [r00] "v"(r[0]), [r01] "v"(r[1]), [r02] "v"(r[2]), [r03] "v"(r[3]),
+          [r10] "v"(r[4]), [r11] "v"(r[5]), [r12] "v"(r[6]), [r13] "v"(r[7]));
 #else
     repeat_c<2>([&](auto i) {
         y[i * 2u + 0u] = r[i * 4u + 0u] + r[i * 4u + 1u] + r[i * 4u + 2u];
@@ -376,15 +273,10 @@ inline __device__ array<float, 4> output_transform_col_asm(array<float, 8> r)
     return y;
 }
 
-// Inline-asm fp16 row-stage. v_pk_add_f16 is VOP3P which does not accept a
-// DPP modifier on gfx12 - the fp16 packed adds are emitted plain and rely on
-// the compiler's dual-issue scheduling to overlap with surrounding ops. The
-// fp32 row-stage above does fuse DPP into the arithmetic op directly.
+// fp16 row-stage with v_pk_add_f16 (VOP3P, no DPP modifier on gfx12).
 inline __device__ array<half, 8> output_transform_row_asm_h(array<float, 16> m)
 {
     array<half, 8> r;
-    // Build half2 pairs of m so we can use packed adds.
-    // m_pair[i][j] = (half(m[i*4 + 2*j]), half(m[i*4 + 2*j + 1])).
     array<vec<half, 2>, 8> mp;
     repeat_c<4>([&](auto i) {
         repeat_c<2>([&](auto j) {
@@ -396,8 +288,6 @@ inline __device__ array<half, 8> output_transform_row_asm_h(array<float, 16> m)
     });
     array<vec<half, 2>, 4> rp;
 #if defined(__AMDGCN__)
-    // gfx10+ doesn't have v_pk_sub_f16; use v_pk_add_f16 with neg_lo/neg_hi
-    // modifiers on the second operand to express the sign flips for r[1].
     asm("v_pk_add_f16 %[r00], %[m00], %[m10]\n"
         "v_pk_add_f16 %[r10], %[m10], %[m20] neg_lo:[0,1] neg_hi:[0,1]\n"
         "v_pk_add_f16 %[r01], %[m01], %[m11]\n"
@@ -407,14 +297,10 @@ inline __device__ array<half, 8> output_transform_row_asm_h(array<float, 16> m)
         "v_pk_add_f16 %[r01], %[r01], %[m21]\n"
         "v_pk_add_f16 %[r11], %[r11], %[m31] neg_lo:[0,1] neg_hi:[0,1]\n"
         : [r00] "=&v"(rp[0]), [r01] "=&v"(rp[1]), [r10] "=&v"(rp[2]), [r11] "=&v"(rp[3])
-        : [m00] "v"(mp[0]),
-          [m01] "v"(mp[1]),
-          [m10] "v"(mp[2]),
-          [m11] "v"(mp[3]),
-          [m20] "v"(mp[4]),
-          [m21] "v"(mp[5]),
-          [m30] "v"(mp[6]),
-          [m31] "v"(mp[7]));
+        : [m00] "v"(mp[0]), [m01] "v"(mp[1]),
+          [m10] "v"(mp[2]), [m11] "v"(mp[3]),
+          [m20] "v"(mp[4]), [m21] "v"(mp[5]),
+          [m30] "v"(mp[6]), [m31] "v"(mp[7]));
 #else
     repeat_c<2>([&](auto j) {
         rp[0u * 2u + j] = mp[0u * 2u + j] + mp[1u * 2u + j] + mp[2u * 2u + j];
@@ -430,42 +316,27 @@ inline __device__ array<half, 8> output_transform_row_asm_h(array<float, 16> m)
     return r;
 }
 
-// fp16 col-stage: 4 v_pk_add_f16 / v_pk_sub_f16 + final pack into y[4].
-inline __device__ array<half, 4> output_transform_col_asm_h(array<half, 8> r)
+// fp16 col-stage. Generic; produces 2x2 output tile.
+inline __device__ array<half, 4> output_transform_col_h(array<half, 8> r)
 {
     array<half, 4> y;
-    // Pack r into half2 lane-pairs over the j axis: rp[i] = (r[i*4+0], r[i*4+1]),
-    // rp[i+2] = (r[i*4+2], r[i*4+3]).  Two i values, two j-pair pairs => 4 vectors.
-    vec<half, 2> rp00, rp01, rp10, rp11;
-    rp00[0] = r[0];
-    rp00[1] = r[1];
-    rp01[0] = r[2];
-    rp01[1] = r[3];
-    rp10[0] = r[4];
-    rp10[1] = r[5];
-    rp11[0] = r[6];
-    rp11[1] = r[7];
-    // Compute (y[i][0]=r[i][0]+r[i][1]+r[i][2], y[i][1]=r[i][1]-r[i][2]-r[i][3]).
-    // We arrange the data so that one v_pk_add gives us (r[i][0]+r[i][1], r[i][1])
-    // and we follow up with broadcasts of r[i][2] / r[i][3] to add or subtract.
     repeat_c<2>([&](auto i) {
         const auto base = i * 4u;
-        y[i * 2u + 0u] =
-            static_cast<half>(static_cast<float>(r[base + 0u]) + static_cast<float>(r[base + 1u]) +
-                              static_cast<float>(r[base + 2u]));
-        y[i * 2u + 1u] =
-            static_cast<half>(static_cast<float>(r[base + 1u]) - static_cast<float>(r[base + 2u]) -
-                              static_cast<float>(r[base + 3u]));
+        y[i * 2u + 0u]  = static_cast<half>(static_cast<float>(r[base + 0u]) +
+                                           static_cast<float>(r[base + 1u]) +
+                                           static_cast<float>(r[base + 2u]));
+        y[i * 2u + 1u]  = static_cast<half>(static_cast<float>(r[base + 1u]) -
+                                           static_cast<float>(r[base + 2u]) -
+                                           static_cast<float>(r[base + 3u]));
     });
-    (void)rp00;
-    (void)rp01;
-    (void)rp10;
-    (void)rp11;
     return y;
 }
 
-// Read 4x4 tile from a CHW slice of x with H/W bounds checking. Returns the
-// raw 4x4 tile padded with zeros.
+// ----------------------------------------------------------------------------
+//   Loaders
+// ----------------------------------------------------------------------------
+
+// Read 4x4 input tile, padded with zeros for OOB positions.
 template <class T, class X>
 __device__ __attribute__((const)) array<T, 16>
 load_tile(X x, index_int n, index_int c, diff_int r0, diff_int c0)
@@ -481,17 +352,14 @@ load_tile(X x, index_int n, index_int c, diff_int r0, diff_int c0)
             const diff_int ww = c0 + diff_int{jj};
             const bool w_ok   = (ww >= 0 and ww < diff_int{W_in});
             if(h_ok and w_ok)
-            {
-                d[ii * 4u + jj] = x[make_array<index_int>(n, c, index_int(hh), index_int(ww))];
-            }
+                d[ii * 4u + jj] =
+                    x[make_array<index_int>(n, c, index_int(hh), index_int(ww))];
         });
     });
     return d;
 }
 
-// Read 3x3 filter from a packed K×C×3×3 tensor. When the trailing strides are
-// (3, 1) we can copy the 9 contiguous halves with a single memcpy so the
-// compiler can issue a wider global load.
+// Read 3x3 filter (KCRS layout). Packed strides → single memcpy.
 template <class T, class W>
 __device__ __attribute__((const)) array<T, 9> load_filter(W w, index_int k, index_int c)
 {
@@ -515,50 +383,96 @@ __device__ __attribute__((const)) array<T, 9> load_filter(W w, index_int k, inde
 
 } // namespace winograd
 
-// Winograd F(2x2, 3x3) stride 1, padding 1, group 1.
+// ============================================================================
+//   Wave-distributed Winograd F(2x2, 3x3) kernel  (MIOpen-aligned)
+// ============================================================================
 //
-// Templated on element type T (fp16 or fp32) and accumulator type Acc.
+// MIOpen's gfx12 fp16_dot2 Winograd kernel distributes the 16 Winograd
+// elements (e = 0..15) across 16 LANES within a wave: lanes 0..15 hold
+// elements 0..15 for ONE (k_thr, t_thr) sub-block.  The output transform is
+// then a within-wave reduction using v_pk_fma_f16 + DPP shuffles - no LDS
+// round-trip.
 //
-// Inputs are tensor_views: x [N, C, H, W], w [K, C, 3, 3], y [N, K, H, W].
+// Layout we mirror:
 //
-// Workgroup partition: each block owns one (k_block, tile_block) and runs
-// (K_PER_BLOCK / OP_M) * (TILES_PER_BLOCK / OP_N) threads. Each thread holds
-// OP_M * OP_N * 16 accumulators - the per-thread Winograd outer product.
+//   workgroup_size = NWAVES * 64  (must be a multiple of 64)
+//   element-group  = 16 lanes within a wave (4 per wave)
+//   one element-group owns ONE (k_thr, t_thr) sub-block of size KT × TT_
 //
-// LDS layout: u_lds[e][k] and v_lds[e][t]. With this ordering the OP_M
-// neighbors of a thread sit at adjacent half/float slots, so a contiguous
-// vec<T, OP_M> load lowers to ds_load_b{32,64,128} and similarly for OP_N.
-template <index_int K_PER_BLOCK,
-          index_int TILES_PER_BLOCK,
-          index_int OP_M,
-          index_int OP_N,
-          index_int LDS_RING,
+//   Lane decomposition (within the wavefront of 64 lanes):
+//     wave_id   = local / 64
+//     lane      = local % 64
+//     group_id_in_wave = lane / 16          - 0..3 (4 groups per wave)
+//     in_group  = lane % 16                 - 0..15 = Winograd element index e
+//
+//   Each lane:
+//     - holds element index e = in_group
+//     - covers KT × TT_ (k, tile) outputs for the element-group's sub-block
+//
+//   Workgroup-level (wave_id, group_id_in_wave) → (k_thr, t_thr):
+//     pos = wave_id * 4 + group_id_in_wave  (0..NGROUPS-1)
+//     k_thr = pos / TT_DIV
+//     t_thr = pos % TT_DIV
+//   where NGROUPS = NWAVES * 4 = KT_DIV * TT_DIV.
+//
+//   Block tile:
+//     K_BLOCK = KT_DIV * KT
+//     T_BLOCK = TT_DIV * TT_
+//
+// LDS layout (per ring slot, fp16 / fp32):
+//   u_lds[16][K_BLOCK][2]  - transformed filter U  (e × K × ch_pair)
+//   v_lds[16][T_BLOCK][2]  - transformed input  V  (e × tile × ch_pair)
+//
+// GEMM:
+//   Each lane reads U and V for ITS element only (e = in_group).  All 16
+//   lanes in a group cover the 16 elements for the same (k_thr, t_thr).
+//   Per channel pair, accumulates KT * TT_ values via v_dot2_f32_f16.
+//
+// Output transform (in-wave, no LDS exchange):
+//   16 lanes hold m[0..15] for (kk, tt).  Combine via DPP:
+//     - lane = j * 4 + i  →  4 lanes per quad cover rows i=0..3 of column j
+//     - Within-quad DPP (quad_perm) does row-stage A^T M
+//     - Cross-quad DPP (row_shr) does col-stage R A
+//   Output 2x2 tile is held by lanes (j=0..1, i=0..1) per quad pair.
+//
+// Tuning (matches MIOpen's canonical config):
+//   KT_DIV=4, TT_DIV=4, KT=8, TT_=8  → 256-thread block, K_BLOCK=T_BLOCK=32,
+//                                     64 fp32 acc/thread.
+template <index_int KT_DIV,
+          index_int TT_DIV,
+          index_int KT,
+          index_int TT_,
+          index_int RING,
           class Acc,
           class X,
           class W,
           class Y>
-__device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
+__device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
 {
     using winograd::dot2_acc;
     using winograd::filter_transform;
     using winograd::input_transform;
     using winograd::load_filter;
     using winograd::load_tile;
-    using winograd::output_transform;
-    using winograd::output_transform_col;
-    using winograd::output_transform_col_asm;
-    using winograd::output_transform_row;
-    using winograd::output_transform_row_asm;
-    using winograd::sched_barrier_full;
     using winograd::set_prio;
 
     using out_type = typename Y::type;
 
-    static_assert(K_PER_BLOCK % OP_M == 0, "K_PER_BLOCK must be divisible by OP_M");
-    static_assert(TILES_PER_BLOCK % OP_N == 0, "TILES_PER_BLOCK must be divisible by OP_N");
+    constexpr index_int N_ELEM    = 16u;
+    constexpr index_int NGROUPS   = KT_DIV * TT_DIV;
+    constexpr index_int BLOCK     = N_ELEM * NGROUPS;
+    constexpr index_int K_BLOCK   = KT_DIV * KT;
+    constexpr index_int T_BLOCK   = TT_DIV * TT_;
+    constexpr index_int WAVE      = 64u;
+    constexpr index_int GROUPS_PER_WAVE = WAVE / N_ELEM; // = 4
+    constexpr index_int NWAVES    = BLOCK / WAVE;
+    static_assert(BLOCK % WAVE == 0,
+                  "BLOCK must be a multiple of wave size (64)");
+    static_assert(NGROUPS == NWAVES * GROUPS_PER_WAVE,
+                  "NGROUPS must = NWAVES * 4 for in-wave DPP output transform");
+    (void)NWAVES;
 
-    constexpr auto T_T = _c<TILES_PER_BLOCK / OP_N>;
-
+    // ---- Problem dims
     auto idx               = make_index();
     constexpr auto y_shape = typename Y::shape_type{};
     constexpr auto x_shape = typename X::shape_type{};
@@ -568,51 +482,60 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
     constexpr auto W_out   = _c<index_int{y_shape.lens[3]}>;
     constexpr auto C_      = _c<index_int{x_shape.lens[1]}>;
 
-    constexpr auto t_h    = (H_out + 1u) / 2u;
-    constexpr auto t_w    = (W_out + 1u) / 2u;
-    constexpr auto t_pi   = t_h * t_w;
-    constexpr auto total_ = N_ * t_pi;
-    constexpr auto tblk   = (total_ + TILES_PER_BLOCK - 1u) / TILES_PER_BLOCK;
+    constexpr auto t_h     = (H_out + 1u) / 2u;
+    constexpr auto t_w     = (W_out + 1u) / 2u;
+    constexpr auto t_pi    = t_h * t_w;
+    constexpr auto total_  = N_ * t_pi;
+    constexpr auto tblocks = (total_ + T_BLOCK - 1u) / T_BLOCK;
 
-    const index_int group      = idx.group;
-    const index_int local      = idx.local;
-    const index_int k_block    = group / tblk;
-    const index_int tile_block = group % tblk;
-    const index_int k_in_grid  = local / T_T;
-    const index_int t_in_grid  = local % T_T;
+    // ---- This block's coordinates
+    const index_int group   = idx.group;
+    const index_int local   = idx.local;
+    const index_int k_block = group / tblocks;
+    const index_int t_block = group % tblocks;
 
-    // LDS shapes [buf, e, k, ch] and [buf, e, t, ch]. NBUF is the ring depth:
-    // - NBUF=1: single-buffer (sync between stage and gemm each iter)
-    // - NBUF=2: classic double-buffer (stage p+1 while computing p)
-    // - NBUF=N: deeper ring lets the hardware overlap multiple in-flight
-    //   stages (matches MIOpen's offset:12288 / offset:36864 pattern)
+    // Lane decomposition: 16 LANES within a wave hold the 16 Winograd
+    // elements for ONE (k_thr, t_thr) sub-block.  4 such groups per wave.
+    const index_int wave_id          = local / WAVE;
+    const index_int lane             = local % WAVE;
+    const index_int group_in_wave    = lane / N_ELEM;       // 0..3
+    const index_int my_e             = lane % N_ELEM;       // 0..15 = element index
+    const index_int pos              = wave_id * GROUPS_PER_WAVE + group_in_wave;
+    const index_int my_k_div         = pos / TT_DIV;
+    const index_int my_t_div         = pos % TT_DIV;
+
+    // ---- LDS ring buffer for U/V staging.
     //
-    // CH = 2 channels packed per LDS slot (one channel pair). The GEMM uses
-    // v_dot2_f32_f16 / two v_fma_f32 per pair so this is the natural unit.
-    constexpr index_int CH   = 2u;
-    constexpr index_int NBUF = LDS_RING;
-    constexpr auto u_shape   = make_shape(index_ints<NBUF, 16u, K_PER_BLOCK, CH>{});
-    constexpr auto v_shape   = make_shape(index_ints<NBUF, 16u, TILES_PER_BLOCK, CH>{});
-    constexpr index_int U_N  = NBUF * 16u * K_PER_BLOCK * CH;
-    constexpr index_int V_N  = NBUF * 16u * TILES_PER_BLOCK * CH;
+    // Layout has CH as OUTER dimension so that within one channel slab the
+    // K (or tile) dimension is contiguous in memory.  Loading KT consecutive
+    // K values for one element + one channel becomes a single ds_load_b128
+    // (16 bytes for KT=8 fp16, or KT=4 fp32) instead of fragmented narrow
+    // loads.  We then issue CH such loads (one per channel of the pair).
+    //
+    //   u_lds[ring][ch][16 elements][K_BLOCK]
+    //   v_lds[ring][ch][16 elements][T_BLOCK]
+    constexpr index_int CH = 2u;
+    constexpr auto u_shape = make_shape(index_ints<RING, CH, N_ELEM, K_BLOCK>{});
+    constexpr auto v_shape = make_shape(index_ints<RING, CH, N_ELEM, T_BLOCK>{});
+    constexpr index_int U_N = RING * CH * N_ELEM * K_BLOCK;
+    constexpr index_int V_N = RING * CH * N_ELEM * T_BLOCK;
 
     __shared__ uninitialized_buffer<out_type, U_N> u_smem;
     __shared__ uninitialized_buffer<out_type, V_N> v_smem;
     auto u_lds = make_tensor_view(u_smem.data(), u_shape);
     auto v_lds = make_tensor_view(v_smem.data(), v_shape);
 
-    // Per-thread accumulator bank: one Acc per (m, n, e).
-    array<Acc, OP_M * OP_N * 16u> acc{};
+    // ---- Per-thread acc bank (one Winograd element, KT × TT_ k/tile positions)
+    array<Acc, KT * TT_> acc{};
 
     constexpr diff_int pad = 1;
 
-    // Stage one channel pair into the given LDS slot.
-    auto stage_pair = [&](index_int p, index_int slot) {
+    auto stage = [&](index_int p, index_int slot) {
         const index_int c_a = p * 2u;
         const index_int c_b = c_a + 1u;
 
-        idx.local_stride(_c<K_PER_BLOCK>, [&](auto kk) {
-            const index_int my_k = k_block * K_PER_BLOCK + kk;
+        idx.local_stride(_c<K_BLOCK>, [&](auto kk) {
+            const index_int my_k = k_block * K_BLOCK + kk;
             array<out_type, 9> g_a{};
             array<out_type, 9> g_b{};
             if(my_k < K_)
@@ -625,13 +548,13 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
             const auto u_a = filter_transform(g_a);
             const auto u_b = filter_transform(g_b);
             repeat_c<16>([&](auto e) {
-                u_lds[make_array<index_int>(slot, e, kk, 0u)] = u_a[e];
-                u_lds[make_array<index_int>(slot, e, kk, 1u)] = u_b[e];
+                u_lds[make_array<index_int>(slot, 0u, e, kk)] = u_a[e];
+                u_lds[make_array<index_int>(slot, 1u, e, kk)] = u_b[e];
             });
         });
 
-        idx.local_stride(_c<TILES_PER_BLOCK>, [&](auto tt) {
-            const index_int tile_g = tile_block * TILES_PER_BLOCK + tt;
+        idx.local_stride(_c<T_BLOCK>, [&](auto tt) {
+            const index_int tile_g = t_block * T_BLOCK + tt;
             array<out_type, 16> d_a{};
             array<out_type, 16> d_b{};
             if(tile_g < total_)
@@ -650,210 +573,309 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
             const auto v_a = input_transform(d_a);
             const auto v_b = input_transform(d_b);
             repeat_c<16>([&](auto e) {
-                v_lds[make_array<index_int>(slot, e, tt, 0u)] = v_a[e];
-                v_lds[make_array<index_int>(slot, e, tt, 1u)] = v_b[e];
+                v_lds[make_array<index_int>(slot, 0u, e, tt)] = v_a[e];
+                v_lds[make_array<index_int>(slot, 1u, e, tt)] = v_b[e];
             });
         });
     };
 
-    // GEMM consume from the given LDS slot.
-    auto gemm_pair = [&](index_int slot) {
-        // Up-front bulk LDS load: gives the compiler the freedom to schedule
-        // ds_load_b{32,64,128} contiguously and overlap with the FMA pipeline.
-        array<array<out_type, OP_M * 2u>, 16> u_all;
-        array<array<out_type, OP_N * 2u>, 16> v_all;
-        repeat_c<16>([&](auto e) {
-            __builtin_memcpy(u_all[e].data(),
-                             &u_lds[make_array<index_int>(slot, e, k_in_grid * OP_M, 0u)],
-                             sizeof(u_all[e]));
-            __builtin_memcpy(v_all[e].data(),
-                             &v_lds[make_array<index_int>(slot, e, t_in_grid * OP_N, 0u)],
-                             sizeof(v_all[e]));
-        });
-        repeat_c<16>([&](auto e) {
-            repeat_c<OP_M>([&](auto m) {
-                repeat_c<OP_N>([&](auto nn) {
-                    const auto ai = (m * OP_N + nn) * 16u + e;
-                    if constexpr(sizeof(out_type) == 2u)
-                    {
-                        vec<half, 2> up;
-                        vec<half, 2> vp;
-                        up[0]   = u_all[e][m * 2u + 0u];
-                        up[1]   = u_all[e][m * 2u + 1u];
-                        vp[0]   = v_all[e][nn * 2u + 0u];
-                        vp[1]   = v_all[e][nn * 2u + 1u];
-                        acc[ai] = winograd::gemm_step_h(acc[ai], up, vp);
-                    }
-                    else
-                    {
-                        acc[ai] = winograd::gemm_step_f(acc[ai],
-                                                        u_all[e][m * 2u + 0u],
-                                                        v_all[e][nn * 2u + 0u],
-                                                        u_all[e][m * 2u + 1u],
-                                                        v_all[e][nn * 2u + 1u]);
-                    }
-                });
+    // GEMM consume one channel pair from LDS slot.
+    // With CH-outer LDS layout, KT contiguous K values for one (e, ch) are a
+    // single ds_load_b128 (16 bytes for KT=4 fp32 or KT=8 fp16).  We force
+    // the compiler to emit b128 by reading via vec<out_type, N> chunks.
+    constexpr index_int B128_HALVES = 16u / sizeof(out_type);  // 8 fp16, 4 fp32
+    static_assert(KT % B128_HALVES == 0 or KT < B128_HALVES,
+                  "KT should be a multiple of b128 chunk for full vectorization");
+    static_assert(TT_ % B128_HALVES == 0 or TT_ < B128_HALVES,
+                  "TT should be a multiple of b128 chunk");
+
+    auto gemm = [&](index_int slot) {
+        alignas(16) array<out_type, KT> u_a;
+        alignas(16) array<out_type, KT> u_b;
+        alignas(16) array<out_type, TT_> v_a;
+        alignas(16) array<out_type, TT_> v_b;
+
+        // Vector-load via vec<out_type, B128_HALVES> chunks. This forces the
+        // compiler's LDS load lowering to emit ds_load_b128.
+        if constexpr(KT >= B128_HALVES)
+        {
+            constexpr index_int N_CHUNKS = KT / B128_HALVES;
+            using uvec = vec<out_type, B128_HALVES>;
+            const uvec* u_a_v =
+                reinterpret_cast<const uvec*>(
+                    &u_lds[make_array<index_int>(slot, 0u, my_e, my_k_div * KT)]);
+            const uvec* u_b_v =
+                reinterpret_cast<const uvec*>(
+                    &u_lds[make_array<index_int>(slot, 1u, my_e, my_k_div * KT)]);
+            uvec* u_a_dst = reinterpret_cast<uvec*>(u_a.data());
+            uvec* u_b_dst = reinterpret_cast<uvec*>(u_b.data());
+            repeat_c<N_CHUNKS>([&](auto i) {
+                u_a_dst[i] = u_a_v[i];
+                u_b_dst[i] = u_b_v[i];
             });
-        });
-    };
-
-    constexpr index_int n_blocks = (C_ + 1u) / 2u;
-    if constexpr(NBUF == 1u)
-    {
-        // Single-buffer: stage, sync, compute, sync.
-        for(index_int p = 0; p < n_blocks; ++p)
-        {
-            stage_pair(p, 0u);
-            __syncthreads();
-            set_prio<1>();
-            gemm_pair(0u);
-            set_prio<0>();
-            __syncthreads();
         }
-    }
-    else
-    {
-        // Software-pipelined channel loop with multi-buffered LDS:
-        //   prologue: stage(0) into slot 0
-        //   loop p in [0, n-1):
-        //     stage(p+1) into slot (p+1)%NBUF
-        //     gemm(p)    from slot (p)%NBUF
-        //     sync (one barrier per iter instead of two)
-        //   epilogue: gemm(n-1) from slot (n-1)%NBUF
-        if constexpr(n_blocks > 0u)
+        else
         {
-            stage_pair(0u, 0u);
-            __syncthreads();
-            set_prio<1>();
-            for(index_int p = 0; p + 1u < n_blocks; ++p)
-            {
-                const index_int cur  = p % NBUF;
-                const index_int next = (p + 1u) % NBUF;
-                stage_pair(p + 1u, next);
-                gemm_pair(cur);
-                __syncthreads();
-            }
-            gemm_pair((n_blocks - 1u) % NBUF);
-            set_prio<0>();
+            __builtin_memcpy(
+                u_a.data(),
+                &u_lds[make_array<index_int>(slot, 0u, my_e, my_k_div * KT)],
+                KT * sizeof(out_type));
+            __builtin_memcpy(
+                u_b.data(),
+                &u_lds[make_array<index_int>(slot, 1u, my_e, my_k_div * KT)],
+                KT * sizeof(out_type));
         }
-    }
+        if constexpr(TT_ >= B128_HALVES)
+        {
+            constexpr index_int N_CHUNKS = TT_ / B128_HALVES;
+            using vvec = vec<out_type, B128_HALVES>;
+            const vvec* v_a_v =
+                reinterpret_cast<const vvec*>(
+                    &v_lds[make_array<index_int>(slot, 0u, my_e, my_t_div * TT_)]);
+            const vvec* v_b_v =
+                reinterpret_cast<const vvec*>(
+                    &v_lds[make_array<index_int>(slot, 1u, my_e, my_t_div * TT_)]);
+            vvec* v_a_dst = reinterpret_cast<vvec*>(v_a.data());
+            vvec* v_b_dst = reinterpret_cast<vvec*>(v_b.data());
+            repeat_c<N_CHUNKS>([&](auto i) {
+                v_a_dst[i] = v_a_v[i];
+                v_b_dst[i] = v_b_v[i];
+            });
+        }
+        else
+        {
+            __builtin_memcpy(
+                v_a.data(),
+                &v_lds[make_array<index_int>(slot, 0u, my_e, my_t_div * TT_)],
+                TT_ * sizeof(out_type));
+            __builtin_memcpy(
+                v_b.data(),
+                &v_lds[make_array<index_int>(slot, 1u, my_e, my_t_div * TT_)],
+                TT_ * sizeof(out_type));
+        }
 
-    // ----- Output transform + store.
-    // --- Interleaved output transform + store.
-    //
-    // Split the transform into two stages (A^T row-pass, then A col-pass) and
-    // pipeline them across the OP_M*OP_N tiles owned by this thread:
-    //
-    //   prologue: row-transform tile 0 -> r[0]
-    //   loop i in [1 .. T):
-    //     row-transform tile i            -> r[i]      (ALU)
-    //     col-transform tile i-1          -> y[i-1]    (ALU, depends on r[i-1])
-    //     store y[i-1]                                 (memory; overlaps next ALU)
-    //   epilogue: col-transform tile T-1 -> y[T-1]; store.
-    //
-    // This spreads the 24-op transform over the memory-store pipeline so the
-    // ALU is never idle while a store is outstanding.
-    constexpr index_int T_TILES = OP_M * OP_N;
-
-    auto gather_m = [&](auto tile) {
-        array<Acc, 16> m16;
-        repeat_c<16>([&](auto e) { m16[e] = acc[tile * 16u + e]; });
-        return m16;
-    };
-    auto tile_k = [&](auto tile) -> index_int {
-        const auto mm = tile / OP_N;
-        return k_block * K_PER_BLOCK + k_in_grid * OP_M + mm;
-    };
-    auto tile_t = [&](auto tile) -> index_int {
-        const auto nn = tile % OP_N;
-        return tile_block * TILES_PER_BLOCK + t_in_grid * OP_N + nn;
-    };
-    auto store_y = [&](auto tile, array<out_type, 4> yt) {
-        const index_int my_k    = tile_k(tile);
-        const index_int my_tile = tile_t(tile);
-        if(my_k >= K_ or my_tile >= total_)
-            return;
-        const index_int n_     = my_tile / t_pi;
-        const index_int t_img  = my_tile % t_pi;
-        const index_int th     = t_img / t_w;
-        const index_int tw     = t_img % t_w;
-        const index_int base_h = th * 2u;
-        const index_int base_w = tw * 2u;
-        repeat_c<2>([&](auto ii) {
-            repeat_c<2>([&](auto jj) {
-                const index_int h_out = base_h + ii;
-                const index_int w_out = base_w + jj;
-                if(h_out < H_out and w_out < W_out)
+        repeat_c<KT>([&](auto m) {
+            repeat_c<TT_>([&](auto nn) {
+                const auto ai = m * TT_ + nn;
+                if constexpr(sizeof(out_type) == 2u)
                 {
-                    y[make_array<index_int>(n_, my_k, h_out, w_out)] = yt[ii * 2u + jj];
+                    vec<half, 2> up;
+                    vec<half, 2> vp;
+                    up[0]   = u_a[m];
+                    up[1]   = u_b[m];
+                    vp[0]   = v_a[nn];
+                    vp[1]   = v_b[nn];
+                    acc[ai] = dot2_acc(up, vp, acc[ai]);
+                }
+                else
+                {
+                    acc[ai] = __builtin_fmaf(u_a[m], v_a[nn], acc[ai]);
+                    acc[ai] = __builtin_fmaf(u_b[m], v_b[nn], acc[ai]);
                 }
             });
         });
     };
 
-    // Pipelined row -> col -> store across the OP_M * OP_N tiles owned by
-    // this thread. The row and col stages dispatch to inline-asm helpers that
-    // pack v_pk_add_f16 (fp16) or v_add_f32/v_sub_f32 (fp32) together, and
-    // the store of tile i overlaps the row+col compute of tile i+1.
-    auto row_xform = [&](array<Acc, 16> m16) {
-        if constexpr(is_same<Acc, float>{} and is_same<out_type, float>{})
-            return output_transform_row_asm(m16);
-        else if constexpr(is_same<Acc, float>{} and is_same<out_type, half>{})
-            return winograd::output_transform_row_asm_h(m16);
-        else
-            return output_transform_row<out_type>(m16);
-    };
-    auto col_xform = [&](auto r) {
-        if constexpr(is_same<out_type, float>{})
-            return output_transform_col_asm(r);
-        else if constexpr(is_same<out_type, half>{})
-            return winograd::output_transform_col_asm_h(r);
-        else
-            return output_transform_col(r);
-    };
-
-    if constexpr(T_TILES == 1)
+    // Software-pipelined channel loop.
+    constexpr index_int n_pairs = (C_ + 1u) / 2u;
+    if constexpr(RING == 1u)
     {
-        const auto m16 = gather_m(_c<0>);
-        const auto r   = row_xform(m16);
-        const auto yt  = col_xform(r);
-        store_y(_c<0>, yt);
+        for(index_int p = 0; p < n_pairs; ++p)
+        {
+            stage(p, 0u);
+            __syncthreads();
+            set_prio<1>();
+            gemm(0u);
+            set_prio<0>();
+            __syncthreads();
+        }
     }
     else
     {
-        auto r_prev = row_xform(gather_m(_c<0>));
-        repeat_c<T_TILES - 1u>([&](auto i_ic) {
-            constexpr auto next = i_ic + _c<1>;
-            const auto r_next   = row_xform(gather_m(next));
-            const auto yt_prev  = col_xform(r_prev);
-            store_y(i_ic, yt_prev);
-            r_prev = r_next;
-        });
-        const auto yt_last = col_xform(r_prev);
-        store_y(_c<T_TILES - 1u>, yt_last);
+        if constexpr(n_pairs > 0u)
+        {
+            stage(0u, 0u);
+            __syncthreads();
+            set_prio<1>();
+            for(index_int p = 0; p + 1u < n_pairs; ++p)
+            {
+                const index_int cur  = p % RING;
+                const index_int next = (p + 1u) % RING;
+                stage(p + 1u, next);
+                gemm(cur);
+                __syncthreads();
+            }
+            gemm((n_pairs - 1u) % RING);
+            set_prio<0>();
+        }
     }
+
+    // ---- In-wave DPP-based output transform (MIOpen-style, no LDS exchange).
+    //
+    // Accumulator layout after GEMM:
+    //   Each lane holds KT × TT_ acc[kk, tt] values for ITS element index
+    //   my_e = lane % 16.  Filter_transform produces u_a[e] = U[e/4][e%4],
+    //   so lane-to-element mapping is:
+    //       i = my_e / 4   (Winograd row)
+    //       j = my_e % 4   (Winograd column)
+    //   Within each element-group of 16 lanes:
+    //       lanes  0.. 3 = m[0][0..3]  (row i=0, cols j=0..3)
+    //       lanes  4.. 7 = m[1][0..3]
+    //       lanes  8..11 = m[2][0..3]
+    //       lanes 12..15 = m[3][0..3]
+    //
+    // Row stage (sum/diff across i for fixed j) → CROSS-QUAD DPP (row_shl).
+    //   r0 = own + row_shl:4(own) + row_shl:8(own)
+    //       - lane 0: m[0][0] + m[1][0] + m[2][0] = R[0][0]  ✓
+    //       - lane 1: m[0][1] + m[1][1] + m[2][1] = R[0][1]  ✓
+    //       - lanes 0..3 hold R[0][j=0..3]  (other lanes garbage/unused)
+    //   r1 = row_shl:4(own) - row_shl:8(own) - row_shl:12(own)
+    //       - lane 0: m[1][0] - m[2][0] - m[3][0] = R[1][0]  ✓
+    //       - lanes 0..3 hold R[1][j=0..3]
+    //
+    // Col stage (sum/diff across j for fixed i) → WITHIN-QUAD DPP (quad_perm).
+    //   Applied to r0 (gives Y[0][*]) and to r1 (gives Y[1][*]).
+    //   y0 = r + quad_perm[1,1,1,1](r) + quad_perm[2,2,2,2](r)
+    //       - lane 0: R[i][0] + R[i][1] + R[i][2] = Y[i][0]  ✓
+    //   y1 = quad_perm[1,1,1,1](r) - quad_perm[2,2,2,2](r) - quad_perm[3,3,3,3](r)
+    //       - lane 0: R[i][1] - R[i][2] - R[i][3] = Y[i][1]  ✓
+    //
+    // Writer: lane 0 of each element-group (my_e == 0) writes the full 2×2
+    // output tile {Y[0][0], Y[0][1], Y[1][0], Y[1][1]}.
+    using winograd::dpp_perm_1111;
+    using winograd::dpp_perm_2222;
+    using winograd::dpp_perm_3333;
+    using winograd::dpp_row_shl_12;
+    using winograd::dpp_row_shl_4;
+    using winograd::dpp_row_shl_8;
+
+    const bool is_writer = (my_e == 0u);
+
+    const index_int k_base_k    = k_block * K_BLOCK + my_k_div * KT;
+    const index_int t_base_tile = t_block * T_BLOCK + my_t_div * TT_;
+
+    repeat_c<KT>([&](auto m_kk) {
+        repeat_c<TT_>([&](auto m_tt) {
+            const index_int ai = m_kk * TT_ + m_tt;
+            Acc m_val          = acc[ai];
+
+            // --- Row stage via row_shl (cross-quad within row-of-16).
+            Acc m_k1 = dpp_row_shl_4(m_val);
+            Acc m_k2 = dpp_row_shl_8(m_val);
+            Acc m_k3 = dpp_row_shl_12(m_val);
+
+            Acc r0 = m_val + m_k1 + m_k2;   // lanes 0..3: R[0][j=lane]
+            Acc r1 = m_k1 - m_k2 - m_k3;    // lanes 0..3: R[1][j=lane]
+
+            // --- Col stage via quad_perm (within 4-lane quad).
+            // For Y[0][*] apply to r0; for Y[1][*] apply to r1.
+            Acc r0_q1 = dpp_perm_1111(r0);
+            Acc r0_q2 = dpp_perm_2222(r0);
+            Acc r0_q3 = dpp_perm_3333(r0);
+            Acc r1_q1 = dpp_perm_1111(r1);
+            Acc r1_q2 = dpp_perm_2222(r1);
+            Acc r1_q3 = dpp_perm_3333(r1);
+
+            Acc y00 = r0 + r0_q1 + r0_q2;   // lane 0: Y[0][0]
+            Acc y01 = r0_q1 - r0_q2 - r0_q3; // lane 0: Y[0][1]
+            Acc y10 = r1 + r1_q1 + r1_q2;   // lane 0: Y[1][0]
+            Acc y11 = r1_q1 - r1_q2 - r1_q3; // lane 0: Y[1][1]
+
+            if(not is_writer)
+                return;
+            const index_int my_k    = k_base_k + m_kk;
+            const index_int my_tile = t_base_tile + m_tt;
+            if(my_k >= K_ or my_tile >= total_)
+                return;
+            const index_int n_     = my_tile / t_pi;
+            const index_int t_img  = my_tile % t_pi;
+            const index_int th     = t_img / t_w;
+            const index_int tw     = t_img % t_w;
+            const index_int base_h = th * 2u;
+            const index_int base_w = tw * 2u;
+
+            // Write 2x2 output tile.  When the output W stride is 1 and both
+            // (base_w, base_w+1) are in-bounds, the (y00, y01) pair sits at
+            // adjacent bytes — pack into a vec<out_type, 2> store so the
+            // compiler emits global_store_b64 (instead of two b32 stores).
+            constexpr auto y_strides = typename Y::shape_type{}.strides;
+            constexpr bool w_unit    = (y_strides[3] == 1u);
+            const bool h0_ok = (base_h < H_out);
+            const bool h1_ok = (base_h + 1u < H_out);
+            const bool w0_ok = (base_w < W_out);
+            const bool w1_ok = (base_w + 1u < W_out);
+
+            if constexpr(w_unit)
+            {
+                if(h0_ok and w0_ok and w1_ok)
+                {
+                    vec<out_type, 2> p;
+                    p[0] = static_cast<out_type>(y00);
+                    p[1] = static_cast<out_type>(y01);
+                    out_type* dst =
+                        &y[make_array<index_int>(n_, my_k, base_h, base_w)];
+                    __builtin_memcpy(dst, &p, sizeof(p));
+                }
+                else
+                {
+                    if(h0_ok and w0_ok)
+                        y[make_array<index_int>(n_, my_k, base_h, base_w)] =
+                            static_cast<out_type>(y00);
+                    if(h0_ok and w1_ok)
+                        y[make_array<index_int>(n_, my_k, base_h, base_w + 1u)] =
+                            static_cast<out_type>(y01);
+                }
+                if(h1_ok and w0_ok and w1_ok)
+                {
+                    vec<out_type, 2> p;
+                    p[0] = static_cast<out_type>(y10);
+                    p[1] = static_cast<out_type>(y11);
+                    out_type* dst =
+                        &y[make_array<index_int>(n_, my_k, base_h + 1u, base_w)];
+                    __builtin_memcpy(dst, &p, sizeof(p));
+                }
+                else
+                {
+                    if(h1_ok and w0_ok)
+                        y[make_array<index_int>(n_, my_k, base_h + 1u, base_w)] =
+                            static_cast<out_type>(y10);
+                    if(h1_ok and w1_ok)
+                        y[make_array<index_int>(n_, my_k, base_h + 1u, base_w + 1u)] =
+                            static_cast<out_type>(y11);
+                }
+            }
+            else
+            {
+                if(h0_ok and w0_ok)
+                    y[make_array<index_int>(n_, my_k, base_h, base_w)] =
+                        static_cast<out_type>(y00);
+                if(h0_ok and w1_ok)
+                    y[make_array<index_int>(n_, my_k, base_h, base_w + 1u)] =
+                        static_cast<out_type>(y01);
+                if(h1_ok and w0_ok)
+                    y[make_array<index_int>(n_, my_k, base_h + 1u, base_w)] =
+                        static_cast<out_type>(y10);
+                if(h1_ok and w1_ok)
+                    y[make_array<index_int>(n_, my_k, base_h + 1u, base_w + 1u)] =
+                        static_cast<out_type>(y11);
+            }
+        });
+    });
 }
 
-// Wrapper that picks the right accumulator type per element type. Defaults
-// LDS_RING to 1 (single-buffered) - tunings that benefit from a ring buffer
-// can call the templated form directly.
-template <index_int K_PER_BLOCK,
-          index_int TILES_PER_BLOCK,
-          index_int OP_M,
-          index_int OP_N,
-          index_int LDS_RING,
+
+// fp accumulator dispatch wrapper for wave kernel.
+template <index_int KT_DIV,
+          index_int TT_DIV,
+          index_int KT,
+          index_int TT_,
+          index_int RING,
           class X,
           class W,
           class Y>
-__device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
+__device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
 {
-    winograd_conv_f2x3_s1_mn<K_PER_BLOCK, TILES_PER_BLOCK, OP_M, OP_N, LDS_RING, float>(x, w, y);
-}
-
-template <index_int K_PER_BLOCK, index_int TILES_PER_BLOCK, class X, class W, class Y>
-__device__ void winograd_conv_f2x3_s1(X x, W w, Y y)
-{
-    winograd_conv_f2x3_s1_mn<K_PER_BLOCK, TILES_PER_BLOCK, 1u, 1u, 1u>(x, w, y);
+    winograd_conv_f2x3_s1_kernel<KT_DIV, TT_DIV, KT, TT_, RING, float>(x, w, y);
 }
 
 } // namespace migraphx

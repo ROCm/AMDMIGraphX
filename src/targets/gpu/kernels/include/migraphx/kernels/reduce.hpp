@@ -296,7 +296,7 @@ constexpr auto make_indices(Size size)
     // lazy_inner_storage is decltype(f(0, _c<0>))
     // 0 is an int, so need to return index_int explicitly so arg reads
     // and inits agree on the index slot type
-    return make_lazy_inner_storage(size, [](auto j, auto) -> index_int { return j + 0u; });
+    return make_lazy_inner_storage(size, [](auto j, auto) -> index_int { return j; });
 }
 
 template <class R, class F>
@@ -425,7 +425,7 @@ struct reducer_base
         constexpr auto nlanes = vec_size<type>();
         if constexpr(nlanes < 2)
         {
-            return make_lazy_inner_storage(n, [](auto j, auto) -> index_int { return j + 0u; });
+            return make_lazy_inner_storage(n, [](auto j, auto) -> index_int { return j; });
         }
         else
         {

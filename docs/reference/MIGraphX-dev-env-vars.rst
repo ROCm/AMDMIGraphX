@@ -672,7 +672,6 @@ Advanced settings
   * - | ``MIGRAPHX_GPU_DUMP_BENCHMARK_MXR``
       | Sets the directory to dump benchmark MXR files for benchmarking.
 
-
     - | Takes the path to the directory where the files should be saved. The directory is created if it does not exist.
 
       | After the files are dumped, compilation aborts with a message instructing the user to run the MXR files

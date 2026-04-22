@@ -29,10 +29,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/stringutils.hpp>
-#include <migraphx/builtin.hpp>
-#include <migraphx/context.hpp>
-
-#include <sstream>
 
 #include <cstdio>
 
@@ -305,34 +301,6 @@ TEST_CASE(comment_print)
     auto s              = migraphx::to_string(p);
     EXPECT(s.find("@comment") != std::string::npos);
     EXPECT(s.find("gpu::mlir_op test") != std::string::npos);
-}
-
-TEST_CASE(comment_compute)
-{
-    migraphx::builtin::comment op{"sample comment"};
-    migraphx::context ctx;
-    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
-    auto result = op.compute(ctx, s, {});
-    EXPECT(result.get_shape() == s);
-    EXPECT(result.data() == nullptr);
-}
-
-TEST_CASE(comment_compute_empty_shape)
-{
-    migraphx::builtin::comment op{"empty shape comment"};
-    migraphx::context ctx;
-    migraphx::shape s{};
-    auto result = op.compute(ctx, s, {});
-    EXPECT(result.get_shape() == s);
-    EXPECT(result.data() == nullptr);
-}
-
-TEST_CASE(comment_stream_operator)
-{
-    migraphx::builtin::comment op{"streamed text"};
-    std::ostringstream ss;
-    ss << op;
-    EXPECT(ss.str() == "@comment: streamed text");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

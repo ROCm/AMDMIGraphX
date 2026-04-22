@@ -98,13 +98,12 @@ template <index_int N>
 constexpr auto slice_group()
 {
     return slice_size_transform{[](auto input, auto s) {
-        auto r = return_array_c([] {
+        return return_array_c([] {
             auto lens = decltype(s){}.lens.base();
             lens.back() *= N;
             lens -= 1;
             return decltype(input){}.lens.carry(lens) + index_int{1};
         });
-        return r;
     }};
 }
 

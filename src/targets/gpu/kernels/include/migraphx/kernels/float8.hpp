@@ -59,7 +59,7 @@ class numeric_limits;
 template <migraphx::fp8::f8_type T = migraphx::fp8::f8_type::fp8, bool FNUZ = true>
 struct float8
 {
-    uint8_t data;
+    uint8_t data = 0;
     // default constructor
     __device__ constexpr float8() = default;
     // default copy constructor
@@ -140,7 +140,7 @@ struct float8
            migraphx::fp8::rounding_mode rm = migraphx::fp8::rounding_mode::standard,
            uint32_t rng                    = 0)
     {
-        if(__builtin_is_constant_evaluated() or !FNUZ)
+        if(__builtin_is_constant_evaluated() or not FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {
@@ -249,7 +249,7 @@ struct float8
     // upcast using device specific intrinsic
     constexpr __device__ operator float() const
     {
-        if(__builtin_is_constant_evaluated() or !FNUZ)
+        if(__builtin_is_constant_evaluated() or not FNUZ)
         {
             if constexpr(T == migraphx::fp8::f8_type::fp8)
             {
@@ -261,7 +261,7 @@ struct float8
         else
         {
             float fval      = 0;
-            uint32_t i32val = static_cast<uint32_t>(data);
+            uint32_t i32val = data;
 
             // upcast
             if constexpr(T == migraphx::fp8::f8_type::fp8)
@@ -312,7 +312,7 @@ struct float8
         }
         else
         {
-            if(T == migraphx::fp8::f8_type::bf8)
+            if constexpr(T == migraphx::fp8::f8_type::bf8)
             {
                 return (data == 0x7D) or (data == 0x7E) or (data == 0x7F) or (data == 0xFD) or
                        (data == 0xFE) or (data == 0xFF);
@@ -333,7 +333,7 @@ struct float8
         }
         else
         {
-            if(T == migraphx::fp8::f8_type::bf8)
+            if constexpr(T == migraphx::fp8::f8_type::bf8)
             {
                 return (data == 0x7C) or (data == 0xFC);
             }
@@ -370,16 +370,12 @@ struct float8
 
     __device__ constexpr bool operator<(const float8& rhs) const
     {
-        const auto we   = static_cast<float>(*this);
-        const auto them = static_cast<float>(rhs);
-        return we < them;
+        return static_cast<float>(*this) < static_cast<float>(rhs);
     }
 
     __device__ constexpr bool operator>(const float8& rhs) const
     {
-        const auto we   = static_cast<float>(*this);
-        const auto them = static_cast<float>(rhs);
-        return we > them;
+        return static_cast<float>(*this) > static_cast<float>(rhs);
     }
 };
 

@@ -3,6 +3,39 @@
 Full documentation for MIGraphX is available at
 [https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/](https://rocmdocs.amd.com/projects/AMDMIGraphX/en/latest/).
 
+## MIGraphX 2.15 for ROCm 7.2.3
+
+### Added
+
+* Added external stream support to the MIGraphX context, allowing external HIP streams to be used during execution.
+* Added the ability to return a vector for output alias, supporting operators like `make_tuple`.
+
+### Changed
+
+* Updated license files for outstanding source files.
+* Refactored `move_output_instructions_after` into the module class.
+* Updated rocMLIR to fix `bert_squad` and `bert_tf` regressions.
+
+### Resolved issues
+
+* Fixed `int` to `bf16`/`fp16` conversion errors (#4745).
+* Fixed comparison logic in `find_concat_op` to match the correct I/O (#4661).
+* Fixed `shape_transform_descriptor::rebase` when flattening a broadcasted dimension (#4559).
+* Fixed an error with `rewrite_reshapes` (#4482).
+* Fixed a gather rewrite crash by validating strided view element count (#4656).
+* Fixed a bug in gather rewrite with NHWC shapes (#4610).
+* Fixed a crash in rocMLIR with Inception v3 on Navi3x (#4672).
+* Filter zero-argument operators during ONNX parsing to prevent errors (#4567).
+* Fixed conflict for missing `no_broadcast` parameter on ROCm 7.2.
+
+### Optimized
+
+* Rewrote the `gather` operator to use `transpose`/`reshape`/`broadcast`/`slice` for improved performance (#4550).
+* Horizontally fuse cross-embedding gather operators (#4599).
+* Improved tuning for Split-K (#4486).
+* Removed extra assignments and inserts in `find_nop_reshapes` to reduce overhead (#4696).
+
+
 ## MIGraphX 2.15 for ROCm 7.2.0
 
 ### Added

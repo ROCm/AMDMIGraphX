@@ -420,26 +420,17 @@ struct reducer_base
     __device__ constexpr auto make_indices_from(const Input& input,
                                                 [[maybe_unused]] OutIdx out_idx) const
     {
-        const auto n            = this->get_size(input);
-        using in_t              = remove_cv_t<Input>;
-        constexpr auto nlanes_v = [&] {
-            if constexpr(is_inner_storage<in_t>{})
-                return vec_size<remove_reference_t<decltype(declval<const in_t&>()(0, _c<0>))>>();
-            else
-            {
-                using slice_t = decltype(declval<const Derived&>().slice(declval<const Input&>()));
-                return vec_size<remove_reference_t<decltype(declval<slice_t>()[_c<0>])>>();
-            }
-        }();
-        if constexpr(nlanes_v < 2)
+        const auto n          = this->get_size(input);
+        using type            = typename Input::type;
+        constexpr auto nlanes = vec_size<type>();
+        if constexpr(nlanes < 2)
         {
             return make_lazy_inner_storage(n, [](auto j, auto) -> index_int { return j + 0u; });
         }
         else
         {
             return make_lazy_inner_storage(n, [=](auto j, auto) {
-                return generate_vec(nlanes_v,
-                                    [=](auto i) -> index_int { return j * nlanes_v + i; });
+                return generate_vec(nlanes, [=](auto i) -> index_int { return j * nlanes + i; });
             });
         }
     }

@@ -147,8 +147,10 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 
-    optional<tuning_config>
-    get_tuning_config(const context& ctx, instruction_ref ins, const operation&, bool exhaustive) const
+    optional<tuning_config> get_tuning_config(const context& ctx,
+                                              instruction_ref ins,
+                                              const operation&,
+                                              bool exhaustive) const
     {
         tuning_config tc;
         auto shapes                 = to_shapes(ins->inputs());
@@ -168,11 +170,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                 return;
             if((block % wave) != 0)
                 return;
-            tc.solutions.push_back({{"kt_div", k_div},
-                                    {"tt_div", t_div},
-                                    {"kt", k_t},
-                                    {"tt", t_t},
-                                    {"ring", rg}});
+            tc.solutions.push_back(
+                {{"kt_div", k_div}, {"tt_div", t_div}, {"kt", k_t}, {"tt", t_t}, {"ring", rg}});
         };
 
         if(exhaustive)
@@ -194,9 +193,9 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
             add(2, 2, 8, 8, 1);
             add(2, 2, 8, 8, 2);
             // 128-thread blocks with rectangular tiles.
-            add(2, 8, 8, 8, 1);  // 16x64 output
+            add(2, 8, 8, 8, 1); // 16x64 output
             add(2, 8, 8, 8, 2);
-            add(8, 2, 8, 8, 1);  // 64x16 output
+            add(8, 2, 8, 8, 1); // 64x16 output
             add(8, 2, 8, 8, 2);
             // Wider per-thread K (won by exhaustive tune).
             add(2, 8, 16, 8, 1);
@@ -204,9 +203,9 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
             add(2, 4, 16, 8, 1);
             add(4, 2, 16, 8, 1);
             // 256-thread variants with smaller per-thread tiles (lower regs).
-            add(4, 4, 4, 4, 1);  // 16x16 output, 16 acc/thread
+            add(4, 4, 4, 4, 1); // 16x16 output, 16 acc/thread
             add(4, 4, 4, 4, 2);
-            add(4, 2, 8, 8, 1);  // 128 threads
+            add(4, 2, 8, 8, 1); // 128 threads
             add(2, 4, 8, 8, 1);
             add(2, 4, 4, 4, 1);
             add(4, 2, 4, 4, 1);
@@ -215,7 +214,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
             add(2, 4, 8, 4, 1);
             // Tiny problems.
             add(2, 2, 2, 2, 1);
-            add(1, 4, 4, 4, 1);  // 64 threads
+            add(1, 4, 4, 4, 1); // 64 threads
             add(4, 1, 4, 4, 1);
             add(1, 4, 2, 2, 1);
             add(4, 1, 2, 2, 1);
@@ -224,11 +223,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         }
 
         if(tc.solutions.empty())
-            tc.solutions.push_back({{"kt_div", 2},
-                                    {"tt_div", 2},
-                                    {"kt", 2},
-                                    {"tt", 2},
-                                    {"ring", 1}});
+            tc.solutions.push_back(
+                {{"kt_div", 2}, {"tt_div", 2}, {"kt", 2}, {"tt", 2}, {"ring", 1}});
         return tc;
     }
 };

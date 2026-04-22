@@ -125,26 +125,50 @@ MIGRAPHX_WINOGRAD_QUAD_PERM(dpp_perm_3333, 3, 3, 3, 3)
 MIGRAPHX_WINOGRAD_QUAD_PERM(dpp_perm_0001, 0, 0, 0, 1)
 MIGRAPHX_WINOGRAD_QUAD_PERM(dpp_perm_0021, 0, 0, 2, 1)
 #else
-template <class T> inline __device__ T dpp_perm_2211(T x) { return dpp_quad_perm<0x55u | (2u<<4) | (2u<<6)>(x); }
-template <class T> inline __device__ T dpp_perm_1111(T x) { return dpp_quad_perm<0x55u>(x); }
-template <class T> inline __device__ T dpp_perm_2222(T x) { return dpp_quad_perm<0xAAu>(x); }
-template <class T> inline __device__ T dpp_perm_3333(T x) { return dpp_quad_perm<0xFFu>(x); }
-template <class T> inline __device__ T dpp_perm_0001(T x) { return dpp_quad_perm<0x40u>(x); }
-template <class T> inline __device__ T dpp_perm_0021(T x) { return dpp_quad_perm<0x60u>(x); }
+template <class T>
+inline __device__ T dpp_perm_2211(T x)
+{
+    return dpp_quad_perm<0x55u | (2u << 4) | (2u << 6)>(x);
+}
+template <class T>
+inline __device__ T dpp_perm_1111(T x)
+{
+    return dpp_quad_perm<0x55u>(x);
+}
+template <class T>
+inline __device__ T dpp_perm_2222(T x)
+{
+    return dpp_quad_perm<0xAAu>(x);
+}
+template <class T>
+inline __device__ T dpp_perm_3333(T x)
+{
+    return dpp_quad_perm<0xFFu>(x);
+}
+template <class T>
+inline __device__ T dpp_perm_0001(T x)
+{
+    return dpp_quad_perm<0x40u>(x);
+}
+template <class T>
+inline __device__ T dpp_perm_0021(T x)
+{
+    return dpp_quad_perm<0x60u>(x);
+}
 #endif
 
 // row_shl:N via inline asm: lane[i] reads lane[i+N] within row of 16.
 // MIOpen-exact `v_mov_b32 vDst, vSrc row_shl:N row_mask:0xf bank_mask:0xf`.
-#define MIGRAPHX_WINOGRAD_ROW_SHL(NAME, N)                                       \
-    template <class T>                                                           \
-    inline __device__ T NAME(T x)                                                \
-    {                                                                            \
-        static_assert(sizeof(T) == 4, "row_shl only handles 32-bit operands");   \
-        T y;                                                                     \
-        asm("v_mov_b32 %[y], %[x] row_shl:" #N " row_mask:0xf bank_mask:0xf"     \
-            : [y] "=v"(y)                                                        \
-            : [x] "v"(x));                                                       \
-        return y;                                                                \
+#define MIGRAPHX_WINOGRAD_ROW_SHL(NAME, N)                                     \
+    template <class T>                                                         \
+    inline __device__ T NAME(T x)                                              \
+    {                                                                          \
+        static_assert(sizeof(T) == 4, "row_shl only handles 32-bit operands"); \
+        T y;                                                                   \
+        asm("v_mov_b32 %[y], %[x] row_shl:" #N " row_mask:0xf bank_mask:0xf"   \
+            : [y] "=v"(y)                                                      \
+            : [x] "v"(x));                                                     \
+        return y;                                                              \
     }
 
 #if defined(__AMDGCN__)
@@ -152,9 +176,21 @@ MIGRAPHX_WINOGRAD_ROW_SHL(dpp_row_shl_4, 4)
 MIGRAPHX_WINOGRAD_ROW_SHL(dpp_row_shl_8, 8)
 MIGRAPHX_WINOGRAD_ROW_SHL(dpp_row_shl_12, 12)
 #else
-template <class T> inline __device__ T dpp_row_shl_4(T x) { return x; }
-template <class T> inline __device__ T dpp_row_shl_8(T x) { return x; }
-template <class T> inline __device__ T dpp_row_shl_12(T x) { return x; }
+template <class T>
+inline __device__ T dpp_row_shl_4(T x)
+{
+    return x;
+}
+template <class T>
+inline __device__ T dpp_row_shl_8(T x)
+{
+    return x;
+}
+template <class T>
+inline __device__ T dpp_row_shl_12(T x)
+{
+    return x;
+}
 #endif
 
 // ----------------------------------------------------------------------------
@@ -233,12 +269,30 @@ inline __device__ array<float, 8> output_transform_row_asm_f(array<float, 16> m)
         "v_sub_f32 %[r12], %[r12], %[m32]\n"
         "v_add_f32 %[r03], %[r03], %[m23] quad_perm:[0,1,2,3] row_mask:0xf bank_mask:0xf\n"
         "v_sub_f32 %[r13], %[r13], %[m33]\n"
-        : [r00] "=&v"(r[0]), [r01] "=&v"(r[1]), [r02] "=&v"(r[2]), [r03] "=&v"(r[3]),
-          [r10] "=&v"(r[4]), [r11] "=&v"(r[5]), [r12] "=&v"(r[6]), [r13] "=&v"(r[7])
-        : [m00] "v"(m[0]), [m01] "v"(m[1]), [m02] "v"(m[2]), [m03] "v"(m[3]),
-          [m10] "v"(m[4]), [m11] "v"(m[5]), [m12] "v"(m[6]), [m13] "v"(m[7]),
-          [m20] "v"(m[8]), [m21] "v"(m[9]), [m22] "v"(m[10]), [m23] "v"(m[11]),
-          [m30] "v"(m[12]), [m31] "v"(m[13]), [m32] "v"(m[14]), [m33] "v"(m[15]));
+        : [r00] "=&v"(r[0]),
+          [r01] "=&v"(r[1]),
+          [r02] "=&v"(r[2]),
+          [r03] "=&v"(r[3]),
+          [r10] "=&v"(r[4]),
+          [r11] "=&v"(r[5]),
+          [r12] "=&v"(r[6]),
+          [r13] "=&v"(r[7])
+        : [m00] "v"(m[0]),
+          [m01] "v"(m[1]),
+          [m02] "v"(m[2]),
+          [m03] "v"(m[3]),
+          [m10] "v"(m[4]),
+          [m11] "v"(m[5]),
+          [m12] "v"(m[6]),
+          [m13] "v"(m[7]),
+          [m20] "v"(m[8]),
+          [m21] "v"(m[9]),
+          [m22] "v"(m[10]),
+          [m23] "v"(m[11]),
+          [m30] "v"(m[12]),
+          [m31] "v"(m[13]),
+          [m32] "v"(m[14]),
+          [m33] "v"(m[15]));
 #else
     repeat_c<4>([&](auto j) {
         r[0u * 4u + j] = m[0u * 4u + j] + m[1u * 4u + j] + m[2u * 4u + j];
@@ -262,8 +316,14 @@ inline __device__ array<float, 4> output_transform_col_asm_f(array<float, 8> r)
         "v_add_f32 %[y10], %[y10], %[r12] quad_perm:[0,1,2,3] row_mask:0xf bank_mask:0xf\n"
         "v_sub_f32 %[y11], %[y11], %[r13]\n"
         : [y00] "=&v"(y[0]), [y01] "=&v"(y[1]), [y10] "=&v"(y[2]), [y11] "=&v"(y[3])
-        : [r00] "v"(r[0]), [r01] "v"(r[1]), [r02] "v"(r[2]), [r03] "v"(r[3]),
-          [r10] "v"(r[4]), [r11] "v"(r[5]), [r12] "v"(r[6]), [r13] "v"(r[7]));
+        : [r00] "v"(r[0]),
+          [r01] "v"(r[1]),
+          [r02] "v"(r[2]),
+          [r03] "v"(r[3]),
+          [r10] "v"(r[4]),
+          [r11] "v"(r[5]),
+          [r12] "v"(r[6]),
+          [r13] "v"(r[7]));
 #else
     repeat_c<2>([&](auto i) {
         y[i * 2u + 0u] = r[i * 4u + 0u] + r[i * 4u + 1u] + r[i * 4u + 2u];
@@ -297,10 +357,14 @@ inline __device__ array<half, 8> output_transform_row_asm_h(array<float, 16> m)
         "v_pk_add_f16 %[r01], %[r01], %[m21]\n"
         "v_pk_add_f16 %[r11], %[r11], %[m31] neg_lo:[0,1] neg_hi:[0,1]\n"
         : [r00] "=&v"(rp[0]), [r01] "=&v"(rp[1]), [r10] "=&v"(rp[2]), [r11] "=&v"(rp[3])
-        : [m00] "v"(mp[0]), [m01] "v"(mp[1]),
-          [m10] "v"(mp[2]), [m11] "v"(mp[3]),
-          [m20] "v"(mp[4]), [m21] "v"(mp[5]),
-          [m30] "v"(mp[6]), [m31] "v"(mp[7]));
+        : [m00] "v"(mp[0]),
+          [m01] "v"(mp[1]),
+          [m10] "v"(mp[2]),
+          [m11] "v"(mp[3]),
+          [m20] "v"(mp[4]),
+          [m21] "v"(mp[5]),
+          [m30] "v"(mp[6]),
+          [m31] "v"(mp[7]));
 #else
     repeat_c<2>([&](auto j) {
         rp[0u * 2u + j] = mp[0u * 2u + j] + mp[1u * 2u + j] + mp[2u * 2u + j];
@@ -322,12 +386,12 @@ inline __device__ array<half, 4> output_transform_col_h(array<half, 8> r)
     array<half, 4> y;
     repeat_c<2>([&](auto i) {
         const auto base = i * 4u;
-        y[i * 2u + 0u]  = static_cast<half>(static_cast<float>(r[base + 0u]) +
-                                           static_cast<float>(r[base + 1u]) +
-                                           static_cast<float>(r[base + 2u]));
-        y[i * 2u + 1u]  = static_cast<half>(static_cast<float>(r[base + 1u]) -
-                                           static_cast<float>(r[base + 2u]) -
-                                           static_cast<float>(r[base + 3u]));
+        y[i * 2u + 0u] =
+            static_cast<half>(static_cast<float>(r[base + 0u]) + static_cast<float>(r[base + 1u]) +
+                              static_cast<float>(r[base + 2u]));
+        y[i * 2u + 1u] =
+            static_cast<half>(static_cast<float>(r[base + 1u]) - static_cast<float>(r[base + 2u]) -
+                              static_cast<float>(r[base + 3u]));
     });
     return y;
 }
@@ -352,8 +416,7 @@ load_tile(X x, index_int n, index_int c, diff_int r0, diff_int c0)
             const diff_int ww = c0 + diff_int{jj};
             const bool w_ok   = (ww >= 0 and ww < diff_int{W_in});
             if(h_ok and w_ok)
-                d[ii * 4u + jj] =
-                    x[make_array<index_int>(n, c, index_int(hh), index_int(ww))];
+                d[ii * 4u + jj] = x[make_array<index_int>(n, c, index_int(hh), index_int(ww))];
         });
     });
     return d;
@@ -458,16 +521,15 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
 
     using out_type = typename Y::type;
 
-    constexpr index_int N_ELEM    = 16u;
-    constexpr index_int NGROUPS   = KT_DIV * TT_DIV;
-    constexpr index_int BLOCK     = N_ELEM * NGROUPS;
-    constexpr index_int K_BLOCK   = KT_DIV * KT;
-    constexpr index_int T_BLOCK   = TT_DIV * TT_;
-    constexpr index_int WAVE      = 64u;
+    constexpr index_int N_ELEM          = 16u;
+    constexpr index_int NGROUPS         = KT_DIV * TT_DIV;
+    constexpr index_int BLOCK           = N_ELEM * NGROUPS;
+    constexpr index_int K_BLOCK         = KT_DIV * KT;
+    constexpr index_int T_BLOCK         = TT_DIV * TT_;
+    constexpr index_int WAVE            = 64u;
     constexpr index_int GROUPS_PER_WAVE = WAVE / N_ELEM; // = 4
-    constexpr index_int NWAVES    = BLOCK / WAVE;
-    static_assert(BLOCK % WAVE == 0,
-                  "BLOCK must be a multiple of wave size (64)");
+    constexpr index_int NWAVES          = BLOCK / WAVE;
+    static_assert(BLOCK % WAVE == 0, "BLOCK must be a multiple of wave size (64)");
     static_assert(NGROUPS == NWAVES * GROUPS_PER_WAVE,
                   "NGROUPS must = NWAVES * 4 for in-wave DPP output transform");
     (void)NWAVES;
@@ -496,13 +558,13 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
 
     // Lane decomposition: 16 LANES within a wave hold the 16 Winograd
     // elements for ONE (k_thr, t_thr) sub-block.  4 such groups per wave.
-    const index_int wave_id          = local / WAVE;
-    const index_int lane             = local % WAVE;
-    const index_int group_in_wave    = lane / N_ELEM;       // 0..3
-    const index_int my_e             = lane % N_ELEM;       // 0..15 = element index
-    const index_int pos              = wave_id * GROUPS_PER_WAVE + group_in_wave;
-    const index_int my_k_div         = pos / TT_DIV;
-    const index_int my_t_div         = pos % TT_DIV;
+    const index_int wave_id       = local / WAVE;
+    const index_int lane          = local % WAVE;
+    const index_int group_in_wave = lane / N_ELEM; // 0..3
+    const index_int my_e          = lane % N_ELEM; // 0..15 = element index
+    const index_int pos           = wave_id * GROUPS_PER_WAVE + group_in_wave;
+    const index_int my_k_div      = pos / TT_DIV;
+    const index_int my_t_div      = pos % TT_DIV;
 
     // ---- LDS ring buffer for U/V staging.
     //
@@ -514,9 +576,9 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
     //
     //   u_lds[ring][ch][16 elements][K_BLOCK]
     //   v_lds[ring][ch][16 elements][T_BLOCK]
-    constexpr index_int CH = 2u;
-    constexpr auto u_shape = make_shape(index_ints<RING, CH, N_ELEM, K_BLOCK>{});
-    constexpr auto v_shape = make_shape(index_ints<RING, CH, N_ELEM, T_BLOCK>{});
+    constexpr index_int CH  = 2u;
+    constexpr auto u_shape  = make_shape(index_ints<RING, CH, N_ELEM, K_BLOCK>{});
+    constexpr auto v_shape  = make_shape(index_ints<RING, CH, N_ELEM, T_BLOCK>{});
     constexpr index_int U_N = RING * CH * N_ELEM * K_BLOCK;
     constexpr index_int V_N = RING * CH * N_ELEM * T_BLOCK;
 
@@ -583,7 +645,7 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
     // With CH-outer LDS layout, KT contiguous K values for one (e, ch) are a
     // single ds_load_b128 (16 bytes for KT=4 fp32 or KT=8 fp16).  We force
     // the compiler to emit b128 by reading via vec<out_type, N> chunks.
-    constexpr index_int B128_HALVES = 16u / sizeof(out_type);  // 8 fp16, 4 fp32
+    constexpr index_int B128_HALVES = 16u / sizeof(out_type); // 8 fp16, 4 fp32
     static_assert(KT % B128_HALVES == 0 or KT < B128_HALVES,
                   "KT should be a multiple of b128 chunk for full vectorization");
     static_assert(TT_ % B128_HALVES == 0 or TT_ < B128_HALVES,
@@ -600,13 +662,11 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
         if constexpr(KT >= B128_HALVES)
         {
             constexpr index_int N_CHUNKS = KT / B128_HALVES;
-            using uvec = vec<out_type, B128_HALVES>;
-            const uvec* u_a_v =
-                reinterpret_cast<const uvec*>(
-                    &u_lds[make_array<index_int>(slot, 0u, my_e, my_k_div * KT)]);
-            const uvec* u_b_v =
-                reinterpret_cast<const uvec*>(
-                    &u_lds[make_array<index_int>(slot, 1u, my_e, my_k_div * KT)]);
+            using uvec                   = vec<out_type, B128_HALVES>;
+            const uvec* u_a_v            = reinterpret_cast<const uvec*>(
+                &u_lds[make_array<index_int>(slot, 0u, my_e, my_k_div * KT)]);
+            const uvec* u_b_v = reinterpret_cast<const uvec*>(
+                &u_lds[make_array<index_int>(slot, 1u, my_e, my_k_div * KT)]);
             uvec* u_a_dst = reinterpret_cast<uvec*>(u_a.data());
             uvec* u_b_dst = reinterpret_cast<uvec*>(u_b.data());
             repeat_c<N_CHUNKS>([&](auto i) {
@@ -616,25 +676,21 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
         }
         else
         {
-            __builtin_memcpy(
-                u_a.data(),
-                &u_lds[make_array<index_int>(slot, 0u, my_e, my_k_div * KT)],
-                KT * sizeof(out_type));
-            __builtin_memcpy(
-                u_b.data(),
-                &u_lds[make_array<index_int>(slot, 1u, my_e, my_k_div * KT)],
-                KT * sizeof(out_type));
+            __builtin_memcpy(u_a.data(),
+                             &u_lds[make_array<index_int>(slot, 0u, my_e, my_k_div * KT)],
+                             KT * sizeof(out_type));
+            __builtin_memcpy(u_b.data(),
+                             &u_lds[make_array<index_int>(slot, 1u, my_e, my_k_div * KT)],
+                             KT * sizeof(out_type));
         }
         if constexpr(TT_ >= B128_HALVES)
         {
             constexpr index_int N_CHUNKS = TT_ / B128_HALVES;
-            using vvec = vec<out_type, B128_HALVES>;
-            const vvec* v_a_v =
-                reinterpret_cast<const vvec*>(
-                    &v_lds[make_array<index_int>(slot, 0u, my_e, my_t_div * TT_)]);
-            const vvec* v_b_v =
-                reinterpret_cast<const vvec*>(
-                    &v_lds[make_array<index_int>(slot, 1u, my_e, my_t_div * TT_)]);
+            using vvec                   = vec<out_type, B128_HALVES>;
+            const vvec* v_a_v            = reinterpret_cast<const vvec*>(
+                &v_lds[make_array<index_int>(slot, 0u, my_e, my_t_div * TT_)]);
+            const vvec* v_b_v = reinterpret_cast<const vvec*>(
+                &v_lds[make_array<index_int>(slot, 1u, my_e, my_t_div * TT_)]);
             vvec* v_a_dst = reinterpret_cast<vvec*>(v_a.data());
             vvec* v_b_dst = reinterpret_cast<vvec*>(v_b.data());
             repeat_c<N_CHUNKS>([&](auto i) {
@@ -644,14 +700,12 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
         }
         else
         {
-            __builtin_memcpy(
-                v_a.data(),
-                &v_lds[make_array<index_int>(slot, 0u, my_e, my_t_div * TT_)],
-                TT_ * sizeof(out_type));
-            __builtin_memcpy(
-                v_b.data(),
-                &v_lds[make_array<index_int>(slot, 1u, my_e, my_t_div * TT_)],
-                TT_ * sizeof(out_type));
+            __builtin_memcpy(v_a.data(),
+                             &v_lds[make_array<index_int>(slot, 0u, my_e, my_t_div * TT_)],
+                             TT_ * sizeof(out_type));
+            __builtin_memcpy(v_b.data(),
+                             &v_lds[make_array<index_int>(slot, 1u, my_e, my_t_div * TT_)],
+                             TT_ * sizeof(out_type));
         }
 
         repeat_c<KT>([&](auto m) {
@@ -764,8 +818,8 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
             Acc m_k2 = dpp_row_shl_8(m_val);
             Acc m_k3 = dpp_row_shl_12(m_val);
 
-            Acc r0 = m_val + m_k1 + m_k2;   // lanes 0..3: R[0][j=lane]
-            Acc r1 = m_k1 - m_k2 - m_k3;    // lanes 0..3: R[1][j=lane]
+            Acc r0 = m_val + m_k1 + m_k2; // lanes 0..3: R[0][j=lane]
+            Acc r1 = m_k1 - m_k2 - m_k3;  // lanes 0..3: R[1][j=lane]
 
             // --- Col stage via quad_perm (within 4-lane quad).
             // For Y[0][*] apply to r0; for Y[1][*] apply to r1.
@@ -776,9 +830,9 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
             Acc r1_q2 = dpp_perm_2222(r1);
             Acc r1_q3 = dpp_perm_3333(r1);
 
-            Acc y00 = r0 + r0_q1 + r0_q2;   // lane 0: Y[0][0]
+            Acc y00 = r0 + r0_q1 + r0_q2;    // lane 0: Y[0][0]
             Acc y01 = r0_q1 - r0_q2 - r0_q3; // lane 0: Y[0][1]
-            Acc y10 = r1 + r1_q1 + r1_q2;   // lane 0: Y[1][0]
+            Acc y10 = r1 + r1_q1 + r1_q2;    // lane 0: Y[1][0]
             Acc y11 = r1_q1 - r1_q2 - r1_q3; // lane 0: Y[1][1]
 
             if(not is_writer)
@@ -800,20 +854,19 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
             // compiler emits global_store_b64 (instead of two b32 stores).
             constexpr auto y_strides = typename Y::shape_type{}.strides;
             constexpr bool w_unit    = (y_strides[3] == 1u);
-            const bool h0_ok = (base_h < H_out);
-            const bool h1_ok = (base_h + 1u < H_out);
-            const bool w0_ok = (base_w < W_out);
-            const bool w1_ok = (base_w + 1u < W_out);
+            const bool h0_ok         = (base_h < H_out);
+            const bool h1_ok         = (base_h + 1u < H_out);
+            const bool w0_ok         = (base_w < W_out);
+            const bool w1_ok         = (base_w + 1u < W_out);
 
             if constexpr(w_unit)
             {
                 if(h0_ok and w0_ok and w1_ok)
                 {
                     vec<out_type, 2> p;
-                    p[0] = static_cast<out_type>(y00);
-                    p[1] = static_cast<out_type>(y01);
-                    out_type* dst =
-                        &y[make_array<index_int>(n_, my_k, base_h, base_w)];
+                    p[0]          = static_cast<out_type>(y00);
+                    p[1]          = static_cast<out_type>(y01);
+                    out_type* dst = &y[make_array<index_int>(n_, my_k, base_h, base_w)];
                     __builtin_memcpy(dst, &p, sizeof(p));
                 }
                 else
@@ -828,10 +881,9 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
                 if(h1_ok and w0_ok and w1_ok)
                 {
                     vec<out_type, 2> p;
-                    p[0] = static_cast<out_type>(y10);
-                    p[1] = static_cast<out_type>(y11);
-                    out_type* dst =
-                        &y[make_array<index_int>(n_, my_k, base_h + 1u, base_w)];
+                    p[0]          = static_cast<out_type>(y10);
+                    p[1]          = static_cast<out_type>(y11);
+                    out_type* dst = &y[make_array<index_int>(n_, my_k, base_h + 1u, base_w)];
                     __builtin_memcpy(dst, &p, sizeof(p));
                 }
                 else
@@ -847,8 +899,7 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
             else
             {
                 if(h0_ok and w0_ok)
-                    y[make_array<index_int>(n_, my_k, base_h, base_w)] =
-                        static_cast<out_type>(y00);
+                    y[make_array<index_int>(n_, my_k, base_h, base_w)] = static_cast<out_type>(y00);
                 if(h0_ok and w1_ok)
                     y[make_array<index_int>(n_, my_k, base_h, base_w + 1u)] =
                         static_cast<out_type>(y01);
@@ -862,7 +913,6 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
         });
     });
 }
-
 
 // fp accumulator dispatch wrapper for wave kernel.
 template <index_int KT_DIV,

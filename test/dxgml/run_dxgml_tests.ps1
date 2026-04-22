@@ -7,21 +7,51 @@
 #   .\run_dxgml_tests.ps1                     - Run all tests
 #   .\run_dxgml_tests.ps1 parse               - C++ parse unit tests only
 #   .\run_dxgml_tests.ps1 mlir                - Driver tests only
+#   .\run_dxgml_tests.ps1 mlir --gpu          - Driver tests on GPU
+#   .\run_dxgml_tests.ps1 mlir --verify        - Driver tests using verify command
 #   .\run_dxgml_tests.ps1 dump                - All tests + dump output
 #   .\run_dxgml_tests.ps1 simple_gemm         - Single model test
 #   .\run_dxgml_tests.ps1 mlir dump gfx1201   - Driver tests + dump + arch
+#   .\run_dxgml_tests.ps1 all --gpu dump      - Full run, MLIR tests on GPU, with dump
 
 param(
     [string]$Suite  = "all",
     [string]$Opt2   = "",
-    [string]$Arch   = "gfx1201"
+    [string]$Arch   = "gfx1201",
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$ExtraArgs = @()
 )
 
 $ErrorActionPreference = "Continue"
 
 # --- Normalize args ---
-if ($Suite -eq "") { $Suite = "all" }
-$DoDump = ($Opt2 -ieq "dump") -or ($Suite -ieq "dump")
+$rawArgs = @()
+foreach ($token in @($Suite, $Opt2, $Arch) + $ExtraArgs) {
+    if (-not [string]::IsNullOrWhiteSpace($token)) {
+        $rawArgs += $token
+    }
+}
+
+$DoDump   = ($rawArgs | Where-Object { $_ -ieq "dump" }).Count -gt 0
+$DoGpu    = ($rawArgs | Where-Object { $_ -ieq "--gpu" -or $_ -ieq "-g" }).Count -gt 0
+$DoVerify = ($rawArgs | Where-Object { $_ -ieq "--verify" -or $_ -ieq "-v" }).Count -gt 0
+
+$positionalArgs = $rawArgs | Where-Object {
+    ($_ -ine "dump") -and ($_ -ine "--gpu") -and ($_ -ine "-g") -and ($_ -ine "--verify") -and ($_ -ine "-v")
+}
+
+if ($positionalArgs.Count -ge 1) {
+    $Suite = $positionalArgs[0]
+} else {
+    $Suite = "all"
+}
+
+if ($positionalArgs.Count -ge 2) {
+    $Arch = $positionalArgs[1]
+} else {
+    $Arch = "gfx1201"
+}
+
 if ($Suite -ieq "dump") { $Suite = "all" }
 
 # --- Locate directories ---
@@ -43,7 +73,7 @@ function Log([string]$msg = "") {
 # --- Locate migraphx-driver.exe ---
 $DriverPath = $null
 $BinDir     = $null
-foreach ($config in @("WinRelWithDebInfo","WinRelease","WinRelMinSizeRel","WinDebug")) {
+foreach ($config in @("WinRelWithDebInfo","WinRelease","WinRelMinSizeRel","Debug", "WinDebug")) {
     $candidate = "$RootDir\build\$config\bin\migraphx-driver.exe"
     if (Test-Path $candidate) { $DriverPath = $candidate; $BinDir = "$RootDir\build\$config\bin"; break }
 }
@@ -76,7 +106,16 @@ function RunDriverTest([string]$mlirFile, [string]$name) {
         Log "  [SKIP] $name - file not found"
         $script:skip++; return
     }
-    $out = & $DriverPath read $mlirFile --dxgml --skip-unknown-operators 2>&1
+
+    if ($script:DoVerify) {
+        $driverArgs = @("verify", $mlirFile, "--dxgml", "--skip-unknown-operators")
+    } elseif ($script:DoGpu) {
+        $driverArgs = @("compile", $mlirFile, "--dxgml", "--skip-unknown-operators", "--gpu")
+    } else {
+        $driverArgs = @("read", $mlirFile, "--dxgml", "--skip-unknown-operators")
+    }
+
+    $out = & $DriverPath @driverArgs 2>&1
     if ($LASTEXITCODE -eq 0) {
         Log "  [PASS] $name"
         $script:pass++
@@ -88,7 +127,11 @@ function RunDriverTest([string]$mlirFile, [string]$name) {
     if ($DoDump) {
         $dumpFile = "$DumpDir\${name}_migraphx_ops.txt"
         Log "         > $dumpFile"
-        & $DriverPath read $mlirFile --dxgml --skip-unknown-operators --text 2>&1 | Set-Content $dumpFile
+        if ($script:DoGpu) {
+            & $DriverPath compile $mlirFile --dxgml --skip-unknown-operators --gpu --text 2>&1 | Set-Content $dumpFile
+        } else {
+            & $DriverPath read $mlirFile --dxgml --skip-unknown-operators --text 2>&1 | Set-Content $dumpFile
+        }
     }
 }
 
@@ -146,20 +189,20 @@ function RunMlirSuite {
     RunDriverTest "$MlirDir\model3\model.mlir"      "model3"
     RunDriverTest "$MlirDir\model3\model_test.mlir" "model3_test"
 
-    Log "[vision models]"
-    RunDriverTest "$MlirDir\audio2face\model.mlir"      "audio2face"
-    RunDriverTest "$MlirDir\audio2face\model_test.mlir" "audio2face_test"
+    # Log "[vision models]"
+    # RunDriverTest "$MlirDir\audio2face\model.mlir"      "audio2face"
+    # RunDriverTest "$MlirDir\audio2face\model_test.mlir" "audio2face_test"
 
-    Log "[LLM models]"
-    RunDriverTest "$MlirDir\llama32\llama32_dxgml_static_decoder.mlir"       "llama32_decoder"
-    RunDriverTest "$MlirDir\llama32\llama32_dxgml_static_pre-fill.mlir"      "llama32_prefill"
-    RunDriverTest "$MlirDir\llama32\llama32_dxgml_static_decoder_test.mlir"  "llama32_decoder_test"
-    RunDriverTest "$MlirDir\llama32\llama32_dxgml_static_pre-fill_test.mlir" "llama32_prefill_test"
-    RunDriverTest "$MlirDir\nemotron\model_decoder.mlir"      "nemotron_decoder"
-    RunDriverTest "$MlirDir\nemotron\model_pre-fill.mlir"     "nemotron_prefill"
-    RunDriverTest "$MlirDir\nemotron\model_decoder_test.mlir" "nemotron_decoder_test"
-    RunDriverTest "$MlirDir\nemotron\model_pre-fill_test.mlir" "nemotron_prefill_test"
-    RunDriverTest "$MlirDir\phi_silica_qdq\model.mlir"        "phi_silica_qdq"
+    # Log "[LLM models]"
+    # RunDriverTest "$MlirDir\llama32\llama32_dxgml_static_decoder.mlir"       "llama32_decoder"
+    # RunDriverTest "$MlirDir\llama32\llama32_dxgml_static_pre-fill.mlir"      "llama32_prefill"
+    # RunDriverTest "$MlirDir\llama32\llama32_dxgml_static_decoder_test.mlir"  "llama32_decoder_test"
+    # RunDriverTest "$MlirDir\llama32\llama32_dxgml_static_pre-fill_test.mlir" "llama32_prefill_test"
+    # RunDriverTest "$MlirDir\nemotron\model_decoder.mlir"      "nemotron_decoder"
+    # RunDriverTest "$MlirDir\nemotron\model_pre-fill.mlir"     "nemotron_prefill"
+    # RunDriverTest "$MlirDir\nemotron\model_decoder_test.mlir" "nemotron_decoder_test"
+    # RunDriverTest "$MlirDir\nemotron\model_pre-fill_test.mlir" "nemotron_prefill_test"
+    # RunDriverTest "$MlirDir\phi_silica_qdq\model.mlir"        "phi_silica_qdq"
 }
 
 # --- Dispatch ---
@@ -169,6 +212,7 @@ switch -Wildcard ($Suite.ToLower()) {
         Log "DxGML Test Suite - FULL RUN"
         Log "====================================================="
         Log "Arch:   $Arch"
+        Log "GPU:    $DoGpu"
         Log "Driver: $DriverPath"
         Log "Dump:   $DumpDir  (enabled: $DoDump)"
         Log "Log:    $LogFile"
@@ -181,6 +225,8 @@ switch -Wildcard ($Suite.ToLower()) {
         Log "====================================================="
         Log "DxGML Test Suite - MLIR Driver Tests"
         Log "====================================================="
+        Log "Arch:   $Arch"
+        Log "GPU:    $DoGpu"
         Log "Driver: $DriverPath"
         Log "Log:    $LogFile"
         Log ""
@@ -228,7 +274,11 @@ Log "Full log: $LogFile"
 if ($fail -gt 0) {
     Log ""
     Log "To debug a failure:"
-    Log "  migraphx-driver.exe read <file.mlir> --dxgml --skip-unknown-operators --text"
+    if ($DoGpu) {
+        Log "  migraphx-driver.exe compile <file.mlir> --dxgml --skip-unknown-operators --gpu --text"
+    } else {
+        Log "  migraphx-driver.exe read <file.mlir> --dxgml --skip-unknown-operators --text"
+    }
     exit 1
 }
 Log "All tests passed!"

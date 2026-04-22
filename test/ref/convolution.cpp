@@ -702,6 +702,7 @@ TEST_CASE(conv2d_dilation_test)
 
 TEST_CASE(conv2d_grouped_test)
 {
+    // values generated using torch.nn.Conv2d()
     migraphx::program p;
     auto* mm = p.get_main_module();
 

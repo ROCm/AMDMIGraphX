@@ -79,8 +79,8 @@ inline __device__ T dpp_quad_perm(T x)
 {
     static_assert(sizeof(T) == 4, "dpp_quad_perm only handles 32-bit operands");
     using U = uint32_t;
-    U xu = __builtin_bit_cast(U, x);
-    U yu = dpp_mov<Pat, 0xf, 0xf, false>(xu);
+    U xu    = __builtin_bit_cast(U, x);
+    U yu    = dpp_mov<Pat, 0xf, 0xf, false>(xu);
     return __builtin_bit_cast(T, yu);
 }
 
@@ -145,7 +145,6 @@ inline __device__ float dpp_gemm_step_f(float acc, float u, float v)
     return acc + us * v;
 #endif
 }
-
 
 // Plain GEMM-only step. fp16 uses the intrinsic to guarantee v_dot2_f32_f16
 // (otherwise the compiler may emit v_fma_mix_f32). fp32 uses plain math so
@@ -221,10 +220,8 @@ __device__ __attribute__((const)) array<T, 8> output_transform_row(array<Acc, 16
 {
     array<T, 8> r{};
     repeat_c<4>([&](auto j) {
-        r[0u * 4u + j] =
-            static_cast<T>(m[0u * 4u + j] + m[1u * 4u + j] + m[2u * 4u + j]);
-        r[1u * 4u + j] =
-            static_cast<T>(m[1u * 4u + j] - m[2u * 4u + j] - m[3u * 4u + j]);
+        r[0u * 4u + j] = static_cast<T>(m[0u * 4u + j] + m[1u * 4u + j] + m[2u * 4u + j]);
+        r[1u * 4u + j] = static_cast<T>(m[1u * 4u + j] - m[2u * 4u + j] - m[3u * 4u + j]);
     });
     return r;
 }
@@ -285,12 +282,30 @@ inline __device__ array<float, 8> output_transform_row_asm(array<float, 16> m)
         "v_sub_f32 %[r12], %[r12], %[m32]\n"
         "v_add_f32 %[r03], %[r03], %[m23] quad_perm:[0,1,2,3] row_mask:0xf bank_mask:0xf\n"
         "v_sub_f32 %[r13], %[r13], %[m33]\n"
-        : [r00] "=&v"(r[0]), [r01] "=&v"(r[1]), [r02] "=&v"(r[2]), [r03] "=&v"(r[3]),
-          [r10] "=&v"(r[4]), [r11] "=&v"(r[5]), [r12] "=&v"(r[6]), [r13] "=&v"(r[7])
-        : [m00] "v"(m[0]), [m01] "v"(m[1]), [m02] "v"(m[2]), [m03] "v"(m[3]),
-          [m10] "v"(m[4]), [m11] "v"(m[5]), [m12] "v"(m[6]), [m13] "v"(m[7]),
-          [m20] "v"(m[8]), [m21] "v"(m[9]), [m22] "v"(m[10]), [m23] "v"(m[11]),
-          [m30] "v"(m[12]), [m31] "v"(m[13]), [m32] "v"(m[14]), [m33] "v"(m[15]));
+        : [r00] "=&v"(r[0]),
+          [r01] "=&v"(r[1]),
+          [r02] "=&v"(r[2]),
+          [r03] "=&v"(r[3]),
+          [r10] "=&v"(r[4]),
+          [r11] "=&v"(r[5]),
+          [r12] "=&v"(r[6]),
+          [r13] "=&v"(r[7])
+        : [m00] "v"(m[0]),
+          [m01] "v"(m[1]),
+          [m02] "v"(m[2]),
+          [m03] "v"(m[3]),
+          [m10] "v"(m[4]),
+          [m11] "v"(m[5]),
+          [m12] "v"(m[6]),
+          [m13] "v"(m[7]),
+          [m20] "v"(m[8]),
+          [m21] "v"(m[9]),
+          [m22] "v"(m[10]),
+          [m23] "v"(m[11]),
+          [m30] "v"(m[12]),
+          [m31] "v"(m[13]),
+          [m32] "v"(m[14]),
+          [m33] "v"(m[15]));
 #else
     repeat_c<4>([&](auto j) {
         r[0u * 4u + j] = m[0u * 4u + j] + m[1u * 4u + j] + m[2u * 4u + j];
@@ -316,8 +331,14 @@ inline __device__ array<float, 4> output_transform_col_asm(array<float, 8> r)
         "v_add_f32 %[y10], %[y10], %[r12] quad_perm:[0,1,2,3] row_mask:0xf bank_mask:0xf\n"
         "v_sub_f32 %[y11], %[y11], %[r13]\n"
         : [y00] "=&v"(y[0]), [y01] "=&v"(y[1]), [y10] "=&v"(y[2]), [y11] "=&v"(y[3])
-        : [r00] "v"(r[0]), [r01] "v"(r[1]), [r02] "v"(r[2]), [r03] "v"(r[3]),
-          [r10] "v"(r[4]), [r11] "v"(r[5]), [r12] "v"(r[6]), [r13] "v"(r[7]));
+        : [r00] "v"(r[0]),
+          [r01] "v"(r[1]),
+          [r02] "v"(r[2]),
+          [r03] "v"(r[3]),
+          [r10] "v"(r[4]),
+          [r11] "v"(r[5]),
+          [r12] "v"(r[6]),
+          [r13] "v"(r[7]));
 #else
     repeat_c<2>([&](auto i) {
         y[i * 2u + 0u] = r[i * 4u + 0u] + r[i * 4u + 1u] + r[i * 4u + 2u];
@@ -340,8 +361,8 @@ inline __device__ array<half, 8> output_transform_row_asm_h(array<float, 16> m)
     repeat_c<4>([&](auto i) {
         repeat_c<2>([&](auto j) {
             vec<half, 2> p;
-            p[0] = static_cast<half>(m[i * 4u + j * 2u + 0u]);
-            p[1] = static_cast<half>(m[i * 4u + j * 2u + 1u]);
+            p[0]           = static_cast<half>(m[i * 4u + j * 2u + 0u]);
+            p[1]           = static_cast<half>(m[i * 4u + j * 2u + 1u]);
             mp[i * 2u + j] = p;
         });
     });
@@ -357,12 +378,15 @@ inline __device__ array<half, 8> output_transform_row_asm_h(array<float, 16> m)
         "v_pk_add_f16 %[r10], %[r10], %[m30] neg_lo:[0,1] neg_hi:[0,1]\n"
         "v_pk_add_f16 %[r01], %[r01], %[m21]\n"
         "v_pk_add_f16 %[r11], %[r11], %[m31] neg_lo:[0,1] neg_hi:[0,1]\n"
-        : [r00] "=&v"(rp[0]), [r01] "=&v"(rp[1]),
-          [r10] "=&v"(rp[2]), [r11] "=&v"(rp[3])
-        : [m00] "v"(mp[0]), [m01] "v"(mp[1]),
-          [m10] "v"(mp[2]), [m11] "v"(mp[3]),
-          [m20] "v"(mp[4]), [m21] "v"(mp[5]),
-          [m30] "v"(mp[6]), [m31] "v"(mp[7]));
+        : [r00] "=&v"(rp[0]), [r01] "=&v"(rp[1]), [r10] "=&v"(rp[2]), [r11] "=&v"(rp[3])
+        : [m00] "v"(mp[0]),
+          [m01] "v"(mp[1]),
+          [m10] "v"(mp[2]),
+          [m11] "v"(mp[3]),
+          [m20] "v"(mp[4]),
+          [m21] "v"(mp[5]),
+          [m30] "v"(mp[6]),
+          [m31] "v"(mp[7]));
 #else
     repeat_c<2>([&](auto j) {
         rp[0u * 2u + j] = mp[0u * 2u + j] + mp[1u * 2u + j] + mp[2u * 2u + j];
@@ -385,23 +409,30 @@ inline __device__ array<half, 4> output_transform_col_asm_h(array<half, 8> r)
     // Pack r into half2 lane-pairs over the j axis: rp[i] = (r[i*4+0], r[i*4+1]),
     // rp[i+2] = (r[i*4+2], r[i*4+3]).  Two i values, two j-pair pairs => 4 vectors.
     vec<half, 2> rp00, rp01, rp10, rp11;
-    rp00[0] = r[0]; rp00[1] = r[1];
-    rp01[0] = r[2]; rp01[1] = r[3];
-    rp10[0] = r[4]; rp10[1] = r[5];
-    rp11[0] = r[6]; rp11[1] = r[7];
+    rp00[0] = r[0];
+    rp00[1] = r[1];
+    rp01[0] = r[2];
+    rp01[1] = r[3];
+    rp10[0] = r[4];
+    rp10[1] = r[5];
+    rp11[0] = r[6];
+    rp11[1] = r[7];
     // Compute (y[i][0]=r[i][0]+r[i][1]+r[i][2], y[i][1]=r[i][1]-r[i][2]-r[i][3]).
     // We arrange the data so that one v_pk_add gives us (r[i][0]+r[i][1], r[i][1])
     // and we follow up with broadcasts of r[i][2] / r[i][3] to add or subtract.
     repeat_c<2>([&](auto i) {
         const auto base = i * 4u;
-        y[i * 2u + 0u] = static_cast<half>(static_cast<float>(r[base + 0u]) +
-                                           static_cast<float>(r[base + 1u]) +
-                                           static_cast<float>(r[base + 2u]));
-        y[i * 2u + 1u] = static_cast<half>(static_cast<float>(r[base + 1u]) -
-                                           static_cast<float>(r[base + 2u]) -
-                                           static_cast<float>(r[base + 3u]));
+        y[i * 2u + 0u] =
+            static_cast<half>(static_cast<float>(r[base + 0u]) + static_cast<float>(r[base + 1u]) +
+                              static_cast<float>(r[base + 2u]));
+        y[i * 2u + 1u] =
+            static_cast<half>(static_cast<float>(r[base + 1u]) - static_cast<float>(r[base + 2u]) -
+                              static_cast<float>(r[base + 3u]));
     });
-    (void)rp00; (void)rp01; (void)rp10; (void)rp11;
+    (void)rp00;
+    (void)rp01;
+    (void)rp10;
+    (void)rp11;
     return y;
 }
 
@@ -691,8 +722,7 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
                 const index_int w_out = base_w + jj;
                 if(h_out < H_out and w_out < W_out)
                 {
-                    y[make_array<index_int>(n_, my_k, h_out, w_out)] =
-                        yt[ii * 2u + jj];
+                    y[make_array<index_int>(n_, my_k, h_out, w_out)] = yt[ii * 2u + jj];
                 }
             });
         });

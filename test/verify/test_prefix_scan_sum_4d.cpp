@@ -21,42 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
-#define MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/nonzero.hpp>
-#include <migraphx/gpu/miopen.hpp>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct hip_nonzero
+template <int Axis>
+struct test_prefix_scan_sum_4d : verify_program<test_prefix_scan_sum_4d<Axis>>
 {
-    op::nonzero op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    migraphx::program create_program() const
     {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "gpu::nonzero"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(
+            migraphx::make_op("prefix_scan_sum", {{"axis", Axis}, {"exclusive", false}}), x);
+        return p;
     }
 };
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_prefix_scan_sum_4d<0>;
+template struct test_prefix_scan_sum_4d<1>;
+template struct test_prefix_scan_sum_4d<2>;
+template struct test_prefix_scan_sum_4d<3>;

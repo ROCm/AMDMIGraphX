@@ -32,12 +32,12 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/memory_coloring.hpp>
+#include <migraphx/logger.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
-#include <migraphx/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -275,7 +275,7 @@ struct compile_plan
             {
                 const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
                 if(trace_level > 0)
-                    log::error() << "Exception in " + preop.name() + ": " + e.what();
+                    std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
                 results[i] = nullopt;
             }
             catch(...)
@@ -370,7 +370,8 @@ struct compile_plan
         const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
         if(trace_level > 0 and not results.empty())
         {
-            log::trace() << "Benchmarking " << preop.name() << ": " << results.size() << " configs";
+            std::cout << "Benchmarking " << preop.name() << ": " << results.size() << " configs"
+                      << std::endl;
         }
         if(results.empty())
             MIGRAPHX_THROW("No valid tuned compilation for " + preop.name() + " with " +
@@ -385,7 +386,7 @@ struct compile_plan
         if(not config)
             MIGRAPHX_THROW("Multiple kernels without config for " + preop.name());
         if(trace_level > 1)
-            log::trace() << "Problem: " << config->problem;
+            std::cout << "Problem: " << config->problem << std::endl;
         std::vector<double> times;
         times.reserve(results.size());
         std::transform(results.begin(),
@@ -394,15 +395,15 @@ struct compile_plan
                        std::back_inserter(times),
                        [&](const auto& cr, const auto& solution) {
                            if(trace_level > 1)
-                               log::trace() << "Benchmarking solution: " << solution;
+                               std::cout << "Benchmarking solution: " << solution << std::endl;
                            if(not cr.has_value())
                            {
                                if(trace_level > 1)
-                                   log::trace() << "No binary";
+                                   std::cout << "No binary" << std::endl;
                                return std::numeric_limits<double>::max();
                            }
                            if(trace_level > 2)
-                               log::trace() << *cr;
+                               std::cout << *cr << std::endl;
                            /*
                            create a small program with insturction being compiled and call "replace"
                            on that which would insert all the compiled code objects, prefills etc.
@@ -432,14 +433,14 @@ struct compile_plan
                                           memory_coloring{"hip::allocate"},
                                       });
                            if(trace_level > 2)
-                               log::trace() << bench_prog;
+                               std::cout << bench_prog << std::endl;
                            auto t = time_program(*ctx,
                                                  bench_prog,
                                                  cr->replace.fill_map,
                                                  /* bundle */ 10,
                                                  /* nrun */ 20);
                            if(trace_level > 1)
-                               log::trace() << t << "ms";
+                               std::cout << t << "ms" << std::endl;
                            return t;
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
@@ -447,7 +448,7 @@ struct compile_plan
         ctx->get_problem_cache().insert(preop.name(), config->problem, config->solutions.at(i));
         if(trace_level > 0)
         {
-            log::trace() << "Fastest solution: " << config->solutions.at(i);
+            std::cout << "Fastest solution: " << config->solutions.at(i) << std::endl;
             ctx->get_problem_cache().save();
         }
         if(not results[i].has_value())

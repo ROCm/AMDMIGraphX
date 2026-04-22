@@ -1367,6 +1367,12 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              this->get_handle_ptr(),
              external_data_path.c_str());
     }
+
+    /// Enable debug symbols from ONNX node names
+    void set_use_debug_symbols(bool value = true)
+    {
+        call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
+    }
 };
 
 /// Parse an onnx file into a migraphx program

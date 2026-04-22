@@ -27,7 +27,27 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/op/convolution.hpp>
 
-struct test_group_conv : verify_program<test_group_conv>
+struct test_group_conv1d : verify_program<test_group_conv1d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input =
+            mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16}});
+        auto weights =
+            mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3}});
+        migraphx::op::convolution op;
+        op.padding  = {0, 0};
+        op.stride   = {1};
+        op.dilation = {1};
+        op.group    = 4;
+        mm->add_instruction(op, input, weights);
+        return p;
+    }
+};
+
+struct test_group_conv2d : verify_program<test_group_conv2d>
 {
     migraphx::program create_program() const
     {
@@ -39,6 +59,26 @@ struct test_group_conv : verify_program<test_group_conv>
             mm->add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3}});
         migraphx::op::convolution op;
         op.group = 4;
+        mm->add_instruction(op, input, weights);
+        return p;
+    }
+};
+
+struct test_group_conv3d : verify_program<test_group_conv3d>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto input = mm->add_parameter(
+            "x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16, 16}});
+        auto weights = mm->add_parameter(
+            "w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3, 3}});
+        migraphx::op::convolution op;
+        op.padding  = {0, 0, 0};
+        op.stride   = {1, 1, 1};
+        op.dilation = {1, 1, 1};
+        op.group    = 4;
         mm->add_instruction(op, input, weights);
         return p;
     }

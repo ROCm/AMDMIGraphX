@@ -362,9 +362,6 @@ auto is_mlir_conv(mlir_mode mode)
         auto input = ins->inputs().front()->get_shape();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
-        // Avoid MLIR assertion: Index < Length && "Invalid index!"
-        if(ins->get_shape().lens().size() != 4 and group > 1)
-            return false;
         std::set<shape::type_t> supported_types = fp8_types{}.get();
         supported_types.insert(shape::int8_type);
         if(contains(supported_types, input.type()))

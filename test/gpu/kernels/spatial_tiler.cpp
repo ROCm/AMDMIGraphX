@@ -30,7 +30,7 @@ template <migraphx::index_int N,
           migraphx::index_int C,
           migraphx::index_int H,
           migraphx::index_int W>
-constexpr auto make_4d_shape()
+static constexpr auto make_4d_shape()
 {
     constexpr auto lens = migraphx::index_ints<N, C, H, W>{};
     return migraphx::make_shape(lens);

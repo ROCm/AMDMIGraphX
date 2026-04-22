@@ -26,7 +26,6 @@
 #include <migraphx/kernels/spatial_tiler.hpp>
 #include <migraphx/kernels/test.hpp>
 
-
 // Helper: create a standard 4D shape from lens
 template <migraphx::index_int N,
           migraphx::index_int C,

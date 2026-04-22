@@ -159,7 +159,7 @@ constexpr auto vec_transform_tuple_transpose(GetLane get_lane)
 template <index_int Size, class F, class... Ts>
 constexpr auto vec_transform_tuple_vec_lanes_impl(F f, Ts... xs)
 {
-    auto at = [](auto i) { return [=](auto x) { return vec_at(x, i); }; };
+    auto at       = [](auto i) { return [=](auto x) { return vec_at(x, i); }; };
     auto get_lane = [&](auto i) { return f(at(i)(xs)...); };
     using lane0   = remove_reference_t<decltype(get_lane(_c<0>))>;
     if constexpr(is_kernel_tuple<lane0>{})

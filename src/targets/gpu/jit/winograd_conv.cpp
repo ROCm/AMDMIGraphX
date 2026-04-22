@@ -149,26 +149,23 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const std::size_t wave      = ctx.get_current_device().get_wavefront_size();
         const std::size_t max_block = 1024;
 
-        auto add = [&](std::size_t kb,
-                       std::size_t tb,
-                       std::size_t om,
-                       std::size_t on,
-                       std::size_t lr) {
-            if(kb % om != 0 or tb % on != 0)
-                return;
-            const auto t_k   = kb / om;
-            const auto t_t   = tb / on;
-            const auto block = t_k * t_t;
-            if(block < wave or block > max_block)
-                return;
-            if((block % wave) != 0)
-                return;
-            tc.solutions.push_back({{"k_per_block", kb},
-                                    {"tiles_per_block", tb},
-                                    {"op_m", om},
-                                    {"op_n", on},
-                                    {"lds_ring", lr}});
-        };
+        auto add =
+            [&](std::size_t kb, std::size_t tb, std::size_t om, std::size_t on, std::size_t lr) {
+                if(kb % om != 0 or tb % on != 0)
+                    return;
+                const auto t_k   = kb / om;
+                const auto t_t   = tb / on;
+                const auto block = t_k * t_t;
+                if(block < wave or block > max_block)
+                    return;
+                if((block % wave) != 0)
+                    return;
+                tc.solutions.push_back({{"k_per_block", kb},
+                                        {"tiles_per_block", tb},
+                                        {"op_m", om},
+                                        {"op_n", on},
+                                        {"lds_ring", lr}});
+            };
 
         if(exhaustive)
         {

@@ -591,12 +591,10 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
     // v_dot2_f32_f16 / two v_fma_f32 per pair so this is the natural unit.
     constexpr index_int CH   = 2u;
     constexpr index_int NBUF = LDS_RING;
-    constexpr auto u_shape =
-        make_shape(index_ints<NBUF, 16u, K_PER_BLOCK, CH>{});
-    constexpr auto v_shape =
-        make_shape(index_ints<NBUF, 16u, TILES_PER_BLOCK, CH>{});
-    constexpr index_int U_N = NBUF * 16u * K_PER_BLOCK * CH;
-    constexpr index_int V_N = NBUF * 16u * TILES_PER_BLOCK * CH;
+    constexpr auto u_shape   = make_shape(index_ints<NBUF, 16u, K_PER_BLOCK, CH>{});
+    constexpr auto v_shape   = make_shape(index_ints<NBUF, 16u, TILES_PER_BLOCK, CH>{});
+    constexpr index_int U_N  = NBUF * 16u * K_PER_BLOCK * CH;
+    constexpr index_int V_N  = NBUF * 16u * TILES_PER_BLOCK * CH;
 
     __shared__ uninitialized_buffer<out_type, U_N> u_smem;
     __shared__ uninitialized_buffer<out_type, V_N> v_smem;
@@ -665,14 +663,12 @@ __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
         array<array<out_type, OP_M * 2u>, 16> u_all;
         array<array<out_type, OP_N * 2u>, 16> v_all;
         repeat_c<16>([&](auto e) {
-            __builtin_memcpy(
-                u_all[e].data(),
-                &u_lds[make_array<index_int>(slot, e, k_in_grid * OP_M, 0u)],
-                sizeof(u_all[e]));
-            __builtin_memcpy(
-                v_all[e].data(),
-                &v_lds[make_array<index_int>(slot, e, t_in_grid * OP_N, 0u)],
-                sizeof(v_all[e]));
+            __builtin_memcpy(u_all[e].data(),
+                             &u_lds[make_array<index_int>(slot, e, k_in_grid * OP_M, 0u)],
+                             sizeof(u_all[e]));
+            __builtin_memcpy(v_all[e].data(),
+                             &v_lds[make_array<index_int>(slot, e, t_in_grid * OP_N, 0u)],
+                             sizeof(v_all[e]));
         });
         repeat_c<16>([&](auto e) {
             repeat_c<OP_M>([&](auto m) {
@@ -851,12 +847,7 @@ template <index_int K_PER_BLOCK,
           class Y>
 __device__ void winograd_conv_f2x3_s1_mn(X x, W w, Y y)
 {
-    winograd_conv_f2x3_s1_mn<K_PER_BLOCK,
-                             TILES_PER_BLOCK,
-                             OP_M,
-                             OP_N,
-                             LDS_RING,
-                             float>(x, w, y);
+    winograd_conv_f2x3_s1_mn<K_PER_BLOCK, TILES_PER_BLOCK, OP_M, OP_N, LDS_RING, float>(x, w, y);
 }
 
 template <index_int K_PER_BLOCK, index_int TILES_PER_BLOCK, class X, class W, class Y>

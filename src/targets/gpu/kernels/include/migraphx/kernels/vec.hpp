@@ -156,6 +156,25 @@ constexpr auto vec_transform_tuple_transpose(GetLane get_lane)
     });
 }
 
+template <index_int Size, class F, class... Ts>
+constexpr auto vec_transform_tuple_vec_lanes_impl(F f, Ts... xs)
+{
+    auto at = [](auto i) { return [=](auto x) { return vec_at(x, i); }; };
+    auto get_lane = [&](auto i) { return f(at(i)(xs)...); };
+    using lane0   = remove_reference_t<decltype(get_lane(_c<0>))>;
+    if constexpr(is_kernel_tuple<lane0>{})
+        return vec_transform_tuple_transpose<Size>(get_lane);
+    else
+        return generate_vec(index_constant<Size>{}, [&](auto i) { return get_lane(i); });
+}
+
+template <class F, class... Ts>
+constexpr auto vec_transform_tuple_vec_lanes(F f, Ts... xs)
+{
+    constexpr index_int sz = common_vec_size<Ts...>();
+    return vec_transform_tuple_vec_lanes_impl<sz>(f, xs...);
+}
+
 } // namespace vec_detail
 
 template <class... Ts>
@@ -184,27 +203,9 @@ constexpr auto vec_transform_tuple(Ts... xs)
     return [=](auto f) {
         // join + lift pattern can fail to instantiate under HIPRTC when xs are scalars
         if constexpr(is_any_vec<Ts...>())
-        {
-            constexpr auto size = common_vec_size<Ts...>();
-            auto at             = [](auto i) { return [=](auto x) { return vec_at(x, i); }; };
-            auto vals           = generate_tuple(size, [&](auto i) { return f(at(i)(xs)...); });
-
-            using lane0 = remove_reference_t<decltype(f(vec_at(xs, _c<0>)...))>;
-            if constexpr(vec_detail::is_kernel_tuple<lane0>{})
-            {
-                return generate_tuple(vals[_c<0>].size(), [&](auto j) {
-                    return generate_vec(size, [&](auto i) { return vals[i][j]; });
-                });
-            }
-            else
-            {
-                return generate_vec(size, [&](auto i) { return vals[i]; });
-            }
-        }
+            return vec_detail::vec_transform_tuple_vec_lanes(f, xs...);
         else
-        {
             return f(xs...);
-        }
     };
 }
 

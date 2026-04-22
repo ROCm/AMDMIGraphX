@@ -437,9 +437,9 @@ struct reducer_base
         }
         else
         {
-            return make_lazy_inner_storage(n, [nlanes_v](auto j, auto) {
+            return make_lazy_inner_storage(n, [=](auto j, auto) {
                 return vec_generate<nlanes_v()>(
-                    [nlanes_v, j](auto i) -> index_int { return j * nlanes_v() + i; });
+                    [=](auto i) -> index_int { return j * nlanes_v() + i; });
             });
         }
     }

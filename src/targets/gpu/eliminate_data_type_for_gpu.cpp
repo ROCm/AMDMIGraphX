@@ -24,6 +24,7 @@
 #include <migraphx/gpu/eliminate_data_type_for_gpu.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_data_type.hpp>
+#include <migraphx/functional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -69,16 +70,18 @@ static eliminate_data_type for_device_functions()
 }
 
 template <class F>
-static auto query_device(const context* ctx, F f)
+static bool query_device(const context* ctx, F f)
 {
-    return ctx != nullptr ? f(*ctx) : f();
+    if(ctx != nullptr)
+        return f(*ctx);
+    return f();
 }
 
 static eliminate_data_type for_fp8fnuz(const context* ctx)
 {
     std::set<std::string> unsupported_ops = {};
 
-    if(not query_device(ctx, [](auto&&... args) { return hipblaslt_supported(args...); }))
+    if(not query_device(ctx, MIGRAPHX_LIFT(hipblaslt_supported)))
     {
         unsupported_ops.insert("dot");
         unsupported_ops.insert("quant_dot");
@@ -86,7 +89,7 @@ static eliminate_data_type for_fp8fnuz(const context* ctx)
 
     insert_miopen_pooling(unsupported_ops);
 
-    if(not query_device(ctx, [](auto&&... args) { return gfx_has_fp8fnuz_intrinsics(args...); }))
+    if(not query_device(ctx, MIGRAPHX_LIFT(gfx_has_fp8fnuz_intrinsics)))
     {
         insert_gemm_conv(unsupported_ops);
     }
@@ -98,7 +101,7 @@ static eliminate_data_type for_fp8ocp(const context* ctx)
 {
     std::set<std::string> unsupported_ops = {};
 
-    if(not query_device(ctx, [](auto&&... args) { return hipblaslt_supported(args...); }))
+    if(not query_device(ctx, MIGRAPHX_LIFT(hipblaslt_supported)))
     {
         unsupported_ops.insert("dot");
         unsupported_ops.insert("quant_dot");
@@ -106,7 +109,7 @@ static eliminate_data_type for_fp8ocp(const context* ctx)
 
     insert_miopen_pooling(unsupported_ops);
 
-    if(not query_device(ctx, [](auto&&... args) { return gfx_has_fp8ocp_intrinsics(args...); }))
+    if(not query_device(ctx, MIGRAPHX_LIFT(gfx_has_fp8ocp_intrinsics)))
     {
         insert_gemm_conv(unsupported_ops);
     }
@@ -135,7 +138,7 @@ void eliminate_data_type_for_gpu::apply(module_pass_manager& mpm) const
 {
     std::set<shape::type_t> unsupported_floats;
     // No BF-16 Support on Navi21
-    if(not query_device(ctx, [](auto&&... args) { return gfx_has_bf16_intrinsics(args...); }))
+    if(not query_device(ctx, MIGRAPHX_LIFT(gfx_has_bf16_intrinsics)))
     {
         unsupported_floats.insert(shape::bf16_type);
     }

@@ -250,10 +250,7 @@ struct variable_node
     std::vector<interval> constraints;
     std::set<scalar> optimals;
 
-    std::size_t hash() const
-    {
-        return std::hash<std::string>{}(name);
-    }
+    std::size_t hash() const { return std::hash<std::string>{}(name); }
     friend bool operator==(const variable_node& a, const variable_node& b)
     {
         return a.name == b.name and a.constraints == b.constraints and a.optimals == b.optimals;
@@ -267,10 +264,7 @@ struct op_node
     friend bool operator==(const op_node& a, const op_node& b) { return a.op == b.op; }
     friend bool operator!=(const op_node& a, const op_node& b) { return not(a == b); }
 
-    std::size_t hash() const
-    {
-        return std::hash<std::string>{}(op->name);
-    }
+    std::size_t hash() const { return std::hash<std::string>{}(op->name); }
 };
 
 using node_variant = std::variant<literal_node, variable_node, op_node>;

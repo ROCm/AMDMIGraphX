@@ -24,15 +24,19 @@
 
 include_guard(GLOBAL)
 
+if(BUILD_SHARED_LIBS)
+    set(EMBED_USE_DEFAULT CArrays)
+elseif(WIN32)
+    set(EMBED_USE_DEFAULT RC)
+else()
+    set(EMBED_USE_DEFAULT LD)
+endif()
+
 if(WIN32)
-    set(EMBED_USE RC CACHE STRING "Use RC or CArrays to embed data files")
+    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use RC or CArrays to embed data files")
     set_property(CACHE EMBED_USE PROPERTY STRINGS "RC;CArrays")
 else()
-    if(BUILD_SHARED_LIBS)
-        set(EMBED_USE LD CACHE STRING "Use LD or CArrays to embed data files")
-    else()
-        set(EMBED_USE CArrays CACHE STRING "Use LD or CArrays to embed data files")
-    endif()
+    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use LD or CArrays to embed data files")
     set_property(CACHE EMBED_USE PROPERTY STRINGS "LD;CArrays")
 endif()
 

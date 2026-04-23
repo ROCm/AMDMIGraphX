@@ -72,6 +72,7 @@ endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
 
@@ -96,9 +97,6 @@ option(BUILD_DEV "Build for development purpose only" OFF)
 rocm_setup_version(VERSION 2.16.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
-
-option(BUILD_SHARED_LIBS "Build as a shared library" ON )
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("--cuda-host-only -x hip" HAS_HIP)

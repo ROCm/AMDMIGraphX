@@ -370,6 +370,11 @@ def onnx_options(h):
         api.params(external_data_path='const char*'),
         invoke='migraphx::set_external_data_path($@)',
     )
+    h.method(
+        'set_use_debug_symbols',
+        api.params(value='bool'),
+        invoke='migraphx::set_use_debug_symbols($@)',
+    )
 
 
 @auto_handle()

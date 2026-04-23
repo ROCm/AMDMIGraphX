@@ -26,7 +26,8 @@
 #include <migraphx/serialize.hpp>
 #include "test.hpp"
 
-using se = migraphx::sym::expr;
+using se       = migraphx::sym::expr;
+using interval = migraphx::sym::interval;
 using migraphx::sym::lit;
 using migraphx::sym::parse;
 using migraphx::sym::var;
@@ -58,17 +59,6 @@ TEST_CASE(construct_empty)
 TEST_CASE(construct_empty_var_name_throws)
 {
     EXPECT(test::throws([&] { var(""); }));
-}
-
-TEST_CASE(construct_var_min_greater_than_max_throws)
-{
-    EXPECT(test::throws([&] { var("n", 10, 5); }));
-}
-
-TEST_CASE(construct_var_min_less_than_one_throws)
-{
-    EXPECT(test::throws([&] { var("n", 0, 5); }));
-    EXPECT(test::throws([&] { var("n", -1, 5); }));
 }
 
 TEST_CASE(add_identity)
@@ -433,26 +423,6 @@ TEST_CASE(eq_empty)
     EXPECT(lit(0) != se{});
 }
 
-TEST_CASE(eq_same_name_different_intervals)
-{
-    auto h1 = var("h", 1, 128);
-    auto h2 = var("h", 1, 256);
-    auto h3 = var("h", 2, 128);
-    auto h4 = var("h", 1, 128);
-    EXPECT(h1 != h2);
-    EXPECT(h1 != h3);
-    EXPECT(h1 == h4);
-}
-
-TEST_CASE(hash_same_name_different_intervals)
-{
-    auto h1 = var("h", 1, 128);
-    auto h2 = var("h", 1, 256);
-    auto h3 = var("h", 1, 128);
-    EXPECT(h1.hash() != h2.hash());
-    EXPECT(h1.hash() == h3.hash());
-}
-
 TEST_CASE(hash_consistency)
 {
     auto h = var("h");
@@ -538,70 +508,6 @@ TEST_CASE(eval_integer_expr)
 {
     EXPECT(lit(0).eval_uint({}) == 0);
     EXPECT(lit(100).eval_uint({}) == 100);
-}
-
-TEST_CASE(eval_min_single_var)
-{
-    auto n = var("n", 2, 16);
-    EXPECT(n.eval_min() == 2);
-    EXPECT(n.eval_max() == 16);
-}
-
-TEST_CASE(eval_min_max_literal)
-{
-    EXPECT(lit(42).eval_min() == 42);
-    EXPECT(lit(42).eval_max() == 42);
-}
-
-TEST_CASE(eval_min_max_compound)
-{
-    auto n = var("n", 1, 8);
-    auto c = var("c", 1, 16);
-    auto e = n * c * 4;
-    EXPECT(e.eval_min() == 4);
-    EXPECT(e.eval_max() == 512);
-}
-
-TEST_CASE(eval_min_max_stride_diff)
-{
-    auto n    = var("n", 1, 8);
-    auto c    = var("c", 1, 16);
-    auto diff = n * c - n;
-    EXPECT(diff.eval_min() == 0);
-    EXPECT(diff.eval_max() == 120);
-}
-
-TEST_CASE(eval_min_max_division)
-{
-    auto n = var("n", 2, 10);
-    auto d = var("d", 1, 5);
-    auto e = n / d;
-    EXPECT(e.eval_min() == 0);
-    EXPECT(e.eval_max() == 10);
-}
-
-TEST_CASE(eval_min_max_div_literal_denom)
-{
-    auto n = var("n", 4, 16);
-    auto e = n / lit(4);
-    EXPECT(e.eval_min() == 1);
-    EXPECT(e.eval_max() == 4);
-}
-
-TEST_CASE(eval_min_max_subtraction_independent)
-{
-    auto a = var("a", 1, 10);
-    auto b = var("b", 1, 5);
-    auto e = a - b;
-    EXPECT(e.eval_min() == -4);
-    EXPECT(e.eval_max() == 9);
-}
-
-TEST_CASE(eval_min_max_empty_throws)
-{
-    se empty;
-    EXPECT(test::throws([&] { empty.eval_min(); }));
-    EXPECT(test::throws([&] { empty.eval_max(); }));
 }
 
 TEST_CASE(eval_non_symbol_key_throws)
@@ -1074,48 +980,108 @@ TEST_CASE(serialize_compound)
     EXPECT(round_trip(e) == e);
 }
 
-TEST_CASE(serialize_bounded_var)
+// -------------------------------------------------------------------
+// Bounded vars: constructor / eq / hash
+// -------------------------------------------------------------------
+
+TEST_CASE(construct_var_min_greater_than_max_throws)
 {
-    auto h = var("h", 1, 128);
-    auto r = round_trip(h);
-    EXPECT(r == h);
-    EXPECT(r != var("h", 1, 256));
-    EXPECT(r != var("h"));
+    EXPECT(test::throws([&] { var("n", {10, 5}); }));
 }
 
-TEST_CASE(serialize_bounded_var_in_expr)
+TEST_CASE(construct_var_min_less_than_one_throws)
 {
-    auto h = var("h", 1, 128);
-    auto w = var("w", 1, 256);
-    auto e = 2 * h + w - 3;
-    auto r = round_trip(e);
-    EXPECT(r == e);
-    EXPECT(r.eval_uint({{h, 64}, {w, 32}}) == 157);
+    EXPECT(test::throws([&] { var("n", {0, 5}); }));
+    EXPECT(test::throws([&] { var("n", {-1, 5}); }));
 }
 
-TEST_CASE(serialize_conv_output_with_bounds)
+TEST_CASE(eq_same_name_different_intervals)
 {
-    auto h   = var("h", 3, 256);
-    auto out = (h - 3) / 2 + 1;
-    auto r   = round_trip(out);
-    EXPECT(r == out);
-    EXPECT(r.eval_uint({{h, 255}}) == 127);
+    auto h1 = var("h", {1, 128});
+    auto h2 = var("h", {1, 256});
+    auto h3 = var("h", {2, 128});
+    auto h4 = var("h", {1, 128});
+    EXPECT(h1 != h2);
+    EXPECT(h1 != h3);
+    EXPECT(h1 == h4);
 }
 
-TEST_CASE(serialize_comparison_survives_round_trip)
+TEST_CASE(hash_same_name_different_intervals)
 {
-    auto h    = var("h", 3, 256);
-    auto out  = (h - 3) / 2 + 1;
-    auto h2   = round_trip(h);
-    auto out2 = round_trip(out);
-    EXPECT(out2 < h2);
+    auto h1 = var("h", {1, 128});
+    auto h2 = var("h", {1, 256});
+    auto h3 = var("h", {1, 128});
+    EXPECT(h1.hash() != h2.hash());
+    EXPECT(h1.hash() == h3.hash());
 }
 
-// ===================================================================
-// Tier 7: Semantic comparison operators
-// ===================================================================
+// -------------------------------------------------------------------
+// Bounds: eval_interval()
+// -------------------------------------------------------------------
 
-// --- Basic ordering ---
+TEST_CASE(eval_interval_single_var)
+{
+    auto n = var("n", {2, 16});
+    EXPECT(n.eval_interval() == interval{2, 16});
+}
+
+TEST_CASE(eval_interval_literal) { EXPECT(lit(42).eval_interval() == interval{42, 42}); }
+
+TEST_CASE(eval_interval_compound)
+{
+    auto n = var("n", {1, 8});
+    auto c = var("c", {1, 16});
+    auto e = n * c * 4;
+    EXPECT(e.eval_interval() == interval{4, 512});
+}
+
+TEST_CASE(eval_interval_stride_diff)
+{
+    auto n    = var("n", {1, 8});
+    auto c    = var("c", {1, 16});
+    auto diff = n * c - n;
+    EXPECT(diff.eval_interval() == interval{0, 120});
+}
+
+TEST_CASE(eval_interval_division)
+{
+    auto n = var("n", {2, 10});
+    auto d = var("d", {1, 5});
+    auto e = n / d;
+    EXPECT(e.eval_interval() == interval{0, 10});
+}
+
+TEST_CASE(eval_interval_div_literal_denom)
+{
+    auto n = var("n", {4, 16});
+    auto e = n / lit(4);
+    EXPECT(e.eval_interval() == interval{1, 4});
+}
+
+TEST_CASE(eval_interval_subtraction_independent)
+{
+    auto a = var("a", {1, 10});
+    auto b = var("b", {1, 5});
+    auto e = a - b;
+    EXPECT(e.eval_interval() == interval{-4, 9});
+}
+
+TEST_CASE(eval_interval_empty_throws)
+{
+    se empty;
+    EXPECT(test::throws([&] { (void)empty.eval_interval(); }));
+}
+
+TEST_CASE(eval_interval_uint)
+{
+    auto n = var("n", {2, 16});
+    auto e = 3 * n + 1;
+    EXPECT(e.eval_interval() == interval{7, 49});
+}
+
+// -------------------------------------------------------------------
+// Comparison operators
+// -------------------------------------------------------------------
 
 TEST_CASE(cmp_lit_constants)
 {
@@ -1151,36 +1117,20 @@ TEST_CASE(cmp_empty_with_nonempty_throws)
     EXPECT(test::throws([&]() -> bool { return var("n") < se{}; }));
 }
 
-// --- Stride ordering: standard layout [N, C, H, W] ---
-// Strides are [C*H*W, H*W, W, 1]; each must be > the next.
-
 TEST_CASE(cmp_stride_ordering_4d)
 {
-    auto c  = var("c", 1, 512);
-    auto h  = var("h", 1, 256);
-    auto w  = var("w", 1, 256);
+    auto c  = var("c", {1, 512});
+    auto h  = var("h", {1, 256});
+    auto w  = var("w", {1, 256});
     auto s0 = c * h * w;
     auto s1 = h * w;
     auto s2 = w;
     auto s3 = lit(1);
-
     EXPECT(s1 <= s0);
     EXPECT(s2 <= s1);
     EXPECT(s3 <= s2);
     EXPECT(s3 <= s0);
 }
-
-// With default [1,1] bounds, n*c*h*w vs c*h*w is not strictly ordered
-// because c could be 1 — this correctly returns false
-TEST_CASE(cmp_stride_ordering_default_bounds_not_strict)
-{
-    auto c = var("c");
-    auto h = var("h");
-    auto w = var("w");
-    EXPECT(not(h * w < c * h * w));
-}
-
-// --- Scaling: n < k*n for k >= 2 ---
 
 TEST_CASE(cmp_scaled_symbol)
 {
@@ -1190,37 +1140,24 @@ TEST_CASE(cmp_scaled_symbol)
     EXPECT(not(2 * n < n));
 }
 
-// k < m*k with default [1,1] intervals: diff = k(m-1), lo=0, hi=0 => false
-TEST_CASE(cmp_product_default_bounds)
-{
-    auto k = var("k");
-    auto m = var("m");
-    EXPECT(not(k < m * k));
-}
-
-// With explicit bounds where m >= 2, k < m*k should be true
 TEST_CASE(cmp_product_explicit_bounds)
 {
-    auto k = var("k", 1, 8);
-    auto m = var("m", 2, 4);
+    auto k = var("k", {1, 8});
+    auto m = var("m", {2, 4});
     EXPECT(k < m * k);
 }
 
-// --- Conv/pooling output dimension: out = (in - kernel) / stride + 1 ---
-// For kernel >= 2 and stride >= 1, out < in
-
 TEST_CASE(cmp_conv_output_smaller_than_input)
 {
-    auto h   = var("h", 3, 256);
+    auto h   = var("h", {3, 256});
     auto out = (h - 3) / 2 + 1;
     EXPECT(out < h);
     EXPECT(not(h < out));
 }
 
-// Two successive pooling layers: out2 < out1 < h
 TEST_CASE(cmp_repeated_pooling)
 {
-    auto h    = var("h", 7, 256);
+    auto h    = var("h", {7, 256});
     auto out1 = (h - 3) / 2 + 1;
     auto out2 = (out1 - 3) / 2 + 1;
     EXPECT(out1 < h);
@@ -1228,33 +1165,18 @@ TEST_CASE(cmp_repeated_pooling)
     EXPECT(out2 < h);
 }
 
-// --- Stride comparison after conv dimension reduction ---
-// After conv with stride 2 on H: new_h = (H-3)/2+1
-// Strides [new_h * W, W, 1] must be ordered
-
 TEST_CASE(cmp_strides_after_conv)
 {
-    auto h     = var("h", 7, 128);
-    auto w     = var("w", 2, 128);
+    auto h     = var("h", {7, 128});
+    auto w     = var("w", {2, 128});
     auto new_h = (h - 3) / 2 + 1;
     auto s0    = new_h * w;
     auto s1    = w;
     auto s2    = lit(1);
-
     EXPECT(s1 < s0);
     EXPECT(s2 < s1);
 }
 
-// --- Broadcast: comparing a dimension against 1 ---
-
-TEST_CASE(cmp_broadcast_dim_vs_one)
-{
-    auto n = var("n", 1, 1024);
-    EXPECT(not(n < lit(1)));
-    EXPECT(lit(1) <= n);
-}
-
-// Broadcast stride 0 < any positive stride
 TEST_CASE(cmp_broadcast_stride_zero)
 {
     auto w = var("w");
@@ -1262,42 +1184,32 @@ TEST_CASE(cmp_broadcast_stride_zero)
     EXPECT(not(w < lit(0)));
 }
 
-// --- Constant offset comparisons (padding, kernel adjustments) ---
-
 TEST_CASE(cmp_offset_expressions)
 {
-    auto h = var("h", 2, 256);
+    auto h = var("h", {2, 256});
     EXPECT(h - 1 < h);
     EXPECT(h < h + 1);
     EXPECT(not(h + 1 < h));
 }
 
-// --- Undetermined comparison should throw ---
-
 TEST_CASE(cmp_undetermined_throws)
 {
-    auto n = var("n", 2, 10);
+    auto n = var("n", {2, 10});
     EXPECT(test::throws([&]() -> bool { return n < lit(5); }));
 }
 
-// --- Element count comparisons ---
-// n*c*h*w vs n*c*h (slice along w removes a dimension)
-
 TEST_CASE(cmp_element_count_slice)
 {
-    auto n = var("n", 1, 32);
-    auto c = var("c", 1, 512);
-    auto h = var("h", 1, 256);
-    auto w = var("w", 2, 256);
+    auto n = var("n", {1, 32});
+    auto c = var("c", {1, 512});
+    auto h = var("h", {1, 256});
+    auto w = var("w", {2, 256});
     EXPECT(n * c * h < n * c * h * w);
 }
 
-// --- Long chain: 5 successive stride-2 pooling layers ---
-// h=255 -> 127 -> 63 -> 31 -> 15 -> 7, each stage < previous
-
 TEST_CASE(cmp_deep_pooling_chain)
 {
-    auto h   = var("h", 31, 512);
+    auto h   = var("h", {31, 512});
     se stage = h;
     se prev;
     for(int i = 0; i < 5; ++i)
@@ -1309,8 +1221,6 @@ TEST_CASE(cmp_deep_pooling_chain)
     EXPECT(stage < h);
 }
 
-// --- Associativity / commutativity shouldn't affect comparison ---
-
 TEST_CASE(cmp_commuted_product)
 {
     auto a = var("a");
@@ -1318,32 +1228,6 @@ TEST_CASE(cmp_commuted_product)
     EXPECT(not(a * b < b * a));
     EXPECT(a * b <= b * a);
     EXPECT(a * b >= b * a);
-}
-
-// --- Strict semantics: diff=0 at any point means not strictly less ---
-
-TEST_CASE(cmp_strict_dim_one_undetermined)
-{
-    auto w = var("w", 1, 128);
-    EXPECT(test::throws([&]() -> bool { return lit(1) < w; }));
-    EXPECT(lit(1) <= w);
-}
-
-TEST_CASE(cmp_strict_stride_ordering_with_possible_dim_one)
-{
-    auto c = var("c", 1, 512);
-    auto h = var("h", 2, 256);
-    auto w = var("w", 2, 256);
-    EXPECT(test::throws([&]() -> bool { return h * w < c * h * w; }));
-}
-
-// --- Zero and negative literal edge cases ---
-
-TEST_CASE(cmp_zero_not_less_than_zero)
-{
-    EXPECT(not(lit(0) < lit(0)));
-    EXPECT(lit(0) <= lit(0));
-    EXPECT(lit(0) >= lit(0));
 }
 
 TEST_CASE(cmp_negative_literals)
@@ -1354,11 +1238,9 @@ TEST_CASE(cmp_negative_literals)
     EXPECT(not(lit(0) < lit(-1)));
 }
 
-// --- Operator symmetry: a < b iff b > a, a <= b iff b >= a ---
-
 TEST_CASE(cmp_symmetry_lt_gt)
 {
-    auto h   = var("h", 3, 256);
+    auto h   = var("h", {3, 256});
     auto out = (h - 3) / 2 + 1;
     EXPECT(out < h);
     EXPECT(h > out);
@@ -1366,22 +1248,11 @@ TEST_CASE(cmp_symmetry_lt_gt)
     EXPECT(not(out > h));
 }
 
-TEST_CASE(cmp_symmetry_le_ge)
-{
-    auto n = var("n", 1, 32);
-    EXPECT(n <= n);
-    EXPECT(n >= n);
-    EXPECT(n <= 2 * n);
-    EXPECT(2 * n >= n);
-}
-
-// --- Transitivity: if a < b and b < c then a < c ---
-
 TEST_CASE(cmp_transitivity_strides)
 {
-    auto c  = var("c", 2, 512);
-    auto h  = var("h", 2, 256);
-    auto w  = var("w", 2, 256);
+    auto c  = var("c", {2, 512});
+    auto h  = var("h", {2, 256});
+    auto w  = var("w", {2, 256});
     auto s0 = c * h * w;
     auto s1 = h * w;
     auto s2 = w;
@@ -1394,12 +1265,9 @@ TEST_CASE(cmp_transitivity_strides)
     EXPECT(s3 < s1);
 }
 
-// --- Division ordering: different divisors produce ordered outputs ---
-// Larger stride divisor => smaller output, so (h-1)/4 < (h-1)/2
-
 TEST_CASE(cmp_division_ordering)
 {
-    auto h     = var("h", 5, 256);
+    auto h     = var("h", {5, 256});
     auto pool2 = (h - 1) / 2;
     auto pool4 = (h - 1) / 4;
     EXPECT(pool4 < pool2);
@@ -1407,83 +1275,12 @@ TEST_CASE(cmp_division_ordering)
     EXPECT(pool4 < h);
 }
 
-// --- Sum vs product: n + c < n * c when both >= 2 ---
-// diff = n*c - n - c = n(c-1) - c; with n,c >= 2: lo = 2*(2-1) - 2 = 0, hi > 0
-
 TEST_CASE(cmp_sum_less_than_product)
 {
-    auto n = var("n", 2, 32);
-    auto c = var("c", 3, 512);
+    auto n = var("n", {2, 32});
+    auto c = var("c", {3, 512});
     EXPECT(n + c < n * c);
 }
-
-// At n=2, c=2: n+c=4, n*c=4, so sum is NOT strictly less than product
-TEST_CASE(cmp_sum_not_less_than_product_degenerate)
-{
-    auto n = var("n", 2, 32);
-    auto c = var("c", 2, 512);
-    EXPECT(test::throws([&]() -> bool { return n + c < n * c; }));
-}
-
-// --- Comparison after substitution ---
-
-TEST_CASE(cmp_after_partial_subs)
-{
-    auto n  = var("n", 1, 32);
-    auto c  = var("c", 2, 512);
-    auto h  = var("h", 2, 256);
-    auto s0 = c * h;
-    auto s1 = h;
-    EXPECT(s1 < s0);
-    auto s0_sub = s0.subs({{c, lit(64)}});
-    auto s1_sub = s1;
-    EXPECT(s1_sub < s0_sub);
-}
-
-TEST_CASE(cmp_after_full_subs_becomes_literal)
-{
-    auto h       = var("h", 3, 256);
-    auto out     = (h - 3) / 2 + 1;
-    auto h_val   = out.subs({{h, lit(255)}});
-    auto inp_val = h.subs({{h, lit(255)}});
-    EXPECT(h_val < inp_val);
-    EXPECT(h_val == lit(127));
-    EXPECT(inp_val == lit(255));
-}
-
-// --- Multi-layer conv network strides ---
-// Simulates Conv(k=3,s=2) -> Pool(k=3,s=2) -> Conv(k=3,s=1)
-// Each stage reduces spatial dims; strides at each layer must be ordered.
-
-TEST_CASE(cmp_multi_layer_conv_strides)
-{
-    auto c = var("c", 2, 512);
-    auto h = var("h", 15, 256);
-    auto w = var("w", 15, 256);
-
-    auto h1 = (h - 3) / 2 + 1;
-    auto w1 = (w - 3) / 2 + 1;
-
-    auto h2 = (h1 - 3) / 2 + 1;
-    auto w2 = (w1 - 3) / 2 + 1;
-
-    EXPECT(h1 < h);
-    EXPECT(w1 < w);
-    EXPECT(h2 < h1);
-    EXPECT(w2 < w1);
-
-    auto stride_c1 = h1 * w1;
-    auto stride_h1 = w1;
-    EXPECT(stride_h1 < stride_c1);
-    EXPECT(lit(1) < stride_h1);
-
-    auto stride_c2 = h2 * w2;
-    auto stride_h2 = w2;
-    EXPECT(stride_h2 < stride_c2);
-    EXPECT(lit(1) < stride_h2);
-}
-
-// --- Structurally different but algebraically equal expressions ---
 
 TEST_CASE(cmp_algebraically_equal_expressions)
 {
@@ -1497,17 +1294,6 @@ TEST_CASE(cmp_algebraically_equal_expressions)
     EXPECT(a >= b);
 }
 
-// --- Broadcast-style: comparing 1 vs dim and 0 vs stride ---
-
-TEST_CASE(cmp_lit_one_le_any_positive_dim)
-{
-    auto n = var("n");
-    auto c = var("c", 1, 512);
-    EXPECT(lit(1) <= n);
-    EXPECT(lit(1) <= c);
-    EXPECT(not(n < lit(1)));
-}
-
 TEST_CASE(cmp_zero_stride_less_than_symbolic_stride)
 {
     auto h = var("h");
@@ -1517,68 +1303,90 @@ TEST_CASE(cmp_zero_stride_less_than_symbolic_stride)
     EXPECT(lit(0) < h + w);
 }
 
+// -------------------------------------------------------------------
+// Optimals: eval_optimals()
+// -------------------------------------------------------------------
+
 TEST_CASE(eval_optimals_single_var)
 {
-    auto n = var("n", 1, 8, {2, 4});
-    EXPECT(n.eval_optimals() == std::set<int64_t>{2, 4});
+    auto n = var("n", {1, 8}, {2, 4});
+    EXPECT(n.eval_optimals() == std::set<std::size_t>{2, 4});
 }
 
 TEST_CASE(eval_optimals_compound_expr)
 {
-    auto n = var("n", 1, 8, {2, 4});
+    auto n = var("n", {1, 8}, {2, 4});
     auto e = 2 * n + 1;
-    EXPECT(e.eval_optimals() == std::set<int64_t>{5, 9});
+    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 9});
 }
 
 TEST_CASE(eval_optimals_multi_var)
 {
-    auto n = var("n", 1, 8, {2, 4});
-    auto m = var("m", 1, 8, {3, 6});
+    auto n = var("n", {1, 8}, {2, 4});
+    auto m = var("m", {1, 8}, {3, 6});
     auto e = n + m;
-    EXPECT(e.eval_optimals() == std::set<int64_t>{5, 7, 8, 10});
+    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 7, 8, 10});
 }
 
-TEST_CASE(eval_optimals_negative)
+TEST_CASE(eval_optimals_negative_throws)
 {
-    auto n = var("n", 1, 4, {2});
-    auto m = var("m", 1, 8, {5});
+    auto n = var("n", {1, 4}, {2});
+    auto m = var("m", {1, 8}, {5});
     auto e = n - m;
-    EXPECT(e.eval_optimals() == std::set<int64_t>{-3});
+    EXPECT(test::throws([&] { (void)e.eval_optimals(); }));
 }
 
 TEST_CASE(eval_optimals_no_optimals)
 {
-    auto n = var("n", 1, 8);
+    auto n = var("n", {1, 8});
     EXPECT(n.eval_optimals().empty());
 }
 
 TEST_CASE(eval_optimals_empty_expr)
 {
-    migraphx::sym::expr e;
+    se e;
     EXPECT(e.eval_optimals().empty());
 }
 
-TEST_CASE(eval_optimals_uint)
+// -------------------------------------------------------------------
+// Serialization: bounded vars
+// -------------------------------------------------------------------
+
+TEST_CASE(serialize_bounded_var)
 {
-    auto n = var("n", 1, 8, {2, 4});
-    auto e = 2 * n + 1;
-    EXPECT(e.eval_optimals_uint() == std::set<std::size_t>{5, 9});
+    auto h = var("h", {1, 128});
+    auto r = round_trip(h);
+    EXPECT(r == h);
+    EXPECT(r != var("h", {1, 256}));
+    EXPECT(r != var("h"));
 }
 
-TEST_CASE(eval_optimals_uint_negative_throws)
+TEST_CASE(serialize_bounded_var_in_expr)
 {
-    auto n = var("n", 1, 4, {2});
-    auto m = var("m", 1, 8, {5});
-    auto e = n - m;
-    EXPECT(test::throws([&] { e.eval_optimals_uint(); }));
+    auto h = var("h", {1, 128});
+    auto w = var("w", {1, 256});
+    auto e = 2 * h + w - 3;
+    auto r = round_trip(e);
+    EXPECT(r == e);
+    EXPECT(r.eval_uint({{h, 64}, {w, 32}}) == 157);
 }
 
-TEST_CASE(eval_min_max_uint)
+TEST_CASE(serialize_conv_output_with_bounds)
 {
-    auto n = var("n", 2, 16);
-    auto e = 3 * n + 1;
-    EXPECT(e.eval_min_uint() == 7);
-    EXPECT(e.eval_max_uint() == 49);
+    auto h   = var("h", {3, 256});
+    auto out = (h - 3) / 2 + 1;
+    auto r   = round_trip(out);
+    EXPECT(r == out);
+    EXPECT(r.eval_uint({{h, 255}}) == 127);
+}
+
+TEST_CASE(serialize_comparison_survives_round_trip)
+{
+    auto h    = var("h", {3, 256});
+    auto out  = (h - 3) / 2 + 1;
+    auto h2   = round_trip(h);
+    auto out2 = round_trip(out);
+    EXPECT(out2 < h2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

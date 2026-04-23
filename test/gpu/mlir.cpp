@@ -102,8 +102,11 @@ static migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     inputs.push_back(mm->add_parameter("output", mmlir.get_output_shapes().front()));
 
     migraphx::gpu::context ctx;
+    auto shapes = to_shapes(inputs);
+    // compile_mlir requires a tuning solution (perfConfig) for the backend pipeline
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(mmlir), shapes, false);
     migraphx::gpu::mlir_code_object mco =
-        compile_mlir(ctx, create_mlir_submodule(mmlir), to_shapes(inputs), {});
+        compile_mlir(ctx, create_mlir_submodule(mmlir), shapes, tc.solutions.front());
     migraphx::gpu::insert_mlir(*mm, mm->end(), mco.cop, inputs);
     return p;
 }
@@ -161,9 +164,9 @@ static std::string get_attrs()
 {
     if(migraphx::enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
     {
-        return R"({arch = "", enable_splitk_for_tuning, kernel = "mixr", num_chiplets = 0 : i64, num_cu = 0 : i64})";
+        return R"({rock.arch = "", rock.enable_splitk_for_tuning, rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
     }
-    return R"({arch = "", kernel = "mixr", num_chiplets = 0 : i64, num_cu = 0 : i64})";
+    return R"({rock.arch = "", rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
 }
 
 TEST_CASE(conv)

@@ -97,49 +97,72 @@ struct MIGRAPHX_EXPORT shape
 
     struct MIGRAPHX_EXPORT dynamic_dimension
     {
-        std::size_t min = 0;
-        std::size_t max = 0;
-        std::set<std::size_t> optimals{};
-        optional<sym::expr> sym_expr;
+        struct interval
+        {
+            std::size_t min = 0;
+            std::size_t max = 0;
+            template <class Self, class F>
+            static auto reflect(Self& self, F f)
+            {
+                return pack(f(self.min, "min"), f(self.max, "max"));
+            }
+            friend bool operator==(const interval& a, const interval& b)
+            {
+                return a.min == b.min and a.max == b.max;
+            }
+            friend bool operator!=(const interval& a, const interval& b) { return not(a == b); }
+        };
+
+        std::optional<interval> range;
+        std::optional<std::set<std::size_t>> optimals;
+        sym::expr sym_expr;
 
         dynamic_dimension() = default;
-        dynamic_dimension(std::size_t min_v, std::size_t max_v) : min(min_v), max(max_v)
+        dynamic_dimension(std::size_t min_v, std::size_t max_v)
+            : range{interval{min_v, max_v}}, optimals{std::set<std::size_t>{}}
         {
-            normalize_sym();
         }
         dynamic_dimension(std::size_t min_v, std::size_t max_v, std::set<std::size_t> opt)
-            : min(min_v), max(max_v), optimals(std::move(opt))
+            : range{interval{min_v, max_v}},
+              optimals(min_v == max_v ? std::set<std::size_t>{} : std::move(opt))
         {
-            normalize_sym();
         }
-        dynamic_dimension(sym::expr s)
+        dynamic_dimension(sym::expr s) : sym_expr(std::move(s))
         {
-            if(s.empty())
+            if(sym_expr.empty())
                 MIGRAPHX_THROW(
                     "dynamic_dimension: cannot construct from an empty symbolic expression");
-            auto bounds = s.compute_bounds_uint();
-            min         = bounds.first;
-            max         = bounds.second;
-            optimals    = s.eval_optimals_uint();
-            sym_expr    = std::move(s);
         }
 
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.min, "min"),
-                        f(self.max, "max"),
-                        f(self.optimals, "optimals"),
-                        f(self.sym_expr, "sym"));
+            return pack(
+                f(self.range, "range"), f(self.optimals, "optimals"), f(self.sym_expr, "sym"));
+        }
+
+        interval get_interval() const
+        {
+            if(is_symbolic())
+            {
+                auto ival = sym_expr.eval_interval();
+                if(ival.min < 0 or ival.max < 0)
+                    MIGRAPHX_THROW("dynamic_dimension: symbolic expression has negative bounds");
+                return {static_cast<std::size_t>(ival.min), static_cast<std::size_t>(ival.max)};
+            }
+            return *range;
+        }
+        std::set<std::size_t> get_optimals() const
+        {
+            if(is_symbolic())
+                return sym_expr.eval_optimals();
+            if(optimals.has_value())
+                return *optimals;
+            return {};
         }
 
         bool is_fixed() const;
-        bool is_symbolic() const { return sym_expr.has_value(); }
-        void normalize_sym()
-        {
-            if(is_fixed() and not is_symbolic())
-                sym_expr = sym::lit(min);
-        }
+        bool is_symbolic() const { return not sym_expr.empty(); }
         bool has_optimal() const;
 
         /**
@@ -155,8 +178,10 @@ struct MIGRAPHX_EXPORT shape
                     return *this;
                 return nullopt;
             }
-            auto left  = std::max(this->min, other.min);
-            auto right = std::min(this->max, other.max);
+            auto this_interval  = this->get_interval();
+            auto other_interval = other.get_interval();
+            auto left           = std::max(this_interval.min, other_interval.min);
+            auto right          = std::min(this_interval.max, other_interval.max);
             if(left <= right)
                 return dynamic_dimension{left, right};
             return nullopt;

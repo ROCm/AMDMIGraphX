@@ -938,7 +938,7 @@ TEST_CASE(dot_dyn_test_outer_mismatch)
 
 TEST_CASE(dot_sym_batch)
 {
-    auto n = var("n", 1, 8);
+    auto n = var("n", {1, 8});
     migraphx::shape s_a{migraphx::shape::float_type, {dd{n}, dd{4, 4}, dd{5, 5}}};
     migraphx::shape s_b{migraphx::shape::float_type, {dd{n}, dd{5, 5}, dd{3, 3}}};
     migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{4, 4}, dd{3, 3}}};
@@ -954,8 +954,8 @@ TEST_CASE(dot_sym_batch)
 
 TEST_CASE(dot_sym_batch_4d)
 {
-    auto n = var("n", 1, 8);
-    auto c = var("c", 1, 16);
+    auto n = var("n", {1, 8});
+    auto c = var("c", {1, 16});
     migraphx::shape s_a{migraphx::shape::float_type, {dd{n}, dd{c}, dd{4, 4}, dd{5, 5}}};
     migraphx::shape s_b{migraphx::shape::float_type, {dd{n}, dd{c}, dd{5, 5}, dd{7, 7}}};
     migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{c}, dd{4, 4}, dd{7, 7}}};
@@ -971,9 +971,9 @@ TEST_CASE(dot_sym_batch_4d)
 
 TEST_CASE(dot_sym_matdims)
 {
-    auto m = var("m", 1, 64);
-    auto k = var("k", 1, 128);
-    auto n = var("n", 1, 32);
+    auto m = var("m", {1, 64});
+    auto k = var("k", {1, 128});
+    auto n = var("n", {1, 32});
     migraphx::shape s_a{migraphx::shape::float_type, {dd{m}, dd{k}}};
     migraphx::shape s_b{migraphx::shape::float_type, {dd{k}, dd{n}}};
     migraphx::shape expected{migraphx::shape::float_type, {dd{m}, dd{n}}};
@@ -989,10 +989,10 @@ TEST_CASE(dot_sym_matdims)
 
 TEST_CASE(dot_sym_batch_matdims)
 {
-    auto b = var("b", 1, 8);
-    auto m = var("m", 1, 64);
-    auto k = var("k", 1, 128);
-    auto n = var("n", 1, 32);
+    auto b = var("b", {1, 8});
+    auto m = var("m", {1, 64});
+    auto k = var("k", {1, 128});
+    auto n = var("n", {1, 32});
     migraphx::shape s_a{migraphx::shape::float_type, {dd{b}, dd{m}, dd{k}}};
     migraphx::shape s_b{migraphx::shape::float_type, {dd{b}, dd{k}, dd{n}}};
     migraphx::shape expected{migraphx::shape::float_type, {dd{b}, dd{m}, dd{n}}};
@@ -1008,10 +1008,10 @@ TEST_CASE(dot_sym_batch_matdims)
 
 TEST_CASE(dot_sym_k_mismatch)
 {
-    auto m  = var("m", 1, 64);
-    auto k1 = var("k1", 1, 128);
-    auto k2 = var("k2", 1, 128);
-    auto n  = var("n", 1, 32);
+    auto m  = var("m", {1, 64});
+    auto k1 = var("k1", {1, 128});
+    auto k2 = var("k2", {1, 128});
+    auto n  = var("n", {1, 32});
     migraphx::shape s_a{migraphx::shape::float_type, {dd{m}, dd{k1}}};
     migraphx::shape s_b{migraphx::shape::float_type, {dd{k2}, dd{n}}};
     throws_shape(migraphx::make_op("dot"), s_a, s_b);
@@ -1019,8 +1019,8 @@ TEST_CASE(dot_sym_k_mismatch)
 
 TEST_CASE(dot_sym_k_vs_range)
 {
-    auto m = var("m", 1, 64);
-    auto k = var("k", 1, 128);
+    auto m = var("m", {1, 64});
+    auto k = var("k", {1, 128});
     migraphx::shape s_a{migraphx::shape::float_type, {dd{m}, dd{k}}};
     migraphx::shape s_b{migraphx::shape::float_type, {{1, 128}, {1, 32}}};
     migraphx::shape expected{migraphx::shape::float_type, {dd{m}, dd{1, 32}}};
@@ -1094,7 +1094,7 @@ TEST_CASE(broadcast_for_dot_dyn2)
 
 TEST_CASE(broadcast_for_dot_sym)
 {
-    auto n = var("n", 1, 8);
+    auto n = var("n", {1, 8});
     migraphx::shape s0{migraphx::shape::float_type, {dd{4, 4}, dd{8, 8}}};
     migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{8, 8}, dd{6, 6}}};
     auto bcast_op = migraphx::make_op("broadcast_for_dot");
@@ -3161,7 +3161,7 @@ TEST_CASE(quant_dot_dyn)
 
 TEST_CASE(quant_dot_sym_batch)
 {
-    auto n = var("n", 1, 8);
+    auto n = var("n", {1, 8});
     migraphx::shape s_a{migraphx::shape::int8_type, {dd{n}, dd{4, 4}, dd{5, 5}}};
     migraphx::shape s_b{migraphx::shape::int8_type, {dd{n}, dd{5, 5}, dd{3, 3}}};
     migraphx::shape expected{migraphx::shape::int32_type, {dd{n}, dd{4, 4}, dd{3, 3}}};
@@ -3177,9 +3177,9 @@ TEST_CASE(quant_dot_sym_batch)
 
 TEST_CASE(quant_dot_sym_matdims)
 {
-    auto m = var("m", 1, 64);
-    auto k = var("k", 1, 128);
-    auto n = var("n", 1, 32);
+    auto m = var("m", {1, 64});
+    auto k = var("k", {1, 128});
+    auto n = var("n", {1, 32});
     migraphx::shape s_a{migraphx::shape::int8_type, {dd{m}, dd{k}}};
     migraphx::shape s_b{migraphx::shape::int8_type, {dd{k}, dd{n}}};
     migraphx::shape expected{migraphx::shape::int32_type, {dd{m}, dd{n}}};

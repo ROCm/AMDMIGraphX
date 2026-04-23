@@ -251,7 +251,7 @@ inline std::string to_hex_string(const Range& r, bool lsb = false)
     constexpr std::array<char, 16> hex_digits = {
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
     return std::accumulate(r.begin(), r.end(), std::string{}, [&](std::string acc, const auto& x) {
-        using type            = std::make_unsigned_t<std::decay_t<decltype(x)>>;
+        using type         = std::make_unsigned_t<std::decay_t<decltype(x)>>;
         const auto u       = bit_cast<type>(x);
         const auto to_byte = [&](std::ptrdiff_t b) -> std::uint8_t {
             return (u >> (b * 8u)) & 0xffu;

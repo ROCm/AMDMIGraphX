@@ -112,7 +112,6 @@ struct find_flash_decoding_reduce
     }
 
     void apply(module_pass_manager&, const match::matcher_result&) const {
-        std::cout << "apply flash decoding reduce" << std::endl;
     }
 };
 

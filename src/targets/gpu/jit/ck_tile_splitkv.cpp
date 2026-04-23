@@ -53,7 +53,9 @@ static const char* const ck_tile_splitkv_kernel = R"__migraphx__(
 using namespace migraphx;
 
 extern "C" {
+using KernelType = ${solution};
 
+__launch_bounds__(KernelType::Kernel::kBlockSize, KernelType::Kernel::kBlockPerCu)
 __global__ void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last<2>())(${args})([](auto... xs) {
@@ -244,6 +246,8 @@ struct ck_tile_splitkv_compiler : compiler<ck_tile_splitkv_compiler>
         options.output               = output_shape;
         options.kernel_name = v.get("kernel", std::string{"ck_tile_splitkv_kernel"});
         options.emplace_param("-DMIGRAPHX_CK_SPLITKV_SCALE=" + std::to_string(scale));
+        options.emplace_param("-DCK_TILE_FMHA_FWD_FAST_EXP2=1");
+        options.emplace_param("-fgpu-flush-denormals-to-zero");
 
         options.global   = grid_x * block_size;
         options.global_y = grid_y;

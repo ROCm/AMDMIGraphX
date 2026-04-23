@@ -232,6 +232,10 @@ interval max(interval x, interval y)
 struct literal_node
 {
     scalar val;
+    std::size_t hash() const
+    {
+        return std::visit([](auto x) -> std::size_t { return std::hash<decltype(x)>{}(x); }, val);
+    }
     friend bool operator==(const literal_node& a, const literal_node& b)
     {
         return scalar_invoke_common<bool>(
@@ -245,6 +249,11 @@ struct variable_node
     std::string name;
     std::vector<interval> constraints;
     std::set<scalar> optimals;
+
+    std::size_t hash() const
+    {
+        return std::hash<std::string>{}(name);
+    }
     friend bool operator==(const variable_node& a, const variable_node& b)
     {
         return a.name == b.name and a.constraints == b.constraints and a.optimals == b.optimals;
@@ -257,6 +266,11 @@ struct op_node
     const op_def* op;
     friend bool operator==(const op_node& a, const op_node& b) { return a.op == b.op; }
     friend bool operator!=(const op_node& a, const op_node& b) { return not(a == b); }
+
+    std::size_t hash() const
+    {
+        return std::hash<std::string>{}(op->name);
+    }
 };
 
 using node_variant = std::variant<literal_node, variable_node, op_node>;
@@ -266,18 +280,9 @@ static std::size_t hash_combine(std::size_t seed, std::size_t h)
     return seed ^ (h + 0x9e3779b9 + (seed << 6u) + (seed >> 2u));
 }
 
-static std::size_t hash_scalar(const scalar& v)
-{
-    return std::visit([](auto x) -> std::size_t { return std::hash<decltype(x)>{}(x); }, v);
-}
-
 static std::size_t hash_node(const node_variant& nv)
 {
-    return std::visit(
-        overloaded{[](const literal_node& n) { return hash_scalar(n.val); },
-                   [](const variable_node& n) { return std::hash<std::string>{}(n.name); },
-                   [](const op_node& n) { return std::hash<const op_def*>{}(n.op); }},
-        nv);
+    return std::visit([](const auto& x) { return x.hash(); }, nv);
 }
 
 static std::size_t hash_children(const std::vector<expr>& children, std::size_t start)

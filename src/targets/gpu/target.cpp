@@ -216,7 +216,7 @@ migraphx::context target::get_context() const
     {
         auto num_cu       = value_of(MIGRAPHX_GPU_NUM_CU{}, 120);
         auto num_chiplets = value_of(MIGRAPHX_GPU_NUM_CHIPLETS{}, 1);
-        return context(std::move(arch), num_cu, num_chiplets);
+        return context(arch, num_cu, num_chiplets);
     }
     return context(gpu::get_device_id());
 }

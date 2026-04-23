@@ -108,7 +108,7 @@ std::array<std::uint32_t, 4> process_block(std::array<std::uint32_t, 4> state,
     return {state[0] + a, state[1] + b, state[2] + c, state[3] + d};
 }
 
-std::uint8_t to_uint8(std::int8_t c) { return bit_cast<std::uint8_t>(c); }
+std::uint8_t to_uint8(char c) { return bit_cast<std::uint8_t>(c); }
 
 } // namespace
 
@@ -137,7 +137,7 @@ std::string md5(const std::string_view& str)
 
     const bool need_two    = (remainder >= block_size - 8);
     const std::uint64_t bit_length = std::uint64_t{str.size()} * 8u;
-    auto& last             = need_two ? tail[1] : tail[0];
+    const auto& last             = need_two ? tail[1] : tail[0];
     const auto bit_indices = range(8);
     transform_partial_sum(
         bit_indices.begin(),

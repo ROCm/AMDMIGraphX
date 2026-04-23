@@ -8,110 +8,83 @@ Review C++ changes against the MIGraphX coding style and flag AI-generated slop.
 
 ## Coding Style
 
-### Naming & Syntax
-- `snake_case` for files, functions, variables, types
-- `CamelCase` for template parameters
-- `UPPER_CASE` with `MIGRAPHX_` prefix for macros
-- `using alias = T;` not `typedef`
-- `nullptr` not `NULL` / `0`
-- `and` / `or` instead of `&&` / `||`
-- 4-space indent, 100-column limit, braces on new line (per `.clang-format`)
+### Naming Conventions
 
-### Types & Casts
-- Declare the correct type at the source. Flag any `static_cast` / `reinterpret_cast` / C-style cast that exists only to paper over a type mismatch.
-- Prefer `std::bitset` and named utility helpers over raw bit twiddling.
-- Use `std::tie` or `std::lexicographical_compare` for lexicographic comparisons.
-- Use `migraphx::shape` methods for offsets, strides, and indexing — never hand-rolled mod/div arithmetic.
+- **Files and symbols**: `snake_case` (e.g., `compute_shape`, `eliminate_concat.cpp`)
+- **Template parameters**: `CamelCase`
+- **Macros**: `UPPER_CASE` with `MIGRAPHX_` prefix
+- Use `using type_alias = int` not `typedef int type_alias`
+- Use `nullptr` not `NULL` or `0`
+- Use `or` and `and` instead `&&` and `||`
 
-### Algorithms Over Raw Loops
-- Replace raw `for` loops with `<algorithm>` or `migraphx/algorithm.hpp` (`transform_if`, `transform_accumulate`, `group_by`, `adjacent_for_each`, etc.).
-- `std::for_each` is NOT an acceptable substitute — it's just a loop wrapper.
-- If no suitable algorithm exists, suggest adding one to `migraphx/algorithm.hpp` rather than accepting a raw loop.
+### Formatting (.clang-format)
 
-### Resources & Memory
-- `std::make_unique` / `std::make_shared`; no raw `new` / `delete`.
-- Use `MIGRAPHX_MANAGE_PTR` for C-style acquire/release APIs.
+- 4-space indent, no tabs
+- 100 column limit
+- Braces on new line for classes/functions/control structures
+- Align consecutive assignments
 
-### Type Erasure
-- `pass`, `operation`, `target`, `instruction` use type erasure — do not add inheritance. Implement the required methods directly on a value type.
-- Interface changes require running `make generate`; flag hand-edits to generated headers.
+### Style Guidelines
 
-### Passes
-- Must be idempotent and deterministic.
-- `compute_shape` must handle dynamic (unknown) dimensions.
-- Prefer matcher-based rewrites (`src/matcher.hpp`) over open-coded traversal.
+- Avoid raw loops - Prefer algorithms from `<migraphx/algorithm.hpp>` and STL `<algorithm>`:
+    - `std::for_each` is NOT an acceptable substitute — it's just a loop wrapper.
+    - MIGraphX-specific algorithms (`#include <migraphx/algorithm.hpp>`):
+      - `transform_if(start, last, out, pred, f)` - Transform with filtering
+      - `transform_accumulate(first, last, init, binop, unaryop)` - Accumulate with projection
+      - `transform_partial_sum(first, last, out, binop, unaryop)` - Partial sum with projection
+      - `group_by(start, last, out, pred)` - Group elements by predicate
+      - `group_unique(start, last, out, pred)` - Group consecutive unique elements
+      - `group_find(start, last, pred, out)` - Find and group matching ranges
+      - `adjacent_remove_if(first, last, pred)` - Remove based on adjacent pairs
+      - `adjacent_for_each(first, last, f)` - Iterate over adjacent pairs
+      - `for_each(first1, last1, first2, f)` - Two-range iteration (like std::transform)
+    - If no suitable algorithm exists: Add a new algorithm to `migraphx/algorithm.hpp` rather than using raw loops
 
-## AI Slop — Flag and Suggest Removal
+- Memory management - Use `std::make_unique/shared`, avoid raw `new`/`delete`
+- Non-memory resources - Use `MIGRAPHX_MANAGE_PTR` for C-style acquire/release APIs:
+- Type erasure over inheritance - MIGraphX uses type erasure extensively for `pass`, `operation`, `target`
+  - No need to inherit from base class - just implement required interface methods
+  - Generate boilerplate with `make generate` when interfaces change
+  - Enables value semantics with polymorphism, no virtual inheritance overhead
 
-Scan for these patterns; they are common in AI-generated C++ and rarely belong in a PR:
+- Pass design principles:
+  - Keep passes idempotent (running twice = running once)
+  - Keep passes deterministic (same input → same output)
+  - Always handle dynamic shapes in `compute_shape` (unknown dimensions)
+  - Prefer matcher-based rewrites (`src/matcher.hpp`) over open-coded traversal.
 
-1. **Redundant comments** describing *what* the code does (`// increment i`, `// return the result`). Keep comments only for non-obvious *why* — hidden constraints, workarounds, invariants. Delete the rest.
-2. **Multi-line docstrings / banner comments** on trivial functions. One short line max.
-3. **References to the task or PR in comments** (`// added for issue #123`, `// fix from review`). Belongs in the commit message, not the code.
-4. **Defensive checks at internal boundaries** — null checks, `if (vec.empty()) return;`, try/catch around infallible code. Only validate at true system boundaries.
-5. **Speculative error handling** for conditions that cannot occur given caller guarantees.
-6. **Backwards-compat shims** that aren't needed: renamed `_unused` parameters, re-exports of removed types, `// removed` tombstone comments.
-7. **Unrequested refactors** bundled into a bug fix. Flag them for separation.
-8. **Unused casts, unused `std::move`, unnecessary `auto&&`**, copies where a reference suffices, `const_cast` used to bypass API design.
-9. **Magic numbers and duplicated literals** where a named constant or existing enum already exists.
-10. **Tests that assert what the code just did** rather than observable behavior; overuse of mocks where a real object is cheap.
-11. **Over-broad `#include`s** — including a heavy header when a forward declaration or a narrower header would do.
+- Generic programming
+    - Write reusable, type-independent code using templates and STL algorithms
 
-## Overengineering — Flag Aggressively
+- Avoid Casts
+    - Dont use a cast unless abosuluty necessary. Declare Correct Types. Casts indicate a type mismatch that should be resolved at the source.
 
-AI-generated code routinely builds machinery the task did not ask for. Push back on all of these:
+- Encapsulate Bit Manipulation - Put bit-twiddling and low-level operations behind well-named utility functions:
+    - Prefer `std::bitset` for bit manipulation
 
-- **Premature abstraction** — a helper used once, a template parameter with one instantiation, a base class with one derived class, a policy/strategy class for two branches. Three similar lines are better than a wrong abstraction.
+- Use std::tie for Lexicographical Comparisons
+    - Use `std::tie` or `std::lexicographical_compare` instead of manually writing lexicographical comparisons.
+
+- Use shape class to compute offsets and indexing
+    - The `migraphx::shape` class provides methods for computing offsets, strides, and indexing. Use these instead of manual calculations with mod and division.
+
+## AI slop
+
+- **Redundant comments** describing *what* the code does (`// increment i`, `// return the result`). Keep comments only for non-obvious *why* — hidden constraints, workarounds, invariants. Delete the rest.
+- **Multi-line docstrings / banner comments** on trivial functions. One short line max.
+- **Defensive checks at internal boundaries** — null checks, `if (vec.empty()) return;`, try/catch around infallible code. Only validate at true system boundaries.
+- **Speculative error handling** for conditions that cannot occur given caller guarantees.
+- **Backwards-compat shims** that aren't needed: renamed `_unused` parameters, re-exports of removed types, `// removed` tombstone comments.
+- **Unrequested refactors** bundled into a bug fix. Flag them for separation.
+- **Unused casts, unused `std::move`, unnecessary `auto&&`**, copies where a reference suffices, `const_cast` used to bypass API design.
+- **Magic numbers and duplicated literals** where a named constant or existing enum already exists.
+- **Over-broad `#include`s** — including a heavy header when a forward declaration or a narrower header would do.
+- **Premature abstraction** — a helper used once
 - **Classes masquerading as functions** — a struct with one public method and no state should be a free function.
-- **Unnecessary templates** — templating a function that only ever takes `instruction_ref` or `std::string`. Use the concrete type.
-- **Needless virtual / inheritance hierarchies** in a codebase that uses type erasure (`pass`, `operation`, `target`). Flag any new `virtual` or base class added to these areas.
 - **Config structs / builder patterns** around what should be 1–2 function arguments.
 - **Factory functions** that only call a constructor.
-- **Custom exception types, custom iterators, custom smart pointers** when the standard or existing MIGraphX equivalent works.
 - **Multiple layers of wrappers** (e.g., `wrap_impl` calling `do_wrap` calling `wrap_inner`) with no distinct responsibility per layer. Collapse them.
 - **"Future-proofing"** — enums with a single value, `std::variant` with one alternative, hooks/callbacks with no second caller, `std::optional` return where the value is always present.
-- **Parallel data structures** — a new `std::map<instruction_ref, X>` sidecar where an existing field on `instruction` or `module` carries the same information.
-- **New files for 10-line helpers** that belong next to their one caller.
+- **Unnecessary intermediate variables** - When the original variable can just be used directly
 
-When you see it, propose the concrete collapse: "inline this into the caller," "delete the template and pass `shape` directly," "use the existing field on `instruction` instead of a new map."
-
-## Reuse Existing MIGraphX Utilities
-
-AI-generated code loves to re-implement things MIGraphX already provides. Before accepting any hand-rolled helper, check whether it duplicates one of these. If it does, the PR should use the existing utility:
-
-**Algorithms & ranges**
-- `<migraphx/algorithm.hpp>` — `transform_if`, `transform_accumulate`, `transform_partial_sum`, `group_by`, `group_unique`, `group_find`, `adjacent_remove_if`, `adjacent_for_each`, two-range `for_each`, `min_element_if`, `levenshtein_distance`.
-- `<migraphx/ranges.hpp>` — `contains`, `all_of`, `any_of`, `none_of`, `generic_find` on whole containers; stop writing `std::find(c.begin(), c.end(), x) != c.end()`.
-- `<migraphx/iterator_for.hpp>` — iterate instructions in a module without raw iterator arithmetic.
-- `<migraphx/erase.hpp>` — uniform container erase; no hand-rolled erase-remove idiom.
-- `<migraphx/output_iterator.hpp>` — function-object output iterators instead of bespoke wrappers.
-
-**Shape / tensor math**
-- `migraphx::shape` — `.index()`, `.multi()`, `.element_space()`, `.packed()`, `.transposed()`, `.broadcasted()`, `.standard()`. Never hand-code stride/offset arithmetic with mod/div.
-- `<migraphx/common.hpp>`, `<migraphx/common_dims.hpp>` — broadcasting, shape-unification helpers.
-- `<migraphx/check_shapes.hpp>` — shape validation in `compute_shape`; don't inline the same `if (inputs.size() != N)` checks.
-- `<migraphx/dfor.hpp>` — N-dimensional iteration.
-- `<migraphx/clamp.hpp>`, `<migraphx/float_equal.hpp>` — numeric comparisons; do not reinvent `abs(a-b) < eps`.
-
-**IR construction & inspection**
-- `<migraphx/make_op.hpp>` — `make_op("name", {{"attr", val}})`; don't construct op structs by name-string concatenation.
-- `<migraphx/matcher.hpp>` — pattern-based rewrites (`match::name`, `match::args`, `match::either_arg`, `.bind`). Flag any hand-written DFS that re-implements matching.
-- `module::replace_instruction`, `module::insert_instruction`, `module::remove_instruction` — never splice the instruction list directly.
-
-**Strings, hashing, I/O**
-- `<migraphx/stringutils.hpp>` — `replace_string`, `starts_with`, `ends_with`, `contains`, `split_string`, `join_strings`, `trim`, `to_upper/lower`.
-- `<migraphx/hash.hpp>` — combine hashes via the provided helpers, not ad-hoc `x ^ (y << 1)`.
-- `<migraphx/file_buffer.hpp>`, `<migraphx/filesystem.hpp>`, `<migraphx/fileutils.hpp>` — file I/O and path handling.
-- `<migraphx/errors.hpp>` — `MIGRAPHX_THROW`; do not `throw std::runtime_error` directly.
-- `<migraphx/assert.hpp>` — `MIGRAPHX_ASSERT` over raw `assert`.
-- `<migraphx/env.hpp>` — environment variables via the provided accessors.
-
-**Resources & memory**
-- `MIGRAPHX_MANAGE_PTR` for C-style acquire/release APIs.
-- `<migraphx/any_ptr.hpp>`, `<migraphx/bit_cast.hpp>`, `<migraphx/functional.hpp>` — prefer these over hand-rolled equivalents.
-
-When reviewing, if a PR adds a free function, lambda, or helper struct that looks like one of the above, link to the existing header and ask for it to be replaced. A 30-line "utility" added in a feature PR is almost always a reinvented wheel.
-
-## Review Output
-
-For each issue, suggest the concrete simplification (delete / replace with algorithm X / use existing utility Y) rather than a generic "consider refactoring." If you can point at a specific MIGraphX header that already solves the problem, name it.
+Look for ways to simplify the code by resusing existing migraphx utilites.

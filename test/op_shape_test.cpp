@@ -509,7 +509,7 @@ TEST_CASE(conv_autopad_dyn_kernel)
 
 TEST_CASE(conv_sym_batch)
 {
-    auto n = var("n", 1, 8);
+    auto n = var("n", {1, 8});
     migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{3, 3}, dd{5, 5}, dd{5, 5}}};
     migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{1, 1}, dd{3, 3}, dd{3, 3}}};
@@ -522,8 +522,8 @@ TEST_CASE(conv_sym_batch)
 
 TEST_CASE(conv_sym_img)
 {
-    auto h = var("h", 5, 20, {10, 15});
-    auto w = var("w", 5, 20, {10, 15});
+    auto h = var("h", {5, 20}, {10, 15});
+    auto w = var("w", {5, 20}, {10, 15});
     migraphx::shape input{migraphx::shape::float_type, {dd{1, 1}, dd{3, 3}, dd{h}, dd{w}}};
     migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape expected{migraphx::shape::float_type,
@@ -540,9 +540,9 @@ TEST_CASE(conv_sym_img)
 
 TEST_CASE(conv_sym_img_pad_stride)
 {
-    auto n = var("n", 1, 8);
-    auto h = var("h", 10, 50, {20, 30});
-    auto w = var("w", 10, 50, {20, 30});
+    auto n = var("n", {1, 8});
+    auto h = var("h", {10, 50}, {20, 30});
+    auto w = var("w", {10, 50}, {20, 30});
     migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{3, 3}, dd{h}, dd{w}}};
     migraphx::shape weights{migraphx::shape::float_type, {16, 3, 5, 5}};
     // h: ((h + 2*2 - 5) / 2) + 1 = (h - 1)/2 + 1
@@ -2983,7 +2983,7 @@ TEST_CASE(pooling_dyn_shape4)
 
 TEST_CASE(pooling_sym_batch)
 {
-    auto n = var("n", 1, 8);
+    auto n = var("n", {1, 8});
     migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{3, 3}, dd{10, 10}, dd{10, 10}}};
     migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{3, 3}, dd{4, 4}, dd{4, 4}}};
     auto pool_op = migraphx::make_op("pooling",
@@ -3003,8 +3003,8 @@ TEST_CASE(pooling_sym_batch)
 
 TEST_CASE(pooling_sym_img)
 {
-    auto h = var("h", 5, 20, {10, 15});
-    auto w = var("w", 5, 20, {10, 15});
+    auto h = var("h", {5, 20}, {10, 15});
+    auto w = var("w", {5, 20}, {10, 15});
     migraphx::shape input{migraphx::shape::float_type, {dd{1, 1}, dd{3, 3}, dd{h}, dd{w}}};
     migraphx::shape expected{migraphx::shape::float_type,
                              {dd{1, 1}, dd{3, 3}, dd{h - 2}, dd{w - 2}}};
@@ -3028,9 +3028,9 @@ TEST_CASE(pooling_sym_img_pad_dilation)
     // padding={1,2}, stride={2,3}, lengths={3,3}, dilations={2,1}
     // h: dilated_length=1+2*(3-1)=5, result=((h+2-5)/2)+1 = (h-3)/2+1
     // w: dilated_length=1+1*(3-1)=3, result=((w+4-3)/3)+1 = (w+1)/3+1
-    auto n = var("n", 1, 8);
-    auto h = var("h", 10, 50, {20, 30});
-    auto w = var("w", 10, 50, {20, 30});
+    auto n = var("n", {1, 8});
+    auto h = var("h", {10, 50}, {20, 30});
+    auto w = var("w", {10, 50}, {20, 30});
     migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{3, 3}, dd{h}, dd{w}}};
     migraphx::shape expected{migraphx::shape::float_type,
                              {dd{n}, dd{3, 3}, dd{(h - 3) / 2 + 1}, dd{(w + 1) / 3 + 1}}};

@@ -511,7 +511,7 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
         return strides_compatible(actual.dyn_dims(),
                                   actual.dyn_strides(),
                                   expected.dyn_strides(),
-                                  [](const auto& d) { return d.is_fixed() and d.min == 1; });
+                                  [](const auto& d) { return d == 1; });
     }
     // Only the expected can be dynamic
     if(expected.dynamic())

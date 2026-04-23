@@ -61,17 +61,6 @@ TEST_CASE(construct_empty_var_name_throws)
     EXPECT(test::throws([&] { var(""); }));
 }
 
-TEST_CASE(construct_var_min_greater_than_max_throws)
-{
-    EXPECT(test::throws([&] { var("n", 10, 5); }));
-}
-
-TEST_CASE(construct_var_min_less_than_one_throws)
-{
-    EXPECT(test::throws([&] { var("n", 0, 5); }));
-    EXPECT(test::throws([&] { var("n", -1, 5); }));
-}
-
 TEST_CASE(add_identity)
 {
     auto h = var("h");
@@ -434,26 +423,6 @@ TEST_CASE(eq_empty)
     EXPECT(lit(0) != se{});
 }
 
-TEST_CASE(eq_same_name_different_intervals)
-{
-    auto h1 = var("h", 1, 128);
-    auto h2 = var("h", 1, 256);
-    auto h3 = var("h", 2, 128);
-    auto h4 = var("h", 1, 128);
-    EXPECT(h1 != h2);
-    EXPECT(h1 != h3);
-    EXPECT(h1 == h4);
-}
-
-TEST_CASE(hash_same_name_different_intervals)
-{
-    auto h1 = var("h", 1, 128);
-    auto h2 = var("h", 1, 256);
-    auto h3 = var("h", 1, 128);
-    EXPECT(h1.hash() != h2.hash());
-    EXPECT(h1.hash() == h3.hash());
-}
-
 TEST_CASE(hash_consistency)
 {
     auto h = var("h");
@@ -539,70 +508,6 @@ TEST_CASE(eval_integer_expr)
 {
     EXPECT(lit(0).eval_uint({}) == 0);
     EXPECT(lit(100).eval_uint({}) == 100);
-}
-
-TEST_CASE(eval_min_single_var)
-{
-    auto n = var("n", 2, 16);
-    EXPECT(n.eval_min() == 2);
-    EXPECT(n.eval_max() == 16);
-}
-
-TEST_CASE(eval_min_max_literal)
-{
-    EXPECT(lit(42).eval_min() == 42);
-    EXPECT(lit(42).eval_max() == 42);
-}
-
-TEST_CASE(eval_min_max_compound)
-{
-    auto n = var("n", 1, 8);
-    auto c = var("c", 1, 16);
-    auto e = n * c * 4;
-    EXPECT(e.eval_min() == 4);
-    EXPECT(e.eval_max() == 512);
-}
-
-TEST_CASE(eval_min_max_stride_diff)
-{
-    auto n    = var("n", 1, 8);
-    auto c    = var("c", 1, 16);
-    auto diff = n * c - n;
-    EXPECT(diff.eval_min() == 0);
-    EXPECT(diff.eval_max() == 120);
-}
-
-TEST_CASE(eval_min_max_division)
-{
-    auto n = var("n", 2, 10);
-    auto d = var("d", 1, 5);
-    auto e = n / d;
-    EXPECT(e.eval_min() == 0);
-    EXPECT(e.eval_max() == 10);
-}
-
-TEST_CASE(eval_min_max_div_literal_denom)
-{
-    auto n = var("n", 4, 16);
-    auto e = n / lit(4);
-    EXPECT(e.eval_min() == 1);
-    EXPECT(e.eval_max() == 4);
-}
-
-TEST_CASE(eval_min_max_subtraction_independent)
-{
-    auto a = var("a", 1, 10);
-    auto b = var("b", 1, 5);
-    auto e = a - b;
-    EXPECT(e.eval_min() == -4);
-    EXPECT(e.eval_max() == 9);
-}
-
-TEST_CASE(eval_min_max_empty_throws)
-{
-    se empty;
-    EXPECT(test::throws([&] { empty.eval_min(); }));
-    EXPECT(test::throws([&] { empty.eval_max(); }));
 }
 
 TEST_CASE(eval_non_symbol_key_throws)

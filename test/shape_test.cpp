@@ -1643,6 +1643,54 @@ TEST_CASE(test_symbolic_broadcasted2)
     EXPECT(s.broadcasted());
 }
 
+TEST_CASE(test_symbolic_broadcasted3)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(0), lit(1)}};
+    EXPECT(s.symbolic());
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
+TEST_CASE(test_symbolic_broadcasted4)
+{
+    auto n = var("n", {1, 8});
+    auto c = var("c", {1, 16});
+    migraphx::shape s{
+        migraphx::shape::float_type, {dd{n}, dd{c}, dd{lit(4)}}, {c * lit(4), lit(0), lit(1)}};
+    EXPECT(s.symbolic());
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
+TEST_CASE(test_symbolic_broadcasted5)
+{
+    auto n = var("n", {1, 8});
+    auto c = var("c", {1, 16});
+    migraphx::shape s{
+        migraphx::shape::float_type, {dd{n}, dd{c}, dd{lit(4)}}, {lit(1), lit(0), n * c}};
+    EXPECT(s.symbolic());
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(s.transposed());
+    EXPECT(s.broadcasted());
+}
+
+TEST_CASE(test_symbolic_step_broadcasted)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(0), n}};
+    EXPECT(s.symbolic());
+    EXPECT(not s.standard());
+    EXPECT(not s.packed());
+    EXPECT(not s.transposed());
+    EXPECT(s.broadcasted());
+}
+
 TEST_CASE(test_symbolic_normalize_standard)
 {
     auto n = var("n", {1, 4});
@@ -1715,6 +1763,59 @@ TEST_CASE(test_symbolic_with_lens_4d)
     EXPECT(s2.dyn_dims() == new_dims);
 }
 
+TEST_CASE(test_symbolic_with_lens_ambiguous_singleton_nchw)
+{
+    auto n = var("n", {1, 64});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{lit(24)}, dd{lit(24)}}};
+    auto c                   = var("c", {1, 16});
+    std::vector<dd> new_dims = {dd{n}, dd{c}, dd{lit(24)}, dd{lit(24)}};
+    auto s2                  = s.with_lens(new_dims);
+    EXPECT(s2.symbolic());
+    EXPECT(not s2.transposed());
+    EXPECT(s2.dyn_dims() == new_dims);
+}
+
+TEST_CASE(test_symbolic_with_lens_ambiguous_singleton_nhwc)
+{
+    auto n  = var("n", {1, 64});
+    auto s1 = migraphx::reorder_shape(
+        migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(24)}, dd{lit(24)}, dd{lit(1)}}},
+        {0, 3, 1, 2});
+    EXPECT(s1.transposed());
+    auto c                   = var("c", {1, 16});
+    std::vector<dd> new_dims = {dd{n}, dd{c}, dd{lit(24)}, dd{lit(24)}};
+    auto s2                  = s1.with_lens(new_dims);
+    EXPECT(s2.symbolic());
+    EXPECT(s2.transposed());
+    EXPECT(s2.dyn_dims() == new_dims);
+}
+
+TEST_CASE(test_symbolic_with_lens_ambiguous_all_singleton)
+{
+    auto n = var("n", {1, 64});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{lit(1)}, dd{lit(1)}}};
+    auto c                   = var("c", {1, 16});
+    std::vector<dd> new_dims = {dd{n}, dd{c}, dd{lit(24)}, dd{lit(24)}};
+    auto s2                  = s.with_lens(new_dims);
+    EXPECT(s2.symbolic());
+    EXPECT(s2.standard());
+    EXPECT(s2.dyn_dims() == new_dims);
+}
+
+TEST_CASE(test_symbolic_with_lens_ambiguous_nhwc_all_singleton)
+{
+    auto n  = var("n", {1, 64});
+    auto s1 = migraphx::reorder_shape(
+        migraphx::shape{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{lit(1)}, dd{lit(3)}}},
+        {0, 3, 1, 2});
+    auto c                   = var("c", {1, 16});
+    std::vector<dd> new_dims = {dd{n}, dd{c}, dd{lit(24)}, dd{lit(24)}};
+    auto s2                  = s1.with_lens(new_dims);
+    EXPECT(s2.symbolic());
+    EXPECT(s2.transposed());
+    EXPECT(s2.dyn_dims() == new_dims);
+}
+
 TEST_CASE(find_permutation_symbolic_2d_standard)
 {
     auto n = var("n", {1, 8});
@@ -1728,6 +1829,16 @@ TEST_CASE(find_permutation_symbolic_2d_transpose)
     auto n = var("n", {1, 8});
     migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}, {lit(1), n}};
     std::vector<int64_t> permutation = {1, 0};
+    EXPECT(migraphx::find_permutation(s) == permutation);
+}
+
+TEST_CASE(find_permutation_symbolic_3d)
+{
+    auto n = var("n", {1, 8});
+    auto c = var("c", {1, 16});
+    auto h = var("h", {2, 32});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{c}, dd{h}}, {lit(1), c * h, n}};
+    std::vector<int64_t> permutation = {1, 2, 0};
     EXPECT(migraphx::find_permutation(s) == permutation);
 }
 
@@ -2069,6 +2180,16 @@ TEST_CASE(shape_is_compatible_lens_symbolic_same)
     migraphx::shape s1{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}}};
     migraphx::shape s2{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}}};
     EXPECT(migraphx::shape::is_compatible_lens(s1, s2));
+}
+
+TEST_CASE(shape_is_compatible_lens_static_vs_symbolic)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape actual1{migraphx::shape::float_type, {1, 4, 3}};
+    migraphx::shape actual2{migraphx::shape::float_type, {1, 16, 3}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}}};
+    EXPECT(migraphx::shape::is_compatible_lens(actual1, expected));
+    EXPECT(not migraphx::shape::is_compatible_lens(actual2, expected));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

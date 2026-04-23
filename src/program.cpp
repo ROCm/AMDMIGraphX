@@ -632,60 +632,54 @@ std::vector<argument> program::eval(const parameter_map& params,
         contexts.front().wait_for(exec_env.queue);
     }
 
-    std::vector<argument> ret;
+    // When MIGRAPHX_TRACE_EVAL is set, overwrite any user-provided trace callback with our trace
+    // output
+    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+    std::unordered_map<instruction_ref, std::string> ins_out;
+    if(trace_level > 0)
+    {
+        this->print([&](auto x, const auto& ins_names) {
+            std::stringstream ss;
+            instruction::print(ss, x, ins_names);
+            ins_out[x] = ss.str();
+        });
+        exec_env.trace = [trace_level](instruction_ref, const argument& output) {
+            if(trace_level > 1 and not output.empty())
+                print_trace_buffer(output, trace_level);
+        };
+    }
 
+    std::vector<argument> ret;
     if(exec_env.trace)
     {
         ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
-            auto result = f();
-            if(is_inspectable(ins->name()) and not result.empty())
+            auto tid     = ins->get_target_id();
+            bool has_ctx = tid < contexts.size();
+            if(trace_level > 0)
             {
-                auto tid = ins->get_target_id();
-                if(tid < contexts.size())
-                {
-                    contexts[tid].finish();
-                    exec_env.trace(ins, copy_to_host(result, tid));
-                }
-                else
-                {
-                    exec_env.trace(ins, result);
-                }
+                assert(has_ctx);
+                contexts[tid].finish();
+                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
             }
+            timer t{};
+            auto result  = f();
+            double t1    = t.record<milliseconds>();
+            bool inspect = is_inspectable(ins->name()) and not result.empty();
+            if(has_ctx and (trace_level > 0 or inspect))
+                contexts[tid].finish();
+            if(trace_level > 0)
+            {
+                double t2 = t.record<milliseconds>();
+                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
+            }
+            if(inspect)
+                exec_env.trace(ins, has_ctx ? copy_to_host(result, tid) : result);
             return result;
         });
     }
     else
     {
-        auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
-        if(trace_level > 0)
-        {
-            std::unordered_map<instruction_ref, std::string> ins_out;
-            this->print([&](auto x, const auto& ins_names) {
-                std::stringstream ss;
-                instruction::print(ss, x, ins_names);
-                ins_out[x] = ss.str();
-            });
-            ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
-                const auto& ctx = contexts[ins->get_target_id()];
-                ctx.finish();
-                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
-                timer t{};
-                auto result = f();
-                double t1   = t.record<milliseconds>();
-                ctx.finish();
-                double t2 = t.record<milliseconds>();
-                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-                if(trace_level > 1 and is_inspectable(ins->name()) and not result.empty())
-                {
-                    print_trace_buffer(copy_to_host(result, ins->get_target_id()), trace_level);
-                }
-                return result;
-            });
-        }
-        else
-        {
-            ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
-        }
+        ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
     }
 
     if(exec_env.async)

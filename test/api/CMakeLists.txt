@@ -66,6 +66,7 @@ add_c_api_test(c_op test_c_op_construct.c ${TEST_ONNX_DIR})
 add_api_test(custom_op test_custom_op.cpp ${TEST_ONNX_DIR})
 add_api_test(tf_parser test_tf_parser.cpp ${TEST_TF_DIR})
 add_api_test(onnx_op_list test_onnx_op_list.cpp ${TEST_ONNX_DIR})
+add_api_test(trace_callback test_trace_callback.cpp ${TEST_ONNX_DIR})
 # GPU-based tests
 if(MIGRAPHX_ENABLE_GPU)
 add_api_test(gpu test_gpu.cpp ${TEST_ONNX_DIR})

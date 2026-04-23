@@ -88,7 +88,7 @@ def parse_args():
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
 
-    parser.add_argument('--ort-intra-op-num-threads',
+    parser.add_argument('--ort-disable-affinity',
                         dest="ort_intra_op_num_threads",
                         type=int,
                         default=None,

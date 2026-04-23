@@ -353,7 +353,7 @@ endif()
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 if(MIGRAPHX_USE_EIGEN)
-    find_package(Eigen3)
+    find_package(Eigen3 QUIET)
     if(Eigen3_FOUND)
         target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_EIGEN=1)
         target_compile_definitions(migraphx PRIVATE EIGEN_MPL2_ONLY)

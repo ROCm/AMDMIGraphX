@@ -6,9 +6,10 @@ ARG PREFIX=/usr/local
 RUN dpkg --add-architecture i386
 
 # Install rocm key
-RUN apt-get update && apt-get install -y gnupg2 curl --no-install-recommends && \
+RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
+
 
 # Add rocm repository
 RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/7.2.2/ jammy main > /etc/apt/sources.list.d/rocm.list'
@@ -21,7 +22,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     apt-utils \
     build-essential \
     cmake \
-    curl \
     gdb \
     git \
     lcov \

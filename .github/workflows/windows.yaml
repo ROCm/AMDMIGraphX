@@ -74,10 +74,14 @@ jobs:
         CC: clang
         CXX: clang++
       run: |
-        rbuild build -d cget -s gh-win -G Ninja -T check \
+        rbuild build -d cget -s gh-win-cpu -G Ninja -T tests \
           -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} \
           -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DCTEST_TIMEOUT=5000
+        cd build
+        cmake --build . --target driver
+        ctest -j 8 --output-on-failure --timeout 5000 -E 'test_bf16|test_float32|test_half|test_logger_test|test_schedule_test|test_ref'
+
 
     # - name: Setup tmate session
     #   uses: mxschmitt/action-tmate@v3

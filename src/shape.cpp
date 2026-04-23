@@ -494,34 +494,21 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
         return true;
     if(actual.type() != expected.type())
         return false;
-    auto strides_compatible = [](const auto& dims,
-                                 const auto& actual_strides,
-                                 const auto& expected_strides,
-                                 auto is_unit_dim) {
-        return all_of(range(dims.size()), [&](auto i) {
-            if(is_unit_dim(dims[i]))
-                return true;
-            return actual_strides[i] == expected_strides[i];
-        });
-    };
+    auto compatible =
+        [](const auto& a_dims, const auto& e_dims, const auto& a_strides, const auto& e_strides) {
+            return a_dims == e_dims and all_of(range(a_dims.size()), [&](auto i) {
+                       return a_dims[i] == 1 or a_strides[i] == e_strides[i];
+                   });
+        };
     if(actual.symbolic() and expected.symbolic())
-    {
-        if(actual.dyn_dims() != expected.dyn_dims())
-            return false;
-        return strides_compatible(actual.dyn_dims(),
-                                  actual.dyn_strides(),
-                                  expected.dyn_strides(),
-                                  [](const auto& d) { return d == 1; });
-    }
+        return compatible(
+            actual.dyn_dims(), expected.dyn_dims(), actual.dyn_strides(), expected.dyn_strides());
     // Only the expected can be dynamic
     if(expected.dynamic())
         return actual.ndim() == expected.ndim();
     if(actual.dynamic())
         return false;
-    if(actual.lens() != expected.lens())
-        return false;
-    return strides_compatible(
-        actual.lens(), actual.strides(), expected.strides(), [](auto l) { return l == 1; });
+    return compatible(actual.lens(), expected.lens(), actual.strides(), expected.strides());
 }
 
 bool shape::is_compatible_lens(const shape& actual, const shape& expected)

@@ -359,9 +359,7 @@ function(enable_static_init LIB)
         else()
             # GNU ld / LLD / gold
             target_link_options(${LIB} INTERFACE
-                "LINKER:--push-state,--whole-archive"
-                "$<LINK_ONLY:$<TARGET_FILE:${LIB}>>"
-                "LINKER:--pop-state")
+                "LINKER:--push-state,--whole-archive,$<TARGET_FILE:${LIB}>,--pop-state")
         endif()
     endif()
 endfunction()

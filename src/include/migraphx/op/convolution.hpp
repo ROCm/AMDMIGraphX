@@ -144,7 +144,13 @@ struct convolution
         output_dyn_dims.push_back(w_dyn.at(0));
 
         const size_t num_spatial_dims = x_shape.ndim() - 2;
-        if(padding_mode != default_)
+        if(padding_mode == default_)
+        {
+            auto spatial_dyn_dims = calc_conv_lens(x_dyn, w_dyn);
+            output_dyn_dims.insert(
+                output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
+        }
+        else
         {
             for(std::size_t i = 0; i < num_spatial_dims; ++i)
             {
@@ -152,12 +158,6 @@ struct convolution
                 const auto& x_dd = x_dyn[i + 2];
                 output_dyn_dims.push_back((x_dd + (s - 1)) / shape::dynamic_dimension{s, s});
             }
-        }
-        else
-        {
-            auto spatial_dyn_dims = calc_conv_lens(x_dyn, w_dyn);
-            output_dyn_dims.insert(
-                output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
         }
         return shape{x_shape.type(), output_dyn_dims};
     }

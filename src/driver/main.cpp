@@ -63,7 +63,6 @@
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
-#include <iomanip>
 #include <optional>
 #include <sstream>
 
@@ -88,15 +87,6 @@ get_unrecognized_migraphx_envs(const char* envp[],
             unused_migx_env.push_back(e);
     }
     return unused_migx_env;
-}
-
-std::string get_formatted_timestamp(std::chrono::time_point<std::chrono::system_clock> time)
-{
-    auto now_in_time_t   = std::chrono::system_clock::to_time_t(time);
-    auto* now_as_tm_date = std::localtime(&now_in_time_t);
-    std::stringstream ss;
-    ss << std::put_time(now_as_tm_date, "%Y-%m-%d %H:%M:%S");
-    return ss.str();
 }
 
 struct logger_options
@@ -191,6 +181,7 @@ struct loader
     bool replace_literals       = false;
     bool brief                  = false;
     bool verbose                = false;
+    bool use_debug_symbols      = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -223,6 +214,11 @@ struct loader
            ap.help("Skip unknown operators when parsing and continue to parse."),
            ap.set_value(true));
         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
+        ap(use_debug_symbols,
+           {"--debug-symbols"},
+           ap.help(
+               "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
+           ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
@@ -410,6 +406,7 @@ struct loader
         }
         options.skip_unknown_operators = skip_unknown_operators;
         options.print_program_on_error = true;
+        options.use_debug_symbols      = use_debug_symbols;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;
@@ -521,7 +518,7 @@ struct loader
 
         if(output.empty() and type == "text")
         {
-            log::info() << p;
+            std::cout << p << std::endl;
             return;
         }
 
@@ -783,7 +780,7 @@ struct params : command<params>
     {
         auto p = l.load();
         for(auto&& param : p.get_parameter_shapes())
-            log::info() << param.first << ": " << param.second;
+            std::cout << param.first << ": " << param.second << std::endl;
     }
 };
 
@@ -821,7 +818,7 @@ struct verify : command<verify>
     {
         auto p = c.l.load();
         c.l.save(p);
-        log::info() << p;
+        std::cout << p << std::endl;
 
         auto t = c.ct.get_target();
         auto m =
@@ -883,7 +880,7 @@ struct run_cmd : command<run_cmd>
         log::info() << "Allocating params ...";
         auto m = c.params(p);
         p.eval(m);
-        log::info() << p;
+        std::cout << p << std::endl;
     }
 };
 
@@ -904,7 +901,7 @@ struct time_cmd : command<time_cmd>
         auto m = c.params(p);
         log::info() << "Running ...";
         double t = time_run(p, m, n);
-        log::info() << "Total time: " << t << "ms";
+        std::cout << "Total time: " << t << "ms" << std::endl;
     }
 };
 
@@ -929,9 +926,7 @@ struct perf : command<perf>
         log::info() << "Allocating params ...";
         auto m = c.params(p);
         log::info() << "Running performance report ...";
-        std::ostringstream ss;
-        p.perf_report(ss, n, m, c.l.batch, detailed);
-        log::info() << ss.str();
+        p.perf_report(std::cout, n, m, c.l.batch, detailed);
     }
 };
 
@@ -968,13 +963,13 @@ struct op : command<op>
         if(show_ops)
         {
             for(const auto& name : get_operators())
-                log::info() << name;
+                std::cout << name << std::endl;
         }
         else
         {
             auto op = load_op(op_name);
-            log::info() << op_name << ":";
-            log::info() << to_pretty_json_string(op.to_value());
+            std::cout << op_name << ":" << std::endl;
+            std::cout << to_pretty_json_string(op.to_value()) << std::endl;
         }
     }
 };
@@ -994,7 +989,7 @@ struct onnx : command<onnx>
         if(show_ops)
         {
             for(const auto& name : get_onnx_operators())
-                log::info() << name;
+                std::cout << name << std::endl;
         }
     }
 };
@@ -1014,7 +1009,7 @@ struct tf : command<tf>
         if(show_ops)
         {
             for(const auto& name : get_tf_operators())
-                log::info() << name;
+                std::cout << name << std::endl;
         }
     }
 };
@@ -1132,7 +1127,6 @@ int main(int argc, const char* argv[], const char* envp[])
         migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
 
         auto start_time = std::chrono::system_clock::now();
-        migraphx::log::info() << "[" << get_formatted_timestamp(start_time) << "]";
 
         m.at(cmd)(ap, {args.begin() + 1, args.end()});
 
@@ -1146,9 +1140,7 @@ int main(int argc, const char* argv[], const char* envp[])
         for(auto&& e : unused_envs)
             migraphx::log::warn() << "Unused environment variable: " << e;
 
-        // Print end timestamp
         auto end_time = std::chrono::system_clock::now();
-        migraphx::log::info() << "[" << get_formatted_timestamp(end_time) << "]";
 
         // Print total duration
         auto duration =

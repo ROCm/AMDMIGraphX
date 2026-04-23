@@ -54,12 +54,31 @@ std::vector<int64_t> find_permutation(const shape& s)
     std::iota(result.begin(), result.end(), 0);
     if(s.symbolic())
     {
+        // Sort symbolic strides by evaluating at max variable values.
+        // Assumptions (see is_sorted_strides in shape.cpp for details):
+        //  1. Strides are products of dim variables * constant factors (no symbolic divisors)
+        //  2. Strides come from compute_strides() or permutations thereof
+        //  3. Max-eval ordering is consistent with all non-degenerate runtime orderings
         const auto& strides = s.dyn_strides();
         const auto& dds     = s.dyn_dims();
+        std::vector<sym::interval> stride_intervals(strides.size());
+        std::transform(strides.begin(), strides.end(), stride_intervals.begin(), [](const auto& e) {
+            return e.eval_interval();
+        });
         std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
-                             return std::make_tuple(strides[x].eval_max(),
-                                                    dds[x].sym_expr->eval_max());
+                             return std::make_tuple(stride_intervals[x].max,
+                                                    dds[x].sym_expr.eval_interval().max);
                          }));
+        // Assumption 3 guard: when max-eval gives a strict ordering between two
+        // adjacent strides, min-eval must not reverse it. Collapse to equality at
+        // min is expected (e.g. when a dim has min=1), but a sign flip indicates
+        // a symbolic divisor violating assumption 1.
+        if(std::adjacent_find(result.begin(), result.end(), [&](auto a, auto b) {
+               return stride_intervals[a].max > stride_intervals[b].max and
+                      stride_intervals[a].min < stride_intervals[b].min;
+           }) != result.end())
+            MIGRAPHX_THROW("FIND_PERMUTATION: symbolic stride ordering reversal between "
+                           "max-eval and min-eval. Violation of symbolic stride assumptions.");
     }
     else
     {

@@ -900,6 +900,8 @@ expr::expr(std::shared_ptr<const impl> pi) : p(std::move(pi)) {}
 
 bool expr::empty() const { return p == nullptr; }
 
+bool expr::is_literal() const { return p != nullptr and holds<integer_data>(p->node); }
+
 std::size_t expr::hash() const
 {
     if(empty())
@@ -943,10 +945,10 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
 //    expected.
 // 3. The number of unique symbols per expression is small (typically
 //    1-3), making the 2^k evaluation cost negligible.
-std::pair<int64_t, int64_t> expr::compute_bounds() const
+interval expr::eval_interval() const
 {
     if(empty())
-        MIGRAPHX_THROW("sym::expr::compute_bounds: empty expression");
+        MIGRAPHX_THROW("sym::expr::eval_interval: empty expression");
     std::vector<std::pair<expr_ptr, symbol_data>> syms;
     std::set<std::string> seen;
     collect_symbols(p->node, syms, seen);
@@ -961,26 +963,6 @@ std::pair<int64_t, int64_t> expr::compute_bounds() const
     eval_bounds_impl(p->node, syms, 0, bindings, lo, hi);
     return {lo, hi};
 }
-
-std::pair<std::size_t, std::size_t> expr::compute_bounds_uint() const
-{
-    auto [lo, hi] = compute_bounds();
-    if(lo < 0)
-        MIGRAPHX_THROW("sym::expr::compute_bounds_uint: lower bound is negative (" +
-                       std::to_string(lo) + ")");
-    if(hi < 0)
-        MIGRAPHX_THROW("sym::expr::compute_bounds_uint: upper bound is negative (" +
-                       std::to_string(hi) + ")");
-    return {static_cast<std::size_t>(lo), static_cast<std::size_t>(hi)};
-}
-
-int64_t expr::eval_min() const { return compute_bounds().first; }
-
-int64_t expr::eval_max() const { return compute_bounds().second; }
-
-std::size_t expr::eval_min_uint() const { return compute_bounds_uint().first; }
-
-std::size_t expr::eval_max_uint() const { return compute_bounds_uint().second; }
 
 // Recursively enumerate the Cartesian product of symbol optimals,
 // evaluating the expression at each combination without materializing
@@ -1007,12 +989,12 @@ static void eval_optimals_impl(const expr_ptr& node,
 // Compute the set of optimal values for the expression by evaluating it
 // at every combination of each symbol's optimal values (Cartesian product).
 //
-// For a single variable:  var("n", 1, 8, {2, 4})  =>  optimals = {2, 4}
+// For a single variable:  var("n", {1, 8}, {2, 4})  =>  optimals = {2, 4}
 // For a compound expr:    2*n + 1 where n has optimals {2, 4}  =>  {5, 9}
 // For multiple variables: n + m where n={2,4}, m={3,6}  =>  {5, 8, 7, 10}
 //
 // Returns empty if any symbol in the expression has no optimals.
-std::set<int64_t> expr::eval_optimals() const
+std::set<std::size_t> expr::eval_optimals() const
 {
     if(empty())
         return {};
@@ -1024,18 +1006,12 @@ std::set<int64_t> expr::eval_optimals() const
     if(syms.empty() or not has_optimals)
         return {};
 
-    std::set<int64_t> result;
+    std::set<int64_t> signed_result;
     binding_map bindings;
-    eval_optimals_impl(p->node, syms, 0, bindings, result);
-    return result;
-}
-
-std::set<std::size_t> expr::eval_optimals_uint() const
-{
-    auto opts = eval_optimals();
-    if(std::any_of(opts.begin(), opts.end(), [](int64_t v) { return v < 0; }))
-        MIGRAPHX_THROW("sym::expr::eval_optimals_uint: negative optimal value");
-    return {opts.begin(), opts.end()};
+    eval_optimals_impl(p->node, syms, 0, bindings, signed_result);
+    if(std::any_of(signed_result.begin(), signed_result.end(), [](int64_t v) { return v < 0; }))
+        MIGRAPHX_THROW("sym::expr::eval_optimals: negative optimal value");
+    return {signed_result.begin(), signed_result.end()};
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
@@ -1123,10 +1099,10 @@ bool operator<(const expr& a, const expr& b)
         return false;
     if(a.empty() or b.empty())
         MIGRAPHX_THROW("sym::expr: cannot compare empty expression");
-    auto [lo, hi] = (b - a).compute_bounds();
-    if(lo > 0)
+    auto ival = (b - a).eval_interval();
+    if(ival.min > 0)
         return true;
-    if(hi <= 0)
+    if(ival.max <= 0)
         return false;
     MIGRAPHX_THROW("sym::expr: comparison undetermined for: " + print_expr(a.p->node) + " < " +
                    print_expr(b.p->node));
@@ -1139,15 +1115,16 @@ std::ostream& operator<<(std::ostream& os, const expr& e)
     return os;
 }
 
-expr var(const std::string& name, int64_t min, int64_t max, std::set<int64_t> optimals)
+expr var(const std::string& name, interval bounds, std::set<int64_t> optimals)
 {
     if(name.empty())
         MIGRAPHX_THROW("sym::var: variable name must not be empty");
-    if(min > max)
+    if(bounds.min > bounds.max)
         MIGRAPHX_THROW("sym::var: variable interval must satisfy min <= max");
-    if(min < 1)
+    if(bounds.min < 1)
         MIGRAPHX_THROW("sym::var: variable interval must satisfy min >= 1");
-    return {std::make_shared<expr::impl>(make_symbol(name, min, max, std::move(optimals)))};
+    return {std::make_shared<expr::impl>(
+        make_symbol(name, bounds.min, bounds.max, std::move(optimals)))};
 }
 
 expr lit(int64_t n) { return {std::make_shared<expr::impl>(make_integer(n))}; }

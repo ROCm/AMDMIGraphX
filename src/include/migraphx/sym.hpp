@@ -41,10 +41,20 @@ struct value;
 
 namespace sym {
 
+struct interval
+{
+    int64_t min = 0;
+    int64_t max = 0;
+    friend bool operator==(const interval& a, const interval& b)
+    {
+        return a.min == b.min and a.max == b.max;
+    }
+    friend bool operator!=(const interval& a, const interval& b) { return not(a == b); }
+};
+
 struct expr;
 MIGRAPHX_EXPORT expr var(const std::string& name,
-                         int64_t min                = 1,
-                         int64_t max                = 1,
+                         interval bounds            = {1, 1},
                          std::set<int64_t> optimals = {});
 MIGRAPHX_EXPORT expr lit(int64_t n);
 MIGRAPHX_EXPORT expr parse(const std::string& s);
@@ -54,19 +64,14 @@ struct MIGRAPHX_EXPORT expr
     expr();
 
     bool empty() const;
+    bool is_literal() const;
     std::size_t hash() const;
     std::string to_string() const;
     value to_value() const;
     void from_value(const value& v);
     std::size_t eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const;
-    std::pair<int64_t, int64_t> compute_bounds() const;
-    std::pair<std::size_t, std::size_t> compute_bounds_uint() const;
-    int64_t eval_min() const;
-    int64_t eval_max() const;
-    std::size_t eval_min_uint() const;
-    std::size_t eval_max_uint() const;
-    std::set<int64_t> eval_optimals() const;
-    std::set<std::size_t> eval_optimals_uint() const;
+    interval eval_interval() const;
+    std::set<std::size_t> eval_optimals() const;
     expr subs(const std::unordered_map<expr, expr>& symbol_map) const;
 
     MIGRAPHX_EXPORT friend expr operator+(const expr& a, const expr& b);
@@ -93,7 +98,7 @@ struct MIGRAPHX_EXPORT expr
     struct impl;
 
     MIGRAPHX_EXPORT friend expr
-    var(const std::string& name, int64_t min, int64_t max, std::set<int64_t> optimals);
+    var(const std::string& name, interval bounds, std::set<int64_t> optimals);
     MIGRAPHX_EXPORT friend expr lit(int64_t n);
     MIGRAPHX_EXPORT friend expr parse(const std::string& s);
 

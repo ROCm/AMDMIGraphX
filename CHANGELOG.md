@@ -17,15 +17,20 @@ Full documentation for MIGraphX is available at
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
 * Added JIT compiler for `multinomial` operation (#4721).
+* Added build support for python 3.14 (#4754).
+* Added debug symbols for MIGraphX instructions such that parsed and compiled instructions can be tracked back to their ONNX origin node (#4626)
 
 ### Changed
 
+* Converted `nonzero` operator from device implementation to JIT compilation (#4720).
+* Converted `prefix_scan_sum` operator from device implementation to JIT compilation (#4720).
 * Converted `reverse` operator from device implementation to JIT compilation (#4645).
 * Refactored instruction output alias to return a vector of aliases (#4540).
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
 * Updated the ONNX clip operator to support opset 13 (#4518).
 * Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
 * Replaced usages of `std::cout` and `std::cerr` with the logger (#4732)
+* Converted RNN variable sequence length operations (`rnn_var_sl_shift_sequence`, `rnn_var_sl_shift_output`, `rnn_var_sl_last_output`) from device implementation to JIT compilation (#4755).
 
 ### Resolved issues
 
@@ -39,6 +44,7 @@ Full documentation for MIGraphX is available at
 * Fixed issue with `find_concat_op` matcher merging converted int32 inputs after bf16/fp16 quant during compilation (#4745)
 
 ### Optimized
+* Replaced Hillis-Steele scan algorithm with a wave-based hierarchical scan, reducing work complexity from O(N log N) to O(N) and synchronization from O(log N) to 2 `__syncthreads()` calls (#4720).
 * Optimized fusion for local_window mode of GQA operator (#4617).
 * Removed extra assignments and inserts of op names in find_nop_reshapes(#4696).
 

@@ -392,7 +392,7 @@ if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
 else()
     target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 endif()
-target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
+target_link_libraries(migraphx_gpu PRIVATE $<BUILD_INTERFACE:migraphx_kernels>)
 
 # Link HSA runtime for chiplet query (Linux only)
 if(NOT WIN32)
@@ -408,7 +408,7 @@ add_subdirectory(hiprtc)
 
 rocm_install_targets(
     PRIVATE
-    TARGETS migraphx_gpu migraphx_device compile_for_gpu migraphx_kernels
+    TARGETS migraphx_gpu migraphx_device compile_for_gpu
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

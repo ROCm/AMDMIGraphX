@@ -198,6 +198,8 @@ add_library(migraphx_gpu
     ${MIOPEN_SRCS}
 )
 
+enable_static_init(migraphx_gpu)
+
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
 
@@ -406,7 +408,7 @@ add_subdirectory(hiprtc)
 
 rocm_install_targets(
     PRIVATE
-    TARGETS migraphx_gpu migraphx_device compile_for_gpu
+    TARGETS migraphx_gpu migraphx_device compile_for_gpu migraphx_kernels
     INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )

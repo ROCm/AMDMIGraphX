@@ -53,6 +53,7 @@ add_library(migraphx_cpu
     target.cpp
     write_literals.cpp
 )
+enable_static_init(migraphx_cpu)
 set_target_properties(migraphx_cpu PROPERTIES EXPORT_NAME cpu)
 rocm_set_soversion(migraphx_cpu ${MIGRAPHX_SO_VERSION})
 

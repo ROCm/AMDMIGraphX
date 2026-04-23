@@ -346,6 +346,25 @@ rocm_enable_cppcheck(
 include(ROCMCreatePackage)
 include(ROCMTest)
 
+function(enable_static_init LIB)
+    get_target_property(_type ${LIB} TYPE)
+    if(_type STREQUAL "STATIC_LIBRARY")
+        if(APPLE)
+            target_link_options(${LIB} INTERFACE
+                "LINKER:-force_load,$<TARGET_FILE:${LIB}>")
+        elseif(MSVC)
+            target_link_options(${LIB} INTERFACE
+                "LINKER:/WHOLEARCHIVE:$<TARGET_FILE:${LIB}>")
+        else()
+            # GNU ld / LLD / gold
+            target_link_options(${LIB} INTERFACE
+                "LINKER:--push-state,--whole-archive"
+                "$<LINK_ONLY:$<TARGET_FILE:${LIB}>>"
+                "LINKER:--pop-state")
+        endif()
+    endif()
+endfunction()
+
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)

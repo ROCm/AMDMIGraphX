@@ -24,7 +24,7 @@
 find_package(protobuf QUIET CONFIG)
 
 if(protobuf_FOUND)
-    add_library(tf-proto STATIC ${PROTO_SRCS})
+    add_library(tf-proto OBJECT ${PROTO_SRCS})
     protobuf_generate(
         TARGET tf-proto
         PROTOS 
@@ -57,7 +57,7 @@ else()
         op_def.proto
         versions.proto
     )
-    add_library(tf-proto STATIC ${PROTO_SRCS})
+    add_library(tf-proto OBJECT ${PROTO_SRCS})
     target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
     target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
 endif()
@@ -76,11 +76,12 @@ target_include_directories(migraphx_tf PRIVATE include)
 set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)
 rocm_set_soversion(migraphx_tf ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_tf)
-target_link_libraries(migraphx_tf PRIVATE tf-proto)
+target_link_libraries(migraphx_tf PRIVATE $<BUILD_INTERFACE:tf-proto>)
 if(NOT WIN32)
     target_link_libraries(migraphx_tf PRIVATE "-Wl,--exclude-libs,ALL")
 endif()
 target_link_libraries(migraphx_tf PUBLIC migraphx)
+enable_static_init(migraphx_tf)
 
 rocm_install_targets(
   PRIVATE

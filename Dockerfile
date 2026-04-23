@@ -7,10 +7,11 @@ RUN dpkg --add-architecture i386
 
 # Install rocm key
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
-    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.2.2/ jammy main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/7.2.2/ jammy main > /etc/apt/sources.list.d/rocm.list'
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
@@ -23,7 +24,7 @@ RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     add-apt-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main"
 
 # Install dependencies
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     apt-utils \
     bison \
     build-essential \

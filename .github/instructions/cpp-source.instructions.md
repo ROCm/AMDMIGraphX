@@ -68,7 +68,11 @@ Review C++ changes against the MIGraphX coding style and flag AI-generated slop.
 - Use shape class to compute offsets and indexing
     - The `migraphx::shape` class provides methods for computing offsets, strides, and indexing. Use these instead of manual calculations with mod and division.
 
+- Use type traits as `std::is_same<...>{}` instead of `std::is_same_v<...>` or `std::is_same<...>::value`.
+
 ## AI slop
+
+Flag AI slop and suggest simpler alternatives:
 
 - **Redundant comments** describing *what* the code does (`// increment i`, `// return the result`). Keep comments only for non-obvious *why* — hidden constraints, workarounds, invariants. Delete the rest.
 - **Multi-line docstrings / banner comments** on trivial functions. One short line max.
@@ -86,5 +90,6 @@ Review C++ changes against the MIGraphX coding style and flag AI-generated slop.
 - **Multiple layers of wrappers** (e.g., `wrap_impl` calling `do_wrap` calling `wrap_inner`) with no distinct responsibility per layer. Collapse them.
 - **"Future-proofing"** — enums with a single value, `std::variant` with one alternative, hooks/callbacks with no second caller, `std::optional` return where the value is always present.
 - **Unnecessary intermediate variables** - When the original variable can just be used directly
+- **Unnecessary arithmetic** - adding `0` or multiplying by `1`.
 
 Look for ways to simplify the code by resusing existing migraphx utilites.

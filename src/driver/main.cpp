@@ -44,6 +44,7 @@
 #ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
 #endif
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
@@ -746,7 +747,7 @@ struct compiler
                if(val < 0 or val > 100)
                    throw std::runtime_error("Compile mode must be between 0 and 100, got: " +
                                             params.back());
-               x = static_cast<int8_t>(val);
+               x = migraphx::convert_to_compile_mode(static_cast<uint8_t>(val));
            }));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));

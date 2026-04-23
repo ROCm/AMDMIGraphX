@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/output_iterator.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
@@ -194,13 +193,9 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, compile
         final_fusions.push_back(dead_code_elimination{});
     }
 
-    std::vector<std::vector<pass>> pipelines = {
-        std::move(passes),
-        std::move(fusions),
-        std::move(final_fusions),
-    };
     std::vector<pass> result;
-    std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(result));
+    for(auto& p : {&passes, &fusions, &final_fusions})
+        result.insert(result.end(), std::make_move_iterator(p->begin()), std::make_move_iterator(p->end()));
     return result;
     // clang-format on
 }
@@ -208,7 +203,7 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, compile
 // Returns lowering and all subsequent passes. List is identical across all modes;
 // compile_mode controls the fast-compile flag passed to compile_ops.
 static std::vector<pass>
-get_gpu_passes(migraphx::context& gctx, context& ctx, const compile_options& options, compile_modes mode)
+get_gpu_passes([[maybe_unused]]migraphx::context& gctx, context& ctx, const compile_options& options, compile_modes mode)
 {
     const bool is_eager = (mode == compile_modes::EAGER);
     // clang-format off
@@ -263,12 +258,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(mode == compile_modes::MAX)
         ctx.set_exhaustive_tune_flag(true);
 
-    std::vector<std::vector<pass>> pipelines = {
-        get_gpu_independent_passes(ctx, options, mode),
-        get_gpu_passes(gctx, ctx, options, mode),
-    };
-    std::vector<pass> passes;
-    std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));
+    auto passes     = get_gpu_independent_passes(ctx, options, mode);
+    auto gpu_passes = get_gpu_passes(gctx, ctx, options, mode);
+    passes.insert(passes.end(), std::make_move_iterator(gpu_passes.begin()), std::make_move_iterator(gpu_passes.end()));
     return passes;
 }
 

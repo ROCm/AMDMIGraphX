@@ -50,7 +50,7 @@ jobs:
       with:
         path: ${{ github.workspace }}/cget
         key: windows-cget-clang-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
-        restore-keys: windows-cget-clang-
+        restore-keys: windows-cget-clang-cpu-
 
     # - name: Setup tmate session
     #   uses: mxschmitt/action-tmate@v3
@@ -61,7 +61,7 @@ jobs:
         CXX: clang-cl
         CXXFLAGS: "/std:c++17"
       run: |
-        rbuild prepare -d cget -s gh-win -G Ninja \
+        rbuild prepare -d cget -s gh-win-cpu -G Ninja \
           -Dprotobuf_MSVC_STATIC_RUNTIME=Off \
           -DABSL_MSVC_STATIC_RUNTIME=Off \
           -DCMAKE_POLICY_DEFAULT_CMP0091=NEW \

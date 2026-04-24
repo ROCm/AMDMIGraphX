@@ -359,9 +359,9 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->get_shape().dynamic())
             return true;
-        auto input = ins->inputs().front()->get_shape();
-        value v    = ins->get_operator().to_value();
-        auto group = v.at("group").to<int>();
+        auto input                              = ins->inputs().front()->get_shape();
+        value v                                 = ins->get_operator().to_value();
+        auto group                              = v.at("group").to<int>();
         std::set<shape::type_t> supported_types = fp8_types{}.get();
         supported_types.insert(shape::int8_type);
         if(contains(supported_types, input.type()))

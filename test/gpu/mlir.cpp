@@ -384,10 +384,13 @@ module {
 )__migraphx__";
 
     migraphx::module m;
-    auto input = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16}});
+    auto input   = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16}});
     auto weights = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3}});
-    auto group_conv =
-        m.add_instruction(migraphx::make_op("convolution", {{"group", 4}, {"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}), input, weights);
+    auto group_conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"group", 4}, {"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        input,
+        weights);
     m.add_return({group_conv});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled
@@ -438,10 +441,16 @@ module {
 )__migraphx__";
 
     migraphx::module m;
-    auto input = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16, 16}});
-    auto weights = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3, 3}});
-    auto group_conv =
-        m.add_instruction(migraphx::make_op("convolution", {{"group", 4}, {"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}), input, weights);
+    auto input =
+        m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16, 16}});
+    auto weights =
+        m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3, 3}});
+    auto group_conv = m.add_instruction(
+        migraphx::make_op(
+            "convolution",
+            {{"group", 4}, {"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
+        input,
+        weights);
     m.add_return({group_conv});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled

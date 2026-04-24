@@ -332,21 +332,16 @@ constexpr auto compute_reduce_axis()
     return make_shape(lens, get_shape_c<Input>{}.strides);
 }
 
-template <index_int... Js, class... Rs, index_int N, class F>
-constexpr auto final_reduce_tuple_of_vecs(tuple<vec<Rs, N>...> x, F op, index_constant<Js>...)
-{
-    auto lane = [&](int i) { return make_tuple(x[_c<Js>][i]...); };
-    auto acc  = lane(0);
-    for(int i = 1; i < N; ++i)
-        acc = op(acc, lane(i));
-    return acc;
-}
-
 template <class... Rs, index_int N, class F>
 constexpr auto final_reduce(tuple<vec<Rs, N>...> x, F op)
 {
-    return sequence_c<sizeof...(Rs)>(
-        [&](auto... is) { return final_reduce_tuple_of_vecs(x, op, is...); });
+    return sequence_c<sizeof...(Rs)>([&](auto... js) {
+        auto lane = [&](int i) { return make_tuple(x[js][i]...); };
+        auto acc  = lane(0);
+        for(int i = 1; i < N; ++i)
+            acc = op(acc, lane(i));
+        return acc;
+    });
 }
 
 template <class T, class F>

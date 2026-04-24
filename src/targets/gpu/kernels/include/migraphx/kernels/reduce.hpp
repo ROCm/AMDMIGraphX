@@ -411,9 +411,8 @@ struct reducer_base
 
     // Lazy index stream for arg_reduce reads: inner length follows get_size; lane width follows
     // one inner read (lazy/pooled inner) or one sliced element (tensor), matching value reads.
-    template <class Input, class OutIdx>
-    __device__ constexpr auto make_indices_from(const Input& input,
-                                                [[maybe_unused]] OutIdx out_idx) const
+    template <class Input>
+    __device__ constexpr auto make_indices_from(const Input& input) const
     {
         const auto n          = this->get_size(input);
         using type            = typename Input::type;

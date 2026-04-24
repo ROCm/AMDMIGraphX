@@ -487,19 +487,6 @@ static std::vector<std::size_t> get_rlens(const module& m)
     return reduce->get_shape().lens();
 }
 
-// we need to know if make_indices appears (top-level or nested in pointwise) so we only mark
-// out_idx unused when no make_indices_from(..., out_idx) is emitted
-static bool module_has_make_indices(const module& m)
-{
-    return std::any_of(m.begin(), m.end(), [&](const auto& ins) {
-        if(ins.name() == "gpu::make_indices")
-            return true;
-        if(ins.name() == "pointwise" and not ins.module_inputs().empty())
-            return module_has_make_indices(*ins.module_inputs().front());
-        return false;
-    });
-}
-
 std::string generate_reduce(module m, const std::string& name)
 {
     preload_params(m);
@@ -573,7 +560,7 @@ std::string generate_reduce(module m, const std::string& name)
             if(ins->inputs().size() != 1)
                 MIGRAPHX_THROW("gpu::make_indices expects one value tensor operand");
             const auto& val = names.at(ins->inputs().front());
-            return "r.make_indices_from(" + val + ", out_idx)";
+            return "r.make_indices_from(" + val + ")";
         }
         if(ins->name() == "identity")
         {
@@ -584,9 +571,11 @@ std::string generate_reduce(module m, const std::string& name)
     });
     f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
     f.add_generic_param("r");
+
+    // caller is fused_reduce_op(..., f(r, out_idx)), so the functor must take out_idx even if this
+    // module's emitted code never references it
     f.add_generic_param("out_idx");
-    if(not module_has_make_indices(m))
-        f.unused_param("out_idx");
+    f.unused_param("out_idx");
     g.create_function(f);
     return g.str();
 }

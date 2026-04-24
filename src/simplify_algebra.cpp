@@ -949,11 +949,12 @@ struct find_concat_op
     {
         auto concat_lens = ins.front()->get_shape().lens();
         concat_lens.erase(concat_lens.begin() + axis);
+        auto front_type = ins.front()->get_shape().type();
 
         return std::all_of(ins.begin(), ins.end(), [&](auto i) {
             auto lens = i->get_shape().lens();
             lens.erase(lens.begin() + axis);
-            return lens == concat_lens;
+            return lens == concat_lens and i->get_shape().type() == front_type;
         });
     }
 
@@ -1905,19 +1906,17 @@ struct find_conv_dot_horiz_fusion
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
             auto fused     = m.insert_instruction(std::next(input), op, input, concat);
+            std::vector<module::instruction_replacement> replacers;
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
-                auto outputs = arg->outputs();
-
                 int64_t len = arg->get_shape().lens()[axis];
-                m.replace_instruction(
-                    arg,
-                    make_op("slice",
-                            {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
-                    fused);
+                auto slice_op = make_op(
+                    "slice", {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}});
+                replacers.push_back(module::instruction_replacement{arg, slice_op, {fused}, {}});
                 offset += len;
             }
+            m.batch_replace_instruction(replacers);
         };
 
         auto outputs = ins->outputs();
@@ -2433,6 +2432,11 @@ struct find_conv_broadcast_input
                 padding = std::move(asym);
             }
 
+            if(std::any_of(range(num_spatial).begin(), range(num_spatial).end(), [&](auto i) {
+                   return out_lens[i + 2] <= (padding[i] + padding[i + num_spatial]);
+               }))
+                return;
+
             apply_small_conv(
                 m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
         }
@@ -2501,13 +2505,10 @@ struct find_conv_broadcast_input
         instruction_ref current = small_conv;
         for(std::size_t i = 0; i < num_spatial; i++)
         {
-            auto p_start  = padding[i];
-            auto p_end    = padding[i + num_spatial];
-            auto full_dim = out_lens[i + 2];
-            auto axis     = i + 2;
-
-            if(full_dim <= p_start + p_end)
-                continue;
+            auto p_start      = padding[i];
+            auto p_end        = padding[i + num_spatial];
+            auto full_dim     = out_lens[i + 2];
+            auto axis         = i + 2;
             auto interior_len = full_dim - p_start - p_end;
             if(interior_len == 1)
                 continue;

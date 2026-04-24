@@ -55,12 +55,10 @@ void hash_combine(std::size_t& seed, const T& v)
     seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
 }
 
-template<class Iterator>
+template <class Iterator>
 void hash_range(std::size_t& seed, Iterator first, Iterator last)
 {
-    std::for_each(first, last, [&](const auto& x) {
-        hash_combine(seed, x);
-    });
+    std::for_each(first, last, [&](const auto& x) { hash_combine(seed, x); });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

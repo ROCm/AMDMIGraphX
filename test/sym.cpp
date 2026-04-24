@@ -2830,6 +2830,191 @@ TEST_CASE(eval_optimals_three_vars)
     EXPECT(result == std::set<scalar>{int64_t{111}, int64_t{112}, int64_t{211}, int64_t{212}});
 }
 
+TEST_CASE(eval_optimals_h_squared)
+{
+    auto h      = var("h", interval{}, std::set<scalar>{int64_t{2}, int64_t{3}});
+    auto e      = h * h;
+    auto result = e.eval_optimals();
+    // Same variable: paired, not cross-producted: 2*2=4, 3*3=9
+    EXPECT(result == std::set<scalar>{int64_t{4}, int64_t{9}});
+}
+
+TEST_CASE(eval_optimals_h_cubed)
+{
+    auto h      = var("h", interval{}, std::set<scalar>{int64_t{2}, int64_t{3}});
+    auto e      = h * h * h;
+    auto result = e.eval_optimals();
+    // Same variable: 2^3=8, 3^3=27
+    EXPECT(result == std::set<scalar>{int64_t{8}, int64_t{27}});
+}
+
+TEST_CASE(eval_optimals_h_plus_one_times_h)
+{
+    auto h      = var("h", interval{}, std::set<scalar>{int64_t{2}, int64_t{3}});
+    auto e      = (h + lit(1)) * h;
+    auto result = e.eval_optimals();
+    // Same variable across subtrees: h=2: (2+1)*2=6, h=3: (3+1)*3=12
+    EXPECT(result == std::set<scalar>{int64_t{6}, int64_t{12}});
+}
+
+TEST_CASE(eval_optimals_h_squared_plus_w)
+{
+    auto h      = var("h", interval{}, std::set<scalar>{int64_t{2}, int64_t{3}});
+    auto w      = var("w", interval{}, std::set<scalar>{int64_t{5}, int64_t{7}});
+    auto e      = h * h + w;
+    auto result = e.eval_optimals();
+    // h*h paired: {4, 9}; cross with w: 4+5=9, 4+7=11, 9+5=14, 9+7=16
+    EXPECT(result == std::set<scalar>{int64_t{9}, int64_t{11}, int64_t{14}, int64_t{16}});
+}
+
+TEST_CASE(eval_optimals_h_times_w_with_lit)
+{
+    auto h      = var("h", interval{}, std::set<scalar>{int64_t{2}, int64_t{3}});
+    auto w      = var("w", interval{}, std::set<scalar>{int64_t{5}, int64_t{7}});
+    auto e      = h * w * lit(10);
+    auto result = e.eval_optimals();
+    // Different vars cross-product, then *10: (2*5, 2*7, 3*5, 3*7)*10 = (100,140,150,210)
+    EXPECT(result == std::set<scalar>{int64_t{100}, int64_t{140}, int64_t{150}, int64_t{210}});
+}
+
+TEST_CASE(eval_optimals_independent_subtrees)
+{
+    auto x      = var("x", interval{}, std::set<scalar>{int64_t{2}, int64_t{3}});
+    auto y      = var("y", interval{}, std::set<scalar>{int64_t{4}, int64_t{5}});
+    auto e      = (x + lit(1)) * (y + lit(1));
+    auto result = e.eval_optimals();
+    // (x+1) ranges over {3,4}, (y+1) ranges over {5,6}; cartesian product: 15,18,20,24
+    EXPECT(result == std::set<scalar>{int64_t{15}, int64_t{18}, int64_t{20}, int64_t{24}});
+}
+
+TEST_CASE(eval_optimals_shared_subexpr)
+{
+    auto x      = var("x", interval{}, std::set<scalar>{int64_t{2}, int64_t{3}});
+    auto sub    = x + lit(1);
+    auto e      = sub * sub;
+    auto result = e.eval_optimals();
+    // Shared subexpression with same x: x=2: 3*3=9, x=3: 4*4=16
+    EXPECT(result == std::set<scalar>{int64_t{9}, int64_t{16}});
+}
+
+TEST_CASE(eval_optimals_x_plus_x_times_x)
+{
+    auto x      = var("x", interval{}, std::set<scalar>{int64_t{1}, int64_t{2}, int64_t{3}});
+    auto e      = (x + x) * x;
+    auto result = e.eval_optimals();
+    // Same variable everywhere: x=1: 2*1=2, x=2: 4*2=8, x=3: 6*3=18
+    EXPECT(result == std::set<scalar>{int64_t{2}, int64_t{8}, int64_t{18}});
+}
+
+TEST_CASE(eval_optimals_two_squares_summed)
+{
+    auto x      = var("x", interval{}, std::set<scalar>{int64_t{2}, int64_t{3}});
+    auto y      = var("y", interval{}, std::set<scalar>{int64_t{5}, int64_t{7}});
+    auto e      = x * x + y * y;
+    auto result = e.eval_optimals();
+    // x*x in {4,9} crossed with y*y in {25,49}: 29, 53, 34, 58
+    EXPECT(result == std::set<scalar>{int64_t{29}, int64_t{34}, int64_t{53}, int64_t{58}});
+}
+
+TEST_CASE(eval_optimals_lit_times_var)
+{
+    auto x      = var("x", interval{}, std::set<scalar>{int64_t{2}, int64_t{3}, int64_t{5}});
+    auto e      = lit(3) * x;
+    auto result = e.eval_optimals();
+    // Single variable scaled by literal: 6, 9, 15
+    EXPECT(result == std::set<scalar>{int64_t{6}, int64_t{9}, int64_t{15}});
+}
+
+TEST_CASE(eval_optimals_three_vars_disjoint)
+{
+    auto x      = var("x", interval{}, std::set<scalar>{int64_t{1}, int64_t{2}});
+    auto y      = var("y", interval{}, std::set<scalar>{int64_t{3}, int64_t{4}});
+    auto z      = var("z", interval{}, std::set<scalar>{int64_t{10}, int64_t{20}});
+    auto e      = x * y + z;
+    auto result = e.eval_optimals();
+    // Disjoint vars -> full cartesian: x*y in {3,4,6,8} crossed with z in {10,20}
+    EXPECT(result ==
+           std::set<scalar>{int64_t{13},
+                            int64_t{14},
+                            int64_t{16},
+                            int64_t{18},
+                            int64_t{23},
+                            int64_t{24},
+                            int64_t{26},
+                            int64_t{28}});
+}
+
+TEST_CASE(eval_optimals_three_vars_x_shared)
+{
+    auto x      = var("x", interval{}, std::set<scalar>{int64_t{1}, int64_t{2}});
+    auto y      = var("y", interval{}, std::set<scalar>{int64_t{3}, int64_t{4}});
+    auto z      = var("z", interval{}, std::set<scalar>{int64_t{5}, int64_t{6}});
+    auto e      = x * y + x * z;
+    auto result = e.eval_optimals();
+    // x is shared between the two terms, so y and z range independently per x.
+    // x=1: (1*y)+(1*z) for y in {3,4}, z in {5,6} -> {3+5, 3+6, 4+5, 4+6} = {8, 9, 9, 10}
+    // x=2: (2*y)+(2*z) for y in {3,4}, z in {5,6} -> {6+10, 6+12, 8+10, 8+12} = {16,18,18,20}
+    EXPECT(result == std::set<scalar>{int64_t{8},
+                                      int64_t{9},
+                                      int64_t{10},
+                                      int64_t{16},
+                                      int64_t{18},
+                                      int64_t{20}});
+}
+
+TEST_CASE(eval_optimals_four_vars_disjoint)
+{
+    auto x      = var("x", interval{}, std::set<scalar>{int64_t{1}, int64_t{2}});
+    auto y      = var("y", interval{}, std::set<scalar>{int64_t{3}});
+    auto z      = var("z", interval{}, std::set<scalar>{int64_t{5}});
+    auto w      = var("w", interval{}, std::set<scalar>{int64_t{7}, int64_t{8}});
+    auto e      = x * y + z * w;
+    auto result = e.eval_optimals();
+    // x*y in {3, 6} crossed with z*w in {35, 40}: 38, 43, 41, 46
+    EXPECT(result ==
+           std::set<scalar>{int64_t{38}, int64_t{41}, int64_t{43}, int64_t{46}});
+}
+
+TEST_CASE(eval_optimals_four_vars_x_shared_three_ways)
+{
+    auto x      = var("x", interval{}, std::set<scalar>{int64_t{1}, int64_t{2}});
+    auto y      = var("y", interval{}, std::set<scalar>{int64_t{3}});
+    auto z      = var("z", interval{}, std::set<scalar>{int64_t{5}});
+    auto w      = var("w", interval{}, std::set<scalar>{int64_t{7}});
+    auto e      = x * y + x * z + x * w;
+    auto result = e.eval_optimals();
+    // x appears in every term, so all terms must agree: x*(3+5+7) = x*15 -> {15, 30}
+    EXPECT(result == std::set<scalar>{int64_t{15}, int64_t{30}});
+}
+
+TEST_CASE(eval_optimals_four_vars_two_pairs_shared)
+{
+    auto a      = var("a", interval{}, std::set<scalar>{int64_t{1}, int64_t{2}});
+    auto b      = var("b", interval{}, std::set<scalar>{int64_t{3}, int64_t{4}});
+    auto c      = var("c", interval{}, std::set<scalar>{int64_t{10}, int64_t{20}});
+    auto d      = var("d", interval{}, std::set<scalar>{int64_t{100}});
+    auto e      = a * b + a * c + b * d;
+    auto result = e.eval_optimals();
+    // a is shared in first two terms; b is shared with the third; c and d are independent.
+    // Effective: a*(b+c) + b*d, with a in {1,2}, b in {3,4}, c in {10,20}, d=100.
+    // a=1,b=3,c=10: 1*(3+10) + 3*100 = 13 + 300 = 313
+    // a=1,b=3,c=20: 1*(3+20) + 3*100 = 23 + 300 = 323
+    // a=1,b=4,c=10: 1*(4+10) + 4*100 = 14 + 400 = 414
+    // a=1,b=4,c=20: 1*(4+20) + 4*100 = 24 + 400 = 424
+    // a=2,b=3,c=10: 2*(3+10) + 3*100 = 26 + 300 = 326
+    // a=2,b=3,c=20: 2*(3+20) + 3*100 = 46 + 300 = 346
+    // a=2,b=4,c=10: 2*(4+10) + 4*100 = 28 + 400 = 428
+    // a=2,b=4,c=20: 2*(4+20) + 4*100 = 48 + 400 = 448
+    EXPECT(result == std::set<scalar>{int64_t{313},
+                                      int64_t{323},
+                                      int64_t{326},
+                                      int64_t{346},
+                                      int64_t{414},
+                                      int64_t{424},
+                                      int64_t{428},
+                                      int64_t{448}});
+}
+
 // ---- division by zero tests ----
 
 TEST_CASE(div_by_zero_int_throws)

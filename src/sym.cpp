@@ -1077,54 +1077,109 @@ interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) con
     });
 }
 
-static void collect_optimals(const expr& e, std::unordered_map<expr, std::set<scalar>>& result)
+struct optimal_sample
 {
-    if(e.empty())
-        return;
-    std::visit(overloaded{[&](const variable_node& n) {
-                              if(not n.optimals.empty())
-                                  result[e].insert(n.optimals.begin(), n.optimals.end());
-                          },
-                          [](const auto&) {}},
-               get_node(e));
-    for(const auto& child : e.children())
-        collect_optimals(child, result);
+    std::unordered_map<expr, scalar> bindings;
+    scalar value;
+};
+
+// Combine optimal samples from each child of an op_node.
+//
+// Each sample carries the variable bindings that produced its value. Children
+// are folded in one at a time: for every existing (base, value-list) pair and
+// every sample from the next child, the combination is kept only when their
+// bindings agree on every shared variable. This makes repeated occurrences of
+// the same variable "pair up" (e.g. h*h with h in {2,3} yields {4, 9} rather
+// than the cross-product {4, 6, 9}), while subtrees that depend on disjoint
+// variables take the full cartesian product. Once all children are folded in,
+// the op's eval is applied to each surviving value list.
+static std::vector<optimal_sample>
+combine_optimals(const op_node& op, std::vector<std::vector<optimal_sample>> args)
+{
+    if(args.empty())
+        return {{{}, op.op->eval({})}};
+
+    std::vector<std::pair<std::unordered_map<expr, scalar>, std::vector<scalar>>> partial;
+    partial.reserve(args.front().size());
+    std::transform(args.front().begin(),
+                   args.front().end(),
+                   std::back_inserter(partial),
+                   [](const optimal_sample& s) {
+                       return std::make_pair(s.bindings, std::vector<scalar>{s.value});
+                   });
+
+    for(std::size_t i = 1; i < args.size(); ++i)
+    {
+        std::vector<std::pair<std::unordered_map<expr, scalar>, std::vector<scalar>>> next;
+        for(const auto& base : partial)
+        {
+            for(const auto& s : args[i])
+            {
+                bool compat =
+                    std::all_of(s.bindings.begin(), s.bindings.end(), [&](const auto& kv) {
+                        auto it = base.first.find(kv.first);
+                        return it == base.first.end() or it->second == kv.second;
+                    });
+                if(not compat)
+                    continue;
+                auto new_bindings = base.first;
+                new_bindings.insert(s.bindings.begin(), s.bindings.end());
+                auto new_values = base.second;
+                new_values.push_back(s.value);
+                next.emplace_back(std::move(new_bindings), std::move(new_values));
+            }
+        }
+        partial = std::move(next);
+    }
+
+    std::vector<optimal_sample> result;
+    result.reserve(partial.size());
+    std::transform(partial.begin(), partial.end(), std::back_inserter(result), [&](auto& p) {
+        return optimal_sample{std::move(p.first), op.op->eval(p.second)};
+    });
+    return result;
 }
 
 std::set<scalar> expr::eval_optimals() const
 {
-    std::unordered_map<expr, std::set<scalar>> var_optimals;
-    collect_optimals(*this, var_optimals);
-
-    if(var_optimals.empty())
-        return {eval({})};
-
-    std::vector<std::pair<expr, std::vector<scalar>>> var_values;
-    var_values.reserve(var_optimals.size());
-    std::transform(var_optimals.begin(),
-                   var_optimals.end(),
-                   std::back_inserter(var_values),
-                   [](const auto& p) {
-                       return std::make_pair(p.first,
-                                             std::vector<scalar>(p.second.begin(), p.second.end()));
-                   });
-
-    std::set<scalar> results;
-    std::unordered_map<expr, scalar> current;
-    fix<void>([&](auto self, std::size_t index) {
-        if(index == var_values.size())
-        {
-            results.insert(eval(current));
-            return;
-        }
-        const auto& [var_expr, values] = var_values[index];
-        for(const auto& v : values)
-        {
-            current[var_expr] = v;
-            self(index + 1);
-        }
-    })(0);
-    return results;
+    if(empty())
+        return {};
+    auto samples = generic_eval<std::vector<optimal_sample>>(
+        *this,
+        [](const expr& e) -> std::optional<std::vector<optimal_sample>> {
+            return std::visit(
+                overloaded{
+                    [](const literal_node& n) -> std::optional<std::vector<optimal_sample>> {
+                        return std::vector<optimal_sample>{{{}, n.val}};
+                    },
+                    [&](const variable_node& n) -> std::optional<std::vector<optimal_sample>> {
+                        if(n.optimals.empty())
+                            MIGRAPHX_THROW("Variable '" + n.name +
+                                           "' has no optimals to evaluate");
+                        std::vector<optimal_sample> samples;
+                        samples.reserve(n.optimals.size());
+                        std::transform(n.optimals.begin(),
+                                       n.optimals.end(),
+                                       std::back_inserter(samples),
+                                       [&](const scalar& v) {
+                                           return optimal_sample{{{e, v}}, v};
+                                       });
+                        return samples;
+                    },
+                    [](const op_node&) -> std::optional<std::vector<optimal_sample>> {
+                        return std::nullopt;
+                    }},
+                get_node(e));
+        },
+        [](const op_node& op, std::vector<std::vector<optimal_sample>> args) {
+            return combine_optimals(op, std::move(args));
+        });
+    std::set<scalar> result;
+    std::transform(samples.begin(),
+                   samples.end(),
+                   std::inserter(result, result.end()),
+                   [](const auto& s) { return s.value; });
+    return result;
 }
 
 static std::string scalar_to_string(const scalar& v)

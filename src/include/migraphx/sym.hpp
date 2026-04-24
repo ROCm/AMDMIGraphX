@@ -31,6 +31,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 
 #include <migraphx/config.hpp>
@@ -54,6 +55,15 @@ struct interval
 {
     scalar min = int64_t{0};
     scalar max = int64_t{0};
+
+    interval() = default;
+    interval(scalar mn, scalar mx) : min{std::move(mn)}, max{std::move(mx)} {}
+    // Convenience overload so brace-init with bare integer literals (e.g.
+    // `interval{1, 8}` or `var("n", {1, 8})`) resolves unambiguously rather
+    // than triggering the variant converting-ctor's int-vs-double tie that
+    // some libstdc++ versions (notably on SLES) reject.
+    interval(int64_t mn, int64_t mx) : min{mn}, max{mx} {}
+
     friend bool operator==(const interval& a, const interval& b)
     {
         return a.min == b.min and a.max == b.max;

@@ -79,7 +79,7 @@ struct broadcast
         // Validate axis/dims and place `in_strides` at `axis`, filling broadcast positions with
         // `zero`. Templated for the static (size_t) and symbolic (sym::expr) paths.
         auto build_output =
-            [&](const auto& target, const auto& in_dims, const auto& in_strides, auto zero) {
+            [&](const auto& target, const auto& in_dims, const auto& in_strides, const auto& zero) {
                 if(axis >= target.size())
                     MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) +
                                    " is out of range");
@@ -90,7 +90,7 @@ struct broadcast
                     if(target[axis + i] != in_dims[i])
                         MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
                 }
-                std::vector<decltype(zero)> bcast_strides(target.size(), zero);
+                std::vector<std::decay_t<decltype(zero)>> bcast_strides(target.size(), zero);
                 std::copy(in_strides.begin(), in_strides.end(), bcast_strides.begin() + axis);
                 return shape{t, target, std::move(bcast_strides)};
             };

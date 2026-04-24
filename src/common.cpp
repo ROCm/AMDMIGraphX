@@ -243,7 +243,7 @@ static shape make_bcast_shape_impl(shape::type_t type,
                                    const std::vector<Dim>& input_dims,
                                    const std::vector<Stride>& input_strides,
                                    const std::vector<Dim>& bcast_dims,
-                                   Stride zero)
+                                   const Stride& zero)
 {
     assert(bcast_dims.size() >= input_dims.size());
     auto offset = bcast_dims.size() - input_dims.size();

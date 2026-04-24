@@ -1076,7 +1076,13 @@ std::string expr::name() const
 
 bool expr::is_raw() const { return pimpl and pimpl->raw_flag; }
 
-const std::vector<expr>& expr::children() const { return pimpl->children; }
+const std::vector<expr>& expr::children() const
+{
+    static const std::vector<expr> empty_children = {};
+    if(empty())
+        return empty_children;
+    return pimpl->children;
+}
 
 scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 {

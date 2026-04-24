@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_DEVICE_PREFIX_SCAN_SUM_HPP
-#define MIGRAPHX_GUARD_DEVICE_PREFIX_SCAN_SUM_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+#include <migraphx/serialize.hpp>
 
-void MIGRAPHX_DEVICE_EXPORT prefix_scan_sum(hipStream_t stream,
-                                            const argument& result,
-                                            const argument& arg,
-                                            int32_t axis,
-                                            bool exclusive,
-                                            bool reverse);
+#include <migraphx/op/common.hpp>
 
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_DEVICE_PREFIX_SCAN_SUM_HPP
+struct test_rnn_var_sl_shift_sequence : verify_program<test_rnn_var_sl_shift_sequence>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape hs_shape{migraphx::shape::float_type, {4, 3, 8}};
+        migraphx::shape sl_shape{migraphx::shape::int32_type, {3}};
+
+        auto hs = mm->add_parameter("hidden_states", hs_shape);
+        auto sl = mm->add_literal(migraphx::literal{sl_shape, {4, 2, 3}});
+        mm->add_instruction(migraphx::make_op("rnn_var_sl_shift_sequence"), hs, sl);
+        return p;
+    }
+    std::string section() const { return "rnn"; }
+};

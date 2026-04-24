@@ -230,12 +230,17 @@ interval max(interval x, interval y)
     return {scalar_max(x.min, y.min), scalar_max(x.max, y.max)};
 }
 
+static std::size_t hash_scalar(scalar s)
+{
+    return std::visit([](auto x) { return hash_value(x); }, s);
+}
+
 struct literal_node
 {
     scalar val;
     std::size_t hash() const
     {
-        return std::visit([](auto x) -> std::size_t { return hash_value(x); }, val);
+        return hash_scalar(val);
     }
     friend bool operator==(const literal_node& a, const literal_node& b)
     {

@@ -637,6 +637,14 @@ TEST_CASE(hash_literal)
     EXPECT(a.hash() == b.hash());
 }
 
+TEST_CASE(hash_literal_same_value)
+{
+    auto a = lit(42);
+    auto b = lit(42.0);
+    EXPECT(a == b);
+    EXPECT(a.hash() == b.hash());
+}
+
 TEST_CASE(hash_different_literals) { EXPECT(lit(1).hash() != lit(2).hash()); }
 
 TEST_CASE(hash_different_variables) { EXPECT(var("x").hash() != var("y").hash()); }

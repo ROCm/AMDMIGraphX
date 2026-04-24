@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <iterator>
 #include <functional>
+#include <limits>
 #include <numeric>
 #include <optional>
 #include <sstream>
@@ -77,6 +78,38 @@ interval operator*(interval a, interval b)
 
 interval operator/(interval a, interval b)
 {
+    auto b_lo = to<double>(b.min);
+    auto b_hi = to<double>(b.max);
+    // If the divisor brackets zero, the 4-corner formula is wrong (and may hit
+    // integer division-by-zero). Handle it explicitly using infinities so the
+    // unbounded regions are representable.
+    if(b_lo <= 0.0 and b_hi >= 0.0)
+    {
+        if(b_lo == 0.0 and b_hi == 0.0)
+            MIGRAPHX_THROW("Interval division by zero");
+        constexpr double inf = std::numeric_limits<double>::infinity();
+        // Strictly crosses zero: 1/b sweeps the full real line.
+        if(b_lo < 0.0 and b_hi > 0.0)
+            return {-inf, inf};
+        auto a_lo = to<double>(a.min);
+        auto a_hi = to<double>(a.max);
+        // b == [0, b_hi], b_hi > 0: 1/b in [1/b_hi, +inf).
+        if(b_lo == 0.0)
+        {
+            if(a_lo >= 0.0)
+                return {a_lo / b_hi, inf};
+            if(a_hi <= 0.0)
+                return {-inf, a_hi / b_hi};
+            return {-inf, inf};
+        }
+        // b == [b_lo, 0], b_lo < 0: 1/b in (-inf, 1/b_lo].
+        if(a_lo >= 0.0)
+            return {-inf, a_lo / b_lo};
+        if(a_hi <= 0.0)
+            return {a_hi / b_lo, inf};
+        return {-inf, inf};
+    }
+
     auto f  = [](auto x, auto y) { return x / y; };
     auto p1 = scalar_invoke_common(f, a.min, b.min);
     auto p2 = scalar_invoke_common(f, a.min, b.max);

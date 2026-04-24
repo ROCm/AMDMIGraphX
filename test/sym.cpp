@@ -23,6 +23,7 @@
  */
 #include <migraphx/sym.hpp>
 #include <migraphx/serialize.hpp>
+#include <limits>
 #include <sstream>
 #include <test.hpp>
 
@@ -504,6 +505,91 @@ TEST_CASE(interval_div_assign)
     interval a{2.0, 10.0};
     a /= interval{1.0, 5.0};
     EXPECT(a == (interval{0.4, 10.0}));
+}
+
+TEST_CASE(interval_div_divisor_strictly_crosses_zero)
+{
+    // [1, 5] / [-2, 4] -> (-inf, +inf)
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    auto r               = interval{int64_t{1}, int64_t{5}} / interval{int64_t{-2}, int64_t{4}};
+    EXPECT(r == (interval{-inf, inf}));
+}
+
+TEST_CASE(interval_div_num_crosses_and_divisor_crosses)
+{
+    // [-5, 5] / [-2, 4] -> (-inf, +inf)
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    auto r               = interval{int64_t{-5}, int64_t{5}} / interval{int64_t{-2}, int64_t{4}};
+    EXPECT(r == (interval{-inf, inf}));
+}
+
+TEST_CASE(interval_div_positive_by_nonneg_divisor)
+{
+    // [2, 10] / [0, 5] -> [2/5, +inf) = [0.4, +inf)
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    auto r               = interval{int64_t{2}, int64_t{10}} / interval{int64_t{0}, int64_t{5}};
+    EXPECT(r == (interval{0.4, inf}));
+}
+
+TEST_CASE(interval_div_negative_by_nonneg_divisor)
+{
+    // [-10, -2] / [0, 5] -> (-inf, -2/5] = (-inf, -0.4]
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    auto r               = interval{int64_t{-10}, int64_t{-2}} / interval{int64_t{0}, int64_t{5}};
+    EXPECT(r == (interval{-inf, -0.4}));
+}
+
+TEST_CASE(interval_div_positive_by_nonpos_divisor)
+{
+    // [2, 10] / [-5, 0] -> (-inf, 2/-5] = (-inf, -0.4]
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    auto r               = interval{int64_t{2}, int64_t{10}} / interval{int64_t{-5}, int64_t{0}};
+    EXPECT(r == (interval{-inf, -0.4}));
+}
+
+TEST_CASE(interval_div_negative_by_nonpos_divisor)
+{
+    // [-10, -2] / [-5, 0] -> [-2/-5, +inf) = [0.4, +inf)
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    auto r = interval{int64_t{-10}, int64_t{-2}} / interval{int64_t{-5}, int64_t{0}};
+    EXPECT(r == (interval{0.4, inf}));
+}
+
+TEST_CASE(interval_div_num_crosses_by_nonneg_divisor)
+{
+    // [-5, 5] / [0, 5] -> (-inf, +inf) since numerator spans zero too
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    auto r               = interval{int64_t{-5}, int64_t{5}} / interval{int64_t{0}, int64_t{5}};
+    EXPECT(r == (interval{-inf, inf}));
+}
+
+TEST_CASE(interval_div_num_crosses_by_nonpos_divisor)
+{
+    // [-5, 5] / [-5, 0] -> (-inf, +inf)
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    auto r               = interval{int64_t{-5}, int64_t{5}} / interval{int64_t{-5}, int64_t{0}};
+    EXPECT(r == (interval{-inf, inf}));
+}
+
+TEST_CASE(interval_div_by_zero_point_throws)
+{
+    // [1, 5] / [0, 0] -> throw
+    test::throws(
+        [] { (void)(interval{int64_t{1}, int64_t{5}} / interval{int64_t{0}, int64_t{0}}); });
+}
+
+TEST_CASE(interval_div_positive_no_zero_cross)
+{
+    // Regression: [2, 4] / [1, 2] -> [1, 4] (normal 4-corner path)
+    auto r = interval{int64_t{2}, int64_t{4}} / interval{int64_t{1}, int64_t{2}};
+    EXPECT(r == (interval{int64_t{1}, int64_t{4}}));
+}
+
+TEST_CASE(interval_div_negative_divisor_no_zero_cross)
+{
+    // [2, 4] / [-2, -1] -> [-4, -1] (normal 4-corner path)
+    auto r = interval{int64_t{2}, int64_t{4}} / interval{int64_t{-2}, int64_t{-1}};
+    EXPECT(r == (interval{int64_t{-4}, int64_t{-1}}));
 }
 
 TEST_CASE(interval_mod_assign)

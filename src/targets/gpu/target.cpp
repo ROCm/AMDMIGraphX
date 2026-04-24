@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/output_iterator.hpp>
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
@@ -99,35 +98,30 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 
 // Returns all passes that run before lowering, varying by compile mode.
 // BALANCED/MAX: full normalization, rewrite, and fusion pipeline.
-// EAGER: required normalization passes + fusions only (no rewrite/reshape/layout passes).
+// EAGER: minimal normalization and fusion only.
 static std::vector<pass>
-get_gpu_independent_passes(context& ctx, const compile_options& options, compile_modes mode)
+get_gpu_independent_passes(context& ctx, const compile_options& options, bool is_eager)
 {
-    // clang-format off
-    // Required early normalization: always run regardless of mode
-    std::vector<pass> passes = {
-            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
-            dead_code_elimination{},
-            simplify_dyn_ops{},
-            dead_code_elimination{},
-            normalize_ops{},
-            dead_code_elimination{},
-            eliminate_identity{},
-            dead_code_elimination{},
-            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
-            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
-            simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
-            enable_pass(not mlir_enabled(), rewrite_quantization{}),
-            dead_code_elimination{},
-            rewrite_rnn{},
-            dead_code_elimination{},
-            eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
-    };
-
-    if(mode != compile_modes::EAGER)
+    if(not is_eager)
     {
-        // BALANCED/MAX only: full rewrite, reshape, and layout pipeline
-        std::vector<pass> extra = {
+        // clang-format off
+        return {
+                enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+                dead_code_elimination{},
+                simplify_dyn_ops{},
+                dead_code_elimination{},
+                normalize_ops{},
+                dead_code_elimination{},
+                eliminate_identity{},
+                dead_code_elimination{},
+                enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
+                enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
+                simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
+                enable_pass(not mlir_enabled(), rewrite_quantization{}),
+                dead_code_elimination{},
+                rewrite_rnn{},
+                dead_code_elimination{},
+                eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
                 rewrite_resize{.affine_only = true},
                 dead_code_elimination{},
                 simplify_reshapes{.enable_gather_rewrite = true},
@@ -143,21 +137,11 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, compile
                 optimize_module{},
                 layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
                 dead_code_elimination{},
-        };
-        passes.insert(passes.end(), std::make_move_iterator(extra.begin()), std::make_move_iterator(extra.end()));
-    }
-
-    // Fusion pipeline: always run
-    std::vector<pass> fusions = {
-            fuse_horizontal{},
-            dead_code_elimination{},
-            prefuse_ops{&ctx},
-            dead_code_elimination{},
-    };
-
-    if(mode != compile_modes::EAGER)
-    {
-        std::vector<pass> rewrite_extra = {
+                fuse_horizontal{},
+                dead_code_elimination{},
+                prefuse_ops{&ctx},
+                dead_code_elimination{},
+                dead_code_elimination{},
                 rewrite_reduce{},
                 rewrite_topk{},
                 rewrite_low_precision{},
@@ -167,50 +151,57 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, compile
                 dead_code_elimination{},
                 simplify_reshapes{.enable_op_shape_transform_op=true},
                 dead_code_elimination{},
-        };
-        fusions.insert(fusions.end(), std::make_move_iterator(rewrite_extra.begin()), std::make_move_iterator(rewrite_extra.end()));
-    }
-
-    std::vector<pass> final_fusions = {
-            enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
-                                                    .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
-            dead_code_elimination{},
-            optimize_module{},
-            fuse_pointwise_reduce{},
-            dead_code_elimination{},
+                enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
+                                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+                dead_code_elimination{},
+                optimize_module{},
+                fuse_pointwise_reduce{},
+                dead_code_elimination{},
 #ifndef _WIN32
-            enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
+                enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
-            dead_code_elimination{},
-            enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
-            dead_code_elimination{},
-            fuse_concat{},
-            dead_code_elimination{},
-    };
+                dead_code_elimination{},
+                enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
+                dead_code_elimination{},
+                fuse_concat{},
+                dead_code_elimination{},
+                auto_contiguous{},
+                dead_code_elimination{},
 
-    if(mode != compile_modes::EAGER)
-    {
-        final_fusions.push_back(auto_contiguous{});
-        final_fusions.push_back(dead_code_elimination{});
+        };
     }
-
-    std::vector<std::vector<pass>> pipelines = {
-        std::move(passes),
-        std::move(fusions),
-        std::move(final_fusions),
-    };
-    std::vector<pass> result;
-    std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(result));
-    return result;
-    // clang-format on
+    else
+    {
+        return {
+                normalize_ops{},
+                dead_code_elimination{},
+                fuse_horizontal{},
+	        dead_code_elimination{},
+	        prefuse_ops{&ctx},
+                dead_code_elimination{},
+                enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
+                                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+                dead_code_elimination{},
+                fuse_pointwise_reduce{},
+                dead_code_elimination{},
+        #ifndef _WIN32
+                enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
+        #endif
+                dead_code_elimination{},
+                enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
+                dead_code_elimination{},
+                fuse_concat{},
+                dead_code_elimination{},
+        };
+        // clang-format on
+    }
 }
 
 // Returns lowering and all subsequent passes. List is identical across all modes;
-// compile_mode controls the fast-compile flag passed to compile_ops.
+// is_eager controls the fast-compile flag passed to compile_ops.
 static std::vector<pass>
-get_gpu_passes(migraphx::context& gctx, context& ctx, const compile_options& options, compile_modes mode)
+get_gpu_passes(context& ctx, const compile_options& options, bool is_eager)
 {
-    const bool is_eager = (mode == compile_modes::EAGER);
     // clang-format off
     return {
             lowering{&ctx, options.offload_copy},
@@ -255,20 +246,19 @@ get_gpu_passes(migraphx::context& gctx, context& ctx, const compile_options& opt
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
-    auto& ctx                    = any_cast<context>(gctx);
+    auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
-    const compile_modes mode = options.compile_mode;
+    compile_modes compile_mode = convert_to_compile_mode(options.compile_mode);
 
-    if(mode == compile_modes::MAX)
+    if(compile_mode == compile_modes::MAX)
         ctx.set_exhaustive_tune_flag(true);
 
-    std::vector<std::vector<pass>> pipelines = {
-        get_gpu_independent_passes(ctx, options, mode),
-        get_gpu_passes(gctx, ctx, options, mode),
-    };
-    std::vector<pass> passes;
-    std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));
+    const bool is_eager = (compile_mode == compile_modes::EAGER);
+
+    auto passes = get_gpu_independent_passes(ctx, options, is_eager);
+    auto gpu_passes = get_gpu_passes(ctx, options, is_eager);
+    passes.insert(passes.end(), std::make_move_iterator(gpu_passes.begin()), std::make_move_iterator(gpu_passes.end()));
     return passes;
 }
 

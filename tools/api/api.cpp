@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/compile_modes.hpp>
 #include <migraphx/execution_environment.hpp>
 #include <migraphx/migraphx.h>
 #include <migraphx/rank.hpp>
@@ -160,7 +159,7 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
 
 static void set_compile_mode(compile_options& options, int8_t value)
 {
-    options.compile_mode = convert_to_compile_mode(static_cast<uint8_t>(value));
+    options.compile_mode = value;
 }
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }

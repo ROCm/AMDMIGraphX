@@ -42,7 +42,6 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/logger.hpp>
-#include <migraphx/compile_modes.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
 #include <migraphx/iterator_for.hpp>
@@ -524,19 +523,19 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                bool offload_copy,
                bool fast_math,
                bool exhaustive_tune,
-               int compile_mode) {
+               int8_t compile_mode) {
                 migraphx::compile_options options;
                 options.offload_copy    = offload_copy;
                 options.fast_math       = fast_math;
                 options.exhaustive_tune = exhaustive_tune;
-                options.compile_mode    = migraphx::convert_to_compile_mode(static_cast<uint8_t>(compile_mode));
+                options.compile_mode    = compile_mode;
                 p.compile(t, options);
             },
             py::arg("t"),
             py::arg("offload_copy")    = true,
             py::arg("fast_math")       = true,
             py::arg("exhaustive_tune") = false,
-            py::arg("compile_mode")    = static_cast<int>(migraphx::compile_modes::BALANCED))
+            py::arg("compile_mode")    = 50)
         .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(
             "create_module",

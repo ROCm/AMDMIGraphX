@@ -22,76 +22,36 @@
  * THE SOFTWARE.
  */
 #include <migraphx/compile_modes.hpp>
-#include <migraphx/errors.hpp>
-#include <migraphx/logger.hpp>
+#include <cstdlib>
 #include <algorithm>
-#include <array>
-#include <stdexcept>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-static constexpr std::array<compile_modes, 3> all_compile_modes = {
-    compile_modes::EAGER, compile_modes::BALANCED, compile_modes::MAX};
-
 compile_modes convert_to_compile_mode(uint8_t mode)
 {
-    // Exact match first
-    auto it = std::find_if(all_compile_modes.begin(), all_compile_modes.end(), [&](compile_modes m) {
-        return static_cast<uint8_t>(m) == mode;
-    });
-    if(it != all_compile_modes.end())
-        return *it;
-
-    // Clip out-of-range values and warn
+    // If mode is not in range 0-100, return BALANCED
     if(mode > 100)
-    {
-        log::warn() << "compile_mode value " << static_cast<int>(mode)
-                    << " is out of range [0, 100], clamping to 100 (MAX)";
-        return compile_modes::MAX;
-    }
-
-    // Snap to nearest defined mode using signed arithmetic to avoid uint8_t wrap-around
-    auto nearest = std::min_element(
-        all_compile_modes.begin(), all_compile_modes.end(), [&](compile_modes a, compile_modes b) {
-            return std::abs(static_cast<int>(mode) - static_cast<int>(a)) <
-                   std::abs(static_cast<int>(mode) - static_cast<int>(b));
-        });
-    log::warn() << "compile_mode value " << static_cast<int>(mode)
-                << " does not map to a defined mode, snapping to nearest: "
-                << static_cast<int>(*nearest);
-    return *nearest;
-}
-
-compile_modes convert_to_compile_mode(const std::string& mode)
-{
-    if(mode == "eager")
-        return compile_modes::EAGER;
-    if(mode == "balanced")
         return compile_modes::BALANCED;
-    if(mode == "max")
-        return compile_modes::MAX;
-
-    // Try parsing as integer
-    try
-    {
-        std::size_t pos  = 0;
-        int val          = std::stoi(mode, &pos);
-        if(pos != mode.size())
-            MIGRAPHX_THROW("Invalid compile_mode string: '" + mode + "'");
-        if(val < 0 || val > 255)
-            MIGRAPHX_THROW("compile_mode integer value out of uint8 range: " + mode);
-        return convert_to_compile_mode(static_cast<uint8_t>(val));
-    }
-    catch(const std::invalid_argument&)
-    {
-        MIGRAPHX_THROW("Unknown compile_mode string: '" + mode +
-                       "'. Valid values: 'eager', 'balanced', 'max', or an integer 0-100.");
-    }
-    catch(const std::out_of_range&)
-    {
-        MIGRAPHX_THROW("compile_mode integer value out of range: " + mode);
-    }
+    
+    // Define the enum values as integers for comparison
+    constexpr uint8_t eager_val    = static_cast<uint8_t>(compile_modes::EAGER);
+    constexpr uint8_t balanced_val = static_cast<uint8_t>(compile_modes::BALANCED);
+    constexpr uint8_t max_val      = static_cast<uint8_t>(compile_modes::MAX);
+    
+    // Calculate distances to each enum value
+    uint8_t dist_to_eager    = std::abs(mode - eager_val);
+    uint8_t dist_to_balanced = std::abs(mode - balanced_val);
+    uint8_t dist_to_max      = std::abs(mode - max_val);
+    // Find the minimum distance
+    uint8_t min_dist = std::min({dist_to_eager, dist_to_balanced, dist_to_max});
+    
+    // Return the enum value with minimum distance
+    if(min_dist == dist_to_eager)
+        return compile_modes::EAGER;
+    if(min_dist == dist_to_balanced)
+        return compile_modes::BALANCED;
+    return compile_modes::MAX;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

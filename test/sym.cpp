@@ -551,7 +551,7 @@ TEST_CASE(interval_div_negative_by_nonpos_divisor)
 {
     // [-10, -2] / [-5, 0] -> [-2/-5, +inf) = [0.4, +inf)
     constexpr double inf = std::numeric_limits<double>::infinity();
-    auto r = interval{int64_t{-10}, int64_t{-2}} / interval{int64_t{-5}, int64_t{0}};
+    auto r               = interval{int64_t{-10}, int64_t{-2}} / interval{int64_t{-5}, int64_t{0}};
     EXPECT(r == (interval{0.4, inf}));
 }
 

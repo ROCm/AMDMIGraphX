@@ -26,6 +26,7 @@
 
 #include <migraphx/op/name.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
@@ -64,19 +65,18 @@ struct binary : op_name<Derived>
     value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, static_cast<const Derived&>(*this), true}
-            .has(2)
-            .same_type()
-            .same_dims();
+        check_shapes{inputs, static_cast<const Derived&>(*this), true}.has(2).same_type();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
         if(s0.dynamic() or s1.dynamic())
         {
-            if(s0 == s1)
-                return s0;
-            MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");
+            if(s0.dynamic() != s1.dynamic())
+                MIGRAPHX_THROW("BINARY: " + point_function() +
+                               ": mixed static and dynamic shapes not supported");
+            return {s0.type(), compute_broadcasted_dyn_dims(s0, s1)};
         }
-        else if(s0 == s1 and s0.packed())
+        check_shapes{{s0, s1}, static_cast<const Derived&>(*this), true}.same_dims();
+        if(s0 == s1 and s0.packed())
         {
             return s0;
         }

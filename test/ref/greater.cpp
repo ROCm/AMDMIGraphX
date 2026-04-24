@@ -107,3 +107,40 @@ TEST_CASE(greater_dyn_test)
     std::vector<bool> gold = {false, false, true, true, false, true, false, false, true};
     EXPECT(results_vector == gold);
 }
+
+TEST_CASE(greater_dyn_broadcast_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s0{migraphx::shape::float_type, {{2, 3}, {3, 3}}};
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3}, {2, 3}}};
+    auto left  = mm->add_parameter("l", s0);
+    auto right = mm->add_parameter("r", s1);
+    auto gr    = mm->add_instruction(migraphx::make_op("greater"), left, right);
+    auto r     = mm->add_instruction(
+        migraphx::make_op("convert",
+                          {{"target_type", migraphx::to_value(migraphx::shape::bool_type)}}),
+        gr);
+    mm->add_return({r});
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> l_data(9);
+    std::vector<float> r_data(9);
+    for(int i = 0; i < 9; ++i)
+    {
+        l_data[i] = static_cast<float>(i);
+        r_data[i] = static_cast<float>(i % 3);
+    }
+    migraphx::parameter_map params;
+    migraphx::shape fixed{migraphx::shape::float_type, {3, 3}};
+    params["l"] = migraphx::argument(fixed, l_data.data());
+    params["r"] = migraphx::argument(fixed, r_data.data());
+
+    auto result = p.eval(params).back();
+    std::vector<bool> out;
+    result.visit([&](auto output) { out.assign(output.begin(), output.end()); });
+    std::vector<bool> gold(9);
+    for(int i = 0; i < 9; ++i)
+        gold[i] = l_data[i] > r_data[i];
+    EXPECT(out == gold);
+}

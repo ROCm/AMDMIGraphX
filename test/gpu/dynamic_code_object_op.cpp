@@ -33,6 +33,16 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 
+static bool module_has_dynamic_code_object(const migraphx::module& m)
+{
+    for(auto ins : migraphx::iterator_for(m))
+    {
+        if(ins->name() == "gpu::dynamic_code_object_op")
+            return true;
+    }
+    return false;
+}
+
 static void run_lowering(migraphx::program& p, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
@@ -113,16 +123,42 @@ TEST_CASE(symbolic_concat_gpu_lowering)
 
     run_lowering(p);
 
-    bool found = false;
-    for(auto ins : iterator_for(*p.get_main_module()))
-    {
-        if(ins->name() == "gpu::dynamic_code_object_op")
-        {
-            found = true;
-            break;
-        }
-    }
-    EXPECT(found);
+    EXPECT(module_has_dynamic_code_object(*p.get_main_module()));
+}
+
+TEST_CASE(dynamic_greater_gpu_lowering)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {8, 16}}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", s);
+    auto y   = mm->add_parameter("y", s);
+    auto gr  = mm->add_instruction(migraphx::make_op("greater"), x, y);
+    mm->add_return({gr});
+
+    run_lowering(p);
+
+    EXPECT(module_has_dynamic_code_object(*p.get_main_module()));
+}
+
+TEST_CASE(symbolic_greater_gpu_lowering)
+{
+    using migraphx::sym::var;
+    auto n = var("n");
+    using dd = migraphx::shape::dynamic_dimension;
+
+    migraphx::shape sx{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("x", sx);
+    auto y   = mm->add_parameter("y", sy);
+    auto gr  = mm->add_instruction(migraphx::make_op("greater"), x, y);
+    mm->add_return({gr});
+
+    run_lowering(p);
+
+    EXPECT(module_has_dynamic_code_object(*p.get_main_module()));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

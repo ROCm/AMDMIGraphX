@@ -5328,6 +5328,29 @@ TEST_CASE(test_symbolic_where_shapes)
     EXPECT(p.get_output_shapes().back() == sx);
 }
 
+TEST_CASE(greater_dyn_broadcast)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {{2, 3}, {3, 3}}};
+    migraphx::shape s1{migraphx::shape::float_type, {{2, 3}, {2, 3}}};
+    expect_shape(s0, migraphx::make_op("greater"), s0, s1);
+}
+
+TEST_CASE(test_symbolic_greater_shapes)
+{
+    using migraphx::sym::var;
+    auto n = var("n");
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape sx{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_outline(sx);
+    auto y   = mm->add_outline(sy);
+    mm->add_instruction(migraphx::make_op("greater"), x, y);
+    EXPECT(p.get_output_shapes().back() == sx);
+}
+
 TEST_CASE(roialign_test)
 {
     migraphx::shape sx{migraphx::shape::float_type, {3, 4, 5, 6}};

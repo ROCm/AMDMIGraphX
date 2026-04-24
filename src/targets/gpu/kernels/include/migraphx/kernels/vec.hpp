@@ -188,7 +188,7 @@ template <class... Ts>
 constexpr auto vec_transform_tuple(Ts... xs)
 {
     return [=](auto f) {
-        // join + lift pattern can fail to instantiate under HIPRTC when xs are scalars
+        // join + lift pattern can fail to instantiate when xs are scalars
         if constexpr(is_any_vec<Ts...>())
             return vec_detail::vec_transform_tuple_vec_lanes(f, xs...);
         else

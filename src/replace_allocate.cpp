@@ -101,7 +101,8 @@ get_output_debug_symbols(const module& mod)
         const auto& output_symbols = last_ins->get_debug_symbols();
         if(alloc_aliases.size() != output_symbols.size())
         {
-            migraphx::log::warn() << "Size mismatch between output debug symbols and return allocation aliases.";
+            migraphx::log::warn()
+                << "Size mismatch between output debug symbols and return allocation aliases.";
             return mod_output_debug_symbols;
         }
         for(const auto& os : range(output_symbols.begin(), output_symbols.end()))

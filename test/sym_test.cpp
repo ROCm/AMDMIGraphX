@@ -516,11 +516,12 @@ TEST_CASE(eval_non_symbol_key_throws)
     EXPECT(test::throws([&] { h.eval_uint({{h + 1, 10}}); }));
 }
 
-TEST_CASE(subs_non_symbol_key_throws)
+TEST_CASE(subs_non_symbol_key_unchanged)
 {
     auto h = var("h");
-    EXPECT(test::throws([&] { h.subs({{h + 1, lit(5)}}); }));
-    EXPECT(test::throws([&] { h.subs({{lit(3), lit(5)}}); }));
+    // Non-matching keys leave the expression unchanged
+    EXPECT(h.subs({{h + 1, lit(5)}}) == h);
+    EXPECT(h.subs({{lit(3), lit(5)}}) == h);
 }
 
 TEST_CASE(subs_partial)

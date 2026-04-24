@@ -269,6 +269,10 @@ struct iterator_range
     Iterator start;
     Iterator last;
 
+    bool empty() const { return start == last; }
+
+    std::size_t size() const { return std::distance(start, last); }
+
     Iterator begin() const { return start; }
 
     Iterator end() const { return last; }

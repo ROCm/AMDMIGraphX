@@ -25,21 +25,40 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/rank.hpp>
 #include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class T>
-auto hash_value(const T& v) -> decltype(std::hash<T>{}(v))
+auto hash_value(rank<2>, const T& v) -> decltype(std::hash<T>{}(v))
 {
     return std::hash<T>{}(v);
+}
+
+template <class T>
+auto hash_value(rank<1>, const T& v) -> decltype(v.hash())
+{
+    return v.hash();
+}
+
+template <class T>
+auto hash_value(const T& v) -> decltype(hash_value(rank<2>{}, v))
+{
+    return hash_value(rank<2>{}, v);
 }
 
 template <class T>
 void hash_combine(std::size_t& seed, const T& v)
 {
     seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
+}
+
+template <class Iterator>
+void hash_range(std::size_t& seed, Iterator first, Iterator last)
+{
+    std::for_each(first, last, [&](const auto& x) { hash_combine(seed, x); });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

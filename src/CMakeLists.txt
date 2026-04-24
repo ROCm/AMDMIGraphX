@@ -137,11 +137,11 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
-    sym.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    sym.cpp
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp

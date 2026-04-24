@@ -31,7 +31,7 @@ Full documentation for MIGraphX is available at
 * Updated the ONNX clip operator to support opset 13 (#4518).
 * Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
 * Replaced usages of `std::cout` and `std::cerr` with the logger (#4732)
-* Converted RNN variable sequence length operations (`rnn_var_sl_shift_sequence`, `rnn_var_sl_shift_output`, `rnn_var_sl_last_output`) from device implementation to JIT compilation (#4756).
+* Converted RNN variable sequence length operations (`rnn_var_sl_shift_sequence`, `rnn_var_sl_shift_output`, `rnn_var_sl_last_output`) from device implementation to JIT compilation (#4755).
 * Allowing all grouped convolutions to go through rocMLIR. Previously only allowed 2D convolutions (#4815). 
 
 ### Resolved issues

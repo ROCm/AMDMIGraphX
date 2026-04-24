@@ -1,3 +1,23 @@
+# MIGraphX build environment with TheRock (amdrocm-*) deb packages.
+#
+# Build args:
+#   GPU_ARCH          GPU architecture family (e.g. gfx120x, gfx94x)
+#   ROCM_RELEASE_URL  TheRock ROCm apt repository URL
+#
+# Build:
+#   docker build --build-arg GPU_ARCH=<gpu_arch> \
+#       --build-arg ROCM_RELEASE_URL=<rocm_release_url> \
+#       -f tools/docker/therock_deb.docker -t migraphx-therock .
+#
+# Run:
+#   docker run -it --device=/dev/kfd --device=/dev/dri --group-add video \
+#       -v $(pwd):/code/AMDMIGraphX migraphx-therock
+#
+# Build MIGraphX inside the container:
+#   cd /code/AMDMIGraphX
+#   rbuild build -d depend -B build \
+#       -DGPU_TARGETS=$(rocminfo | grep -o -m1 'gfx.*')
+
 FROM ubuntu:24.04
 
 ARG GPU_ARCH=gfx120x

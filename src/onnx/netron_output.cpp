@@ -62,7 +62,7 @@ int get_onnx_type(shape::type_t s_type)
     case shape::fp8e5m2_type: return onnx::TensorProto::FLOAT8E5M2;
     case shape::fp8e5m2fnuz_type: return onnx::TensorProto::FLOAT8E5M2FNUZ;
     case shape::tuple_type: return onnx::TensorProto::UNDEFINED;
-    case shape::fp4x2_type: return onnx::TensorProto::UINT4;
+    case shape::fp4x2_type: return onnx::TensorProto::FLOAT4E2M1;
     }
     MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
 }

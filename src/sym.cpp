@@ -267,7 +267,7 @@ struct variable_node
     std::size_t hash() const { return hash_value(name); }
     friend bool operator==(const variable_node& a, const variable_node& b)
     {
-        return a.name == b.name and a.constraints == b.constraints and a.optimals == b.optimals;
+        return a.name == b.name;
     }
     friend bool operator!=(const variable_node& a, const variable_node& b) { return not(a == b); }
 };

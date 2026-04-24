@@ -1232,11 +1232,6 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
 
     void print() const { call(&migraphx_program_print, this->get_handle_ptr()); }
 
-    void write_netron_output(const char* filename) const
-    {
-        call(&migraphx_program_write_netron_output, this->get_handle_ptr(), filename);
-    }
-
     program sort()
     {
         call(&migraphx_program_sort, this->get_handle_ptr());

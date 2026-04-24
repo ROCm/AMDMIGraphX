@@ -30,7 +30,7 @@ def test_netron_output_parsed_model():
     with tempfile.NamedTemporaryFile(suffix=".onnx", delete=False) as t:
         filename = t.name
 
-    p.write_netron_output(filename)
+    migraphx.save(p, filename, format="onnx_for_netron")
     size = os.path.getsize(filename)
     assert size > 0, "Netron output file is empty"
     os.remove(filename)
@@ -48,7 +48,7 @@ def test_netron_output_constructed_program():
     with tempfile.NamedTemporaryFile(suffix=".onnx", delete=False) as t:
         filename = t.name
 
-    p.write_netron_output(filename)
+    migraphx.save(p, filename, format="onnx_for_netron")
     size = os.path.getsize(filename)
     assert size > 0, "Netron output file is empty"
     os.remove(filename)

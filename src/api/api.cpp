@@ -339,13 +339,20 @@ static std::vector<shape> get_output_shapes(program& p) { return p.get_output_sh
 
 static void print_program(const program& p) { std::cout << p << std::endl; }
 
-static void write_netron_output_file(const program& p, const char* filename)
+static void save_program(program& p, const char* name, const file_options& options)
 {
-    std::ofstream os(filename, std::ios::binary);
-    if(not os.is_open())
-        MIGRAPHX_THROW(migraphx_status_bad_param,
-                       "Failed to open file for writing: " + std::string(filename));
-    write_netron_output(p, os);
+    if(options.format == "onnx_for_netron")
+    {
+        std::ofstream os(name, std::ios::binary);
+        if(not os.is_open())
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Failed to open file for writing: " + std::string(name));
+        write_netron_output(p, os);
+    }
+    else
+    {
+        migraphx::save(p, name, options);
+    }
 }
 
 static void print_module(const module& m) { std::cout << m << std::endl; }
@@ -1767,17 +1774,6 @@ extern "C" migraphx_status migraphx_program_print(const_migraphx_program_t progr
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_program_write_netron_output(const_migraphx_program_t program,
-                                                                const char* filename)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(program == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
-        migraphx::write_netron_output_file((program->object), (filename));
-    });
-    return api_error_result;
-}
-
 extern "C" migraphx_status migraphx_program_sort(migraphx_program_t program)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -1905,7 +1901,7 @@ migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t op
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter p: Null pointer");
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
-        migraphx::save((p->object), (name), (options->object));
+        migraphx::save_program((p->object), (name), (options->object));
     });
     return api_error_result;
 }

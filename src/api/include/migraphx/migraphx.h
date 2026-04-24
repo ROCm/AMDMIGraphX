@@ -464,9 +464,6 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_program_get_output_shapes(migraphx_sh
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_print(const_migraphx_program_t program);
 
-MIGRAPHX_C_EXPORT migraphx_status
-migraphx_program_write_netron_output(const_migraphx_program_t program, const char* filename);
-
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_sort(migraphx_program_t program);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_run(migraphx_arguments_t* out,

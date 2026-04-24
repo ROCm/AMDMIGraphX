@@ -31,7 +31,9 @@ TEST_CASE(netron_output_cpp_api)
 {
     auto p               = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
     std::string filename = "migraphx_api_netron_output_test.onnx";
-    p.write_netron_output(filename.c_str());
+    migraphx::file_options opts;
+    opts.set_file_format("onnx_for_netron");
+    migraphx::save(p, filename.c_str(), opts);
 
     std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
     EXPECT(ifs.good());
@@ -49,8 +51,12 @@ TEST_CASE(netron_output_c_api)
     auto status = migraphx_parse_onnx(&p, "conv_relu_maxpool_test.onnx", onnx_options);
     EXPECT(status == migraphx_status_success);
 
+    migraphx_file_options_t file_opts;
+    migraphx_file_options_create(&file_opts);
+    migraphx_file_options_set_file_format(file_opts, "onnx_for_netron");
+
     std::string filename = "migraphx_c_api_netron_output_test.onnx";
-    status               = migraphx_program_write_netron_output(p, filename.c_str());
+    status               = migraphx_save(p, filename.c_str(), file_opts);
     EXPECT(status == migraphx_status_success);
 
     std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
@@ -59,6 +65,7 @@ TEST_CASE(netron_output_c_api)
     EXPECT(size > 0);
 
     std::remove(filename.c_str());
+    migraphx_file_options_destroy(file_opts);
     migraphx_program_destroy(p);
     migraphx_onnx_options_destroy(onnx_options);
 }
@@ -75,7 +82,9 @@ TEST_CASE(netron_output_constructed_program)
     m.add_return({r});
 
     std::string filename = "migraphx_api_netron_constructed_test.onnx";
-    p.write_netron_output(filename.c_str());
+    migraphx::file_options opts;
+    opts.set_file_format("onnx_for_netron");
+    migraphx::save(p, filename.c_str(), opts);
 
     std::ifstream ifs(filename, std::ios::binary | std::ios::ate);
     EXPECT(ifs.good());

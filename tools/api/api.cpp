@@ -339,13 +339,20 @@ static std::vector<shape> get_output_shapes(program& p) { return p.get_output_sh
 
 static void print_program(const program& p) { std::cout << p << std::endl; }
 
-static void write_netron_output_file(const program& p, const char* filename)
+static void save_program(program& p, const char* name, const file_options& options)
 {
-    std::ofstream os(filename, std::ios::binary);
-    if(not os.is_open())
-        MIGRAPHX_THROW(migraphx_status_bad_param,
-                        "Failed to open file for writing: " + std::string(filename));
-    write_netron_output(p, os);
+    if(options.format == "onnx_for_netron")
+    {
+        std::ofstream os(name, std::ios::binary);
+        if(not os.is_open())
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Failed to open file for writing: " + std::string(name));
+        write_netron_output(p, os);
+    }
+    else
+    {
+        migraphx::save(p, name, options);
+    }
 }
 
 static void print_module(const module& m) { std::cout << m << std::endl; }

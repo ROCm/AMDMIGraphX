@@ -103,6 +103,7 @@ add_py_test(netron_output test_netron_output.py common ${VENV} WORKING_DIRECTORY
 add_py_test(op test_op.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(shape test_shape.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(module_construct test_module_construct.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(macro test_macro.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(literal test_literal.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(autocast_fp8 test_autocast_fp8.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 if(MIGRAPHX_ENABLE_GPU)

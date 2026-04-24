@@ -601,6 +601,11 @@ static void print_trace_buffer(const argument& buffer, int trace_level)
     }
 }
 
+static bool is_inspectable(const std::string& op)
+{
+    return not op.empty() and op.front() != '@' and op != "load";
+}
+
 std::vector<argument> program::eval(const parameter_map& params,
                                     execution_environment exec_env) const
 {
@@ -620,10 +625,6 @@ std::vector<argument> program::eval(const parameter_map& params,
         {
             MIGRAPHX_THROW("Failed to copy result to host.\n");
         }
-    };
-
-    auto is_inspectable = [](const std::string& op) {
-        return not op.empty() and op.front() != '@' and op != "load";
     };
 
     if(exec_env.async)
@@ -650,30 +651,27 @@ std::vector<argument> program::eval(const parameter_map& params,
     }
 
     std::vector<argument> ret;
+
     if(exec_env.trace)
     {
         ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
-            auto tid     = ins->get_target_id();
-            bool has_ctx = tid < contexts.size();
+            const auto& ctx = contexts[ins->get_target_id()];
             if(trace_level > 0)
             {
-                assert(has_ctx);
-                contexts[tid].finish();
+                ctx.finish();
                 std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
             }
             timer t{};
-            auto result  = f();
-            double t1    = t.record<milliseconds>();
-            bool inspect = is_inspectable(ins->name()) and not result.empty();
-            if(has_ctx and (trace_level > 0 or inspect))
-                contexts[tid].finish();
+            auto result = f();
+            double t1   = t.record<milliseconds>();
+            ctx.finish();
             if(trace_level > 0)
             {
                 double t2 = t.record<milliseconds>();
                 std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
             }
-            if(inspect)
-                exec_env.trace(ins, has_ctx ? copy_to_host(result, tid) : result);
+            if(is_inspectable(ins->name()) and not result.empty())
+                exec_env.trace(ins, copy_to_host(result, ins->get_target_id()));
             return result;
         });
     }

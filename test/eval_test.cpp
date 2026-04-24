@@ -552,6 +552,7 @@ TEST_CASE(eval_trace_fires_test)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
 
     std::vector<std::string> fired_ops;
     migraphx::execution_environment exec_env;
@@ -586,6 +587,7 @@ TEST_CASE(eval_trace_filter_by_name_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->add_instruction(migraphx::make_op("sub"), sum, one);
+    p.compile(id_target{});
 
     std::vector<std::string> fired_ops;
     migraphx::execution_environment exec_env;
@@ -608,6 +610,7 @@ TEST_CASE(eval_trace_filter_by_ins_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->add_instruction(migraphx::make_op("sub"), sum, one);
+    p.compile(id_target{});
 
     std::vector<std::string> fired_ops;
     migraphx::execution_environment exec_env;

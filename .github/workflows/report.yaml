@@ -49,6 +49,7 @@ jobs:
           repository: ROCm/${{ env.REPORTS_DIR }}
           path: ${{ env.REPORTS_DIR }}
           token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
+          fetch-depth: 0
 
       - name: Checkout utils repo
         if: steps.dl_art.outcome == 'success'
@@ -68,27 +69,21 @@ jobs:
         if: steps.dl_art.outcome == 'success'
         run: pip install tabulate==0.9.0 pandas==2.2.3 numpy==2.1.3 openpyxl==3.1.5
 
-      - name: Copy performance results to repo - PRs
-        if: steps.dl_art.outcome == 'success' && github.event.workflow_run.event != 'schedule' && env.PR_NUMBER && env.GIT_SHA
+      - name: Copy performance results to repo
+        if: steps.dl_art.outcome == 'success' && env.GIT_SHA
         run: |
-          mkdir -p "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA"
-          cp -r test-results/perf-*/. "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA" || true
-          if [ -n "$ACCURACY_DIR" ]; then
-            mkdir -p "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA/accuracy_logs"
-            cp -r "test-results/$ACCURACY_DIR/." "$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA/accuracy_logs" || true
+          if [ -n "$PR_NUMBER" ] && [ "${{ github.event.workflow_run.event }}" != "schedule" ]; then
+            REPOFILEPATH="$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA"
+          else
+            REPOFILEPATH="$REPORTS_DIR/performance_results/develop/$GIT_SHA"
           fi
-          echo "REPOFILEPATH=$REPORTS_DIR/performance_results/PRs/PR-$PR_NUMBER/$GIT_SHA" >> $GITHUB_ENV
-
-      - name: Copy performance results to repo - develop - nightly or manual
-        if: steps.dl_art.outcome == 'success' && !env.PR_NUMBER && env.GIT_SHA
-        run: |
-          mkdir -p "$REPORTS_DIR/performance_results/develop/$GIT_SHA"
-          cp -r test-results/perf-*/. "$REPORTS_DIR/performance_results/develop/$GIT_SHA" || true
+          mkdir -p "$REPOFILEPATH"
+          cp -r test-results/perf-*/. "$REPOFILEPATH" || true
           if [ -n "$ACCURACY_DIR" ]; then
-            mkdir -p "$REPORTS_DIR/performance_results/develop/$GIT_SHA/accuracy_logs"
-            cp -r "test-results/$ACCURACY_DIR/." "$REPORTS_DIR/performance_results/develop/$GIT_SHA/accuracy_logs" || true
+            mkdir -p "$REPOFILEPATH/accuracy_logs"
+            cp -r "test-results/$ACCURACY_DIR/." "$REPOFILEPATH/accuracy_logs" || true
           fi
-          echo "REPOFILEPATH=$REPORTS_DIR/performance_results/develop/$GIT_SHA" >> $GITHUB_ENV
+          echo "REPOFILEPATH=$REPOFILEPATH" >> $GITHUB_ENV
 
       - name: Push results to repo
         if: steps.dl_art.outcome == 'success'
@@ -117,7 +112,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
         run: |
-          python3 benchmark-utils/scripts/perf_compare.py -f "$REPOFILEPATH/results.csv" -p "$PR_NUMBER"
+          python3 benchmark-utils/scripts/perf_compare.py -f "$REPOFILEPATH/results.csv"
           if [ -n "$ACCURACY_DIR" ] && [ -f "$REPOFILEPATH/accuracy_logs/results.md" ]; then
             python3 benchmark-utils/scripts/accuracy_comment.py -f "$REPOFILEPATH/accuracy_logs/results.md" -p "$PR_NUMBER"
           fi

@@ -40,10 +40,10 @@
 function(_detect_therock_via_package_manager)
     set(_found FALSE)
     if(NOT WIN32)
-        find_program(_dpkg_exe dpkg)
-        if(_dpkg_exe)
+        find_program(_migraphx_dpkg_exe dpkg)
+        if(_migraphx_dpkg_exe)
             execute_process(
-                COMMAND ${_dpkg_exe} -s amdrocm-runtime
+                COMMAND ${_migraphx_dpkg_exe} -s amdrocm-runtime
                 RESULT_VARIABLE _result
                 OUTPUT_QUIET ERROR_QUIET
             )
@@ -52,10 +52,10 @@ function(_detect_therock_via_package_manager)
             endif()
         endif()
         if(NOT _found)
-            find_program(_rpm_exe rpm)
-            if(_rpm_exe)
+            find_program(_migraphx_rpm_exe rpm)
+            if(_migraphx_rpm_exe)
                 execute_process(
-                    COMMAND ${_rpm_exe} -q amdrocm-runtime
+                    COMMAND ${_migraphx_rpm_exe} -q amdrocm-runtime
                     RESULT_VARIABLE _result
                     OUTPUT_QUIET ERROR_QUIET
                 )
@@ -64,17 +64,17 @@ function(_detect_therock_via_package_manager)
                 endif()
             endif()
         endif()
-        unset(_dpkg_exe CACHE)
-        unset(_rpm_exe CACHE)
+        unset(_migraphx_dpkg_exe CACHE)
+        unset(_migraphx_rpm_exe CACHE)
     endif()
-    set(_THEROCK_DETECTED ${_found} PARENT_SCOPE)
+    set(_MIGRAPHX_THEROCK_DETECTED ${_found} PARENT_SCOPE)
 endfunction()
 
 function(detect_package_backend)
     if(NOT DEFINED CACHE{MIGRAPHX_PACKAGE_BACKEND})
         # No explicit -D flag: auto-detect via package manager (fallback)
         _detect_therock_via_package_manager()
-        if(_THEROCK_DETECTED)
+        if(_MIGRAPHX_THEROCK_DETECTED)
             set(_default_backend "therock")
             message(STATUS "MIGraphX package backend auto-detected: therock (amdrocm-runtime found)")
             message(STATUS "  Hint: prefer explicit -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=<arch>")

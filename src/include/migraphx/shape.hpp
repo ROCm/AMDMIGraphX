@@ -95,6 +95,13 @@ struct MIGRAPHX_EXPORT shape
     {
     };
 
+    // TODO: Deprecate the pure range-based form of dynamic_dimension in favor
+    // of the symbolic form (sym_expr). The current design carries two parallel
+    // notions of bounds -- dynamic_dimension::interval (std::size_t min/max,
+    // here) and sym::interval (int64_t min/max, attached to each sym::var) --
+    // which is a source of confusion. Once all shape-producing paths go through
+    // symbolic expressions, `range`/`optimals` and this nested `interval` can
+    // be removed and bounds will live solely on sym::var.
     struct MIGRAPHX_EXPORT dynamic_dimension
     {
         struct interval

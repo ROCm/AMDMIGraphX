@@ -185,6 +185,7 @@ struct loader
     bool replace_literals       = false;
     bool brief                  = false;
     bool verbose                = false;
+    bool strip_context          = false;
     bool use_debug_symbols      = false;
     std::string output_type;
     std::string output;
@@ -263,6 +264,10 @@ struct loader
            ap.help("Replace literals with parameters"),
            ap.set_value(true));
         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
+        ap(strip_context,
+           {"--strip-context"},
+           ap.help("Strip context from program"),
+           ap.set_value(true));
         ap(output_type,
            {"--graphviz", "-g"},
            ap.help("Print out a graphviz representation."),
@@ -492,6 +497,8 @@ struct loader
         {
             trim_module(*p.get_main_module(), trim, trim_size);
         }
+        if(strip_context)
+            p.clear_context();
         if(replace_literals)
         {
             replace_literals_with_params(p);

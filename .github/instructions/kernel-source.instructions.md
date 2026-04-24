@@ -1,5 +1,5 @@
 ---
-applyTo: "src/targets/gpu/kernels/**/*.{cpp,hpp}"
+applyTo: "src/targets/gpu/kernels/**/*.hpp"
 ---
 
 # GPU Kernel Review Instructions

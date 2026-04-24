@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.{cpp,hpp,h,cc,cxx}"
+applyTo: "**/*.cpp,**/*.hpp,**/*.h"
 ---
 
 # C++ Review Instructions for MIGraphX

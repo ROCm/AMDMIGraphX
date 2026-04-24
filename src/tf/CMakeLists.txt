@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-find_package(protobuf 3.19 QUIET CONFIG)
+find_package(protobuf QUIET CONFIG)
 
 if(protobuf_FOUND)
     add_library(tf-proto STATIC ${PROTO_SRCS})

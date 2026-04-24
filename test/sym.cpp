@@ -2933,15 +2933,14 @@ TEST_CASE(eval_optimals_three_vars_disjoint)
     auto e      = x * y + z;
     auto result = e.eval_optimals();
     // Disjoint vars -> full cartesian: x*y in {3,4,6,8} crossed with z in {10,20}
-    EXPECT(result ==
-           std::set<scalar>{int64_t{13},
-                            int64_t{14},
-                            int64_t{16},
-                            int64_t{18},
-                            int64_t{23},
-                            int64_t{24},
-                            int64_t{26},
-                            int64_t{28}});
+    EXPECT(result == std::set<scalar>{int64_t{13},
+                                      int64_t{14},
+                                      int64_t{16},
+                                      int64_t{18},
+                                      int64_t{23},
+                                      int64_t{24},
+                                      int64_t{26},
+                                      int64_t{28}});
 }
 
 TEST_CASE(eval_optimals_three_vars_x_shared)
@@ -2954,12 +2953,9 @@ TEST_CASE(eval_optimals_three_vars_x_shared)
     // x is shared between the two terms, so y and z range independently per x.
     // x=1: (1*y)+(1*z) for y in {3,4}, z in {5,6} -> {3+5, 3+6, 4+5, 4+6} = {8, 9, 9, 10}
     // x=2: (2*y)+(2*z) for y in {3,4}, z in {5,6} -> {6+10, 6+12, 8+10, 8+12} = {16,18,18,20}
-    EXPECT(result == std::set<scalar>{int64_t{8},
-                                      int64_t{9},
-                                      int64_t{10},
-                                      int64_t{16},
-                                      int64_t{18},
-                                      int64_t{20}});
+    EXPECT(result ==
+           std::set<scalar>{
+               int64_t{8}, int64_t{9}, int64_t{10}, int64_t{16}, int64_t{18}, int64_t{20}});
 }
 
 TEST_CASE(eval_optimals_four_vars_disjoint)
@@ -2971,8 +2967,7 @@ TEST_CASE(eval_optimals_four_vars_disjoint)
     auto e      = x * y + z * w;
     auto result = e.eval_optimals();
     // x*y in {3, 6} crossed with z*w in {35, 40}: 38, 43, 41, 46
-    EXPECT(result ==
-           std::set<scalar>{int64_t{38}, int64_t{41}, int64_t{43}, int64_t{46}});
+    EXPECT(result == std::set<scalar>{int64_t{38}, int64_t{41}, int64_t{43}, int64_t{46}});
 }
 
 TEST_CASE(eval_optimals_four_vars_x_shared_three_ways)

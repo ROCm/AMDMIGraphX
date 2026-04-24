@@ -1093,8 +1093,8 @@ struct optimal_sample
 // than the cross-product {4, 6, 9}), while subtrees that depend on disjoint
 // variables take the full cartesian product. Once all children are folded in,
 // the op's eval is applied to each surviving value list.
-static std::vector<optimal_sample>
-combine_optimals(const op_node& op, std::vector<std::vector<optimal_sample>> args)
+static std::vector<optimal_sample> combine_optimals(const op_node& op,
+                                                    std::vector<std::vector<optimal_sample>> args)
 {
     if(args.empty())
         return {{{}, op.op->eval({})}};
@@ -1154,16 +1154,14 @@ std::set<scalar> expr::eval_optimals() const
                     },
                     [&](const variable_node& n) -> std::optional<std::vector<optimal_sample>> {
                         if(n.optimals.empty())
-                            MIGRAPHX_THROW("Variable '" + n.name +
-                                           "' has no optimals to evaluate");
+                            MIGRAPHX_THROW("Variable '" + n.name + "' has no optimals to evaluate");
                         std::vector<optimal_sample> samples;
                         samples.reserve(n.optimals.size());
-                        std::transform(n.optimals.begin(),
-                                       n.optimals.end(),
-                                       std::back_inserter(samples),
-                                       [&](const scalar& v) {
-                                           return optimal_sample{{{e, v}}, v};
-                                       });
+                        std::transform(
+                            n.optimals.begin(),
+                            n.optimals.end(),
+                            std::back_inserter(samples),
+                            [&](const scalar& v) { return optimal_sample{{{e, v}}, v}; });
                         return samples;
                     },
                     [](const op_node&) -> std::optional<std::vector<optimal_sample>> {

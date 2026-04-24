@@ -29,6 +29,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/utility_operators.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/hash.hpp>
 #include <algorithm>
 #include <iterator>
 #include <functional>
@@ -234,7 +235,7 @@ struct literal_node
     scalar val;
     std::size_t hash() const
     {
-        return std::visit([](auto x) -> std::size_t { return std::hash<decltype(x)>{}(x); }, val);
+        return std::visit([](auto x) -> std::size_t { return hash_value(x); }, val);
     }
     friend bool operator==(const literal_node& a, const literal_node& b)
     {
@@ -250,7 +251,10 @@ struct variable_node
     std::vector<interval> constraints;
     std::set<scalar> optimals;
 
-    std::size_t hash() const { return std::hash<std::string>{}(name); }
+    std::size_t hash() const
+    {
+        return hash_value(name);
+    }
     friend bool operator==(const variable_node& a, const variable_node& b)
     {
         return a.name == b.name and a.constraints == b.constraints and a.optimals == b.optimals;
@@ -264,27 +268,17 @@ struct op_node
     friend bool operator==(const op_node& a, const op_node& b) { return a.op == b.op; }
     friend bool operator!=(const op_node& a, const op_node& b) { return not(a == b); }
 
-    std::size_t hash() const { return std::hash<std::string>{}(op->name); }
+    std::size_t hash() const
+    {
+        return hash_value(op->name);
+    }
 };
 
 using node_variant = std::variant<literal_node, variable_node, op_node>;
 
-static std::size_t hash_combine(std::size_t seed, std::size_t h)
-{
-    return seed ^ (h + 0x9e3779b9 + (seed << 6u) + (seed >> 2u));
-}
-
 static std::size_t hash_node(const node_variant& nv)
 {
     return std::visit([](const auto& x) { return x.hash(); }, nv);
-}
-
-static std::size_t hash_children(const std::vector<expr>& children, std::size_t start)
-{
-    return transform_accumulate(
-        children.begin(), children.end(), start, hash_combine, [](const expr& child) {
-            return child.hash();
-        });
 }
 
 struct expr::impl
@@ -333,7 +327,8 @@ std::shared_ptr<const expr::impl> expr::make_impl(Node node, std::vector<expr> c
         std::any_of(children.begin(), children.end(), [](const expr& e) { return e.is_raw(); });
     if constexpr(std::is_same<Node, variable_node>{})
         raw = raw or (not node.name.empty() and node.name[0] == '_');
-    auto h = hash_children(children, hash_node(node));
+    auto h = hash_node(node);
+    hash_range(h, children.begin(), children.end());
     return std::make_shared<const impl>(
         impl{node_variant{std::move(node)}, std::move(children), raw, h});
 }

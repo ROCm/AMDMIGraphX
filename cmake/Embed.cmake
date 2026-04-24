@@ -220,7 +220,7 @@ function(embed_file FILE BASE_DIRECTORY)
         # wraps the hex string into multiple lines
         embed_wrap_string(VARIABLE HEX_STRING AT_COLUMN 80)
         # adds '0x' prefix and comma suffix before and after every byte respectively
-        string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1, " ARRAY_VALUES ${HEX_STRING})
+        string(REGEX REPLACE "([0-9a-f][0-9a-f])" "static_cast<char>(0x\\1), " ARRAY_VALUES ${HEX_STRING})
         # removes trailing comma
         string(REGEX REPLACE ", $" "" ARRAY_VALUES ${ARRAY_VALUES})
         file(WRITE "${OUTPUT_FILE}" "
@@ -263,7 +263,7 @@ function(add_embed_library EMBED_NAME)
     endif()
     target_include_directories(${INTERNAL_EMBED_LIB} PRIVATE "${EMBED_DIR}/include")
     # Disable extra warnings
-    foreach(COMPILER_WARNING -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations -Wno-c++11-narrowing)
+    foreach(COMPILER_WARNING -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
         string(MAKE_C_IDENTIFIER "HAS_CXX_FLAG${COMPILER_WARNING}" HAS_COMPILER_WARNING)
         check_cxx_compiler_flag(${COMPILER_WARNING} ${HAS_COMPILER_WARNING})
         if(${HAS_COMPILER_WARNING})

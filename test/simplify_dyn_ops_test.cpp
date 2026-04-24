@@ -734,6 +734,109 @@ TEST_CASE(static_broadcast_for_dot)
     EXPECT(m0 == m1);
 }
 
+TEST_CASE(symbolic_broadcast)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    auto n = var("n", {2, 8});
+    migraphx::shape s0_s{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape s1_s{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+
+    migraphx::module m0;
+    {
+        auto k       = m0.add_parameter("k", s0_s);
+        auto data    = m0.add_parameter("data", s1_s);
+        auto bcast   = m0.add_instruction(migraphx::make_op("broadcast", {{"axis", 1}}), k, data);
+        auto add_ins = m0.add_instruction(migraphx::make_op("add"), bcast, data);
+        m0.add_return({add_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        auto k    = m1.add_parameter("k", s0_s);
+        auto data = m1.add_parameter("data", s1_s);
+        std::vector<dd> out_dyn_dims{dd{n}, dd{lit(4)}};
+        auto bcast = m1.add_instruction(
+            migraphx::make_op("broadcast",
+                              {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out_dyn_dims)}}),
+            k);
+        auto add_ins = m1.add_instruction(migraphx::make_op("add"), bcast, data);
+        m1.add_return({add_ins});
+    }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(symbolic_multibroadcast)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    auto n = var("n", {2, 8});
+    migraphx::shape s0_s{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{lit(4)}}};
+    migraphx::shape s1_s{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}}};
+
+    migraphx::module m0;
+    {
+        auto a       = m0.add_parameter("a", s0_s);
+        auto b       = m0.add_parameter("b", s1_s);
+        auto bcast   = m0.add_instruction(migraphx::make_op("multibroadcast"), a, b);
+        auto add_ins = m0.add_instruction(migraphx::make_op("add"), bcast, b);
+        m0.add_return({add_ins});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("a", s0_s);
+        auto b = m1.add_parameter("b", s1_s);
+        std::vector<dd> out_dyn_dims{dd{n}, dd{lit(3)}, dd{lit(4)}};
+        auto bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_dyn_dims", migraphx::to_value(out_dyn_dims)}}),
+            a);
+        auto add_ins = m1.add_instruction(migraphx::make_op("add"), bcast, b);
+        m1.add_return({add_ins});
+    }
+    EXPECT(m0 == m1);
+}
+
+TEST_CASE(symbolic_broadcast_for_dot)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    auto n = var("n", {2, 8});
+    migraphx::shape s0_s{migraphx::shape::float_type,
+                         {dd{lit(1)}, dd{lit(4)}, dd{lit(6)}, dd{lit(8)}}};
+    migraphx::shape s1_s{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(8)}, dd{lit(10)}}};
+
+    migraphx::module m0;
+    {
+        auto a     = m0.add_parameter("a", s0_s);
+        auto b     = m0.add_parameter("b", s1_s);
+        auto bcast = m0.add_instruction(migraphx::make_op("broadcast_for_dot"), a, b);
+        auto dot   = m0.add_instruction(migraphx::make_op("dot"), bcast, b);
+        m0.add_return({dot});
+    }
+    run_pass(m0);
+
+    migraphx::module m1;
+    {
+        auto a = m1.add_parameter("a", s0_s);
+        auto b = m1.add_parameter("b", s1_s);
+        std::vector<dd> out_dyn_dims{dd{n}, dd{lit(4)}, dd{lit(6)}, dd{lit(8)}};
+        auto bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_dyn_dims", migraphx::to_value(out_dyn_dims)}}),
+            a);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), bcast, b);
+        m1.add_return({dot});
+    }
+    EXPECT(m0 == m1);
+}
+
 TEST_CASE(static_onehot)
 {
     // depth as a literal

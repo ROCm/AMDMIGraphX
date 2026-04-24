@@ -155,6 +155,31 @@ struct find_static_2in_broadcasts : match::supports_dynamic_shapes
 };
 
 /**
+ * Convert 2 input symbolic shape broadcast/multibroadcast into 1 input version. Mirrors the
+ * static analog above; fires only when the resulting shape is fully symbolic so that the
+ * target dimensions are known at compile time and can be carried as the 1-input op's
+ * `out_dyn_dims` attribute. Range-based dynamic broadcasts keep the 2-arg form for runtime
+ * resolution.
+ * From:
+ * broadcast_op(argument_with_symbolic_shape, argument_with_symbolic_shape)
+ * To:
+ * broadcast_op(argument); broadcast_op.out_dyn_dims = symbolic_output_dims
+ */
+struct find_symbolic_2in_broadcasts : match::supports_dynamic_shapes
+{
+    auto matcher() const { return match::broadcast(match::nargs(2), match::symbolic_shape()); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins          = mr.result;
+        auto out_dyn_dims = ins->get_shape().dyn_dims();
+        auto broadcast_op = ins->get_operator();
+        broadcast_op.from_value({{"out_dyn_dims", to_value(out_dyn_dims)}});
+        m.replace_instruction(ins, broadcast_op, ins->inputs().at(0));
+    }
+};
+
+/**
  * Simplify slice with 2 inputs to the 1 input version if inputs[1] is constant.
  * From:
  * slice(data, constant_input); two attributes set
@@ -441,6 +466,29 @@ struct find_static_broadcast_for_dot : match::supports_dynamic_shapes
 };
 
 /**
+ * Simplify broadcast_for_dot instructions that produce a fully symbolic shape. Mirrors the
+ * static analog above: the broadcast_for_dot is rewritten to a 1-input multibroadcast carrying
+ * the symbolic output dims as the `out_dyn_dims` attribute.
+ * From:
+ * broadcast_for_dot(symbolic_shape_arg, symbolic_shape_arg)
+ * To:
+ * multibroadcast(symbolic_shape_arg); out_dyn_dims = symbolic_broadcast_for_doted_shape
+ */
+struct find_symbolic_broadcast_for_dot : match::supports_dynamic_shapes
+{
+    auto matcher() const { return match::name("broadcast_for_dot")(match::symbolic_shape()); }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins          = mr.result;
+        auto out_dyn_dims = ins->get_shape().dyn_dims();
+        m.replace_instruction(ins,
+                              make_op("multibroadcast", {{"out_dyn_dims", to_value(out_dyn_dims)}}),
+                              ins->inputs().at(0));
+    }
+};
+
+/**
  * Simplify onehot instructions with static shape `indices` input and
  * a compile-time constant `depth` attribute or input.
  * From:
@@ -669,11 +717,13 @@ void simplify_dyn_ops::apply(module& m) const
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},
+                        find_symbolic_2in_broadcasts{},
                         find_const_2in_slice{},
                         find_const_3in_slice{},
                         find_const_4in_slice{},
                         find_const_alloc_fill{},
                         find_static_broadcast_for_dot{},
+                        find_symbolic_broadcast_for_dot{},
                         find_static_onehot{});
     match::find_matches(m, simplify_select_module_output_shape{});
 }

@@ -444,6 +444,11 @@ struct MIGRAPHX_EXPORT shape
     // convert the shape to an equivalent dynamic shape with constant symbolic strides
     shape to_dynamic() const;
 
+    // convert the shape to an equivalent symbolic dynamic shape: each static len becomes
+    // dd{sym::lit(len)} and each static stride becomes sym::lit(stride). Idempotent on a
+    // shape that is already symbolic. Throws on a range-based dynamic shape.
+    shape to_symbolic() const;
+
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
     shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map) const;

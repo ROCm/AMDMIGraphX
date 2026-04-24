@@ -37,7 +37,8 @@ namespace op {
 /**
  * Broadcast multiple dimensions between two tensors.
  * Two versions of this operator: 1 input and 2+ inputs.
- * One input version uses output_lens attribute and broadcasts to it.
+ * One input version uses output_lens (static target) or output_dyn_dims (symbolic target);
+ * see compute_shape for the symbolic single-input contract.
  * 2+ inputs version broadcasts first input to the common shape at evaluation time.
  */
 struct multibroadcast
@@ -59,7 +60,7 @@ struct multibroadcast
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
 
-        auto t  = inputs.at(0).type();
+        auto t         = inputs.at(0).type();
         const auto& s0 = inputs.at(0);
 
         if(s0.ndim() < 1)
@@ -69,25 +70,40 @@ struct multibroadcast
 
         if(inputs.size() == 1)
         {
-            if(s0.dynamic())
+            // Symbolic 1-input mode: opt-in via a fully-symbolic output_dyn_dims attribute.
+            // Input may be static (bridged via to_symbolic()) or already symbolic.
+            // Range-based dynamic input is not allowed.
+            const bool symbolic_target = not output_dyn_dims.empty() and
+                                         std::all_of(output_dyn_dims.begin(),
+                                                     output_dyn_dims.end(),
+                                                     [](const auto& d) { return d.is_symbolic(); });
+
+            if(s0.dynamic() and not(symbolic_target and s0.symbolic()))
                 MIGRAPHX_THROW(
                     "MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
-            if(s0.ndim() > output_lens.size())
-            {
-                MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");
-            }
 
-            auto offset = output_lens.size() - s0.ndim();
-            for(std::ptrdiff_t i = s0.ndim() - 1; i >= 0; i--)
-            {
-                if(output_lens[i + offset] != s0.lens()[i] and s0.lens()[i] != 1)
+            // Shared validation: input dims must align with target dims, with axis-1 broadcast.
+            auto validate = [](const auto& in_dims, const auto& out_dims) {
+                if(in_dims.size() > out_dims.size())
+                    MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");
+                auto offset = out_dims.size() - in_dims.size();
+                for(std::ptrdiff_t i = in_dims.size() - 1; i >= 0; --i)
                 {
-                    MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(s0.lens()) +
-                                   "} cannot be broadcasted to {" + to_string_range(output_lens) +
-                                   "}!");
+                    if(out_dims[i + offset] != in_dims[i] and in_dims[i] != 1)
+                        MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(in_dims) +
+                                       "} cannot be broadcasted to {" + to_string_range(out_dims) +
+                                       "}!");
                 }
+            };
+
+            if(symbolic_target)
+            {
+                auto s0_sym = s0.to_symbolic();
+                validate(s0_sym.dyn_dims(), output_dyn_dims);
+                return make_bcast_shape(s0_sym, output_dyn_dims);
             }
 
+            validate(s0.lens(), output_lens);
             return make_bcast_shape(s0, output_lens);
         }
         else
@@ -105,7 +121,7 @@ struct multibroadcast
             else
             {
                 // output_lens will not be set for 2+ input version
-                auto bcast_lens    = compute_common_lens(inputs);
+                auto bcast_lens = compute_common_lens(inputs);
                 return make_bcast_shape(s0, bcast_lens);
             }
         }

@@ -24,6 +24,7 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/permutation.hpp>
@@ -2190,6 +2191,95 @@ TEST_CASE(shape_is_compatible_lens_static_vs_symbolic)
     migraphx::shape expected{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}}};
     EXPECT(migraphx::shape::is_compatible_lens(actual1, expected));
     EXPECT(not migraphx::shape::is_compatible_lens(actual2, expected));
+}
+
+TEST_CASE(make_bcast_shape_static)
+{
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 3, 4}};
+    auto out = migraphx::make_bcast_shape(input, {2, 5, 3, 4});
+    EXPECT(not out.dynamic());
+    EXPECT(out.lens() == std::vector<std::size_t>{2, 5, 3, 4});
+    EXPECT(out.strides() == std::vector<std::size_t>{0, 0, 4, 1});
+}
+
+TEST_CASE(make_bcast_shape_symbolic_same_rank_match)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}}};
+    auto out = migraphx::make_bcast_shape(
+        input, std::vector<dd>{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}});
+    EXPECT(out.symbolic());
+    EXPECT(out.dyn_dims() == input.dyn_dims());
+    EXPECT(out.dyn_strides() == input.dyn_strides());
+}
+
+TEST_CASE(make_bcast_shape_symbolic_broadcast_axis)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{lit(1)}, dd{lit(1)}, dd{lit(3)}, dd{lit(4)}}};
+    auto out = migraphx::make_bcast_shape(
+        input, std::vector<dd>{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}});
+    EXPECT(out.symbolic());
+    EXPECT(out.dyn_dims() == (std::vector<dd>{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}}));
+    EXPECT(out.dyn_strides() ==
+           (std::vector<migraphx::sym::expr>{lit(12), lit(0), lit(4), lit(1)}));
+}
+
+TEST_CASE(make_bcast_shape_symbolic_rank_extend)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{lit(4)}}};
+    auto out = migraphx::make_bcast_shape(
+        input, std::vector<dd>{dd{lit(2)}, dd{n}, dd{lit(3)}, dd{lit(4)}});
+    EXPECT(out.symbolic());
+    EXPECT(out.dyn_dims() == (std::vector<dd>{dd{lit(2)}, dd{n}, dd{lit(3)}, dd{lit(4)}}));
+    EXPECT(out.dyn_strides() == (std::vector<migraphx::sym::expr>{lit(0), lit(0), lit(4), lit(1)}));
+}
+
+TEST_CASE(make_bcast_shape_static_input_via_to_symbolic)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 3, 4}};
+    auto out = migraphx::make_bcast_shape(
+        input.to_symbolic(), std::vector<dd>{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}});
+    EXPECT(out.symbolic());
+    EXPECT(out.dyn_dims() == (std::vector<dd>{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}}));
+    EXPECT(out.dyn_strides() ==
+           (std::vector<migraphx::sym::expr>{lit(12), lit(0), lit(4), lit(1)}));
+}
+
+TEST_CASE(to_symbolic_static)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+    auto sym = s.to_symbolic();
+    EXPECT(sym.symbolic());
+    EXPECT(sym.type() == s.type());
+    EXPECT(sym.dyn_dims() == (std::vector<dd>{dd{lit(2)}, dd{lit(3)}, dd{lit(4)}}));
+    EXPECT(sym.dyn_strides() == (std::vector<migraphx::sym::expr>{lit(12), lit(4), lit(1)}));
+}
+
+TEST_CASE(to_symbolic_static_with_strides)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}, {0, 4, 1}};
+    auto sym = s.to_symbolic();
+    EXPECT(sym.symbolic());
+    EXPECT(sym.dyn_strides() == (std::vector<migraphx::sym::expr>{lit(0), lit(4), lit(1)}));
+}
+
+TEST_CASE(to_symbolic_already_symbolic_is_identity)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}}};
+    auto sym = s.to_symbolic();
+    EXPECT(sym.symbolic());
+    EXPECT(sym == s);
+}
+
+TEST_CASE(to_symbolic_range_based_throws)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}}};
+    EXPECT(test::throws([&] { s.to_symbolic(); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

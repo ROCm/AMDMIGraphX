@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -235,19 +235,43 @@ instruction_ref add_common_op(module& m,
     return insert_common_op(m, m.end(), op, std::move(inputs), options);
 }
 
+// Unified broadcast-shape builder: propagates input strides on matching axes and leaves
+// `zero` on broadcast axes. Works for both static (Dim = std::size_t, Stride = std::size_t)
+// and symbolic (Dim = shape::dynamic_dimension, Stride = sym::expr) representations.
+template <class Dim, class Stride>
+static shape make_bcast_shape_impl(shape::type_t type,
+                                   const std::vector<Dim>& input_dims,
+                                   const std::vector<Stride>& input_strides,
+                                   const std::vector<Dim>& bcast_dims,
+                                   Stride zero)
+{
+    assert(bcast_dims.size() >= input_dims.size());
+    auto offset = bcast_dims.size() - input_dims.size();
+    std::vector<Stride> bcast_strides(bcast_dims.size(), zero);
+    for(std::size_t i = 0; i < input_dims.size(); ++i)
+    {
+        if(bcast_dims[i + offset] == input_dims[i])
+            bcast_strides[i + offset] = input_strides[i];
+    }
+    return {type, bcast_dims, bcast_strides};
+}
+
 shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens)
 {
     assert(not input_shape.dynamic());
-    auto offset = bcast_lens.size() - input_shape.ndim();
-    std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
-    for(std::ptrdiff_t i : reverse(range(input_shape.ndim())))
-    {
-        if(bcast_lens.at(i + offset) == input_shape.lens()[i])
-        {
-            bcast_strides.at(i + offset) = input_shape.strides()[i];
-        }
-    }
-    return shape{input_shape.type(), bcast_lens, bcast_strides};
+    return make_bcast_shape_impl(
+        input_shape.type(), input_shape.lens(), input_shape.strides(), bcast_lens, std::size_t{0});
+}
+
+shape make_bcast_shape(const shape& input_shape,
+                       const std::vector<shape::dynamic_dimension>& bcast_dyn_dims)
+{
+    assert(input_shape.symbolic());
+    return make_bcast_shape_impl(input_shape.type(),
+                                 input_shape.dyn_dims(),
+                                 input_shape.dyn_strides(),
+                                 bcast_dyn_dims,
+                                 sym::lit(0));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

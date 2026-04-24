@@ -33,6 +33,10 @@
 
 #include "test.hpp"
 
+using dd = migraphx::shape::dynamic_dimension;
+using migraphx::sym::lit;
+using migraphx::sym::var;
+
 template <class... Ts>
 static void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
 {
@@ -201,6 +205,39 @@ TEST_CASE(binary_dyn_static_error)
     throws_shape(migraphx::make_op("add"), a_shape, b_shape);
 }
 
+TEST_CASE(binary_sym_same_packed)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    expect_shape(s, migraphx::make_op("add"), s, s);
+}
+
+TEST_CASE(binary_sym_packed_vs_broadcasted)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims};
+    migraphx::shape sy{migraphx::shape::float_type, dims, {lit(0), lit(4), lit(1)}};
+    expect_shape(sx, migraphx::make_op("add"), sx, sy);
+}
+
+TEST_CASE(binary_sym_nonpacked_permutation)
+{
+    std::vector<dd> dims{dd{lit(4)}, dd{lit(3)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims, {lit(1), lit(8)}};
+    migraphx::shape sy{migraphx::shape::float_type, dims, {lit(1), lit(16)}};
+    auto sout = migraphx::shape::from_permutation(migraphx::shape::float_type, dims, {1, 0});
+    expect_shape(sout, migraphx::make_op("mul"), sx, sy);
+}
+
+TEST_CASE(binary_sym_with_range_dyn_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{2, 2}, dd{2, 8}, dd{4, 4}}};
+    throws_shape(migraphx::make_op("add"), sx, sy);
+}
+
 TEST_CASE(bit_cast_typesize_mismatch)
 {
     migraphx::shape a_shape{migraphx::shape::int8_type, {1, 4, 4}};
@@ -275,6 +312,83 @@ TEST_CASE(broadcast_1in_dyn_error)
     throws_shape(migraphx::make_op("broadcast", {{"axis", 2}, {"out_lens", lens}}), input);
 }
 
+TEST_CASE(broadcast_1in_sym_match)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(0), lit(1), lit(0)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_static_to_sym)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {3}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(0), lit(1), lit(0)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_higher_rank)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(4)}, dd{lit(3)}}};
+    std::vector<dd> out{dd{lit(3)}, dd{n}, dd{lit(4)}, dd{lit(3)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(0), lit(0), lit(3), lit(1)}};
+    expect_shape(
+        expected,
+        migraphx::make_op("broadcast", {{"axis", 2}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_axis_out_of_range_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    throws_shape(
+        migraphx::make_op("broadcast", {{"axis", 4}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_size_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{lit(4)}}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}};
+    throws_shape(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_sym_dim_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(5)}}};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    throws_shape(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
+TEST_CASE(broadcast_1in_range_dyn_with_sym_target_error)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> in_dims{dd{3, 3}};
+    migraphx::shape input{migraphx::shape::float_type, in_dims};
+    std::vector<dd> out{dd{n}, dd{lit(3)}, dd{lit(4)}};
+    throws_shape(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", migraphx::to_value(out)}}),
+        input);
+}
+
 TEST_CASE(broadcast_2in_static_static)
 {
     migraphx::shape a_input{migraphx::shape::float_type, {4}, {1}};
@@ -329,6 +443,39 @@ TEST_CASE(broadcast_2in_dyn_s0_ndim_greater_than_1_error)
     migraphx::shape a_input{migraphx::shape::float_type, {4, 2}};
     migraphx::shape b_input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {2, 2}}};
     throws_shape(migraphx::make_op("broadcast", {{"axis", 0}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_sym_match)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape a_input{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape b_input{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(0), lit(1)}};
+    expect_shape(expected, migraphx::make_op("broadcast", {{"axis", 1}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_sym_static_to_sym)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape a_input{migraphx::shape::float_type, {4}, {1}};
+    migraphx::shape b_input{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(0), lit(1)}};
+    expect_shape(expected, migraphx::make_op("broadcast", {{"axis", 1}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_sym_dim_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape a_input{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape b_input{migraphx::shape::float_type, {dd{n}, dd{lit(8)}}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 1}}), a_input, b_input);
+}
+
+TEST_CASE(broadcast_2in_sym_with_range_dyn_error)
+{
+    migraphx::shape a_input{migraphx::shape::float_type, {dd{lit(4)}}};
+    migraphx::shape b_input{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
+    throws_shape(migraphx::make_op("broadcast", {{"axis", 1}}), a_input, b_input);
 }
 
 TEST_CASE(conv_2d_0)
@@ -1917,6 +2064,77 @@ TEST_CASE(multibroadcast_1in_dyn_error_0)
     // multibroadcast doesn't support single dynamic shape input
     std::vector<std::size_t> lens{4, 4, 1, 3};
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {4, 4}}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_match)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape input{migraphx::shape::float_type, out};
+    expect_shape(input,
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_broadcast_axis)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{lit(1)}, dd{lit(1)}, dd{lit(3)}, dd{lit(4)}}};
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(12), lit(0), lit(4), lit(1)}};
+    expect_shape(expected,
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_rank_extend)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{lit(4)}}};
+    std::vector<dd> out{dd{lit(2)}, dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(0), lit(0), lit(4), lit(1)}};
+    expect_shape(expected,
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_static_to_sym)
+{
+    // Static input + symbolic out_dyn_dims: op bridges via to_symbolic() internally.
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {1, 1, 3, 4}};
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}};
+    migraphx::shape expected{migraphx::shape::float_type, out, {lit(12), lit(0), lit(4), lit(1)}};
+    expect_shape(expected,
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_mismatch_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}}};
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_range_dyn_with_sym_target_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    std::vector<dd> out{dd{lit(1)}, dd{n}, dd{lit(3)}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 input);
+}
+
+TEST_CASE(multibroadcast_1in_sym_input_with_static_target_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{n}}};
+    std::vector<std::size_t> lens{2, 8};
     throws_shape(migraphx::make_op("multibroadcast", {{"out_lens", lens}}), input);
 }
 

@@ -871,6 +871,40 @@ shape shape::to_dynamic() const
     return {type(), std::move(dims), std::move(dstrides)};
 }
 
+shape shape::to_symbolic() const
+{
+    if(not sub_shapes().empty())
+    {
+        std::vector<shape> subs;
+        std::transform(sub_shapes().cbegin(),
+                       sub_shapes().cend(),
+                       std::back_inserter(subs),
+                       [](auto s) { return s.to_symbolic(); });
+        return shape(subs);
+    }
+    if(this->symbolic())
+    {
+        return *this;
+    }
+    if(this->dynamic())
+    {
+        // Range-based dynamic shapes have no clean symbolic representation: range info
+        // would have to be silently dropped. Disallowed by the "no mixing" design rule.
+        MIGRAPHX_THROW("SHAPE: to_symbolic() called on a range-based dynamic shape");
+    }
+    std::vector<dynamic_dimension> dims;
+    dims.reserve(ndim());
+    std::transform(lens().begin(), lens().end(), std::back_inserter(dims), [](auto len) {
+        return dynamic_dimension{sym::lit(len)};
+    });
+    std::vector<sym::expr> dstrides;
+    dstrides.reserve(ndim());
+    std::transform(strides().begin(), strides().end(), std::back_inserter(dstrides), [](auto s) {
+        return sym::lit(s);
+    });
+    return {type(), std::move(dims), std::move(dstrides)};
+}
+
 shape shape::to_static(std::size_t x) const
 {
     if(not sub_shapes().empty())

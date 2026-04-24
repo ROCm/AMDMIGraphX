@@ -45,6 +45,11 @@ namespace op {
  * (left-most to rightwards element-wise comparison)
  * ex: broadcasting shape [2, 2] -> [2, 2, 3] with axis = 0
  *
+ * Symbolic 1 input version: opt-in via a fully-symbolic `output_dyn_dims` attribute. Input may be
+ * static (promoted via shape::to_symbolic()) or already symbolic. Range-based dynamic input is
+ * not allowed (per the "no mixing symbolic and range-based" design rule). `broadcast_lens` is
+ * not used in this mode.
+ *
  * 2 input version:
  * Broadcast the first input 1D shape into the second input shape based on the axis parameter.
  * Handles broadcasting a 1D static shape into a higher rank dynamic shape.
@@ -52,13 +57,16 @@ namespace op {
  */
 struct broadcast
 {
-    uint64_t axis                           = 0;
-    std::vector<std::size_t> broadcast_lens = {};
+    uint64_t axis                                         = 0;
+    std::vector<std::size_t> broadcast_lens               = {};
+    std::vector<shape::dynamic_dimension> output_dyn_dims = {};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"), f(self.broadcast_lens, "out_lens"));
+        return pack(f(self.axis, "axis"),
+                    f(self.broadcast_lens, "out_lens"),
+                    f(self.output_dyn_dims, "out_dyn_dims"));
     }
 
     std::string name() const { return "broadcast"; }
@@ -67,30 +75,47 @@ struct broadcast
         check_shapes{inputs, *this, true}.has(1, 2);
         auto s0 = inputs.at(0);
         auto t  = s0.type();
+
+        // Validate axis/dims and place `in_strides` at `axis`, filling broadcast positions with
+        // `zero`. Templated for the static (size_t) and symbolic (sym::expr) paths.
+        auto build_output =
+            [&](const auto& target, const auto& in_dims, const auto& in_strides, auto zero) {
+                if(axis >= target.size())
+                    MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) +
+                                   " is out of range");
+                if(target.size() - axis < in_dims.size())
+                    MIGRAPHX_THROW("BROADCAST: (broadcast ndims - axis) is less than s0 ndims");
+                for(std::size_t i = 0; i < in_dims.size(); ++i)
+                {
+                    if(target[axis + i] != in_dims[i])
+                        MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
+                }
+                std::vector<decltype(zero)> bcast_strides(target.size(), zero);
+                std::copy(in_strides.begin(), in_strides.end(), bcast_strides.begin() + axis);
+                return shape{t, target, std::move(bcast_strides)};
+            };
+
         if(inputs.size() == 1)
         {
             // the ONNX broadcast op is deprecated now, so not handling the negative
             // value of axis anymore
-            if(s0.dynamic())
+            const bool symbolic_target = not output_dyn_dims.empty() and
+                                         std::all_of(output_dyn_dims.begin(),
+                                                     output_dyn_dims.end(),
+                                                     [](const auto& d) { return d.is_symbolic(); });
+
+            if(s0.dynamic() and not(symbolic_target and s0.symbolic()))
                 MIGRAPHX_THROW(
                     "BROADCAST: Single dynamic input shape not supported.  Use two inputs.");
-            if(axis >= broadcast_lens.size())
+
+            if(symbolic_target)
             {
-                MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) +
-                               " is out of range");
-            }
-            if(broadcast_lens.size() - axis < s0.lens().size())
-            {
-                MIGRAPHX_THROW("BROADCAST: (broadcast ndims - axis) is less than s0 ndims");
-            }
-            if(not std::equal(s0.lens().begin(), s0.lens().end(), broadcast_lens.begin() + axis))
-            {
-                MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
+                auto s0_sym = s0.to_symbolic();
+                return build_output(
+                    output_dyn_dims, s0_sym.dyn_dims(), s0_sym.dyn_strides(), sym::lit(0));
             }
 
-            std::vector<size_t> bcast_strides(broadcast_lens.size(), 0);
-            std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);
-            shape output{t, broadcast_lens, std::move(bcast_strides)};
+            auto output = build_output(broadcast_lens, s0.lens(), s0.strides(), std::size_t{0});
             if(output.elements() < s0.elements())
             {
                 // don't think this can occur?
@@ -102,20 +127,31 @@ struct broadcast
         {
             // two inputs
             auto s1 = inputs.at(1);
-            if(s0.dynamic())
-            {
-                MIGRAPHX_THROW("BROADCAST_2in: s0 is a dynamic shape, does not handle broadcasting "
-                               "a dynamic shape");
-            }
             if(s0.ndim() != 1)
             {
                 MIGRAPHX_THROW("BROADCAST_2in: s0 has ndim " + migraphx::to_string(s0.ndim()) +
                                ", only handle ndim = 1");
             }
+
+            if(s0.symbolic() or s1.symbolic())
+            {
+                auto s0_sym = s0.to_symbolic();
+                auto s1_sym = s1.to_symbolic();
+                return build_output(
+                    s1_sym.dyn_dims(), s0_sym.dyn_dims(), s0_sym.dyn_strides(), sym::lit(0));
+            }
+
             if(axis >= s1.ndim())
             {
                 MIGRAPHX_THROW("BROADCAST_2in: axis " + migraphx::to_string(axis) +
                                " is out of range");
+            }
+
+            // Range-based dynamic s0 alone is not supported.
+            if(s0.dynamic())
+            {
+                MIGRAPHX_THROW("BROADCAST_2in: s0 is a dynamic shape, does not handle broadcasting "
+                               "a dynamic shape");
             }
             if(s1.dynamic())
             {

@@ -238,10 +238,7 @@ static std::size_t hash_scalar(scalar s)
 struct literal_node
 {
     scalar val;
-    std::size_t hash() const
-    {
-        return hash_scalar(val);
-    }
+    std::size_t hash() const { return hash_scalar(val); }
     friend bool operator==(const literal_node& a, const literal_node& b)
     {
         return scalar_invoke_common<bool>(

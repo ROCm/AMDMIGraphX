@@ -322,18 +322,18 @@ TEST_CASE(mod_interval)
 {
     auto x = var("x");
     auto e = x % lit(3);
-    // [7,10] % 3: 7%3=1, 10%3=1 → min=1, max=1 (endpoint case)
+    // Loose conservative bound: [7,10] % 3 -> [-3, 3]
     auto result = e.eval_interval({{var("x"), interval{int64_t{7}, int64_t{10}}}});
-    EXPECT(result == (interval{int64_t{1}, int64_t{1}}));
+    EXPECT(result == (interval{int64_t{-3}, int64_t{3}}));
 }
 
 TEST_CASE(mod_interval_range)
 {
     auto x = var("x");
     auto e = x % lit(5);
-    // [3,8] % 5: 3%5=3, 8%5=3 → min=3, max=3
+    // Loose conservative bound: [3,8] % 5 -> [-5, 5]
     auto result = e.eval_interval({{var("x"), interval{int64_t{3}, int64_t{8}}}});
-    EXPECT(result == (interval{int64_t{3}, int64_t{3}}));
+    EXPECT(result == (interval{int64_t{-5}, int64_t{5}}));
 }
 
 TEST_CASE(neg_interval)
@@ -594,9 +594,58 @@ TEST_CASE(interval_div_negative_divisor_no_zero_cross)
 
 TEST_CASE(interval_mod_assign)
 {
+    // Loose conservative bound: |a%b| < max(|b|), so [7,10] % [3,3] -> [-3, 3]
     interval a{int64_t{7}, int64_t{10}};
     a %= interval{int64_t{3}, int64_t{3}};
-    EXPECT(a == (interval{int64_t{1}, int64_t{1}}));
+    EXPECT(a == (interval{int64_t{-3}, int64_t{3}}));
+}
+
+TEST_CASE(interval_mod_positive_divisor)
+{
+    // [5, 100] % [2, 7] -> [-7, 7]
+    auto r = interval{int64_t{5}, int64_t{100}} % interval{int64_t{2}, int64_t{7}};
+    EXPECT(r == (interval{int64_t{-7}, int64_t{7}}));
+}
+
+TEST_CASE(interval_mod_negative_divisor)
+{
+    // [5, 100] % [-7, -2] -> [-7, 7]
+    auto r = interval{int64_t{5}, int64_t{100}} % interval{int64_t{-7}, int64_t{-2}};
+    EXPECT(r == (interval{int64_t{-7}, int64_t{7}}));
+}
+
+TEST_CASE(interval_mod_divisor_crosses_zero)
+{
+    // [1, 5] % [-2, 4] -> [-4, 4] (max_abs = 4)
+    auto r = interval{int64_t{1}, int64_t{5}} % interval{int64_t{-2}, int64_t{4}};
+    EXPECT(r == (interval{int64_t{-4}, int64_t{4}}));
+}
+
+TEST_CASE(interval_mod_divisor_zero_at_low)
+{
+    // [1, 5] % [0, 3] -> [-3, 3]
+    auto r = interval{int64_t{1}, int64_t{5}} % interval{int64_t{0}, int64_t{3}};
+    EXPECT(r == (interval{int64_t{-3}, int64_t{3}}));
+}
+
+TEST_CASE(interval_mod_divisor_zero_at_high)
+{
+    // [1, 5] % [-3, 0] -> [-3, 3]
+    auto r = interval{int64_t{1}, int64_t{5}} % interval{int64_t{-3}, int64_t{0}};
+    EXPECT(r == (interval{int64_t{-3}, int64_t{3}}));
+}
+
+TEST_CASE(interval_mod_float_divisor)
+{
+    // [1.0, 5.0] % [2.0, 2.5] -> [-2.5, 2.5]
+    auto r = interval{1.0, 5.0} % interval{2.0, 2.5};
+    EXPECT(r == (interval{-2.5, 2.5}));
+}
+
+TEST_CASE(interval_mod_by_zero_point_throws)
+{
+    test::throws(
+        [] { (void)(interval{int64_t{1}, int64_t{5}} % interval{int64_t{0}, int64_t{0}}); });
 }
 
 TEST_CASE(interval_compound_assign_no_alias)

@@ -121,19 +121,20 @@ interval operator/(interval a, interval b)
 
 interval operator%(interval a, interval b)
 {
-    auto f       = [](auto x, auto y) { return x % y; };
-    auto fd      = [](auto x, auto y) { return std::fmod(x, y); };
-    auto compute = [&](const scalar& x, const scalar& y) -> scalar {
-        if(std::holds_alternative<int64_t>(x) and std::holds_alternative<int64_t>(y))
-            return f(std::get<int64_t>(x), std::get<int64_t>(y));
-        return fd(to<double>(x), to<double>(y));
-    };
-    auto p1 = compute(a.min, b.min);
-    auto p2 = compute(a.min, b.max);
-    auto p3 = compute(a.max, b.min);
-    auto p4 = compute(a.max, b.max);
-    return {scalar_min(scalar_min(p1, p2), scalar_min(p3, p4)),
-            scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
+    // The 4-corner min/max formula is wrong for mod (e.g. [1,5] % [3,3] should
+    // include {0,1,2}, not just the corner values). Use a loose but correct
+    // bound: |a % b| < max(|b_lo|, |b_hi|).
+    auto b_lo = to<double>(b.min);
+    auto b_hi = to<double>(b.max);
+    if(b_lo == 0.0 and b_hi == 0.0)
+        MIGRAPHX_THROW("Interval mod by zero");
+    auto max_abs = std::max(std::abs(b_lo), std::abs(b_hi));
+    if(std::holds_alternative<int64_t>(b.min) and std::holds_alternative<int64_t>(b.max))
+    {
+        auto m = static_cast<int64_t>(max_abs);
+        return {int64_t{-m}, m};
+    }
+    return {-max_abs, max_abs};
 }
 
 interval operator-(interval a)

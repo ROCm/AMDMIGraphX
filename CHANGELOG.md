@@ -19,6 +19,7 @@ Full documentation for MIGraphX is available at
 * Added JIT compiler for `multinomial` operation (#4721).
 * Added build support for python 3.14 (#4754).
 * Added debug symbols for MIGraphX instructions such that parsed and compiled instructions can be tracked back to their ONNX origin node (#4626)
+* Added environment variable `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` to dump mxr files for benchmarking. (#4766)
 
 ### Changed
 

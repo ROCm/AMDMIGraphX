@@ -31,6 +31,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <variant>
 
 #include <migraphx/config.hpp>
 
@@ -41,10 +42,18 @@ struct value;
 
 namespace sym {
 
+using scalar = std::variant<int64_t, double>;
+
+template <class To>
+To to(const scalar& v)
+{
+    return std::visit([](auto x) -> To { return x; }, v);
+}
+
 struct interval
 {
-    int64_t min = 0;
-    int64_t max = 0;
+    scalar min = int64_t{0};
+    scalar max = int64_t{0};
     friend bool operator==(const interval& a, const interval& b)
     {
         return a.min == b.min and a.max == b.max;

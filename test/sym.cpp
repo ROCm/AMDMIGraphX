@@ -501,7 +501,7 @@ TEST_CASE(interval_times_assign)
 
 TEST_CASE(interval_div_assign)
 {
-    // [10.0,20.0] /= [2.0,5.0] = [2.0,10.0]
+    // [2.0,10.0] /= [1.0,5.0] = [0.4,10.0]
     interval a{2.0, 10.0};
     a /= interval{1.0, 5.0};
     EXPECT(a == (interval{0.4, 10.0}));

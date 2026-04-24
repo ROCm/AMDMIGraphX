@@ -53,9 +53,7 @@ struct interval
 };
 
 struct expr;
-MIGRAPHX_EXPORT expr var(const std::string& name,
-                         interval bounds            = {1, 1},
-                         std::set<int64_t> optimals = {});
+MIGRAPHX_EXPORT expr var(const std::string& name, interval bounds, std::set<int64_t> optimals = {});
 MIGRAPHX_EXPORT expr lit(int64_t n);
 MIGRAPHX_EXPORT expr parse(const std::string& s);
 

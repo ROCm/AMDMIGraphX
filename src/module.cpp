@@ -331,7 +331,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
                                            std::vector<instruction_ref> args)
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
-    assert(not starts_with(op.name(), "@"));
+    assert(not starts_with(op.name(), "@") or op.name() == "@comment");
     shape r     = compute_shape(op, args);
     auto result = impl->insert(ins, {op, r, std::move(args)});
     instruction::backreference(result);
@@ -352,7 +352,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
                                            std::vector<module_ref> module_args)
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
-    assert(not starts_with(op.name(), "@"));
+    assert(not starts_with(op.name(), "@") or op.name() == "@comment");
     auto out_shape = compute_shape(op, args, module_args);
     auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);

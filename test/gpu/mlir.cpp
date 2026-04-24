@@ -372,6 +372,33 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+TEST_CASE(grouped_conv)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution(%arg0: !migraphx.shaped<4x1x3x3xf32, 9x9x3x1>, %arg1: !migraphx.shaped<1x4x16x16xf32, 1024x256x16x1>) -> !migraphx.shaped<1x4x14x14xf32, 784x196x14x1> attributes ${attrs} {
+    %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1], group = 4 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x4x16x16xf32, 1024x256x16x1>, <4x1x3x3xf32, 9x9x3x1> -> <1x4x14x14xf32, 784x196x14x1>
+    return %0 : !migraphx.shaped<1x4x14x14xf32, 784x196x14x1>
+  }
+}
+)__migraphx__";
+
+    migraphx::module m;
+    auto input = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16}});
+    auto weights = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3}});
+    auto group_conv =
+        m.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), input, weights);
+    m.add_return({group_conv});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
 TEST_CASE(quant_dot_add)
 {
     std::string mlir_output = R"__migraphx__(
@@ -715,6 +742,54 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(mxfp4_gemm)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unpack_fp4_unpack_fp4_transpose_reshape_reshape_quant_dot_add(%arg0: !migraphx.shaped<1x2048xf4E2M1FN, 2048x1>, %arg1: !migraphx.shaped<1000x2048xf4E2M1FN, 2048x1>, %arg2: !migraphx.shaped<1x64x1xf32, 64x1x1>, %arg3: !migraphx.shaped<64x1x1000xf32, 1x1x64>, %arg4: !migraphx.shaped<1x1000xf32, 1000x1>) -> !migraphx.shaped<1x1000xf32, 1000x1> attributes ${attrs} {
+    %0 = migraphx.transpose %arg1 {permutation = [1, 0]} : <1000x2048xf4E2M1FN, 2048x1> -> <2048x1000xf4E2M1FN, 1x2048>
+    %1 = migraphx.multibroadcast %arg2 {out_dyn_dims = [], out_lens = [1, 64, 32]} : <1x64x1xf32, 64x1x1> -> <1x64x32xf32, 64x1x0>
+    %2 = migraphx.reshape %1 {dims = [1, 2048]} : <1x64x32xf32, 64x1x0> -> <1x2048xf32, 2048x1>
+    %3 = migraphx.multibroadcast %arg3 {out_dyn_dims = [], out_lens = [64, 32, 1000]} : <64x1x1000xf32, 1x1x64> -> <64x32x1000xf32, 1x0x64>
+    %4 = migraphx.reshape %3 {dims = [2048, 1000]} : <64x32x1000xf32, 1x0x64> -> <2048x1000xf32, 1000x1>
+    %5 = migraphx.quant_dot %arg0 scaled by %2, %0 scaled by %4 : <1x2048xf4E2M1FN, 2048x1> scaled by !migraphx.shaped<1x2048xf32, 2048x1>, <2048x1000xf4E2M1FN, 1x2048> scaled by !migraphx.shaped<2048x1000xf32, 1000x1> -> <1x1000xf32, 1000x1>
+    %6 = migraphx.add %5, %arg4 : <1x1000xf32, 1000x1>, <1x1000xf32, 1000x1> -> <1x1000xf32, 1000x1>
+    return %6 : !migraphx.shaped<1x1000xf32, 1000x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x5      = m.add_parameter("x5", {migraphx::shape::float_type, {1, 1000}});
+    auto x4      = m.add_parameter("x4", {migraphx::shape::float_type, {64, 1, 1000}, {1, 1, 64}});
+    auto x3      = m.add_parameter("x3", {migraphx::shape::float_type, {1, 64, 1}});
+    auto x2      = m.add_parameter("x2", {migraphx::shape::fp4x2_type, {1000, 1024}});
+    auto x1      = m.add_parameter("x1", {migraphx::shape::fp4x2_type, {1, 1024}});
+    auto unpack1 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x1);
+    auto unpack2 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x2);
+    auto trans =
+        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), unpack2);
+    auto mbcast1 =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 32}}}), x3);
+    auto reshape1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2048}}}), mbcast1);
+    auto mbcast2 =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 32, 1000}}}), x4);
+    auto reshape2 =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {2048, 1000}}}), mbcast2);
+    auto qdot =
+        m.add_instruction(migraphx::make_op("quant_dot"), unpack1, trans, reshape1, reshape2);
+    auto add = m.add_instruction(migraphx::make_op("add"), qdot, x5);
+    m.add_return({add});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // Don't verify here. Tests with a verify test instead.
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

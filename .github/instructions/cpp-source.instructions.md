@@ -1,5 +1,5 @@
 ---
-applyTo: "**/*.{cpp,hpp,h,cc,cxx}"
+applyTo: "**/*.cpp,**/*.hpp,**/*.h"
 ---
 
 # C++ Review Instructions for MIGraphX
@@ -40,7 +40,7 @@ Review C++ changes against the MIGraphX coding style and flag AI-generated slop.
       - `for_each(first1, last1, first2, f)` - Two-range iteration (like std::transform)
     - If no suitable algorithm exists: Add a new algorithm to `migraphx/algorithm.hpp` rather than using raw loops
 
-- Memory management - Use `std::make_unique/shared`, avoid raw `new`/`delete`
+- Memory management - Use `std::make_unique` and `std::make_shared` avoid raw `new`/`delete`
 - Non-memory resources - Use `MIGRAPHX_MANAGE_PTR` for C-style acquire/release APIs:
 - Type erasure over inheritance - MIGraphX uses type erasure extensively for `pass`, `operation`, `target`
   - No need to inherit from base class - just implement required interface methods
@@ -57,7 +57,7 @@ Review C++ changes against the MIGraphX coding style and flag AI-generated slop.
     - Write reusable, type-independent code using templates and STL algorithms
 
 - Avoid Casts
-    - Dont use a cast unless abosuluty necessary. Declare Correct Types. Casts indicate a type mismatch that should be resolved at the source.
+    - Don't use a cast unless absolutely necessary. Declare correct types. Casts indicate a type mismatch that should be resolved at the source.
 
 - Encapsulate Bit Manipulation - Put bit-twiddling and low-level operations behind well-named utility functions:
     - Prefer `std::bitset` for bit manipulation
@@ -92,4 +92,4 @@ Flag AI slop and suggest simpler alternatives:
 - **Unnecessary intermediate variables** - When the original variable can just be used directly
 - **Unnecessary arithmetic** - adding `0` or multiplying by `1`.
 
-Look for ways to simplify the code by resusing existing migraphx utilites.
+Look for ways to simplify the code by reusing existing MIGraphX utilities.

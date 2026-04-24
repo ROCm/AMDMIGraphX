@@ -26,12 +26,17 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/sym.hpp>
 #include <sstream>
 #include <migraphx/make_op.hpp>
 
 #include <migraphx/serialize.hpp>
 
 #include "test.hpp"
+
+using dd = migraphx::shape::dynamic_dimension;
+using migraphx::sym::lit;
+using migraphx::sym::var;
 
 template <class... Ts>
 static void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
@@ -519,11 +524,47 @@ TEST_CASE(contiguous_dyn_shape)
     expect_shape(s0, migraphx::make_op("contiguous"), s0);
 }
 
+TEST_CASE(contiguous_sym_standard)
+{
+    auto n = var("N", {1, 64});
+    auto h = var("H", {1, 128});
+    migraphx::shape s0{migraphx::shape::float_type, {dd{n}, dd{h}}};
+    expect_shape(s0, migraphx::make_op("contiguous"), s0);
+}
+
+TEST_CASE(contiguous_sym_transposed)
+{
+    auto n = var("N", {1, 64});
+    auto h = var("H", {1, 128});
+    // Transposed symbolic input: standard {N, H} -> transposed {H, N}.
+    auto input =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {dd{h}, dd{n}}, {1, 0});
+    migraphx::shape output{migraphx::shape::float_type, {dd{h}, dd{n}}};
+    expect_shape(output, migraphx::make_op("contiguous"), input);
+}
+
 TEST_CASE(contiguous_shape_scalar)
 {
     migraphx::shape output{migraphx::shape::float_type, {1}};
     migraphx::shape input{migraphx::shape::float_type};
     expect_shape(output, migraphx::make_op("contiguous"), input);
+}
+
+TEST_CASE(as_shape_static)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4}};
+    migraphx::shape target{migraphx::shape::float_type, {2, 8}};
+    expect_shape(
+        target, migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}), input);
+}
+
+TEST_CASE(as_shape_sym)
+{
+    auto n = var("N", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(16)}}};
+    migraphx::shape target{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(4)}}};
+    expect_shape(
+        target, migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}), input);
 }
 
 TEST_CASE(contiguous_shape_singleton_dim)
@@ -5238,6 +5279,45 @@ TEST_CASE(transpose_dyn_shape1)
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {4, 4}, {4, 4}}};
     migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {4, 4}, {1, 4}}};
     expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1, 2}}}), input);
+    expect_shape(output, migraphx::make_op("transpose", {{"permutation", {2, 1, 0}}}), input);
+}
+
+TEST_CASE(transpose_sym_identity)
+{
+    auto n = var("N", {1, 64});
+    auto h = var("H", {1, 128});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{h}}};
+    expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1}}}), input);
+}
+
+TEST_CASE(transpose_sym_swap)
+{
+    auto n = var("N", {1, 64});
+    auto h = var("H", {1, 128});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{h}}};
+    auto output =
+        migraphx::shape::from_permutation(migraphx::shape::float_type, {dd{h}, dd{n}}, {1, 0});
+    expect_shape(output, migraphx::make_op("transpose", {{"permutation", {1, 0}}}), input);
+}
+
+TEST_CASE(transpose_sym_3d)
+{
+    auto n = var("N", {1, 64});
+    auto c = var("C", {1, 32});
+    auto h = var("H", {1, 128});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{c}, dd{h}}};
+    auto output = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{h}, dd{c}, dd{n}}, {2, 1, 0});
+    expect_shape(input, migraphx::make_op("transpose", {{"permutation", {0, 1, 2}}}), input);
+    expect_shape(output, migraphx::make_op("transpose", {{"permutation", {2, 1, 0}}}), input);
+}
+
+TEST_CASE(transpose_sym_mixed_literal)
+{
+    auto n = var("N", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{lit(4)}}};
+    auto output = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{lit(4)}, dd{lit(8)}, dd{n}}, {2, 1, 0});
     expect_shape(output, migraphx::make_op("transpose", {{"permutation", {2, 1, 0}}}), input);
 }
 

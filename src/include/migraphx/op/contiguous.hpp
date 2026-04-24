@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,16 +48,10 @@ struct contiguous
     {
         check_shapes{inputs, *this, true}.has(1);
         auto s0 = inputs.front();
+
         if(s0.dynamic())
-        {
-            return s0;
-        }
-        else
-        {
-            const auto& lens = s0.lens();
-            auto t           = s0.type();
-            return {t, lens};
-        }
+            return {s0.type(), s0.dyn_dims()};
+        return {s0.type(), s0.lens()};
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

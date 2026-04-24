@@ -372,6 +372,13 @@ struct shape_impl
         return compute_elements<std::size_t>(m_lens);
     }
 
+    sym::expr sym_elements() const
+    {
+        if(not m_dyn_dims.empty() and not all_dims_symbolic())
+            MIGRAPHX_THROW("SHAPE: sym_elements() called on a range-only dynamic shape");
+        return compute_elements<sym::expr>(sym_dims());
+    }
+
     std::size_t get_index(size_t i) const
     {
         std::size_t result = 0;
@@ -644,6 +651,8 @@ std::size_t shape::ndim() const
 }
 
 std::size_t shape::elements() const { return impl->elements(); }
+
+sym::expr shape::sym_elements() const { return impl->sym_elements(); }
 
 std::size_t shape::bytes() const
 {

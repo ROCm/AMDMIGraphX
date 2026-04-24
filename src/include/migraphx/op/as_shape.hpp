@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/dyn_output.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,13 +46,17 @@ struct as_shape
     std::string name() const { return "as_shape"; }
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        check_shapes{inputs, *this}.has(1).standard();
-        assert(inputs.front().elements() >= s.elements());
+        if(inputs.front().dynamic() and not inputs.front().symbolic())
+            MIGRAPHX_THROW("AS_SHAPE: input must be static or symbolic");
+        if(s.dynamic() and not s.symbolic())
+            MIGRAPHX_THROW("AS_SHAPE: target shape must be static or symbolic");
+        check_shapes{inputs, *this, true}.has(1).standard();
+        assert(inputs.front().sym_elements() >= s.sym_elements());
         return s;
     }
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args.front().reshape(output_shape);
+        return args.front().reshape(dyn_out.computed_shape);
     }
     std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };

@@ -63,7 +63,8 @@ struct transpose
             MIGRAPHX_THROW("TRANSPOSE: Invalid permutation");
         }
 
-        if(input.dynamic())
+        // Range-only dynamic shapes do not carry strides; permute dims only.
+        if(input.dynamic() and not input.symbolic())
         {
             std::vector<shape::dynamic_dimension> output_dyn_dims(input.ndim());
             std::transform(dims.cbegin(), dims.cend(), output_dyn_dims.begin(), [&](auto dim) {
@@ -71,20 +72,17 @@ struct transpose
             });
             return {input.type(), output_dyn_dims};
         }
-        else
-        {
-            const auto& input_lens    = input.lens();
-            const auto& input_strides = input.strides();
 
-            std::vector<size_t> output_lens(input.ndim());
-            std::vector<size_t> output_strides(input.ndim());
+        auto permute = [&](const auto& src) {
+            std::vector<typename std::decay_t<decltype(src)>::value_type> out(input.ndim());
             for(std::size_t i = 0; i < input.ndim(); i++)
-            {
-                output_lens[i]    = input_lens[dims[i]];
-                output_strides[i] = input_strides[dims[i]];
-            }
-            return {input.type(), output_lens, output_strides};
-        }
+                out[i] = src[dims[i]];
+            return out;
+        };
+
+        if(input.symbolic())
+            return {input.type(), permute(input.dyn_dims()), permute(input.dyn_strides())};
+        return {input.type(), permute(input.lens()), permute(input.strides())};
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

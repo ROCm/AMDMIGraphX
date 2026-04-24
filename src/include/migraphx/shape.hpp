@@ -311,6 +311,14 @@ struct MIGRAPHX_EXPORT shape
     std::size_t elements() const;
 
     /*!
+     * Return the number of elements as a symbolic expression. Works for any
+     * shape kind: for static shapes returns a literal; for symbolic shapes
+     * returns the product of the symbolic dimension expressions. Throws for
+     * range-only dynamic shapes.
+     */
+    sym::expr sym_elements() const;
+
+    /*!
      * Return the number of total bytes used for storage of the tensor data; includes subshapes.
      * For dynamic shape, returns the maximum number of bytes presuming a packed shape.
      */

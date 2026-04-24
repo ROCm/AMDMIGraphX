@@ -532,10 +532,7 @@ TEST_CASE(expr_equal_literals)
     EXPECT(lit(1) == lit(1.0));
 }
 
-TEST_CASE(expr_different_literals)
-{
-    EXPECT(lit(1) != lit(2));
-}
+TEST_CASE(expr_different_literals) { EXPECT(lit(1) != lit(2)); }
 
 TEST_CASE(expr_equal_variables) { EXPECT(var("x") == var("x")); }
 

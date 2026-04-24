@@ -12,14 +12,12 @@ namespace nvinfer1
 Layer_impl::Layer_impl() noexcept
     : mType{-1}, mProgram{nullptr}
 {
-    pass_warning("TODO! implement me!", false);
     ILayer::mLayer = this;
 }
 
 Layer_impl::Layer_impl(LayerType type, const std::shared_ptr<migraphx::program>& program) noexcept
     : mType{type}, mProgram{program}
 {
-    pass_warning("TODO! implement me!", false);
     ILayer::mLayer = this;
 }
 

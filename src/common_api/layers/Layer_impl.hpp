@@ -14,9 +14,6 @@ namespace nvinfer1
     class Layer_impl : public ILayer, public apiv::VLayer
     {
     public:
-        // enumerate layer implementations here as needed
-        // friend class ConstantLayer_impl;
-
         Layer_impl() noexcept;
         Layer_impl(LayerType type, const std::shared_ptr<migraphx::program>& program) noexcept;
         ~Layer_impl() override;

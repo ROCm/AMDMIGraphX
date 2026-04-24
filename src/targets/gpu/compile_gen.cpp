@@ -572,8 +572,8 @@ std::string generate_reduce(module m, const std::string& name)
     f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
     f.add_generic_param("r");
 
-    // caller is fused_reduce_op(..., f(r, out_idx)), so the function `f` must take out_idx even if this
-    // module's emitted code never references it
+    // caller is fused_reduce_op(..., f(r, out_idx)), so the function `f` must take out_idx even if
+    // this module's emitted code never references it
     f.add_generic_param("out_idx");
     f.unused_param("out_idx");
     g.create_function(f);

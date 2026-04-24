@@ -65,17 +65,23 @@ std::vector<int64_t> find_permutation(const shape& s)
         std::transform(strides.begin(), strides.end(), stride_intervals.begin(), [](const auto& e) {
             return e.eval_interval();
         });
+        std::vector<int64_t> dim_max(dds.size());
+        std::transform(dds.begin(), dds.end(), dim_max.begin(), [](const auto& dd) {
+            return sym::to<int64_t>(dd.sym_expr.eval_interval().max);
+        });
         std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
-                             return std::make_tuple(stride_intervals[x].max,
-                                                    dds[x].sym_expr.eval_interval().max);
+                             return std::make_tuple(sym::to<int64_t>(stride_intervals[x].max),
+                                                    dim_max[x]);
                          }));
         // Assumption 3 guard: when max-eval gives a strict ordering between two
         // adjacent strides, min-eval must not reverse it. Collapse to equality at
         // min is expected (e.g. when a dim has min=1), but a sign flip indicates
         // a symbolic divisor violating assumption 1.
         if(std::adjacent_find(result.begin(), result.end(), [&](auto a, auto b) {
-               return stride_intervals[a].max > stride_intervals[b].max and
-                      stride_intervals[a].min < stride_intervals[b].min;
+               return sym::to<int64_t>(stride_intervals[a].max) >
+                          sym::to<int64_t>(stride_intervals[b].max) and
+                      sym::to<int64_t>(stride_intervals[a].min) <
+                          sym::to<int64_t>(stride_intervals[b].min);
            }) != result.end())
             MIGRAPHX_THROW("FIND_PERMUTATION: symbolic stride ordering reversal between "
                            "max-eval and min-eval. Violation of symbolic stride assumptions.");

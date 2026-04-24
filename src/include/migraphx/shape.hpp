@@ -153,9 +153,8 @@ struct MIGRAPHX_EXPORT shape
             if(is_symbolic())
             {
                 auto ival = sym_expr.eval_interval();
-                if(ival.min < 0 or ival.max < 0)
-                    MIGRAPHX_THROW("dynamic_dimension: symbolic expression has negative bounds");
-                return {static_cast<std::size_t>(ival.min), static_cast<std::size_t>(ival.max)};
+                assert(sym::to<int64_t>(ival.min) >= 0 and sym::to<int64_t>(ival.max) >= 0);
+                return {sym::to<std::size_t>(ival.min), sym::to<std::size_t>(ival.max)};
             }
             return *range;
         }

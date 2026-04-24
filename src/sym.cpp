@@ -232,7 +232,18 @@ interval max(interval x, interval y)
 
 static std::size_t hash_scalar(scalar s)
 {
-    return std::visit([](auto x) { return hash_value(x); }, s);
+    return std::visit(
+        [](auto x) -> std::size_t {
+            using T = std::decay_t<decltype(x)>;
+            if constexpr(std::is_floating_point<T>{})
+            {
+                int64_t i = x;
+                if(float_equal(x, i))
+                    return hash_value(i);
+            }
+            return hash_value(x);
+        },
+        s);
 }
 
 struct literal_node

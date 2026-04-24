@@ -529,12 +529,12 @@ TEST_CASE(expr_equal_literals)
 {
     EXPECT(lit(42) == lit(42));
     EXPECT(lit(3.14) == lit(3.14));
+    EXPECT(lit(1) == lit(1.0));
 }
 
 TEST_CASE(expr_different_literals)
 {
     EXPECT(lit(1) != lit(2));
-    EXPECT(lit(1) != lit(1.0));
 }
 
 TEST_CASE(expr_equal_variables) { EXPECT(var("x") == var("x")); }

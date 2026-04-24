@@ -1100,9 +1100,9 @@ bool operator<(const expr& a, const expr& b)
     if(a.empty() or b.empty())
         MIGRAPHX_THROW("sym::expr: cannot compare empty expression");
     auto ival = (b - a).eval_interval();
-    if(ival.min > 0)
+    if(to<int64_t>(ival.min) > 0)
         return true;
-    if(ival.max <= 0)
+    if(to<int64_t>(ival.max) <= 0)
         return false;
     MIGRAPHX_THROW("sym::expr: comparison undetermined for: " + print_expr(a.p->node) + " < " +
                    print_expr(b.p->node));
@@ -1119,12 +1119,13 @@ expr var(const std::string& name, interval bounds, std::set<int64_t> optimals)
 {
     if(name.empty())
         MIGRAPHX_THROW("sym::var: variable name must not be empty");
-    if(bounds.min > bounds.max)
+    auto bmin = to<int64_t>(bounds.min);
+    auto bmax = to<int64_t>(bounds.max);
+    if(bmin > bmax)
         MIGRAPHX_THROW("sym::var: variable interval must satisfy min <= max");
-    if(bounds.min < 1)
+    if(bmin < 1)
         MIGRAPHX_THROW("sym::var: variable interval must satisfy min >= 1");
-    return {std::make_shared<expr::impl>(
-        make_symbol(name, bounds.min, bounds.max, std::move(optimals)))};
+    return {std::make_shared<expr::impl>(make_symbol(name, bmin, bmax, std::move(optimals)))};
 }
 
 expr lit(int64_t n) { return {std::make_shared<expr::impl>(make_integer(n))}; }

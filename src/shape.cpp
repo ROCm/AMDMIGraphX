@@ -93,7 +93,7 @@ struct shape_impl
     {
         assert(m_dyn_strides.size() == m_dyn_dims.size());
         assert(std::all_of(m_dyn_strides.begin(), m_dyn_strides.end(), [](const auto& s) {
-            return s.eval_interval().min >= 0;
+            return sym::to<int64_t>(s.eval_interval().min) >= 0;
         }));
         auto dim_exprs = sym_dims();
         std::vector<sym::expr> filtered_strides;
@@ -270,7 +270,7 @@ struct shape_impl
         {
             std::vector<std::size_t> concrete(strides.size());
             std::transform(strides.begin(), strides.end(), concrete.begin(), [](const auto& s) {
-                return static_cast<std::size_t>(s.eval_interval().max);
+                return sym::to<std::size_t>(s.eval_interval().max);
             });
             return std::is_sorted(concrete.rbegin(), concrete.rend());
         }

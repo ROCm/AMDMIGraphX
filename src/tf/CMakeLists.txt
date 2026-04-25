@@ -24,6 +24,12 @@
 find_package(protobuf QUIET CONFIG)
 
 if(protobuf_FOUND)
+    # On Windows, dependency projects need to be compiled with MSVC,
+    # because a few of them are failing to compile with the Clang compiler.
+    filter_target_linked_libraries(
+        protobuf::libprotobuf
+            FLATTEN FILTER "absl::" EXCLUDE REGEX "-ignore:4221")
+
     add_library(tf-proto STATIC ${PROTO_SRCS})
     protobuf_generate(
         TARGET tf-proto
@@ -69,7 +75,7 @@ endif()
 set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 file(GLOB TF_SRCS CONFIGURE_DEPENDS *.cpp)
-add_library(migraphx_tf ${TF_SRCS})
+add_library(migraphx_tf ${TF_SRCS} ${PROJECT_SOURCE_DIR}/src/protobuf_memswap_instantiation.cpp)
 migraphx_generate_export_header(migraphx_tf)
 target_include_directories(migraphx_tf PRIVATE include)
 set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)

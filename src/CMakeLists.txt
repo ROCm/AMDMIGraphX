@@ -31,6 +31,8 @@ include(RegisterOp)
 include(CheckCXXLinkerFlag)
 include(CheckCXXSourceCompiles)
 
+include(LinkedLibraries)
+
 set(CMAKE_REQUIRED_FLAGS "-Werror=deprecated-declarations")
 check_cxx_source_compiles("
 #include <algorithm>

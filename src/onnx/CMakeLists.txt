@@ -24,6 +24,10 @@
 find_package(protobuf QUIET CONFIG)
 
 if(protobuf_FOUND)
+    # On Windows, dependency projects need to be compiled with MSVC,
+    # because a few of them are failing to compile with the Clang compiler.
+    filter_target_linked_libraries(protobuf::libprotobuf
+        FLATTEN FILTER "absl::" EXCLUDE REGEX "-ignore:4221")
     add_library(onnx-proto STATIC)
     protobuf_generate(TARGET onnx-proto PROTOS onnx.proto)
     target_include_directories(onnx-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
@@ -44,7 +48,7 @@ endif()
 set_target_properties(onnx-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
 
 file(GLOB ONNX_SRCS CONFIGURE_DEPENDS *.cpp)
-add_library(migraphx_onnx ${ONNX_SRCS})
+add_library(migraphx_onnx ${ONNX_SRCS} ${PROJECT_SOURCE_DIR}/src/protobuf_memswap_instantiation.cpp)
 target_include_directories(migraphx_onnx PRIVATE include)
 set_target_properties(migraphx_onnx PROPERTIES EXPORT_NAME onnx)
 migraphx_generate_export_header(migraphx_onnx)

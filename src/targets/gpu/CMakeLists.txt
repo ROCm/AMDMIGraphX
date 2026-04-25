@@ -194,6 +194,7 @@ add_library(migraphx_gpu
     time_op.cpp
     topk.cpp
     write_literals.cpp
+    fuse_mlss.cpp
     ${JIT_GPU_SRCS}
     ${MIOPEN_SRCS}
 )

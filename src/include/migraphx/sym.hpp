@@ -30,8 +30,8 @@
 #include <ostream>
 #include <set>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
-#include <utility>
 #include <variant>
 
 #include <migraphx/config.hpp>
@@ -43,27 +43,39 @@ struct value;
 
 namespace sym {
 
-using scalar = std::variant<int64_t, double>;
+// Scalar value held by literal expressions and interval bounds. Wraps a
+// variant so that integer-literal initialization is unambiguous on stricter
+// libstdc++ versions.
+struct scalar
+{
+    std::variant<int64_t, double> value;
+
+    constexpr scalar() = default;
+
+    template <class T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
+    constexpr scalar(T v) : value{int64_t{v}} // NOLINT(google-explicit-constructor)
+    {
+    }
+
+    template <class T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+    constexpr scalar(T v) : value{double{v}} // NOLINT(google-explicit-constructor)
+    {
+    }
+
+    friend bool operator==(const scalar& a, const scalar& b) { return a.value == b.value; }
+    friend bool operator!=(const scalar& a, const scalar& b) { return not(a == b); }
+};
 
 template <class To>
 To to(const scalar& v)
 {
-    return std::visit([](auto x) -> To { return x; }, v);
+    return std::visit([](auto x) -> To { return x; }, v.value);
 }
 
 struct interval
 {
     scalar min = int64_t{0};
     scalar max = int64_t{0};
-
-    interval() = default;
-    interval(scalar mn, scalar mx) : min{std::move(mn)}, max{std::move(mx)} {}
-    // Convenience overload so brace-init with bare integer literals (e.g.
-    // `interval{1, 8}` or `var("n", {1, 8})`) resolves unambiguously rather
-    // than triggering the variant converting-ctor's int-vs-double tie that
-    // some libstdc++ versions (notably on SLES) reject.
-    interval(int64_t mn, int64_t mx) : min{mn}, max{mx} {}
-
     friend bool operator==(const interval& a, const interval& b)
     {
         return a.min == b.min and a.max == b.max;

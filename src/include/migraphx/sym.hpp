@@ -35,6 +35,7 @@
 #include <variant>
 
 #include <migraphx/config.hpp>
+#include <migraphx/requires.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,12 +53,12 @@ struct scalar
 
     constexpr scalar() = default;
 
-    template <class T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
+    template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
     constexpr scalar(T v) : value{int64_t{v}} // NOLINT(google-explicit-constructor)
     {
     }
 
-    template <class T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+    template <class T, MIGRAPHX_REQUIRES(std::is_floating_point<T>{})>
     constexpr scalar(T v) : value{double{v}} // NOLINT(google-explicit-constructor)
     {
     }

@@ -24,6 +24,7 @@
 
 #include <migraphx/sym.hpp>
 #include <migraphx/serialize.hpp>
+#include <utility>
 #include "test.hpp"
 
 using se       = migraphx::sym::expr;
@@ -36,7 +37,7 @@ using migraphx::sym::parse;
 static se var(const std::string& name) { return migraphx::sym::var(name, {1, 1}); }
 static se var(const std::string& name, interval bounds, std::set<int64_t> optimals = {})
 {
-    return migraphx::sym::var(name, bounds, optimals);
+    return migraphx::sym::var(name, bounds, std::move(optimals));
 }
 
 // ===================================================================

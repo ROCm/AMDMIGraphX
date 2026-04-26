@@ -372,7 +372,37 @@ module {
     EXPECT(verify_mlir(m));
 }
 
-TEST_CASE(grouped_conv)
+TEST_CASE(grouped_conv1d)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution(%arg0: !migraphx.shaped<4x1x3xf32, 3x3x1>, %arg1: !migraphx.shaped<1x4x16xf32, 64x16x1>) -> !migraphx.shaped<1x4x14xf32, 56x14x1> attributes ${attrs} {
+    %0 = migraphx.convolution %arg1, %arg0 {dilation = [1], group = 4 : i64, padding = [0, 0], padding_mode = 0 : i64, stride = [1]} : <1x4x16xf32, 64x16x1>, <4x1x3xf32, 3x3x1> -> <1x4x14xf32, 56x14x1>
+    return %0 : !migraphx.shaped<1x4x14xf32, 56x14x1>
+  }
+}
+)__migraphx__";
+
+    migraphx::module m;
+    auto input   = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16}});
+    auto weights = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3}});
+    auto group_conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"group", 4}, {"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        input,
+        weights);
+    m.add_return({group_conv});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(grouped_conv2d)
 {
     std::string mlir_output = R"__migraphx__(
 module {
@@ -388,6 +418,39 @@ module {
     auto weights = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3}});
     auto group_conv =
         m.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), input, weights);
+    m.add_return({group_conv});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(grouped_conv3d)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution(%arg0: !migraphx.shaped<4x1x3x3x3xf32, 27x27x9x3x1>, %arg1: !migraphx.shaped<1x4x16x16x16xf32, 16384x4096x256x16x1>) -> !migraphx.shaped<1x4x14x14x14xf32, 10976x2744x196x14x1> attributes ${attrs} {
+    %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1, 1], group = 4 : i64, padding = [0, 0, 0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1, 1]} : <1x4x16x16x16xf32, 16384x4096x256x16x1>, <4x1x3x3x3xf32, 27x27x9x3x1> -> <1x4x14x14x14xf32, 10976x2744x196x14x1>
+    return %0 : !migraphx.shaped<1x4x14x14x14xf32, 10976x2744x196x14x1>
+  }
+}
+)__migraphx__";
+
+    migraphx::module m;
+    auto input =
+        m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16, 16}});
+    auto weights =
+        m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3, 3}});
+    auto group_conv = m.add_instruction(
+        migraphx::make_op(
+            "convolution",
+            {{"group", 4}, {"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
+        input,
+        weights);
     m.add_return({group_conv});
     auto s = migraphx::gpu::dump_mlir(m);
     // Skip test if MLIR is not enabled

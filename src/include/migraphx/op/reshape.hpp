@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -104,16 +104,18 @@ struct reshape
             std::size_t max_cur_elements = 1;
             for(const auto& dd : output_dyn_dims)
             {
-                min_cur_elements = mul_sat(min_cur_elements, dd.min);
-                max_cur_elements = mul_sat(max_cur_elements, dd.max);
+                auto dd_interval = dd.get_interval();
+                min_cur_elements = mul_sat(min_cur_elements, dd_interval.min);
+                max_cur_elements = mul_sat(max_cur_elements, dd_interval.max);
             }
             // accumulate the elements in the input dimensions
             std::size_t min_input_elements = 1;
             std::size_t max_input_elements = 1;
             for(const auto& dd : input_dyn_dims)
             {
-                min_input_elements = mul_sat(min_input_elements, dd.min);
-                max_input_elements = mul_sat(max_input_elements, dd.max);
+                auto dd_interval   = dd.get_interval();
+                min_input_elements = mul_sat(min_input_elements, dd_interval.min);
+                max_input_elements = mul_sat(max_input_elements, dd_interval.max);
             }
 
             // maximum dimensions should never accumulate to zero

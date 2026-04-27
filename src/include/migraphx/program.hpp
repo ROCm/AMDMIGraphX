@@ -170,8 +170,8 @@ struct MIGRAPHX_EXPORT program
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
-    // program file version is for the data structure or format of the MXR file. Version should be bumped
-    // if any changes occur to the format of the MXR file.
+    // program file version is for the data structure or format of the MXR file. Version should be
+    // bumped if any changes occur to the format of the MXR file.
     static constexpr int program_file_version = 8;
 };
 } // namespace MIGRAPHX_INLINE_NS

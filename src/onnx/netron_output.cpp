@@ -240,7 +240,7 @@ void write_netron_output(const program& prog, std::ostream& os)
     model.set_ir_version(prog.get_program_file_version());
     model.set_producer_name("AMDMIGraphX");
     model.set_producer_version(prog_value.at("migraphx_version").to<std::string>());
-    
+
     // only exporting the main module
     // TODO handle submodules as ONNX subgraphs
     build_graph(model.mutable_graph(), prog.get_main_module());

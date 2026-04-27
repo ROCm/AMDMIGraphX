@@ -532,4 +532,109 @@ TEST_CASE(multi_alias_chain_multiple_out_params)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(allocate_out_debug_symbols_single)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x     = m.add_parameter("x", s);
+        auto y     = m.add_parameter("y", s);
+        auto alloc = m.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result = m.add_instruction(pass_op{}, alloc, x, y);
+        auto ret    = m.add_return({result});
+        m.add_debug_symbols(ret, {"@output_0:out"});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out_param = m.get_parameter("output");
+    std::set<std::string> expected = {"@output_0:out"};
+    EXPECT(out_param->get_debug_symbols() == expected);
+}
+
+TEST_CASE(allocate_out_debug_symbols_multi)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x      = m.add_parameter("x", s);
+        auto alloc1 = m.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result1 = m.add_instruction(pass_op{}, alloc1, x);
+        auto alloc2  = m.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result2 = m.add_instruction(pass_op{}, alloc2, x);
+        auto ret     = m.add_return({result1, result2});
+        m.add_debug_symbols(ret, {"@output_0:first", "@output_1:second"});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out0 = m.get_parameter("output_0");
+    auto out1 = m.get_parameter("output_1");
+    std::set<std::string> expected0 = {"@output_0:first"};
+    std::set<std::string> expected1 = {"@output_1:second"};
+    EXPECT(out0->get_debug_symbols() == expected0);
+    EXPECT(out1->get_debug_symbols() == expected1);
+}
+
+TEST_CASE(allocate_out_no_debug_symbols)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x     = m.add_parameter("x", s);
+        auto y     = m.add_parameter("y", s);
+        auto alloc = m.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result = m.add_instruction(pass_op{}, alloc, x, y);
+        m.add_return({result});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out_param = m.get_parameter("output");
+    EXPECT(out_param->get_debug_symbols().empty());
+}
+
+TEST_CASE(allocate_out_debug_symbols_size_mismatch)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x      = m.add_parameter("x", s);
+        auto alloc1 = m.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result1 = m.add_instruction(pass_op{}, alloc1, x);
+        auto alloc2  = m.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto result2 = m.add_instruction(pass_op{}, alloc2, x);
+        auto ret     = m.add_return({result1, result2});
+        // Only 1 symbol for 2 alloc aliases → size mismatch
+        m.add_debug_symbols(ret, {"@output_0:only_one"});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out0 = m.get_parameter("output_0");
+    auto out1 = m.get_parameter("output_1");
+    EXPECT(out0->get_debug_symbols().empty());
+    EXPECT(out1->get_debug_symbols().empty());
+}
+
+TEST_CASE(allocate_out_debug_symbols_no_return)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5}};
+    migraphx::module m;
+    {
+        auto x     = m.add_parameter("x", s);
+        auto y     = m.add_parameter("y", s);
+        auto alloc = m.add_instruction(
+            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        m.add_instruction(pass_op{}, alloc, x, y);
+        m.add_debug_symbols(x, {"some_symbol"});
+    }
+    run_pass(m, allocation_with_out_model{});
+
+    auto out_param = m.get_parameter("output");
+    EXPECT(out_param->get_debug_symbols().empty());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

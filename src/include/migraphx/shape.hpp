@@ -572,6 +572,21 @@ struct MIGRAPHX_EXPORT shape
 
     void debug_print() const;
 
+    /// Whether a dim-like value has a single, known static integer value.
+    static bool is_fixed_dim(std::size_t) { return true; }
+    static bool is_fixed_dim(const dynamic_dimension& d) { return d.is_fixed(); }
+
+    /// Extract the static integer value from a fixed dim-like value. Caller is
+    /// responsible for ensuring `is_fixed_dim(x)` first.
+    static std::size_t static_dim_value(std::size_t x) { return x; }
+    static std::size_t static_dim_value(const dynamic_dimension& d)
+    {
+        assert(d.is_fixed());
+        if(d.is_symbolic())
+            return d.sym_expr.eval_uint({});
+        return d.get_interval().max;
+    }
+
     private:
     shape(std::shared_ptr<shape_impl> pimpl);
     std::shared_ptr<const shape_impl> impl;

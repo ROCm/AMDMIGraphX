@@ -119,6 +119,18 @@ struct convolution
         std::vector<T> ret;
         for(size_t i = 0; i < num_spatial_dims; i++)
         {
+            // Zero spatial input or kernel collapses to a zero output dim.
+            if(x_lens[i + 2] == 0)
+            {
+                ret.push_back(x_lens[i + 2]);
+                continue;
+            }
+            if(w_lens[i + 2] == 0)
+            {
+                ret.push_back(w_lens[i + 2]);
+                continue;
+            }
+
             std::size_t padding_factor = 2 * padding[i];
             if(padding.size() == 2 * num_spatial_dims)
                 padding_factor = padding[i] + padding[i + num_spatial_dims];
@@ -127,9 +139,17 @@ struct convolution
             if(dilation[i] > 1)
                 dilated_kernel -= (dilation[i] - 1);
 
-            auto result = (x_lens[i + 2] + padding_factor) - dilated_kernel;
-            result /= stride[i];
-            result += std::size_t{1};
+            auto numerator = x_lens[i + 2] + padding_factor;
+            // Cap the output to 0 when the kernel doesn't fit (avoids size_t
+            // underflow; non-fixed dynamic_dimension is handled by saturating -).
+            if(shape::is_fixed_dim(numerator) and shape::is_fixed_dim(dilated_kernel) and
+               shape::static_dim_value(numerator) < shape::static_dim_value(dilated_kernel))
+            {
+                ret.push_back(numerator - numerator); // 0
+                continue;
+            }
+
+            auto result = (numerator - dilated_kernel) / stride[i] + 1;
             ret.push_back(result);
         }
         return ret;

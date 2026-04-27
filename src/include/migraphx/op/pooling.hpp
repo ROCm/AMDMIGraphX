@@ -157,15 +157,26 @@ struct pooling
 
             std::size_t dilated_length = dilate_dim(lengths[i], dilations[i]);
 
-            auto dim_size = input_dims[i + 2] + padding_factor;
-            dim_size -= dilated_length;
+            auto numerator = input_dims[i + 2] + padding_factor;
+            // When the kernel doesn't fit:
+            //  - default_ padding: it's a bad config, throw.
+            //  - auto-pad: `padding` here is a placeholder; real padding is
+            //    recomputed at compute time, so substitute a non-zero dummy
+            //    to avoid size_t underflow.
+            const bool kernel_doesnt_fit = shape::is_fixed_dim(numerator) and
+                                           shape::static_dim_value(numerator) < dilated_length;
+            if(kernel_doesnt_fit and padding_mode == default_)
+                MIGRAPHX_THROW("POOLING: not enough padding for the given kernel size");
+
+            auto dim_size =
+                kernel_doesnt_fit ? (numerator - numerator + 2) : (numerator - dilated_length);
 
             T result;
             if(ceil_mode)
                 result = (dim_size + (stride[i] - 1)) / stride[i];
             else
                 result = dim_size / stride[i];
-            result += std::size_t{1};
+            result += 1;
             ret.push_back(result);
         }
         return ret;

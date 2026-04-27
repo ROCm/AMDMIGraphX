@@ -1,7 +1,7 @@
 # Trace Callback
 
 ## Description
-This example demonstrates how to use `program::run_trace` to inspect operator output buffers during program evaluation. The callback receives the instruction index, name, and a host-side copy of each operator's result.
+This example demonstrates how to use `program::run_trace` to inspect operator output buffers during program evaluation. The callback receives a `trace_info` object exposing the operator name and a host-side copy of each operator's result.
 
 The example shows three filtering modes:
 1. **No filter** -- callback fires for every operator

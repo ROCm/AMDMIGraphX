@@ -40,9 +40,8 @@ static void print_values(const migraphx::argument& arg, std::size_t max_elems = 
     auto lens = shape.lengths();
     auto sz   = std::accumulate(lens.begin(), lens.end(), std::size_t{1}, std::multiplies<>{});
     auto n    = std::min<std::size_t>(sz, max_elems);
-    std::vector<float> data(n);
-    auto* src = static_cast<const float*>(arg.data());
-    std::copy(src, src + n, data.data());
+    auto data = arg.as_vector<float>();
+    n         = std::min<std::size_t>(n, data.size());
     std::cout << "[";
     for(std::size_t i = 0; i < n; i++)
     {
@@ -55,10 +54,10 @@ static void print_values(const migraphx::argument& arg, std::size_t max_elems = 
     std::cout << "]";
 }
 
-static void print_cb(size_t idx, const char* name, const migraphx::argument& output)
+static void print_cb(const migraphx::trace_info& output)
 {
-    std::cout << "  @" << idx << " " << name << "\n    -> ";
-    print_values(output);
+    std::cout << "  @" << output.get_index() << " " << output.get_name() << "\n    -> ";
+    print_values(output.get_result());
     std::cout << "\n\n";
 }
 
@@ -96,21 +95,19 @@ int main()
 
     // 1. Inspect every operator
     std::cout << "=== All operators ===\n";
-    p.run_trace(params, [](size_t idx, const char* name, migraphx::argument output) {
-        print_cb(idx, name, output);
-    });
+    p.run_trace(params, print_cb);
 
     // 2. Filter by name
     std::cout << "=== concat_kernel (by name) ===\n";
-    p.run_trace(params, [](size_t idx, const char* name, migraphx::argument output) {
-        if(std::string(name).find("concat_kernel") != std::string::npos)
-            print_cb(idx, name, output);
+    p.run_trace(params, [&](migraphx::trace_info output) {
+        if(output.get_name().find("concat_kernel") != std::string::npos)
+            print_cb(output);
     });
 
     // 3. Filter by instruction index
     std::cout << "=== concat_kernel (by index) ===\n";
-    p.run_trace(params, [](size_t idx, const char* name, migraphx::argument output) {
-        if(idx == 13)
-            print_cb(idx, name, output);
+    p.run_trace(params, [&](migraphx::trace_info output) {
+        if(output.get_index() == 13)
+            print_cb(output);
     });
 }

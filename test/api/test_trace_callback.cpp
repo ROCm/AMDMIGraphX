@@ -47,8 +47,8 @@ TEST_CASE(run_trace)
     auto p            = make_add_sub_program();
     size_t call_count = 0;
     migraphx::program_parameters pp;
-    p.run_trace(pp, [&](size_t, const char*, const migraphx::argument&) { call_count++; });
-    CHECK(call_count > 0);
+    p.run_trace(pp, [&](migraphx::trace_info) { call_count++; });
+    CHECK(call_count > 0u);
 }
 
 TEST_CASE(run_trace_filter_by_name)
@@ -56,9 +56,9 @@ TEST_CASE(run_trace_filter_by_name)
     auto p = make_add_sub_program();
     std::vector<float> captured;
     migraphx::program_parameters pp;
-    p.run_trace(pp, [&](size_t, const char* name, const migraphx::argument& output) {
-        if(std::string(name).find("sub") != std::string::npos)
-            captured = output.as_vector<float>();
+    p.run_trace(pp, [&](migraphx::trace_info output) {
+        if(output.get_name().find("sub") != std::string::npos)
+            captured = output.get_result().as_vector<float>();
     });
     std::vector<float> expected(9, 2);
     CHECK(captured == expected);
@@ -69,9 +69,9 @@ TEST_CASE(run_trace_filter_by_index)
     auto p = make_add_sub_program();
     std::vector<float> captured;
     migraphx::program_parameters pp;
-    p.run_trace(pp, [&](size_t idx, const char*, const migraphx::argument& output) {
-        if(idx == 3) // sub instruction, same as filter_by_name test
-            captured = output.as_vector<float>();
+    p.run_trace(pp, [&](migraphx::trace_info output) {
+        if(output.get_index() == 3) // sub instruction, same as filter_by_name test
+            captured = output.get_result().as_vector<float>();
     });
     std::vector<float> expected(9, 2);
     CHECK(captured == expected);

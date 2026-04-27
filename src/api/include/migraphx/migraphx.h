@@ -118,10 +118,10 @@ typedef const struct migraphx_modules* const_migraphx_modules_t;
 typedef struct migraphx_module* migraphx_module_t;
 typedef const struct migraphx_module* const_migraphx_module_t;
 
-typedef void (*migraphx_trace_callback_t)(size_t instruction_index,
-                                          const char* instruction_name,
-                                          const_migraphx_argument_t result,
-                                          void* data);
+typedef struct migraphx_trace_info* migraphx_trace_info_t;
+typedef const struct migraphx_trace_info* const_migraphx_trace_info_t;
+
+typedef migraphx_status (*migraphx_trace_callback_t)(migraphx_trace_info_t info, void* data);
 
 typedef struct migraphx_program* migraphx_program_t;
 typedef const struct migraphx_program* const_migraphx_program_t;
@@ -442,6 +442,22 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_module_add_return(migraphx_instructio
 MIGRAPHX_C_EXPORT migraphx_status migraphx_module_add_allocation(migraphx_instruction_t* out,
                                                                  migraphx_module_t module,
                                                                  const_migraphx_shape_t s);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_trace_info_destroy(migraphx_trace_info_t trace_info);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_trace_info_assign_to(migraphx_trace_info_t output,
+                                                                const_migraphx_trace_info_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_trace_info_create(migraphx_trace_info_t* trace_info);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_trace_info_get_index(size_t* out, const_migraphx_trace_info_t trace_info);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_trace_info_get_name(const char** out, const_migraphx_trace_info_t trace_info);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_trace_info_get_result(
+    const_migraphx_argument_t* out, const_migraphx_trace_info_t trace_info);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_destroy(migraphx_program_t program);
 

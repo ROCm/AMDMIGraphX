@@ -27,7 +27,6 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/gemm.hpp>
-#include <migraphx/dyn_output.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/fp8_types.hpp>
 

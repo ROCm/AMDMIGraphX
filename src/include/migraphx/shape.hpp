@@ -581,9 +581,8 @@ struct MIGRAPHX_EXPORT shape
     static std::size_t static_dim_value(std::size_t x) { return x; }
     static std::size_t static_dim_value(const dynamic_dimension& d)
     {
-        assert(d.is_fixed());
-        if(d.is_symbolic())
-            return d.sym_expr.eval_uint({});
+        if(not d.is_fixed())
+            MIGRAPHX_THROW("shape::static_dim_value: dimension is not fixed");
         return d.get_interval().max;
     }
 

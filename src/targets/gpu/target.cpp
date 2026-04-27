@@ -100,9 +100,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 // BALANCED/MAX: full normalization, rewrite, and fusion pipeline.
 // EAGER: minimal normalization and fusion only.
 static std::vector<pass>
-get_gpu_independent_passes(context& ctx, const compile_options& options, bool is_eager)
+get_gpu_independent_passes(context& ctx, const compile_options& options, compile_modes mode)
 {
-    if(not is_eager)
+    if(mode != compile_modes::EAGER)
     {
         // clang-format off
         return {
@@ -192,6 +192,8 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, bool is
                 dead_code_elimination{},
                 fuse_concat{},
                 dead_code_elimination{},
+                auto_contiguous{},
+                dead_code_elimination{},
         };
         // clang-format on
     }
@@ -200,7 +202,7 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, bool is
 // Returns lowering and all subsequent passes. List is identical across all modes;
 // is_eager controls the fast-compile flag passed to compile_ops.
 static std::vector<pass>
-get_gpu_passes(context& ctx, const compile_options& options, bool is_eager)
+get_gpu_passes([[maybe_unused]] migraphx::context& gctx, context& ctx, const compile_options& options, compile_modes mode)
 {
     // clang-format off
     return {
@@ -225,7 +227,7 @@ get_gpu_passes(context& ctx, const compile_options& options, bool is_eager)
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
-            compile_ops{&ctx, options.exhaustive_tune, is_eager},
+            compile_ops{&ctx, options.exhaustive_tune, mode == compile_modes::EAGER},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -253,10 +255,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(options.compile_mode == compile_modes::MAX)
         ctx.set_exhaustive_tune_flag(true);
 
-    const bool is_eager = (options.compile_mode == compile_modes::EAGER);
-
-    auto passes = get_gpu_independent_passes(ctx, options, is_eager);
-    auto gpu_passes = get_gpu_passes(ctx, options, is_eager);
+    auto passes = get_gpu_independent_passes(ctx, options, options.compile_mode);
+    auto gpu_passes = get_gpu_passes(gctx, ctx, options, options.compile_mode);
     passes.insert(passes.end(), std::make_move_iterator(gpu_passes.begin()), std::make_move_iterator(gpu_passes.end()));
     return passes;
 }

@@ -110,14 +110,17 @@ static std::vector<std::string> get_compiler_warnings()
         "-Wno-c99-extensions",
     };
 
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
+        warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
+
+    if(hip_has_flags({"-Werror", "-Wlifetime-safety-cross-tu-suggestions"}))
+        warnings.push_back("-Wno-lifetime-safety-cross-tu-suggestions");
+
     if(hip_has_flags({"-Werror", "-Wunsafe-buffer-usage"}))
         warnings.push_back("-Wno-unsafe-buffer-usage");
 
     if(hip_has_flags({"-Werror", "-Wnrvo"}))
         warnings.push_back("-Wno-nrvo");
-
-    if(hip_has_flags({"-Werror", "-Wlifetime-safety-intra-tu-suggestions"}))
-        warnings.push_back("-Wno-lifetime-safety-intra-tu-suggestions");
 
     return warnings;
 }

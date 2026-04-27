@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/tracer.hpp>
 
 namespace migraphx {
@@ -41,12 +42,7 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
 
-    /**
-     * Value between 0 and 100 to define compilation mode.
-     * 0 - fast compile mode without optmizations, low performance
-     * 100 - best compile mode with max optimizations, best performance
-    */
-    int8_t compile_mode = 50;
+    compile_modes compile_mode = compile_modes::BALANCED;
 
     tracer trace{};
 };

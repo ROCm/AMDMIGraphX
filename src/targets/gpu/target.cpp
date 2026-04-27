@@ -249,12 +249,11 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
-    compile_modes compile_mode = convert_to_compile_mode(options.compile_mode);
 
-    if(compile_mode == compile_modes::MAX)
+    if(options.compile_mode == compile_modes::MAX)
         ctx.set_exhaustive_tune_flag(true);
 
-    const bool is_eager = (compile_mode == compile_modes::EAGER);
+    const bool is_eager = (options.compile_mode == compile_modes::EAGER);
 
     auto passes = get_gpu_independent_passes(ctx, options, is_eager);
     auto gpu_passes = get_gpu_passes(ctx, options, is_eager);

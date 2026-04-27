@@ -733,15 +733,11 @@ struct compiler
            ap.set_value(true));
         ap(co.compile_mode,
            {"--compile-mode"},
-           ap.help("Set compilation mode (0-100). 0 = fast compile, 100 = best optimizations"),
+           ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),
            ap.write_action([](auto&, auto& x, const auto& params) {
                if(params.empty())
                    throw std::runtime_error("Flag with no value.");
-               int val = std::stoi(params.back());
-               if(val < 0 or val > 100)
-                   throw std::runtime_error("Compile mode must be between 0 and 100, got: " +
-                                            params.back());
-               x = static_cast<int8_t>(val);
+               x = convert_to_compile_mode(params.back());
            }));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));

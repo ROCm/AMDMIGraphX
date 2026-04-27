@@ -22,36 +22,63 @@
  * THE SOFTWARE.
  */
 #include <migraphx/compile_modes.hpp>
+#include <migraphx/errors.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/logger.hpp>
+#include <migraphx/stringutils.hpp>
 #include <cstdlib>
 #include <algorithm>
+#include <array>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-compile_modes convert_to_compile_mode(uint8_t mode)
+
+compile_modes convert_to_compile_mode(const uint8_t mode)
 {
-    // If mode is not in range 0-100, return BALANCED
-    if(mode > 100)
-        return compile_modes::BALANCED;
-    
-    // Define the enum values as integers for comparison
-    constexpr uint8_t eager_val    = static_cast<uint8_t>(compile_modes::EAGER);
-    constexpr uint8_t balanced_val = static_cast<uint8_t>(compile_modes::BALANCED);
-    constexpr uint8_t max_val      = static_cast<uint8_t>(compile_modes::MAX);
-    
-    // Calculate distances to each enum value
-    uint8_t dist_to_eager    = std::abs(mode - eager_val);
-    uint8_t dist_to_balanced = std::abs(mode - balanced_val);
-    uint8_t dist_to_max      = std::abs(mode - max_val);
-    // Find the minimum distance
-    uint8_t min_dist = std::min({dist_to_eager, dist_to_balanced, dist_to_max});
-    
-    // Return the enum value with minimum distance
-    if(min_dist == dist_to_eager)
+    auto clamped = static_cast<uint8_t>(std::clamp<int>(mode, 0, 100));
+    if(clamped != mode)
+        log::warn() << "Compile mode value " << static_cast<int>(mode)
+                     << " out of range [0, 100], clamping to " << static_cast<int>(clamped);
+
+    static const std::array<compile_modes, 3> modes = {
+        compile_modes::EAGER, compile_modes::BALANCED, compile_modes::MAX};
+        
+    auto it = std::find_if(modes.begin(), modes.end(), [&](compile_modes m) {
+        return static_cast<uint8_t>(m) == clamped;
+    });
+    if(it != modes.end())
+        return *it;
+
+    log::warn() << "Compile mode value " << static_cast<int>(clamped)
+                << " does not match a known mode, using closest match";
+    return *std::min_element(modes.begin(), modes.end(), by(std::less<>{}, [&](compile_modes m) {
+        return std::abs(static_cast<int>(clamped) - static_cast<int>(m));
+    }));
+}
+
+compile_modes convert_to_compile_mode(const std::string& mode)
+{
+    auto lower = to_lower(mode);
+    if(lower == "eager")
         return compile_modes::EAGER;
-    if(min_dist == dist_to_balanced)
+    if(lower == "balanced")
         return compile_modes::BALANCED;
-    return compile_modes::MAX;
+    if(lower == "max")
+        return compile_modes::MAX;
+    try
+    {
+        int val = std::stoi(mode);
+        if(val < 0 or val > 100)
+            log::warn() << "Compile mode value " << val
+                        << " out of range [0, 100], clamping to " << std::clamp(val, 0, 100);
+        return convert_to_compile_mode(static_cast<uint8_t>(std::clamp(val, 0, 100)));
+    }
+    catch(const std::invalid_argument&)
+    {
+        MIGRAPHX_THROW("Invalid compile mode: " + mode +
+                       ". Expected eager, balanced, max, or an integer 0-100");
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

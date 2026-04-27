@@ -99,14 +99,14 @@ int main()
 
     // 2. Filter by name
     std::cout << "=== concat_kernel (by name) ===\n";
-    p.run_trace(params, [&](migraphx::trace_info output) {
+    p.run_trace(params, [&](const migraphx::trace_info& output) {
         if(output.get_name().find("concat_kernel") != std::string::npos)
             print_cb(output);
     });
 
     // 3. Filter by instruction index
     std::cout << "=== concat_kernel (by index) ===\n";
-    p.run_trace(params, [&](migraphx::trace_info output) {
+    p.run_trace(params, [&](const migraphx::trace_info& output) {
         if(output.get_index() == 13)
             print_cb(output);
     });

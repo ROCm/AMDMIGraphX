@@ -175,6 +175,12 @@ context& program::get_context() const
     return impl->contexts.front();
 }
 
+void program::clear_context()
+{
+    impl->contexts.clear();
+    impl->targets.clear();
+}
+
 instruction_ref program::validate() const
 {
     const auto* mm = this->get_main_module();
@@ -506,6 +512,11 @@ static std::vector<argument> generic_eval(const module* mod,
                 }));
         }
         else if(name == "@outline")
+        {
+            results.insert_or_assign(
+                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+        }
+        else if(name == "@comment")
         {
             results.insert_or_assign(
                 ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));

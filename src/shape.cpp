@@ -861,13 +861,11 @@ shape shape::to_dynamic() const
     }
     if(this->symbolic())
     {
-        std::vector<dynamic_dimension> dims;
-        dims.reserve(ndim());
-        std::transform(
-            dyn_dims().begin(), dyn_dims().end(), std::back_inserter(dims), [](const auto& d) {
-                auto iv = d.get_interval();
-                return dynamic_dimension{iv.min, iv.max, d.get_optimals()};
-            });
+        std::vector<dynamic_dimension> dims(ndim());
+        std::transform(dyn_dims().begin(), dyn_dims().end(), dims.begin(), [](const auto& d) {
+            auto iv = d.get_interval();
+            return dynamic_dimension{iv.min, iv.max, d.get_optimals()};
+        });
         return {type(), std::move(dims)};
     }
     if(this->dynamic())
@@ -887,9 +885,8 @@ static bool any_non_sym_dynamic(const shape& s)
 std::vector<shape> shape::to_dynamic(const std::vector<shape>& shapes)
 {
     const bool any_non_sym = std::any_of(shapes.begin(), shapes.end(), &any_non_sym_dynamic);
-    std::vector<shape> result;
-    result.reserve(shapes.size());
-    std::transform(shapes.begin(), shapes.end(), std::back_inserter(result), [&](const auto& s) {
+    std::vector<shape> result(shapes.size());
+    std::transform(shapes.begin(), shapes.end(), result.begin(), [&](const auto& s) {
         return any_non_sym ? s.to_dynamic() : s.to_symbolic();
     });
     return result;
@@ -915,16 +912,13 @@ shape shape::to_symbolic() const
         // Range-based dynamic shapes have no clean symbolic representation
         MIGRAPHX_THROW("SHAPE: to_symbolic() called on a range-based dynamic shape");
     }
-    std::vector<dynamic_dimension> dims;
-    dims.reserve(ndim());
-    std::transform(lens().begin(), lens().end(), std::back_inserter(dims), [](auto len) {
+    std::vector<dynamic_dimension> dims(ndim());
+    std::transform(lens().begin(), lens().end(), dims.begin(), [](auto len) {
         return dynamic_dimension{sym::lit(len)};
     });
-    std::vector<sym::expr> dstrides;
-    dstrides.reserve(ndim());
-    std::transform(strides().begin(), strides().end(), std::back_inserter(dstrides), [](auto s) {
-        return sym::lit(s);
-    });
+    std::vector<sym::expr> dstrides(ndim());
+    std::transform(
+        strides().begin(), strides().end(), dstrides.begin(), [](auto s) { return sym::lit(s); });
     return {type(), std::move(dims), std::move(dstrides)};
 }
 

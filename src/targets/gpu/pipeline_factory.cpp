@@ -204,13 +204,13 @@ std::vector<pass> pipeline_factory::backend_pipeline() const
             eliminate_concat{concat_gpu_optimization{}},
             dead_code_elimination{},
     #if MIGRAPHX_USE_MIOPEN
-            compile_miopen{gctx_ptr},
+            compile_miopen{get_context()},
             dead_code_elimination{},
     #endif
             fuse_ops{get_context(), options.fast_math},
             dead_code_elimination{},
     #if MIGRAPHX_USE_HIPBLASLT
-            compile_hipblaslt{gctx_ptr},
+            compile_hipblaslt{get_context()},
             dead_code_elimination{},
     #endif
             replace_allocate{gpu_allocation_model{}, options.offload_copy},

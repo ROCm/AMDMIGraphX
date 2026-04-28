@@ -485,6 +485,10 @@ bool shape::is_integral(shape::type_t t)
     return result;
 }
 
+// Returns true if `actual` can stand in for `expected`: same type and dims,
+// with strides matching on every non-broadcast (dim != 1) axis. Symbolic
+// shapes are compared the same way; a range-based dynamic `expected` only
+// requires matching rank.
 bool shape::is_compatible(const shape& actual, const shape& expected)
 {
     // Check subshapes

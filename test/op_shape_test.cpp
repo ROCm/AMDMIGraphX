@@ -1018,6 +1018,34 @@ TEST_CASE(dot_sym_k_mismatch)
     throws_shape(migraphx::make_op("dot"), s_a, s_b);
 }
 
+TEST_CASE(dot_sym_outer_mismatch)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{m}, dd{lit(5)}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op("dot"), s_a, s_b);
+}
+
+TEST_CASE(dot_sym_static)
+{
+    // Symbolic activation x fully-static weight: the static side should be
+    // lit-promoted so the output stays fully symbolic with the batch symbol
+    // preserved (depends on shape::to_symbolic() landing).
+    auto b = var("b", {1, 8});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{b}, dd{lit(5)}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {5, 3}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{b}, dd{lit(3)}}};
+    auto dot_op = migraphx::make_op("dot");
+    expect_shape(expected, dot_op, s_a, s_b);
+
+    std::unordered_map<se, std::size_t> sym_map = {{b, 4}};
+    migraphx::shape static_a{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape static_b{migraphx::shape::float_type, {5, 3}};
+    migraphx::shape static_out = dot_op.compute_shape({static_a, static_b});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
 TEST_CASE(dot_sym_k_vs_range)
 {
     auto m = var("m", {1, 64});

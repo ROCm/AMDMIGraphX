@@ -111,6 +111,10 @@ TEST_CASE(trace_eval_std_exception)
 
 int main(int argc, const char* argv[])
 {
+#ifdef _WIN32
+    _putenv_s("MIGRAPHX_TRACE_EVAL", "2");
+#else
     setenv("MIGRAPHX_TRACE_EVAL", "2", 1);
+#endif
     test::run(argc, argv);
 }

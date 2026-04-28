@@ -874,12 +874,7 @@ shape shape::to_dynamic() const
     {
         return *this;
     }
-    std::vector<dynamic_dimension> dims;
-    dims.reserve(ndim());
-    std::transform(lens().begin(), lens().end(), std::back_inserter(dims), [](auto len) {
-        return dynamic_dimension{len, len};
-    });
-    return {type(), std::move(dims)};
+    return {type(), lens(), lens(), {}};
 }
 
 static bool any_non_sym_dynamic(const shape& s)

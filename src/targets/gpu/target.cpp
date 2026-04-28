@@ -121,7 +121,9 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, bool is
                 dead_code_elimination{},
                 rewrite_rnn{},
                 dead_code_elimination{},
-                eliminate_data_type_for_gpu{},
+                eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
+                rewrite_resize{.affine_only = true},
+                dead_code_elimination{},
                 simplify_reshapes{.enable_gather_rewrite = true},
                 eliminate_identity{},
                 eliminate_pad{},
@@ -135,7 +137,9 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, bool is
                 optimize_module{},
                 layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
                 dead_code_elimination{},
-                prefuse_ops{},
+                fuse_horizontal{},
+                dead_code_elimination{},
+                prefuse_ops{&ctx},
                 dead_code_elimination{},
                 dead_code_elimination{},
                 rewrite_reduce{},
@@ -151,39 +155,40 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, bool is
                                                         .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
                 dead_code_elimination{},
                 optimize_module{},
-                enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),
+                fuse_pointwise_reduce{},
                 dead_code_elimination{},
-        #ifndef _WIN32
+#ifndef _WIN32
                 enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
-        #endif
+#endif
                 dead_code_elimination{},
-                enable_pass(mlir_enabled() and disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_mlir{&ctx}),
+                enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
                 dead_code_elimination{},
                 fuse_concat{},
                 dead_code_elimination{},
                 auto_contiguous{},
                 dead_code_elimination{},
+
         };
-        // clang-format on
     }
     else
     {
-        // clang-format off
         return {
                 normalize_ops{},
                 dead_code_elimination{},
-                prefuse_ops{},
+                fuse_horizontal{},
+	        dead_code_elimination{},
+	        prefuse_ops{&ctx},
                 dead_code_elimination{},
                 enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),
                                                         .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
                 dead_code_elimination{},
-                enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_pointwise_reduce{}),
+                fuse_pointwise_reduce{},
                 dead_code_elimination{},
         #ifndef _WIN32
                 enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
         #endif
                 dead_code_elimination{},
-                enable_pass(mlir_enabled() and disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_mlir{&ctx}),
+                enable_pass(mlir_enabled(), fuse_mlir{&ctx}),
                 dead_code_elimination{},
                 fuse_concat{},
                 dead_code_elimination{},
@@ -224,7 +229,7 @@ get_gpu_passes(context& ctx, migraphx::context& gctx, const compile_options& opt
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{},
+            write_literals{&ctx},
             schedule{gpu::schedule_model{ctx.get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},
             sync_device{},

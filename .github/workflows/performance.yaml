@@ -67,11 +67,17 @@ env:
 jobs:
   get_config:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     if: >
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
       github.event.action == 'closed' ||
-      contains(github.event.pull_request.labels.*.name, 'ok-to-test')
+      contains(github.event.pull_request.labels.*.name, 'ok-to-test') ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      github.event.pull_request.author_association == 'OWNER' ||
+      github.event.pull_request.author_association == 'COLLABORATOR' ||
+      github.event.pull_request.author_association == 'MEMBER'
     outputs:
       rocm_version: ${{ steps.read_config.outputs.rocm_version }}
       utils_repo: ${{ steps.read_config.outputs.utils_repo }}
@@ -85,6 +91,20 @@ jobs:
       perf_workspace: ${{ steps.read_config.outputs.perf_workspace }}
       runner_label: ${{ steps.read_config.outputs.runner_label }}
     steps:
+      - name: Remove ok-to-test label on new commits from forked PRs by external contributors
+        if: >
+          github.event.action == 'synchronize' &&
+          contains(github.event.pull_request.labels.*.name, 'ok-to-test') &&
+          github.event.pull_request.head.repo.full_name != github.repository &&
+          github.event.pull_request.author_association != 'OWNER' &&
+          github.event.pull_request.author_association != 'COLLABORATOR' &&
+          github.event.pull_request.author_association != 'MEMBER'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label "ok-to-test" --repo ${{ github.repository }} || true
+          echo "::error::New commits pushed, 'ok-to-test' label removed. Please review the changes and add the label back if tests should be run."
+          exit 1 
       - name: checkout
         uses: actions/checkout@v4
       - name: read_config

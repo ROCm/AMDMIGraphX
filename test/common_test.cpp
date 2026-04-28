@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,10 +32,9 @@ TEST_CASE(add_common_op_scalar_literal_preserves_tensor_type)
 {
     migraphx::module mm;
 
-    auto tensor =
-        mm.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {1, 100, 128}});
-    auto scalar = mm.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5f}});
+    auto tensor = mm.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {1, 100, 128}});
+    auto scalar =
+        mm.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5f}});
 
     auto result = migraphx::add_common_op(mm, migraphx::make_op("add"), {tensor, scalar});
 
@@ -46,10 +45,9 @@ TEST_CASE(add_common_op_scalar_literal_preserves_tensor_type_reversed)
 {
     migraphx::module mm;
 
-    auto tensor =
-        mm.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {1, 100, 128}});
-    auto scalar = mm.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5f}});
+    auto tensor = mm.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {1, 100, 128}});
+    auto scalar =
+        mm.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5f}});
 
     auto result = migraphx::add_common_op(mm, migraphx::make_op("add"), {scalar, tensor});
 
@@ -60,8 +58,7 @@ TEST_CASE(add_common_op_two_tensors_promotes_to_wider_type)
 {
     migraphx::module mm;
 
-    auto half_tensor =
-        mm.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {1, 128}});
+    auto half_tensor = mm.add_parameter("x", migraphx::shape{migraphx::shape::half_type, {1, 128}});
     auto float_tensor =
         mm.add_parameter("y", migraphx::shape{migraphx::shape::float_type, {1, 128}});
 
@@ -77,8 +74,8 @@ TEST_CASE(add_common_op_float_tensor_with_float_scalar_keeps_float)
 
     auto tensor =
         mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 100, 128}});
-    auto scalar = mm.add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5f}});
+    auto scalar =
+        mm.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5f}});
 
     auto result = migraphx::add_common_op(mm, migraphx::make_op("add"), {tensor, scalar});
 

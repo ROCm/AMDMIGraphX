@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -209,7 +209,7 @@ std::vector<instruction_ref> insert_common_args(module& m,
                 if(tensor_type != common.type())
                     common = shape{tensor_type, common.lens()};
             }
-        }        
+        }
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(options.common_lens and input->get_shape().lens() != common.lens())
             {

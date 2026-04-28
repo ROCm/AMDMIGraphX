@@ -349,6 +349,30 @@ struct ck_tile_splitkv
 };
 MIGRAPHX_REGISTER_OP(ck_tile_splitkv);
 
+struct ck_tile_splitkv_combine
+{
+    std::size_t num_splits = 2;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.num_splits, "num_splits"));
+    }
+
+    std::string name() const { return "gpu::ck_tile_splitkv_combine"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(2).same_ndims().min_ndims(4).max_ndims(5);
+        auto o_shape    = inputs[0];
+        auto o_lens     = o_shape.lens();
+        auto split_axis = o_lens.size() - 3;
+        o_lens.erase(o_lens.begin() + split_axis);
+        return {shape::half_type, o_lens};
+    }
+};
+MIGRAPHX_REGISTER_OP(ck_tile_splitkv_combine);
+
 struct find_flash_decoding
 {
     // configuration from fuse_attention pass config
@@ -594,6 +618,7 @@ struct find_flash_decoding
 
         // read configuration with priority: struct member (if not default) > env var > default
         std::size_t groups = get_num_splits(configured_splits);
+        std::cout << "GROUPS: " << groups << std::endl;
         std::size_t threshold =
             get_config_value(configured_threshold, 32, MIGRAPHX_FLASH_DECODING_THRESHOLD{});
         std::size_t min_chunk_size = get_config_value(
@@ -758,68 +783,84 @@ struct find_flash_decoding
         // the partial outputs O'[g] are already weighted by their group's softmax,
         // LSE[g] contains log(sum(exp(S[g]))) for each group
         // To combine: weight by exp(LSE[g]) / sum_g(exp(LSE[g']))
-
-        // compute global max for numerical stability
-        auto lse_max =
-            mm.insert_instruction(attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
-        auto lse_max_bcast = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}),
-            lse_max);
-
-        // exp(LSE - max_LSE)
-        auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
-        auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
-
-        // sum across groups
-        auto lse_sum = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), lse_exp);
-        auto lse_sum_bcast = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
-            lse_sum);
-
-        // scale factor: exp(LSE[g] - max_LSE) / sum(exp(LSE - max_LSE))
-        auto scale = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
-
-        auto scale_bcast = mm.insert_instruction(
-            attn_group_ins,
-            make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
-            scale);
-
-        // convert scale to match the type of partial_output_o_prime
-        auto output_type     = partial_output_o_prime->get_shape().type();
-        auto scale_converted = mm.insert_instruction(
-            attn_group_ins, make_op("convert", {{"target_type", output_type}}), scale_bcast);
-
-        // R = mul(O', broadcasted_scale)
-        auto scaled_r = mm.insert_instruction(
-            attn_group_ins, make_op("mul"), partial_output_o_prime, scale_converted);
-
-        // O = sum(R, axis=G_axis)
-        auto final_output_o = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), scaled_r);
-
-        // squeeze G to match the original output shape
-        auto final_squeezed_o = mm.insert_instruction(
-            attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
-
-        // if padding was applied, slice to remove it
-        instruction_ref final_result = final_squeezed_o;
-        if(padding_needed > 0)
+        instruction_ref final_result;
+        if(true)
+        // if(not enabled(MIGRAPHX_ENABLE_CK{}))
         {
-            // need to slice the sequence dimension to remove padding
-            // final_squeezed_o has shape like [B, M_padded, D], need to slice M back to original
-            auto output_shape            = final_squeezed_o->get_shape();
-            const auto& output_lens      = output_shape.lens();
-            std::size_t seq_dim_idx      = output_lens.size() - 2; // sequence dim is second to last
-            std::size_t original_seq_len = output_lens[seq_dim_idx] - padding_needed;
+            // compute global max for numerical stability
+            auto lse_max = mm.insert_instruction(
+                attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
+            auto lse_max_bcast = mm.insert_instruction(
+                attn_group_ins,
+                make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}),
+                lse_max);
 
+            // exp(LSE - max_LSE)
+            auto lse_sub =
+                mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
+            auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
+
+            // sum across groups
+            auto lse_sum = mm.insert_instruction(
+                attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), lse_exp);
+            auto lse_sum_bcast = mm.insert_instruction(
+                attn_group_ins,
+                make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
+                lse_sum);
+
+            // scale factor: exp(LSE[g] - max_LSE) / sum(exp(LSE - max_LSE))
+            auto scale =
+                mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
+
+            auto scale_bcast = mm.insert_instruction(
+                attn_group_ins,
+                make_op("multibroadcast",
+                        {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
+                scale);
+
+            // convert scale to match the type of partial_output_o_prime
+            auto output_type     = partial_output_o_prime->get_shape().type();
+            auto scale_converted = mm.insert_instruction(
+                attn_group_ins, make_op("convert", {{"target_type", output_type}}), scale_bcast);
+
+            // R = mul(O', broadcasted_scale)
+            auto scaled_r = mm.insert_instruction(
+                attn_group_ins, make_op("mul"), partial_output_o_prime, scale_converted);
+
+            // O = sum(R, axis=G_axis)
+            auto final_output_o = mm.insert_instruction(
+                attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), scaled_r);
+
+            // squeeze G to match the original output shape
+            auto final_squeezed_o = mm.insert_instruction(
+                attn_group_ins, make_op("squeeze", {{"axes", {g_axis}}}), final_output_o);
+
+            // if padding was applied, slice to remove it
+            final_result = final_squeezed_o;
+            if(padding_needed > 0)
+            {
+                // need to slice the sequence dimension to remove padding
+                // final_squeezed_o has shape like [B, M_padded, D], need to slice M back to
+                // original
+                auto output_shape       = final_squeezed_o->get_shape();
+                const auto& output_lens = output_shape.lens();
+                std::size_t seq_dim_idx = output_lens.size() - 2; // sequence dim is second to last
+                std::size_t original_seq_len = output_lens[seq_dim_idx] - padding_needed;
+
+                final_result = mm.insert_instruction(
+                    attn_group_ins,
+                    make_op(
+                        "slice",
+                        {{"axes", {seq_dim_idx}}, {"starts", {0}}, {"ends", {original_seq_len}}}),
+                    final_squeezed_o);
+            }
+        }
+        else
+        {
             final_result = mm.insert_instruction(
                 attn_group_ins,
-                make_op("slice",
-                        {{"axes", {seq_dim_idx}}, {"starts", {0}}, {"ends", {original_seq_len}}}),
-                final_squeezed_o);
+                make_op("gpu::ck_tile_splitkv_combine", {{"num_splits", actual_groups}}),
+                {partial_output_o_prime, lse});
         }
 
         // replace the original group instruction with the final result
@@ -848,8 +889,8 @@ struct find_kv_cache_attention
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
         auto queries = match::name("slice");
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
-        auto gemm1_maybe_cvt = match::skip(match::name("convert"))(gemm1);
-        auto scale           = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
+        auto gemm1_maybe_cvt   = match::skip(match::name("convert"))(gemm1);
+        auto scale             = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
         auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
         auto attn_scores       = match::any_of(scale, gemm1_maybe_cvt);
         auto causal_mask =

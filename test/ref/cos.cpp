@@ -311,7 +311,7 @@ TEST_CASE(bla3)
     migraphx::compile_options options;
     options.offload_copy = true;
     gpu_p.compile(migraphx::make_target("gpu"), options);
-    // std::cout << gpu_p << std::endl;
+    std::cout << gpu_p << std::endl;
     auto gpu_out = gpu_p.eval(pm).back();
     std::vector<migraphx::half> gpu_out_data(gpu_out.get_shape().elements());
     gpu_out.visit([&](auto output) { gpu_out_data.assign(output.begin(), output.end()); });
@@ -366,25 +366,42 @@ TEST_CASE(combine_test)
 
 TEST_CASE(make_combinations)
 {
+    setenv("MIGRAPHX_FLASH_DECODING_ENABLED", "1", 1);
+    std::string backend = "ck";
+    if(backend == "ck")
+    {
+        setenv("MIGRAPHX_ENABLE_CK", "1", 1);
+    }
     const std::size_t batch = 2;
     const std::size_t nhead = 4;
 
-    std::vector<size_t> seqlens_q{1};
-    std::vector<size_t> seqlens_k{512, 1024, 2048, 4096};
+    const char* num_split_chars = std::getenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS");
+    if(num_split_chars == nullptr) {
+        throw std::runtime_error("MIGRAPHX_FLASH_DECODING_NUM_SPLITS is not set");
+    }
+    std::size_t num_split = std::stoull(num_split_chars);
+    std::vector<size_t> seqlens_q{1, 16, 32};
+    std::vector<size_t> seqlens_k{1024, 2048, 4096};
     std::vector<size_t> hdims_q{32, 48, 64, 80, 96, 128, 192, 256};
     std::vector<size_t> hdims_v{32, 48, 64, 80, 96, 128, 192, 256};
+    auto num_combinations =
+        seqlens_q.size() * seqlens_k.size() * hdims_q.size() * hdims_v.size();
+    auto iteration = 1ul;
 
     for(const auto& seqlen_q : seqlens_q)
     {
         for(const auto& seqlen_k : seqlens_k)
         {
+            if(seqlen_k / num_split < 32)
+            {
+                std::cout << "Skipping seqlen_k = " << seqlen_k << std::endl;
+                iteration += hdims_q.size() * hdims_v.size();
+                continue;
+            }
             for(const auto& hdim_q : hdims_q)
             {
                 for(const auto& hdim_v : hdims_v)
                 {
-                    // if(seqlen_q != 512 or seqlen_k != 512 or hdim_q != 32 or hdim_v != 32) {
-                    //     continue;
-                    // }
                     const std::size_t M = seqlen_q; // seqlen_q
                     const std::size_t N = seqlen_k; // seqlen_k
                     const std::size_t K = hdim_q;   // hdim_q
@@ -419,13 +436,15 @@ TEST_CASE(make_combinations)
                     auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
                     mm->add_return({gemm2});
 
-                    std::string backend = "ck";
                     migraphx::compile_options options;
                     options.exhaustive_tune = backend == "mlir" ? false : true;
 
+                    std::cout << "Iteration " << iteration++ << "/" << num_combinations
+                              << std::endl;
+
                     std::stringstream ss;
-                    ss << backend << "_" << batch << "_" << nhead << "_" << M << "_" << N << "_"
-                       << K << "_" << O << ".mxr";
+                    ss << backend << "_" << num_split << "_" << batch << "_" << nhead << "_" << M
+                       << "_" << N << "_" << K << "_" << O << ".mxr";
                     std::string check_filename = "saved_models/" + backend + "_models/" + ss.str();
                     if(std::filesystem::exists(check_filename))
                     {
@@ -439,9 +458,9 @@ TEST_CASE(make_combinations)
                     p.compile(migraphx::make_target("gpu"), options);
                     auto end_time = std::chrono::high_resolution_clock::now();
                     std::chrono::duration<double> elapsed = end_time - start_time;
+                    std::cout << p << std::endl;
                     std::cout << "Finished compiling " << output_filename << " in "
                               << elapsed.count() << " seconds" << std::endl;
-                    std::cout << p << std::endl;
                     migraphx::save(p, output_filename);
                 }
             }
@@ -516,7 +535,8 @@ TEST_CASE(test_combinations)
             std::vector<migraphx::half> ref_out_data(ref_out.get_shape().elements());
             ref_out.visit([&](auto output) { ref_out_data.assign(output.begin(), output.end()); });
             std::cout << "Ref out data: ";
-            for(auto i = 0; i < 35; ++i) {
+            for(auto i = 0; i < 35; ++i)
+            {
                 std::cout << ref_out_data[i] << " ";
             }
             std::cout << std::endl;
@@ -525,7 +545,8 @@ TEST_CASE(test_combinations)
             std::vector<migraphx::half> gpu_out_data(gpu_out.get_shape().elements());
             gpu_out.visit([&](auto output) { gpu_out_data.assign(output.begin(), output.end()); });
             std::cout << "GPU out data: ";
-            for(auto i = 0; i < 35; ++i) {
+            for(auto i = 0; i < 35; ++i)
+            {
                 std::cout << gpu_out_data[i] << " ";
             }
             std::cout << std::endl;

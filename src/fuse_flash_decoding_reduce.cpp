@@ -36,28 +36,28 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-struct ck_tile_splitkv_combine 
-{
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack();
-    }
+// struct ck_tile_splitkv_combine 
+// {
+//     template <class Self, class F>
+//     static auto reflect(Self& self, F f)
+//     {
+//         return pack();
+//     }
 
-    std::string name() const { return "gpu::ck_tile_splitkv_combine"; }
+//     std::string name() const { return "gpu::ck_tile_splitkv_combine"; }
 
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(2).same_ndims().min_ndims(4).max_ndims(5);
-        auto o_shape   = inputs[0];
-        auto o_lens    = o_shape.lens();
-        auto split_axis = o_lens.size() - 3;
-        o_lens.erase(o_lens.begin() + split_axis);
-        return {o_shape.type(), o_lens};
-    }
+//     shape compute_shape(const std::vector<shape>& inputs) const
+//     {
+//         check_shapes{inputs, *this}.has(2).same_ndims().min_ndims(4).max_ndims(5);
+//         auto o_shape   = inputs[0];
+//         auto o_lens    = o_shape.lens();
+//         auto split_axis = o_lens.size() - 3;
+//         o_lens.erase(o_lens.begin() + split_axis);
+//         return {o_shape.type(), o_lens};
+//     }
 
-};
-MIGRAPHX_REGISTER_OP(ck_tile_splitkv_combine);
+// };
+// MIGRAPHX_REGISTER_OP(ck_tile_splitkv_combine);
 
 struct find_flash_decoding_reduce
 {

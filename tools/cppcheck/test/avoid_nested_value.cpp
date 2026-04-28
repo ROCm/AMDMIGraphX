@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,26 +20,44 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_NONZERO_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_NONZERO_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+// cppcheck-suppress-file noExplicitConstructor
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
+#include <type_traits>
 
-argument MIGRAPHX_DEVICE_EXPORT nonzero(hipStream_t stream,
-                                        const argument& result,
-                                        const argument& arg_data);
+void test_type_trait()
+{
+    // cppcheck-suppress migraphx-AvoidNestedValue
+    static_assert(std::is_same<int, int>::value);
+}
 
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+auto test_generic_var()
+{
+    return [](auto i) {
+        // cppcheck-suppress migraphx-AvoidNestedValue
+        return decltype(i)::value;
+    };
+}
 
-#endif
+namespace a {
+inline namespace n1 {
+struct value
+{
+    int x;
+    value(int y);
+};
+
+value::value(int y) : x(y) {}
+
+} // namespace n1
+} // namespace a
+
+namespace b {
+a::value test_value_as_class()
+{
+    a::value v(42);
+    return v;
+}
+} // namespace b

@@ -32,10 +32,10 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
-#include <migraphx/logger.hpp>
 #include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
+#include <tuple>
 
 #ifdef MIGRAPHX_MLIR
 #include <mlir-c/IR.h>
@@ -48,7 +48,7 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 5
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -76,6 +76,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/logger.hpp>
 #include <deque>
 #include <variant>
 #include <fstream>
@@ -639,13 +640,13 @@ struct mlir_program
         auto ops = create_operation_state("func.func");
         ops.add_attributes({{"function_type", make_function_type(input_shapes, outputs)},
                             {"sym_name", sym_name},
-                            {"kernel", std::string("mixr")},
-                            {"arch", target_arch},
-                            {"num_cu", num_cu},
-                            {"num_chiplets", num_chiplets}});
+                            {"rock.kernel", std::string("mixr")},
+                            {"rock.arch", target_arch},
+                            {"rock.num_cu", num_cu},
+                            {"rock.num_chiplets", num_chiplets}});
         if(enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
         {
-            ops.add_attributes({{"enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
+            ops.add_attributes({{"rock.enable_splitk_for_tuning", mlirUnitAttrGet(ctx.get())}});
         }
         ops.add_region(std::move(region));
         insert(body, std::move(ops));
@@ -906,16 +907,20 @@ struct mlir_program
             std::string error = "Invalid MLIR created: " + logger.str();
             if(enabled(MIGRAPHX_TRACE_MLIR{}))
             {
-                log::trace() << error;
+                std::cout << error << std::endl;
             }
             MIGRAPHX_THROW(error);
         }
     }
 
-    void run_backend_pipeline()
+    void run_backend_pipeline(const std::string& solution)
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
-        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+        MlirMIGraphXBackendOptions opts{};
+        opts.arch       = target_arch.c_str();
+        opts.perfConfig = solution.c_str();
+        opts.optLevel   = 3;
+        mlirMIGraphXAddBackendPipeline(pm_back.get(), &opts);
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
         static std::mutex mutex;
@@ -923,7 +928,7 @@ struct mlir_program
         if(trace >= 2)
         {
             const std::lock_guard<std::mutex> lock(mutex);
-            log::trace() << mlir_print(&mlirOperationPrint, mod_op);
+            std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
         }
 
         if(mlirLogicalResultIsFailure(mlirPassManagerRunOnOp(pm_back.get(), mod_op)))
@@ -931,7 +936,7 @@ struct mlir_program
             std::string error = "MLIR backend compilation failed: " + logger.str();
             if(enabled(MIGRAPHX_TRACE_MLIR{}))
             {
-                log::trace() << error;
+                std::cout << error << std::endl;
             }
             MIGRAPHX_THROW(error);
         }
@@ -944,15 +949,17 @@ struct mlir_program
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
             get_module_tuned();
-        if(not solution.is_null())
-            set_tuning(solution);
+        if(solution.is_null())
+            MIGRAPHX_THROW("MLIR backend pipeline requires a tuning solution");
+        set_tuning(solution);
         // 2nd pipeline to call
-        run_backend_pipeline();
+        run_backend_pipeline(solution.to<std::string>());
 
         code_object_op op{};
-        op.symbol_name                = sym_name;
-        op.code_object                = get_binary();
-        std::tie(op.global, op.local) = get_launch_params();
+        op.symbol_name = sym_name;
+        op.code_object = get_binary();
+        // TODO: update code_object_op to use cluster size
+        std::tie(std::ignore, op.global, op.local) = get_launch_params();
         return op;
     }
 
@@ -964,14 +971,15 @@ struct mlir_program
         num_chiplets       = device.get_chiplet_count();
     }
 
-    std::pair<std::size_t, std::size_t> get_launch_params() const
+    std::tuple<std::size_t, std::size_t, std::size_t> get_launch_params() const
     {
-        uint32_t attrs[2];
-        // returns block and grid sizes
+        uint32_t attrs[3];
+        // returns block, grid and cluster sizes
         mlirGetKernelAttrs(mmodule.get(), attrs);
-        std::size_t local  = attrs[0];
-        std::size_t global = local * attrs[1];
-        return {global, local};
+        std::size_t local   = attrs[0];
+        std::size_t global  = local * attrs[1];
+        std::size_t cluster = attrs[2];
+        return {cluster, global, local};
     }
 
     value::binary get_binary() const
@@ -1112,8 +1120,7 @@ struct mlir_program
                                         prob_config.begin() + prob_config_bytes);
             if(tuning_table.second)
             {
-                log::info() << "NOTE: MLIR tuning table did not include a key for "
-                            << prob_config_str;
+                log::info() << "MLIR tuning table did not include a key for " << prob_config_str;
             }
             dump_tuning_cfg(prob_config_str);
             return false;
@@ -1127,8 +1134,8 @@ struct mlir_program
     mlir_logger logger;
     problem_params pp;
     std::deque<std::string> strings{};
-    std::string target_arch = "";
-    std::size_t num_cu      = 0;
+    std::string target_arch  = "";
+    std::size_t num_cu       = 0;
     std::size_t num_chiplets = 0;
     std::string sym_name;
 };
@@ -1279,7 +1286,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        log::trace() << m;
+        std::cout << m << std::endl;
     }
 
     mlir_program mp;
@@ -1290,7 +1297,7 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        log::trace() << mlir_print(&mlirOperationPrint, mod_op);
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
     auto co            = mp.compile(solution);
@@ -1353,16 +1360,16 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     if(trace)
     {
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-        log::trace() << mlir_print(&mlirOperationPrint, mod_op);
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     auto tc = mp.get_tuning_config(exhaustive);
     static std::mutex mutex;
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        log::trace() << "Problem: " << tc.problem;
+        std::cout << "Problem: " << tc.problem << std::endl;
         auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-        log::trace() << mlir_print(&mlirOperationPrint, mod_op);
+        std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
     return tc;
 }

@@ -180,7 +180,6 @@ add_library(migraphx_gpu
     lrn.cpp
     mlir.cpp
     no_device.cpp
-    nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
     prepare_mlir.cpp
@@ -188,7 +187,6 @@ add_library(migraphx_gpu
     perfdb.cpp
     pooling.cpp
     problem_cache.cpp
-    rnn_variable_seq_lens.cpp
     rocblas.cpp
     schedule_model.cpp
     sync_device.cpp
@@ -212,8 +210,6 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     fixed_pad
     loop
-    nonzero
-    prefix_scan_sum
     topk
 )
 if (MIGRAPHX_USE_MIOPEN)
@@ -228,10 +224,6 @@ register_migraphx_gpu_ops(miopen_
     contiguous
 )
 endif()
-register_op(migraphx_gpu
-    HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
-    OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
-    INCLUDES migraphx/gpu/context.hpp)
 if(MIGRAPHX_USE_ROCBLAS)
     register_op(migraphx_gpu
         HEADER migraphx/gpu/gemm.hpp

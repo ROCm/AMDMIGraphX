@@ -31,8 +31,9 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/erase.hpp>
 #include <migraphx/config.hpp>
-#include <string>
+#include <set>
 #include <unordered_set>
+#include <string>
 #include <utility>
 
 namespace migraphx {
@@ -94,6 +95,14 @@ struct MIGRAPHX_EXPORT instruction
 
     /// Where this instruction is used as an input to another instruction
     const std::vector<instruction_ref>& outputs() const;
+
+    const std::set<std::string>& get_debug_symbols() const;
+
+    /// Avoid using directly because module will not track number of debug symbols
+    void add_debug_symbols(const std::set<std::string>& symbols);
+
+    /// Avoid using directly because module will not track number of debug symbols
+    void remove_debug_symbols();
 
     MIGRAPHX_EXPORT friend bool operator==(const instruction& x, const instruction& y);
 
@@ -188,6 +197,7 @@ struct MIGRAPHX_EXPORT instruction
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     std::vector<module_ref> module_args;
+    std::set<std::string> debug_symbols;
     literal lit;
     bool normalized       = false;
     std::size_t target_id = 0;

@@ -33,7 +33,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/logger.hpp>
+#include <iostream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,7 +45,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_NARY);
 // NOLINTNEXTLINE
 #define MIGRAPHX_TRACE_NARY_FUNCTION   \
     if(enabled(MIGRAPHX_TRACE_NARY{})) \
-        log::trace() << "nary device function: " << __PRETTY_FUNCTION__;
+        std::cout << "nary device function: " << __PRETTY_FUNCTION__ << std::endl;
 
 template <class... Ts>
 constexpr auto pack(Ts... xs)

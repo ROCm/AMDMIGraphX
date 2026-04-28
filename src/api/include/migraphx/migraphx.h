@@ -536,6 +536,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
     migraphx_onnx_options_t onnx_options, const char* external_data_path);
 
 MIGRAPHX_C_EXPORT migraphx_status
+migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value);
+
+MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_file_options_assign_to(
@@ -663,8 +666,6 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operator_name_at_index(char*
                                                                            size_t index);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operators_size(size_t* out);
-
-MIGRAPHX_C_EXPORT migraphx_status migraphx_set_log_header(bool show);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 

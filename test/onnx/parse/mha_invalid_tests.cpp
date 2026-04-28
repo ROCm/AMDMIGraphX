@@ -143,3 +143,53 @@ TEST_CASE(multi_head_attention_invalid_attention_bias_kv_seq_len_test)
 {
     EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_kv_seq_len_test.onnx"); }));
 }
+
+TEST_CASE(multi_head_attention_invalid_past_key_not_4d_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_key_not_4d_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_key_batch_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_key_batch_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_key_num_heads_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_key_num_heads_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_key_head_size_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_key_head_size_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_value_not_4d_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_value_not_4d_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_value_batch_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_value_batch_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_value_num_heads_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_value_num_heads_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_value_head_size_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_value_head_size_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_seq_len_mismatch_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_seq_len_mismatch_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_seq_len_type_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_seq_len_type_test.onnx"); }));
+}

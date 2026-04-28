@@ -175,6 +175,12 @@ context& program::get_context() const
     return impl->contexts.front();
 }
 
+void program::clear_context()
+{
+    impl->contexts.clear();
+    impl->targets.clear();
+}
+
 instruction_ref program::validate() const
 {
     const auto* mm = this->get_main_module();
@@ -248,7 +254,7 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
     auto trace = tracer{};
     // TODO: Add tracer based on compile options
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
-        trace = tracer{true};
+        trace = tracer{std::cout};
 
     trace(*this);
     trace();
@@ -319,7 +325,7 @@ void program::compile(const target& t, compile_options options)
     this->impl->contexts = {t.get_context()};
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}))
-        options.trace = tracer{true};
+        options.trace = tracer{std::cout};
 
     options.trace(*this);
     options.trace();
@@ -507,6 +513,11 @@ static std::vector<argument> generic_eval(const module* mod,
             results.insert_or_assign(
                 ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
+        else if(name == "@comment")
+        {
+            results.insert_or_assign(
+                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+        }
         else if(name == "@return")
         {
             std::vector<argument> prog_outputs;
@@ -612,13 +623,13 @@ std::vector<argument> program::eval(const parameter_map& params,
         ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
             const auto& ctx = contexts[ins->get_target_id()];
             ctx.finish();
-            log::trace() << "Run instruction: " << ins_out.at(ins);
+            std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
             timer t{};
             auto result = f();
             double t1   = t.record<milliseconds>();
             ctx.finish();
             double t2 = t.record<milliseconds>();
-            log::trace() << "Time: " << t1 << "ms, " << t2 << "ms";
+            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
             if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
                not result.empty())
             {
@@ -639,17 +650,16 @@ std::vector<argument> program::eval(const parameter_map& params,
                 }
                 if(trace_level == 2)
                 {
-                    std::ostringstream ss;
-                    ss << "Output has " << to_string_range(classify_argument(buffer)) << "\n";
-                    ss << "Output: ";
-                    preview_argument(ss, buffer);
-                    ss << "\n";
-                    print_statistics(ss, buffer);
-                    log::trace() << ss.str();
+                    std::cout << "Output has " << to_string_range(classify_argument(buffer))
+                              << std::endl;
+                    std::cout << "Output: ";
+                    preview_argument(std::cout, buffer);
+                    std::cout << std::endl;
+                    print_statistics(std::cout, buffer);
                 }
                 else
                 {
-                    log::trace() << "Output: " << buffer;
+                    std::cout << "Output: " << buffer << std::endl;
                 }
             }
             return result;
@@ -687,7 +697,7 @@ static std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 7;
+const int program_file_version = 8;
 
 value program::to_value() const
 {
@@ -732,12 +742,14 @@ value program::to_value() const
                                    [&](auto mod_ref) { return mod_ref->name(); });
                     node["module_inputs"] = module_inputs;
                 }
-
+                if(not ins->get_debug_symbols().empty())
+                {
+                    node["debug_symbols"] = migraphx::to_value(ins->get_debug_symbols());
+                }
                 nodes.push_back(node);
             },
             names);
-        mod_val["nodes"] = nodes;
-
+        mod_val["nodes"]         = nodes;
         module_vals[mod->name()] = mod_val;
     }
 
@@ -811,6 +823,10 @@ static void mod_from_val(module_ref mod,
             }
         }
         output->set_normalized(normalized);
+        if(node.contains("debug_symbols"))
+        {
+            output->add_debug_symbols(from_value<std::set<std::string>>(node.at("debug_symbols")));
+        }
         instructions[node.at("output").to<std::string>()] = output;
     }
 }
@@ -1045,13 +1061,13 @@ void program::perf_report(
     os << percentile_90_time << "ms, " << percentile_95_time << "ms, " << percentile_99_time
        << "ms)" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
-    os << "Overhead time: " << overhead_time << "ms"
-       << ", " << calculate_overhead_time << "ms" << std::endl;
-    os << "Overhead: " << std::round(overhead_percent) << "%"
-       << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
+    os << "Overhead time: " << overhead_time << "ms" << ", " << calculate_overhead_time << "ms"
+       << std::endl;
+    os << "Overhead: " << std::round(overhead_percent) << "%" << ", "
+       << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
-void program::debug_print() const { log::debug() << *this; }
+void program::debug_print() const { std::cout << *this << std::endl; }
 void program::debug_print(instruction_ref ins) const
 {
     std::unordered_map<instruction_ref, std::string> names;
@@ -1059,23 +1075,22 @@ void program::debug_print(instruction_ref ins) const
            return is_end(pp.second.end(), ins);
        }))
     {
-        log::debug() << "End instruction";
+        std::cout << "End instruction" << std::endl;
         return;
     }
     else if(std::none_of(this->impl->modules.begin(),
                          this->impl->modules.end(),
                          [&](const auto& pp) { return pp.second.has_instruction(ins); }))
     {
-        log::debug() << "Instruction not part of program";
+        std::cout << "Instruction not part of program" << std::endl;
         return;
     }
 
     this->print(names, [&](auto x, const auto& ins_names) {
         if(x == ins)
         {
-            std::ostringstream ss;
-            instruction::print(ss, x, ins_names);
-            log::debug() << ss.str();
+            instruction::print(std::cout, x, ins_names);
+            std::cout << std::endl;
         }
     });
 }
@@ -1373,7 +1388,10 @@ program& program::sort()
     return *this;
 }
 
-bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
+bool operator==(const program& x, const program& y)
+{
+    return migraphx::to_string(x) == migraphx::to_string(y);
+}
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

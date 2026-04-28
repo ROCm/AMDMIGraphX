@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,6 +53,9 @@ struct hiprtc_src_file
         return pack(f(self.path, "path"), f(self.content, "content"));
     }
 };
+
+MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
+                                         const std::vector<std::string>& flags);
 
 MIGRAPHX_GPU_EXPORT bool hip_has_flags(const std::vector<std::string>& flags);
 

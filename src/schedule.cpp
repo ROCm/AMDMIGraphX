@@ -37,7 +37,6 @@
 #include <thread>
 #include <mutex>
 #include <migraphx/make_op.hpp>
-#include <migraphx/logger.hpp>
 
 #include <set>
 #include <deque>
@@ -545,23 +544,22 @@ void schedule::apply(module& m) const
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))
     {
-        std::ostringstream ss;
-        m.annotate(ss, [&](auto ins) {
+        m.annotate(std::cout, [&](auto ins) {
             if(ins->name() == "@param" and not contains(si.weights, ins))
                 return;
 
-            ss << ":";
-            ss << " weight=" << si.weights.at(ins);
-            ss << " input={";
+            std::cout << ":";
+            std::cout << " weight=" << si.weights.at(ins);
+            std::cout << " input={";
             si.get_streams_from(ins, get_inputs())([&](auto s) {
-                ss << s << ",";
+                std::cout << s << ",";
                 return true;
             });
-            ss << "}";
+            std::cout << "}";
             if(si.has_stream(ins))
-                ss << " stream=" << si.get_stream(ins);
+                std::cout << " stream=" << si.get_stream(ins);
         });
-        log::trace() << ss.str();
+        std::cout << std::endl;
     }
 
     // No concurrency

@@ -201,6 +201,22 @@ target_link_libraries(myApp migraphx::c)
 
 Where `myApp` is the CMake target in your project.
 
+## Other Dockerfiles
+
+Alternative Dockerfiles are available under `tools/docker/`:
+
+* `tools/docker/ubuntu_2404.dockerfile` — Ubuntu 24.04 with ROCm 7.1.1
+* `tools/docker/ubuntu_2204.dockerfile` — Ubuntu 22.04 with ROCm 6.4.2
+
+To build with one of these, use the `-f` flag. For example:
+
+```bash
+docker build -t migraphx:2404 -f tools/docker/ubuntu_2404.dockerfile .
+```
+
+Then follow the same `docker run` and build steps described in the
+[Use Docker](#use-docker) section.
+
 ## Building for development
 
 Using `rbuild`, you can install the dependencies for development with:

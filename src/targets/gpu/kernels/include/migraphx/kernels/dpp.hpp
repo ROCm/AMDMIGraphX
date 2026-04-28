@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -99,6 +99,21 @@ template <class T>
 __device__ T readlane(T& x, unsigned int src_lane)
 {
     return dpp_op(x, [&](auto i) { return __shfl(i, src_lane, MIGRAPHX_WAVEFRONTSIZE); });
+}
+
+// offset is known at compile time
+template <unsigned int Offset, unsigned int Width, class T>
+__device__ T readlane_up(T& x)
+{
+    static_assert(is_power_of_2(Width), "Width must be a power of 2");
+    return dpp_op(x, [](auto i) { return __shfl_up(i, Offset, Width); });
+}
+
+// offset is not known until runtime
+template <class T>
+__device__ T readlane_up(T& x, unsigned int offset)
+{
+    return dpp_op(x, [&](auto i) { return __shfl_up(i, offset, MIGRAPHX_WAVEFRONTSIZE); });
 }
 
 template <unsigned int XorMask, class T>

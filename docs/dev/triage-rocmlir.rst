@@ -44,7 +44,7 @@ If error message like above is present then proceed with following steps.
 ::
 
    module {
-     func.func @mlir_convolution(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x2x2xf32, 8x4x2x1> attributes {arch = "gfx90a:sramecc+:xnack-", enable_splitk_for_tuning = true, kernel = "mixr", num_cu = 110 : i64} {
+     func.func @mlir_convolution(%arg0: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg1: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x2x2xf32, 8x4x2x1> attributes {rock.arch = "gfx90a:sramecc+:xnack-", rock.enable_splitk_for_tuning = true, rock.kernel = "mixr", rock.num_cu = 110 : i64, rock.num_chiplets = 1 : i64} {
        %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x16x4x1>, <2x8x3x3xf32, 72x9x3x1> -> <1x2x2x2xf32, 8x4x2x1>
        return %0 : !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>
      }
@@ -132,7 +132,7 @@ Step 4 See if its a ``B3`` - accuracy issue of MLIR-generated kernel
 ::
 
  module {
-     func.func @mlir_dot_add(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes {arch = "gfx90a:sramecc+:xnack-", enable_splitk_for_tuning = true, kernel = "mixr", num_cu = 110 : i64} {
+     func.func @mlir_dot_add(%arg0: !migraphx.shaped<1x5x4xf32, 20x4x1>, %arg1: !migraphx.shaped<1x4x3xf32, 12x3x1>, %arg2: !migraphx.shaped<1x5x3xf32, 15x3x1>) -> !migraphx.shaped<1x5x3xf32, 15x3x1> attributes {rock.arch = "gfx90a:sramecc+:xnack-", rock.enable_splitk_for_tuning = true, rock.kernel = "mixr", rock.num_cu = 110 : i64, rock.num_chiplets = 1 : i64} {
        %0 = migraphx.dot %arg0, %arg1 : <1x5x4xf32, 20x4x1>, <1x4x3xf32, 12x3x1> -> <1x5x3xf32, 15x3x1>
        %1 = migraphx.add %0, %arg2 : <1x5x3xf32, 15x3x1>, <1x5x3xf32, 15x3x1> -> <1x5x3xf32, 15x3x1>
        return %1 : !migraphx.shaped<1x5x3xf32, 15x3x1>

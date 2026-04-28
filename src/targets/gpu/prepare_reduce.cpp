@@ -81,19 +81,19 @@ MIGRAPHX_REGISTER_OP(arg_reduce);
 
 struct make_indices
 {
-    std::size_t size = 0;
-
     template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    static auto reflect(Self&, F)
     {
-        return pack(f(self.size, "size"));
+        return pack();
     }
 
     std::string name() const { return "gpu::make_indices"; }
 
-    shape compute_shape(const std::vector<shape>&) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
-        return shape{shape::uint32_type, {size}};
+        if(inputs.size() != 1)
+            MIGRAPHX_THROW("gpu::make_indices expects one value tensor operand");
+        return shape{shape::uint32_type, inputs.front().lens()};
     }
 };
 MIGRAPHX_REGISTER_OP(make_indices);
@@ -117,14 +117,8 @@ void rewrite_arg_reduce(module& m)
     for(auto ins : find_arg_reduce(m))
     {
         auto input     = ins->inputs().front();
-        auto v         = ins->get_operator().to_value();
-        auto axis_val  = v["axis"].to<int64_t>();
-        auto ndim      = input->get_shape().ndim();
-        auto axis      = axis_val < 0 ? axis_val + ndim : axis_val;
-        auto axis_size = input->get_shape().lens()[axis];
-
-        // make_indices to generate lazy indices
-        auto indices = m.insert_instruction(ins, make_indices{axis_size});
+        // make_indices(value): lazy index stream sized from the same tensor the reducer slices
+        auto indices = m.insert_instruction(ins, make_indices{}, input);
         // arg_reduce op to get values and indices tuple
         auto arg_reduce_ins =
             m.insert_instruction(ins, arg_reduce{ins->get_operator()}, input, indices);

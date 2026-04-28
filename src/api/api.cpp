@@ -39,7 +39,6 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/source_location.hpp>
-#include <migraphx/logger.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
@@ -177,6 +176,11 @@ static void set_external_data_path(onnx_options& options, const char* external_d
 static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 {
     options.limit_max_iterations = value;
+}
+
+static void set_use_debug_symbols(onnx_options& options, bool value)
+{
+    options.use_debug_symbols = value;
 }
 
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
@@ -393,8 +397,6 @@ static void register_custom_op(const CustomOp& op)
 }
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
-
-static void set_log_header(bool show) { log::set_show_header(show); }
 
 } // namespace migraphx
 
@@ -1994,6 +1996,17 @@ migraphx_onnx_options_set_external_data_path(migraphx_onnx_options_t onnx_option
     return api_error_result;
 }
 
+extern "C" migraphx_status
+migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        migraphx::set_use_debug_symbols((onnx_options->object), (value));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_file_options_destroy(migraphx_file_options_t file_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((file_options)); });
@@ -2426,12 +2439,6 @@ extern "C" migraphx_status migraphx_get_onnx_operator_name_at_index(char** out, 
 extern "C" migraphx_status migraphx_get_onnx_operators_size(size_t* out)
 {
     auto api_error_result = migraphx::try_([&] { *out = migraphx::get_onnx_operators_size(); });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_set_log_header(bool show)
-{
-    auto api_error_result = migraphx::try_([&] { migraphx::set_log_header((show)); });
     return api_error_result;
 }
 

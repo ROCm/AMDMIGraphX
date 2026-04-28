@@ -1241,8 +1241,8 @@ struct find_gather
         if(dlens.empty())
             return;
 
-        const auto axis_index = static_cast<std::size_t>(
-            tune_axis(static_cast<int>(dlens.size()), gather_op.axis, gather_op.name()));
+        const std::size_t axis_index = 
+            tune_axis(dlens.size(), gather_op.axis, gather_op.name());
         const auto axis_len = dlens.at(axis_index);
         if(axis_len == 0)
             return;

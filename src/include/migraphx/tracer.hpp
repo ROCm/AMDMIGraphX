@@ -24,10 +24,9 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_TRACER_HPP
 #define MIGRAPHX_GUARD_RTGLIB_TRACER_HPP
 
-#include <sstream>
+#include <ostream>
 #include <migraphx/functional.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,26 +35,22 @@ struct tracer
 {
     tracer() {}
 
-    explicit tracer(bool enable) : enabled(enable)
-    {
-        if(enabled and not log::is_enabled(log::severity::trace) and
-           not log::is_severity_explicit())
-            log::set_severity(log::severity::trace);
-    }
+    tracer(std::ostream& s) : os(&s) {}
+
+    bool enabled() const { return os != nullptr; }
 
     template <class... Ts>
     void operator()(const Ts&... xs) const
     {
-        if(enabled)
+        if(os != nullptr)
         {
-            std::ostringstream ss;
-            swallow{ss << xs...};
-            log::trace() << ss.str();
+            swallow{*os << xs...};
+            *os << std::endl;
         }
     }
 
     private:
-    bool enabled = false;
+    std::ostream* os = nullptr;
 };
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -39,7 +39,6 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/source_location.hpp>
-#include <migraphx/logger.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
@@ -177,6 +176,11 @@ static void set_external_data_path(onnx_options& options, const char* external_d
 static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 {
     options.limit_max_iterations = value;
+}
+
+static void set_use_debug_symbols(onnx_options& options, bool value)
+{
+    options.use_debug_symbols = value;
 }
 
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
@@ -393,8 +397,6 @@ static void register_custom_op(const CustomOp& op)
 }
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
-
-static void set_log_header(bool show) { log::set_show_header(show); }
 
 } // namespace migraphx
 

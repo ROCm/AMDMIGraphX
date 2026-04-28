@@ -327,7 +327,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto virtual_inputs = finputs;
         virtual_inputs.push_back(get_reduced_shape(get_input_shape(finputs), axes));
         virtual_inputs.push_back(get_output_shape(get_input_shape(finputs), axes));
-        virtual_inputs           = reduce_dims(normalize_permutation(virtual_inputs));
+        virtual_inputs = reduce_dims(normalize_permutation(virtual_inputs));
         if(assign != "assign_none")
             virtual_inputs = split_reduce(virtual_inputs);
         auto reduce_output_shape = virtual_inputs.back();
@@ -347,10 +347,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         bool no_vectorize = v.get("no_vectorize", false);
         if(algo == "block" or algo == "wave")
         {
-            // Vectorize if the axis is a reduction axis (but not for argmin/argmax)
             if(reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
                 vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
-            auto relements  = reduction_shape.elements() / vec.size;
+            auto relements = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
                 auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
@@ -402,16 +401,11 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         for(const auto& x : solution)
             v.insert(x);
         auto* rm      = ins->module_inputs().front();
-        // disable vectorization for argmin/argmax since comparisons don't work with vector types
-        bool has_arg_reduce = std::any_of(rm->begin(), rm->end(), [](const auto& i) {
-            return i.name() == "argmin" or i.name() == "argmax";
-        });
-        if(has_arg_reduce)
-            v["no_vectorize"] = true;
+        auto shapes   = to_shapes(ins->inputs());
         v["preamble"] = generate_reduce(*rm, "fused_reduce_op");
         v["lambda"]   = "MIGRAPHX_LIFT(fused_reduce_op)";
         v["kernel"]   = generate_name_from_ops(*rm) + "_kernel";
-        return compile_op(ctx, to_shapes(ins->inputs()), v);
+        return compile_op(ctx, shapes, v);
     }
 
     optional<tuning_config> get_tuning_config(const context& ctx,

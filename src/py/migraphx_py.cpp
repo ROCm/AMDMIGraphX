@@ -45,6 +45,7 @@
 #include <migraphx/op/builder/insert.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/version.h>
 #include <migraphx/iterator_for.hpp>
 #ifdef HAVE_GPU
@@ -554,7 +555,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                bool offload_copy,
                bool fast_math,
                bool exhaustive_tune,
-               int8_t compile_mode) {
+               migraphx::compile_modes compile_mode) {
                 migraphx::compile_options options;
                 options.offload_copy    = offload_copy;
                 options.fast_math       = fast_math;
@@ -566,7 +567,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("offload_copy")    = true,
             py::arg("fast_math")       = true,
             py::arg("exhaustive_tune") = false,
-            py::arg("compile_mode")    = 50)
+            py::arg("compile_mode")    = migraphx::compile_modes::BALANCED)
         .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(
             "create_module",
@@ -636,6 +637,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .value("forward", migraphx::op::rnn_direction::forward)
         .value("reverse", migraphx::op::rnn_direction::reverse)
         .value("bidirectional", migraphx::op::rnn_direction::bidirectional);
+
+    py::enum_<migraphx::compile_modes>(m, "compile_modes")
+        .value("eager", migraphx::compile_modes::EAGER)
+        .value("balanced", migraphx::compile_modes::BALANCED)
+        .value("max", migraphx::compile_modes::MAX);
 
     py::class_<py_macro>(m, "macro")
         .def(py::init([](const std::string& name, py::kwargs kwargs) {

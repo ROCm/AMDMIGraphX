@@ -1168,7 +1168,7 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 
     /// Set compilation mode (0-100). 0 = fast compile, low performance.
     /// 100 = best compile with max optimizations, best performance.
-    void set_compile_mode(int8_t value = 50)
+    void set_compile_mode(int8_t value = migraphx_compile_mode_balanced)
     {
         call(&migraphx_compile_options_set_compile_mode, this->get_handle_ptr(), value);
     }

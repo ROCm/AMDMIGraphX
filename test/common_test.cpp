@@ -26,6 +26,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/instruction.hpp>
 
 TEST_CASE(add_common_op_scalar_literal_preserves_tensor_type)
 {
@@ -83,3 +84,5 @@ TEST_CASE(add_common_op_float_tensor_with_float_scalar_keeps_float)
 
     EXPECT(result->get_shape().type() == migraphx::shape::float_type);
 }
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

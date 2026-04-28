@@ -370,6 +370,11 @@ def onnx_options(h):
         api.params(external_data_path='const char*'),
         invoke='migraphx::set_external_data_path($@)',
     )
+    h.method(
+        'set_use_debug_symbols',
+        api.params(value='bool'),
+        invoke='migraphx::set_use_debug_symbols($@)',
+    )
 
 
 @auto_handle()
@@ -522,9 +527,7 @@ api.add_function('migraphx_get_onnx_operators_size',
                  fname='migraphx::get_onnx_operators_size',
                  returns='size_t')
 
-api.add_function('migraphx_set_log_header',
-                 api.params(show='bool'),
-                 fname='migraphx::set_log_header')
+
 
 @auto_handle(ref=True)
 def context(h):

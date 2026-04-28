@@ -1180,8 +1180,7 @@ struct operation
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>::value>::type* =
-                nullptr)
+            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>{}>::type* = nullptr)
             : private_detail_te_value(value)
         {
         }
@@ -1189,8 +1188,8 @@ struct operation
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
-                                    int>::type* = nullptr) noexcept
+            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>{}, int>::type* =
+                nullptr) noexcept
             : private_detail_te_value(std::move(value))
         {
         }

@@ -156,6 +156,7 @@ add_library(migraphx_gpu
     allocation_model.cpp
     code_object_op.cpp
     compile_ops.cpp
+    pipeline_factory.cpp
     compile_gen.cpp
     compile_hip.cpp
     compile_hip_code_object.cpp

@@ -8,7 +8,9 @@ RUN dpkg --add-architecture i386
 # Install rocm key
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
+    curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 
 # Add rocm repository

@@ -203,7 +203,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-misleading-capture-default-by-value
         -cppcoreguidelines-missing-std-forward
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
-	-cppcoreguidelines-pro-bounds-avoid-unchecked-container-access
+    -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
         -cppcoreguidelines-pro-type-member-init

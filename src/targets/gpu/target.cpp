@@ -32,8 +32,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-
-    
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
     auto& ctx = any_cast<context>(gctx);

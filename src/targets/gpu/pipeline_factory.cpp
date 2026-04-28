@@ -91,10 +91,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 
-context* pipeline_factory::get_context() const
-{
-    return any_cast<context>(gctx_ptr);
-}
+context* pipeline_factory::get_context() const { return any_cast<context>(gctx_ptr); }
 
 // clang-format off
 std::vector<pass> pipeline_factory::dynamic_shapes_pipeline() const

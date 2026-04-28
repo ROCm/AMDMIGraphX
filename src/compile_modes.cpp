@@ -33,17 +33,16 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-
 compile_modes convert_to_compile_mode(const uint8_t mode)
 {
     auto clamped = static_cast<uint8_t>(std::clamp<int>(mode, 0, 100));
     if(clamped != mode)
         log::warn() << "Compile mode value " << static_cast<int>(mode)
-                     << " out of range [0, 100], clamping to " << static_cast<int>(clamped);
+                    << " out of range [0, 100], clamping to " << static_cast<int>(clamped);
 
     static const std::array<compile_modes, 3> modes = {
         compile_modes::EAGER, compile_modes::BALANCED, compile_modes::MAX};
-        
+
     auto it = std::find_if(modes.begin(), modes.end(), [&](compile_modes m) {
         return static_cast<uint8_t>(m) == clamped;
     });
@@ -53,8 +52,8 @@ compile_modes convert_to_compile_mode(const uint8_t mode)
     log::warn() << "Compile mode value " << static_cast<int>(clamped)
                 << " does not match a known mode, using closest match";
     return *std::min_element(modes.begin(), modes.end(), by(std::less<>{}, [&](compile_modes m) {
-        return std::abs(static_cast<int>(clamped) - static_cast<int>(m));
-    }));
+                                 return std::abs(static_cast<int>(clamped) - static_cast<int>(m));
+                             }));
 }
 
 compile_modes convert_to_compile_mode(const std::string& mode)
@@ -70,8 +69,8 @@ compile_modes convert_to_compile_mode(const std::string& mode)
     {
         int val = std::stoi(mode);
         if(val < 0 or val > 100)
-            log::warn() << "Compile mode value " << val
-                        << " out of range [0, 100], clamping to " << std::clamp(val, 0, 100);
+            log::warn() << "Compile mode value " << val << " out of range [0, 100], clamping to "
+                        << std::clamp(val, 0, 100);
         return convert_to_compile_mode(static_cast<uint8_t>(std::clamp(val, 0, 100)));
     }
     catch(const std::invalid_argument&)

@@ -577,8 +577,8 @@ struct compile_manager
 void compile_ops::apply(module& m) const
 {
     compile_manager cm;
-    cm.exhaustive      = exhaustive_tune;
-    cm.skip_benchmark  = skip_benchmark;
+    cm.exhaustive     = exhaustive_tune;
+    cm.skip_benchmark = skip_benchmark;
     // Find all precompile ops
     for(auto ins : iterator_for(m))
     {

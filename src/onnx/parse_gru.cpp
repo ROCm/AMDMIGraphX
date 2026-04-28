@@ -166,7 +166,12 @@ struct parse_gru : op_parser<parse_gru>
         {
             gru_transpose_inputs(info, args);
         }
-
+        if(not args[5]->is_undefined() and
+           args[5]->get_shape().type() != args[1]->get_shape().type())
+        {
+            args[5] = info.add_instruction(
+                make_op("convert", {{"target_type", args[1]->get_shape().type()}}), args[5]);
+        }
         // first output for concatenation of hidden states
         auto hidden_states =
             info.add_instruction(make_op("gru",

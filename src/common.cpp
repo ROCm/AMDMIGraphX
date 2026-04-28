@@ -195,6 +195,21 @@ std::vector<instruction_ref> insert_common_args(module& m,
     else
     {
         auto common = common_shape(to_shapes(inputs));
+        if(options.common_type)
+        {
+            std::vector<shape> tensor_shapes;
+            for(const auto& input : inputs)
+            {
+                if(not(input->can_eval() and input->get_shape().elements() == 1))
+                    tensor_shapes.push_back(input->get_shape());
+            }
+            if(not tensor_shapes.empty())
+            {
+                auto tensor_type = compute_common_types(tensor_shapes);
+                if(tensor_type != common.type())
+                    common = shape{tensor_type, common.lens()};
+            }
+        }        
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(options.common_lens and input->get_shape().lens() != common.lens())
             {

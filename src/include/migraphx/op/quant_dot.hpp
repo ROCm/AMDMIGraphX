@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,6 +42,10 @@ namespace op {
  * 4 input version:
  * Quantized GEMM with two sets of scales for A and B matricies.
  * inputs = {A_mat, B_mat, scale_A, scale_B}
+ *
+ * Dynamic and symbolic shapes follow the same rules as op::dot for the matrix operands.
+ * The 4-input form is only supported for static matrix shapes (scales are not shape-checked
+ * against dynamic batch here).
  */
 struct quant_dot
 {
@@ -68,13 +72,67 @@ struct quant_dot
         {
             MIGRAPHX_THROW("QUANT_DOT: only supports int8_t, uint8_t, float, and fp8");
         }
-        if(not std::all_of(
-               inputs.begin(), inputs.end(), [](auto s) { return s.lens().size() >= 2; }))
+        if(not std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.ndim() >= 2; }))
         {
             MIGRAPHX_THROW("QUANT_DOT: dot only accepts >= 2D operands");
         }
 
-        // only handle the case that the batch size of a and b are the same
+        if(a.dynamic() or b.dynamic())
+        {
+            if(inputs.size() != 2)
+            {
+                MIGRAPHX_THROW(
+                    "QUANT_DOT: dynamic shapes are only supported for the 2-input quant_dot");
+            }
+            check_shapes{{a, b}, *this}.same_ndims();
+            auto s0 = a.to_dynamic();
+            auto s1 = b.to_dynamic();
+            std::vector<shape::dynamic_dimension> out_dyn_dims;
+
+            bool same_outers = std::equal(s0.dyn_dims().begin(),
+                                          s0.dyn_dims().end() - 2,
+                                          s1.dyn_dims().begin(),
+                                          s1.dyn_dims().end() - 2,
+                                          [&](const auto& x, const auto& y) {
+                                              auto intersect = x.intersection(y);
+                                              if(intersect.has_value())
+                                              {
+                                                  out_dyn_dims.push_back(intersect.value());
+                                                  return true;
+                                              }
+                                              return false;
+                                          });
+
+            if(not same_outers)
+            {
+                MIGRAPHX_THROW("QUANT_DOT: dynamic outer dimensions of A and B are not compatible: "
+                               "{" +
+                               to_string_range(s0.dyn_dims()) + "} x {" +
+                               to_string_range(s1.dyn_dims()) + "}");
+            }
+            std::size_t dim_i = s0.ndim() - 2;
+            std::size_t dim_j = s0.ndim() - 1;
+            auto x            = s0.dyn_dims()[dim_j];
+            auto y            = s1.dyn_dims()[dim_i];
+
+            if(not x.intersection(y).has_value())
+            {
+                MIGRAPHX_THROW("QUANT_DOT: dynamic inner dimensions are not compatible: {" +
+                               to_string_range(s0.dyn_dims()) + "} x {" +
+                               to_string_range(s1.dyn_dims()) + "}");
+            }
+
+            out_dyn_dims.push_back(s0.dyn_dims()[dim_i]);
+            out_dyn_dims.push_back(s1.dyn_dims()[dim_j]);
+
+            if(contains(fp8_types{}.get(), t))
+            {
+                return {shape::float_type, out_dyn_dims};
+            }
+            return {shape::int32_type, out_dyn_dims};
+        }
+
+        // only handle the case that all the dimensions except the last two are the same
         if(not std::equal(
                a.lens().rbegin() + 2, a.lens().rend(), b.lens().rbegin() + 2, b.lens().rend()))
         {

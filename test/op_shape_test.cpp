@@ -932,6 +932,96 @@ TEST_CASE(dot_dyn_test_outer_mismatch)
     throws_shape(migraphx::make_op("dot"), s_m1, s_m2);
 }
 
+TEST_CASE(dot_symbolic_2d)
+{
+    using migraphx::sym::var;
+    auto n = var("n");
+    auto k = var("k");
+    auto m = var("m");
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape sa{migraphx::shape::float_type, {dd{1, 64, {}, n}, dd{1, 128, {}, k}}};
+    migraphx::shape sb{migraphx::shape::float_type, {dd{1, 128, {}, k}, dd{1, 32, {}, m}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{1, 64, {}, n}, dd{1, 32, {}, m}}};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto a   = mm->add_outline(sa);
+    auto b   = mm->add_outline(sb);
+    mm->add_instruction(migraphx::make_op("dot"), a, b);
+    EXPECT(p.get_output_shapes().back() == sout);
+}
+
+TEST_CASE(dot_symbolic_batched)
+{
+    using migraphx::sym::var;
+    auto batch = var("batch");
+    auto n     = var("n");
+    auto k     = var("k");
+    auto m     = var("m");
+    using dd   = migraphx::shape::dynamic_dimension;
+    migraphx::shape sa{migraphx::shape::float_type,
+                       {dd{1, 8, {}, batch}, dd{1, 64, {}, n}, dd{1, 128, {}, k}}};
+    migraphx::shape sb{migraphx::shape::float_type,
+                       {dd{1, 8, {}, batch}, dd{1, 128, {}, k}, dd{1, 32, {}, m}}};
+    migraphx::shape sout{migraphx::shape::float_type,
+                         {dd{1, 8, {}, batch}, dd{1, 64, {}, n}, dd{1, 32, {}, m}}};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_instruction(migraphx::make_op("dot"), mm->add_outline(sa), mm->add_outline(sb));
+    EXPECT(p.get_output_shapes().back() == sout);
+}
+
+TEST_CASE(dot_symbolic_inner_same_expr)
+{
+    using migraphx::sym::var;
+    auto k = var("k");
+    using dd = migraphx::shape::dynamic_dimension;
+    // Same symbolic K on both sides; N is a plain range on B.
+    migraphx::shape sa{migraphx::shape::float_type, {dd{4, 4}, dd{1, 256, {}, k}}};
+    migraphx::shape sb{migraphx::shape::float_type, {dd{1, 256, {}, k}, dd{8, 16}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{4, 4}, dd{8, 16}}};
+
+    expect_shape(sout, migraphx::make_op("dot"), sa, sb);
+}
+
+TEST_CASE(dot_symbolic_inner_mismatch_different_expr)
+{
+    using migraphx::sym::var;
+    auto k1 = var("k1");
+    auto k2 = var("k2");
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape sa{migraphx::shape::float_type, {dd{1, 4}, dd{1, 128, {}, k1}}};
+    migraphx::shape sb{migraphx::shape::float_type, {dd{1, 128, {}, k2}, dd{1, 8}}};
+    throws_shape(migraphx::make_op("dot"), sa, sb);
+}
+
+TEST_CASE(dot_symbolic_outer_mismatch_different_expr)
+{
+    using migraphx::sym::var;
+    auto b1 = var("b1");
+    auto b2 = var("b2");
+    auto k  = var("k");
+    using dd  = migraphx::shape::dynamic_dimension;
+    migraphx::shape sa{migraphx::shape::float_type, {dd{1, 8, {}, b1}, dd{2, 2}, dd{4, 4, {}, k}}};
+    migraphx::shape sb{migraphx::shape::float_type, {dd{1, 8, {}, b2}, dd{4, 4, {}, k}, dd{3, 3}}};
+    throws_shape(migraphx::make_op("dot"), sa, sb);
+}
+
+TEST_CASE(dot_symbolic_mixed_with_static_inner)
+{
+    using migraphx::sym::var;
+    auto n = var("n");
+    auto k = var("k");
+    using dd = migraphx::shape::dynamic_dimension;
+    // B is static (8, 7): K = 8. A's last dim is symbolic k with a range that includes 8.
+    migraphx::shape sa{migraphx::shape::float_type, {dd{1, 16, {}, n}, dd{4, 12, {}, k}}};
+    migraphx::shape sb{migraphx::shape::float_type, {8, 7}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{1, 16, {}, n}, dd{7, 7}}};
+
+    expect_shape(sout, migraphx::make_op("dot"), sa, sb);
+}
+
 TEST_CASE(broadcast_for_dot_static)
 {
     migraphx::shape s0{migraphx::shape::float_type, {481, 356}};

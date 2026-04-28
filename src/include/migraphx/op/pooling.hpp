@@ -142,13 +142,20 @@ struct pooling
         return 1 + dilation * (dim - 1);
     }
 
+    // Domain-preserving constant: lit(v) when reference dim is symbolic, else {v, v}.
+    static shape::dynamic_dimension const_dim_like(const shape::dynamic_dimension& d, std::size_t v)
+    {
+        return d.is_symbolic() ? shape::dynamic_dimension{sym::lit(static_cast<int64_t>(v))}
+                               : shape::dynamic_dimension{v, v};
+    }
+
     // out[i] = (input[i+2] + padding_factor - dilate(lengths[i])) / stride[i] + 1
     //          (ceil_mode rounds up the division)
-    template <class T>
-    std::vector<T> calc_spatial_dim_out(const std::vector<T>& input_dims,
-                                        std::size_t num_kdims) const
+    std::vector<shape::dynamic_dimension>
+    calc_spatial_dim_out(const std::vector<shape::dynamic_dimension>& input_dims,
+                         std::size_t num_kdims) const
     {
-        std::vector<T> ret;
+        std::vector<shape::dynamic_dimension> ret;
         for(size_t i = 0; i < num_kdims; ++i)
         {
             std::size_t padding_factor = 2 * padding[i];
@@ -169,13 +176,10 @@ struct pooling
                 MIGRAPHX_THROW("POOLING: not enough padding for the given kernel size");
 
             auto dim_size =
-                kernel_doesnt_fit ? (numerator - numerator + 2) : (numerator - dilated_length);
+                kernel_doesnt_fit ? const_dim_like(numerator, 2) : (numerator - dilated_length);
 
-            T result;
-            if(ceil_mode)
-                result = (dim_size + (stride[i] - 1)) / stride[i];
-            else
-                result = dim_size / stride[i];
+            auto result =
+                ceil_mode ? (dim_size + (stride[i] - 1)) / stride[i] : dim_size / stride[i];
             result += 1;
             ret.push_back(result);
         }
@@ -189,66 +193,69 @@ struct pooling
 
         const shape& input = inputs.at(0);
         auto stride_size   = stride.size();
-        size_t kdims       = input.ndim() - 2;
         if(input.ndim() != stride_size + 2)
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
         }
 
-        if(input.dynamic())
+        // Range-based dynamic uses the dedicated path (auto-pad-aware). Static and symbolic
+        // share the same path: static inputs get promoted to symbolic literals via the
+        // helper. Auto-pad doesn't apply to symbolic by design.
+        if(input.dynamic() and not input.symbolic())
+            return dynamic_compute_shape(input);
+        return static_compute_shape(input);
+    }
+
+    shape dynamic_compute_shape(shape input) const
+    {
+        const size_t kdims         = input.ndim() - 2;
+        const auto& input_dyn_dims = input.dyn_dims();
+        std::vector<shape::dynamic_dimension> output_dyn_dims(input_dyn_dims.begin(),
+                                                              input_dyn_dims.begin() + 2);
+        if(dyn_global)
         {
-            const auto& input_dyn_dims = input.dyn_dims();
-            std::vector<shape::dynamic_dimension> output_dyn_dims(input_dyn_dims.begin(),
-                                                                  input_dyn_dims.begin() + 2);
-            if(dyn_global)
+            for(size_t i = 0; i < kdims; ++i)
+                output_dyn_dims.push_back(shape::dynamic_dimension{1, 1});
+        }
+        else if(padding_mode != default_)
+        {
+            for(std::size_t i = 0; i < kdims; ++i)
             {
-                for(size_t i = 0; i < kdims; ++i)
-                {
-                    output_dyn_dims.push_back(shape::dynamic_dimension{1, 1});
-                }
-                return {input.type(), output_dyn_dims};
-            }
-            else if(padding_mode != default_)
-            {
-                for(std::size_t i = 0; i < kdims; ++i)
-                {
-                    auto s           = stride[i];
-                    const auto& x_dd = input_dyn_dims[i + 2];
-                    output_dyn_dims.push_back((x_dd + (s - 1)) / shape::dynamic_dimension{s, s});
-                }
-                return {input.type(), output_dyn_dims};
-            }
-            else
-            {
-                auto spatial_dyn_dims = calc_spatial_dim_out(input_dyn_dims, kdims);
-                output_dyn_dims.insert(
-                    output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
-                return {input.type(), output_dyn_dims};
+                auto s           = stride[i];
+                const auto& x_dd = input_dyn_dims[i + 2];
+                output_dyn_dims.push_back((x_dd + (s - 1)) / shape::dynamic_dimension{s, s});
             }
         }
         else
         {
-            auto input_lens = input.lens();
-
-            std::vector<std::size_t> output_lens(input_lens.begin(), input_lens.begin() + 2);
-            // Used for when normalize_compute_shape() is called again at model eval time
-            // for an originally dynamic shape. Kernel shape is not used with dyn_global.
-            if(dyn_global)
-            {
-                for(size_t i = 0; i < kdims; ++i)
-                {
-                    output_lens.push_back(1);
-                }
-                return {input.type(), output_lens};
-            }
-            else
-            {
-                auto output_spatial_lens = calc_spatial_dim_out(input_lens, kdims);
-                output_lens.insert(
-                    output_lens.end(), output_spatial_lens.begin(), output_spatial_lens.end());
-                return inputs[0].with_lens(output_lens);
-            }
+            auto spatial_dyn_dims = calc_spatial_dim_out(input_dyn_dims, kdims);
+            output_dyn_dims.insert(
+                output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
         }
+        return {input.type(), output_dyn_dims};
+    }
+
+    shape static_compute_shape(shape input) const
+    {
+        // Promote static input to symbolic-literal dyn_dims, then compute on dyn_dims.
+        const size_t kdims = input.ndim() - 2;
+        auto promoted      = shape::to_dynamic({input});
+        auto input_dyn     = promoted[0].dyn_dims();
+        std::vector<shape::dynamic_dimension> output_dyn_dims(input_dyn.begin(),
+                                                              input_dyn.begin() + 2);
+        if(dyn_global)
+        {
+            for(size_t i = 0; i < kdims; ++i)
+                output_dyn_dims.push_back(const_dim_like(input_dyn.front(), 1));
+        }
+        else
+        {
+            auto spatial_dyn_dims = calc_spatial_dim_out(input_dyn, kdims);
+            output_dyn_dims.insert(
+                output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
+        }
+        shape result{input.type(), output_dyn_dims};
+        return result.is_fixed() ? result.to_static({}) : result;
     }
 
     struct lpnorm_pool

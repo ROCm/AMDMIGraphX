@@ -101,33 +101,36 @@ struct convolution
            x_shape.lens().at(1) != (w_shape.lens().at(1) * group))
             MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers");
 
-        if(x_shape.dynamic() or w_shape.dynamic())
-        {
+        // Range-based dynamic uses the dedicated path (auto-pad-aware). Static and symbolic
+        // (incl. sym x static) share the same path: static inputs get promoted to symbolic
+        // literals via the helper. Auto-pad doesn't apply to symbolic by design.
+        const bool any_range_based = (x_shape.dynamic() and not x_shape.symbolic()) or
+                                     (w_shape.dynamic() and not w_shape.symbolic());
+        if(any_range_based)
             return dynamic_compute_shape(x_shape, w_shape);
-        }
-        else
-        {
-            return static_compute_shape(x_shape, w_shape);
-        }
+        return static_compute_shape(x_shape, w_shape);
+    }
+
+    // Domain-preserving constant: lit(v) when reference dim is symbolic, else {v, v}.
+    static shape::dynamic_dimension const_dim_like(const shape::dynamic_dimension& d, std::size_t v)
+    {
+        return d.is_symbolic() ? shape::dynamic_dimension{sym::lit(static_cast<int64_t>(v))}
+                               : shape::dynamic_dimension{v, v};
     }
 
     // out[i] = (x[i+2] + padding_factor - dilation[i] * (w[i+2] - 1) - 1) / stride[i] + 1
-    template <class T>
-    std::vector<T> calc_conv_lens(const std::vector<T>& x_lens, const std::vector<T>& w_lens) const
+    std::vector<shape::dynamic_dimension>
+    calc_conv_lens(const std::vector<shape::dynamic_dimension>& x_lens,
+                   const std::vector<shape::dynamic_dimension>& w_lens) const
     {
         const size_t num_spatial_dims = x_lens.size() - 2;
-        std::vector<T> ret;
+        std::vector<shape::dynamic_dimension> ret;
         for(size_t i = 0; i < num_spatial_dims; i++)
         {
             // Zero spatial input or kernel collapses to a zero output dim.
-            if(x_lens[i + 2] == 0)
+            if(x_lens[i + 2] == 0 or w_lens[i + 2] == 0)
             {
-                ret.push_back(x_lens[i + 2]);
-                continue;
-            }
-            if(w_lens[i + 2] == 0)
-            {
-                ret.push_back(w_lens[i + 2]);
+                ret.push_back(const_dim_like(x_lens[i + 2], 0));
                 continue;
             }
 
@@ -145,12 +148,11 @@ struct convolution
             if(shape::is_fixed_dim(numerator) and shape::is_fixed_dim(dilated_kernel) and
                shape::static_dim_value(numerator) < shape::static_dim_value(dilated_kernel))
             {
-                ret.push_back(numerator - numerator); // 0
+                ret.push_back(const_dim_like(numerator, 0));
                 continue;
             }
 
-            auto result = (numerator - dilated_kernel) / stride[i] + 1;
-            ret.push_back(result);
+            ret.push_back((numerator - dilated_kernel) / stride[i] + 1);
         }
         return ret;
     }
@@ -158,9 +160,8 @@ struct convolution
     shape dynamic_compute_shape(shape x_shape, shape w_shape) const
     {
         std::vector<shape::dynamic_dimension> output_dyn_dims = {};
-        auto aligned = shape::to_dynamic({x_shape, w_shape});
-        auto x_dyn   = aligned[0].dyn_dims();
-        auto w_dyn   = aligned[1].dyn_dims();
+        auto x_dyn                                            = x_shape.to_dynamic().dyn_dims();
+        auto w_dyn                                            = w_shape.to_dynamic().dyn_dims();
         output_dyn_dims.push_back(x_dyn.at(0));
         output_dyn_dims.push_back(w_dyn.at(0));
 
@@ -185,10 +186,17 @@ struct convolution
 
     shape static_compute_shape(shape x_shape, shape w_shape) const
     {
-        std::vector<size_t> output_lens{x_shape.lens()[0], w_shape.lens()[0]};
-        auto spatial_lens = calc_conv_lens(x_shape.lens(), w_shape.lens());
-        output_lens.insert(output_lens.end(), spatial_lens.begin(), spatial_lens.end());
-        return x_shape.with_lens(output_lens);
+        // Promote any static input to symbolic-literal dyn_dims, then compute on dyn_dims.
+        auto aligned = shape::to_dynamic({x_shape, w_shape});
+        auto x_dyn   = aligned[0].dyn_dims();
+        auto w_dyn   = aligned[1].dyn_dims();
+        std::vector<shape::dynamic_dimension> output_dyn_dims{x_dyn.at(0), w_dyn.at(0)};
+        auto spatial_dyn_dims = calc_conv_lens(x_dyn, w_dyn);
+        output_dyn_dims.insert(
+            output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
+
+        shape result{x_shape.type(), output_dyn_dims};
+        return result.is_fixed() ? result.to_static({}) : result;
     }
 
     size_t kdims() const

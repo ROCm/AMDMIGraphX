@@ -119,9 +119,7 @@ void remove_layout(module& m)
     {
         if(ins->name() != "layout")
             continue;
-        auto perm  = ins->get_operator().to_value()["permutation"].to_vector<std::int64_t>();
-        auto iperm = find_permutation(ins->inputs().front()->get_shape());
-        if(perm != iperm)
+        if(find_permutation(ins->get_shape()) != find_permutation(ins->inputs().front()->get_shape()))
             continue;
         m.replace_instruction(ins, ins->inputs().front());
     }

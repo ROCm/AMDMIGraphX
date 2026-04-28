@@ -602,6 +602,15 @@ std::vector<argument> program::eval(const parameter_map& params,
 {
     auto& contexts = this->impl->contexts;
 
+    if(contexts.size() == 1 and enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}))
+    {
+        auto& ctx = contexts.front();
+        auto run  = ctx.get_capture();
+        if(run != nullptr)
+            return run();
+        ctx.start_capture();
+    }
+
     auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
     std::vector<argument> ret;
 
@@ -674,6 +683,12 @@ std::vector<argument> program::eval(const parameter_map& params,
     {
         assert(contexts.size() == 1);
         contexts.front().finish_on(exec_env.queue);
+    }
+
+    if(contexts.size() == 1 and enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}))
+    {
+        auto& ctx = contexts.front();
+        ctx.end_capture(ret);
     }
 
     return ret;

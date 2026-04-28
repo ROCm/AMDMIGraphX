@@ -1029,9 +1029,6 @@ TEST_CASE(dot_sym_outer_mismatch)
 
 TEST_CASE(dot_sym_static)
 {
-    // Symbolic activation x fully-static weight: the static side should be
-    // lit-promoted so the output stays fully symbolic with the batch symbol
-    // preserved (depends on shape::to_symbolic() landing).
     auto b = var("b", {1, 8});
     migraphx::shape s_a{migraphx::shape::float_type, {dd{b}, dd{lit(5)}}};
     migraphx::shape s_b{migraphx::shape::float_type, {5, 3}};
@@ -1052,7 +1049,7 @@ TEST_CASE(dot_sym_k_vs_range)
     auto k = var("k", {1, 128});
     migraphx::shape s_a{migraphx::shape::float_type, {dd{m}, dd{k}}};
     migraphx::shape s_b{migraphx::shape::float_type, {{1, 128}, {1, 32}}};
-    migraphx::shape expected{migraphx::shape::float_type, {dd{m}, dd{1, 32}}};
+    migraphx::shape expected{migraphx::shape::float_type, {{1, 64}, {1, 32}}};
     expect_shape(expected, migraphx::make_op("dot"), s_a, s_b);
 }
 

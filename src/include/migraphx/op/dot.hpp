@@ -51,8 +51,9 @@ struct dot
         {
             MIGRAPHX_THROW("DOT: dot only accepts operands with 2 or more dimensions ");
         }
-        auto s0 = a.to_dynamic();
-        auto s1 = b.to_dynamic();
+        auto aligned   = shape::to_dynamic({a, b});
+        const auto& s0 = aligned[0];
+        const auto& s1 = aligned[1];
         std::vector<shape::dynamic_dimension> out_dyn_dims;
 
         // Check outer dimensions are compatible via intersection.

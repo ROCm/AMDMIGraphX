@@ -76,8 +76,9 @@ struct quant_dot
         auto out_type = (inputs.size() == 4 or contains(fp8_types{}.get(), t)) ? shape::float_type
                                                                                : shape::int32_type;
 
-        auto s0 = a.to_dynamic();
-        auto s1 = b.to_dynamic();
+        auto aligned   = shape::to_dynamic({a, b});
+        const auto& s0 = aligned[0];
+        const auto& s1 = aligned[1];
         std::vector<shape::dynamic_dimension> out_dyn_dims;
 
         bool same_outers = std::equal(s0.dyn_dims().begin(),

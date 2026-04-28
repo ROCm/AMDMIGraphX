@@ -843,6 +843,11 @@ shape shape::with_type(type_t t) const
     return {c};
 }
 
+// Convert to an equivalent range-based dynamic shape:
+//   - static : each len becomes dd{len, len} (strides are not carried)
+//   - range-based dynamic : identity
+//   - symbolic : each dim is demoted via get_interval()/get_optimals(); symbolic
+//                strides are dropped (range-based shapes don't carry them)
 shape shape::to_dynamic() const
 {
     if(not sub_shapes().empty())
@@ -854,6 +859,17 @@ shape shape::to_dynamic() const
                        [](auto s) { return s.to_dynamic(); });
         return shape(subs);
     }
+    if(this->symbolic())
+    {
+        std::vector<dynamic_dimension> dims;
+        dims.reserve(ndim());
+        std::transform(
+            dyn_dims().begin(), dyn_dims().end(), std::back_inserter(dims), [](const auto& d) {
+                auto iv = d.get_interval();
+                return dynamic_dimension{iv.min, iv.max, d.get_optimals()};
+            });
+        return {type(), std::move(dims)};
+    }
     if(this->dynamic())
     {
         return *this;
@@ -862,6 +878,52 @@ shape shape::to_dynamic() const
     dims.reserve(ndim());
     std::transform(lens().begin(), lens().end(), std::back_inserter(dims), [](auto len) {
         return dynamic_dimension{len, len};
+    });
+    return {type(), std::move(dims)};
+}
+
+static bool any_non_sym_dynamic(const shape& s)
+{
+    if(not s.sub_shapes().empty())
+        return std::any_of(s.sub_shapes().begin(), s.sub_shapes().end(), &any_non_sym_dynamic);
+    return s.dynamic() and not s.symbolic();
+}
+
+std::vector<shape> shape::to_dynamic(const std::vector<shape>& shapes)
+{
+    const bool any_non_sym = std::any_of(shapes.begin(), shapes.end(), &any_non_sym_dynamic);
+    std::vector<shape> result;
+    result.reserve(shapes.size());
+    std::transform(shapes.begin(), shapes.end(), std::back_inserter(result), [&](const auto& s) {
+        return any_non_sym ? s.to_dynamic() : s.to_symbolic();
+    });
+    return result;
+}
+
+shape shape::to_symbolic() const
+{
+    if(not sub_shapes().empty())
+    {
+        std::vector<shape> subs;
+        std::transform(sub_shapes().cbegin(),
+                       sub_shapes().cend(),
+                       std::back_inserter(subs),
+                       [](auto s) { return s.to_symbolic(); });
+        return shape(subs);
+    }
+    if(this->symbolic())
+    {
+        return *this;
+    }
+    if(this->dynamic())
+    {
+        // Range-based dynamic shapes have no clean symbolic representation
+        MIGRAPHX_THROW("SHAPE: to_symbolic() called on a range-based dynamic shape");
+    }
+    std::vector<dynamic_dimension> dims;
+    dims.reserve(ndim());
+    std::transform(lens().begin(), lens().end(), std::back_inserter(dims), [](auto len) {
+        return dynamic_dimension{sym::lit(len)};
     });
     std::vector<sym::expr> dstrides;
     dstrides.reserve(ndim());
@@ -1274,9 +1336,25 @@ std::ostream& operator<<(std::ostream& os, const shape& x)
     return os;
 }
 
+bool shape::is_fixed() const
+{
+    if(not sub_shapes().empty())
+        return std::all_of(
+            sub_shapes().begin(), sub_shapes().end(), [](const auto& s) { return s.is_fixed(); });
+    if(this->dynamic())
+        return std::all_of(
+            dyn_dims().begin(), dyn_dims().end(), [](const auto& d) { return d.is_fixed(); });
+    return true;
+}
+
+// Fixed shapes compare by resolved static lens; otherwise compare dyn_dims directly.
 bool shape::same_lens(const shape& x, const shape& y)
 {
-    return x.to_dynamic().dyn_dims() == y.to_dynamic().dyn_dims();
+    if(x.is_fixed() != y.is_fixed())
+        return false;
+    if(x.is_fixed())
+        return x.to_static({}).lens() == y.to_static({}).lens();
+    return x.dyn_dims() == y.dyn_dims();
 }
 
 shape::type_t shape::parse_type(const std::string& s)

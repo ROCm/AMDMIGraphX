@@ -77,4 +77,42 @@ TEST_CASE(run_trace_filter_by_index)
     CHECK(captured == expected);
 }
 
+TEST_CASE(c_api_trace_info_lifecycle)
+{
+    migraphx_trace_info_t a = nullptr;
+    migraphx_trace_info_t b = nullptr;
+    CHECK(migraphx_trace_info_create(&a) == migraphx_status_success);
+    CHECK(migraphx_trace_info_create(&b) == migraphx_status_success);
+    CHECK(migraphx_trace_info_assign_to(b, a) == migraphx_status_success);
+    CHECK(migraphx_trace_info_destroy(a) == migraphx_status_success);
+    CHECK(migraphx_trace_info_destroy(b) == migraphx_status_success);
+}
+
+TEST_CASE(c_api_null_checks)
+{
+    size_t idx                        = 0;
+    const char* name_out              = nullptr;
+    const_migraphx_argument_t arg_out = nullptr;
+    CHECK(migraphx_trace_info_get_index(&idx, nullptr) == migraphx_status_bad_param);
+    CHECK(migraphx_trace_info_get_name(nullptr, nullptr) == migraphx_status_bad_param);
+    CHECK(migraphx_trace_info_get_name(&name_out, nullptr) == migraphx_status_bad_param);
+    CHECK(migraphx_trace_info_get_result(&arg_out, nullptr) == migraphx_status_bad_param);
+
+    migraphx::program p;
+    migraphx::program_parameters pp;
+    migraphx_arguments_t out_args = nullptr;
+    CHECK(migraphx_program_run_trace(&out_args, nullptr, pp.get_handle_ptr(), nullptr, nullptr) ==
+          migraphx_status_bad_param);
+    CHECK(migraphx_program_run_trace(&out_args, p.get_handle_ptr(), nullptr, nullptr, nullptr) ==
+          migraphx_status_bad_param);
+}
+
+TEST_CASE(run_trace_callback_throws)
+{
+    auto p = make_add_sub_program();
+    migraphx::program_parameters pp;
+    EXPECT(test::throws<std::runtime_error>(
+        [&] { p.run_trace(pp, [](const migraphx::trace_info&) { throw 0; }); }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

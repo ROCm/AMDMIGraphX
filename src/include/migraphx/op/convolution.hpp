@@ -158,8 +158,9 @@ struct convolution
     shape dynamic_compute_shape(shape x_shape, shape w_shape) const
     {
         std::vector<shape::dynamic_dimension> output_dyn_dims = {};
-        auto x_dyn                                            = x_shape.to_dynamic().dyn_dims();
-        auto w_dyn                                            = w_shape.to_dynamic().dyn_dims();
+        auto aligned = shape::to_dynamic({x_shape, w_shape});
+        auto x_dyn   = aligned[0].dyn_dims();
+        auto w_dyn   = aligned[1].dyn_dims();
         output_dyn_dims.push_back(x_dyn.at(0));
         output_dyn_dims.push_back(w_dyn.at(0));
 

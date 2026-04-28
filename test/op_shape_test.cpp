@@ -512,8 +512,7 @@ TEST_CASE(conv_sym_batch)
 {
     auto n = var("n", {1, 8});
     migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(5)}}};
-    migraphx::shape weights{migraphx::shape::float_type,
-                            {dd{lit(1)}, dd{lit(3)}, dd{lit(3)}, dd{lit(3)}}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape expected{migraphx::shape::float_type,
                              {dd{n}, dd{lit(1)}, dd{lit(3)}, dd{lit(3)}}};
     expect_shape(expected,
@@ -528,8 +527,7 @@ TEST_CASE(conv_sym_img)
     auto h = var("h", {5, 20}, {10, 15});
     auto w = var("w", {5, 20}, {10, 15});
     migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}, dd{h}, dd{w}}};
-    migraphx::shape weights{migraphx::shape::float_type,
-                            {dd{lit(1)}, dd{lit(3)}, dd{lit(3)}, dd{lit(3)}}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
     migraphx::shape expected{migraphx::shape::float_type,
                              {dd{lit(1)}, dd{lit(1)}, dd{h - 2}, dd{w - 2}}};
     auto conv_op = migraphx::make_op(
@@ -538,8 +536,7 @@ TEST_CASE(conv_sym_img)
 
     std::unordered_map<se, std::size_t> sym_map = {{h, 12}, {w, 8}};
     migraphx::shape static_input{migraphx::shape::float_type, {1, 3, 12, 8}};
-    migraphx::shape static_weights{migraphx::shape::float_type, {1, 3, 3, 3}};
-    migraphx::shape static_out = conv_op.compute_shape({static_input, static_weights});
+    migraphx::shape static_out = conv_op.compute_shape({static_input, weights});
     EXPECT(expected.to_static(sym_map) == static_out);
 }
 
@@ -549,8 +546,7 @@ TEST_CASE(conv_sym_img_pad_stride)
     auto h = var("h", {10, 50}, {20, 30});
     auto w = var("w", {10, 50}, {20, 30});
     migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
-    migraphx::shape weights{migraphx::shape::float_type,
-                            {dd{lit(16)}, dd{lit(3)}, dd{lit(5)}, dd{lit(5)}}};
+    migraphx::shape weights{migraphx::shape::float_type, {16, 3, 5, 5}};
     // h: ((h + 2*2 - 5) / 2) + 1 = (h - 1)/2 + 1
     // w: ((w + 2*1 - 5) / 3) + 1 = (w - 3)/3 + 1
     migraphx::shape expected{migraphx::shape::float_type,
@@ -561,8 +557,7 @@ TEST_CASE(conv_sym_img_pad_stride)
 
     std::unordered_map<se, std::size_t> sym_map = {{n, 4}, {h, 26}, {w, 26}};
     migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 26, 26}};
-    migraphx::shape static_weights{migraphx::shape::float_type, {16, 3, 5, 5}};
-    migraphx::shape static_out = conv_op.compute_shape({static_input, static_weights});
+    migraphx::shape static_out = conv_op.compute_shape({static_input, weights});
     EXPECT(expected.to_static(sym_map) == static_out);
 }
 

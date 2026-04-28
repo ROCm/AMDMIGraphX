@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/copy_assignable_function.hpp>
+#include <cassert>
 #include <iterator>
 
 namespace migraphx {

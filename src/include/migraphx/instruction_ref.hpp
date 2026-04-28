@@ -39,7 +39,7 @@ as_address(const std::list<instruction>::iterator& ins) noexcept;
 MIGRAPHX_EXPORT const migraphx::instruction*
 as_address(const std::list<instruction>::const_iterator& ins) noexcept;
 
-#if defined(CPPCHECK)
+#ifdef CPPCHECK
 using instruction_ref = std::list<instruction>::iterator;
 #else
 struct instruction_ref : std::list<instruction>::iterator

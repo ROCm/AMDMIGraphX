@@ -26,7 +26,7 @@
 
 #include <migraphx/config.hpp>
 
-#if defined(CPPCHECK)
+#ifdef CPPCHECK
 #define MIGRAPHX_HAS_OPTIONAL 1
 #define MIGRAPHX_HAS_OPTIONAL_TS 1
 #elif defined(_WIN32)

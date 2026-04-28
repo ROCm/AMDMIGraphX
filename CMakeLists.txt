@@ -212,6 +212,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-use-default-member-init
+        -cppcoreguidelines-use-enum-class
         -cppcoreguidelines-virtual-class-destructor
         -google-readability-*
         -google-runtime-int

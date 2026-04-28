@@ -47,6 +47,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT COMPILER_IGNORES_DEPRECATED_DEC
 endif()
 
 add_library(migraphx
+    amdgpu_fused_ops.cpp
     adjust_allocation.cpp
     analyze_streams.cpp
     apply_alpha_beta.cpp
@@ -120,6 +121,8 @@ add_library(migraphx
     rewrite_reduce.cpp
     rewrite_dot.cpp
     simplify_qdq.cpp
+    fuse_dxgml_dequant.cpp
+    fuse_dxgml_amdgpu_ops.cpp
     split_reduce.cpp
     sqlite.cpp
     rewrite_gelu.cpp

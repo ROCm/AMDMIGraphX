@@ -27,6 +27,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/apply_alpha_beta.hpp>
 #include <migraphx/op/common.hpp>
 
 #include <unordered_map>
@@ -458,6 +459,19 @@ instruction_ref dxgml_parser::parse_dxgml_op(const std::string& name,
         if(a->get_shape().type() != b->get_shape().type())
             b = mm->add_instruction(
                 make_op("convert", {{"target_type", a->get_shape().type()}}), b);
+
+        // DxGML gemm may optionally carry a third bias operand; null_ptr is encoded
+        // as an empty literal and is intentionally ignored.
+        if(name == "gemm" && inputs.size() > 2)
+        {
+            auto c = inputs[2];
+            if(c->name() != "@literal" || c->get_shape().elements() != 0)
+            {
+                return insert_apply_alpha_beta<float>(
+                    *mm, mm->end(), {a, b, c}, make_op("dot"), 1.0f, 1.0f);
+            }
+        }
+
         return mm->add_instruction(make_op("dot"), a, b);
     }
 

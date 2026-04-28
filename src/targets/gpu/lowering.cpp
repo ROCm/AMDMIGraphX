@@ -175,6 +175,7 @@ struct miopen_apply
         {
             auto s     = it->get_shape();
             auto attrs = it->get_operator().attributes();
+
             if(apply_map.count(it->name()) > 0)
             {
                 check_shape(s, apply_map.at(it->name())(it));

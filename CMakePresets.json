@@ -4,73 +4,82 @@
         {
             "name": "WinBase",
             "cacheVariables": {
-                "CMAKE_MAKE_PROGRAM": "$env{JOM_INSTALL_DIR}/jom.exe",
                 "CMAKE_C_COMPILER": "$env{ROCM_DIR}/bin/clang.exe",
                 "CMAKE_CXX_COMPILER": "$env{ROCM_DIR}/bin/clang++.exe",
                 "GPU_TARGETS": "$env{GPU_TARGETS}",
                 "MIGRAPHX_USE_HIPRTC": "ON",
                 "MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS": "ON",
-                "CMAKE_COMPILE_WARNING_AS_ERROR": "ON"
+                "CMAKE_COMPILE_WARNING_AS_ERROR": "ON",
+                "MIGRAPHX_ENABLE_PYTHON": "OFF",
+                "MIGRAPHX_ENABLE_TENSORFLOW": "OFF",
+                "MIGRAPHX_ENABLE_ONNX": "OFF",
+                "MIGRAPHX_ENABLE_DXGML": "ON",
+                "DXGML_DROP_DIR": "$env{DXGML_DROP_DIR}",
+                "MIGRAPHX_USE_ROCBLAS": "OFF",
+                "MIGRAPHX_USE_HIPBLASLT": "OFF",
+                "MIGRAPHX_USE_MIOPEN": "OFF",
+                "MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS": "ON",
+                "BUILD_TESTING": "OFF"
             },
-            "generator": "NMake Makefiles JOM"
-        },
-        {
-            "name": "WinMinSizeRel",
-            "inherits": "WinBase",
-            "displayName": "AMDMIGraphX MinSizeRel (Windows)",
-            "description": "AMDMIGraphX MinSizeRel with NMake Makefiles JOM generator (Windows)",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "MinSizeRel",
-                "CMAKE_PREFIX_PATH": "${sourceDir}/depend/MinSizeRel;C:\\opt\\rocMLIR\\MinSizeRel;C:/opt/rocm"
-            },
-            "binaryDir": "${sourceDir}/build/MinSizeRel"
-        },
-        {
-            "name": "WinDebug",
-            "inherits": "WinBase",
-            "displayName": "AMDMIGraphX Debug (Windows)",
-            "description": "AMDMIGraphX Debug with NMake Makefiles JOM generator (Windows)",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_PREFIX_PATH": "${sourceDir}/depend/Debug;C:\\opt\\rocMLIR\\Debug;C:/opt/rocm"
-            },
-            "binaryDir": "${sourceDir}/build/Debug"
+            "generator": "Ninja"
         },
         {
             "name": "WinRelWithDebInfo",
             "inherits": "WinBase",
             "displayName": "AMDMIGraphX RelWithDebInfo (Windows)",
-            "description": "AMDMIGraphX RelWithDebInfo with NMake Makefiles JOM generator (Windows)",
+            "description": "AMDMIGraphX RelWithDebInfo with Ninja generator (Windows)",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-                "CMAKE_PREFIX_PATH": "${sourceDir}/depend/RelWithDebInfo;C:\\opt\\rocMLIR\\RelWithDebInfo;C:/opt/rocm"
+                "CMAKE_PREFIX_PATH": "$env{ROCM_INSTALL_DIR}/rocMLIR/${presetName};${sourceDir}/depend/${presetName}"
             },
-            "binaryDir": "${sourceDir}/build/RelWithDebInfo"
+            "binaryDir": "${sourceDir}/build/WinRelWithDebInfo"
+        },
+        {
+            "name": "WinDebug",
+            "inherits": "WinBase",
+            "displayName": "AMDMIGraphX Debug (Windows)",
+            "description": "AMDMIGraphX Debug with Ninja generator (Windows)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_PREFIX_PATH": "$env{ROCM_INSTALL_DIR}/rocMLIR/${presetName};${sourceDir}/depend/${presetName}"
+            },
+            "binaryDir": "${sourceDir}/build/WinDebug"
+        },
+        {
+            "name": "WinMinSizeRel",
+            "inherits": "WinBase",
+            "displayName": "AMDMIGraphX MinSizeRel (Windows)",
+            "description": "AMDMIGraphX MinSizeRel with Ninja generator (Windows)",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "MinSizeRel",
+                "CMAKE_PREFIX_PATH": "$env{ROCM_INSTALL_DIR}/rocMLIR/${presetName};${sourceDir}/depend/${presetName}"
+            },
+            "binaryDir": "${sourceDir}/build/WinMinSizeRel"
         },
         {
             "name": "WinRelease",
             "inherits": "WinBase",
             "displayName": "AMDMIGraphX Release (Windows)",
-            "description": "AMDMIGraphX Release with NMake Makefiles JOM generator (Windows)",
+            "description": "AMDMIGraphX Release with Ninja generator (Windows)",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_PREFIX_PATH": "${sourceDir}/depend/Release;C:\\opt\\rocMLIR\\Release;C:/opt/rocm"
+                "CMAKE_PREFIX_PATH": "$env{ROCM_INSTALL_DIR}/rocMLIR/${presetName};${sourceDir}/depend/${presetName}"
             },
-            "binaryDir": "${sourceDir}/build/Release"
+            "binaryDir": "${sourceDir}/build/WinRelease"
         }
     ],
     "buildPresets": [
         {
-            "name": "WinMinSizeRel",
-            "configurePreset": "WinMinSizeRel"
+            "name": "WinRelWithDebInfo",
+            "configurePreset": "WinRelWithDebInfo"
         },
         {
             "name": "WinDebug",
             "configurePreset": "WinDebug"
         },
         {
-            "name": "WinRelWithDebInfo",
-            "configurePreset": "WinRelWithDebInfo"
+            "name": "WinMinSizeRel",
+            "configurePreset": "WinMinSizeRel"
         },
         {
             "name": "WinRelease",
@@ -79,8 +88,8 @@
     ],
     "testPresets": [
         {
-            "name": "WinMinSizeRel",
-            "configurePreset": "WinMinSizeRel",
+            "name": "WinRelWithDebInfo",
+            "configurePreset": "WinRelWithDebInfo",
             "output": {
                 "outputOnFailure": true
             },
@@ -101,8 +110,8 @@
             }
         },
         {
-            "name": "WinRelWithDebInfo",
-            "configurePreset": "WinRelWithDebInfo",
+            "name": "WinMinSizeRel",
+            "configurePreset": "WinMinSizeRel",
             "output": {
                 "outputOnFailure": true
             },

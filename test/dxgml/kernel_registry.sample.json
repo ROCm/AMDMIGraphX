@@ -1,0 +1,33 @@
+{
+  "kernel_registry_version": "1.0",
+  "kernels": [
+    {
+      "operation": "amdgpu.gemm_add",
+      "binaries": [
+        {
+          "path": "kernels/gemm_add_fp16_gfx942.co",
+          "dtype": "float16",
+          "architectures": ["gfx942"],
+          "symbol_name": "amdgpu_gemm_add_kernel",
+          "metadata": {
+            "threads_per_block": [256, 1, 1]
+          }
+        }
+      ]
+    },
+    {
+      "operation": "amdgpu.gemm_gemm_add",
+      "binaries": [
+        {
+          "path": "kernels/gemm_gemm_add_fp16_gfx942.co",
+          "dtype": "float16",
+          "architectures": ["gfx942"],
+          "symbol_name": "amdgpu_gemm_gemm_add_kernel",
+          "metadata": {
+            "threads_per_block": [256, 1, 1]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -147,6 +147,7 @@ if(MIGRAPHX_USE_MIOPEN)
 endif()
 
 add_library(migraphx_gpu
+    amdgpu_kernel_registry.cpp
     analyze_streams.cpp
     allocation_model.cpp
     argmax.cpp

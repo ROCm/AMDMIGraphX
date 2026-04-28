@@ -24,6 +24,10 @@
 #include <migraphx/dxgml.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/fuse_dxgml_dequant.hpp>
+#include <migraphx/fuse_dxgml_amdgpu_ops.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/pass_manager.hpp>
 #include "dxgml_parser.hpp"
 
 #include <fstream>
@@ -114,6 +118,14 @@ program parse_dxgml_string(const std::string& mlir_text, const dxgml_options& op
     {
         parser.parse_from_string(mlir_text);
     }
+
+    // Apply DxGML-specific IR passes.
+    std::vector<pass> dxgml_passes;
+    dxgml_passes.push_back(fuse_dxgml_dequant{});
+    if(not options.amdgpu_kernel_registry_file.empty())
+        dxgml_passes.push_back(fuse_dxgml_amdgpu_ops{options.amdgpu_kernel_registry_file});
+    dxgml_passes.push_back(dead_code_elimination{});
+    migraphx::run_passes(*parser.prog.get_main_module(), dxgml_passes);
 
     if(options.dump_migraphx_ops)
         std::cerr << "[DxGML] MIGraphX ops after parsing:\n" << parser.prog << "\n";

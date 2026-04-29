@@ -5554,6 +5554,14 @@ TEST_CASE(test_symbolic_concat_shapes)
     EXPECT(p.get_output_shapes().back() == sout);
 }
 
+TEST_CASE(tile_dyn_shape)
+{
+    migraphx::shape sin{migraphx::shape::float_type, {{1, 4}, {2, 2}}};
+    migraphx::shape sout{migraphx::shape::float_type, {{2, 8}, {4, 4}}};
+    std::vector<std::int64_t> repeats{2, 2};
+    expect_shape(sout, migraphx::make_op("tile", {{"repeats", repeats}}), sin);
+}
+
 TEST_CASE(test_binary_nonpacked)
 {
     auto sx   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 8});

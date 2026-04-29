@@ -980,6 +980,13 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
     return {type(), static_lens, static_strides};
 }
 
+shape shape::to_static() const
+{
+    if(not this->is_fixed())
+        MIGRAPHX_THROW("SHAPE: to_static() requires fully-fixed dimensions");
+    return this->to_static(std::unordered_map<sym::expr, std::size_t>{});
+}
+
 std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const { return name(this->type()); }
@@ -1342,7 +1349,7 @@ bool shape::same_lens(const shape& x, const shape& y)
     if(x.is_fixed() != y.is_fixed())
         return false;
     if(x.is_fixed())
-        return x.to_static({}).lens() == y.to_static({}).lens();
+        return x.to_static().lens() == y.to_static().lens();
     return x.dyn_dims() == y.dyn_dims();
 }
 

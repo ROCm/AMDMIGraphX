@@ -145,3 +145,83 @@ TEST_CASE(topk_smallest_custom_indices)
     std::vector<int64_t> gold_ind = {11, 13, 15, 14, 7, 9, 6, 10, 2, 5, 1, 3};
     EXPECT(results.second == gold_ind);
 }
+
+// Test k > n with dynamic shapes: k=100 placeholder but runtime input has 10 elements
+TEST_CASE(topk_k_greater_than_n_dynamic)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // Dynamic shape: axis 0 ranges from 1 to 100
+    std::vector<migraphx::shape::dynamic_dimension> dds = {{1, 100}};
+    migraphx::shape s{migraphx::shape::float_type, dds};
+    auto data = mm->add_parameter("data", s);
+    // k=100 is the max placeholder from parse time
+    auto r  = mm->add_instruction(
+        migraphx::make_op("topk", {{"axis", 0}, {"k", 100}, {"largest", 1}}), data);
+    auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+    auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+    mm->add_return({r0, r1});
+
+    p.compile(migraphx::make_target("ref"));
+
+    // Runtime: only 5 elements
+    std::vector<float> input_data = {3.0f, 1.0f, 4.0f, 1.5f, 2.0f};
+    migraphx::shape input_fixed{migraphx::shape::float_type, {5}};
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(input_fixed, input_data.data());
+    auto rets  = p.eval(pp);
+
+    std::vector<float> ret_val;
+    rets.front().visit([&](auto v) { ret_val.assign(v.begin(), v.end()); });
+    std::vector<int64_t> ret_ind;
+    rets.back().visit([&](auto v) { ret_ind.assign(v.begin(), v.end()); });
+
+    // k=100 clamped to n=5, sorted descending
+    EXPECT(ret_val.size() == 5u);
+    std::vector<float> gold_val = {4.0f, 3.0f, 2.0f, 1.5f, 1.0f};
+    EXPECT(ret_val == gold_val);
+    std::vector<int64_t> gold_ind = {2, 0, 4, 3, 1};
+    EXPECT(ret_ind == gold_ind);
+}
+
+// Test k == n: k equals the axis dimension, should return all elements sorted
+TEST_CASE(topk_k_equals_n)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {3, 5}};
+    auto data = mm->add_parameter("data", s);
+    // k=5 equals axis=1 dimension of 5
+    auto r  = mm->add_instruction(
+        migraphx::make_op("topk", {{"axis", 1}, {"k", 5}, {"largest", 0}}), data);
+    auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
+    auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
+    mm->add_return({r0, r1});
+
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> input_data = {
+        2.1, 2.3, 2.0, 2.5, 1.9,
+        3.3, 0.2, 4.5, 0.1, 0.8,
+        1.0, 4.5, 2.1, 0.8, 1.5,
+    };
+    migraphx::parameter_map pp;
+    pp["data"] = migraphx::argument(s, input_data.data());
+    auto rets  = p.eval(pp);
+
+    std::vector<float> ret_val;
+    rets.front().visit([&](auto v) { ret_val.assign(v.begin(), v.end()); });
+    std::vector<int64_t> ret_ind;
+    rets.back().visit([&](auto v) { ret_ind.assign(v.begin(), v.end()); });
+
+    // All 5 elements returned per row, sorted ascending (smallest first)
+    EXPECT(ret_val.size() == 15u);
+    std::vector<float> gold_val = {1.9, 2.0, 2.1, 2.3, 2.5,
+                                   0.1, 0.2, 0.8, 3.3, 4.5,
+                                   0.8, 1.0, 1.5, 2.1, 4.5};
+    EXPECT(ret_val == gold_val);
+    std::vector<int64_t> gold_ind = {4, 2, 0, 1, 3,
+                                     3, 1, 4, 0, 2,
+                                     3, 0, 4, 2, 1};
+    EXPECT(ret_ind == gold_ind);
+}

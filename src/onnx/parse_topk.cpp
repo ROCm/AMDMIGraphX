@@ -40,18 +40,6 @@ struct parse_topk : op_parser<parse_topk>
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
     {
-        int64_t k = 0;
-        if(args.size() == 2)
-        {
-            auto arg_k = args.at(1)->eval();
-            check_arg_empty(arg_k, "PARSE_TopK: k input must be constant");
-            k = arg_k.at<int>();
-        }
-        else if(contains(info.attributes, "k"))
-        {
-            k = info.attributes.at("k").i();
-        }
-
         bool largest = true;
         if(contains(info.attributes, "largest"))
         {
@@ -62,6 +50,35 @@ struct parse_topk : op_parser<parse_topk>
         if(contains(info.attributes, "axis"))
         {
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
+        }
+
+        int64_t k = 0;
+        if(args.size() == 2)
+        {
+            auto arg_k = args.at(1)->eval();
+            if(arg_k.empty())
+            {
+                // k is not constant: use the input dimension along the topk axis
+                auto input_shape = args.at(0)->get_shape();
+                auto ndim        = input_shape.ndim();
+                auto norm_axis   = axis < 0 ? axis + static_cast<int64_t>(ndim) : axis;
+                if(input_shape.dynamic())
+                {
+                    k = input_shape.dyn_dims().at(norm_axis).get_interval().max;
+                }
+                else
+                {
+                    k = input_shape.lens().at(norm_axis);
+                }
+            }
+            else
+            {
+                k = arg_k.at<int>();
+            }
+        }
+        else if(contains(info.attributes, "k"))
+        {
+            k = info.attributes.at("k").i();
         }
 
         auto topk_ret = info.add_instruction(

@@ -161,6 +161,7 @@ rocm_enable_clang_tidy(
         performance-*
         readability-*
         -bugprone-crtp-constructor-accessibility
+        -bugprone-derived-method-shadowing-base-method
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
@@ -168,6 +169,7 @@ rocm_enable_clang_tidy(
         -bugprone-return-const-ref-from-parameter
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
+        -bugprone-unintended-char-ostream-output
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
@@ -217,6 +219,7 @@ rocm_enable_clang_tidy(
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
+        -misc-const-correctness
         -misc-include-cleaner
         -misc-macro-parentheses
         -misc-no-recursion
@@ -234,6 +237,7 @@ rocm_enable_clang_tidy(
         -performance-type-promotion-in-math-fn
         -performance-enum-size
         -readability-braces-around-statements
+        -readability-container-size-empty
         -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
         -readability-else-after-return

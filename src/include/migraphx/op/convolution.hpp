@@ -196,9 +196,7 @@ struct convolution
             output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
 
         shape result = x_shape.with_lens(x_shape.type(), output_dyn_dims);
-        return result.is_fixed()
-                   ? result.to_static(std::unordered_map<sym::expr, std::size_t>{})
-                   : result;
+        return result.is_fixed() ? result.to_static() : result;
     }
 
     size_t kdims() const

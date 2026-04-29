@@ -255,9 +255,7 @@ struct pooling
                 output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
         }
         shape result = input.with_lens(input.type(), output_dyn_dims);
-        return result.is_fixed()
-                   ? result.to_static(std::unordered_map<sym::expr, std::size_t>{})
-                   : result;
+        return result.is_fixed() ? result.to_static() : result;
     }
 
     struct lpnorm_pool

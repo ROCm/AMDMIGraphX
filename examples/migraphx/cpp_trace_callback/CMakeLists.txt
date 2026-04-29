@@ -21,13 +21,26 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-abseil/abseil-cpp@20250512.0 -DABSL_ENABLE_INSTALL=ON -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-google/protobuf@v30.0 -DCMAKE_POSITION_INDEPENDENT_CODE=On -Dprotobuf_BUILD_TESTS=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-nlohmann/json@v3.8.0 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-pybind/pybind11@3e9dfa2866941655c56877882565e7577de6fc7b --build
-msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off -DMSGPACK_BUILD_EXAMPLES=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-sqlite3@3.50.4 -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/rocm-cmake@dfaa4ddba4dbb2e1c6e9964ce610e2a12fd93f39 --build
-ROCm/composable_kernel@ad0db05b040bacda751c65c705261b8a0a7ed25d --cmake subdir -DCMAKE_DIR=codegen -DCMAKE_POSITION_INDEPENDENT_CODE=On -DBUILD_TESTING=Off
-https://gitlab.com/libeigen/eigen/-/archive/5.0.1/eigen-5.0.1.tar.gz -DBUILD_TESTING=Off -DEIGEN_BUILD_DOC=Off
-ROCm/rocMLIR@2f4f0744a5bbf3ad35e94649bf027c663cef001e -DBUILD_FAT_LIBROCKCOMPILER=On -DLLVM_INCLUDE_TESTS=Off
+cmake_minimum_required(VERSION 3.5)
+project(cpp_trace_callback)
+
+set(CMAKE_CXX_STANDARD 17)
+
+# Root of the MIGraphX source and build trees
+set(MIGRAPHX_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../.." CACHE PATH "MIGraphX source root")
+set(MIGRAPHX_BUILD_DIR "${MIGRAPHX_SRC_DIR}/build" CACHE PATH "MIGraphX build directory")
+
+add_executable(trace_callback_example trace_callback_example.cpp)
+
+target_include_directories(trace_callback_example PRIVATE
+    ${MIGRAPHX_SRC_DIR}/src/api/include
+    ${MIGRAPHX_BUILD_DIR}/src/api/include
+)
+
+target_link_directories(trace_callback_example PRIVATE
+    ${MIGRAPHX_BUILD_DIR}/lib
+)
+
+target_link_libraries(trace_callback_example
+    migraphx_c
+)

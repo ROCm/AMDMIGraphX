@@ -28,6 +28,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/sat_ops.hpp>
@@ -56,7 +57,7 @@ namespace op {
  */
 struct reshape
 {
-    std::vector<int64_t> dims;
+    std::vector<dim_like> dims;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -90,7 +91,7 @@ struct reshape
             }
             else
             {
-                std::size_t u_dim     = d;
+                std::size_t u_dim     = get<int64_t>(d);
                 output_dyn_dims.at(i) = {u_dim, u_dim};
             }
         }
@@ -138,7 +139,10 @@ struct reshape
     {
         check_shapes{inputs, *this}.has(1);
         auto&& idims = inputs.front().lens();
-        std::vector<std::size_t> rdims(dims.begin(), dims.end());
+        std::vector<std::size_t> rdims(dims.size());
+        std::transform(dims.begin(), dims.end(), rdims.begin(), [](const dim_like& d) {
+            return get<int64_t>(d);
+        });
 
         for(std::size_t i = 0; i < dims.size(); i++)
         {

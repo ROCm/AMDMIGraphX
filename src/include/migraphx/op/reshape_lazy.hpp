@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/optional.hpp>
@@ -37,7 +38,7 @@ namespace op {
 
 struct reshape_lazy
 {
-    std::vector<int64_t> dims;
+    std::vector<dim_like> dims;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -65,7 +66,7 @@ struct reshape_lazy
         {
             if(dyn_dims[i].is_fixed())
             {
-                num_dims_ele *= dims[i];
+                num_dims_ele *= get<int64_t>(dims[i]);
                 num_dd_ele *= dyn_dims[i].get_interval().min;
             }
             else
@@ -89,9 +90,10 @@ struct reshape_lazy
                        dims.cend(),
                        dyn_dims.cbegin(),
                        output_dyn_dims.begin(),
-                       [](std::size_t dim, auto dyn_dim) {
+                       [](const dim_like& d, auto dyn_dim) {
                            if(not dyn_dim.is_fixed())
                                return dyn_dim;
+                           std::size_t dim = get<int64_t>(d);
                            return shape::dynamic_dimension{dim, dim};
                        });
         return {s0.type(), output_dyn_dims};
@@ -255,7 +257,10 @@ struct reshape_lazy
     {
         check_shapes{inputs, *this}.has(1);
         auto&& idims = inputs.front().lens();
-        std::vector<std::size_t> rdims(dims.begin(), dims.end());
+        std::vector<std::size_t> rdims(dims.size());
+        std::transform(dims.begin(), dims.end(), rdims.begin(), [](const dim_like& d) {
+            return get<int64_t>(d);
+        });
 
         for(std::size_t i = 0; i < dims.size(); i++)
         {

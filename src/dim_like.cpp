@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,21 +22,41 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
-#include <migraphx/op/reshape.hpp>
+#include <migraphx/dim_like.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/value.hpp>
 
-TEST_CASE(reshape_test)
+#include <variant>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+std::ostream& operator<<(std::ostream& os, const dim_like& d)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::op::reshape op;
-    std::vector<int64_t> reshape_dims{3, 8};
-    mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, reshape_dims});
-    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
-    op.dims.assign(reshape_dims.begin(), reshape_dims.end());
-    mm->add_instruction(op, l0);
-    mm->add_instruction(op, l0);
-    auto prog = optimize_onnx("reshape_test.onnx");
-    EXPECT(p == prog);
+    std::visit([&](const auto& x) { os << x; }, d.value);
+    return os;
 }
+
+migraphx::value dim_like::to_value() const
+{
+    return std::visit([](const auto& x) { return migraphx::to_value(x); }, this->value);
+}
+
+void dim_like::from_value(const migraphx::value& v)
+{
+    // Backward-compatible path: integer-valued entries (signed or unsigned)
+    // route through the int alternative so old .mxr files and call sites that
+    // pass plain integer arrays both decode without going through the
+    // dynamic_dimension reflect path.
+    if(v.is_int64() or v.is_uint64())
+    {
+        this->value = v.to<int64_t>();
+        return;
+    }
+    shape::dynamic_dimension d;
+    migraphx::from_value(v, d);
+    this->value = std::move(d);
+}
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

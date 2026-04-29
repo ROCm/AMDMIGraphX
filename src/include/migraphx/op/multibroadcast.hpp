@@ -77,6 +77,8 @@ struct multibroadcast
                                          std::all_of(output_dyn_dims.begin(),
                                                      output_dyn_dims.end(),
                                                      [](const auto& d) { return d.is_symbolic(); });
+            if(not output_dyn_dims.empty() and not symbolic_target)
+                MIGRAPHX_THROW("MULTIBROADCAST: output_dyn_dims must be fully symbolic");
 
             if(s0.dynamic() and not(symbolic_target and s0.symbolic()))
                 MIGRAPHX_THROW(

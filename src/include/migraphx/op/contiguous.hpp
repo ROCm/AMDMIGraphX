@@ -47,7 +47,7 @@ struct contiguous
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto s0 = inputs.front();
+        const auto& s0 = inputs.front();
 
         if(s0.dynamic())
             return {s0.type(), s0.dyn_dims()};

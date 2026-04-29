@@ -39,7 +39,11 @@ constexpr bool has_nonzero(index_ints<Ps...>)
     return ((Ps != 0) or ...);
 }
 
-template <index_int NTiles, class TileLens, class OutputShape, class Padding = index_ints<>>
+template <index_int NTiles,
+          class TileLens,
+          class OutputShape,
+          class Padding = index_ints<>,
+          class Strides = index_ints<1, 1>>
 struct spatial_tiler
 {
     static constexpr auto keep_spatial()
@@ -108,27 +112,37 @@ struct spatial_tiler
     index idx;
     array<index_int, ndim()> tile_origin;
 
-    // Compute halo lens for a given input shape: output_lens + (input_spatial - output_spatial)
-    // With padding, the output is larger so the raw difference is too small; add total padding.
+    // Per-dimension strides array: {1, 1, s_h, s_w}
+    static constexpr auto conv_strides()
+    {
+        return return_array_c([] {
+            constexpr auto s  = Strides{};
+            constexpr auto ns = s.size();
+            auto result       = output_lens();
+            for(auto& x : result)
+                x = 1;
+            for(index_int i = 0; i < ns; i++)
+                result[result.size() - ns + i] = s[i];
+            return result;
+        });
+    }
+
+    // Compute halo lens for a given input shape.
     template <class InputShape>
     static constexpr auto halo_lens_for()
     {
-        constexpr auto halo_extra = [] {
+        constexpr auto halo_extra  = return_array_c([] {
+            constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
+            constexpr auto scaled_out =
+                transform(out_spatial_lens(), conv_strides(), [](auto o, auto s) { return o * s; });
             if constexpr(has_conv_padding())
-            {
-                return return_array_c([] {
-                    return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
-                           total_padding();
-                });
-            }
+                return input_spatial - scaled_out + total_padding();
             else
-            {
-                constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
-                return transform(
-                    input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os; });
-            }
-        }();
-        return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
+                return input_spatial - scaled_out;
+        });
+        constexpr auto scaled_tile = transform(
+            output_lens(), conv_strides(), [](auto o, auto s) { return (o - 1) * s + 1; });
+        return transform(scaled_tile, halo_extra, [](auto t, auto h) { return t + h; });
     }
 
     // Type for shared memory allocation
@@ -164,9 +178,14 @@ struct spatial_tiler
         auto input_ch         = slice_tensor(
             input, (channel_idx / index_int{groups}) % index_int{n_in}, keep_spatial());
 
+        auto strided_origin = tile_origin;
+        constexpr auto cs   = conv_strides();
+        for(index_int d = 0; d < ndim(); d++)
+            strided_origin[d] *= cs[d];
+
         idx.local_stride(_c<hl.product()>, [&](auto i) {
             auto halo_multi = halo_shape.multi(i);
-            auto src_pos    = tile_origin + halo_multi;
+            auto src_pos    = strided_origin + halo_multi;
             if constexpr(has_conv_padding())
             {
                 constexpr auto pad = left_padding();
@@ -203,10 +222,14 @@ struct spatial_tiler
     }
 };
 
-template <index_int NTiles, class TileLens, class OutputShape, class Padding = index_ints<>>
-__device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Padding = {})
+template <index_int NTiles,
+          class TileLens,
+          class OutputShape,
+          class Strides = index_ints<1, 1>,
+          class Padding = index_ints<>>
+__device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Strides = {}, Padding = {})
 {
-    using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape, Padding>;
+    using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape, Padding, Strides>;
 
     constexpr auto block_shape = make_shape(return_array_c([] {
         auto result = tiler_type::tiles_per_dim().base();

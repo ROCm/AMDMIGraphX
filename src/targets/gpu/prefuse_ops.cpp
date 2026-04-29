@@ -241,13 +241,16 @@ struct channelwise_conv
 {
     std::size_t num_spatial = 2;
     std::vector<std::size_t> padding;
+    std::vector<std::size_t> strides;
 
     std::string name() const { return "gpu::channelwise_conv"; }
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.num_spatial, "num_spatial"), f(self.padding, "padding"));
+        return pack(f(self.num_spatial, "num_spatial"),
+                    f(self.padding, "padding"),
+                    f(self.strides, "strides"));
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -265,7 +268,8 @@ struct channelwise_conv
                 total_pad += padding[i];
             if(i + num_spatial < padding.size())
                 total_pad += padding[i + num_spatial];
-            out_lens.push_back(x_lens[i + 2] + total_pad - w_lens[i + 2] + 1);
+            std::size_t s = (i < strides.size()) ? strides[i] : 1;
+            out_lens.push_back((x_lens[i + 2] + total_pad - w_lens[i + 2]) / s + 1);
         }
         return inputs[0].with_lens(out_lens);
     }
@@ -277,8 +281,6 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
     if(ins->name() != "convolution")
         return false;
     auto v = ins->get_operator().to_value();
-    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
-        return false;
     if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
         return false;
     auto w_lens = ins->inputs().back()->get_shape().lens();
@@ -312,8 +314,12 @@ struct find_channelwise_convolution
                        std::back_inserter(padding),
                        [](const value& x) { return x.to<std::size_t>(); });
 
-        m.replace_instruction(
-            ins, channelwise_conv{num_spatial, std::move(padding)}, input, weights);
+        auto strides = v.at("stride").to_vector<std::size_t>();
+
+        m.replace_instruction(ins,
+                              channelwise_conv{num_spatial, std::move(padding), std::move(strides)},
+                              input,
+                              weights);
     }
 };
 

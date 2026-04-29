@@ -33,18 +33,19 @@ namespace migraphx {
 
 template <class TileLens,
           index_int NTiles,
+          class Strides,
           class Padding,
           class F,
           class Output,
           class Input,
           class Weights,
           class... Inputs>
-__device__ void
-channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inputs... inputs)
+__device__ void channelwise_conv(
+    TileLens, Strides, Padding, F f, Output output, Input x, Weights w, Inputs... inputs)
 {
-    auto idx   = make_index();
-    auto tiler = make_spatial_tiler<NTiles>(idx, TileLens{}, get_shape_c<Output>{}, Padding{});
-
+    auto idx = make_index();
+    auto tiler =
+        make_spatial_tiler<NTiles>(idx, TileLens{}, get_shape_c<Output>{}, Strides{}, Padding{});
     __shared__ decltype(tiler.template shared_allocate<Input>()) smem;
 
     auto x_ch    = tiler.copy(x, smem);
@@ -60,10 +61,14 @@ channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inpu
     __syncthreads();
 
     tiler.for_each([&](auto out_pos, auto out_multi) {
+        auto halo_multi   = out_multi;
+        constexpr auto cs = decltype(tiler)::conv_strides();
+        for(index_int d = 0; d < halo_multi.size(); d++)
+            halo_multi[d] *= cs[d];
         type acc = 0;
         repeat(wregs.get_shape().elements(), [&](auto ki) {
             auto k_multi = wregs.get_shape().multi(ki);
-            acc += x_ch[out_multi + k_multi] * wregs[k_multi];
+            acc += x_ch[halo_multi + k_multi] * wregs[k_multi];
         });
         xs_pack([&](auto... xs) { out_ch[out_pos] = f(acc, xs[out_pos]...); });
     });

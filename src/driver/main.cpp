@@ -181,8 +181,9 @@ struct loader
     bool replace_literals       = false;
     bool brief                  = false;
     bool verbose                = false;
-    bool strip_context          = false;
-    bool use_debug_symbols      = false;
+    bool strip_context                  = false;
+    bool use_debug_symbols              = false;
+    bool external_weights_as_parameters = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -219,6 +220,11 @@ struct loader
            {"--debug-symbols"},
            ap.help(
                "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
+           ap.set_value(true));
+        ap(external_weights_as_parameters,
+           {"--weight-params"},
+           ap.help("Parse external-data initializers as parameters instead of literals, "
+                   "enabling runtime weight swapping."),
            ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
@@ -409,12 +415,13 @@ struct loader
             auto v                        = from_json_string(convert_to_json(default_dyn_dim));
             options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
         }
-        options.skip_unknown_operators = skip_unknown_operators;
-        options.print_program_on_error = true;
-        options.use_debug_symbols      = use_debug_symbols;
-        options.map_input_dims         = map_input_dims;
-        options.map_dyn_input_dims     = map_dyn_input_dims;
-        options.dim_params             = map_dim_params;
+        options.skip_unknown_operators         = skip_unknown_operators;
+        options.print_program_on_error         = true;
+        options.use_debug_symbols              = use_debug_symbols;
+        options.external_weights_as_parameters = external_weights_as_parameters;
+        options.map_input_dims                 = map_input_dims;
+        options.map_dyn_input_dims             = map_dyn_input_dims;
+        options.dim_params                     = map_dim_params;
         return options;
     }
 

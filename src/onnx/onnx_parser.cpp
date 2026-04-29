@@ -350,21 +350,46 @@ static bool is_type_packed_int4(const onnx::TensorProto& t)
 }
 
 static std::unordered_map<std::string, instruction_ref>
-parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
+parse_intializer(onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
             std::cout << "initializer: " << f.name() << std::endl;
-        // backup instructions in parent mod
-        auto pt  = parser.parse_tensor(f);
-        auto lit = mod->add_literal(pt);
 
-        if(is_type_packed_int4(f))
-            lit = mod->add_instruction(migraphx::make_op("unpack_int4"), lit);
+        const auto& external_data = f.external_data();
+        if(parser.external_weights_as_parameters and not external_data.empty())
+        {
+            auto tensor_shape = parse_tensor_shape(f);
 
-        mod_insts[f.name()] = lit;
+            external_data_info info;
+            info.filename = external_data.at(0).value();
+            if(external_data.size() > 1)
+                info.offset = std::stoull(external_data.at(1).value());
+            info.nbytes =
+                (external_data.size() > 2) ? std::stoull(external_data.at(2).value())
+                                           : tensor_shape.bytes();
+
+            auto param = mod->add_parameter(f.name(), tensor_shape);
+
+            if(is_type_packed_int4(f))
+                param = mod->add_instruction(migraphx::make_op("unpack_int4"), param);
+
+            mod_insts[f.name()]                   = param;
+            parser.external_weight_map[f.name()] = std::move(info);
+        }
+        else
+        {
+            auto pt  = parser.parse_tensor(f);
+            auto lit = mod->add_literal(pt);
+
+            if(is_type_packed_int4(f))
+                lit = mod->add_instruction(migraphx::make_op("unpack_int4"), lit);
+
+            mod_insts[f.name()] = lit;
+        }
+
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
             mod->debug_print(mod_insts[f.name()]);
     }

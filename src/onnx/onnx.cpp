@@ -24,6 +24,9 @@
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/filesystem.hpp>
+#include <migraphx/file_buffer.hpp>
+#include <migraphx/make_shared_array.hpp>
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
@@ -69,10 +72,11 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
         MIGRAPHX_THROW("PARSE_ONNX_FROM: both map_input_dims and map_dyn_input_dims non-empty, only"
                        "one should be used");
     }
-    parser.skip_unknown_operators = options.skip_unknown_operators;
-    parser.max_loop_iterations    = options.max_loop_iterations;
-    parser.limit_max_iterations   = options.limit_max_iterations;
-    parser.use_dyn_output         = options.use_dyn_output;
+    parser.skip_unknown_operators         = options.skip_unknown_operators;
+    parser.max_loop_iterations            = options.max_loop_iterations;
+    parser.limit_max_iterations           = options.limit_max_iterations;
+    parser.use_dyn_output                 = options.use_dyn_output;
+    parser.external_weights_as_parameters = options.external_weights_as_parameters;
 
     if(options.print_program_on_error)
     {
@@ -91,6 +95,9 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     {
         parser.parse_from(std::forward<Ts>(xs)...);
     }
+
+    if(not parser.external_weight_map.empty())
+        parser.prog.set_external_weight_map(std::move(parser.external_weight_map));
 
     return std::move(parser.prog);
 }
@@ -114,6 +121,32 @@ program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options
 const std::vector<std::string>& get_onnx_operators()
 {
     static std::vector<std::string> result = onnx::get_op_parsers();
+    return result;
+}
+
+parameter_map load_external_weights(const program& prog, const std::string& base_dir)
+{
+    const auto& weight_map = prog.get_external_weight_map();
+    auto param_shapes      = prog.get_parameter_shapes();
+    parameter_map result;
+
+    for(const auto& entry : weight_map)
+    {
+        const auto& name = entry.first;
+        const auto& info = entry.second;
+
+        if(param_shapes.count(name) == 0)
+            MIGRAPHX_THROW("LOAD_EXTERNAL_WEIGHTS: parameter \"" + name +
+                           "\" not found in program");
+
+        const auto& s        = param_shapes.at(name);
+        auto raw             = read_buffer(fs::path{base_dir} / info.filename,
+                               info.offset,
+                               info.nbytes);
+        auto data            = make_shared_array<char>(raw.begin(), raw.end());
+        result[name]         = argument{s, data};
+    }
+
     return result;
 }
 

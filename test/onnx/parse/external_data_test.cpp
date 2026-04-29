@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,4 +31,26 @@ TEST_CASE(external_data_test)
 
     auto prog = optimize_onnx("external_data_test.onnx");
     EXPECT(p == prog);
+}
+
+TEST_CASE(external_data_as_parameters_test)
+{
+    migraphx::onnx_options options;
+    options.skip_unknown_operators         = true;
+    options.external_weights_as_parameters = true;
+    auto prog = read_onnx("external_data_test.onnx", options);
+
+    const auto& weight_map = prog.get_external_weight_map();
+    EXPECT(not weight_map.empty());
+
+    auto param_shapes = prog.get_parameter_shapes();
+
+    for(const auto& entry : weight_map)
+    {
+        EXPECT(param_shapes.count(entry.first) > 0);
+        EXPECT(entry.second.nbytes > 0);
+        EXPECT(not entry.second.filename.empty());
+    }
+
+    EXPECT(param_shapes.count("input") > 0);
 }

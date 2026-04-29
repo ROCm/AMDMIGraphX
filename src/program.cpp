@@ -24,6 +24,7 @@
 #include <migraphx/version.h>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/onnx.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/identity.hpp>
@@ -78,6 +79,7 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
+    std::unordered_map<std::string, external_data_info> external_weight_map;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -159,6 +161,18 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
 {
     const auto* mm = this->get_main_module();
     return mm->get_parameter_shapes();
+}
+
+void program::set_external_weight_map(
+    std::unordered_map<std::string, external_data_info> weight_map)
+{
+    impl->external_weight_map = std::move(weight_map);
+}
+
+const std::unordered_map<std::string, external_data_info>&
+program::get_external_weight_map() const
+{
+    return impl->external_weight_map;
 }
 
 std::size_t program::size() const { return impl->modules.size(); }
@@ -697,7 +711,7 @@ static std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 8;
+const int program_file_version = 9;
 
 value program::to_value() const
 {
@@ -754,6 +768,20 @@ value program::to_value() const
     }
 
     result["modules"] = module_vals;
+
+    if(not impl->external_weight_map.empty())
+    {
+        value ewm = value::object{};
+        for(const auto& p : impl->external_weight_map)
+        {
+            value entry   = value::object{};
+            entry["file"] = p.second.filename;
+            entry["off"]  = p.second.offset;
+            entry["len"]  = p.second.nbytes;
+            ewm[p.first]  = entry;
+        }
+        result["external_weight_map"] = ewm;
+    }
 
     return result;
 }
@@ -876,6 +904,18 @@ void program::from_value(const value& v)
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
     mod_from_val(mm, module_vals, map_insts, map_mods);
+
+    if(v.contains("external_weight_map"))
+    {
+        for(const auto& entry : v.at("external_weight_map"))
+        {
+            external_data_info info;
+            info.filename = entry.at("file").to<std::string>();
+            info.offset   = entry.at("off").to<std::size_t>();
+            info.nbytes   = entry.at("len").to<std::size_t>();
+            impl->external_weight_map[entry.get_key()] = std::move(info);
+        }
+    }
 
     // Finalize a compiled model
     if(not this->impl->contexts.empty())

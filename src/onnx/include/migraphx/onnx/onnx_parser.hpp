@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/onnx.hpp>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <onnx.pb.h>
@@ -102,12 +103,14 @@ struct onnx_parser
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     std::unordered_map<std::string, shape::dynamic_dimension> dim_params;
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
-    bool use_dyn_output          = false;
-    bool skip_unknown_operators  = false;
-    bool use_debug_symbols       = false;
-    int64_t max_loop_iterations  = 10;
-    int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
-    int64_t opset_version        = 13;
+    bool use_dyn_output                 = false;
+    bool skip_unknown_operators         = false;
+    bool use_debug_symbols              = false;
+    bool external_weights_as_parameters = false;
+    int64_t max_loop_iterations         = 10;
+    int64_t limit_max_iterations        = std::numeric_limits<uint16_t>::max();
+    int64_t opset_version               = 13;
+    std::unordered_map<std::string, external_data_info> external_weight_map;
 
     std::unordered_map<std::string, op_func> ops;
 

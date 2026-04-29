@@ -40,12 +40,15 @@
 #include <migraphx/execution_environment.hpp>
 #include <algorithm>
 #include <iostream>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
+
+struct external_data_info;
 
 struct program_impl;
 
@@ -163,6 +166,11 @@ struct MIGRAPHX_EXPORT program
     void remove_module(const std::string& name);
     void rename_module(const std::string& old_name, const std::string& new_name);
     void remove_unused_modules();
+
+    void set_external_weight_map(
+        std::unordered_map<std::string, external_data_info> weight_map);
+    const std::unordered_map<std::string, external_data_info>&
+    get_external_weight_map() const;
 
     private:
     void assign(const program& p);

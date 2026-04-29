@@ -31,6 +31,14 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/// Metadata for a single external weight file reference
+struct external_data_info
+{
+    std::string filename;
+    std::size_t offset = 0;
+    std::size_t nbytes = 0;
+};
+
 /// struct to pass in onnx options to parser
 struct onnx_options
 {
@@ -63,6 +71,9 @@ struct onnx_options
     /// Path to use for the external data if it is stored at different location compared to onnx
     /// file
     std::string external_data_path = "";
+    /// When true, external-data initializers become parameters instead of literals,
+    /// enabling runtime weight swapping without re-parsing
+    bool external_weights_as_parameters = false;
 };
 
 /// Create a program from an onnx file
@@ -79,6 +90,11 @@ MIGRAPHX_ONNX_EXPORT program parse_onnx_buffer(const void* data,
                                                const onnx_options& options);
 
 MIGRAPHX_ONNX_EXPORT const std::vector<std::string>& get_onnx_operators();
+
+/// Load external weight files from base_dir and return a parameter_map
+/// keyed by the initializer names that were parsed as parameters
+MIGRAPHX_ONNX_EXPORT parameter_map load_external_weights(const program& prog,
+                                                         const std::string& base_dir);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

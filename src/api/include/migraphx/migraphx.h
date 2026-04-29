@@ -538,6 +538,12 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_weights_as_parameters(
+    migraphx_onnx_options_t onnx_options, bool value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_load_external_weights(
+    migraphx_program_parameters_t* out, const_migraphx_program_t prog, const char* base_dir);
+
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);
 

@@ -30,6 +30,7 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -39,9 +40,11 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/source_location.hpp>
+#include <migraphx/trace_info.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
+#include <sstream>
 
 namespace migraphx {
 
@@ -402,6 +405,20 @@ static void register_custom_op(const CustomOp& op)
 }
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
+
+static std::vector<argument>
+run_trace(program& p, const parameter_map& params, const std::function<void(trace_info)>& callback)
+{
+    execution_environment exec_env;
+    const auto* mm = p.get_main_module();
+    exec_env.trace = [&, mm](instruction_ref ins, const argument& output) {
+        auto idx = std::distance(mm->begin(), ins);
+        std::ostringstream oss;
+        oss << ins->get_operator();
+        callback(trace_info{static_cast<std::size_t>(idx), oss.str(), output});
+    };
+    return p.eval(params, exec_env);
+}
 
 } // namespace migraphx
 

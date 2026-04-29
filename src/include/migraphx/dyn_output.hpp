@@ -52,7 +52,7 @@ struct compute_output_shape
     operator dyn_output() const
     {
         return ins_inputs([](const auto& x, shape ins_shape, const std::vector<argument>& inputs) {
-            if(ins_shape.dynamic())
+            if(ins_shape.any_of_dynamic()) //some op returns a tuple shape e.g. TopK
                 return dyn_output{ins_shape, compute_shape(x, to_shapes(inputs))};
             return dyn_output{ins_shape, ins_shape};
         });

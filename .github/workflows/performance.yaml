@@ -94,7 +94,7 @@ jobs:
           if [[ "${{ contains(github.event.pull_request.labels.*.name, 'ok-to-test') }}" != "true" ]]; then
             echo "Missing 'ok-to-test' label; BLOCKED"
             echo "is_ok_to_test=false" >> $GITHUB_OUTPUT
-            exit 0
+            exit 1
           fi
           if [[ "${{ github.event.action }}" == 'synchronize' ]]; then
             echo "::error::New commits pushed. Removing ok-to-test label and blocking until review. Please re-review new changes that were pushed and add ok-to-test label again if changes are approved for testing."

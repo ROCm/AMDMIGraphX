@@ -545,4 +545,104 @@ TEST_CASE(debug_print_test)
     EXPECT(p2_ins_out == "Instruction not part of module");
 }
 
+TEST_CASE(eval_trace_fires_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(not fired_ops.empty());
+    EXPECT(fired_ops.back() == "add");
+}
+
+TEST_CASE(eval_trace_disabled_falls_through)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+
+    migraphx::execution_environment exec_env;
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+}
+
+TEST_CASE(eval_trace_filter_by_name_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
+    mm->add_instruction(migraphx::make_op("sub"), sum, one);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        if(ins->name() == "sub")
+            fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{2});
+    EXPECT(fired_ops.size() == 1);
+    EXPECT(fired_ops.front() == "sub");
+}
+
+TEST_CASE(eval_trace_filter_by_ins_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
+    mm->add_instruction(migraphx::make_op("sub"), sum, one);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        if(ins == sum)
+            fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{2});
+    EXPECT(fired_ops.size() == 1);
+    EXPECT(fired_ops.front() == "add");
+}
+
+TEST_CASE(eval_trace_with_target_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(not fired_ops.empty());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

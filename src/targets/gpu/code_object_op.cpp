@@ -91,29 +91,28 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
     if(kernel_args.count("op") > 0 &&
        kernel_args.at("op").to<int>() == static_cast<int>(mlss_op_type::mha))
     {
-        auto query = args[0];
+        constexpr int qkv_components  = 3; // packed QKV interleave factor
+        constexpr int grids_per_head  = 2; // kernel launches 2 workgroups per (batch, head, seq)
+        constexpr int mha_block_size  = 128;
+        constexpr int mha_output_arg  = 4;
 
-        auto query_shape   = query.get_shape().lens();
-        int head_dim     = query_shape[3];
+        auto query             = args[0];
+        auto outval            = args[mha_output_arg];
+        auto query_shape       = query.get_shape().lens();
+        auto outval_strides    = outval.get_shape().strides();
 
-        auto query_strides = query.get_shape().strides();                
-
-        int batch_size         = query_shape[0];
-        int sequence_length  = query_shape[2];
-        int head_num           = query_shape[1];
-
-        auto outval              = args[4];
-        auto outval_strides     = outval.get_shape().strides();
-
+        int batch_size      = query_shape[0];
+        int head_num        = query_shape[1];
+        int sequence_length = query_shape[2];
+        int head_dim        = query_shape[3];
 
         std::vector<kernel_argument> kargs_input;
 
-        // kernel_argument stores a raw pointer so requires a new named variable 
-        hipDeviceptr_t d_q_in    = query.data();
+        // kernel_argument stores a raw pointer — values must outlive k.launch()
+        hipDeviceptr_t d_q_in   = query.data();
+        hipDeviceptr_t d_out_in = outval.data();
         kargs_input.emplace_back(d_q_in);
-
-        hipDeviceptr_t d_out_in    = outval.data();
-        kargs_input.emplace_back(d_out_in);      
+        kargs_input.emplace_back(d_out_in);
 
         kargs_input.push_back(batch_size);
         kargs_input.push_back(sequence_length);
@@ -124,67 +123,49 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         kargs_input.push_back(scale_ka);
 
         // -----------------------------------------------------------------------
-        // Strides for the [B, S, H, 3*D] QKV layout (seq-major, no transpose needed):
-        //   d0 = S * H * 3*D   (batch stride — same total as head-major since B=1)
-        //   d1 = 3*D           (head stride — heads are innermost, so stride is just 3*D)
-        //   d2 = H * 3*D       (sequence stride — each seq step skips H * 3*D elements)
+        // Strides for the [B, S, H, 3*D] QKV layout (seq-major):
+        //   d0 = S * H * 3*D   (batch stride)
+        //   d1 = 3*D           (head stride)
+        //   d2 = H * 3*D       (sequence stride)
         //   d3 = 1             (element stride)
-        // Output has standard [B, H, S, D] layout (no interleaving).
+        // Output has standard [B, H, S, D] layout.
         // -----------------------------------------------------------------------
-        uint32_t stride_d0 = static_cast<uint32_t>(sequence_length * head_num * 3 * head_dim);
-        uint32_t stride_d1 = static_cast<uint32_t>(3 * head_dim);
-        uint32_t stride_d2 = static_cast<uint32_t>(head_num * 3 * head_dim);
+        uint32_t stride_d0 = static_cast<uint32_t>(sequence_length * head_num * qkv_components * head_dim);
+        uint32_t stride_d1 = static_cast<uint32_t>(qkv_components * head_dim);
+        uint32_t stride_d2 = static_cast<uint32_t>(head_num * qkv_components * head_dim);
         uint32_t stride_d3 = 1u;
 
-        // q
-        uint32_t q_stride_d0 = stride_d0;
-        uint32_t q_stride_d1 = stride_d1;
-        uint32_t q_stride_d2 = stride_d2;
-        uint32_t q_stride_d3 = stride_d3;
+        // Q strides
+        kargs_input.push_back(stride_d0);
+        kargs_input.push_back(stride_d1);
+        kargs_input.push_back(stride_d2);
+        kargs_input.push_back(stride_d3);
 
-        // k
-        uint32_t k_stride_d0 = stride_d0;
-        uint32_t k_stride_d1 = stride_d1;
-        uint32_t k_stride_d2 = stride_d2;
-        uint32_t k_stride_d3 = stride_d3;
+        // K strides (same layout as Q)
+        kargs_input.push_back(stride_d0);
+        kargs_input.push_back(stride_d1);
+        kargs_input.push_back(stride_d2);
+        kargs_input.push_back(stride_d3);
 
-        // v
-        uint32_t v_stride_d0 = stride_d0;
-        uint32_t v_stride_d1 = stride_d1;
-        uint32_t v_stride_d2 = stride_d3; // swapped for v
-        uint32_t v_stride_d3 = stride_d2;
+        // V strides (d2/d3 swapped)
+        kargs_input.push_back(stride_d0);
+        kargs_input.push_back(stride_d1);
+        kargs_input.push_back(stride_d3);
+        kargs_input.push_back(stride_d2);
 
-        kargs_input.push_back(q_stride_d0);
-        kargs_input.push_back(q_stride_d1);
-        kargs_input.push_back(q_stride_d2);
-        kargs_input.push_back(q_stride_d3);
-
-        kargs_input.push_back(k_stride_d0);
-        kargs_input.push_back(k_stride_d1);
-        kargs_input.push_back(k_stride_d2);
-        kargs_input.push_back(k_stride_d3);
-
-        kargs_input.push_back(v_stride_d0);
-        kargs_input.push_back(v_stride_d1);
-        kargs_input.push_back(v_stride_d2);
-        kargs_input.push_back(v_stride_d3);
-
-        // output strides
-        uint32_t output_stride_d0 = outval_strides[0];
-        uint32_t output_stride_d1 = outval_strides[1];
-        uint32_t output_stride_d2 = outval_strides[2];
-        uint32_t output_stride_d3 = outval_strides[3];
-
+        // Output strides — named variables required (raw pointer lifetime)
+        uint32_t output_stride_d0 = static_cast<uint32_t>(outval_strides[0]);
+        uint32_t output_stride_d1 = static_cast<uint32_t>(outval_strides[1]);
+        uint32_t output_stride_d2 = static_cast<uint32_t>(outval_strides[2]);
+        uint32_t output_stride_d3 = static_cast<uint32_t>(outval_strides[3]);
         kargs_input.push_back(output_stride_d0);
         kargs_input.push_back(output_stride_d1);
         kargs_input.push_back(output_stride_d2);
         kargs_input.push_back(output_stride_d3);
 
-        const int grid  = batch_size * head_num * sequence_length * 2;
-        const int block = 128;
-
-        k.launch(ctx.get_stream().get(), grid, block, kargs_input, start, stop);
-        return args[4];
+        const int grid = batch_size * head_num * sequence_length * grids_per_head;
+        k.launch(ctx.get_stream().get(), grid, mha_block_size, kargs_input, start, stop);
+        return args[mha_output_arg];
     }
     else
     {

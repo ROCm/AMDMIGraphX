@@ -27,12 +27,30 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/register_op.hpp>
+#include <migraphx/env.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
-// #include <amdmlss/amdmlss_api.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+/*
+ * Comma-separated list of MLSS ops to enable, e.g. MIGRAPHX_MLSS_USE_SPECIFIC_OPS=mha
+ * If unset, no MLSS ops are fused. Recognized values: "mha".
+ */
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLSS_USE_SPECIFIC_OPS);
+
+bool mlss_enabled()
+{
+    return not string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS{}, "").empty();
+}
+
+static bool mlss_op_enabled(std::string_view op_name)
+{
+    const auto ops = split_string(string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS{}, ""), ',');
+    return std::any_of(ops.begin(), ops.end(), [&](const auto& opt) { return opt == op_name; });
+}
 
 struct mlss_mha
 {
@@ -40,10 +58,11 @@ struct mlss_mha
 
     std::optional<shape> output_shape = nullopt;
 
-    shape compute_shape(std::vector<shape> inputs, const std::vector<module_ref>& mods) const
+    shape compute_shape(std::vector<shape> inputs) const
     {
         if(output_shape.has_value())
             return output_shape.value();
+        return inputs.back();
     }
 
     template <class Self, class F>
@@ -51,36 +70,38 @@ struct mlss_mha
     {
         return pack(f(self.output_shape, "output_shape"));
     }
-
 };
 MIGRAPHX_REGISTER_OP(mlss_mha);
 
-
 void fuse_mlss::apply(module& m) const
 {
-    
-    for(auto ins : iterator_for(m))
-    {
-        auto name = ins->name();
+    if(not starts_with(ctx->get_current_device().get_gfx_name(), "gfx1201"))
+        return;
 
-        if (name == "group")
+    // Supported [batch, heads, seq, head_dim] shapes for the pre-compiled kernels.
+    // Add new entries here to enable additional configurations.
+    static const std::vector<std::vector<std::size_t>> supported_shapes = {
+        {1, 8, 4096, 40},
+    };
+
+    if(mlss_op_enabled("mha"))
+    {
+        for(auto ins : iterator_for(m))
         {
-            auto op_val = ins->get_operator().to_value();
-            if(!op_val.contains("tag") || op_val["tag"].to<std::string>() != "attention")
+            if(ins->name() != "group")
                 continue;
 
+            auto op_val = ins->get_operator().to_value();
+            if(not op_val.contains("tag") or op_val["tag"].to<std::string>() != "attention")
+                continue;
 
-            const auto& device = ctx->get_current_device();
-            std::string gfx_name    = device.get_gfx_name();
-
-            // get the submodule (attn0)
             auto& mod_args = ins->module_inputs();
             if(mod_args.empty())
                 continue;
 
-            module_ref attn_mod = mod_args[0];  // the "attn0" module
+            module_ref attn_mod = mod_args[0];
 
-            // find the @literal (scale) inside the submodule
+            // Find the half-precision scale literal inside the submodule
             instruction_ref scale_literal_ins = attn_mod->end();
             for(auto sub_ins : iterator_for(*attn_mod))
             {
@@ -94,53 +115,27 @@ void fuse_mlss::apply(module& m) const
             if(scale_literal_ins == attn_mod->end())
                 continue;
 
-            // read scale value from the submodule literal
-            const char* scale_data = scale_literal_ins->get_literal().data();
-            const half* scale_hp   = reinterpret_cast<const half*>(scale_data);
-            float scale_val        = static_cast<float>(*scale_hp);
-
-            // insert the literal into the parent module so it can be used as an input
-            instruction_ref scale_in_main = m.insert_literal(ins, scale_literal_ins->get_literal());
-
             auto inputs = ins->inputs();
+            if(inputs.size() != 3)
+                continue;
 
-            if(inputs.size() == 3)
-            {
-                auto input_query = inputs[0];
-                auto input_key   = inputs[1];
-                auto input_value = inputs[2];
+            auto query_len = inputs[0]->get_shape().lens();
+            bool shape_supported = std::any_of(
+                supported_shapes.begin(), supported_shapes.end(), [&](const auto& s) {
+                    return query_len == s;
+                });
 
-                shape query_shape = inputs[0]->get_shape();
-                auto query_len    = query_shape.lens();
+            if(not shape_supported)
+                continue;
 
-                // Supported [batch, heads, seq, head_dim] shapes for the pre-compiled kernels.
-                // Add new entries here to enable additional configurations.
-                static const std::vector<std::vector<std::size_t>> supported_shapes = {
-                    {1, 8, 4096, 40},
-                };
-                bool shape_supported = std::any_of(
-                    supported_shapes.begin(), supported_shapes.end(), [&](const auto& s) {
-                        return query_len == s;
-                    });
+            // Hoist the scale literal into the parent module so it can be passed as an input
+            auto scale_in_main = m.insert_literal(ins, scale_literal_ins->get_literal());
 
-                if(shape_supported)
-                {
-                    const auto& device_name =
-                        ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
-
-                    std::vector<instruction_ref> refs;
-                    refs.push_back(input_query);
-                    refs.push_back(input_key);
-                    refs.push_back(input_value);
-                    refs.push_back(scale_in_main);
-
-                    m.replace_instruction(
-                        ins,
-                        make_op("mlss_mha", {{"output_shape", to_value(ins->get_shape())}}),
-                        refs);
-                }
-            }
-        }        
+            m.replace_instruction(
+                ins,
+                make_op("mlss_mha", {{"output_shape", to_value(ins->get_shape())}}),
+                {inputs[0], inputs[1], inputs[2], scale_in_main});
+        }
     }
 }
 

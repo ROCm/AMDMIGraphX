@@ -23,19 +23,44 @@
  */
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/stringutils.hpp>
 #include <group.hpp>
 #include <test.hpp>
+#include <cstdlib>
+
+static migraphx::gpu::context& get_context()
+{
+    static migraphx::gpu::context ctx;
+    return ctx;
+}
+
+static void skip_if_not_gfx1201()
+{
+    const auto& gfx = get_context().get_current_device().get_gfx_name();
+    if(not migraphx::starts_with(gfx, "gfx1201"))
+        test::skip("test requires gfx1201, got: " + gfx);
+}
 
 static void run_pass(migraphx::program& p)
 {
-    static migraphx::gpu::context ctx;
-    migraphx::run_passes(p, {migraphx::gpu::fuse_mlss{&ctx}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p, {migraphx::gpu::fuse_mlss{&get_context()}, migraphx::dead_code_elimination{}});
 }
+
+// Set MIGRAPHX_MLSS_USE_SPECIFIC_OPS=mha at static-init time, before any test runs.
+// This must happen before the first call to string_value_of(), which caches its result.
+const int mlss_env_init = ([] {
+#ifdef _WIN32
+    _putenv_s("MIGRAPHX_MLSS_USE_SPECIFIC_OPS", "mha");
+#else
+    setenv("MIGRAPHX_MLSS_USE_SPECIFIC_OPS", "mha", /*overwrite=*/1); // NOLINT(cert-env33-c)
+#endif
+}(), 0);
 
 // Build the pre-pass "group" attention program with shape {1,8,4096,40}.
 // The submodule contains a @literal scale (half) and a minimal attention body.
@@ -74,6 +99,7 @@ static migraphx::program make_attention_program(const migraphx::shape& qkv_shape
 // 4 inputs (Q, K, V, scale_literal) and the correct output shape.
 TEST_CASE(mlss_mha_attention_1x8x4096x40)
 {
+    skip_if_not_gfx1201();
     const migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 8, 4096, 40}};
     const float scale_val = 1.0f / std::sqrt(40.0f);
 
@@ -120,6 +146,7 @@ TEST_CASE(mlss_mha_attention_1x8x4096x40)
 // the guarded shape {1, 8, 4096, 40}.
 TEST_CASE(mlss_mha_attention_wrong_shape_not_fused)
 {
+    skip_if_not_gfx1201();
     // {1, 8, 512, 64} is not the supported shape
     const migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 8, 512, 64}};
     const float scale_val = 1.0f / std::sqrt(64.0f);

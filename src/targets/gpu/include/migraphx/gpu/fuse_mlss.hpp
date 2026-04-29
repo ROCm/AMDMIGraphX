@@ -34,6 +34,8 @@ struct module;
 
 namespace gpu {
 
+MIGRAPHX_GPU_EXPORT bool mlss_enabled();
+
 struct MIGRAPHX_GPU_EXPORT fuse_mlss
 {
     context* ctx = nullptr;

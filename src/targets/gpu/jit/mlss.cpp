@@ -27,7 +27,6 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/mlss/mha/gfx1201_mha_64x64x48_64x48x64.hpp>
-#include <cctype>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -35,92 +34,66 @@ namespace gpu {
 
 using namespace migraphx::gpu::gen; // NOLINT
 
-
 struct mlss_compiler : compiler<mlss_compiler>
 {
     std::vector<std::string> names() const { return {"mlss_mha"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
+        auto query_lens     = inputs[0].lens();
+        int batch_size      = query_lens[0];
+        int head_num        = query_lens[1];
+        int sequence_length = query_lens[2];
 
-        const auto& device = ctx.get_current_device();
-        std::string target_arch = device.get_device_name();
+        if (starts_with(ctx.get_current_device().get_gfx_name(), "gfx1201"))
+        {
+            const auto& shader = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201;
+            std::string kernel_name = std::string(shader.m_kernelName);
+            value::binary value_binary(shader.m_binary.data(), shader.m_binary.size());
 
-        // auto query_dim  = inputs[0].ndim();
-        auto query_lens = inputs[0].lens();
-        auto query_strides = inputs[0].strides();
+            std::map<std::string, value> kernel_args{};
+            kernel_args.emplace("op", static_cast<int>(mlss_op_type::mha));
+            kernel_args.emplace("scale", v.at("scale").to<float>());
 
-        // auto key_dim = inputs[1].ndim();
-        auto key_lens = inputs[1].lens();
-        auto key_strides = inputs[1].strides();
+            constexpr int grids_per_head = 2; // kernel launches 2 workgroups per (batch, head, seq)
+            const int grid = batch_size * head_num * sequence_length * grids_per_head;
+            constexpr int mha_block_size = 128;
 
-        // auto value_dim = inputs[2].ndim();
-        auto value_lens = inputs[2].lens();
-        auto value_strides = inputs[2].strides();
+            hip_compile_options options;
+            options.set_launch_params(v, grid, mha_block_size);
+            options.output      = inputs.back();
+            options.inputs      = inputs;
+            options.kernel_name = kernel_name;
+            options.output_arg  = inputs.size() - 1;
 
-        auto output_strides = inputs.back().strides();
-
-        for (char &ch : target_arch) {
-            ch = std::toupper(ch);
+            return code_object_op{value_binary,
+                                kernel_name,
+                                options.global,
+                                options.local,
+                                options.inputs,
+                                options.output,
+                                options.output_arg,
+                                kernel_args};
         }
-        target_arch = "MLSS_" + target_arch;
-
-        float scale = v.at("scale").to<float>();
-
-        // std::string_view kernelName = multi_head_attention_void_single_pointer_packed_qkv_128_64x192x48_64x48x64_forward_with_strides_fp16_gfx1201.m_kernelName;
-        // std::array<std::uint8_t, 68984> binaryData = multi_head_attention_void_single_pointer_packed_qkv_128_64x192x48_64x48x64_forward_with_strides_fp16_gfx1201.m_binary;
-
-        std::string_view kernelName = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201.m_kernelName;
-        std::array<std::uint8_t, 51976> binaryData = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201.m_binary;
-
-        std::string kernel_name = std::string(kernelName);
-        size_t bin_size = binaryData.size();
-
-        value::binary value_binary(binaryData.data(), bin_size);
-
-        auto nelements  = inputs.back().elements();
-        auto block_size = compute_block_size(ctx, nelements, 256);
-        hip_compile_options options;
-        options.set_launch_params(
-            v, compute_global_for(ctx, nelements * block_size, 128), block_size);
-        options.output      = inputs.back();
-        options.inputs      = inputs;
-        options.kernel_name = kernel_name;
-        options.output_arg  = inputs.size() - 1;
-
-        std::map<std::string, value> kernel_args{};
-        
-        kernel_args.emplace("op", static_cast<int>(mlss_op_type::mha));
-        kernel_args.emplace("scale", scale);
-
-        return code_object_op{value_binary,
-                          kernel_name,
-                          options.global,
-                          options.local,
-                          options.inputs,
-                          options.output,
-                          options.output_arg,
-                          kernel_args};
+        else
+        {
+            MIGRAPHX_THROW("mlss_compiler: unsupported device: " + ctx.get_current_device().get_gfx_name());
+        }
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
+        auto v             = op.to_value();
+        auto scale_literal = ins->inputs()[3];
 
-        auto v = op.to_value();
-        auto inputs = ins->inputs();
-        auto scale_literal = inputs[3];
+        if(scale_literal->name() != "@literal")
+            MIGRAPHX_THROW("mlss_compiler: expected a literal for the scale input, got: " +
+                           scale_literal->name());
 
-        //const float* scale_f = nullptr;
-        float scale_f        = 1.0f;
-        if(scale_literal->name() == "@literal")
-        {
-            const char* scale_data = scale_literal->get_literal().data();
-            const half* scale_hp   = reinterpret_cast<const half*>(scale_data);
-            scale_f                = static_cast<float>(*scale_hp);            
-        }
+        const auto* scale_hp = reinterpret_cast<const half*>(scale_literal->get_literal().data());
+        float scale          = static_cast<float>(*scale_hp);
 
-        //v["scale"] = *scale_f;
-        v["scale"] = scale_f;
+        v["scale"] = scale;
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 };

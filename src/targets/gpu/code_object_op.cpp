@@ -87,15 +87,10 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
     });
     auto [start, stop] = ctx.get_perf_events();
 
-
     if(kernel_args.count("op") > 0 &&
        kernel_args.at("op").to<int>() == static_cast<int>(mlss_op_type::mha))
-    {
-        constexpr int qkv_components  = 3; // packed QKV interleave factor
-        constexpr int grids_per_head  = 2; // kernel launches 2 workgroups per (batch, head, seq)
-        constexpr int mha_block_size  = 128;
+    {        
         constexpr int mha_output_arg  = 4;
-
         auto query             = args[0];
         auto outval            = args[mha_output_arg];
         auto query_shape       = query.get_shape().lens();
@@ -130,6 +125,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         //   d3 = 1             (element stride)
         // Output has standard [B, H, S, D] layout.
         // -----------------------------------------------------------------------
+        constexpr int qkv_components  = 3; // packed QKV interleave factor
         uint32_t stride_d0 = static_cast<uint32_t>(sequence_length * head_num * qkv_components * head_dim);
         uint32_t stride_d1 = static_cast<uint32_t>(qkv_components * head_dim);
         uint32_t stride_d2 = static_cast<uint32_t>(head_num * qkv_components * head_dim);
@@ -163,8 +159,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         kargs_input.push_back(output_stride_d2);
         kargs_input.push_back(output_stride_d3);
 
-        const int grid = batch_size * head_num * sequence_length * grids_per_head;
-        k.launch(ctx.get_stream().get(), grid, mha_block_size, kargs_input, start, stop);
+        k.launch(ctx.get_stream().get(), global, local, kargs_input, start, stop);
         return args[mha_output_arg];
     }
     else

@@ -197,10 +197,15 @@ std::vector<instruction_ref> insert_common_args(module& m,
         auto common = common_shape(to_shapes(inputs));
         if(options.common_type)
         {
+            // Exclude scalar literals from the common type decision. A scalar constant
+            // (e.g. an epsilon stored as float32) should adapt to the tensor's type rather
+            // than widening it. Without this, mixing a float32 scalar with a float16 tensor
+            // would promote the entire computation to float32, causing type mismatches in
+            // downstream ops (e.g. convolution, dot) whose weights remain float16.
             std::vector<shape> tensor_shapes;
             for(const auto& input : inputs)
             {
-                if(not(input->can_eval() and input->get_shape().elements() == 1))
+                if(not input->can_eval() or input->get_shape().elements() != 1)
                     tensor_shapes.push_back(input->get_shape());
             }
             if(not tensor_shapes.empty())

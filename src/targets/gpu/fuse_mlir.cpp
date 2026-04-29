@@ -810,6 +810,7 @@ struct find_mlir_fused_geg_ops
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
     std::string gfx_name;
+    context* ctx                            = nullptr;
     bool enable_geg_multi_out_intermediates = false;
 
     // check if individual GEMM meets architecture requirements
@@ -932,6 +933,19 @@ struct find_mlir_fused_geg_ops
             return_vals.push_back(map_ins[first_gemm_ins]);
         }
         mm->add_return(return_vals);
+
+        // Ask MLIR whether the candidate gemm-elementwise-gemm module would
+        // actually compile under the chosen target before we commit the
+        // rewrite. The main case we want to catch here is GEG kernels whose
+        // pinned `gemm1NPerBlock = PowerOf2Ceil(N1)` blows past the per-WG LDS
+        // budget (e.g. a 1500x1280 -> 5120 -> 1280 block). When that happens,
+        // declining the fusion leaves dot1, the elementwise, and dot2 in the
+        // parent module so they get picked up later by the standalone-dot
+        // pass; the orphan `mm` is reclaimed by the program-level DCE that
+        // runs after `fuse_mlir`.
+        if(ctx != nullptr and not is_module_fusible(*mm, *ctx, value{""}))
+            return;
+
         auto inputs = find_inputs(map_ins, &mpm.get_module(), mm);
 
         if(first_gemm_has_multi_outs or elemwise_has_multi_outs)
@@ -1525,6 +1539,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             find_mlir_fused_geg_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                                     .dot_mode  = get_mode("fused_dot", mlir_mode::fast),
                                     .gfx_name  = device_name,
+                                    .ctx       = ctx,
                                     .enable_geg_multi_out_intermediates =
                                         enable_geg_multi_out_intermediates});
         mpm.run_pass(dead_code_elimination{});

@@ -1150,7 +1150,13 @@ bool is_module_fusible(const module& m, const context& migraphx_ctx, const value
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(mm);
     mp.run_high_level_pipeline();
-    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
+    // `solution` is the tuned perfConfig string at JIT time, but callers in
+    // earlier passes (e.g. fuse_mlir asking "would this fuse?") don't have one
+    // yet. An empty string ref tells `mlirIsModuleFusible` to fall back to the
+    // default tile per op, which is what those callers want.
+    const auto* solution_str = solution.if_string();
+    std::string_view perf    = solution_str == nullptr ? std::string_view{} : *solution_str;
+    return mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(perf));
 }
 
 void adjust_param_shapes(module& m, const std::vector<shape>& inputs)

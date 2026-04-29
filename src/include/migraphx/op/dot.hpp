@@ -96,7 +96,7 @@ struct dot
         shape out{t, out_dyn_dims};
         if(a.dynamic() or b.dynamic())
             return out;
-        return out.to_static({});
+        return out.to_static();
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

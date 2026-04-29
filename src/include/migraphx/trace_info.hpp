@@ -21,25 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_EXECUTION_ENV_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_EXECUTION_ENV_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_TRACE_INFO_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_TRACE_INFO_HPP
 
-#include <functional>
-#include <migraphx/any_ptr.hpp>
-#include <migraphx/instruction_ref.hpp>
 #include <migraphx/argument.hpp>
+#include <migraphx/config.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct execution_environment
+struct trace_info
 {
-    any_ptr queue = any_ptr{};
-    bool async    = false;
-    std::function<void(instruction_ref, const argument&)> trace = nullptr;
+    std::size_t index;
+    std::string name;
+    argument result;
 };
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif /* MIGRAPHX_GUARD_MIGRAPHLIB_EXECUTION_ENV_HPP */
+#endif // MIGRAPHX_GUARD_MIGRAPHLIB_TRACE_INFO_HPP

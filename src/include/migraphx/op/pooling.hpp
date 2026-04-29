@@ -217,7 +217,13 @@ struct pooling
             for(size_t i = 0; i < kdims; ++i)
                 output_dyn_dims.push_back(shape::dynamic_dimension{1, 1});
         }
-        else if(padding_mode != default_)
+        else if(padding_mode == default_)
+        {
+            auto spatial_dyn_dims = calc_spatial_dim_out(input_dyn_dims, kdims);
+            output_dyn_dims.insert(
+                output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
+        }
+        else
         {
             for(std::size_t i = 0; i < kdims; ++i)
             {
@@ -225,12 +231,6 @@ struct pooling
                 const auto& x_dd = input_dyn_dims[i + 2];
                 output_dyn_dims.push_back((x_dd + (s - 1)) / shape::dynamic_dimension{s, s});
             }
-        }
-        else
-        {
-            auto spatial_dyn_dims = calc_spatial_dim_out(input_dyn_dims, kdims);
-            output_dyn_dims.insert(
-                output_dyn_dims.end(), spatial_dyn_dims.begin(), spatial_dyn_dims.end());
         }
         return {input.type(), output_dyn_dims};
     }

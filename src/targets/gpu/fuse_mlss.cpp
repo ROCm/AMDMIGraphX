@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <unordered_set>
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -70,6 +69,10 @@ void fuse_mlss::apply(module& m) const
             if(!op_val.contains("tag") || op_val["tag"].to<std::string>() != "attention")
                 continue;
 
+
+            const auto& device = ctx->get_current_device();
+            std::string gfx_name    = device.get_gfx_name();
+
             // get the submodule (attn0)
             auto& mod_args = ins->module_inputs();
             if(mod_args.empty())
@@ -110,8 +113,17 @@ void fuse_mlss::apply(module& m) const
                 shape query_shape = inputs[0]->get_shape();
                 auto query_len    = query_shape.lens();
 
-                if(query_len[0] == 1 && query_len[1] == 8 && query_len[2] == 4096 &&
-                   query_len[3] == 40)
+                // Supported [batch, heads, seq, head_dim] shapes for the pre-compiled kernels.
+                // Add new entries here to enable additional configurations.
+                static const std::vector<std::vector<std::size_t>> supported_shapes = {
+                    {1, 8, 4096, 40},
+                };
+                bool shape_supported = std::any_of(
+                    supported_shapes.begin(), supported_shapes.end(), [&](const auto& s) {
+                        return query_len == s;
+                    });
+
+                if(shape_supported)
                 {
                     const auto& device_name =
                         ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();

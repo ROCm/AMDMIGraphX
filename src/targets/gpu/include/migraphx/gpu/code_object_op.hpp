@@ -35,6 +35,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+enum class mlss_op_type : int
+{
+    mha = 0,
+};
+
 struct context;
 
 struct code_object_op

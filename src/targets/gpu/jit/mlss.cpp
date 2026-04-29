@@ -24,14 +24,11 @@
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
-// #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
-// #include <amdmlss/amdmlss_api.h>
 #include <migraphx/gpu/code_object_op.hpp>
-// #include <migraphx/gpu/mcd.hpp>
-#include <migraphx/gpu/shaderBinRel_64x64x48_64x48x64.hpp>
+#include <migraphx/gpu/mlss/mha/gfx1201_mha_64x64x48_64x48x64.hpp>
 #include <cctype>
-#include <fstream>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -76,12 +73,9 @@ struct mlss_compiler : compiler<mlss_compiler>
         std::string_view kernelName = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201.m_kernelName;
         std::array<std::uint8_t, 51976> binaryData = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201.m_binary;
 
-        const auto& binary = binaryData[0];
-
         std::string kernel_name = std::string(kernelName);
         size_t bin_size = binaryData.size();
 
-        //value::binary value_binary(binaryData.data(), bin_size);
         value::binary value_binary(binaryData.data(), bin_size);
 
         auto nelements  = inputs.back().elements();
@@ -95,7 +89,8 @@ struct mlss_compiler : compiler<mlss_compiler>
         options.output_arg  = inputs.size() - 1;
 
         std::map<std::string, value> kernel_args{};
-
+        
+        kernel_args.emplace("op", static_cast<int>(mlss_op_type::mha));
         kernel_args.emplace("scale", scale);
 
         return code_object_op{value_binary,

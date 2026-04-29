@@ -90,6 +90,7 @@ build*/
 
 # Recommended location to install rbuild dependencies from README.md
 depend*/
+.depend*/
 
 # local Python virtual environment
 .venv/

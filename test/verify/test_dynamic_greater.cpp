@@ -80,11 +80,11 @@ struct test_symbolic_greater_gpu : verify_program<test_symbolic_greater_gpu>
     migraphx::program create_program() const
     {
         using migraphx::sym::var;
-        auto n = var("n");
+        auto n = var("n", {1, 4});
         using dd = migraphx::shape::dynamic_dimension;
 
-        migraphx::shape sx{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
-        migraphx::shape sy{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+        migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{2, 8}}};
+        migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{2, 8}}};
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_parameter("x", sx);

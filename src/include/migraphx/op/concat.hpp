@@ -109,38 +109,35 @@ struct concat
             new_lens[axis]                    = new_dim_axis;
             return shape::from_permutation(type, new_lens, find_permutation(inputs));
         }
-        else if(std::all_of(
-                    inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
+        else
         {
-            // Dynamic input shapes
-            for(std::size_t index = 0; index < inputs[0].ndim(); index++)
+            // At least one dynamic input: normalize static inputs via to_dynamic() so non-axis
+            // dimensions match as dynamic_dimensions. Static vs dynamic may differ only on the
+            // concat axis (other axes must agree after normalization).
+            std::vector<shape> dyn_inputs;
+            dyn_inputs.reserve(inputs.size());
+            for(const auto& in : inputs)
+                dyn_inputs.push_back(in.to_dynamic());
+
+            const auto& ref_dims = dyn_inputs.front().dyn_dims();
+            const auto axis_i    = static_cast<std::size_t>(axis);
+            for(std::size_t index = 0; index < ref_dims.size(); ++index)
             {
-                if(index != axis)
+                if(index != axis_i)
                 {
-                    if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
-                           return s.dyn_dims()[index] == inputs[0].dyn_dims()[index];
+                    if(not std::all_of(dyn_inputs.begin(), dyn_inputs.end(), [&](const shape& s) {
+                           return s.dyn_dims()[index] == ref_dims[index];
                        }))
                         MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
                                        std::to_string(index));
                 }
             }
-            std::size_t new_min = 0;
-            std::size_t new_max = 0;
-            for(const auto& input : inputs)
-            {
-                auto ddim         = input.dyn_dims()[axis];
-                auto dim_interval = ddim.get_interval();
-                new_min += dim_interval.min;
-                new_max += dim_interval.max;
-            }
 
-            auto new_dims  = inputs[0].dyn_dims();
-            new_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
-            return {inputs[0].type(), new_dims};
-        }
-        else
-        {
-            MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes.");
+            auto new_dims = ref_dims;
+            for(std::size_t k = 1; k < dyn_inputs.size(); ++k)
+                new_dims[axis_i] += dyn_inputs[k].dyn_dims()[axis_i];
+
+            return {inputs.front().type(), std::move(new_dims)};
         }
     }
 

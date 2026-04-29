@@ -40,17 +40,11 @@ struct parse_where : op_parser<parse_where>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        // TODO: broadcasting for dynamic shapes is only implemented
-        // for binary ops at time of writing, not ternary ops.
-        //   When it becomes available, add multibroadcasting steps in the dynamic shape case.
-        // For now for dynamic shapes, just insert the Where op.  All shapes must be the
-        // same for it to succeed.
-        if(std::all_of(args.begin(), args.end(), [](auto v) { return v->get_shape().dynamic(); }))
-        {
-            return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
-        }
-        else if(std::none_of(
-                    args.begin(), args.end(), [](auto v) { return v->get_shape().dynamic(); }))
+        // Static-only: insert multibroadcast ops when needed. Any dynamic input: use
+        // add_common_op() so static tensors get multibroadcast to the common dynamic shape
+        // (same path as binary ops).
+        if(std::none_of(
+               args.begin(), args.end(), [](auto v) { return v->get_shape().dynamic(); }))
         {
             // If shapes are static and any are broadcasted, insert multibroadcast ops
             auto lens =
@@ -77,8 +71,8 @@ struct parse_where : op_parser<parse_where>
 
             return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
         }
-        else
-            MIGRAPHX_THROW("PARSE_WHERE: doesn't support mixed static and dynamic shape inputs");
+
+        return info.add_common_op("where", args[0], args[1], args[2]);
     }
 };
 

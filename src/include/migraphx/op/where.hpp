@@ -52,16 +52,12 @@ struct where
         const bool scalar_cond = not scond.dynamic() and scond.elements() == 1;
         if(scalar_cond)
         {
-            if(s1.dynamic() != s2.dynamic())
-                MIGRAPHX_THROW("WHERE: mixed static and dynamic shapes not supported");
-            if(s1.dynamic())
+            if(s1.dynamic() or s2.dynamic())
                 return {s1.type(), compute_broadcasted_dyn_dims(s1, s2)};
             check_shapes{std::next(inputs.begin()), inputs.end(), *this, true}.same_dims();
         }
         else if(scond.dynamic() or s1.dynamic() or s2.dynamic())
         {
-            if(s1.dynamic() != s2.dynamic())
-                MIGRAPHX_THROW("WHERE: mixed static and dynamic shapes not supported");
             const auto xy_dims = compute_broadcasted_dyn_dims(s1, s2);
             const shape s_xy{s1.type(), xy_dims};
             auto out_dims = compute_broadcasted_dyn_dims(scond.to_dynamic(), s_xy);

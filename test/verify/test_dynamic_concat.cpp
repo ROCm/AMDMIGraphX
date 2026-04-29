@@ -56,15 +56,15 @@ struct test_symbolic_concat_axis0_gpu : verify_program<test_symbolic_concat_axis
     migraphx::program create_program() const
     {
         using migraphx::sym::var;
-        auto n  = var("n");
-        auto d0 = var("d0");
-        auto d1 = var("d1");
-        auto d2 = var("d2");
+        auto n  = var("n", {2, 3});
+        auto d0 = var("d0", {2, 4});
+        auto d1 = var("d1", {3, 4});
+        auto d2 = var("d2", {1, 5});
         using dd = migraphx::shape::dynamic_dimension;
 
-        migraphx::shape s0{migraphx::shape::float_type, {dd{2, 4, {}, d0}, dd{2, 3, {}, n}}};
-        migraphx::shape s1{migraphx::shape::float_type, {dd{3, 4, {}, d1}, dd{2, 3, {}, n}}};
-        migraphx::shape s2{migraphx::shape::float_type, {dd{1, 5, {}, d2}, dd{2, 3, {}, n}}};
+        migraphx::shape s0{migraphx::shape::float_type, {dd{d0}, dd{n}}};
+        migraphx::shape s1{migraphx::shape::float_type, {dd{d1}, dd{n}}};
+        migraphx::shape s2{migraphx::shape::float_type, {dd{d2}, dd{n}}};
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x   = mm->add_parameter("X", s0);

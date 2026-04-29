@@ -935,13 +935,13 @@ TEST_CASE(dot_dyn_test_outer_mismatch)
 TEST_CASE(dot_symbolic_2d)
 {
     using migraphx::sym::var;
-    auto n = var("n");
-    auto k = var("k");
-    auto m = var("m");
+    auto n = var("n", {1, 64});
+    auto k = var("k", {1, 128});
+    auto m = var("m", {1, 32});
     using dd = migraphx::shape::dynamic_dimension;
-    migraphx::shape sa{migraphx::shape::float_type, {dd{1, 64, {}, n}, dd{1, 128, {}, k}}};
-    migraphx::shape sb{migraphx::shape::float_type, {dd{1, 128, {}, k}, dd{1, 32, {}, m}}};
-    migraphx::shape sout{migraphx::shape::float_type, {dd{1, 64, {}, n}, dd{1, 32, {}, m}}};
+    migraphx::shape sa{migraphx::shape::float_type, {dd{n}, dd{k}}};
+    migraphx::shape sb{migraphx::shape::float_type, {dd{k}, dd{m}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{n}, dd{m}}};
 
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -954,17 +954,17 @@ TEST_CASE(dot_symbolic_2d)
 TEST_CASE(dot_symbolic_batched)
 {
     using migraphx::sym::var;
-    auto batch = var("batch");
-    auto n     = var("n");
-    auto k     = var("k");
-    auto m     = var("m");
+    auto batch = var("batch", {1, 8});
+    auto n     = var("n", {1, 64});
+    auto k     = var("k", {1, 128});
+    auto m     = var("m", {1, 32});
     using dd   = migraphx::shape::dynamic_dimension;
     migraphx::shape sa{migraphx::shape::float_type,
-                       {dd{1, 8, {}, batch}, dd{1, 64, {}, n}, dd{1, 128, {}, k}}};
+                       {dd{batch}, dd{n}, dd{k}}};
     migraphx::shape sb{migraphx::shape::float_type,
-                       {dd{1, 8, {}, batch}, dd{1, 128, {}, k}, dd{1, 32, {}, m}}};
+                       {dd{batch}, dd{k}, dd{m}}};
     migraphx::shape sout{migraphx::shape::float_type,
-                         {dd{1, 8, {}, batch}, dd{1, 64, {}, n}, dd{1, 32, {}, m}}};
+                         {dd{batch}, dd{n}, dd{m}}};
 
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -975,11 +975,11 @@ TEST_CASE(dot_symbolic_batched)
 TEST_CASE(dot_symbolic_inner_same_expr)
 {
     using migraphx::sym::var;
-    auto k = var("k");
+    auto k = var("k", {1, 256});
     using dd = migraphx::shape::dynamic_dimension;
     // Same symbolic K on both sides; N is a plain range on B.
-    migraphx::shape sa{migraphx::shape::float_type, {dd{4, 4}, dd{1, 256, {}, k}}};
-    migraphx::shape sb{migraphx::shape::float_type, {dd{1, 256, {}, k}, dd{8, 16}}};
+    migraphx::shape sa{migraphx::shape::float_type, {dd{4, 4}, dd{k}}};
+    migraphx::shape sb{migraphx::shape::float_type, {dd{k}, dd{8, 16}}};
     migraphx::shape sout{migraphx::shape::float_type, {dd{4, 4}, dd{8, 16}}};
 
     expect_shape(sout, migraphx::make_op("dot"), sa, sb);
@@ -988,36 +988,36 @@ TEST_CASE(dot_symbolic_inner_same_expr)
 TEST_CASE(dot_symbolic_inner_mismatch_different_expr)
 {
     using migraphx::sym::var;
-    auto k1 = var("k1");
-    auto k2 = var("k2");
+    auto k1 = var("k1", {1, 128});
+    auto k2 = var("k2", {1, 128});
     using dd = migraphx::shape::dynamic_dimension;
-    migraphx::shape sa{migraphx::shape::float_type, {dd{1, 4}, dd{1, 128, {}, k1}}};
-    migraphx::shape sb{migraphx::shape::float_type, {dd{1, 128, {}, k2}, dd{1, 8}}};
+    migraphx::shape sa{migraphx::shape::float_type, {dd{1, 4}, dd{k1}}};
+    migraphx::shape sb{migraphx::shape::float_type, {dd{k2}, dd{1, 8}}};
     throws_shape(migraphx::make_op("dot"), sa, sb);
 }
 
 TEST_CASE(dot_symbolic_outer_mismatch_different_expr)
 {
     using migraphx::sym::var;
-    auto b1 = var("b1");
-    auto b2 = var("b2");
-    auto k  = var("k");
+    auto b1 = var("b1", {1, 8});
+    auto b2 = var("b2", {1, 8});
+    auto k  = var("k", {1, 64});
     using dd  = migraphx::shape::dynamic_dimension;
-    migraphx::shape sa{migraphx::shape::float_type, {dd{1, 8, {}, b1}, dd{2, 2}, dd{4, 4, {}, k}}};
-    migraphx::shape sb{migraphx::shape::float_type, {dd{1, 8, {}, b2}, dd{4, 4, {}, k}, dd{3, 3}}};
+    migraphx::shape sa{migraphx::shape::float_type, {dd{b1}, dd{2, 2}, dd{k}}};
+    migraphx::shape sb{migraphx::shape::float_type, {dd{b2}, dd{k}, dd{3, 3}}};
     throws_shape(migraphx::make_op("dot"), sa, sb);
 }
 
 TEST_CASE(dot_symbolic_mixed_with_static_inner)
 {
     using migraphx::sym::var;
-    auto n = var("n");
-    auto k = var("k");
+    auto n = var("n", {1, 16});
+    auto k = var("k", {4, 12});
     using dd = migraphx::shape::dynamic_dimension;
     // B is static (8, 7): K = 8. A's last dim is symbolic k with a range that includes 8.
-    migraphx::shape sa{migraphx::shape::float_type, {dd{1, 16, {}, n}, dd{4, 12, {}, k}}};
+    migraphx::shape sa{migraphx::shape::float_type, {dd{n}, dd{k}}};
     migraphx::shape sb{migraphx::shape::float_type, {8, 7}};
-    migraphx::shape sout{migraphx::shape::float_type, {dd{1, 16, {}, n}, dd{7, 7}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{n}, dd{7, 7}}};
 
     expect_shape(sout, migraphx::make_op("dot"), sa, sb);
 }
@@ -5392,11 +5392,12 @@ TEST_CASE(where_dyn_input0)
 
 TEST_CASE(where_dyn_input1)
 {
-    // mixed static/dynamic inputs (not allowed)
+    // mixed static/dynamic x/y: output uses broadcasted dynamic dims (matches binary ops)
     migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {2, 1}};
     migraphx::shape s2{migraphx::shape::float_type, {{2, 2}, {2, 2}}};
     migraphx::shape s3{migraphx::shape::bool_type, {2, 2}, {2, 1}};
-    throws_shape(migraphx::make_op("where"), s3, s1, s2);
+    migraphx::shape sout{migraphx::shape::float_type, {{2, 2}, {2, 2}}};
+    expect_shape(sout, migraphx::make_op("where"), s3, s1, s2);
 }
 
 TEST_CASE(where_dyn_input2)
@@ -5420,11 +5421,11 @@ TEST_CASE(where_dyn_input3)
 TEST_CASE(test_symbolic_where_shapes)
 {
     using migraphx::sym::var;
-    auto n = var("n");
+    auto n = var("n", {1, 4});
     using dd = migraphx::shape::dynamic_dimension;
-    migraphx::shape sb{migraphx::shape::bool_type, {dd{1, 4, {}, n}, dd{2, 8}}};
-    migraphx::shape sx{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
-    migraphx::shape sy{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+    migraphx::shape sb{migraphx::shape::bool_type, {dd{n}, dd{2, 8}}};
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{2, 8}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{2, 8}}};
 
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -5445,10 +5446,10 @@ TEST_CASE(greater_dyn_broadcast)
 TEST_CASE(test_symbolic_greater_shapes)
 {
     using migraphx::sym::var;
-    auto n = var("n");
+    auto n = var("n", {1, 4});
     using dd = migraphx::shape::dynamic_dimension;
-    migraphx::shape sx{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
-    migraphx::shape sy{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{2, 8}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{2, 8}}};
 
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -5523,21 +5524,27 @@ TEST_CASE(test_dyn_concat)
     // non-matching dimension 2
     throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
 
-    // static and dynamic shapes together
-    migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
-    throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
+    // static and dynamic shapes together: allowed when non-axis dims match after to_dynamic()
+    migraphx::shape sx_fix{migraphx::shape::float_type, {{3, 3}, {4, 4}, {1, 5}, {6, 6}}};
+    migraphx::shape sstat_ok{migraphx::shape::float_type, {3, 4, 7, 6}};
+    migraphx::shape s_mixed_out{migraphx::shape::float_type, {{3, 3}, {4, 4}, {8, 12}, {6, 6}}};
+    expect_shape(s_mixed_out, migraphx::make_op("concat", {{"axis", 2}}), sx_fix, sstat_ok);
+
+    // static input disagrees with dynamic on a non-concat axis
+    migraphx::shape sstat_bad{migraphx::shape::float_type, {2, 4, 1, 6}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx_fix, sstat_bad);
 }
 
 TEST_CASE(test_symbolic_concat_shapes)
 {
     using migraphx::sym::var;
-    auto n = var("n");
-    auto a = var("a");
-    auto b = var("b");
+    auto n = var("n", {1, 4});
+    auto a = var("a", {1, 5});
+    auto b = var("b", {1, 3});
     using dd = migraphx::shape::dynamic_dimension;
-    migraphx::shape sx{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{1, 5, {}, a}, dd{4, 4}}};
-    migraphx::shape sy{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{1, 3, {}, b}, dd{4, 4}}};
-    migraphx::shape sout{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8, {}, a + b}, dd{4, 4}}};
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{a}, dd{4, 4}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{b}, dd{4, 4}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{n}, dd{a + b}, dd{4, 4}}};
 
     migraphx::program p;
     auto* mm = p.get_main_module();

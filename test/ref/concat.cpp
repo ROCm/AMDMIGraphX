@@ -178,18 +178,18 @@ TEST_CASE(concat_dyn_test)
 TEST_CASE(concat_symbolic_dyn_test)
 {
     using migraphx::sym::var;
-    auto n  = var("n");
-    auto d0 = var("d0");
-    auto d1 = var("d1");
-    auto d2 = var("d2");
+    auto n  = var("n", {2, 3});
+    auto d0 = var("d0", {2, 4});
+    auto d1 = var("d1", {3, 4});
+    auto d2 = var("d2", {1, 5});
     using dd = migraphx::shape::dynamic_dimension;
 
     migraphx::program p;
     auto* mm = p.get_main_module();
     int axis = 0;
-    migraphx::shape s0{migraphx::shape::int32_type, {dd{2, 4, {}, d0}, dd{2, 3, {}, n}}};
-    migraphx::shape s1{migraphx::shape::int32_type, {dd{3, 4, {}, d1}, dd{2, 3, {}, n}}};
-    migraphx::shape s2{migraphx::shape::int32_type, {dd{1, 5, {}, d2}, dd{2, 3, {}, n}}};
+    migraphx::shape s0{migraphx::shape::int32_type, {dd{d0}, dd{n}}};
+    migraphx::shape s1{migraphx::shape::int32_type, {dd{d1}, dd{n}}};
+    migraphx::shape s2{migraphx::shape::int32_type, {dd{d2}, dd{n}}};
 
     auto input0 = mm->add_parameter("X", s0);
     auto input1 = mm->add_parameter("Y", s1);
@@ -218,6 +218,6 @@ TEST_CASE(concat_symbolic_dyn_test)
                                               std::vector<std::size_t>({6, 2})));
 
     migraphx::shape expected_out{
-        migraphx::shape::int32_type, {dd{6, 13, {}, d0 + d1 + d2}, dd{2, 3, {}, n}}};
+        migraphx::shape::int32_type, {dd{d0 + d1 + d2}, dd{n}}};
     EXPECT(p.get_output_shapes().back() == expected_out);
 }

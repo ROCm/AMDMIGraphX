@@ -88,12 +88,12 @@ struct test_symbolic_where_gpu : verify_program<test_symbolic_where_gpu>
     migraphx::program create_program() const
     {
         using migraphx::sym::var;
-        auto n = var("n");
+        auto n = var("n", {1, 4});
         using dd = migraphx::shape::dynamic_dimension;
 
-        migraphx::shape sb{migraphx::shape::bool_type, {dd{1, 4, {}, n}, dd{2, 8}}};
-        migraphx::shape sx{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
-        migraphx::shape sy{migraphx::shape::float_type, {dd{1, 4, {}, n}, dd{2, 8}}};
+        migraphx::shape sb{migraphx::shape::bool_type, {dd{n}, dd{2, 8}}};
+        migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{2, 8}}};
+        migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{2, 8}}};
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto b   = mm->add_parameter("b", sb);

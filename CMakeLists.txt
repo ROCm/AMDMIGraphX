@@ -227,6 +227,7 @@ rocm_enable_clang_tidy(
         -modernize-use-default-member-init
         -modernize-use-nodiscard
         -modernize-use-override
+        -modernize-use-scoped-lock
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-avoid-endl
@@ -241,9 +242,11 @@ rocm_enable_clang_tidy(
         -readability-math-missing-parentheses
         -readability-named-parameter
         -readability-redundant-member-init
+        -readability-redundant-parentheses
         -readability-redundant-string-init
         -readability-suspicious-call-argument
         -readability-uppercase-literal-suffix
+        -readability-use-concise-preprocessor-directives
         -*-avoid-c-arrays
         -*-explicit-constructor
         -*-magic-numbers

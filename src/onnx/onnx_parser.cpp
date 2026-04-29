@@ -349,6 +349,8 @@ static bool is_type_packed_int4(const onnx::TensorProto& t)
     return t.data_type() == onnx::TensorProto::INT4 or t.data_type() == onnx::TensorProto::UINT4;
 }
 
+static shape parse_tensor_shape(const onnx::TensorProto& t);
+
 static std::unordered_map<std::string, instruction_ref>
 parse_intializer(onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {

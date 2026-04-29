@@ -31,14 +31,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-/// Metadata for a single external weight file reference
-struct external_data_info
-{
-    std::string filename;
-    std::size_t offset = 0;
-    std::size_t nbytes = 0;
-};
-
 /// struct to pass in onnx options to parser
 struct onnx_options
 {

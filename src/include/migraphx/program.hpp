@@ -48,7 +48,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
-struct external_data_info;
+/// Metadata for a single external weight file reference
+struct external_data_info
+{
+    std::string filename;
+    std::size_t offset = 0;
+    std::size_t nbytes = 0;
+};
 
 struct program_impl;
 

@@ -24,7 +24,6 @@
 #include <migraphx/version.h>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/onnx.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/identity.hpp>

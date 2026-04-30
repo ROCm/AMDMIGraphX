@@ -86,87 +86,8 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
                        [](const argument& a) { return a.data(); });
     });
     auto [start, stop] = ctx.get_perf_events();
-
-    if(kernel_args.count("op") > 0 &&
-       kernel_args.at("op").to<int>() == static_cast<int>(mlss_op_type::mha))
-    {        
-        constexpr int mha_output_arg  = 4;
-        auto query             = args[0];
-        auto outval            = args[mha_output_arg];
-        auto query_shape       = query.get_shape().lens();
-        auto outval_strides    = outval.get_shape().strides();
-
-        int batch_size      = query_shape[0];
-        int head_num        = query_shape[1];
-        int sequence_length = query_shape[2];
-        int head_dim        = query_shape[3];
-
-        std::vector<kernel_argument> kargs_input;
-
-        // kernel_argument stores a raw pointer — values must outlive k.launch()
-        hipDeviceptr_t d_q_in   = query.data();
-        hipDeviceptr_t d_out_in = outval.data();
-        kargs_input.emplace_back(d_q_in);
-        kargs_input.emplace_back(d_out_in);
-
-        kargs_input.push_back(batch_size);
-        kargs_input.push_back(sequence_length);
-        kargs_input.push_back(head_num);
-        kargs_input.push_back(head_dim);
-
-        float scale_ka = kernel_args.at("scale").to<float>();
-        kargs_input.push_back(scale_ka);
-
-        // -----------------------------------------------------------------------
-        // Strides for the [B, S, H, 3*D] QKV layout (seq-major):
-        //   d0 = S * H * 3*D   (batch stride)
-        //   d1 = 3*D           (head stride)
-        //   d2 = H * 3*D       (sequence stride)
-        //   d3 = 1             (element stride)
-        // Output has standard [B, H, S, D] layout.
-        // -----------------------------------------------------------------------
-        constexpr int qkv_components  = 3; // packed QKV interleave factor
-        uint32_t stride_d0 = static_cast<uint32_t>(sequence_length * head_num * qkv_components * head_dim);
-        uint32_t stride_d1 = static_cast<uint32_t>(qkv_components * head_dim);
-        uint32_t stride_d2 = static_cast<uint32_t>(head_num * qkv_components * head_dim);
-        uint32_t stride_d3 = 1u;
-
-        // Q strides
-        kargs_input.push_back(stride_d0);
-        kargs_input.push_back(stride_d1);
-        kargs_input.push_back(stride_d2);
-        kargs_input.push_back(stride_d3);
-
-        // K strides (same layout as Q)
-        kargs_input.push_back(stride_d0);
-        kargs_input.push_back(stride_d1);
-        kargs_input.push_back(stride_d2);
-        kargs_input.push_back(stride_d3);
-
-        // V strides (d2/d3 swapped)
-        kargs_input.push_back(stride_d0);
-        kargs_input.push_back(stride_d1);
-        kargs_input.push_back(stride_d3);
-        kargs_input.push_back(stride_d2);
-
-        // Output strides — named variables required (raw pointer lifetime)
-        uint32_t output_stride_d0 = static_cast<uint32_t>(outval_strides[0]);
-        uint32_t output_stride_d1 = static_cast<uint32_t>(outval_strides[1]);
-        uint32_t output_stride_d2 = static_cast<uint32_t>(outval_strides[2]);
-        uint32_t output_stride_d3 = static_cast<uint32_t>(outval_strides[3]);
-        kargs_input.push_back(output_stride_d0);
-        kargs_input.push_back(output_stride_d1);
-        kargs_input.push_back(output_stride_d2);
-        kargs_input.push_back(output_stride_d3);
-
-        k.launch(ctx.get_stream().get(), global, local, kargs_input, start, stop);
-        return args[mha_output_arg];
-    }
-    else
-    {
-        k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
-        return args[get_output_arg(args.size())];
-    }
+    k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+    return args[get_output_arg(args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
 {

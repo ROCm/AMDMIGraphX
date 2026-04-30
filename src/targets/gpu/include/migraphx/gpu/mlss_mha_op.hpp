@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_CODE_OBJECT_OP_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_CODE_OBJECT_OP_HPP
+#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_MLSS_MHA_OP_HPP
+#define MIGRAPHX_GUARD_AMDMIGRAPHX_MLSS_MHA_OP_HPP
 
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
@@ -36,15 +36,15 @@ namespace gpu {
 
 struct context;
 
-struct code_object_op
+struct mlss_mha_op
 {
     value::binary code_object{};
-    std::string symbol_name = "";
-    std::size_t global      = 0;
-    std::size_t local       = 0;
-    std::vector<shape> expected_inputs{};
+    std::string symbol_name{};
+    std::size_t global = 0;
+    std::size_t local  = 0;
+    float scale        = 1.0f;
     shape output{};
-    std::int64_t output_arg = -1;
+    // `k` is not reflected — it is re-created in finalize() from code_object/symbol_name
     kernel k{};
 
     template <class Self, class F>
@@ -54,40 +54,17 @@ struct code_object_op
                     f(self.symbol_name, "symbol_name"),
                     f(self.global, "global"),
                     f(self.local, "local"),
-                    f(self.expected_inputs, "expected_inputs"),
-                    f(self.output, "output"),
-                    f(self.output_arg, "output_arg"));
+                    f(self.scale, "scale"),
+                    f(self.output, "output"));
     }
 
-    value attributes() const { return {{"group", group()}}; }
-
-    std::string group() const { return "gpu::code_object::" + symbol_name; }
-
-    std::string name() const { return "gpu::code_object"; }
+    std::string name() const { return "gpu::mlss_mha"; }
     shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     void finalize(context&, const shape&, const std::vector<shape>&);
-    std::int64_t get_output_arg(std::size_t n) const
-    {
-        return output_arg < 0 ? n + output_arg : output_arg;
-    }
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return {static_cast<std::size_t>(get_output_arg(shapes.size()))};
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const code_object_op& op)
-    {
-        os << op.name() << "[";
-        os << "code_object=" << op.code_object.size() << ",";
-        os << "symbol_name=" << op.symbol_name << ",";
-        os << "global=" << op.global << ",";
-        os << "local=" << op.local << ",";
-        if(op.output_arg != -1)
-            os << "output_arg=" << op.output_arg << ",";
-        os << "]";
-        return os;
+        return {shapes.size() - 1};
     }
 };
 

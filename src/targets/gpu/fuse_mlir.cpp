@@ -399,14 +399,11 @@ auto is_mlir_conv_backwards(mlir_mode mode)
             return false;
 
         auto w = ins->inputs().at(1)->get_shape();
-        // currently handle on 2D conv_backwards in MLIR
-        if(w.lens().size() != 4)
-            return false;
-
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
-        // currently handle only group == 1
-        return (group == 1);
+        if(w.lens().size() != 4 and group > 1)
+            return false;
+        return true;
     });
 }
 
@@ -1538,14 +1535,22 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                             .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
 
+    // gfx12 lacks an accurate half version of MIOpen convolution_backwards path, so
+    // always route it through rocMLIR regardless of MIOpen availability or user 
+    // env-var overrides.
+    mlir_mode conv_backwards_mode = get_mode(
+        "convolution_backwards", MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all);
+    if(starts_with(device_name, "gfx12"))
+    {
+        conv_backwards_mode = mlir_mode::all;
+    }
+
     match::find_matches(
         mpm,
         find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
                                      .counter = &counter},
-        find_mlir_standalone_conv_backwards_op{
-            .mode    = get_mode("convolution_backwards",
-                             MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all),
-            .counter = &counter},
+        find_mlir_standalone_conv_backwards_op{.mode    = conv_backwards_mode,
+                                               .counter = &counter},
         find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});

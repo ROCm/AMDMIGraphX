@@ -91,10 +91,8 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
 
 std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1)
 {
-    // change both shapes to dynamic_dimension representation
-    s0 = s0.to_dynamic();
-    s1 = s1.to_dynamic();
-    return compute_broadcasted_dyn_dims(s0.dyn_dims(), s1.dyn_dims());
+    auto aligned = shape::to_dynamic({s0, s1});
+    return compute_broadcasted_dyn_dims(aligned[0].dyn_dims(), aligned[1].dyn_dims());
 }
 
 std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<shape>& shapes)

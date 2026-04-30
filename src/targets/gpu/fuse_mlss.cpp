@@ -22,12 +22,14 @@
  * THE SOFTWARE.
  */
 #include <migraphx/module.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/matcher.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
 #include <migraphx/gpu/mlss_mha_op.hpp>
 #include <migraphx/gpu/mlss/mha/gfx1201_mha_64x64x48_64x48x64.hpp>
@@ -53,35 +55,22 @@ static bool mlss_op_enabled(std::string_view op_name)
     return std::any_of(ops.begin(), ops.end(), [&](const auto& opt) { return opt == op_name; });
 }
 
-void fuse_mlss::apply(module& m) const
+struct find_mlss_attention
 {
-    const auto& gfx_name = ctx->get_current_device().get_gfx_name();
-    if(not starts_with(gfx_name, "gfx1201"))
-        return;
+    context* ctx = nullptr;
 
-    // Supported [batch, heads, seq, head_dim] shapes for the pre-compiled kernels.
-    // Add new entries here to enable additional configurations.
-    static const std::vector<std::vector<std::size_t>> supported_shapes = {
-        {1, 8, 4096, 40},
-    };
-
-    if(not mlss_op_enabled("mha"))
-        return;
-
-    const auto& shader = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201;
-
-    for(auto ins : iterator_for(m))
+    auto matcher() const
     {
-        if(ins->name() != "group")
-            continue;
+        return match::name("group")(match::has_op_value("tag", std::string{"attention"}));
+    }
 
-        auto op_val = ins->get_operator().to_value();
-        if(not op_val.contains("tag") or op_val["tag"].to<std::string>() != "attention")
-            continue;
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
 
         auto& mod_args = ins->module_inputs();
         if(mod_args.empty())
-            continue;
+            return;
 
         module_ref attn_mod = mod_args[0];
 
@@ -97,11 +86,16 @@ void fuse_mlss::apply(module& m) const
         }
 
         if(scale_literal_ins == attn_mod->end())
-            continue;
+            return;
 
         auto inputs = ins->inputs();
         if(inputs.size() != 3)
-            continue;
+            return;
+
+        // Supported [batch, heads, seq, head_dim] shapes for the pre-compiled kernels.
+        const std::vector<std::vector<std::size_t>> supported_shapes = {
+            {1, 8, 4096, 40},
+        };
 
         auto query_lens = inputs[0]->get_shape().lens();
         bool shape_supported = std::any_of(
@@ -110,7 +104,9 @@ void fuse_mlss::apply(module& m) const
             });
 
         if(not shape_supported)
-            continue;
+            return;
+
+        const auto& shader = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201;
 
         const auto* scale_hp =
             reinterpret_cast<const half*>(scale_literal_ins->get_literal().data());
@@ -130,6 +126,8 @@ void fuse_mlss::apply(module& m) const
         op.scale       = scale;
         op.output      = ins->get_shape();
 
+        auto& m = mpm.get_module();
+
         // Hoist the scale literal into the parent module
         auto scale_in_main = m.insert_literal(ins, scale_literal_ins->get_literal());
 
@@ -140,6 +138,18 @@ void fuse_mlss::apply(module& m) const
 
         m.replace_instruction(ins, op, {inputs[0], inputs[1], inputs[2], scale_in_main, output_alloc});
     }
+};
+
+void fuse_mlss::apply(module_pass_manager& mpm) const
+{
+    const auto& gfx_name = ctx->get_current_device().get_gfx_name();
+    if(not starts_with(gfx_name, "gfx1201"))
+        return;
+
+    if(not mlss_op_enabled("mha"))
+        return;
+
+    match::find_matches(mpm, find_mlss_attention{ctx});
 }
 
 } // namespace gpu

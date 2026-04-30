@@ -47,4 +47,4 @@ struct MIGRAPHX_GPU_EXPORT fuse_mlss
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_CK_HPP
+#endif // MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP

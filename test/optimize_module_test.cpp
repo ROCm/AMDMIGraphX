@@ -286,12 +286,12 @@ TEST_CASE(slice_squeeze_pw_binary_const)
     migraphx::literal stacked_lit;
     {
         migraphx::module tmp;
-        auto b0  = tmp.add_literal(migraphx::generate_literal(bs, 0));
-        auto b1  = tmp.add_literal(migraphx::generate_literal(bs, 1));
-        auto bu0 = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b0);
-        auto bu1 = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b1);
-        auto cat = tmp.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), bu0, bu1);
-        auto ev  = cat->eval();
+        auto b0     = tmp.add_literal(migraphx::generate_literal(bs, 0));
+        auto b1     = tmp.add_literal(migraphx::generate_literal(bs, 1));
+        auto bu0    = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b0);
+        auto bu1    = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b1);
+        auto cat    = tmp.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), bu0, bu1);
+        auto ev     = cat->eval();
         stacked_lit = migraphx::literal(ev.get_shape(), ev.data());
     }
 
@@ -347,12 +347,12 @@ TEST_CASE(slice_squeeze_pw_silu_chain)
     migraphx::literal stacked_lit;
     {
         migraphx::module tmp;
-        auto b0  = tmp.add_literal(migraphx::generate_literal(bs, 0));
-        auto b1  = tmp.add_literal(migraphx::generate_literal(bs, 1));
-        auto bu0 = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b0);
-        auto bu1 = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b1);
-        auto cat = tmp.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), bu0, bu1);
-        auto ev  = cat->eval();
+        auto b0     = tmp.add_literal(migraphx::generate_literal(bs, 0));
+        auto b1     = tmp.add_literal(migraphx::generate_literal(bs, 1));
+        auto bu0    = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b0);
+        auto bu1    = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b1);
+        auto cat    = tmp.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), bu0, bu1);
+        auto ev     = cat->eval();
         stacked_lit = migraphx::literal(ev.get_shape(), ev.data());
     }
 
@@ -422,15 +422,13 @@ TEST_CASE(hoist_silu_above_slices_with_unsqueeze_concat)
         auto u0   = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), mul0);
 
         auto s1 = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}),
-            input);
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
         auto sig1 = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
         auto mul1 = m1.add_instruction(migraphx::make_op("mul"), s1, sig1);
         auto u1   = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), mul1);
 
         auto s2 = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}),
-            input);
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}), input);
         auto sig2 = m1.add_instruction(migraphx::make_op("sigmoid"), s2);
         auto mul2 = m1.add_instruction(migraphx::make_op("mul"), s2, sig2);
         auto u2   = m1.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), mul2);

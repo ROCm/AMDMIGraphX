@@ -45,7 +45,6 @@ static void run_pass(migraphx::module& m)
                          });
 }
 
-
 inline static std::vector<std::vector<std::size_t>>
 to_lens(const std::vector<migraphx::shape>& shapes)
 {
@@ -5291,13 +5290,11 @@ TEST_CASE(hoist_silu_above_slices)
         auto sig0 = m1.add_instruction(migraphx::make_op("sigmoid"), s0);
         auto mul0 = m1.add_instruction(migraphx::make_op("mul"), s0, sig0);
         auto s1   = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}),
-            input);
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
         auto sig1 = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
         auto mul1 = m1.add_instruction(migraphx::make_op("mul"), s1, sig1);
         auto s2   = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}),
-            input);
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}), input);
         auto sig2 = m1.add_instruction(migraphx::make_op("sigmoid"), s2);
         auto mul2 = m1.add_instruction(migraphx::make_op("mul"), s2, sig2);
         m1.add_return({mul0, mul1, mul2});
@@ -5330,7 +5327,7 @@ TEST_CASE(hoist_above_slices_partial_range)
         auto r0 = m1.add_instruction(migraphx::make_op("relu"), s0);
         auto s1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
-        auto r1 = m1.add_instruction(migraphx::make_op("relu"), s1);
+        auto r1      = m1.add_instruction(migraphx::make_op("relu"), s1);
         auto s_other = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {512}}}), input);
         auto tanh_out = m1.add_instruction(migraphx::make_op("tanh"), s_other);

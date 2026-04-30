@@ -1039,17 +1039,17 @@ TEST_CASE(dot_horiz_fusion_partial_silu_split)
         auto ux2     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), x2);
         auto bat_act = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
                                           std::vector<migraphx::instruction_ref>{ux1, ux2});
-        auto uw1    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
-        auto uw2    = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
-        auto bat_wt = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+        auto uw1     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+        auto uw2     = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+        auto bat_wt  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
                                          std::vector<migraphx::instruction_ref>{uw1, uw2});
         auto bd      = m2.add_instruction(migraphx::make_op("dot"), bat_act, bat_wt);
         auto sig_all = m2.add_instruction(migraphx::make_op("sigmoid"), bd);
         auto silu    = m2.add_instruction(migraphx::make_op("mul"), bd, sig_all);
-        auto s1 = m2.add_instruction(
+        auto s1      = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), silu);
         auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
-        auto s2 = m2.add_instruction(
+        auto s2  = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), silu);
         auto sq2 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
 

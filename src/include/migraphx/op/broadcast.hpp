@@ -70,116 +70,119 @@ struct broadcast
     }
 
     std::string name() const { return "broadcast"; }
+
+    // Validate axis/dims and place `in_strides` at `axis`, filling broadcast positions with
+    // `zero`. Templated for the static (size_t) and symbolic (sym::expr) paths.
+    template <class Target, class Dims, class Strides, class Zero>
+    shape build_output(shape::type_t t,
+                       const Target& target,
+                       const Dims& in_dims,
+                       const Strides& in_strides,
+                       const Zero& zero) const
+    {
+        if(axis >= target.size())
+            MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) + " is out of range");
+        if(target.size() - axis < in_dims.size())
+            MIGRAPHX_THROW("BROADCAST: (broadcast ndims - axis) is less than s0 ndims");
+        for(std::size_t i = 0; i < in_dims.size(); ++i)
+        {
+            if(target[axis + i] != in_dims[i])
+                MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
+        }
+        std::vector<Zero> bcast_strides(target.size(), zero);
+        std::copy(in_strides.begin(), in_strides.end(), bcast_strides.begin() + axis);
+        return shape{t, target, std::move(bcast_strides)};
+    }
+
+    shape compute_shape_1in(shape s0) const
+    {
+        // the ONNX broadcast op is deprecated now, so not handling the negative
+        // value of axis anymore
+        const bool symbolic_target = not output_dyn_dims.empty() and
+                                     std::all_of(output_dyn_dims.begin(),
+                                                 output_dyn_dims.end(),
+                                                 [](const auto& d) { return d.is_symbolic(); });
+        if(not output_dyn_dims.empty() and not symbolic_target)
+            MIGRAPHX_THROW("BROADCAST: output_dyn_dims must be fully symbolic");
+
+        if(s0.dynamic() and not(symbolic_target and s0.symbolic()))
+            MIGRAPHX_THROW("BROADCAST: Single dynamic input shape not supported.  Use two inputs.");
+
+        if(symbolic_target)
+        {
+            auto s0_sym = s0.to_symbolic();
+            return build_output(
+                s0.type(), output_dyn_dims, s0_sym.dyn_dims(), s0_sym.dyn_strides(), sym::lit(0));
+        }
+
+        auto output =
+            build_output(s0.type(), broadcast_lens, s0.lens(), s0.strides(), std::size_t{0});
+        if(output.elements() < s0.elements())
+        {
+            // don't think this can occur?
+            MIGRAPHX_THROW("BROADCAST: output size must be greater than or equal to s0 size");
+        }
+        return output;
+    }
+
+    shape compute_shape_2in(shape s0, shape s1) const
+    {
+        if(s0.ndim() != 1)
+        {
+            MIGRAPHX_THROW("BROADCAST_2in: s0 has ndim " + migraphx::to_string(s0.ndim()) +
+                           ", only handle ndim = 1");
+        }
+
+        if(s0.symbolic() or s1.symbolic())
+        {
+            auto s0_sym = s0.to_symbolic();
+            auto s1_sym = s1.to_symbolic();
+            return build_output(
+                s0.type(), s1_sym.dyn_dims(), s0_sym.dyn_dims(), s0_sym.dyn_strides(), sym::lit(0));
+        }
+
+        if(axis >= s1.ndim())
+        {
+            MIGRAPHX_THROW("BROADCAST_2in: axis " + migraphx::to_string(axis) + " is out of range");
+        }
+
+        // Range-based dynamic s0 alone is not supported.
+        if(s0.dynamic())
+        {
+            MIGRAPHX_THROW("BROADCAST_2in: s0 is a dynamic shape, does not handle broadcasting "
+                           "a dynamic shape");
+        }
+        if(s1.dynamic())
+        {
+            s0 = s0.to_dynamic();
+            if(s0.dyn_dims()[0] != s1.dyn_dims()[axis])
+            {
+                MIGRAPHX_THROW("BROADCAST_2in: s0 length doesn't match with dynamic s1 axis "
+                               "dimension length (" +
+                               migraphx::to_string(s0.dyn_dims()[0]) +
+                               " != " + migraphx::to_string(s1.dyn_dims()[axis]) + ")");
+            }
+            return s1;
+        }
+
+        if(s0.lens()[0] != s1.lens()[axis])
+        {
+            MIGRAPHX_THROW("BROADCAST_2in: s0 length doesn't match with static s1 axis "
+                           "dimension length (" +
+                           migraphx::to_string(s0.lens()[0]) +
+                           " != " + migraphx::to_string(s1.lens()[axis]) + ")");
+        }
+        std::vector<size_t> bcast_strides(s1.ndim(), 0);
+        std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);
+        return shape{s0.type(), s1.lens(), std::move(bcast_strides)};
+    }
+
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2);
-        auto s0 = inputs.at(0);
-        auto t  = s0.type();
-
-        // Validate axis/dims and place `in_strides` at `axis`, filling broadcast positions with
-        // `zero`. Templated for the static (size_t) and symbolic (sym::expr) paths.
-        auto build_output =
-            [&](const auto& target, const auto& in_dims, const auto& in_strides, const auto& zero) {
-                if(axis >= target.size())
-                    MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) +
-                                   " is out of range");
-                if(target.size() - axis < in_dims.size())
-                    MIGRAPHX_THROW("BROADCAST: (broadcast ndims - axis) is less than s0 ndims");
-                for(std::size_t i = 0; i < in_dims.size(); ++i)
-                {
-                    if(target[axis + i] != in_dims[i])
-                        MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
-                }
-                std::vector<std::decay_t<decltype(zero)>> bcast_strides(target.size(), zero);
-                std::copy(in_strides.begin(), in_strides.end(), bcast_strides.begin() + axis);
-                return shape{t, target, std::move(bcast_strides)};
-            };
-
         if(inputs.size() == 1)
-        {
-            // the ONNX broadcast op is deprecated now, so not handling the negative
-            // value of axis anymore
-            const bool symbolic_target = not output_dyn_dims.empty() and
-                                         std::all_of(output_dyn_dims.begin(),
-                                                     output_dyn_dims.end(),
-                                                     [](const auto& d) { return d.is_symbolic(); });
-            if(not output_dyn_dims.empty() and not symbolic_target)
-                MIGRAPHX_THROW("BROADCAST: output_dyn_dims must be fully symbolic");
-
-            if(s0.dynamic() and not(symbolic_target and s0.symbolic()))
-                MIGRAPHX_THROW(
-                    "BROADCAST: Single dynamic input shape not supported.  Use two inputs.");
-
-            if(symbolic_target)
-            {
-                auto s0_sym = s0.to_symbolic();
-                return build_output(
-                    output_dyn_dims, s0_sym.dyn_dims(), s0_sym.dyn_strides(), sym::lit(0));
-            }
-
-            auto output = build_output(broadcast_lens, s0.lens(), s0.strides(), std::size_t{0});
-            if(output.elements() < s0.elements())
-            {
-                // don't think this can occur?
-                MIGRAPHX_THROW("BROADCAST: output size must be greater than or equal to s0 size");
-            }
-            return output;
-        }
-        else
-        {
-            // two inputs
-            auto s1 = inputs.at(1);
-            if(s0.ndim() != 1)
-            {
-                MIGRAPHX_THROW("BROADCAST_2in: s0 has ndim " + migraphx::to_string(s0.ndim()) +
-                               ", only handle ndim = 1");
-            }
-
-            if(s0.symbolic() or s1.symbolic())
-            {
-                auto s0_sym = s0.to_symbolic();
-                auto s1_sym = s1.to_symbolic();
-                return build_output(
-                    s1_sym.dyn_dims(), s0_sym.dyn_dims(), s0_sym.dyn_strides(), sym::lit(0));
-            }
-
-            if(axis >= s1.ndim())
-            {
-                MIGRAPHX_THROW("BROADCAST_2in: axis " + migraphx::to_string(axis) +
-                               " is out of range");
-            }
-
-            // Range-based dynamic s0 alone is not supported.
-            if(s0.dynamic())
-            {
-                MIGRAPHX_THROW("BROADCAST_2in: s0 is a dynamic shape, does not handle broadcasting "
-                               "a dynamic shape");
-            }
-            if(s1.dynamic())
-            {
-                s0 = s0.to_dynamic();
-                if(s0.dyn_dims()[0] != s1.dyn_dims()[axis])
-                {
-                    MIGRAPHX_THROW("BROADCAST_2in: s0 length doesn't match with dynamic s1 axis "
-                                   "dimension length (" +
-                                   migraphx::to_string(s0.dyn_dims()[0]) +
-                                   " != " + migraphx::to_string(s1.dyn_dims()[axis]) + ")");
-                }
-                return s1;
-            }
-
-            if(s0.lens()[0] != s1.lens()[axis])
-            {
-                MIGRAPHX_THROW("BROADCAST_2in: s0 length doesn't match with static s1 axis "
-                               "dimension length (" +
-                               migraphx::to_string(s0.lens()[0]) +
-                               " != " + migraphx::to_string(s1.lens()[axis]) + ")");
-            }
-            std::vector<size_t> bcast_strides(s1.ndim(), 0);
-            std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);
-            shape output{t, s1.lens(), std::move(bcast_strides)};
-            return output;
-        }
+            return compute_shape_1in(inputs.at(0));
+        return compute_shape_2in(inputs.at(0), inputs.at(1));
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

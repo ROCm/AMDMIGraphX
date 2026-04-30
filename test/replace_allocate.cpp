@@ -537,17 +537,17 @@ TEST_CASE(allocate_out_debug_symbols_single)
     migraphx::shape s{migraphx::shape::float_type, {5}};
     migraphx::module m;
     {
-        auto x     = m.add_parameter("x", s);
-        auto y     = m.add_parameter("y", s);
-        auto alloc = m.add_instruction(
-            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto x = m.add_parameter("x", s);
+        auto y = m.add_parameter("y", s);
+        auto alloc =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
         auto result = m.add_instruction(pass_op{}, alloc, x, y);
         auto ret    = m.add_return({result});
         m.add_debug_symbols(ret, {"@output_0:out"});
     }
     run_pass(m, allocation_with_out_model{});
 
-    auto out_param = m.get_parameter("output");
+    auto out_param                 = m.get_parameter("output");
     std::set<std::string> expected = {"@output_0:out"};
     EXPECT(out_param->get_debug_symbols() == expected);
 }
@@ -557,20 +557,20 @@ TEST_CASE(allocate_out_debug_symbols_multi)
     migraphx::shape s{migraphx::shape::float_type, {5}};
     migraphx::module m;
     {
-        auto x      = m.add_parameter("x", s);
-        auto alloc1 = m.add_instruction(
-            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto x = m.add_parameter("x", s);
+        auto alloc1 =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
         auto result1 = m.add_instruction(pass_op{}, alloc1, x);
-        auto alloc2  = m.add_instruction(
-            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto alloc2 =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
         auto result2 = m.add_instruction(pass_op{}, alloc2, x);
         auto ret     = m.add_return({result1, result2});
         m.add_debug_symbols(ret, {"@output_0:first", "@output_1:second"});
     }
     run_pass(m, allocation_with_out_model{});
 
-    auto out0 = m.get_parameter("output_0");
-    auto out1 = m.get_parameter("output_1");
+    auto out0                       = m.get_parameter("output_0");
+    auto out1                       = m.get_parameter("output_1");
     std::set<std::string> expected0 = {"@output_0:first"};
     std::set<std::string> expected1 = {"@output_1:second"};
     EXPECT(out0->get_debug_symbols() == expected0);
@@ -582,10 +582,10 @@ TEST_CASE(allocate_out_no_debug_symbols)
     migraphx::shape s{migraphx::shape::float_type, {5}};
     migraphx::module m;
     {
-        auto x     = m.add_parameter("x", s);
-        auto y     = m.add_parameter("y", s);
-        auto alloc = m.add_instruction(
-            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto x = m.add_parameter("x", s);
+        auto y = m.add_parameter("y", s);
+        auto alloc =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
         auto result = m.add_instruction(pass_op{}, alloc, x, y);
         m.add_return({result});
     }
@@ -600,12 +600,12 @@ TEST_CASE(allocate_out_debug_symbols_size_mismatch)
     migraphx::shape s{migraphx::shape::float_type, {5}};
     migraphx::module m;
     {
-        auto x      = m.add_parameter("x", s);
-        auto alloc1 = m.add_instruction(
-            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto x = m.add_parameter("x", s);
+        auto alloc1 =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
         auto result1 = m.add_instruction(pass_op{}, alloc1, x);
-        auto alloc2  = m.add_instruction(
-            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto alloc2 =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
         auto result2 = m.add_instruction(pass_op{}, alloc2, x);
         auto ret     = m.add_return({result1, result2});
         // Only 1 symbol for 2 alloc aliases → size mismatch
@@ -624,10 +624,10 @@ TEST_CASE(allocate_out_debug_symbols_no_return)
     migraphx::shape s{migraphx::shape::float_type, {5}};
     migraphx::module m;
     {
-        auto x     = m.add_parameter("x", s);
-        auto y     = m.add_parameter("y", s);
-        auto alloc = m.add_instruction(
-            migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
+        auto x = m.add_parameter("x", s);
+        auto y = m.add_parameter("y", s);
+        auto alloc =
+            m.add_instruction(migraphx::make_op("allocate", {{"shape", migraphx::to_value(s)}}));
         m.add_instruction(pass_op{}, alloc, x, y);
         m.add_debug_symbols(x, {"some_symbol"});
     }

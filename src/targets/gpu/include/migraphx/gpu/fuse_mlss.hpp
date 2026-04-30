@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 #ifndef MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_FUSE_MLSS_HPP
+#define MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
 
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>

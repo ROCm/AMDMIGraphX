@@ -23,13 +23,14 @@
  */
 #include <migraphx/module.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/register_op.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <migraphx/gpu/mlss_mha_op.hpp>
+#include <migraphx/gpu/mlss/mha/gfx1201_mha_64x64x48_64x48x64.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,30 +53,10 @@ static bool mlss_op_enabled(std::string_view op_name)
     return std::any_of(ops.begin(), ops.end(), [&](const auto& opt) { return opt == op_name; });
 }
 
-struct mlss_mha
-{
-    std::string name() const { return "mlss_mha"; }
-
-    std::optional<shape> output_shape = nullopt;
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        if(output_shape.has_value())
-            return output_shape.value();
-        return inputs.back();
-    }
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.output_shape, "output_shape"));
-    }
-};
-MIGRAPHX_REGISTER_OP(mlss_mha);
-
 void fuse_mlss::apply(module& m) const
 {
-    if(not starts_with(ctx->get_current_device().get_gfx_name(), "gfx1201"))
+    const auto& gfx_name = ctx->get_current_device().get_gfx_name();
+    if(not starts_with(gfx_name, "gfx1201"))
         return;
 
     // Supported [batch, heads, seq, head_dim] shapes for the pre-compiled kernels.
@@ -84,58 +65,80 @@ void fuse_mlss::apply(module& m) const
         {1, 8, 4096, 40},
     };
 
-    if(mlss_op_enabled("mha"))
+    if(not mlss_op_enabled("mha"))
+        return;
+
+    const auto& shader = multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201;
+
+    for(auto ins : iterator_for(m))
     {
-        for(auto ins : iterator_for(m))
+        if(ins->name() != "group")
+            continue;
+
+        auto op_val = ins->get_operator().to_value();
+        if(not op_val.contains("tag") or op_val["tag"].to<std::string>() != "attention")
+            continue;
+
+        auto& mod_args = ins->module_inputs();
+        if(mod_args.empty())
+            continue;
+
+        module_ref attn_mod = mod_args[0];
+
+        // Find the half-precision scale literal inside the submodule
+        instruction_ref scale_literal_ins = attn_mod->end();
+        for(auto sub_ins : iterator_for(*attn_mod))
         {
-            if(ins->name() != "group")
-                continue;
-
-            auto op_val = ins->get_operator().to_value();
-            if(not op_val.contains("tag") or op_val["tag"].to<std::string>() != "attention")
-                continue;
-
-            auto& mod_args = ins->module_inputs();
-            if(mod_args.empty())
-                continue;
-
-            module_ref attn_mod = mod_args[0];
-
-            // Find the half-precision scale literal inside the submodule
-            instruction_ref scale_literal_ins = attn_mod->end();
-            for(auto sub_ins : iterator_for(*attn_mod))
+            if(sub_ins->name() == "@literal")
             {
-                if(sub_ins->name() == "@literal")
-                {
-                    scale_literal_ins = sub_ins;
-                    break;
-                }
+                scale_literal_ins = sub_ins;
+                break;
             }
-
-            if(scale_literal_ins == attn_mod->end())
-                continue;
-
-            auto inputs = ins->inputs();
-            if(inputs.size() != 3)
-                continue;
-
-            auto query_len = inputs[0]->get_shape().lens();
-            bool shape_supported = std::any_of(
-                supported_shapes.begin(), supported_shapes.end(), [&](const auto& s) {
-                    return query_len == s;
-                });
-
-            if(not shape_supported)
-                continue;
-
-            // Hoist the scale literal into the parent module so it can be passed as an input
-            auto scale_in_main = m.insert_literal(ins, scale_literal_ins->get_literal());
-
-            m.replace_instruction(
-                ins,
-                make_op("mlss_mha", {{"output_shape", to_value(ins->get_shape())}}),
-                {inputs[0], inputs[1], inputs[2], scale_in_main});
         }
+
+        if(scale_literal_ins == attn_mod->end())
+            continue;
+
+        auto inputs = ins->inputs();
+        if(inputs.size() != 3)
+            continue;
+
+        auto query_lens = inputs[0]->get_shape().lens();
+        bool shape_supported = std::any_of(
+            supported_shapes.begin(), supported_shapes.end(), [&](const auto& s) {
+                return query_lens == s;
+            });
+
+        if(not shape_supported)
+            continue;
+
+        const auto* scale_hp =
+            reinterpret_cast<const half*>(scale_literal_ins->get_literal().data());
+        float scale = static_cast<float>(*scale_hp);
+
+        constexpr int grids_per_head = 2;
+        constexpr int mha_block_size = 128;
+        int batch_size      = static_cast<int>(query_lens[0]);
+        int head_num        = static_cast<int>(query_lens[1]);
+        int sequence_length = static_cast<int>(query_lens[2]);
+
+        mlss_mha_op op;
+        op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
+        op.symbol_name = std::string(shader.m_kernelName);
+        op.global      = static_cast<std::size_t>(batch_size * head_num * sequence_length * grids_per_head);
+        op.local       = mha_block_size;
+        op.scale       = scale;
+        op.output      = ins->get_shape();
+
+        // Hoist the scale literal into the parent module
+        auto scale_in_main = m.insert_literal(ins, scale_literal_ins->get_literal());
+
+        // Allocate the output buffer — must be an "allocate" node so adjust_allocation
+        // can find and validate it via output_alias()
+        auto output_alloc = m.insert_instruction(
+            ins, make_op("allocate", {{"shape", to_value(op.output)}}));
+
+        m.replace_instruction(ins, op, {inputs[0], inputs[1], inputs[2], scale_in_main, output_alloc});
     }
 }
 

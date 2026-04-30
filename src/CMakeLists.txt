@@ -126,7 +126,6 @@ add_library(migraphx
     rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
-    sqlite.cpp
     rewrite_gelu.cpp
     rewrite_low_precision.cpp
     rewrite_pooling.cpp
@@ -148,6 +147,11 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
+
+if(MIGRAPHX_USE_MIOPEN)
+    target_sources(migraphx
+            sqlite.cpp)
+endif()
 
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
@@ -382,12 +386,14 @@ endif()
 find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 
-find_package(SQLite3 REQUIRED)
-target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
+if(MIGRAPHX_USE_MIOPEN)
+    find_package(SQLite3 REQUIRED)
+    target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
+endif()
 
 # See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
 # Prefer 6.x (msgpack-cxx)
-find_package(msgpack-cxx 6 QUIET)
+find_package(msgpack-cxx QUIET)
 if(msgpack-cxx_FOUND)
     message(STATUS "Found msgpack-cxx (>=6.x)")
 else()

@@ -28,10 +28,16 @@
 #include <migraphx/op/common.hpp>
 #include <sstream>
 #include <migraphx/make_op.hpp>
+#include <migraphx/dim_like.hpp>
+#include <migraphx/sym.hpp>
 
 #include <migraphx/serialize.hpp>
 
 #include "test.hpp"
+
+using dd = migraphx::shape::dynamic_dimension;
+using migraphx::sym::lit;
+using migraphx::sym::var;
 
 template <class... Ts>
 static void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
@@ -3508,6 +3514,114 @@ TEST_CASE(reshape_dyn_1in_multiple_non_fixed1)
     migraphx::shape output{migraphx::shape::float_type, {{1, 8}, {1, 1}, {10, 20}, {24, 24}}};
     std::vector<int64_t> new_shape = {-1, 1, 0, 24};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
+}
+
+// Symbolic input with int64 dims and a 0 marker — sym_expr propagates from input.
+TEST_CASE(reshape_sym_zero_marker)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 2, 3}}}), input);
+}
+
+// Symbolic input with -1 inferring a clean integer missing dim via dd arithmetic.
+TEST_CASE(reshape_sym_negative_1_int_missing)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(3)}}};
+    // total = 6*N, known = 2*N, missing = 3.
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {2, 0, -1}}}), input);
+}
+
+// Static input with a symbolic dim_like target — output is symbolic.
+TEST_CASE(reshape_sym_target_dim)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {6}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, dd{lit(6) / n}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(6) / n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+// Static input + symbolic dim_like + -1 → -1 inference produces a symbolic missing dim.
+TEST_CASE(reshape_sym_target_dim_negative_1)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {6}};
+    // dims = {N, -1}: total = 6, known = N, missing = 6/N.
+    std::vector<migraphx::dim_like> dims = {dd{n}, -1};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(6) / n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+// Range-based input with a symbolic dim_like is not allowed.
+TEST_CASE(reshape_range_input_sym_dim_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {{1, 8}, {6, 6}}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, dd{lit(2)}, dd{lit(3)}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+// Range-based dim_like in dims attribute is malformed regardless of input kind.
+TEST_CASE(reshape_range_dim_like_throws)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6}};
+    std::vector<migraphx::dim_like> dims = {dd{1, 4}, dd{1, 6}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+// -1 at the first position; missing dim resolves to a non-trivial symbolic expression.
+TEST_CASE(reshape_sym_minus1_first)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    // total = 6*N, known = 2, missing = 3*N.
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(3) * n}, dd{lit(2)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {-1, 2}}}), input);
+}
+
+// Multiple 0 markers combined with -1; missing dim is a symbolic expression.
+TEST_CASE(reshape_sym_minus1_with_two_zeros)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    auto k = var("K", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(6)}}};
+    // dims = {0, 0, -1, 3}: total = 6*N*M*K, known = 3*N*M, missing = 2*K.
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{m}, dd{lit(2) * k}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 0, -1, 3}}}), input);
+}
+
+// dims has fewer entries than input ndim; trailing symbolic input dim folds into the missing dim.
+TEST_CASE(reshape_sym_dims_smaller_than_input)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{m}}};
+    // dims = {0, -1}: total = 2*N*M, known = N, missing = 2*M.
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(2) * m}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, -1}}}), input);
+}
+
+// Non-standard symbolic input still produces a standard output (matches static behavior).
+TEST_CASE(reshape_sym_nonstandard_input)
+{
+    auto n = var("N", {1, 8});
+    // Symbolic shape with explicit non-standard strides (broadcast-like first axis).
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}, {lit(0), lit(1)}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 2, 3}}}), input);
+}
+
+// Multiple -1 entries throw regardless of input kind.
+TEST_CASE(reshape_sym_multiple_neg_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", {1, -1, -1}}}), input);
 }
 
 TEST_CASE(reshape_lazy_shape)

@@ -124,19 +124,15 @@ struct find_mlss_attention
         op.global      = static_cast<std::size_t>(batch_size * head_num * sequence_length * grids_per_head);
         op.local       = mha_block_size;
         op.scale       = scale;
-        op.output      = ins->get_shape();
 
         auto& m = mpm.get_module();
-
-        // Hoist the scale literal into the parent module
-        auto scale_in_main = m.insert_literal(ins, scale_literal_ins->get_literal());
 
         // Allocate the output buffer — must be an "allocate" node so adjust_allocation
         // can find and validate it via output_alias()
         auto output_alloc = m.insert_instruction(
-            ins, make_op("allocate", {{"shape", to_value(op.output)}}));
+            ins, make_op("allocate", {{"shape", to_value(ins->get_shape())}}));
 
-        m.replace_instruction(ins, op, {inputs[0], inputs[1], inputs[2], scale_in_main, output_alloc});
+        m.replace_instruction(ins, op, {inputs[0], inputs[1], inputs[2], output_alloc});
     }
 };
 

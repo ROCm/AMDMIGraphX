@@ -33,9 +33,7 @@ MIGRAPHX_REGISTER_OP(mlss_mha_op);
 
 shape mlss_mha_op::compute_shape(std::vector<shape> inputs) const
 {
-    // inputs: [Q/K/V packed, K, V, scale_literal, output_buffer]
-    // output_buffer is the last input — its shape must match the stored output shape
-    return output;
+    return inputs.back();
 }
 
 void mlss_mha_op::finalize(context&, const shape&, const std::vector<shape>&)
@@ -48,13 +46,13 @@ argument mlss_mha_op::compute(context& ctx,
                                const shape&,
                                const std::vector<argument>& args) const
 {
-    // args layout set by jit/mlss.cpp compile_op():
+    // args layout:
     //   [0] packed QKV  [B, S, H, 3*D]
     //   [1] K  (same buffer, different logical offset — packed)
     //   [2] V  (same buffer, different logical offset — packed)
-    //   [3] scale literal
-    //   [4] output buffer  [B, H, S, D]
-    constexpr int output_arg_idx = 4;
+    //   [3] output buffer  [B, H, S, D]
+    // scale is packed into op.scale and passed directly to the kernel
+    constexpr int output_arg_idx = 3;
 
     auto query          = args[0];
     auto outval         = args[output_arg_idx];

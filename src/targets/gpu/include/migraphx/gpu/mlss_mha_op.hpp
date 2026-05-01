@@ -43,7 +43,6 @@ struct mlss_mha_op
     std::size_t global = 0;
     std::size_t local  = 0;
     float scale        = 1.0f;
-    shape output{};
     // `k` is not reflected — it is re-created in finalize() from code_object/symbol_name
     kernel k{};
 
@@ -54,8 +53,7 @@ struct mlss_mha_op
                     f(self.symbol_name, "symbol_name"),
                     f(self.global, "global"),
                     f(self.local, "local"),
-                    f(self.scale, "scale"),
-                    f(self.output, "output"));
+                    f(self.scale, "scale"));
     }
 
     std::string name() const { return "gpu::mlss_mha"; }

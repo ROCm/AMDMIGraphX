@@ -45,20 +45,29 @@ namespace onnx {
 //   transBatchA : int,   for rank-R A, permute [1, 2, ..., R-2, 0, R-1] (default 0)
 //   transBatchB : int,   for rank-R B, permute [1, 2, ..., R-2, 0, R-1] (default 0)
 //
-// transBatch* is applied before the corresponding trans*; if either transBatch is set,
-// both inputs must have the same rank and rank >= 3 (matches ORT's MatMulComputeHelper).
+// Inputs
+// A : T    N-dimensional matrix A
+// B : T    N-dimensional matrix B
+//
+// Outputs
+// Y : T    Matrix multiply results
+//
+// Type Constraints
+// T : tensor(float16), tensor(float), tensor(double), tensor(bfloat16)
+// Constrain input and output types to float tensors.
 
 struct parse_fused_matmul : op_parser<parse_fused_matmul>
 {
     std::vector<op_desc> operators() const { return {{"FusedMatMul"}}; }
 
-    static instruction_ref apply_trans_batch(const onnx_parser::node_info& info,
-                                             instruction_ref x)
+    static instruction_ref apply_trans_batch(const onnx_parser::node_info& info, instruction_ref x)
     {
         auto r = x->get_shape().ndim();
+        assert(r >= 3);
         std::vector<int64_t> perm(r);
         std::iota(perm.begin(), perm.end(), 0);
-        // [0, 1, 2, ..., R-1] -> [1, 2, ..., R-2, 0, R-1]
+        // [0, 1, 2, ..., R-1] -> [1, 2, ..., R-2, 0, R-1]: rotate the [0, R-2) prefix
+        // left by one so that d0 lands at position R-2, leaving d_{R-1} untouched.
         std::rotate(perm.begin(), perm.begin() + 1, perm.begin() + (r - 1));
         return info.add_instruction(make_op("transpose", {{"permutation", perm}}), x);
     }
@@ -67,6 +76,7 @@ struct parse_fused_matmul : op_parser<parse_fused_matmul>
                                                 instruction_ref x)
     {
         auto r = x->get_shape().ndim();
+        assert(r >= 2);
         std::vector<int64_t> perm(r);
         std::iota(perm.begin(), perm.end(), 0);
         std::swap(perm[r - 2], perm[r - 1]);
@@ -116,11 +126,6 @@ struct parse_fused_matmul : op_parser<parse_fused_matmul>
         auto s0 = a0->get_shape();
         auto s1 = a1->get_shape();
 
-        if(s0.dynamic() or s1.dynamic())
-        {
-            MIGRAPHX_THROW("PARSE_FUSEDMATMUL: dynamic inputs not supported");
-        }
-
         const auto r0 = s0.ndim();
         const auto r1 = s1.ndim();
 
@@ -140,12 +145,12 @@ struct parse_fused_matmul : op_parser<parse_fused_matmul>
         if(r0 == 1)
         {
             is_a_prepended = true;
-            a0 = op::builder::add("unsqueeze", *info.mod, {a0}, {{"axes", {0}}}).at(0);
+            a0             = op::builder::add("unsqueeze", *info.mod, {a0}, {{"axes", {0}}}).at(0);
         }
         if(r1 == 1)
         {
             is_b_appended = true;
-            a1 = op::builder::add("unsqueeze", *info.mod, {a1}, {{"axes", {1}}}).at(0);
+            a1            = op::builder::add("unsqueeze", *info.mod, {a1}, {{"axes", {1}}}).at(0);
         }
 
         // transBatch* is applied before trans*, matching ORT's MatMulComputeHelper.
@@ -171,16 +176,12 @@ struct parse_fused_matmul : op_parser<parse_fused_matmul>
         int64_t num_axis = res->get_shape().ndim();
         if(is_a_prepended)
         {
-            res = op::builder::add(
-                      "squeeze", *info.mod, {res}, {{"axes", {num_axis - 2}}})
-                      .at(0);
+            res = op::builder::add("squeeze", *info.mod, {res}, {{"axes", {num_axis - 2}}}).at(0);
             --num_axis;
         }
         if(is_b_appended)
         {
-            res = op::builder::add(
-                      "squeeze", *info.mod, {res}, {{"axes", {num_axis - 1}}})
-                      .at(0);
+            res = op::builder::add("squeeze", *info.mod, {res}, {{"axes", {num_axis - 1}}}).at(0);
         }
 
         return res;

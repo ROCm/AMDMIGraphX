@@ -26,18 +26,20 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(fused_matmul_verify_test)
+TEST_CASE(fused_matmul_bcast_verify_test)
 {
-    migraphx::program p = read_onnx("fused_matmul_verify_test.onnx");
+    // Exercises batch broadcasting combined with alpha: A [1, 3, 4] is broadcast to [2, 3, 4]
+    // and multiplied with B [2, 4, 5], scaled by alpha=0.25.
+    migraphx::program p = read_onnx("fused_matmul_bcast_verify_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     auto input_type = migraphx::shape::float_type;
-    migraphx::shape a_shape{input_type, {2, 3, 4}};
-    migraphx::shape b_shape{input_type, {2, 5, 4}};
+    migraphx::shape a_shape{input_type, {1, 3, 4}};
+    migraphx::shape b_shape{input_type, {2, 4, 5}};
 
-    std::vector<float> a_data(2 * 3 * 4);
-    std::iota(a_data.begin(), a_data.end(), 0); // 0..23
-    std::vector<float> b_data(2 * 5 * 4);
+    std::vector<float> a_data(1 * 3 * 4);
+    std::iota(a_data.begin(), a_data.end(), 0); // 0..11
+    std::vector<float> b_data(2 * 4 * 5);
     std::iota(b_data.begin(), b_data.end(), 0); // 0..39
 
     migraphx::parameter_map pp;
@@ -49,13 +51,13 @@ TEST_CASE(fused_matmul_verify_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     // Gold values generated with numpy:
-    // >>> A = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
-    // >>> B = np.arange(40, dtype=np.float32).reshape(2, 5, 4)
-    // >>> Y = 0.5 * A @ B.transpose(0, 2, 1)
-    std::vector<float> gold = {7.0f,    19.0f,  31.0f,   43.0f,   55.0f,   19.0f,  63.0f,   107.0f,
-                               151.0f,  195.0f, 31.0f,   107.0f,  183.0f,  259.0f, 335.0f,  583.0f,
-                               691.0f,  799.0f, 907.0f,  1015.0f, 755.0f,  895.0f, 1035.0f, 1175.0f,
-                               1315.0f, 927.0f, 1099.0f, 1271.0f, 1443.0f, 1615.0f};
+    // >>> A = np.arange(12, dtype=np.float32).reshape(1, 3, 4)
+    // >>> B = np.arange(40, dtype=np.float32).reshape(2, 4, 5)
+    // >>> Y = 0.25 * (A @ B)                            # [2, 3, 5]
+    std::vector<float> gold = {17.5f,  19.0f,  20.5f,  22.0f,  23.5f,  47.5f,  53.0f,  58.5f,
+                               64.0f,  69.5f,  77.5f,  87.0f,  96.5f,  106.0f, 115.5f, 47.5f,
+                               49.0f,  50.5f,  52.0f,  53.5f,  157.5f, 163.0f, 168.5f, 174.0f,
+                               179.5f, 267.5f, 277.0f, 286.5f, 296.0f, 305.5f};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

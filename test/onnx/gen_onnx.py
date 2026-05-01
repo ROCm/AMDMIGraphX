@@ -9115,6 +9115,127 @@ def fused_matmul_verify_test():
 
 
 @onnx_test()
+def fused_matmul_vm_test():
+    # 1-D A promoted via prepend: [7] -> [1, 7] @ [7, 8] -> [1, 8] -> squeeze -> [8].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_mv_test():
+    # 1-D B promoted via append: [6, 7] @ [7] -> [6, 7] @ [7, 1] -> [6, 1] -> squeeze -> [6].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_vv_test():
+    # Both 1-D: [7] @ [7] -> [1, 7] @ [7, 1] -> [1, 1] -> squeeze -> [1] (scalar inner product).
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_bmv_test():
+    # Batched matrix * vector: [3, 6, 7] @ [7] -> [3, 6].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 6])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_bcast_test():
+    # Batch broadcasting (rank mismatch): [2, 3, 4] @ [4, 5] -> [2, 3, 5].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 5])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_bcast_alpha_test():
+    # Batch broadcasting combined with alpha: [1, 3, 4] @ [2, 4, 5] -> [2, 3, 5], alpha=0.25.
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 5])
+
+    node = _make_fused_matmul_node({'alpha': 0.25})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_dyn_test():
+    # Dynamic shapes should be accepted now that the parser no longer rejects them.
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, None])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_vm_verify_test():
+    # 1-D A (len 4) * 2-D B [4, 5] -> 1-D output [5] with alpha=1.
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_trans_batch_a_verify_test():
+    # A [d0=3, b0=2, K=4], transBatchA permutes A to [2, 3, 4].
+    # B [2, 4, 5]. Result: [2, 3, 5].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 5])
+
+    node = _make_fused_matmul_node({'transBatchA': 1})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_bcast_verify_test():
+    # Batch broadcast combined with alpha: [1, 3, 4] @ [2, 4, 5] -> [2, 3, 5], alpha=0.25.
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 5])
+
+    node = _make_fused_matmul_node({'alpha': 0.25})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
 def matmul_dyn_mm_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 7])
     m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, None])

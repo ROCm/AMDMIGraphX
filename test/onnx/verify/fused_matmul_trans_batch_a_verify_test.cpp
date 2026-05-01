@@ -26,18 +26,20 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(fused_matmul_verify_test)
+TEST_CASE(fused_matmul_trans_batch_a_verify_test)
 {
-    migraphx::program p = read_onnx("fused_matmul_verify_test.onnx");
+    // Exercises transBatchA: A [3, 2, 4] is permuted with [1, 0, 2] to [2, 3, 4] before matmul
+    // with B [2, 4, 5]. Matches ORT's MatMulComputeHelper: dim-0 is moved to dim-(rank-2).
+    migraphx::program p = read_onnx("fused_matmul_trans_batch_a_verify_test.onnx");
     p.compile(migraphx::make_target("ref"));
 
     auto input_type = migraphx::shape::float_type;
-    migraphx::shape a_shape{input_type, {2, 3, 4}};
-    migraphx::shape b_shape{input_type, {2, 5, 4}};
+    migraphx::shape a_shape{input_type, {3, 2, 4}};
+    migraphx::shape b_shape{input_type, {2, 4, 5}};
 
-    std::vector<float> a_data(2 * 3 * 4);
+    std::vector<float> a_data(3 * 2 * 4);
     std::iota(a_data.begin(), a_data.end(), 0); // 0..23
-    std::vector<float> b_data(2 * 5 * 4);
+    std::vector<float> b_data(2 * 4 * 5);
     std::iota(b_data.begin(), b_data.end(), 0); // 0..39
 
     migraphx::parameter_map pp;
@@ -49,13 +51,14 @@ TEST_CASE(fused_matmul_verify_test)
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     // Gold values generated with numpy:
-    // >>> A = np.arange(24, dtype=np.float32).reshape(2, 3, 4)
-    // >>> B = np.arange(40, dtype=np.float32).reshape(2, 5, 4)
-    // >>> Y = 0.5 * A @ B.transpose(0, 2, 1)
-    std::vector<float> gold = {7.0f,    19.0f,  31.0f,   43.0f,   55.0f,   19.0f,  63.0f,   107.0f,
-                               151.0f,  195.0f, 31.0f,   107.0f,  183.0f,  259.0f, 335.0f,  583.0f,
-                               691.0f,  799.0f, 907.0f,  1015.0f, 755.0f,  895.0f, 1035.0f, 1175.0f,
-                               1315.0f, 927.0f, 1099.0f, 1271.0f, 1443.0f, 1615.0f};
+    // >>> A = np.arange(24, dtype=np.float32).reshape(3, 2, 4)
+    // >>> A_perm = np.transpose(A, (1, 0, 2))           # [2, 3, 4]
+    // >>> B = np.arange(40, dtype=np.float32).reshape(2, 4, 5)
+    // >>> Y = A_perm @ B                                # [2, 3, 5]
+    std::vector<float> gold = {
+        70.0f,   76.0f,   82.0f,   88.0f,   94.0f,   310.0f,  348.0f,  386.0f,  424.0f,  462.0f,
+        550.0f,  620.0f,  690.0f,  760.0f,  830.0f,  630.0f,  652.0f,  674.0f,  696.0f,  718.0f,
+        1510.0f, 1564.0f, 1618.0f, 1672.0f, 1726.0f, 2390.0f, 2476.0f, 2562.0f, 2648.0f, 2734.0f};
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

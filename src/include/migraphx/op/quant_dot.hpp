@@ -116,7 +116,7 @@ struct quant_dot
         shape out{out_type, out_dyn_dims};
         if(a.dynamic() or b.dynamic())
             return out;
-        return out.to_static({});
+        return out.to_static();
     }
 };
 

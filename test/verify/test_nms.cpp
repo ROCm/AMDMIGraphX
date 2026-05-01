@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -55,5 +55,50 @@ struct test_nms : verify_program<test_nms>
         mm->add_return({r});
 
         return p;
+    }
+};
+
+// Test NMS with dynamic inputs that have different compile-time spatial ranges.
+// This reproduces the scenario from nms_repro_minidimmismatch.py where
+// boxes has 10 spatial entries and scores has 5, but at runtime both are
+// sliced/provided with spatial_dimension=5. The compile-time ranges differ:
+//   boxes spatial: {4, 10}, scores spatial: {4, 5}
+// but runtime spatial dimensions match so NMS should succeed.
+struct test_nms_dyn_slice : verify_program<test_nms_dyn_slice>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        // boxes: [1, {4..10}, 4] — up to 10 spatial entries
+        migraphx::shape boxes_s{migraphx::shape::float_type, {{1, 1}, {4, 10}, {4, 4}}};
+        // scores: [1, 1, {4..5}] — up to 5 spatial entries (different range!)
+        migraphx::shape scores_s{migraphx::shape::float_type, {{1, 1}, {1, 1}, {4, 5}}};
+
+        auto boxes_l  = mm->add_parameter("boxes", boxes_s);
+        auto scores_l = mm->add_parameter("scores", scores_s);
+
+        auto max_out_l       = mm->add_literal(int64_t{4});
+        auto iou_threshold   = mm->add_literal(0.5f);
+        auto score_threshold = mm->add_literal(0.0f);
+
+        auto r =
+            mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}),
+                                boxes_l,
+                                scores_l,
+                                max_out_l,
+                                iou_threshold,
+                                score_threshold);
+        mm->add_return({r});
+
+        return p;
+    }
+
+    // At runtime, both have spatial_dimension=5 (matching)
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"boxes", migraphx::shape{migraphx::shape::float_type, {1, 5, 4}}},
+                {"scores", migraphx::shape{migraphx::shape::float_type, {1, 1, 5}}}};
     }
 };

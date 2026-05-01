@@ -52,6 +52,9 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
+include(DetectPackageBackend)
+detect_package_backend()
+
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -374,25 +377,45 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 
-if(BUILD_ADDRESS_SANITIZER)
-    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan" )
+if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+    if(NOT MIGRAPHX_THEROCK_GPU_ARCH)
+        message(FATAL_ERROR "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH (e.g. -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x).")
+    endif()
+    # TheRock amdrocm packages (RFC0009-OS-Packaging-Requirements):
+    #   Gfxarch=False packages: amdrocm-{component}
+    #   Gfxarch=True  packages: amdrocm-{component}-{gpu_arch}
+    # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime")
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn-${MIGRAPHX_THEROCK_GPU_ARCH}")
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-blas-${MIGRAPHX_THEROCK_GPU_ARCH}")
+    endif()
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel")
+
+    # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
+    set(ROCM_DEP_ROCMCORE OFF)
 else()
-    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
+    # Default ROCm (default for ROCM packaging)
+    if(BUILD_ADDRESS_SANITIZER)
+        set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan")
+    else()
+        set(DEPENDS_HIP_RUNTIME "hip-runtime-amd")
+    endif()
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND PACKAGE_DEPENDS miopen-hip)
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND PACKAGE_DEPENDS rocblas)
+    endif()
+    if(MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND PACKAGE_DEPENDS hipblaslt)
+    endif()
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 endif()
-
-if(MIGRAPHX_USE_MIOPEN)
-    list(APPEND PACKAGE_DEPENDS miopen-hip)
-endif()
-if(MIGRAPHX_USE_ROCBLAS)
-    list(APPEND PACKAGE_DEPENDS rocblas)
-endif()
-
-if(MIGRAPHX_USE_HIPBLASLT)
-    list(APPEND PACKAGE_DEPENDS hipblaslt)
-endif()
-
-rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
-rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 
 rocm_create_package(
     NAME MIGraphX

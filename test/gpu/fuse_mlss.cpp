@@ -113,7 +113,7 @@ TEST_CASE(mlss_mha_attention_1x8x4096x40)
     for(auto ins : migraphx::iterator_for(*mm))
     {
         auto n = ins->name();
-        if(n == "mlss_mha")
+        if(n == "gpu::mlss_mha")
             found_mlss_mha = true;
         if(n == "group")
             found_group = true;

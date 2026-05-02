@@ -89,6 +89,8 @@ endif()
 
 option(MIGRAPHX_USE_EIGEN "Enable Eigen for optimized ref GEMM" ON)
 
+option(MIGRAPHX_USE_AMDMLSS "Enable MIGraphX to use AMDMLSS" OFF)
+
 include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)

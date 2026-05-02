@@ -24,6 +24,13 @@
 
 find_package(hip REQUIRED)
 
+if(MIGRAPHX_USE_AMDMLSS)
+    find_package(amdmlss REQUIRED CONFIG)
+    message(STATUS "MIGraphX is using AMDMLSS")
+else()
+    message(STATUS "MIGraphX is not using AMDMLSS")
+endif()
+
 if(NOT WIN32)
     find_package(hsa-runtime64 REQUIRED CONFIG)
     message(STATUS "MIGraphX is using HSA runtime for chiplet query")
@@ -401,6 +408,11 @@ endif()
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::ck_host)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
+endif()
+
+if(MIGRAPHX_USE_AMDMLSS)
+    target_link_libraries(migraphx_gpu PRIVATE amdmlss::amdmlss)
+    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_AMDMLSS=1)
 endif()
 
 add_subdirectory(driver)

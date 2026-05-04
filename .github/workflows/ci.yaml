@@ -135,7 +135,6 @@ jobs:
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
-          -DMIGRAPHX_DISABLE_VERSION_RESOURCE=On \
           -DMIGRAPHX_ENABLE_GPU=On \
           -DMIGRAPHX_ENABLE_CPU=On \
           -DMIGRAPHX_ENABLE_FPGA=On \
@@ -190,7 +189,6 @@ jobs:
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
-          -DMIGRAPHX_DISABLE_VERSION_RESOURCE=On \
           -DCPPCHECK_BUILD_DIR=/data/cppcheck-cache \
           -DBUILD_DEV=On \
           -DROCM_ENABLE_GH_ANNOTATIONS=On \
@@ -280,7 +278,6 @@ jobs:
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
-          -DMIGRAPHX_DISABLE_VERSION_RESOURCE=On \
           -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
           -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \

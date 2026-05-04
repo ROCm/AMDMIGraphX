@@ -113,7 +113,14 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
     return co;
 }
 
-static instruction_ref find_final_split(instruction_ref split_ins)
+// Find the instruction at which to split the fused module, walking forward
+// from `split_ins` along its single-output path. Returns std::nullopt when no
+// suitable split point is found (e.g., the gemm-like instruction has multiple
+// consumers, so `get_output_path` yields a length<=1 range and
+// std::adjacent_find returns end()). Without this guard, dereferencing the
+// end iterator produces an invalid instruction_ref that segfaults later in
+// generic_split's DFS.
+static std::optional<instruction_ref> find_final_split(instruction_ref split_ins)
 {
     auto output_path = get_output_path(split_ins);
     auto it          = std::adjacent_find(
@@ -132,6 +139,8 @@ static instruction_ref find_final_split(instruction_ref split_ins)
             }
             return true;
         });
+    if(it == output_path.end())
+        return std::nullopt;
     return *it;
 }
 
@@ -216,28 +225,39 @@ struct mlir_compiler : compiler<mlir_compiler>
         if(gemm_like_ins != smod->end() and pointwise_ins != smod->end() and
            not is_module_fusible(*smod, ctx, solution))
         {
-            auto input_args = ins->inputs();
-            // remove alloc buffer
-            input_args.pop_back();
-            auto split_ins                               = find_final_split(gemm_like_ins);
-            std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
-            auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
-            // add alloc for the gemm output
-            dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
-            mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
-            auto pw_shapes        = to_shapes(mod_splits[1].inputs);
-            if(mod_splits[1].mod.get_output_shapes().size() == 1)
+            // Only take the splitk fallback if we can actually find a valid
+            // downstream split point. If find_final_split returns nullopt
+            // (e.g., the gemm-like op has multiple consumers, as in an
+            // attention block where the dot feeds both the softmax max and
+            // the subtract paths), fall through to the regular non-split
+            // MLIR compile below instead of feeding a garbage instruction_ref
+            // into smod->split().
+            if(auto split_ins = find_final_split(gemm_like_ins))
             {
-                pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
+                auto input_args = ins->inputs();
+                // remove alloc buffer
+                input_args.pop_back();
+                std::array<module_with_inputs, 2> mod_splits =
+                    smod->split(input_args, {*split_ins});
+                auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
+                // add alloc for the gemm output
+                dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
+                mlir_code_object cop1 =
+                    compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
+                auto pw_shapes = to_shapes(mod_splits[1].inputs);
+                if(mod_splits[1].mod.get_output_shapes().size() == 1)
+                {
+                    pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
+                }
+                else
+                {
+                    pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
+                }
+                assert(pw_shapes.back() == ins->get_shape());
+                auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
+                std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
+                return insert(cops, mod_splits, ins, *split_ins);
             }
-            else
-            {
-                pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
-            }
-            assert(pw_shapes.back() == ins->get_shape());
-            auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
-            std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
-            return insert(cops, mod_splits, ins, split_ins);
         }
         auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
         set_fill_map(cr, *smod);

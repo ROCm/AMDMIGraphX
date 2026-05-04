@@ -26,10 +26,8 @@ include_guard()
 
 include(ROCMSetupVersion)
 
-option(MIGRAPHX_DISABLE_VERSION_RESOURCE "" OFF)
-
-function(rocm_add_version_resource)
-    if(NOT MIGRAPHX_DISABLE_VERSION_RESOURCE)
-        _rocm_add_version_resource(${ARGN})
-    endif()
-endfunction()
+if(NOT DEFINED rocm_add_version_resource)
+    # Ignore the function for older ROCm-CMake versions
+    function(rocm_add_version_resource)
+    endfunction()
+endif()

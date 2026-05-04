@@ -1129,6 +1129,24 @@ auto same_shape(Ms... ms)
     return all_of(same_shape(ms)...);
 }
 
+template <class M>
+auto same_lens(M m)
+{
+    return make_basic_fun_matcher(
+        [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+            auto i = m.match(ctx, ins);
+            if(i and (*i)->get_shape().lens() == ins->get_shape().lens())
+                return ins;
+            return nullopt;
+        });
+}
+
+template <class... Ms>
+auto same_lens(Ms... ms)
+{
+    return all_of(same_lens(ms)...);
+}
+
 template <class... Ms>
 auto skip_broadcasts(Ms... ms)
 {

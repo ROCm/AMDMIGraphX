@@ -593,7 +593,7 @@ struct find_nop_reshapes
     auto matcher() const
     {
         // clang-format off
-        static const std::unordered_set<std::string> names = {
+        static const std::unordered_set<std::string> shape_names = {
             "flatten",
             "reshape",
             "contiguous",
@@ -608,14 +608,17 @@ struct find_nop_reshapes
             "slice",
             "step",
             "transpose",
+        };
+        static const std::unordered_set<std::string> lens_names = {
             "reduce_mean",
             "reduce_max",
             "reduce_min",
             "reduce_sum",
             "reduce_prod",
         };
-
-       return match::name(names)(match::same_shape(match::arg(0)));
+        // clang-format on
+        return match::any_of(match::name(shape_names)(match::same_shape(match::arg(0))),
+                             match::name(lens_names)(match::same_lens(match::arg(0))));
     }
 
     void apply(module& m, const match::matcher_result& mr) const

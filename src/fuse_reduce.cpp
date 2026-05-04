@@ -35,7 +35,6 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/rewrite_reshapes.hpp>
 #include <migraphx/param_utils.hpp>
-#include <migraphx/tune_axis.hpp>
 #include <iterator>
 #include <map>
 
@@ -117,6 +116,11 @@ static void create_reduce_modules(module_pass_manager& mpm)
         if(ins->inputs().size() != 1)
             continue;
 
+        auto* rm =
+            mpm.create_module(mpm.get_module().name() + ":" + ins->name() + std::to_string(n++));
+        rm->set_bypass();
+
+        rm->add_return(rm->fuse({ins}));
         auto v = ins->get_operator().to_value();
 
         // handle argmin/argmax
@@ -129,24 +133,6 @@ static void create_reduce_modules(module_pass_manager& mpm)
         {
             axes = {v["axis"].to<std::int64_t>()};
         }
-
-        // Skip reduces if every reduction axis is already size 1; does not apply to argmin/argmax
-        const auto& in_shape = ins->inputs().front()->get_shape();
-        if(v.contains("axes") and not axes.empty() and not in_shape.dynamic())
-        {
-            const auto& in_lens = in_shape.lens();
-            if(std::all_of(axes.begin(), axes.end(), [&](auto a) {
-                   return in_lens.at(tune_axis(in_lens.size(), a, ins->name())) == 1;
-               }))
-                continue;
-        }
-
-        auto* rm =
-            mpm.create_module(mpm.get_module().name() + ":" + ins->name() + std::to_string(n++));
-        rm->set_bypass();
-
-        rm->add_return(rm->fuse({ins}));
-
         mpm.get_module().replace_instruction(
             ins, make_op("fused_reduce", {{"axes", axes}}), ins->inputs(), {rm});
     }

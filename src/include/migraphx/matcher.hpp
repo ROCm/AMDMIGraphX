@@ -1028,6 +1028,7 @@ auto args(Ms... ms)
 {
     return sequence_c<sizeof...(Ms)>([=](auto... is) {
         // It needs to be written as `decltype(is)::value` for gcc 5
+        // cppcheck-suppress migraphx-AvoidNestedValue
         return args_impl(args_impl_ints<decltype(is)::value...>{}, ms...);
     });
 }
@@ -1210,7 +1211,11 @@ auto pointwise(Ms... ms)
     return match::has_attribute("pointwise")(ms...);
 }
 
-MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
+MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins)
+{
+    return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
+           ins->name() == "argmax";
+}
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

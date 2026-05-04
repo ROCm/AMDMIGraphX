@@ -24,7 +24,7 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
-    message(FATAL_ERROR "The binary and source directroy cannot be the same")
+    message(FATAL_ERROR "The binary and source directory cannot be the same")
 endif()
 
 # Setup valid strings for build type
@@ -51,6 +51,9 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 project(migraphx LANGUAGES C CXX)
 include(CTest)
+
+include(DetectPackageBackend)
+detect_package_backend()
 
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
@@ -89,19 +92,7 @@ else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
 
-find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
-if (NOT HALF_INCLUDE_DIR)
-    message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
-else()
-    message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
-endif()
-
-include(CheckTypeSize)
-set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
-set(CMAKE_EXTRA_INCLUDE_FILES half.hpp)
-check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
-set(CMAKE_REQUIRED_INCLUDES)
-set(CMAKE_EXTRA_INCLUDE_FILES)
+option(MIGRAPHX_USE_EIGEN "Enable Eigen for optimized ref GEMM" ON)
 
 include(ROCMSetupVersion)
 
@@ -287,6 +278,11 @@ rocm_enable_cppcheck(
         portability
     SUPPRESS
         ConfigurationNotChecked
+        duplInheritedMember
+        assertWithSideEffect
+        returnByReference
+        throwInEntryPoint
+        redundantCopyLocalConst
         unmatchedSuppression
         unusedFunction
         ctuPointerArith
@@ -310,6 +306,7 @@ rocm_enable_cppcheck(
         migraphx-RedundantLocalVariable:*src/api/api.cpp
         migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
+    EXHAUSTIVE
     INCONCLUSIVE
     RULE_FILE
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/rules.xml
@@ -326,11 +323,18 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/device/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/api/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/onnx/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/op/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/tf/include
     DEFINE
         MIGRAPHX_MLIR=1
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
         MIGRAPHX_USE_MIOPEN=1
+        MIGRAPHX_NGLOBAL=1024
+        MIGRAPHX_NLOCAL=256
+        MIGRAPHX_WAVEFRONTSIZE=64
         BUILD_DEV=
         __device__=
         __host__=
@@ -341,6 +345,7 @@ rocm_enable_cppcheck(
         HAS_HALF_V1
         TYPE_ERASED_DECLARATION
         NDEBUG
+        MIGRAPHX_GUARD_TEST_TEST_HPP
 )
 
 include(ROCMCreatePackage)
@@ -363,25 +368,45 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 
-if(BUILD_ADDRESS_SANITIZER)
-    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan" )
+if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+    if(NOT MIGRAPHX_THEROCK_GPU_ARCH)
+        message(FATAL_ERROR "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH (e.g. -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x).")
+    endif()
+    # TheRock amdrocm packages (RFC0009-OS-Packaging-Requirements):
+    #   Gfxarch=False packages: amdrocm-{component}
+    #   Gfxarch=True  packages: amdrocm-{component}-{gpu_arch}
+    # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime")
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn-${MIGRAPHX_THEROCK_GPU_ARCH}")
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-blas-${MIGRAPHX_THEROCK_GPU_ARCH}")
+    endif()
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel")
+
+    # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
+    set(ROCM_DEP_ROCMCORE OFF)
 else()
-    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
+    # Default ROCm (default for ROCM packaging)
+    if(BUILD_ADDRESS_SANITIZER)
+        set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan")
+    else()
+        set(DEPENDS_HIP_RUNTIME "hip-runtime-amd")
+    endif()
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND PACKAGE_DEPENDS miopen-hip)
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND PACKAGE_DEPENDS rocblas)
+    endif()
+    if(MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND PACKAGE_DEPENDS hipblaslt)
+    endif()
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 endif()
-
-if(MIGRAPHX_USE_MIOPEN)
-    list(APPEND PACKAGE_DEPENDS miopen-hip)
-endif()
-if(MIGRAPHX_USE_ROCBLAS)
-    list(APPEND PACKAGE_DEPENDS rocblas)
-endif()
-
-if(MIGRAPHX_USE_HIPBLASLT)
-    list(APPEND PACKAGE_DEPENDS hipblaslt)
-endif()
-
-rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
-rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 
 rocm_create_package(
     NAME MIGraphX
@@ -389,5 +414,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
+    DEPENDS ${DEPENDS_HIP_RUNTIME} ${PACKAGE_DEPENDS}
 )

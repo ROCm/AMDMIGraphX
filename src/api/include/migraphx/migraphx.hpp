@@ -1137,6 +1137,34 @@ struct context : handle_lookup<context, migraphx_context>
     std::shared_ptr<migraphx_context> ctx;
 };
 
+struct trace_info : MIGRAPHX_HANDLE_BASE(trace_info)
+{
+    trace_info() { this->make_handle(&migraphx_trace_info_create); }
+
+    MIGRAPHX_HANDLE_CONSTRUCTOR(trace_info)
+
+    std::size_t get_index() const
+    {
+        std::size_t pout;
+        call(&migraphx_trace_info_get_index, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    std::string get_name() const
+    {
+        const char* out_name;
+        call(&migraphx_trace_info_get_name, &out_name, this->get_handle_ptr());
+        return {out_name};
+    }
+
+    argument get_result() const
+    {
+        const_migraphx_argument_t pout;
+        call(&migraphx_trace_info_get_result, &pout, this->get_handle_ptr());
+        return {pout, this->share_handle()};
+    }
+};
+
 struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 {
     compile_options() { this->make_handle(&migraphx_compile_options_create); }
@@ -1212,6 +1240,33 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_arguments_t pout;
         call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
+        return arguments(pout, own{});
+    }
+
+    /// Run the program with a per-instruction callback for buffer inspection
+    template <class F>
+    arguments run_trace(const program_parameters& pparams, F callback) const
+    {
+        migraphx_trace_callback_t c_callback = [](migraphx_trace_info_t info,
+                                                  void* data) -> migraphx_status {
+            auto* fn = static_cast<F*>(data);
+            try
+            {
+                (*fn)(trace_info(info, borrow{}));
+            }
+            catch(...)
+            {
+                return migraphx_status_unknown_error;
+            }
+            return migraphx_status_success;
+        };
+        migraphx_arguments_t pout;
+        call(&migraphx_program_run_trace,
+             &pout,
+             this->get_handle_ptr(),
+             pparams.get_handle_ptr(),
+             c_callback,
+             &callback);
         return arguments(pout, own{});
     }
 
@@ -1366,6 +1421,12 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
         call(&migraphx_onnx_options_set_external_data_path,
              this->get_handle_ptr(),
              external_data_path.c_str());
+    }
+
+    /// Enable debug symbols from ONNX node names
+    void set_use_debug_symbols(bool value = true)
+    {
+        call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
     }
 };
 

@@ -28,6 +28,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -37,9 +38,11 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/source_location.hpp>
+#include <migraphx/trace_info.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
+#include <sstream>
 
 #ifdef MIGRAPHX_ENABLE_ONNX
 #include <migraphx/onnx.hpp>
@@ -185,6 +188,11 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
     options.limit_max_iterations = value;
 }
 
+static void set_use_debug_symbols(onnx_options& options, bool value)
+{
+    options.use_debug_symbols = value;
+}
+
 #endif
 
 #ifdef MIGRAPHX_ENABLE_TENSORFLOW
@@ -280,7 +288,7 @@ static void add_op_name(quantize_int8_options& options, const char* name)
     options.op_names.insert(name);
 }
 
-static void add_calibration_data(quantize_int8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_int8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }
@@ -300,7 +308,7 @@ struct quantize_fp8_options
     std::vector<parameter_map> calibration = {};
 };
 
-static void add_calibration_data(quantize_fp8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_fp8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }
@@ -413,6 +421,20 @@ static void register_custom_op(const CustomOp& op)
 }
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
+
+static std::vector<argument>
+run_trace(program& p, const parameter_map& params, const std::function<void(trace_info)>& callback)
+{
+    execution_environment exec_env;
+    const auto* mm = p.get_main_module();
+    exec_env.trace = [&, mm](instruction_ref ins, const argument& output) {
+        auto idx = std::distance(mm->begin(), ins);
+        std::ostringstream oss;
+        oss << ins->get_operator();
+        callback(trace_info{static_cast<std::size_t>(idx), oss.str(), output});
+    };
+    return p.eval(params, exec_env);
+}
 
 } // namespace migraphx
 

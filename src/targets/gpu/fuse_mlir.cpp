@@ -201,7 +201,7 @@ struct mlir_op
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
-        module_ref mod = mods[0];
+        const_module_ref mod = mods[0];
         check_shapes{inputs, *this, true}.has_at_least(1);
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
@@ -359,12 +359,9 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->get_shape().dynamic())
             return true;
-        auto input = ins->inputs().front()->get_shape();
-        value v    = ins->get_operator().to_value();
-        auto group = v.at("group").to<int>();
-        // Avoid MLIR assertion: Index < Length && "Invalid index!"
-        if(ins->get_shape().lens().size() != 4 and group > 1)
-            return false;
+        auto input                              = ins->inputs().front()->get_shape();
+        value v                                 = ins->get_operator().to_value();
+        auto group                              = v.at("group").to<int>();
         std::set<shape::type_t> supported_types = fp8_types{}.get();
         supported_types.insert(shape::int8_type);
         if(contains(supported_types, input.type()))
@@ -549,7 +546,6 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
 bool is_reduce_op_supported_by_mlir(const instruction& i)
 {
     using type_t                                      = shape::type_t;
-    const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
                                                          type_t::half_type,
@@ -705,7 +701,7 @@ struct find_mlir_split_reduce
  * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
  * into a mlir_op with submodule.
  */
-struct find_mlir_fused_ops : match::supports_dynamic_shapes
+struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;

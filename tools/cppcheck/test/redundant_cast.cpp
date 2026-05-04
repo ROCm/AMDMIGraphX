@@ -66,7 +66,7 @@ void test_cast_with_const()
 {
     const int a = 5;
     // cppcheck-suppress migraphx-RedundantCast
-    auto b = static_cast<const int&>(a);
+    const auto b = static_cast<const int&>(a);
     (void)b;
 }
 
@@ -76,4 +76,13 @@ void test_no_cast()
     int d  = 5;
     (void)c;
     (void)d;
+}
+
+auto test_constexpr_static_cast()
+{
+    return [](auto i) {
+        // cppcheck-suppress migraphx-RedundantCast
+        constexpr unsigned int offset = static_cast<unsigned int>(decltype(i){});
+        return offset;
+    };
 }

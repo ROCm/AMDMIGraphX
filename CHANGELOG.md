@@ -7,28 +7,59 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
+* Added Eigen third party headers for ref GEMMs (#4631).
+* Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
+* Added GPU JIT `Resize` kernel (#4553).
+* Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
+* Added Cubic resize jit kernel (#4652).
+* Added JIT compiler for `fill` operation (#4666).
+* Added trace callback function to allow inspection of instruction output buffers; see `examples/migraphx/cpp_trace_callback` for an example (#4780).
+* Added JIT compiler for `multinomial` operation (#4721).
+* Added build support for python 3.14 (#4754).
+* Added debug symbols for MIGraphX instructions such that parsed and compiled instructions can be tracked back to their ONNX origin node (#4626)
+* Added environment variable `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` to dump mxr files for benchmarking. (#4766)
 
 ### Changed
 
+* Converted `nonzero` operator from device implementation to JIT compilation (#4720).
+* Converted `prefix_scan_sum` operator from device implementation to JIT compilation (#4720).
+* Converted `reverse` operator from device implementation to JIT compilation (#4645).
 * Refactored instruction output alias to return a vector of aliases (#4540).
 * Changed parsing of ONNX ops like ConstantOfShape to insert undefined if expected shape has 0 elements (#4567).
 * Updated the ONNX clip operator to support opset 13 (#4518).
+* Updated `argmin` and `argmax` ops to be implemented as reduction ops, so they now have JIT support and can fuse (#4620).
+* Replaced usages of `std::cout` and `std::cerr` with the logger (#4732)
+* Converted RNN variable sequence length operations (`rnn_var_sl_shift_sequence`, `rnn_var_sl_shift_output`, `rnn_var_sl_last_output`) from device implementation to JIT compilation (#4755).
+* Allowing all grouped convolutions to go through rocMLIR. Previously only allowed 2D convolutions (#4815). 
 
 ### Resolved issues
 
+* Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
-* Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518). 
+* Fixed an issue with clip operator when using fp16 input type on opset 6 (#4518).
 * Fixed an issue with `reshape_lazy`'s shape computation that was leading to invalid reshapes (#4594).
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
+* Fixed an issue with `convert` output overflowing when converting inf/-inf to integral types (#4669).
+* Fixed issue with `find_concat_op` matcher merging converted int32 inputs after bf16/fp16 quant during compilation (#4745)
 
 ### Optimized
+* Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).
+* Replaced Hillis-Steele scan algorithm with a wave-based hierarchical scan, reducing work complexity from O(N log N) to O(N) and synchronization from O(log N) to 2 `__syncthreads()` calls (#4720).
+* Optimized fusion for local_window mode of GQA operator (#4617).
+* Removed extra assignments and inserts of op names in find_nop_reshapes(#4696).
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
+* Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
+* Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
+* Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
+* Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 
 ### Removed
+* Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).
 
 ## MIGraphX 2.15 for ROCm 7.2.0
 
@@ -45,6 +76,7 @@ Full documentation for MIGraphX is available at
 * Added Torch-MIGraphX installation instructions.
 * Added Operator Builders with supporting documentation.
 * Added index range check to the Gather operator.
+* Added `log(exp(x)) → x` and `log(a/b) → log(a) - log(b)` algebraic simplifications (#4630).
 
 
 ### Changed
@@ -289,8 +321,8 @@ Full documentation for MIGraphX is available at
 * Support for the Log2 internal operator
 * Support for the GCC 14 compiler
 * The BitwiseAnd, Scan, SoftmaxCrossEntropyLoss, GridSample, and NegativeLogLikelihoodLoss ONNX operators
-* The MatMulNBits, QuantizeLinear/DequantizeLinear, GroupQueryAttention, SkipSimplifiedLayerNormalization, and SimpliedLayerNormalization Microsoft Contrib operators
-* Dymamic batch parameter support to OneHot operator
+* The MatMulNBits, QuantizeLinear/DequantizeLinear, GroupQueryAttention, SkipSimplifiedLayerNormalization, and SimplifiedLayerNormalization Microsoft Contrib operators
+* Dynamic batch parameter support to OneHot operator
 * Split-K as an optional performance improvement
 * Scripts to validate ONNX models from the ONNX Model Zoo
 * GPU Pooling Kernel
@@ -300,7 +332,7 @@ Full documentation for MIGraphX is available at
 * Pointwise fusions with MLIR across reshape operations
 * MIGRAPHX_MLIR_DUMP environment variable to dump MLIR modules to MXRs
 * The 3 option to MIGRAPHX_TRACE_BENCHMARKING to print the MLIR program for improved debug output
-* MIGRAPHX_ENABLE_HIPBLASLT_GEMM environment variable to call hipBlasLt libaries
+* MIGRAPHX_ENABLE_HIPBLASLT_GEMM environment variable to call hipBlasLt libraries
 * MIGRAPHX_VERIFY_DUMP_DIFF to improve the debugging of accuracy issues
 * reduce_any and reduce_all options to the Reduce operation via Torch MIGraphX
 * Examples for RNNT, and ControlNet
@@ -318,7 +350,7 @@ Full documentation for MIGraphX is available at
 ### Removed
 
 * Disabled requirements for MIOpen and rocBlas when running on Windows.
-* Removed inaccuracte warning messages when using exhaustive-tune.
+* Removed inaccurate warning messages when using exhaustive-tune.
 * Remove the hard coded path in MIGRAPHX_CXX_COMPILER allowing the compiler to be installed in different locations.
 
 
@@ -328,7 +360,7 @@ Full documentation for MIGraphX is available at
     * Infrastructure code to enable better Kernel fusions with all supported data types
     * Subsequent model compile time by creating a cache for already performant kernels
     * Use of Attention fusion with models
-    * Performance of the Softmax JIT kernel and of the Pooling opterator
+    * Performance of the Softmax JIT kernel and of the Pooling operator
     * Tuning operations through a new 50ms delay before running the next kernel
     * Performance of several convolution based models through an optimized NHWC layout
     * Performance for the FP8 datatype
@@ -336,7 +368,7 @@ Full documentation for MIGraphX is available at
     * Verification tools
     * Debug prints
     * Documentation, including gpu-driver utility documentation
-    * Summary section of the migrahx-driver perf command
+    * Summary section of the migraphx-driver perf command
 * Reduced model compilation time
 * Reordered some compiler passes to allow for more fusions
 * Preloaded tiles into LDS to improve performance of pointwise transposes
@@ -593,7 +625,7 @@ Full documentation for MIGraphX is available at
 * Fixed compile warnings for shadowing variable names
 * Added missing specialization for the `nullptr` hash function
 
-### Changees
+### Changes
 
 * Bumped version of half library to 5.6.0
 * Bumped CI to support ROCm 5.6

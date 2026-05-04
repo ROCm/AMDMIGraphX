@@ -29,6 +29,7 @@ add_executable(driver
     mlir.cpp
     models.cpp
     perf.cpp
+    transform.cpp
     trim.cpp
     marker_roctx.cpp
 )

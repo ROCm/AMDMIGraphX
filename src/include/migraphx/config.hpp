@@ -51,12 +51,6 @@
 #define MIGRAPHX_INLINE_NS internal
 #endif // DOXYGEN
 
-#ifdef MIGRAPHX_USE_CLANG_TIDY
-#define MIGRAPHX_TIDY_CONST const
-#else
-#define MIGRAPHX_TIDY_CONST
-#endif // MIGRAPHX_USE_CLANG_TIDY
-
 #ifdef CPPCHECK
 #define MIGRAPHX_CPPCHECK_CONST const
 #else

@@ -5,7 +5,7 @@
 
 namespace nvinfer1
 {
-    class ConstantLayer_impl : public IConstantLayer, public apiv::VConstantLayer, public Layer_impl
+    class ConstantLayer_impl : public IConstantLayer, public apiv::VConstantLayer, virtual public Layer_impl
     {
     public:
         ConstantLayer_impl() noexcept;
@@ -18,6 +18,12 @@ namespace nvinfer1
         Weights getWeights() const noexcept override;
         void setDimensions(Dims const& dimensions) noexcept override;
         Dims getDimensions() const noexcept override;
+
+    private:
+        void build() noexcept;
+
+        Dims mDimensions;
+        Weights mWeights;
     };
 
 } // namespace nvinfer1

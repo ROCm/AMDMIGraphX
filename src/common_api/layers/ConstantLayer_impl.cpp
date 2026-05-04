@@ -10,23 +10,28 @@ namespace nvinfer1
 {
 
 ConstantLayer_impl::ConstantLayer_impl() noexcept
+    : Layer_impl{LayerType::kCONSTANT, nullptr}, mDimensions{}, mWeights{DataType::kFLOAT, nullptr, 0}
 {
     pass_warning("TODO! implement me!", false);
-    IConstantLayer::mLayer = static_cast<VLayer*>(static_cast<Layer_impl*>(this));;
+    IConstantLayer::mLayer = static_cast<VLayer*>(static_cast<Layer_impl*>(this));
     IConstantLayer::mImpl = this;
 }
 
 ConstantLayer_impl::ConstantLayer_impl(Dims const& dimensions, Weights weights, const std::shared_ptr<migraphx::program>& program) noexcept
+    : Layer_impl{LayerType::kCONSTANT, program}, mDimensions{dimensions}, mWeights{weights}
 {
-    pass_warning("TODO! implement me!", false);
-    IConstantLayer::mLayer = static_cast<VLayer*>(static_cast<Layer_impl*>(this));;
+    IConstantLayer::mLayer = static_cast<VLayer*>(static_cast<Layer_impl*>(this));
     IConstantLayer::mImpl = this;
 
-    auto* mm = program->get_main_module();
-    mInstructions.push_back( 
-        mm->add_literal(migraphx::shape{helper::fromDataType(weights.type), helper::dimsToVec(dimensions)},
-                            reinterpret_cast<const uint8_t*>(weights.values)));
-    
+    build();
+}
+
+void ConstantLayer_impl::build() noexcept
+{
+    auto* mm = mProgram->get_main_module();
+    migraphx::shape s{helper::fromDataType(getWeights().type), helper::dimsToVec(getDimensions())};
+    auto buff = reinterpret_cast<const uint8_t*>(getWeights().values);
+    mInstructions.push_back(mm->add_literal(s, buff));
     mOutputs.emplace_back(std::make_unique<Tensor_impl>(mInstructions.back()));
 }
 
@@ -37,24 +42,22 @@ ConstantLayer_impl::~ConstantLayer_impl()
 
 void ConstantLayer_impl::setWeights(Weights weights) noexcept
 {
-    pass_warning("TODO! implement me!", true);
+    mWeights = weights;
 }
 
 Weights ConstantLayer_impl::getWeights() const noexcept
 {
-    pass_warning("TODO! implement me!", true);
-    return Weights{};
+    return mWeights;
 }
 
 void ConstantLayer_impl::setDimensions(Dims const& dimensions) noexcept
 {
-    pass_warning("TODO! implement me!", true);
+    mDimensions = dimensions;
 }
 
 Dims ConstantLayer_impl::getDimensions() const noexcept
 {
-    pass_warning("TODO! implement me!", true);
-    return Dims{};
+    return mDimensions;
 }
 
 } // namespace nvinfer1

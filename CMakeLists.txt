@@ -75,7 +75,6 @@ endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
-
 option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
 
 # Strip symbols for release

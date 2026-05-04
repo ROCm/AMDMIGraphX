@@ -9,12 +9,13 @@ namespace nvinfer1
 {
 
 Tensor_impl::Tensor_impl() noexcept
+    : mName{""}
 {
-    pass_warning("TODO! implement me!", false);
     mImpl = this;
 }
 
-Tensor_impl::Tensor_impl(migraphx::instruction_ref ins) noexcept : mIns{ins}
+Tensor_impl::Tensor_impl(migraphx::instruction_ref ins) noexcept 
+    : mIns{ins}, mName{ins->name()}
 {
     mImpl = this;
 }
@@ -31,13 +32,14 @@ migraphx::instruction_ref Tensor_impl::getInstruction() const noexcept
 
 void Tensor_impl::setName(char const* name) noexcept
 {
-    pass_warning("TODO! implement me!", true);
+    // pass_warning("TODO! implement me!", true);
+    mName = name;
 }
 
 char const* Tensor_impl::getName() const noexcept
 {
-    pass_warning("TODO! implement me!", true);
-    return nullptr;
+    // pass_warning("TODO! implement me!", true);
+    return mName.c_str();
 }
 
 void Tensor_impl::setDimensions(Dims const& dimensions) noexcept

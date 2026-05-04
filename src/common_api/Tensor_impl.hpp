@@ -43,6 +43,7 @@ namespace nvinfer1
 
     private:
         migraphx::instruction_ref mIns;
+        std::string mName;
     };
 }
 

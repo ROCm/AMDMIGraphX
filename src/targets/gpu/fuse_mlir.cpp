@@ -359,12 +359,9 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->get_shape().dynamic())
             return true;
-        auto input = ins->inputs().front()->get_shape();
-        value v    = ins->get_operator().to_value();
-        auto group = v.at("group").to<int>();
-        // Avoid MLIR assertion: Index < Length && "Invalid index!"
-        if(ins->get_shape().lens().size() != 4 and group > 1)
-            return false;
+        auto input                              = ins->inputs().front()->get_shape();
+        value v                                 = ins->get_operator().to_value();
+        auto group                              = v.at("group").to<int>();
         std::set<shape::type_t> supported_types = fp8_types{}.get();
         supported_types.insert(shape::int8_type);
         if(contains(supported_types, input.type()))
@@ -704,7 +701,7 @@ struct find_mlir_split_reduce
  * Fuses rocMLIR compatible dot or conv op -> reshapes -> pointwise
  * into a mlir_op with submodule.
  */
-struct find_mlir_fused_ops : match::supports_dynamic_shapes
+struct find_mlir_fused_ops
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;

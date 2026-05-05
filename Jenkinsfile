@@ -104,13 +104,18 @@ def cmake_build = { bconf ->
 }
 
 def setCommitStatus(String sha, String state, String context, String description = '') {
-    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'GITHUB_APP_USER', passwordVariable: 'GITHUB_APP_TOKEN')]) {
-        sh """
-            curl -s -S -f -X POST \
-                -H "Authorization: token \${GITHUB_APP_TOKEN}" \
-                -H "Accept: application/vnd.github.v3+json" \
-                -d '{"state":"${state}","context":"${context}","description":"${description}","target_url":"${env.BUILD_URL}"}' \
-                "https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/statuses/${sha}"
+    def GITHUB_API_URL="https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/statuses/${sha}"
+    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+        sh """curl -L \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer \$TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -d '{"state":"${state}", \
+                   "description":"${description}", \
+                   "context":"${context}", \
+                   "target_url":"${env.BUILD_URL}"}' \
+              ${GITHUB_API_URL} \
         """
     }
 }

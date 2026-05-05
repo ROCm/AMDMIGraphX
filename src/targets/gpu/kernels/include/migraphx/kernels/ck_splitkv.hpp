@@ -98,7 +98,7 @@ __device__ void ck_splitkv(OAcc o_acc, LseAcc lse_acc, Q q, K k, V v)
     static_assert(desc.IsValid(), "Invalid SplitKV kernel configuration");
 
     G::Run(desc,
-           float{MIGRAPHX_CK_SPLITKV_SCALE} * ck_tile::log2e_v<>,
+           float{MIGRAPHX_CK_SPLITKV_SCALE},
            splitkv_ck_pointer(q.data()),
            splitkv_ck_pointer(k.data()),
            splitkv_ck_pointer(v.data()),

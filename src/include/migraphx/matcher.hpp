@@ -1135,7 +1135,8 @@ auto same_lens(M m)
     return make_basic_fun_matcher(
         [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
             auto i = m.match(ctx, ins);
-            if(i and (*i)->get_shape().lens() == ins->get_shape().lens())
+            if(i and not(*i)->get_shape().dynamic() and not ins->get_shape().dynamic() and
+               (*i)->get_shape().lens() == ins->get_shape().lens())
                 return ins;
             return nullopt;
         });

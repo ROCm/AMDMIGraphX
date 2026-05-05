@@ -90,6 +90,12 @@ optional<shape> reshape_dims(const shape& input,
     if(input.standard())
         return shape{input.type(), rdims};
 
+    // Broadcasts have ambiguous permutations (multiple axes share stride 0), so
+    // for non-lazy reshape fall back to a standard layout. Sliced (non-packed)
+    // inputs still propagate the permutation via the algorithm + with_lens below.
+    if(not options.lazy and input.broadcasted())
+        return shape{input.type(), rdims};
+
     const auto& idims    = input.lens();
     const auto& istrides = input.strides();
 

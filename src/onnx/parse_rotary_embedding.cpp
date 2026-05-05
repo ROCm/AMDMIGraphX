@@ -114,7 +114,18 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 
     static void parse_input(const instruction_ref& input, rotary_parameters& param)
     {
+        std::cout << "parse_input" << std::endl;
+        // check if input is dynamic, if so, check if all dims are fixed 
+        if(input->get_shape().dynamic())
+        {
+            if(not all_of(input->get_shape().dyn_dims(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+            {
+                MIGRAPHX_THROW("RotaryEmbedding: Input must be static");
+            }
+            
+        }
         auto input_lens = input->get_shape().lens();
+        input->debug_print();
         auto input_dims = input_lens.size();
 
         if(input_dims < 3 or input_dims > 4)

@@ -344,7 +344,7 @@ struct ck_tile_splitkv
         auto lse_lens   = o_lens;
         lse_lens.back() = 1;
 
-        return shape{{shape{q_shape.type(), o_lens}, shape{shape::float_type, lse_lens}}};
+        return shape{{shape{migraphx::shape::float_type, o_lens}, shape{migraphx::shape::float_type, lse_lens}}};
     }
 };
 MIGRAPHX_REGISTER_OP(ck_tile_splitkv);
@@ -518,6 +518,12 @@ struct find_flash_decoding
             auto ins = it;
             if(ins->name() == "@param" or ins->name() == "@return")
                 continue;
+
+            if(ins->name() == "@literal")
+            {
+                map_old_to_new[ins] = target_mod.add_literal(ins->get_literal());
+                continue;
+            }
 
             // gather inputs for the new instruction
             std::vector<instruction_ref> new_inputs;
@@ -771,11 +777,19 @@ struct find_flash_decoding
                 attn_group_ins,
                 make_op("gpu::ck_tile_splitkv", {{"num_splits", actual_groups}}),
                 {q_orig, k_orig, v_orig});
+            padding_needed = 0;
         }
 
         // unpack O' and LSE
         auto partial_output_o_prime = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group_ins);
+        if(enabled(MIGRAPHX_ENABLE_CK{}))
+        {
+            // partial_output_o_prime = mm.insert_instruction(
+            //     attn_group_ins,
+            //     make_op("convert", {{"target_type", migraphx::shape::half_type}}),
+            //     partial_output_o_prime);
+        }
         auto lse = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
 
@@ -784,8 +798,8 @@ struct find_flash_decoding
         // LSE[g] contains log(sum(exp(S[g]))) for each group
         // To combine: weight by exp(LSE[g]) / sum_g(exp(LSE[g']))
         instruction_ref final_result;
-        if(true)
-        // if(not enabled(MIGRAPHX_ENABLE_CK{}))
+        // if(true)
+        if(not enabled(MIGRAPHX_ENABLE_CK{}))
         {
             // compute global max for numerical stability
             auto lse_max = mm.insert_instruction(

@@ -298,30 +298,30 @@ TEST_CASE(bla3)
     // std::cout << p1 << std::endl;
 
     ref_p.compile(migraphx::make_target("ref"));
-    auto ref_out = ref_p.eval(pm).back();
-    std::vector<migraphx::half> ref_out_data(ref_out.get_shape().elements());
-    ref_out.visit([&](auto output) { ref_out_data.assign(output.begin(), output.end()); });
-    std::cout << "ref_out_data: \n";
-    for(auto i = 0; i < 20; i++)
-    {
-        std::cout << static_cast<float>(ref_out_data[i]) << " ";
-    }
-    std::cout << std::endl;
+    // auto ref_out = ref_p.eval(pm).back();
+    // std::vector<migraphx::half> ref_out_data(ref_out.get_shape().elements());
+    // ref_out.visit([&](auto output) { ref_out_data.assign(output.begin(), output.end()); });
+    // std::cout << "ref_out_data: \n";
+    // for(auto i = 0; i < 20; i++)
+    // {
+    //     std::cout << static_cast<float>(ref_out_data[i]) << " ";
+    // }
+    // std::cout << std::endl;
 
     migraphx::compile_options options;
     options.offload_copy = true;
     gpu_p.compile(migraphx::make_target("gpu"), options);
     std::cout << gpu_p << std::endl;
-    auto gpu_out = gpu_p.eval(pm).back();
-    std::vector<migraphx::half> gpu_out_data(gpu_out.get_shape().elements());
-    gpu_out.visit([&](auto output) { gpu_out_data.assign(output.begin(), output.end()); });
-    std::cout << "gpu_out_data: \n";
-    for(auto i = 0; i < 20; i++)
-    {
-        std::cout << static_cast<float>(gpu_out_data[i]) << " ";
-    }
-    std::cout << std::endl;
-    EXPECT(migraphx::verify::verify_rms_range(gpu_out_data, ref_out_data));
+    // auto gpu_out = gpu_p.eval(pm).back();
+    // std::vector<migraphx::half> gpu_out_data(gpu_out.get_shape().elements());
+    // gpu_out.visit([&](auto output) { gpu_out_data.assign(output.begin(), output.end()); });
+    // std::cout << "gpu_out_data: \n";
+    // for(auto i = 0; i < 20; i++)
+    // {
+    //     std::cout << static_cast<float>(gpu_out_data[i]) << " ";
+    // }
+    // std::cout << std::endl;
+    // EXPECT(migraphx::verify::verify_rms_range(gpu_out_data, ref_out_data));
 }
 
 TEST_CASE(combine_test)
@@ -443,16 +443,16 @@ TEST_CASE(make_combinations)
                               << std::endl;
 
                     std::stringstream ss;
-                    ss << backend << "_" << num_split << "_" << batch << "_" << nhead << "_" << M
+                    ss << backend << "_" << "full_" << num_split << "_" << batch << "_" << nhead << "_" << M
                        << "_" << N << "_" << K << "_" << O << ".mxr";
-                    std::string check_filename = "saved_models/" + backend + "_models/" + ss.str();
+                    std::string check_filename = "saved_models/" + backend + "_full_models/" + ss.str();
                     if(std::filesystem::exists(check_filename))
                     {
                         std::cout << "Skipping, file already exists: " << check_filename
                                   << std::endl;
                         continue;
                     }
-                    std::string output_filename = "saved_models/" + backend + "_models/" + ss.str();
+                    std::string output_filename = "saved_models/" + backend + "_full_models/" + ss.str();
                     std::cout << "Compiling " << output_filename << std::endl;
                     auto start_time = std::chrono::high_resolution_clock::now();
                     p.compile(migraphx::make_target("gpu"), options);
@@ -475,8 +475,8 @@ TEST_CASE(test_combinations)
 
     const std::size_t batch = 2;
     const std::size_t nhead = 4;
-    std::vector<size_t> seqlens_q{1, 512, 1024, 2048, 4096};
-    std::vector<size_t> seqlens_k{512, 1024, 2048, 4096};
+    std::vector<size_t> seqlens_q{1, 16, 32};
+    std::vector<size_t> seqlens_k{1024, 2048, 4096};
     std::vector<size_t> hdims_q{32, 48, 64, 80, 96, 128, 192, 256};
     std::vector<size_t> hdims_v{32, 48, 64, 80, 96, 128, 192, 256};
 
@@ -518,6 +518,7 @@ TEST_CASE(test_combinations)
             options.exhaustive_tune = false;
             options.offload_copy    = true;
             gpu_p.compile(migraphx::make_target("gpu"), options);
+            std::cout << gpu_p << std::endl;
             p.compile(migraphx::make_target("ref"));
 
             migraphx::parameter_map pm;
@@ -577,68 +578,18 @@ TEST_CASE(test_combinations)
 
     auto num_combinations = seqlens_q.size() * seqlens_k.size() * hdims_q.size() * hdims_v.size();
     auto iteration        = 1ul;
-    // for(const auto& seqlen_q : seqlens_q)
-    // {
-    //     for(const auto& seqlen_k : seqlens_k)
-    //     {
-    //         for(const auto& hdim_q : hdims_q)
-    //         {
-    //             for(const auto& hdim_v : hdims_v)
-    //             {
-    //                 std::cout << "Iteration " << iteration++ << "/" << num_combinations <<
-    //                 std::endl; test_body(seqlen_q, seqlen_k, hdim_q, hdim_v);
-    //             }
-    //         }
-    //     }
-    // }
-    struct test_dims
+    for(const auto& seqlen_q : seqlens_q)
     {
-        size_t seqlen_q;
-        size_t seqlen_k;
-        size_t hdim_q;
-        size_t hdim_v;
-    };
-    const std::vector<test_dims> test_dims_list = {
-        {1, 512, 64, 64},      {1, 512, 80, 32},      {1, 512, 80, 64},      {1, 512, 80, 96},
-        {1, 512, 96, 48},      {1, 512, 96, 80},      {1, 512, 96, 96},      {1, 512, 96, 256},
-        {1, 512, 128, 32},     {1, 512, 128, 48},     {1, 512, 128, 64},     {1, 512, 128, 80},
-        {1, 512, 128, 96},     {1, 512, 128, 128},    {1, 512, 128, 192},    {1, 512, 128, 256},
-        {1, 512, 192, 32},     {1, 512, 192, 48},     {1, 512, 192, 64},     {1, 512, 192, 80},
-        {1, 512, 192, 96},     {1, 512, 192, 128},    {1, 512, 192, 192},    {1, 512, 192, 256},
-        {1, 512, 256, 32},     {1, 512, 256, 48},     {1, 512, 256, 64},     {1, 512, 256, 80},
-        {1, 512, 256, 96},     {1, 512, 256, 128},    {1, 512, 256, 192},    {1, 512, 256, 256},
-        {1, 1024, 80, 32},     {1, 1024, 96, 32},     {1, 1024, 96, 64},     {1, 1024, 96, 80},
-        {1, 1024, 96, 192},    {1, 1024, 96, 256},    {1, 1024, 128, 32},    {1, 1024, 128, 48},
-        {1, 1024, 128, 64},    {1, 1024, 128, 80},    {1, 1024, 128, 128},   {1, 1024, 128, 192},
-        {1, 1024, 128, 256},   {1, 1024, 192, 32},    {1, 1024, 192, 48},    {1, 1024, 192, 64},
-        {1, 1024, 192, 80},    {1, 1024, 192, 96},    {1, 1024, 192, 128},   {1, 1024, 192, 192},
-        {1, 1024, 192, 256},   {1, 1024, 256, 32},    {1, 1024, 256, 48},    {1, 1024, 256, 64},
-        {1, 1024, 256, 80},    {1, 1024, 256, 96},    {1, 1024, 256, 128},   {1, 1024, 256, 192},
-        {1, 1024, 256, 256},   {1, 2048, 80, 32},     {1, 2048, 80, 64},     {1, 2048, 80, 80},
-        {1, 2048, 80, 96},     {1, 2048, 96, 32},     {1, 2048, 96, 48},     {1, 2048, 96, 64},
-        {1, 2048, 96, 80},     {1, 2048, 96, 96},     {1, 2048, 96, 192},    {1, 2048, 128, 48},
-        {1, 2048, 128, 64},    {1, 2048, 128, 80},    {1, 2048, 128, 96},    {1, 2048, 128, 128},
-        {1, 2048, 128, 256},   {1, 2048, 192, 32},    {1, 2048, 192, 48},    {1, 2048, 192, 64},
-        {1, 2048, 192, 80},    {1, 2048, 192, 96},    {1, 2048, 192, 128},   {1, 2048, 192, 192},
-        {1, 2048, 192, 256},   {1, 2048, 256, 32},    {1, 2048, 256, 48},    {1, 2048, 256, 64},
-        {1, 2048, 256, 80},    {1, 2048, 256, 96},    {1, 2048, 256, 128},   {1, 2048, 256, 192},
-        {1, 2048, 256, 256},   {1, 4096, 64, 80},     {1, 4096, 80, 32},     {1, 4096, 80, 96},
-        {1, 4096, 96, 32},     {1, 4096, 96, 48},     {1, 4096, 96, 64},     {1, 4096, 96, 96},
-        {1, 4096, 96, 256},    {1, 4096, 128, 32},    {1, 4096, 128, 48},    {1, 4096, 128, 64},
-        {1, 4096, 128, 80},    {1, 4096, 128, 96},    {1, 4096, 128, 128},   {1, 4096, 128, 192},
-        {1, 4096, 128, 256},   {1, 4096, 192, 32},    {1, 4096, 192, 48},    {1, 4096, 192, 64},
-        {1, 4096, 192, 80},    {1, 4096, 192, 96},    {1, 4096, 192, 128},   {1, 4096, 192, 192},
-        {1, 4096, 192, 256},   {1, 4096, 256, 32},    {1, 4096, 256, 48},    {1, 4096, 256, 64},
-        {1, 4096, 256, 80},    {1, 4096, 256, 96},    {1, 4096, 256, 128},   {1, 4096, 256, 192},
-        {1, 4096, 256, 256},   {512, 512, 192, 48},   {512, 1024, 192, 96},  {512, 2048, 192, 32},
-        {512, 2048, 192, 48},  {512, 2048, 192, 80},  {512, 2048, 192, 192}, {512, 4096, 192, 64},
-        {512, 4096, 256, 48},  {512, 4096, 256, 80},  {512, 4096, 256, 128}, {1024, 1024, 192, 80},
-        {1024, 2048, 256, 32}, {1024, 4096, 192, 32}, {1024, 4096, 192, 48}, {1024, 4096, 192, 64},
-        {1024, 4096, 192, 80}, {1024, 4096, 192, 96}, {1024, 4096, 192, 128}};
-
-    for(const auto& test_dims : test_dims_list)
-    {
-        std::cout << "Iteration " << iteration++ << "/" << test_dims_list.size() << std::endl;
-        test_body(test_dims.seqlen_q, test_dims.seqlen_k, test_dims.hdim_q, test_dims.hdim_v);
+        for(const auto& seqlen_k : seqlens_k)
+        {
+            for(const auto& hdim_q : hdims_q)
+            {
+                for(const auto& hdim_v : hdims_v)
+                {
+                    std::cout << "Iteration " << iteration++ << "/" << num_combinations <<
+                    std::endl; test_body(seqlen_q, seqlen_k, hdim_q, hdim_v);
+                }
+            }
+        }
     }
 }

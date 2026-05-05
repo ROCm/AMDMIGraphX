@@ -343,7 +343,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
         mpm.run_pass(dead_code_elimination{});
         match::find_matches(mpm.get_module(), find_add_layernorm{});
     }
-    match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
+    // match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     if(is_navi)
         match::find_matches(mpm.get_module(), find_channelwise_convolution{});
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))

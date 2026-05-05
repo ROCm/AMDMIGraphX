@@ -38,10 +38,10 @@ namespace builtin {
 struct literal
 {
     std::string name() const { return "@literal"; }
-    shape compute_shape(const std::vector<shape>&) const { MIGRAPHX_THROW("builtin"); }
+    shape compute_shape(const std::vector<shape>&) const { MIGRAPHX_THROW("builtin literal compute_shape"); }
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
-        MIGRAPHX_THROW("builtin");
+        MIGRAPHX_THROW("builtin literal compute");
     }
 };
 
@@ -59,7 +59,7 @@ struct outline
     shape compute_shape(const std::vector<shape>&) const { return s; }
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
-        MIGRAPHX_THROW("builtin");
+        MIGRAPHX_THROW("builtin outline compute");
     }
 };
 
@@ -75,10 +75,10 @@ struct param
     }
 
     std::string name() const { return "@param"; }
-    shape compute_shape(const std::vector<shape>&) const { MIGRAPHX_THROW("builtin"); }
+    shape compute_shape(const std::vector<shape>&) const { MIGRAPHX_THROW("builtin param compute_shape"); }
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
-        MIGRAPHX_THROW("builtin");
+        MIGRAPHX_THROW("builtin param compute");
     }
     friend std::ostream& operator<<(std::ostream& os, const param& op)
     {
@@ -103,7 +103,7 @@ struct returns
 
     argument compute(context&, const shape&, const std::vector<argument>&) const
     {
-        MIGRAPHX_THROW("builtin");
+        MIGRAPHX_THROW("builtin returns compute");
     }
 };
 

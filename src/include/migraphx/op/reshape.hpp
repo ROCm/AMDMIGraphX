@@ -163,7 +163,8 @@ struct reshape
             }
         }
 
-        auto nelements = std::accumulate(rdims.begin(), rdims.end(), std::size_t{1}, std::multiplies<>{});
+        auto nelements =
+            std::accumulate(rdims.begin(), rdims.end(), std::size_t{1}, std::multiplies<>{});
 
         if(nelements != inputs.front().elements())
             MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
@@ -173,7 +174,8 @@ struct reshape
         auto s = reshape_dims(inputs.front(), rdims, {.lazy = false});
         if(not s.has_value())
             return shape{inputs.front().type(), rdims};
-            // MIGRAPHX_THROW("Reshape: Invalid from " + to_string(inputs.front()) + " to " + to_string_range(rdims));
+        // MIGRAPHX_THROW("Reshape: Invalid from " + to_string(inputs.front()) + " to " +
+        // to_string_range(rdims));
 
         return s.value();
     }

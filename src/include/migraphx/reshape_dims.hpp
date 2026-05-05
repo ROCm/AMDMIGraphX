@@ -16,10 +16,9 @@ struct reshape_dims_options
 };
 
 optional<shape> reshape_dims(const shape& input,
-                            const std::vector<std::size_t>& rdims, reshape_dims_options options);
+                             const std::vector<std::size_t>& rdims,
+                             reshape_dims_options options);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_RESHAPE_DIMS_HPP
-
-

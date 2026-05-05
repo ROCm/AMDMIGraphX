@@ -5059,4 +5059,18 @@ TEST_CASE(slice_reshape_multibroadcast_rebase_axis)
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
 }
 
+TEST_CASE(broadcast_nop_reduce_mean)
+{
+    migraphx::module m;
+    auto lit =
+        m.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {42}});
+    auto bcast = m.add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {1, 1, 8}}}), lit);
+    auto reduce_mean = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0}}}), bcast);
+    m.add_return({reduce_mean});
+    auto n = std::distance(m.begin(), m.end());
+    run_pass(m);
+    EXPECT(std::distance(m.begin(), m.end()) == n - 1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

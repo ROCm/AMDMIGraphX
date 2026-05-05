@@ -60,17 +60,15 @@ auto* iterator_address(rank<0>, Iterator it)
 }
 
 template <class Iterator>
-auto iterator_address(rank<1>, Iterator it) -> decltype(it._M_dereferenceable()
-                                                            ? std::addressof(*it)
-                                                            : nullptr)
+auto iterator_address(rank<1>, Iterator it)
+    -> decltype(it._M_dereferenceable() ? std::addressof(*it) : nullptr)
 {
     return it._M_dereferenceable() ? std::addressof(*it) : nullptr;
 }
 
 template <class Iterator>
-auto iterator_address(rank<1>,
-                      Iterator it) -> decltype(std::addressof(it._Unwrapped()._Ptr->_Myval),
-                                               std::addressof(*it))
+auto iterator_address(rank<1>, Iterator it)
+    -> decltype(std::addressof(it._Unwrapped()._Ptr->_Myval), std::addressof(*it))
 {
     return it._Unwrapped()._Ptr ? std::addressof(it._Unwrapped()._Ptr->_Myval) : nullptr;
 }
@@ -139,22 +137,22 @@ struct iterator_operators
     }
 
     template <class U>
-    friend constexpr auto operator<(const T& x,
-                                    const U& y) -> decltype(static_cast<bool>((x - y) < 0))
+    friend constexpr auto operator<(const T& x, const U& y)
+        -> decltype(static_cast<bool>((x - y) < 0))
     {
         return static_cast<bool>((x - y) < 0);
     }
 
     template <class U>
-    friend constexpr auto operator<=(const T& x,
-                                     const U& y) -> decltype(not static_cast<bool>(x > y))
+    friend constexpr auto operator<=(const T& x, const U& y)
+        -> decltype(not static_cast<bool>(x > y))
     {
         return not static_cast<bool>(x > y);
     }
 
     template <class U>
-    friend constexpr auto operator>=(const T& x,
-                                     const U& y) -> decltype(not static_cast<bool>(x < y))
+    friend constexpr auto operator>=(const T& x, const U& y)
+        -> decltype(not static_cast<bool>(x < y))
     {
         return not static_cast<bool>(x < y);
     }
@@ -166,8 +164,8 @@ struct iterator_operators
     }
 
     template <class U>
-    friend constexpr auto operator!=(const T& x,
-                                     const U& y) -> decltype(not static_cast<bool>(x == y))
+    friend constexpr auto operator!=(const T& x, const U& y)
+        -> decltype(not static_cast<bool>(x == y))
     {
         return not static_cast<bool>(x == y);
     }

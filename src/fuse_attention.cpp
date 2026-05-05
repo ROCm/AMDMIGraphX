@@ -790,8 +790,8 @@ struct find_kv_cache_attention
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
         auto queries = match::name("slice");
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
-        auto gemm1_maybe_cvt = match::skip(match::name("convert"))(gemm1);
-        auto scale           = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
+        auto gemm1_maybe_cvt   = match::skip(match::name("convert"))(gemm1);
+        auto scale             = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
         auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
         auto attn_scores       = match::any_of(scale, gemm1_maybe_cvt);
         auto causal_mask =

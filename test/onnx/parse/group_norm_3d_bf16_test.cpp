@@ -36,6 +36,6 @@ TEST_CASE(group_norm_3d_bf16_test)
                                           migraphx::shape::bf16_type,
                                           {"scale", migraphx::shape::bf16_type},
                                           {"bias", migraphx::shape::bf16_type});
-    auto prog = optimize_onnx("group_norm_3d_bf16_test.onnx");
+    auto prog           = optimize_onnx("group_norm_3d_bf16_test.onnx");
     EXPECT(p == prog);
 }

@@ -67,7 +67,7 @@ TEST_CASE(group_norm_contrib_channels_last_3d_test)
     auto bias_bcast = mm->add_instruction(
         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", x_dims}}), bias);
     auto scaled = mm->add_instruction(migraphx::make_op("mul"), {result_reshaped, scale_bcast});
-    auto y           = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
+    auto y      = mm->add_instruction(migraphx::make_op("add"), {scaled, bias_bcast});
     mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), y);
 
     auto prog = optimize_onnx("group_norm_contrib_channels_last_3d_test.onnx");

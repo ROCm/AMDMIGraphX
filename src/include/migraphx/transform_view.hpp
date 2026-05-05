@@ -82,16 +82,16 @@ struct transform_view : totally_ordered<transform_view<Range, F>>
         }
 
         template <class U, class V>
-        static auto distance(const U& x, const V& y) -> decltype(x.parent == y.parent,
-                                                                 y.current - x.current)
+        static auto distance(const U& x, const V& y)
+            -> decltype(x.parent == y.parent, y.current - x.current)
         {
             assert(x.parent == y.parent);
             return y.current - x.current;
         }
 
         template <class U, class V>
-        static auto equal(const U& x,
-                          const V& y) -> decltype(x.parent == y.parent and x.current == y.current)
+        static auto equal(const U& x, const V& y)
+            -> decltype(x.parent == y.parent and x.current == y.current)
         {
             return x.parent == y.parent and x.current == y.current;
         }

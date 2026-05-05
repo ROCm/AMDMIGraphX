@@ -116,7 +116,7 @@ void rewrite_arg_reduce(module& m)
 {
     for(auto ins : find_arg_reduce(m))
     {
-        auto input     = ins->inputs().front();
+        auto input = ins->inputs().front();
         // make_indices(value): lazy index stream sized from the same tensor the reducer slices
         auto indices = m.insert_instruction(ins, make_indices{}, input);
         // arg_reduce op to get values and indices tuple

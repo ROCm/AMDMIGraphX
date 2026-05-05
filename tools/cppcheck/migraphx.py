@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -223,7 +223,7 @@ def GotoStatement(cfg, data):
 
 @cppcheck.checker
 def LambdaAttribute(cfg, data):
-    for token in cfg.tokenlist:
+    for token in data.rawTokens:
         if token.str != ']':
             continue
         if not match(token, "] __device__|__host__ {|("):
@@ -253,7 +253,7 @@ def MutableVariable(cfg, data):
     for token in cfg.tokenlist:
         if token.str != 'mutable':
             continue
-        if not match(token, "mutable %var%"):
+        if not match(token, "mutable %name%"):
             continue
         cppcheck.reportError(token, "style",
                              "Do not create mutable variables.")
@@ -279,14 +279,20 @@ def RedundantCast(cfg, data):
             continue
         m = match(token,
                   "%var%@decl ; %var%@assign = static_cast <*>@cast (*) ;")
-        if not m:
-            continue
-        if m.decl.varId != m.assign.varId:
-            continue
+        if m:
+            if m.decl.varId != m.assign.varId:
+                continue
+        else:
+            m = match(token, "%var%@assign = static_cast <*>@cast (*) ;")
+            if not m:
+                continue
+            if m.assign.variable.typeEndToken != m.assign.previous:
+                continue
+
         if not simpleMatch(token.previous, "auto"):
-            if not isTokensEqual(getVariableDecl(m.decl.variable),
+            if not isTokensEqual(getVariableDecl(m.assign.variable),
                                  getInnerLink(m.cast),
-                                 skip='const|volatile|&|&&|*'):
+                                 skip='static|constexpr|const|volatile|&|&&|*'):
                 continue
         cppcheck.reportError(token, "style", "Static cast is redundant.")
 
@@ -443,3 +449,39 @@ def MatcherNestedParentheses(cfg, data):
                 "Too many nested parentheses can affect readability; consider using variables instead."
             )
             break
+
+@cppcheck.checker
+def AvoidNestedValue(cfg, data):
+    for token in cfg.tokenlist:
+        if not simpleMatch(token, ":: value"):
+            continue
+        parent = token.previous
+        if not match(parent, ">|)"):
+            continue
+        valueTok = token.next
+        if valueTok.typeScope != None:
+            continue
+        if match(valueTok.next, "::|("):
+            continue
+        cppcheck.reportError(
+            token, "style",
+            "Construct trait instead of using ::value"
+        )
+
+@cppcheck.checker
+def UseCachedEnvVar(cfg, data):
+    env_functions = {"enabled", "disabled", "env", "value_of", "string_value_of"}
+    for token in cfg.tokenlist:
+        if not isFunctionCall(token):
+            continue
+        if not token.str in env_functions:
+            continue
+        m = match(token, "%name% ( %name%@env_var :: value ( ) )|,")
+        if not m:
+            continue
+        if(m.env_var.str == "T"):
+            continue
+        cppcheck.reportError(
+            token, "style",
+            "Use cached env variable"
+        )

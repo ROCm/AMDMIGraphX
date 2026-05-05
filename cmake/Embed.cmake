@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #####################################################################################
 
+include_guard(GLOBAL)
+
 if(WIN32)
     set(EMBED_USE RC CACHE STRING "Use RC or CArrays to embed data files")
     set_property(CACHE EMBED_USE PROPERTY STRINGS "RC;CArrays")
@@ -33,6 +35,8 @@ else()
     endif()
     set_property(CACHE EMBED_USE PROPERTY STRINGS "LD;CArrays")
 endif()
+
+option(EMBED_VERBOSE "Show verbose output when creating embed library" OFF)
 
 if(EMBED_USE STREQUAL "LD")
     find_program(EMBED_LD ld REQUIRED)
@@ -66,13 +70,23 @@ function(embed_wrap_string)
     set(${PARSE_VARIABLE} "${lines}" PARENT_SCOPE)
 endfunction()
 
+set(RESOURCE_ID 100 CACHE INTERNAL "" FORCE)
+
+function(reset_resource_id MULTIPLE)
+    if(RESOURCE_ID GREATER 0)
+        math(EXPR _remainder "${RESOURCE_ID} % ${MULTIPLE}")
+        if(_remainder GREATER 0)
+            math(EXPR RESOURCE_ID "${RESOURCE_ID} + ${MULTIPLE} - ${_remainder}")
+        endif()
+    endif()
+    set(RESOURCE_ID ${RESOURCE_ID} CACHE INTERNAL "" FORCE)
+endfunction()
+
 function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
     set(options)
     set(oneValueArgs)
     set(multiValueArgs SYMBOLS FILES)
     cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
-    set(RESOURCE_ID 100)
 
     list(LENGTH PARSE_SYMBOLS SYMBOLS_LEN)
     list(LENGTH PARSE_FILES FILES_LEN)
@@ -93,21 +107,22 @@ function(generate_embed_source EMBED_NAME EMBED_DIR BASE_DIRECTORY)
             string(APPEND RC_FILE_MAPPING "IDR_${SYMBOL} TEXTFILE \"${NATIVE_FILE}\"\n")
             string(APPEND INIT_KERNELS "\n        {\"${BASE_NAME}\", resource::read(IDR_${SYMBOL})},")
             math(EXPR RESOURCE_ID "${RESOURCE_ID} + 1" OUTPUT_FORMAT DECIMAL)
-        else()
+        elseif(EMBED_USE STREQUAL "LD")
+            set(START_SYMBOL "_binary_${SYMBOL}_start")
+            set(END_SYMBOL "_binary_${SYMBOL}_end")
+            string(APPEND EXTERNS "
+extern const char ${START_SYMBOL}[];
+extern const char ${END_SYMBOL}[];
+")
+            string(APPEND INIT_KERNELS "
+        { \"${BASE_NAME}\", { ${START_SYMBOL}, static_cast<size_t>(${END_SYMBOL} - ${START_SYMBOL})} },")
+        else() # CArrays
             set(START_SYMBOL "_binary_${SYMBOL}_start")
             set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
-            if(EMBED_USE STREQUAL "LD")
-                string(APPEND EXTERNS "
-extern const char ${START_SYMBOL}[];
-extern const size_t _binary_${SYMBOL}_size;
-const auto ${LENGTH_SYMBOL} = reinterpret_cast<size_t>(&_binary_${SYMBOL}_size);
-")
-            else()
-                string(APPEND EXTERNS "
+            string(APPEND EXTERNS "
 extern const char ${START_SYMBOL}[];
 extern const size_t ${LENGTH_SYMBOL};
 ")
-            endif()
             string(APPEND INIT_KERNELS "
         { \"${BASE_NAME}\", { ${START_SYMBOL}, ${LENGTH_SYMBOL}} },")
         endif()
@@ -128,7 +143,7 @@ ${RC_FILE_MAPPING}
 #include \"resource.h\"
 
 namespace resource {
-std::string_view read(int id)
+static std::string_view read(int id)
 {
     HMODULE handle;
     if(GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
@@ -169,12 +184,16 @@ std::unordered_map<std::string_view, std::string_view> ${EMBED_NAME}()
     return result;
 }
 ")
+    reset_resource_id(1000)
+
     list(APPEND EMBED_FILES ${EMBED_DIR}/${EMBED_NAME}.cpp ${EMBED_DIR}/include/${EMBED_NAME}.hpp)
     set(EMBED_FILES ${EMBED_FILES} PARENT_SCOPE)
 endfunction()
 
 function(embed_file FILE BASE_DIRECTORY)
-    message(STATUS "    ${FILE}")
+    if(EMBED_VERBOSE)
+        message(STATUS "    ${FILE}")
+    endif()
     file(RELATIVE_PATH REL_FILE "${BASE_DIRECTORY}" ${FILE})
     string(MAKE_C_IDENTIFIER "${REL_FILE}" OUTPUT_SYMBOL)
     get_filename_component(OUTPUT_FILE_DIR "${REL_FILE}" DIRECTORY)
@@ -218,13 +237,16 @@ function(add_embed_library EMBED_NAME)
 
     set(EMBED_DIR ${CMAKE_CURRENT_BINARY_DIR}/embed/${EMBED_NAME})
     file(MAKE_DIRECTORY ${EMBED_DIR})
-    message(STATUS "Embedding kernel files:")
+    list(LENGTH PARSE_UNPARSED_ARGUMENTS NFILES)
+    message(STATUS "Embedding ${NFILES} files into library '${EMBED_NAME}':")
     foreach(FILE ${PARSE_UNPARSED_ARGUMENTS})
         embed_file(${FILE} ${PARSE_RELATIVE})
         list(APPEND OUTPUT_FILES ${OUTPUT_FILE})
         list(APPEND SYMBOLS ${OUTPUT_SYMBOL})
     endforeach()
-    message(STATUS "Generating embedding library '${EMBED_NAME}'")
+    if(EMBED_VERBOSE)
+        message(STATUS "Generating embedding library '${EMBED_NAME}'")
+    endif()
     generate_embed_source(${EMBED_NAME} ${EMBED_DIR} "${PARSE_RELATIVE}" SYMBOLS ${SYMBOLS} FILES ${PARSE_UNPARSED_ARGUMENTS})
     set(INTERNAL_EMBED_LIB embed_lib_${EMBED_NAME})
     if(EMBED_USE STREQUAL "LD")

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -63,7 +63,7 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
     }
 
     template <class T>
-    argument(shape s, std::shared_ptr<T> d)
+    argument(shape s, const std::shared_ptr<T>& d)
         : m_shape(std::move(s))
     {
         assign_buffer([d] { return reinterpret_cast<char*>(d.get()); });
@@ -103,6 +103,8 @@ struct MIGRAPHX_EXPORT argument : raw_data<argument>
         });
     }
 
+    argument convert(shape::type_t t) const;
+
     private:
     void assign_buffer(std::function<char*()> d);
     struct data_t
@@ -122,6 +124,20 @@ MIGRAPHX_EXPORT std::vector<argument> flatten(const std::vector<argument>& args)
 MIGRAPHX_EXPORT std::vector<shape> to_shapes(const std::vector<argument>& args);
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const argument& a);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, argument& a);
+
+MIGRAPHX_EXPORT void save_argument(const argument& a, const std::string& filename);
+MIGRAPHX_EXPORT argument load_argument(const std::string& filename);
+
+// Visit-like function but just converts argument to double
+template<class T, class... Ts>
+auto get_all(Ts&&... xs)
+{
+    return [&](auto v) {
+        [&](auto&&... xs) {
+            v(xs.template get<T>()...);
+        }(xs.convert(shape::get_type<T>{})...);
+    };
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

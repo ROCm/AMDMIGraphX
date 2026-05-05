@@ -31,7 +31,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /// encode string to base64
-std::string base64_encode(const std::string& str);
+std::string MIGRAPHX_EXPORT base64_encode(const std::string& str);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

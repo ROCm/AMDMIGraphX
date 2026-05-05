@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,7 @@ struct mlir_gpu_target : migraphx::gpu::target
     }
 };
 
-std::string encode(const std::string& s)
+static std::string encode(const std::string& s)
 {
     std::stringstream ss;
     bool prespace = false;
@@ -72,7 +72,7 @@ std::string encode(const std::string& s)
     return migraphx::trim(ss.str());
 }
 
-migraphx::module create_mlir_submodule(const migraphx::module& mmlir)
+static migraphx::module create_mlir_submodule(const migraphx::module& mmlir)
 {
     migraphx::module m;
     std::unordered_map<migraphx::instruction_ref, migraphx::instruction_ref> map_ins;
@@ -87,7 +87,7 @@ migraphx::module create_mlir_submodule(const migraphx::module& mmlir)
     return m;
 }
 
-migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
+static migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
 {
     migraphx::program p;
     auto* mm   = p.get_main_module();
@@ -102,13 +102,16 @@ migraphx::program create_program_from_mlir(const migraphx::module& mmlir)
     inputs.push_back(mm->add_parameter("output", mmlir.get_output_shapes().front()));
 
     migraphx::gpu::context ctx;
+    auto shapes = to_shapes(inputs);
+    // compile_mlir requires a tuning solution (perfConfig) for the backend pipeline
+    auto tc = get_tuning_config_mlir(ctx, create_mlir_submodule(mmlir), shapes, false);
     migraphx::gpu::mlir_code_object mco =
-        compile_mlir(ctx, create_mlir_submodule(mmlir), to_shapes(inputs), {});
+        compile_mlir(ctx, create_mlir_submodule(mmlir), shapes, tc.solutions.front());
     migraphx::gpu::insert_mlir(*mm, mm->end(), mco.cop, inputs);
     return p;
 }
 
-migraphx::parameter_map generate_params(const migraphx::program& p)
+static migraphx::parameter_map generate_params(const migraphx::program& p)
 {
     migraphx::parameter_map m;
     std::size_t i = 0;
@@ -120,7 +123,7 @@ migraphx::parameter_map generate_params(const migraphx::program& p)
     return m;
 }
 
-migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& inputs)
+static migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& inputs)
 {
     mlir_gpu_target t;
     p.compile(t);
@@ -139,13 +142,13 @@ migraphx::argument run_gpu(migraphx::program p, const migraphx::parameter_map& i
     return t.copy_from(p.eval(m).front());
 }
 
-migraphx::argument run_ref(migraphx::program p, const migraphx::parameter_map& inputs)
+static migraphx::argument run_ref(migraphx::program p, const migraphx::parameter_map& inputs)
 {
     p.compile(migraphx::make_target("ref"));
     return p.eval(inputs).front();
 }
 
-bool verify_mlir(const migraphx::module& mmlir)
+static bool verify_mlir(const migraphx::module& mmlir)
 {
     migraphx::program ref;
     ref.get_main_module()->insert_instructions(ref.get_main_module()->end(), &mmlir);
@@ -157,13 +160,13 @@ bool verify_mlir(const migraphx::module& mmlir)
         "mlir", run_gpu(mlir, inputs), migraphx::verify::expected{run_ref(ref, inputs)});
 }
 
-std::string get_attrs()
+static std::string get_attrs()
 {
     if(migraphx::enabled(MIGRAPHX_MLIR_ENABLE_SPLITK{}))
     {
-        return R"({arch = "", enable_splitk_for_tuning, kernel = "mixr", num_cu = 0 : i64})";
+        return R"({rock.arch = "", rock.enable_splitk_for_tuning, rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
     }
-    return R"({arch = "", kernel = "mixr", num_cu = 0 : i64})";
+    return R"({rock.arch = "", rock.kernel = "mixr", rock.num_chiplets = 0 : i64, rock.num_cu = 0 : i64})";
 }
 
 TEST_CASE(conv)
@@ -247,6 +250,44 @@ module {
     EXPECT(verify_mlir(m));
 }
 
+TEST_CASE(conv_add_leaky_relu)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution_add_greater_mul_convert_where(%arg0: !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>, %arg1: !migraphx.shaped<2x8x3x3xf32, 72x9x3x1>, %arg2: !migraphx.shaped<1x8x4x4xf32, 128x16x4x1>) -> !migraphx.shaped<1x2x2x2xf32, 8x4x2x1> attributes ${attrs} {
+    %0 = migraphx.literal(dense<0.000000e+00> : tensor<1xf32>) : <1xf32, 1>
+    %1 = migraphx.literal(dense<0.00999999977> : tensor<1xf32>) : <1xf32, 1>
+    %2 = migraphx.convolution %arg2, %arg1 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x8x4x4xf32, 128x16x4x1>, <2x8x3x3xf32, 72x9x3x1> -> <1x2x2x2xf32, 8x4x2x1>
+    %3 = migraphx.add %2, %arg0 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1> -> <1x2x2x2xf32, 8x4x2x1>
+    %4 = migraphx.multibroadcast %0 {out_dyn_dims = [], out_lens = [1, 2, 2, 2]} : <1xf32, 1> -> <1x2x2x2xf32, 0x0x0x0>
+    %5 = migraphx.greater %3, %4 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 0x0x0x0> -> <1x2x2x2xf32, 8x4x2x1>
+    %6 = migraphx.multibroadcast %1 {out_dyn_dims = [], out_lens = [1, 2, 2, 2]} : <1xf32, 1> -> <1x2x2x2xf32, 0x0x0x0>
+    %7 = migraphx.mul %3, %6 : <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 0x0x0x0> -> <1x2x2x2xf32, 8x4x2x1>
+    %8 = migraphx.convert %5 {target_type = 0 : i64} : <1x2x2x2xf32, 8x4x2x1> to <1x2x2x2xsi8, 8x4x2x1>
+    %9 = migraphx.where %8, %3, %7 : <1x2x2x2xsi8, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1>, <1x2x2x2xf32, 8x4x2x1> -> <1x2x2x2xf32, 8x4x2x1>
+    return %9 : !migraphx.shaped<1x2x2x2xf32, 8x4x2x1>  
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x    = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, 4, 4}});
+    auto w    = m.add_parameter("w", {migraphx::shape::float_type, {2, 8, 3, 3}});
+    auto b    = m.add_parameter("b", {migraphx::shape::float_type, {1, 2, 2, 2}});
+    auto conv = m.add_instruction(migraphx::make_op("convolution"), x, w);
+    auto add  = m.add_instruction(migraphx::make_op("add"), conv, b);
+    auto relu = m.add_instruction(migraphx::make_op("leaky_relu"), add);
+    m.add_return({relu});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+
+    EXPECT(verify_mlir(m));
+}
+
 // The following test checks that a dimension -1, within reshape operator is handled properly..
 TEST_CASE(conv_reshape_dim_minus_one)
 {
@@ -302,6 +343,123 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     // EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(conv_backwards)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution_backwards(%arg0: !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>, %arg1: !migraphx.shaped<1x1x3x3xf32, 9x9x3x1>) -> !migraphx.shaped<1x1x5x5xf32, 25x25x5x1> attributes ${attrs} {
+    %0 = migraphx.backwards_data_convolution %arg1, %arg0 {dilation = [1, 1], group = 1 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x1x3x3xf32, 9x9x3x1>, <1x1x3x3xf32, 9x9x3x1> -> <1x1x5x5xf32, 25x25x5x1>
+    return %0 : !migraphx.shaped<1x1x5x5xf32, 25x25x5x1>
+  }
+}
+)__migraphx__";
+
+    migraphx::module m;
+    auto x      = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto w      = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {1, 1, 3, 3}});
+    auto conv_b = m.add_instruction(migraphx::make_op("convolution_backwards"), x, w);
+    m.add_return({conv_b});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(grouped_conv1d)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution(%arg0: !migraphx.shaped<4x1x3xf32, 3x3x1>, %arg1: !migraphx.shaped<1x4x16xf32, 64x16x1>) -> !migraphx.shaped<1x4x14xf32, 56x14x1> attributes ${attrs} {
+    %0 = migraphx.convolution %arg1, %arg0 {dilation = [1], group = 4 : i64, padding = [0, 0], padding_mode = 0 : i64, stride = [1]} : <1x4x16xf32, 64x16x1>, <4x1x3xf32, 3x3x1> -> <1x4x14xf32, 56x14x1>
+    return %0 : !migraphx.shaped<1x4x14xf32, 56x14x1>
+  }
+}
+)__migraphx__";
+
+    migraphx::module m;
+    auto input   = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16}});
+    auto weights = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3}});
+    auto group_conv = m.add_instruction(
+        migraphx::make_op("convolution",
+                          {{"group", 4}, {"padding", {0}}, {"stride", {1}}, {"dilation", {1}}}),
+        input,
+        weights);
+    m.add_return({group_conv});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(grouped_conv2d)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution(%arg0: !migraphx.shaped<4x1x3x3xf32, 9x9x3x1>, %arg1: !migraphx.shaped<1x4x16x16xf32, 1024x256x16x1>) -> !migraphx.shaped<1x4x14x14xf32, 784x196x14x1> attributes ${attrs} {
+    %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1], group = 4 : i64, padding = [0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1]} : <1x4x16x16xf32, 1024x256x16x1>, <4x1x3x3xf32, 9x9x3x1> -> <1x4x14x14xf32, 784x196x14x1>
+    return %0 : !migraphx.shaped<1x4x14x14xf32, 784x196x14x1>
+  }
+}
+)__migraphx__";
+
+    migraphx::module m;
+    auto input = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16}});
+    auto weights = m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3}});
+    auto group_conv =
+        m.add_instruction(migraphx::make_op("convolution", {{"group", 4}}), input, weights);
+    m.add_return({group_conv});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(grouped_conv3d)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_convolution(%arg0: !migraphx.shaped<4x1x3x3x3xf32, 27x27x9x3x1>, %arg1: !migraphx.shaped<1x4x16x16x16xf32, 16384x4096x256x16x1>) -> !migraphx.shaped<1x4x14x14x14xf32, 10976x2744x196x14x1> attributes ${attrs} {
+    %0 = migraphx.convolution %arg1, %arg0 {dilation = [1, 1, 1], group = 4 : i64, padding = [0, 0, 0, 0, 0, 0], padding_mode = 0 : i64, stride = [1, 1, 1]} : <1x4x16x16x16xf32, 16384x4096x256x16x1>, <4x1x3x3x3xf32, 27x27x9x3x1> -> <1x4x14x14x14xf32, 10976x2744x196x14x1>
+    return %0 : !migraphx.shaped<1x4x14x14x14xf32, 10976x2744x196x14x1>
+  }
+}
+)__migraphx__";
+
+    migraphx::module m;
+    auto input =
+        m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 4, 16, 16, 16}});
+    auto weights =
+        m.add_parameter("w", migraphx::shape{migraphx::shape::float_type, {4, 1, 3, 3, 3}});
+    auto group_conv = m.add_instruction(
+        migraphx::make_op(
+            "convolution",
+            {{"group", 4}, {"padding", {0, 0, 0}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}}),
+        input,
+        weights);
+    m.add_return({group_conv});
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    EXPECT(verify_mlir(m));
 }
 
 TEST_CASE(quant_dot_add)
@@ -647,6 +805,54 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     EXPECT(verify_mlir(m));
+}
+
+TEST_CASE(mxfp4_gemm)
+{
+    std::string mlir_output = R"__migraphx__(
+module {
+  func.func @mlir_unpack_fp4_unpack_fp4_transpose_reshape_reshape_quant_dot_add(%arg0: !migraphx.shaped<1x2048xf4E2M1FN, 2048x1>, %arg1: !migraphx.shaped<1000x2048xf4E2M1FN, 2048x1>, %arg2: !migraphx.shaped<1x64x1xf32, 64x1x1>, %arg3: !migraphx.shaped<64x1x1000xf32, 1x1x64>, %arg4: !migraphx.shaped<1x1000xf32, 1000x1>) -> !migraphx.shaped<1x1000xf32, 1000x1> attributes ${attrs} {
+    %0 = migraphx.transpose %arg1 {permutation = [1, 0]} : <1000x2048xf4E2M1FN, 2048x1> -> <2048x1000xf4E2M1FN, 1x2048>
+    %1 = migraphx.multibroadcast %arg2 {out_dyn_dims = [], out_lens = [1, 64, 32]} : <1x64x1xf32, 64x1x1> -> <1x64x32xf32, 64x1x0>
+    %2 = migraphx.reshape %1 {dims = [1, 2048]} : <1x64x32xf32, 64x1x0> -> <1x2048xf32, 2048x1>
+    %3 = migraphx.multibroadcast %arg3 {out_dyn_dims = [], out_lens = [64, 32, 1000]} : <64x1x1000xf32, 1x1x64> -> <64x32x1000xf32, 1x0x64>
+    %4 = migraphx.reshape %3 {dims = [2048, 1000]} : <64x32x1000xf32, 1x0x64> -> <2048x1000xf32, 1000x1>
+    %5 = migraphx.quant_dot %arg0 scaled by %2, %0 scaled by %4 : <1x2048xf4E2M1FN, 2048x1> scaled by !migraphx.shaped<1x2048xf32, 2048x1>, <2048x1000xf4E2M1FN, 1x2048> scaled by !migraphx.shaped<2048x1000xf32, 1000x1> -> <1x1000xf32, 1000x1>
+    %6 = migraphx.add %5, %arg4 : <1x1000xf32, 1000x1>, <1x1000xf32, 1000x1> -> <1x1000xf32, 1000x1>
+    return %6 : !migraphx.shaped<1x1000xf32, 1000x1>
+  }
+}
+)__migraphx__";
+    migraphx::module m;
+    auto x5      = m.add_parameter("x5", {migraphx::shape::float_type, {1, 1000}});
+    auto x4      = m.add_parameter("x4", {migraphx::shape::float_type, {64, 1, 1000}, {1, 1, 64}});
+    auto x3      = m.add_parameter("x3", {migraphx::shape::float_type, {1, 64, 1}});
+    auto x2      = m.add_parameter("x2", {migraphx::shape::fp4x2_type, {1000, 1024}});
+    auto x1      = m.add_parameter("x1", {migraphx::shape::fp4x2_type, {1, 1024}});
+    auto unpack1 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x1);
+    auto unpack2 = m.add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 1}}), x2);
+    auto trans =
+        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), unpack2);
+    auto mbcast1 =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 64, 32}}}), x3);
+    auto reshape1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2048}}}), mbcast1);
+    auto mbcast2 =
+        m.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {64, 32, 1000}}}), x4);
+    auto reshape2 =
+        m.add_instruction(migraphx::make_op("reshape", {{"dims", {2048, 1000}}}), mbcast2);
+    auto qdot =
+        m.add_instruction(migraphx::make_op("quant_dot"), unpack1, trans, reshape1, reshape2);
+    auto add = m.add_instruction(migraphx::make_op("add"), qdot, x5);
+    m.add_return({add});
+
+    auto s = migraphx::gpu::dump_mlir(m);
+    // Skip test if MLIR is not enabled
+    if(s.empty())
+        return;
+    auto mlir_output_with_attrs =
+        migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
+    CHECK(encode(s) == encode(mlir_output_with_attrs));
+    // Don't verify here. Tests with a verify test instead.
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <sstream>
 #include <iostream>
 #include <string>
+#include <migraphx/logger.hpp>
 
 #ifdef _WIN32
 // cppcheck-suppress definePrefix
@@ -50,7 +51,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DEBUG_SAVE_TEMP_DIR)
 
-std::string random_string(std::string::size_type length)
+static std::string random_string(std::string::size_type length)
 {
     static const std::string& chars = "0123456789"
                                       "abcdefghijklmnopqrstuvwxyz"
@@ -65,7 +66,7 @@ std::string random_string(std::string::size_type length)
     return str;
 }
 
-std::string unique_string(const std::string& prefix)
+static std::string unique_string(const std::string& prefix)
 {
     auto pid = getpid();
     auto tid = std::this_thread::get_id();
@@ -98,7 +99,7 @@ tmp_dir::~tmp_dir()
             fs::remove_all(path, ec);
             if(not ec)
                 break;
-            std::cerr << "Failed to remove " << path << ": " << ec.message() << std::endl;
+            log::warn() << "Failed to remove " << path << ": " << ec.message();
             std::this_thread::sleep_for(std::chrono::milliseconds(125));
         }
     }

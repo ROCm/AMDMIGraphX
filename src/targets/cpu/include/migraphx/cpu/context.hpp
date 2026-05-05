@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <migraphx/cpu/dnnl.hpp>
 #include <migraphx/cpu/parallel.hpp>
 #include <migraphx/par_for.hpp>
+#include <utility>
 #include <migraphx/cpu/export.h>
 
 namespace migraphx {
@@ -41,7 +42,7 @@ struct context
     template <class F>
     void bulk_execute(std::size_t n, std::size_t min_grain, F f)
     {
-        cpu::parallel_for(n, min_grain, f);
+        cpu::parallel_for(n, min_grain, std::move(f));
     }
 
     template <class F>

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,9 +79,9 @@ struct operation
      * the same the `output` shape.
      */
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
-    /// An optional method to return which argument the output will alias. If
-    /// there is no aliased output then -1 can be returned.
-    std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
+    /// An optional method to return which arguments the output will alias. If
+    /// there is no aliased output then an empty vector can be returned.
+    std::vector<std::size_t> output_alias(const std::vector<shape>& input) const;
     /// An optional stream operator to print the operation. When this is not
     /// implemented, it will just print the operation's name.
     friend std::ostream& operator<<(std::ostream& os, const operation& op);
@@ -130,8 +130,9 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_operators
 
 template <class T>
-auto compute_shape_op(rank<3>, const T& x, const std::vector<shape>& inputs)
-    -> decltype(x.compute_shape(inputs))
+auto compute_shape_op(rank<3>,
+                      const T& x,
+                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs))
 {
     return x.compute_shape(inputs);
 }
@@ -148,8 +149,9 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
 }
 
 template <class T>
-auto compute_shape_op(rank<1>, const T& x, const std::vector<shape>& inputs)
-    -> decltype(x.compute_shape(inputs, {}))
+auto compute_shape_op(rank<1>,
+                      const T& x,
+                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs, {}))
 {
     return x.compute_shape(inputs, {});
 }
@@ -251,11 +253,13 @@ auto compute_op(rank<1>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f)
-    -> decltype(
-        x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f))
+                F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
+                                           inputs,
+                                           module_args,
+                                           std::move(f)))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
+    return x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -264,7 +268,7 @@ argument compute_op(rank<0>,
                     const shape& output,
                     const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
-                    F)
+                    F) // NOLINT
 {
     if(module_args.empty())
         return compute_op(x, output, inputs);
@@ -279,7 +283,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<1>{}, x, output, inputs, module_args, f);
+    return compute_op(rank<1>{}, x, output, inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -289,17 +293,18 @@ auto compute_op(rank<4>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(auto_any_cast(ctx),
-                                           make_compute_output_shape(pack(x, output, inputs)),
-                                           inputs,
-                                           module_args,
-                                           f))
+                F f) // NOLINT
+    -> decltype(x.compute(auto_any_cast(ctx),
+                          make_compute_output_shape(pack(x, output, inputs)),
+                          inputs,
+                          module_args,
+                          std::move(f)))
 {
     return x.compute(auto_any_cast(ctx),
                      make_compute_output_shape(pack(x, output, inputs)),
                      inputs,
                      module_args,
-                     f);
+                     std::move(f));
 }
 
 template <class T, class F>
@@ -309,11 +314,12 @@ auto compute_op(rank<3>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f)
-    -> decltype(
-        x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f))
+                F f) // NOLINT
+    -> decltype(x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f)))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
+    return x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -323,7 +329,7 @@ auto compute_op(rank<2>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                F)
+                F) // NOLINT
     -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs))
 {
     return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs);
@@ -336,9 +342,10 @@ auto compute_op(rank<1>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                F) -> decltype(x.compute(auto_any_cast(ctx),
-                                         make_compute_output_shape(pack(x, output, inputs)),
-                                         inputs))
+                F) // NOLINT
+    -> decltype(x.compute(auto_any_cast(ctx),
+                          make_compute_output_shape(pack(x, output, inputs)),
+                          inputs))
 {
     return x.compute(
         auto_any_cast(ctx), make_compute_output_shape(pack(x, output, inputs)), inputs);
@@ -351,7 +358,7 @@ argument compute_op(rank<0>,
                     const shape&,
                     const std::vector<argument>&,
                     const std::vector<module_ref>&,
-                    F)
+                    F) // NOLINT
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
@@ -365,7 +372,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<4>{}, x, ctx, output, inputs, module_args, f);
+    return compute_op(rank<4>{}, x, ctx, output, inputs, module_args, std::move(f));
 }
 
 template <class T>
@@ -381,8 +388,9 @@ auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argum
     -> std::false_type;
 
 template <class T>
-auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
-    rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+auto is_context_free_op(const T& x)
+    -> decltype(is_context_free_op(
+        rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
 {
     return {};
 }
@@ -402,9 +410,9 @@ auto need_normalization_op(const T& x)
 }
 
 template <class T>
-std::ptrdiff_t output_alias_op(const T&, const std::vector<shape>&)
+std::vector<std::size_t> output_alias_op(const T&, const std::vector<shape>&)
 {
-    return -1;
+    return {};
 }
 
 template <class T>
@@ -497,92 +505,98 @@ lifetime get_lifetime_op(const T&)
 } // namespace detail
 
 <%
- interface(
-     'operation',
-     virtual('name', returns = 'std::string', const = True),
-     virtual(
-         'is_context_free', returns = 'bool', const = True, default = 'detail::is_context_free_op'),
-     virtual('need_normalization',
-             returns = 'bool',
-             const   = True,
-             default = 'detail::need_normalization_op'),
-     virtual('has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
-     virtual(
-         'get_lifetime', returns = 'lifetime', const = True, default = 'detail::get_lifetime_op'),
-     virtual('output_alias',
-             returns = 'std::ptrdiff_t',
-             input   = 'const std::vector<shape>&',
-             const   = True,
-             default = 'detail::output_alias_op'),
-     virtual('compile',
-             returns = 'value',
-             ctx     = 'context&',
-             output  = 'const shape&',
-             input   = 'const std::vector<shape>&',
-             default = 'detail::compile_op'),
-     virtual('finalize',
-             ctx     = 'context&',
-             output  = 'const shape&',
-             input   = 'const std::vector<shape>&',
-             default = 'detail::finalize_op'),
-     virtual('compute_shape',
-             returns = 'shape',
-             input   = 'const std::vector<shape>&',
-             const   = True,
-             default = 'detail::compute_shape_op'),
-     virtual('compute_shape',
-             returns  = 'shape',
-             inputs   = 'const std::vector<shape>&',
-             mod_args = 'const std::vector<module_ref>&',
-             const    = True,
-             default  = 'detail::mod_compute_shape_op'),
-     virtual('compute',
-             returns = 'argument',
-             ctx     = 'context&',
-             output  = 'const shape&',
-             input   = 'const std::vector<argument>&',
-             const   = True,
-             default = 'detail::compute_op'),
-     virtual('compute',
-             returns = 'argument',
-             output  = 'const shape&',
-             input   = 'const std::vector<argument>&',
-             const   = True,
-             default = 'detail::compute_op'),
-     virtual(
-         'compute',
-         returns     = 'argument',
-         output      = 'const shape&',
-         input       = 'const std::vector<argument>&',
-         module_args = 'const std::vector<module_ref>&',
-         run =
-             'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
-         const   = True,
-         default = 'detail::compute_op'),
-     virtual(
-         'compute',
-         returns     = 'argument',
-         ctx         = 'context&',
-         output      = 'const shape&',
-         input       = 'const std::vector<argument>&',
-         module_args = 'const std::vector<module_ref>&',
-         run =
-             'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
-         const   = True,
-         default = 'detail::compute_op'),
-     virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
-     virtual('from_value', v = 'const value&', default = 'detail::from_value_op'),
-     virtual('attributes', returns = 'value', const = True, default = 'detail::attributes_op'),
-     friend('operator<<',
-            returns = 'std::ostream &',
-            os      = 'std::ostream &',
-            op      = 'const operation &',
-            using   = 'migraphx::detail::operation_operators::operator<<'),
-     friend('operator==',
-            returns = 'bool',
-            x       = 'const operation &',
-            y       = 'const operation &',
-            using   = 'migraphx::detail::operation_operators::operator==')) %>
+    interface(
+        'operation',
+        virtual('name', returns = 'std::string', const = True),
+        virtual('is_context_free',
+                returns = 'bool',
+                const   = True,
+                default = 'detail::is_context_free_op'),
+        virtual('need_normalization',
+                returns = 'bool',
+                const   = True,
+                default = 'detail::need_normalization_op'),
+        virtual(
+            'has_finalize', returns = 'bool', const = True, default = 'detail::has_finalize_op'),
+        virtual('get_lifetime',
+                returns = 'lifetime',
+                const   = True,
+                default = 'detail::get_lifetime_op'),
+        virtual('output_alias',
+                returns = 'std::vector<std::size_t>',
+                input   = 'const std::vector<shape>&',
+                const   = True,
+                default = 'detail::output_alias_op'),
+        virtual('compile',
+                returns = 'value',
+                ctx     = 'context&',
+                output  = 'const shape&',
+                input   = 'const std::vector<shape>&',
+                default = 'detail::compile_op'),
+        virtual('finalize',
+                ctx     = 'context&',
+                output  = 'const shape&',
+                input   = 'const std::vector<shape>&',
+                default = 'detail::finalize_op'),
+        virtual('compute_shape',
+                returns = 'shape',
+                input   = 'const std::vector<shape>&',
+                const   = True,
+                default = 'detail::compute_shape_op'),
+        virtual('compute_shape',
+                returns  = 'shape',
+                inputs   = 'const std::vector<shape>&',
+                mod_args = 'const std::vector<module_ref>&',
+                const    = True,
+                default  = 'detail::mod_compute_shape_op'),
+        virtual('compute',
+                returns = 'argument',
+                ctx     = 'context&',
+                output  = 'const shape&',
+                input   = 'const std::vector<argument>&',
+                const   = True,
+                default = 'detail::compute_op'),
+        virtual('compute',
+                returns = 'argument',
+                output  = 'const shape&',
+                input   = 'const std::vector<argument>&',
+                const   = True,
+                default = 'detail::compute_op'),
+        virtual(
+            'compute',
+            returns     = 'argument',
+            output      = 'const shape&',
+            input       = 'const std::vector<argument>&',
+            module_args = 'const std::vector<module_ref>&',
+            run =
+                'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
+            const   = True,
+            default = 'detail::compute_op'),
+        virtual(
+            'compute',
+            returns     = 'argument',
+            ctx         = 'context&',
+            output      = 'const shape&',
+            input       = 'const std::vector<argument>&',
+            module_args = 'const std::vector<module_ref>&',
+            run =
+                'std::function<std::vector<argument>(module_ref&, const std::unordered_map<std::string, argument>&)>',
+            const   = True,
+            default = 'detail::compute_op'),
+        virtual('to_value', returns = 'value', const = True, default = 'detail::to_value_op'),
+        virtual('from_value', v = 'const value&', default = 'detail::from_value_op'),
+        virtual('attributes', returns = 'value', const = True, default = 'detail::attributes_op'),
+        friend('operator<<',
+               returns = 'std::ostream &',
+               os      = 'std::ostream &',
+               op      = 'const operation &',
+               using   = 'migraphx::detail::operation_operators::operator<<'),
+        friend('operator==',
+               returns = 'bool',
+               x       = 'const operation &',
+               y       = 'const operation &',
+               using   = 'migraphx::detail::operation_operators::operator=='))
+%>
 
     inline bool operator!=(const operation& x, const operation& y)
 {
@@ -613,8 +627,8 @@ inline shape compute_shape(const operation& op, const std::vector<shape>& inputs
 }
 
 template <class T>
-inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
-    -> decltype(op.compute_shape(inputs))
+inline auto compute_shape(const T& op,
+                          const std::vector<shape>& inputs) -> decltype(op.compute_shape(inputs))
 {
     return op.compute_shape(inputs);
 }

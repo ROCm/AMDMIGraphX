@@ -1,7 +1,7 @@
-	gelu_fast_bias_test:i
-
+	gelu_fast_bias_test:x
+"
 x
-yz"FastGelugelu_fast_bias_testZ
+yz"FastGelu:com.microsoftgelu_fast_bias_testZ
 x
 
 

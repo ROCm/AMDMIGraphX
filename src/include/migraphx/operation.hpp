@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,9 +79,9 @@ struct operation
      * the same the `output` shape.
      */
     argument compute(context& ctx, const shape& output, const std::vector<argument>& input) const;
-    /// An optional method to return which argument the output will alias. If
-    /// there is no aliased output then -1 can be returned.
-    std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
+    /// An optional method to return which arguments the output will alias. If
+    /// there is no aliased output then an empty vector can be returned.
+    std::vector<std::size_t> output_alias(const std::vector<shape>& input) const;
     /// An optional stream operator to print the operation. When this is not
     /// implemented, it will just print the operation's name.
     friend std::ostream& operator<<(std::ostream& os, const operation& op);
@@ -130,9 +130,8 @@ auto operator==(const T& x, const U& y) -> decltype(x.name() == y.name())
 } // namespace operation_operators
 
 template <class T>
-auto compute_shape_op(rank<3>,
-                      const T& x,
-                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs))
+auto compute_shape_op(rank<3>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.compute_shape(inputs))
 {
     return x.compute_shape(inputs);
 }
@@ -149,9 +148,8 @@ auto compute_shape_op(rank<2>, const T& x, const std::vector<shape>& inputs)
 }
 
 template <class T>
-auto compute_shape_op(rank<1>,
-                      const T& x,
-                      const std::vector<shape>& inputs) -> decltype(x.compute_shape(inputs, {}))
+auto compute_shape_op(rank<1>, const T& x, const std::vector<shape>& inputs)
+    -> decltype(x.compute_shape(inputs, {}))
 {
     return x.compute_shape(inputs, {});
 }
@@ -256,9 +254,10 @@ auto compute_op(rank<1>,
                 F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
                                            inputs,
                                            module_args,
-                                           f))
+                                           std::move(f)))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
+    return x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -267,7 +266,7 @@ argument compute_op(rank<0>,
                     const shape& output,
                     const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
-                    F)
+                    F) // NOLINT
 {
     if(module_args.empty())
         return compute_op(x, output, inputs);
@@ -282,7 +281,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<1>{}, x, output, inputs, module_args, f);
+    return compute_op(rank<1>{}, x, output, inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -292,17 +291,18 @@ auto compute_op(rank<4>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(auto_any_cast(ctx),
-                                           make_compute_output_shape(pack(x, output, inputs)),
-                                           inputs,
-                                           module_args,
-                                           f))
+                F f) // NOLINT
+    -> decltype(x.compute(auto_any_cast(ctx),
+                          make_compute_output_shape(pack(x, output, inputs)),
+                          inputs,
+                          module_args,
+                          std::move(f)))
 {
     return x.compute(auto_any_cast(ctx),
                      make_compute_output_shape(pack(x, output, inputs)),
                      inputs,
                      module_args,
-                     f);
+                     std::move(f));
 }
 
 template <class T, class F>
@@ -312,12 +312,12 @@ auto compute_op(rank<3>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
-                                           inputs,
-                                           module_args,
-                                           f))
+                F f) // NOLINT
+    -> decltype(x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f)))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, f);
+    return x.compute(
+        make_compute_output_shape(pack(x, output, inputs)), inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -327,8 +327,8 @@ auto compute_op(rank<2>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                F) -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)),
-                                         inputs))
+                F) // NOLINT
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs))
 {
     return x.compute(make_compute_output_shape(pack(x, output, inputs)), inputs);
 }
@@ -340,9 +340,10 @@ auto compute_op(rank<1>,
                 const shape& output,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
-                F) -> decltype(x.compute(auto_any_cast(ctx),
-                                         make_compute_output_shape(pack(x, output, inputs)),
-                                         inputs))
+                F) // NOLINT
+    -> decltype(x.compute(auto_any_cast(ctx),
+                          make_compute_output_shape(pack(x, output, inputs)),
+                          inputs))
 {
     return x.compute(
         auto_any_cast(ctx), make_compute_output_shape(pack(x, output, inputs)), inputs);
@@ -355,7 +356,7 @@ argument compute_op(rank<0>,
                     const shape&,
                     const std::vector<argument>&,
                     const std::vector<module_ref>&,
-                    F)
+                    F) // NOLINT
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
@@ -369,7 +370,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(rank<4>{}, x, ctx, output, inputs, module_args, f);
+    return compute_op(rank<4>{}, x, ctx, output, inputs, module_args, std::move(f));
 }
 
 template <class T>
@@ -385,9 +386,8 @@ auto is_context_free_op(rank<0>, const T&, const shape&, const std::vector<argum
     -> std::false_type;
 
 template <class T>
-auto is_context_free_op(const T& x)
-    -> decltype(is_context_free_op(
-        rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
+auto is_context_free_op(const T& x) -> decltype(is_context_free_op(
+    rank<1>{}, x, std::declval<const shape&>(), std::declval<std::vector<argument>>()))
 {
     return {};
 }
@@ -407,9 +407,9 @@ auto need_normalization_op(const T& x)
 }
 
 template <class T>
-std::ptrdiff_t output_alias_op(const T&, const std::vector<shape>&)
+std::vector<std::size_t> output_alias_op(const T&, const std::vector<shape>&)
 {
-    return -1;
+    return {};
 }
 
 template <class T>
@@ -517,7 +517,7 @@ struct MIGRAPHX_EXPORT operation
     // (optional)
     lifetime get_lifetime() const;
     // (optional)
-    std::ptrdiff_t output_alias(const std::vector<shape>& input) const;
+    std::vector<std::size_t> output_alias(const std::vector<shape>& input) const;
     // (optional)
     value compile(context& ctx, const shape& output, const std::vector<shape>& input);
     // (optional)
@@ -557,7 +557,7 @@ struct MIGRAPHX_EXPORT operation
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct operation
 {
     private:
@@ -623,9 +623,8 @@ struct operation
     }
 
     template <class T>
-    static std::ptrdiff_t private_detail_te_default_output_alias(float,
-                                                                 T&& private_detail_te_self,
-                                                                 const std::vector<shape>& input)
+    static std::vector<std::size_t> private_detail_te_default_output_alias(
+        float, T&& private_detail_te_self, const std::vector<shape>& input)
     {
         return detail::output_alias_op(private_detail_te_self, input);
     }
@@ -926,8 +925,6 @@ struct operation
                                                       std::declval<const value&>()),
                  private_detail_te_default_attributes(char(0),
                                                       std::declval<PrivateDetailTypeErasedT>()),
-                 static_cast<void>(void()),
-                 static_cast<void>(void()),
                  void());
 
     template <class PrivateDetailTypeErasedT>
@@ -1032,7 +1029,7 @@ struct operation
         return (*this).private_detail_te_get_handle().get_lifetime();
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& input) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& input) const
     {
         assert((*this).private_detail_te_handle_mem_var);
         return (*this).private_detail_te_get_handle().output_alias(input);
@@ -1141,12 +1138,12 @@ struct operation
         virtual std::shared_ptr<private_detail_te_handle_base_type> clone() const = 0;
         virtual const std::type_info& type() const                                = 0;
 
-        virtual std::string name() const                                           = 0;
-        virtual bool is_context_free() const                                       = 0;
-        virtual bool need_normalization() const                                    = 0;
-        virtual bool has_finalize() const                                          = 0;
-        virtual lifetime get_lifetime() const                                      = 0;
-        virtual std::ptrdiff_t output_alias(const std::vector<shape>& input) const = 0;
+        virtual std::string name() const                                                     = 0;
+        virtual bool is_context_free() const                                                 = 0;
+        virtual bool need_normalization() const                                              = 0;
+        virtual bool has_finalize() const                                                    = 0;
+        virtual lifetime get_lifetime() const                                                = 0;
+        virtual std::vector<std::size_t> output_alias(const std::vector<shape>& input) const = 0;
         virtual value
         compile(context& ctx, const shape& output, const std::vector<shape>& input) = 0;
         virtual void
@@ -1183,8 +1180,7 @@ struct operation
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>::value>::type* =
-                nullptr)
+            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>{}>::type* = nullptr)
             : private_detail_te_value(value)
         {
         }
@@ -1192,8 +1188,8 @@ struct operation
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
-                                    int>::type* = nullptr) noexcept
+            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>{}, int>::type* =
+                nullptr) noexcept
             : private_detail_te_value(std::move(value))
         {
         }
@@ -1231,7 +1227,7 @@ struct operation
             return private_detail_te_default_get_lifetime(char(0), private_detail_te_value);
         }
 
-        std::ptrdiff_t output_alias(const std::vector<shape>& input) const override
+        std::vector<std::size_t> output_alias(const std::vector<shape>& input) const override
         {
 
             return private_detail_te_default_output_alias(char(0), private_detail_te_value, input);
@@ -1400,6 +1396,7 @@ inline const ValueType& any_cast(const operation& x)
         throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 
 inline bool operator!=(const operation& x, const operation& y) { return not(x == y); }
@@ -1428,8 +1425,8 @@ inline shape compute_shape(const operation& op, const std::vector<shape>& inputs
 }
 
 template <class T>
-inline auto compute_shape(const T& op,
-                          const std::vector<shape>& inputs) -> decltype(op.compute_shape(inputs))
+inline auto compute_shape(const T& op, const std::vector<shape>& inputs)
+    -> decltype(op.compute_shape(inputs))
 {
     return op.compute_shape(inputs);
 }

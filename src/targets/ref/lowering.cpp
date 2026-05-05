@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,13 +29,11 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/convolution_backwards.hpp>
 #include <migraphx/op/quant_convolution.hpp>
-#include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/logsoftmax.hpp>
 #include <migraphx/op/loop.hpp>
 #include <migraphx/op/lrn.hpp>
-#include <migraphx/op/pad.hpp>
 #include <migraphx/op/softmax.hpp>
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
@@ -49,6 +47,7 @@
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/pad_calc.hpp>
 
+#include <algorithm>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -56,20 +55,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace ref {
-
-template <typename T>
-T zero(const T&)
-{
-    return T(0);
-}
-
-template <class T>
-typename std::conditional_t<std::is_integral<T>{}, std::make_signed<T>, std::enable_if<true, T>>::
-    type
-    make_signed(T x)
-{
-    return x;
-}
 
 struct ref_lrn
 {
@@ -91,18 +76,19 @@ struct ref_lrn
             int channels        = output_shape.lens()[1];
             int height          = output_shape.lens()[2];
             int width           = output_shape.lens()[3];
-            float alphaoverarea = op.alpha / float(op.size);
+            double alphaoverarea = op.alpha / double(op.size);
             int radius_lower    = (op.size - 1) / 2;
             int radius_upper    = op.size / 2 + 1;
 
             par_dfor(n_batch, height, width)([&](int b, int h, int w) {
-                float scale = 0;
                 dfor(channels)([&](int c) {
+                    double scale = 0;
                     auto start = (c - radius_lower) < 0 ? 0 : (c - radius_lower);
                     auto end   = (c + radius_upper) > channels ? channels : (c + radius_upper);
                     for(auto k = start; k < end; ++k)
                     {
-                        scale += std::pow(input(b, k, h, w), 2);
+                        double x = input(b, k, h, w);
+                        scale += (x * x);
                     }
                     scale *= alphaoverarea;
                     scale += op.bias;
@@ -115,21 +101,6 @@ struct ref_lrn
     }
 };
 MIGRAPHX_REGISTER_OP(ref_lrn)
-
-template <class V, class T, class... Ts>
-void visit_quantize_impl(V&& v, T&& x, Ts&&... xs)
-{
-    x.visit([&](auto y) { visit_all(xs...)([&](auto... ys) { v(y, ys...); }); });
-}
-
-template <class T, class... Ts>
-auto visit_quantize(T&& x, Ts&&... xs)
-{
-    return [&](auto v) {
-        // Workaround for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=70100
-        visit_quantize_impl(v, x, xs...);
-    };
-}
 
 struct ref_im2col
 {
@@ -184,9 +155,10 @@ struct ref_im2col
                          kernel_w)([&](std::size_t c, std::size_t koffset, std::size_t loffset) {
                         auto idx    = iinput + long(koffset) - kdiv2_h;
                         auto jdx    = jinput + long(loffset) - kdiv2_w;
-                        col(ldx, p) = ((idx >= 0) && (idx < height) && (jdx >= 0) && (jdx < width))
-                                          ? input(0, c, idx, jdx)
-                                          : 0;
+                        col(ldx, p) =
+                            ((idx >= 0) and (idx < height) and (jdx >= 0) and (jdx < width))
+                                ? input(0, c, idx, jdx)
+                                : 0;
                         p++;
                     });
                 }
@@ -230,65 +202,6 @@ struct ref_op
 };
 MIGRAPHX_REGISTER_OP(ref_op)
 
-struct ref_pad
-{
-    op::pad op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "ref::pad"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
-    {
-        assert(dyn_out.computed_shape.standard());
-        argument result{dyn_out.computed_shape};
-        result.visit([&](auto output) {
-            using type = typename decltype(output)::value_type;
-            std::fill(output.begin(), output.end(), pad_clamp<type>(op.value));
-        });
-
-        visit_all(result, args[0])([&](auto output, auto input) {
-            shape_for_each(input.get_shape(), [&](const auto& idx) {
-                std::vector<std::size_t> new_idx(idx.size());
-                std::transform(
-                    idx.begin(), idx.end(), op.pads.begin(), new_idx.begin(), [](auto i, auto j) {
-                        return i + j;
-                    });
-                output(new_idx.begin(), new_idx.end()) = input(idx.begin(), idx.end());
-            });
-        });
-
-        return result;
-    }
-};
-MIGRAPHX_REGISTER_OP(ref_pad)
-
-struct ref_gemm
-{
-    op::dot op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-    std::string name() const { return "ref::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
-    {
-        argument result{dyn_out.computed_shape};
-        visit_all(result, args[0], args[1])(
-            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1.0f, 0.0f); });
-        return result;
-    }
-};
-MIGRAPHX_REGISTER_OP(ref_gemm)
-
 struct ref_quant_gemm
 {
     op::quant_dot op;
@@ -305,15 +218,37 @@ struct ref_quant_gemm
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        result.visit([&](auto cmat) {
-            visit_all(args.at(0), args.at(1))(
-                [&](auto amat, auto bmat) { return gemm(cmat, amat, bmat, 1.0f, 0.0f); });
-        });
+        if(args.size() == 4)
+        {
+            auto a_std_shape = shape{shape::float_type, args[0].get_shape().lens()};
+            auto b_std_shape = shape{shape::float_type, args[1].get_shape().lens()};
+
+            std::vector<float> a_dq(a_std_shape.elements());
+            std::vector<float> b_dq(b_std_shape.elements());
+
+            get_all<float>(args[0], args[2])([&](auto amat, auto scale_a) {
+                std::transform(
+                    amat.begin(), amat.end(), scale_a.begin(), a_dq.begin(), std::multiplies<>{});
+            });
+
+            get_all<float>(args[1], args[3])([&](auto bmat, auto scale_b) {
+                std::transform(
+                    bmat.begin(), bmat.end(), scale_b.begin(), b_dq.begin(), std::multiplies<>{});
+            });
+
+            argument a_arg{a_std_shape, a_dq.data()};
+            argument b_arg{b_std_shape, b_dq.data()};
+            gemm(result, a_arg, b_arg);
+        }
+        else
+        {
+            gemm(result, args[0], args[1]);
+        }
         return result;
     }
 };
 
-MIGRAPHX_REGISTER_OP(ref_gemm)
+MIGRAPHX_REGISTER_OP(ref_quant_gemm)
 
 template <class Op>
 struct ref_softmax : auto_register_op<ref_softmax<Op>>
@@ -450,12 +385,10 @@ struct ref_apply
 
     void init()
     {
-        apply_map["dot"]        = extend_op<ref_gemm, op::dot>();
         apply_map["quant_dot"]  = extend_op<ref_quant_gemm, op::quant_dot>();
         apply_map["im2col"]     = extend_op<ref_im2col, op::im2col>();
         apply_map["logsoftmax"] = extend_op<ref_softmax<op::logsoftmax>, op::logsoftmax>();
         apply_map["lrn"]        = extend_op<ref_lrn, op::lrn>();
-        apply_map["pad"]        = extend_op<ref_pad, op::pad>();
         apply_map["softmax"]    = extend_op<ref_softmax<op::softmax>, op::softmax>();
         apply_map["rnn_var_sl_last_output"] =
             extend_op<ref_rnn_var_sl_last_output, op::rnn_var_sl_last_output>();

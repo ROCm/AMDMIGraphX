@@ -10,9 +10,10 @@ python3 -m venv .venv
 pip install -r requirements.txt
 ```
 
-To use audio based datasets, install sndfile
+To use audio based datasets, install sndfile and ffmpeg
 ```bash
 apt install libsndfile1
+apt install ffmpeg
 ```
 
 ## Usage

@@ -1,25 +1,27 @@
-/* ************************************************************************
- * Copyright (C) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+/*
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell cop-
- * ies of the Software, and to permit persons to whom the Software is furnished
- * to do so, subject to the following conditions:
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
  *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IM-
- * PLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
- * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
- * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
- * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNE-
- * CTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
  *
- * ************************************************************************ */
-
+ */
 #ifndef MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP
 #define MIGRAPHX_GUARD_RTGLIB_FLOAT8_HPP
 
@@ -109,7 +111,7 @@ struct float8
         }
     }
 
-    inline constexpr operator float() const
+    constexpr operator float() const
     {
         if constexpr(T == migraphx::fp8::f8_type::fp8)
         {
@@ -118,9 +120,9 @@ struct float8
         return migraphx::fp8::impl::cast_from_f8<2, 5, float, FNUZ /*negative_zero_nan*/>(data);
     }
 
-    inline explicit constexpr operator bool() const { return not is_zero(); }
+    explicit constexpr operator bool() const { return not is_zero(); }
 
-    inline constexpr bool is_zero() const
+    constexpr bool is_zero() const
     {
         if constexpr(FNUZ)
         {
@@ -132,7 +134,7 @@ struct float8
         }
     }
 
-    inline constexpr bool is_nan() const
+    constexpr bool is_nan() const
     {
         if constexpr(FNUZ)
         {
@@ -152,7 +154,7 @@ struct float8
         }
     }
 
-    inline constexpr bool is_inf() const
+    constexpr bool is_inf() const
     {
         if constexpr(FNUZ)
         {
@@ -192,16 +194,16 @@ struct float8
     MIGRAPHX_FP8_UNARY_OP(+=, +)
     MIGRAPHX_FP8_UNARY_OP(/=, /)
 
-    inline constexpr float8& operator=(const float8& rhs)     = default;
-    inline constexpr float8& operator=(float8&& rhs) noexcept = default;
+    constexpr float8& operator=(const float8& rhs)     = default;
+    constexpr float8& operator=(float8&& rhs) noexcept = default;
 
-    inline constexpr float8& operator=(float rhs)
+    constexpr float8& operator=(float rhs)
     {
         *this = static_cast<float8>(rhs);
         return *this;
     }
 
-    inline constexpr bool operator==(const float8& rhs) const
+    constexpr bool operator==(const float8& rhs) const
     {
         if(rhs.is_nan() or rhs.is_inf() or this->is_nan() or this->is_inf())
             return false;
@@ -210,18 +212,14 @@ struct float8
         return false;
     }
 
-    inline constexpr bool operator<(const float8& rhs) const
+    constexpr bool operator<(const float8& rhs) const
     {
-        const auto we   = static_cast<float>(*this);
-        const auto them = static_cast<float>(rhs);
-        return we < them;
+        return static_cast<float>(*this) < static_cast<float>(rhs);
     }
 
-    inline constexpr bool operator>(const float8& rhs) const
+    constexpr bool operator>(const float8& rhs) const
     {
-        const auto we   = static_cast<float>(*this);
-        const auto them = static_cast<float>(rhs);
-        return we > them;
+        return static_cast<float>(*this) > static_cast<float>(rhs);
     }
 };
 

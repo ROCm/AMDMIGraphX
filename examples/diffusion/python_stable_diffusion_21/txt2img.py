@@ -1,6 +1,6 @@
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the 'Software'), to deal
@@ -198,6 +198,8 @@ def allocate_torch_tensors(model):
     data_mapping = {
         name: torch.zeros(shape.lens()).to(
             mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda")
+        if not shape.scalar() else torch.tensor(0).to(
+            mgx_to_torch_dtype_dict[shape.type_string()]).to(device="cuda")
         for name, shape in input_shapes.items()
     }
     return data_mapping
@@ -249,7 +251,7 @@ class StableDiffusionMGX():
                 "unet", {
                     "sample": [2 * self.batch, 4, 64, 64],
                     "encoder_hidden_states": [2 * self.batch, 77, 1024],
-                    "timestep": [1],
+                    "timestep": [],
                 },
                 onnx_model_path,
                 compiled_model_path=compiled_model_path,
@@ -441,8 +443,7 @@ class StableDiffusionMGX():
         latents_model_input = torch.cat([latents] * 2)
         latents_model_input = self.scheduler.scale_model_input(
             latents_model_input, t).to(torch.float32).to(device="cuda")
-        timestep = torch.atleast_1d(t.to(torch.int64)).to(
-            device="cuda")  # convert 0D -> 1D
+        timestep = t.to(torch.int64).to(device="cuda")
 
         copy_tensor_sync(self.tensors["unet"]["sample"], latents_model_input)
         copy_tensor_sync(self.tensors["unet"]["encoder_hidden_states"],
@@ -478,7 +479,7 @@ class StableDiffusionMGX():
             self.tensors["unet"]["encoder_hidden_states"],
             torch.randn((2 * self.batch, 77, 1024)).to(torch.float32))
         copy_tensor_sync(self.tensors["unet"]["timestep"],
-                         torch.atleast_1d(torch.randn(1).to(torch.int64)))
+                         torch.tensor(0).to(torch.int64))
         copy_tensor_sync(
             self.tensors["vae"]["latent_sample"],
             torch.randn((self.batch, 4, 64, 64)).to(torch.float32))

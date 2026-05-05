@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -65,7 +65,7 @@ struct id_ctx_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct id_ctx_final_op
@@ -88,7 +88,7 @@ struct id_ctx_final_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct reverse_pass
@@ -247,9 +247,9 @@ TEST_CASE(get_param1)
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
     mm->add_instruction(migraphx::make_op("add"), x, y);
-    EXPECT(bool{p.get_parameter("x") == x});
-    EXPECT(bool{p.get_parameter("y") == y});
-    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
+    EXPECT(p.get_parameter("x") == x);
+    EXPECT(p.get_parameter("y") == y);
+    EXPECT(p.get_parameter("nonexistent") == mm->end());
 }
 
 TEST_CASE(get_param2)
@@ -259,7 +259,7 @@ TEST_CASE(get_param2)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);
-    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
+    EXPECT(p.get_parameter("nonexistent") == mm->end());
 }
 
 TEST_CASE(get_param_shapes)
@@ -284,7 +284,7 @@ TEST_CASE(replace_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->replace_instruction(sum, migraphx::make_op("sub"), two, one);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -300,7 +300,7 @@ TEST_CASE(replace_ins_test)
     auto sum   = mm->add_instruction(migraphx::make_op("add"), one, two);
     auto minus = mm->add_instruction(migraphx::make_op("sub"), two, one);
     mm->replace_instruction(sum, minus);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -317,7 +317,7 @@ TEST_CASE(replace_ins_test2)
     auto minus = mm->add_instruction(migraphx::make_op("sub"), two, one);
     mm->add_instruction(pass_op{}, minus);
     mm->replace_instruction(two, sum);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{2});
@@ -332,7 +332,7 @@ TEST_CASE(replace_op_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(migraphx::make_op("add"), two, one);
     sum->replace(migraphx::make_op("sub"));
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -360,7 +360,7 @@ TEST_CASE(insert_replace_test)
 
     auto sum0 = mm->insert_instruction(sum1, migraphx::make_op("add"), two, two);
     mm->replace_instruction(sum1, migraphx::make_op("sub"), sum0, two);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{4});
@@ -376,7 +376,7 @@ TEST_CASE(remove_test1)
     auto sum     = mm->add_instruction(migraphx::make_op("add"), one, two);
     auto removed = mm->add_instruction(migraphx::make_op("sub"), sum, one);
     mm->remove_instruction(removed);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
@@ -392,7 +392,7 @@ TEST_CASE(remove_test2)
     auto removed = mm->add_instruction(migraphx::make_op("sub"), two, one);
     mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->remove_instruction(removed);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
@@ -514,7 +514,7 @@ struct cout_redirect
 };
 
 template <class F>
-std::string capture_output(F f)
+static std::string capture_output(F f)
 {
     std::stringstream ss;
     cout_redirect cr{ss};
@@ -543,6 +543,106 @@ TEST_CASE(debug_print_test)
     EXPECT(inss_out == ins_out);
     EXPECT(end_out == "End instruction");
     EXPECT(p2_ins_out == "Instruction not part of module");
+}
+
+TEST_CASE(eval_trace_fires_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(not fired_ops.empty());
+    EXPECT(fired_ops.back() == "add");
+}
+
+TEST_CASE(eval_trace_disabled_falls_through)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+
+    migraphx::execution_environment exec_env;
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+}
+
+TEST_CASE(eval_trace_filter_by_name_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
+    mm->add_instruction(migraphx::make_op("sub"), sum, one);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        if(ins->name() == "sub")
+            fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{2});
+    EXPECT(fired_ops.size() == 1);
+    EXPECT(fired_ops.front() == "sub");
+}
+
+TEST_CASE(eval_trace_filter_by_ins_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
+    mm->add_instruction(migraphx::make_op("sub"), sum, one);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        if(ins == sum)
+            fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{2});
+    EXPECT(fired_ops.size() == 1);
+    EXPECT(fired_ops.front() == "add");
+}
+
+TEST_CASE(eval_trace_with_target_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(not fired_ops.empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

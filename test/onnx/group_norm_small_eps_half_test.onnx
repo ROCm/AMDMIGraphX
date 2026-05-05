@@ -1,4 +1,4 @@
-group_norm_small_eps_half_test:Ê
+	group_norm_small_eps_half_test:Ê
 M
 x
 scale
@@ -16,15 +16,15 @@ num_groups group_norm_small_eps_half_testZ
 
 
 
-Z
+Z
 bias
 
 
 
-b
+b
 y
 
 
 
 
-B
+B

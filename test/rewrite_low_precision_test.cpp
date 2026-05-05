@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,13 +34,14 @@
 
 #include <test.hpp>
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::rewrite_low_precision{}, migraphx::dead_code_elimination{}});
 }
 
 template <migraphx::shape::type_t DType, typename T>
-void create_pow2_div(migraphx::module& m, const std::vector<std::size_t>& input_lens, T divisor)
+static void
+create_pow2_div(migraphx::module& m, const std::vector<std::size_t>& input_lens, T divisor)
 {
     migraphx::shape s_input{DType, input_lens};
     migraphx::shape s_lit{DType, {1}};

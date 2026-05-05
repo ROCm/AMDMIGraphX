@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,12 +24,14 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_SHAPE_HPP
 
+#include <array>
 #include <vector>
 #include <cassert>
 #include <ostream>
 #include <numeric>
 #include <memory>
 #include <set>
+#include <limits>
 
 #include <migraphx/functional.hpp>
 #include <migraphx/errors.hpp>
@@ -37,6 +39,7 @@
 #include <migraphx/bf16.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
@@ -72,7 +75,8 @@ struct MIGRAPHX_EXPORT shape
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) x,
     enum type_t
     {
-        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type
+        MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES) tuple_type,
+        fp4x2_type // packed fp4 contained in uint8
     };
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
 
@@ -91,33 +95,101 @@ struct MIGRAPHX_EXPORT shape
     {
     };
 
+    // TODO: Deprecate the pure range-based form of dynamic_dimension in favor
+    // of the symbolic form (sym_expr). The current design carries two parallel
+    // notions of bounds -- dynamic_dimension::interval (std::size_t min/max,
+    // here) and sym::interval (int64_t min/max, attached to each sym::var) --
+    // which is a source of confusion. Once all shape-producing paths go through
+    // symbolic expressions, `range`/`optimals` and this nested `interval` can
+    // be removed and bounds will live solely on sym::var.
     struct MIGRAPHX_EXPORT dynamic_dimension
     {
-        std::size_t min = 0;
-        std::size_t max = 0;
-        std::set<std::size_t> optimals{};
+        struct interval
+        {
+            std::size_t min = 0;
+            std::size_t max = 0;
+            template <class Self, class F>
+            static auto reflect(Self& self, F f)
+            {
+                return pack(f(self.min, "min"), f(self.max, "max"));
+            }
+            friend bool operator==(const interval& a, const interval& b)
+            {
+                return a.min == b.min and a.max == b.max;
+            }
+            friend bool operator!=(const interval& a, const interval& b) { return not(a == b); }
+        };
+
+        std::optional<interval> range;
+        std::optional<std::set<std::size_t>> optimals;
+        sym::expr sym_expr;
+
+        dynamic_dimension() = default;
+        dynamic_dimension(std::size_t min_v, std::size_t max_v)
+            : range{interval{min_v, max_v}}, optimals{std::set<std::size_t>{}}
+        {
+        }
+        dynamic_dimension(std::size_t min_v, std::size_t max_v, std::set<std::size_t> opt)
+            : range{interval{min_v, max_v}},
+              optimals(min_v == max_v ? std::set<std::size_t>{} : std::move(opt))
+        {
+        }
+        dynamic_dimension(sym::expr s) : sym_expr(std::move(s))
+        {
+            if(sym_expr.empty())
+                MIGRAPHX_THROW(
+                    "dynamic_dimension: cannot construct from an empty symbolic expression");
+        }
 
         template <class Self, class F>
         static auto reflect(Self& self, F f)
         {
-            return pack(f(self.min, "min"), f(self.max, "max"), f(self.optimals, "optimals"));
+            return pack(
+                f(self.range, "range"), f(self.optimals, "optimals"), f(self.sym_expr, "sym"));
+        }
+
+        interval get_interval() const
+        {
+            if(is_symbolic())
+            {
+                auto ival = sym_expr.eval_interval();
+                assert(sym::to<int64_t>(ival.min) >= 0 and sym::to<int64_t>(ival.max) >= 0);
+                return {sym::to<std::size_t>(ival.min), sym::to<std::size_t>(ival.max)};
+            }
+            return *range;
+        }
+        std::set<std::size_t> get_optimals() const
+        {
+            if(is_symbolic())
+                return sym_expr.eval_optimals();
+            if(optimals.has_value())
+                return *optimals;
+            return {};
         }
 
         bool is_fixed() const;
+        bool is_symbolic() const { return not sym_expr.empty(); }
         bool has_optimal() const;
 
         /**
          * Return a dynamic_dimension with the intersection of two dynamic_dimension ranges if
-         * possible.
+         * possible. When both dimensions are symbolic, they are compatible only if they
+         * share the same symbolic expression.
          */
         std::optional<dynamic_dimension> intersection(const dynamic_dimension& other) const
         {
-            auto left  = std::max(this->min, other.min);
-            auto right = std::min(this->max, other.max);
-            if(left <= right)
+            if(this->is_symbolic() and other.is_symbolic())
             {
-                return dynamic_dimension{left, right};
+                if(this->sym_expr == other.sym_expr)
+                    return *this;
+                return nullopt;
             }
+            auto this_interval  = this->get_interval();
+            auto other_interval = other.get_interval();
+            auto left           = std::max(this_interval.min, other_interval.min);
+            auto right          = std::min(this_interval.max, other_interval.max);
+            if(left <= right)
+                return dynamic_dimension{left, right};
             return nullopt;
         }
 
@@ -134,15 +206,24 @@ struct MIGRAPHX_EXPORT shape
         MIGRAPHX_EXPORT friend bool operator!=(const dynamic_dimension& x, const std::size_t& y);
         MIGRAPHX_EXPORT friend bool operator!=(const std::size_t& x, const dynamic_dimension& y);
 
-        // add and subtract fixed std::size_t dimension
-        dynamic_dimension& operator+=(const std::size_t& x);
-        dynamic_dimension& operator-=(const std::size_t& x);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const dynamic_dimension& x,
-                                                           const std::size_t& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator+(const std::size_t& x,
-                                                           const dynamic_dimension& y);
-        MIGRAPHX_EXPORT friend dynamic_dimension operator-(const dynamic_dimension& x,
-                                                           const std::size_t& y);
+        // clang-format off
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(binary_op, assign_op)                                  \
+        dynamic_dimension& operator assign_op(const dynamic_dimension& x);                      \
+        dynamic_dimension& operator assign_op(const std::size_t& x);                            \
+        MIGRAPHX_EXPORT friend dynamic_dimension operator binary_op(                            \
+            const dynamic_dimension& x, const dynamic_dimension& y);                            \
+        MIGRAPHX_EXPORT friend dynamic_dimension operator binary_op(                            \
+            const dynamic_dimension& x, const std::size_t& y);                                  \
+        MIGRAPHX_EXPORT friend dynamic_dimension operator binary_op(                            \
+            const std::size_t& x, const dynamic_dimension& y);
+
+        MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(+, +=)
+        MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(-, -=)
+        MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(*, *=)
+        MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP(/, /=)
+#undef MIGRAPHX_SHAPE_DYN_DIM_DEFINE_OP
+        // clang-format on
     };
 
     static std::string to_sizes_string(const std::vector<shape>& shapes);
@@ -154,8 +235,10 @@ struct MIGRAPHX_EXPORT shape
 
     static bool is_integral(type_t t);
     static bool is_compatible(const shape& actual, const shape& expected);
+    static bool is_compatible_lens(const shape& actual, const shape& expected);
 
     static bool is_unsigned(type_t t);
+    static bool is_computable(type_t t);
 
     shape();
     shape(type_t t);
@@ -165,8 +248,10 @@ struct MIGRAPHX_EXPORT shape
     // Force all calls of the format `shape( type_t, { size_t compatibles } )` to map to
     // shape(type_t, std::vector<std::size_t> l)
     shape(type_t t, std::initializer_list<std::size_t> d);
+    shape(type_t t, std::initializer_list<std::size_t> l, std::initializer_list<std::size_t> s);
 
     shape(type_t t, std::vector<dynamic_dimension> dims);
+    shape(type_t t, std::vector<dynamic_dimension> dims, std::vector<sym::expr> dstrides);
 
     // Construct a dynamic shape from vectors of mins, maxes, and optimals.
     // optimals_list is a vector of optimals that corresponds to each min and max.
@@ -191,26 +276,23 @@ struct MIGRAPHX_EXPORT shape
     explicit shape(const std::vector<shape>& subs);
 
     /**
-     * Creates an output shape with dimensions equal to the input lengths and strides determined
-     * by the permutation argument such that find_permutation() of the output shape returns the
-     * inputted permuation.
+     * Creates an output shape with dimensions `l` and strides computed to fulfill the given
+     * permutation.
      *
-     * 2D example:
-     *   parameters:
-     *     l = [2, 3], perm = [1, 0]
-     *   therefore:
-     *     "original" shape = {lens = [3, 2], strides = [2, 1]}
-     *     output_shape = {lens = [2, 3], strides = [1, 2]
+     * `t` = shape type
+     * `l` = output dimensions
+     * `perm` = order dimensions from slowest dimension to fastest dimension
      *
-     * 3D example:
-     *   parameters:
-     *     l = [2, 3, 4], perm = [1, 2, 0]
-     *   therefore:
-     *     "original" shape = {lens = [3, 4, 2], strides = [8, 2, 1]}
-     *     output_shape = {lens = [2, 3, 4], strides = [1, 8, 2]}
+     *  Example:
+     *      `t` = float_type, `l` = [2, 3, 4], `perm` = [1, 2, 0]
+     *      axis=1 to slowest dimension, axis=2 to second slowest, axis=0 to fastest
+     *      returns shape{type = float, lens = [2, 3, 4], strides = [1, 8 ,2]}
      */
     static shape
     from_permutation(type_t t, const std::vector<std::size_t>& l, const std::vector<int64_t>& perm);
+    static shape from_permutation(type_t t,
+                                  const std::vector<dynamic_dimension>& dds,
+                                  const std::vector<int64_t>& perm);
 
     type_t type() const;
     const std::vector<std::size_t>& lens() const;
@@ -240,6 +322,9 @@ struct MIGRAPHX_EXPORT shape
     std::size_t type_size() const;
 
     const std::vector<dynamic_dimension>& dyn_dims() const;
+
+    bool symbolic() const;
+    const std::vector<sym::expr>& dyn_strides() const;
 
     /*!
      * Minimum lengths for dynamic shape.
@@ -287,8 +372,42 @@ struct MIGRAPHX_EXPORT shape
     /// pointers
     void multi_copy(std::size_t idx, std::size_t* start, const std::size_t* end) const;
 
+    /// Map element index to multi-dimensional index and return them as an
+    /// array of size N. If the rank is smaller then N, the remaining
+    /// dimensions will be set to 0. If the rank is larger than N, an
+    /// exception will be thrown.
+    template <std::size_t N>
+    std::array<std::size_t, N> multi(std::size_t idx) const
+    {
+        std::array<std::size_t, N> result{};
+        if(N < this->ndim())
+            MIGRAPHX_THROW("SHAPE: multi() called with array size less than number of dimensions");
+        this->multi_copy(idx, result.data(), result.data() + this->ndim());
+        return result;
+    }
+
     /// Check if a multi-dimensional index is within bounds for the shape.
     bool multi_within_bounds(std::vector<std::size_t> multi) const;
+
+    /// Convert multi-dimensional index into a single element index
+    template <class Iterator>
+    std::size_t single(Iterator start, Iterator last) const
+    {
+        if(start == last)
+            return 0;
+        assert(std::distance(start, last) == this->lens().size());
+        return *std::prev(last) +
+               inner_product(
+                   this->lens().begin() + 1,
+                   this->lens().end(),
+                   start,
+                   std::size_t{0},
+                   [](const auto& a, const auto& b) { return (a + b[0]) * b[1]; },
+                   [](auto len, auto i) -> std::array<std::size_t, 2> { return {i, len}; });
+    }
+
+    /// Convert multi-dimensional index into a single element index
+    std::size_t single(const std::vector<std::size_t>& idx) const;
 
     /// Returns true if the shape is packed (number of elements and buffer size the same) with
     /// no padding
@@ -314,24 +433,49 @@ struct MIGRAPHX_EXPORT shape
     /// Return true if this shape or any of the sub_shapes are dynamic
     bool any_of_dynamic() const;
 
+    /// If type is computable (can do math ops like add or divide) and has a visitor function
+    bool computable() const;
+
     shape normalize_standard() const;
 
     shape as_standard() const;
 
     shape with_lens(type_t t, const std::vector<std::size_t>& l) const;
     shape with_lens(const std::vector<std::size_t>& l) const;
+    shape with_lens(type_t t, const std::vector<dynamic_dimension>& dds) const;
+    shape with_lens(const std::vector<dynamic_dimension>& dds) const;
 
     shape with_type(type_t t) const;
 
-    // convert the shape to an equivalent dynamic shape with empty optimals
+    // convert the shape to an equivalent range-based dynamic shape: each static len becomes
+    // dd{len, len} (strides are not carried); a symbolic shape is demoted by evaluating
+    // each dim's interval/optimals (symbolic strides are dropped). Idempotent on a shape
+    // that is already range-based dynamic.
     shape to_dynamic() const;
+
+    // Align a list of shapes to a single representation. If any input contains a
+    // range-based dynamic shape (at any nesting level), every shape is converted via
+    // to_dynamic() (symbolic inputs are demoted). Otherwise every shape is converted
+    // via to_symbolic() (static inputs are promoted to symbolic literals). Recurses
+    // into tuple sub-shapes.
+    static std::vector<shape> to_dynamic(const std::vector<shape>& shapes);
+
+    // convert the shape to an equivalent symbolic dynamic shape: each static len becomes
+    // dd{sym::lit(len)} and each static stride becomes sym::lit(stride). Idempotent on a
+    // shape that is already symbolic. Throws on a range-based dynamic shape.
+    shape to_symbolic() const;
 
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
+    shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map) const;
+    // Collapse a fully-fixed shape to a static one; throws on non-fixed dimensions.
+    shape to_static() const;
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const shape& x);
+
+    static bool same_lens(const shape& x, const shape& y);
 
     template <class T>
     struct as
@@ -343,6 +487,8 @@ struct MIGRAPHX_EXPORT shape
         type min() const { return std::numeric_limits<type>::lowest(); }
 
         type nan() const { return std::numeric_limits<type>::quiet_NaN(); }
+
+        type epsilon() const { return std::numeric_limits<type>::epsilon(); }
 
         template <class U>
         type operator()(U u) const
@@ -366,9 +512,9 @@ struct MIGRAPHX_EXPORT shape
 
         std::size_t size(std::size_t n = 1) const { return sizeof(type) * n; }
 
-        auto is_integral() const { return std::is_integral<type>{}; }
-        auto is_signed() const { return std::is_signed<type>{}; }
-        auto is_unsigned() const { return std::is_unsigned<type>{}; }
+        bool is_integral() const { return std::is_integral<type>{}; }
+        bool is_signed() const { return std::is_signed<type>{}; }
+        bool is_unsigned() const { return std::is_unsigned<type>{}; }
 
         template <class U>
         type* from(U* buffer, std::size_t n = 0) const
@@ -393,6 +539,9 @@ struct MIGRAPHX_EXPORT shape
         case tuple_type: {
             tv();
             return;
+        }
+        case fp4x2_type: {
+            MIGRAPHX_THROW("fp4x2_type cannot be visited.");
         }
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_CASE(x, t) \
     case x: v(as<t>()); return;
@@ -419,6 +568,7 @@ struct MIGRAPHX_EXPORT shape
     {
 #define MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL(x, t) v(as<t>());
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL)
+        v(as<uint8_t>());
 #undef MIGRAPHX_SHAPE_GENERATE_VISITOR_ALL
     }
 
@@ -427,6 +577,8 @@ struct MIGRAPHX_EXPORT shape
 
     const std::vector<shape>& sub_shapes() const;
 
+    std::size_t tuple_size() const;
+
     /*!
      * Returns the number of elements in the data buffer.
      * For a dynamic shape, returns the maximum number of elements of the data buffer and assumes it
@@ -434,6 +586,28 @@ struct MIGRAPHX_EXPORT shape
      * Will clip to the maximum of size_t if overflows for dynamic shapes.
      */
     std::size_t element_space() const;
+
+    void debug_print() const;
+
+    /// Whether a dim-like value has a single, known static integer value.
+    static bool is_fixed_dim(std::size_t) { return true; }
+    static bool is_fixed_dim(const dynamic_dimension& d) { return d.is_fixed(); }
+
+    /// Extract the static integer value from a fixed dim-like value. Caller is
+    /// responsible for ensuring `is_fixed_dim(x)` first.
+    static std::size_t static_dim_value(std::size_t x) { return x; }
+    static std::size_t static_dim_value(const dynamic_dimension& d)
+    {
+        if(not d.is_fixed())
+            MIGRAPHX_THROW("shape::static_dim_value: dimension is not fixed");
+        return d.get_interval().max;
+    }
+
+    /// Whether all dims of this shape have a single, known static integer value.
+    /// True for static shapes, range-based shapes with all-fixed dims, symbolic
+    /// shapes whose dims are all literals (or vars with collapsed bounds), and
+    /// tuple shapes whose sub-shapes are all fixed.
+    bool is_fixed() const;
 
     private:
     shape(std::shared_ptr<shape_impl> pimpl);

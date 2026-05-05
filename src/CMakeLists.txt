@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,12 +23,28 @@
 #####################################################################################
 
 include(ExportHeader)
+include(Embed)
 
 include(ROCMInstallTargets)
 include(ROCMPackageConfigHelpers)
 include(RegisterOp)
 include(CheckCXXLinkerFlag)
 include(CheckCXXSourceCompiles)
+
+set(CMAKE_REQUIRED_FLAGS "-Werror=deprecated-declarations")
+check_cxx_source_compiles("
+#include <algorithm>
+int main() { std::stable_sort((int *)0, (int*)0); }
+" COMPILER_IGNORES_DEPRECATED_DECL_IN_SYSTEM_HEADERS)
+
+execute_process(COMMAND gcc-11 --print-file-name ""
+		OUTPUT_VARIABLE LIBSTDCXX11_PATH
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+		ERROR_QUIET)
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT COMPILER_IGNORES_DEPRECATED_DECL_IN_SYSTEM_HEADERS AND EXISTS "${LIBSTDCXX11_PATH}")
+	add_compile_options("--gcc-install-dir=${LIBSTDCXX11_PATH}")
+endif()
 
 add_library(migraphx
     adjust_allocation.cpp
@@ -38,6 +54,7 @@ add_library(migraphx
     autocast_fp8.cpp
     auto_contiguous.cpp
     base64.cpp
+    color.cpp
     common.cpp
     common_dims.cpp
     compile_src.cpp
@@ -58,11 +75,16 @@ add_library(migraphx
     file_buffer.cpp
     fileutils.cpp
     fp_to_double.cpp
+    fp8_ocp_to_fnuz.cpp
+    fuse_attention.cpp
     fuse_concat.cpp
+    fuse_horizontal.cpp
     fuse_pointwise.cpp
     fuse_pointwise_reduce.cpp
     fuse_reduce.cpp
+    gemm.cpp
     generate.cpp
+    graphviz.cpp
     inline_module.cpp
     insert_pad.cpp
     instruction.cpp
@@ -70,6 +92,7 @@ add_library(migraphx
     layout_convolution.cpp
     lexing.cpp
     load_save.cpp
+    logger.cpp
     make_op.cpp
     memory_coloring.cpp
     module.cpp
@@ -89,6 +112,7 @@ add_library(migraphx
     process.cpp
     program.cpp
     propagate_constant.cpp
+    propagate_precision.cpp
     promote_literals.cpp
     quantization.cpp
     quantize_int4.cpp
@@ -98,6 +122,8 @@ add_library(migraphx
     register_target.cpp
     replace_allocate.cpp
     rewrite_reduce.cpp
+    rewrite_resize.cpp
+    rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
     sqlite.cpp
@@ -107,10 +133,12 @@ add_library(migraphx
     rewrite_quantization.cpp
     rewrite_rnn.cpp
     reshape_dims.cpp
+    rewrite_topk.cpp
     schedule.cpp
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
+    sym.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
@@ -122,13 +150,25 @@ add_library(migraphx
     verify_args.cpp
 )
 
+file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
+target_sources(migraphx PRIVATE ${BUILDER_SRCS})
+
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
     target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
+    # Due to BinSkim errors EnableControlFlowGuard
+    target_compile_options(migraphx PUBLIC "SHELL:-Xclang -cfguard")
 endif()
 
 configure_file(version.h.in include/migraphx/version.h)
+add_library(migraphx_version INTERFACE)
+rocm_install_targets(
+  TARGETS migraphx_version
+  INCLUDE
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
 rocm_set_soversion(migraphx ${MIGRAPHX_SO_VERSION})
 function(register_migraphx_ops)
     foreach(OP ${ARGN})
@@ -157,6 +197,7 @@ register_migraphx_ops(
     ceil
     clip
     concat
+    concat_past_present
     contiguous
     convert
     convolution
@@ -172,14 +213,16 @@ register_migraphx_ops(
     erf
     exp
     fill
+    fixed_pad
     flatten
     floor
     fmod
     gather
     gathernd
     get_tuple_elem
+    gqa_rotary_embedding
     greater
-    group_query_attention
+    group
     gru
     identity
     if_op
@@ -208,9 +251,11 @@ register_migraphx_ops(
     nearbyint
     neg
     nonmaxsuppression
+    dynamic_range
     nonzero
     onehot
     outline
+    pack_fp4
     pack_int4
     pad
     pointwise
@@ -275,12 +320,13 @@ register_migraphx_ops(
     undefined
     unique
     unknown
+    unpack_fp4
     unpack_int4
     unsqueeze
     where
 )
 register_op(migraphx HEADER migraphx/op/rnn_variable_seq_lens.hpp OPERATORS op::rnn_var_sl_shift_output op::rnn_var_sl_shift_sequence)
-register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns)
+register_op(migraphx HEADER migraphx/builtin.hpp OPERATORS builtin::literal builtin::param builtin::returns builtin::comment)
 rocm_clang_tidy_check(migraphx)
 migraphx_generate_export_header(migraphx)
 rocm_install_targets(
@@ -288,8 +334,9 @@ rocm_install_targets(
   TARGETS migraphx
   INCLUDE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_BINARY_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/op/builder/include
 )
+target_link_libraries(migraphx PUBLIC migraphx_version)
 
 if(NOT WIN32)
     check_cxx_linker_flag(-lstdc++fs HAS_LIB_STD_FILESYSTEM)
@@ -299,8 +346,21 @@ if(NOT WIN32)
     target_link_libraries(migraphx PRIVATE -ldl)
 endif()
 
-target_include_directories(migraphx SYSTEM PUBLIC $<BUILD_INTERFACE:${HALF_INCLUDE_DIR}>)
 target_link_libraries(migraphx PUBLIC Threads::Threads)
+
+if(MIGRAPHX_USE_EIGEN)
+    find_package(Eigen3)
+    if(Eigen3_FOUND)
+        target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_EIGEN=1)
+        target_compile_definitions(migraphx PRIVATE EIGEN_MPL2_ONLY)
+        target_link_libraries(migraphx PRIVATE Eigen3::Eigen)
+    else()
+        message(STATUS "Eigen not found, disabling MIGRAPHX_USE_EIGEN")
+        target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_EIGEN=0)
+    endif()
+else()
+    target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_EIGEN=0)
+endif()
 
 if(MIGRAPHX_HAS_EXECUTORS AND ParallelSTL_USES_TBB)
     list(APPEND MIGRAPHX_CONFIG_DEPENDS PACKAGE TBB)
@@ -321,13 +381,19 @@ target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 find_package(SQLite3 REQUIRED)
 target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
-find_package(msgpackc-cxx QUIET)
-if(NOT msgpackc-cxx_FOUND)
-    find_package(msgpack REQUIRED)
+# See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
+# Prefer 6.x (msgpack-cxx)
+find_package(msgpack-cxx)
+if(msgpack-cxx_FOUND)
+    message(STATUS "Found msgpack-cxx (>=6.x)")
+else()
+    find_package(msgpackc-cxx REQUIRED NAMES msgpackc-cxx msgpack)
+    message(STATUS "Found msgpackc-cxx (<=5.x)")
+    add_library(msgpack-cxx ALIAS msgpackc-cxx)
 endif()
-target_link_libraries(migraphx PRIVATE msgpackc-cxx)
+target_link_libraries(migraphx PRIVATE msgpack-cxx)
 # Make this available to the tests
-target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpackc-cxx>)
+target_link_libraries(migraphx INTERFACE $<BUILD_INTERFACE:msgpack-cxx>)
 
 add_library(migraphx_all_targets INTERFACE)
 
@@ -370,10 +436,6 @@ if(MIGRAPHX_USE_MIOPEN)
     target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=1)
 else()
     target_compile_definitions(migraphx_all_targets INTERFACE MIGRAPHX_USE_MIOPEN=0)
-endif()
-
-if(HAVE_HALF_EXPR)
-    target_compile_definitions(migraphx PUBLIC -DHAS_HALF_V1)
 endif()
 
 if(BUILD_DEV)

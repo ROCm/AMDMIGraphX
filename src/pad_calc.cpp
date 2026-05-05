@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,9 +22,76 @@
  * THE SOFTWARE.
  */
 #include <migraphx/pad_calc.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+void calc_auto_padding(std::string auto_pad,
+                       const std::vector<std::size_t>& strides,
+                       const std::vector<std::size_t>& k_lens,
+                       const std::vector<std::size_t>& dilation,
+                       const std::vector<std::size_t>& in_lens,
+                       std::vector<int64_t>& paddings)
+{
+    size_t kdims = in_lens.size() - 2;
+    assert(k_lens.size() == kdims and dilation.size() == kdims);
+
+    auto_pad = to_upper(auto_pad);
+    if(contains(auto_pad, "SAME"))
+    {
+        bool is_same_upper = contains(auto_pad, "SAME_UPPER");
+        paddings.resize(2 * kdims);
+
+        for(size_t i = 0; i < paddings.size() / 2; i++)
+        {
+            calculate_padding(
+                i, paddings, in_lens[i + 2], strides[i], dilation[i], k_lens[i], is_same_upper);
+        }
+    }
+}
+
+void calc_conv_transpose_auto_padding(std::string auto_pad,
+                                      const std::vector<std::size_t>& strides,
+                                      const std::vector<std::size_t>& k_lens,
+                                      const std::vector<std::size_t>& dilation,
+                                      std::vector<int64_t>& paddings)
+{
+    size_t kdims = k_lens.size();
+    assert(strides.size() == kdims and dilation.size() == kdims);
+
+    auto_pad = to_upper(auto_pad);
+    if(contains(auto_pad, "SAME"))
+    {
+        bool is_same_upper = contains(auto_pad, "SAME_UPPER");
+        paddings.resize(2 * kdims);
+
+        for(size_t i = 0; i < kdims; i++)
+        {
+            // For ConvTranspose with SAME_* padding:
+            // output_size = input_size * stride
+            // total_padding = kernel_size - stride
+            int64_t dilated_kernel = k_lens[i] + (k_lens[i] - 1) * (dilation[i] - 1);
+            int64_t total_pad      = std::max(dilated_kernel - static_cast<int64_t>(strides[i]),
+                                         static_cast<int64_t>(0));
+
+            auto pad_ndims = paddings.size() / 2;
+            if(is_same_upper)
+            {
+                // SAME_UPPER: extra padding goes to the right/bottom
+                paddings[i]             = total_pad / 2;
+                paddings[i + pad_ndims] = total_pad - total_pad / 2;
+            }
+            else
+            {
+                // SAME_LOWER: extra padding goes to the left/top
+                paddings[i]             = total_pad - total_pad / 2;
+                paddings[i + pad_ndims] = total_pad / 2;
+            }
+        }
+    }
+}
 
 void calculate_padding(int64_t idx,
                        std::vector<int64_t>& pads,

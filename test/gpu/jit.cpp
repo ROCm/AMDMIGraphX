@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,9 @@
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void write(char* data) 
@@ -56,7 +58,9 @@ int main() {}
 
 // NOLINTNEXTLINE
 const std::string add_2s_binary = R"__migraphx__(
+#ifndef __HIPCC_RTC__
 #include <hip/hip_runtime.h>
+#endif
 
 extern "C" {
 __global__ void add_2(char* x, char* y) 
@@ -190,7 +194,7 @@ int main() {}
 
 )__migraphx__";
 
-migraphx::src_file make_src_file(const std::string& name, const std::string& content)
+static migraphx::src_file make_src_file(const std::string& name, const std::string& content)
 {
     return {name, content};
 }
@@ -212,7 +216,7 @@ TEST_CASE(simple_compile_hip)
     EXPECT(migraphx::all_of(data, [](auto x) { return x == 2; }));
 }
 
-auto check_target(const std::string& arch)
+static auto check_target(const std::string& arch)
 {
     auto define  = "__" + arch + "__";
     auto content = migraphx::replace_string(check_define, "__DEFINE__", define);
@@ -228,16 +232,20 @@ TEST_CASE(compile_target)
 TEST_CASE(compile_errors)
 {
     EXPECT(test::throws([&] {
-        migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", incorrect_program)}, {}, migraphx::gpu::get_device_name());
+        migraphx::gpu::compile_hip_src({make_src_file("main.cpp", incorrect_program)},
+                                       {},
+                                       migraphx::gpu::get_device_name(),
+                                       true);
     }));
 }
 
 TEST_CASE(compile_warnings)
 {
     auto compile = [](const std::vector<std::string>& params) {
-        return migraphx::gpu::compile_hip_src(
-            {make_src_file("main.cpp", unused_param)}, params, migraphx::gpu::get_device_name());
+        return migraphx::gpu::compile_hip_src({make_src_file("main.cpp", unused_param)},
+                                              params,
+                                              migraphx::gpu::get_device_name(),
+                                              true);
     };
 
     EXPECT(not compile({}).empty());
@@ -383,13 +391,10 @@ TEST_CASE(compile_math)
     auto vec_sizes = {2, 4, 6};
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::tuple_type,
-                     migraphx::shape::bf16_type},
-                    t))
+        if(contains({migraphx::shape::bool_type, migraphx::shape::tuple_type}, t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if(contains({migraphx::shape::half_type, migraphx::shape::bf16_type}, t))
             name.insert(0, "migraphx::");
         data_types.push_back(name);
         // fp8 doesn't have vectorization support yet, therefore skip it for now.
@@ -439,20 +444,20 @@ int main() {}
 
 TEST_CASE(assert_type_min_max)
 {
-    std::vector<std::string> data_types;
     migraphx::gpu::hip_compile_options options;
     migraphx::gpu::context ctx;
     for(auto&& t : migraphx::shape::types())
     {
-        if(contains({migraphx::shape::bool_type,
-                     migraphx::shape::tuple_type,
-                     migraphx::shape::bf16_type},
-                    t))
+        if(contains(
+               {
+                   migraphx::shape::bool_type,
+                   migraphx::shape::tuple_type,
+               },
+               t))
             continue;
         auto name = migraphx::shape::cpp_type(t);
-        if(t == migraphx::shape::half_type)
+        if(contains({migraphx::shape::half_type, migraphx::shape::bf16_type}, t))
             name.insert(0, "migraphx::");
-
         migraphx::shape::visit(t, [&](auto as) {
             std::string min = "";
             std::string max = "";

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <migraphx/gpu/config.hpp>
 #include <migraphx/gpu/pack_args.hpp>
+#include <migraphx/pmr/vector.hpp>
 #include <hip/hip_runtime_api.h>
 #include <memory>
 #include <string>
@@ -39,6 +40,25 @@ struct kernel_impl;
 
 struct MIGRAPHX_GPU_EXPORT kernel
 {
+    struct pointers
+    {
+        pointers() {}
+
+        pointers(void** pp, std::size_t pn) : p(pp), n(pn) {}
+
+        pointers(std::vector<void*>& v) : p(v.data()), n(v.size()) {}
+        pointers(pmr::vector<void*>& v) : p(v.data()), n(v.size()) {}
+
+        void** data() const { return p; }
+
+        std::size_t size() const { return n; }
+
+        std::size_t bytes() const { return n * sizeof(void*); }
+
+        private:
+        void** p      = nullptr;
+        std::size_t n = 0;
+    };
     kernel() = default;
     kernel(const char* image, const std::string& name);
     template <class T, MIGRAPHX_REQUIRES(sizeof(T) == 1)>
@@ -46,6 +66,8 @@ struct MIGRAPHX_GPU_EXPORT kernel
         : kernel(reinterpret_cast<const char*>(image.data()), name)
     {
     }
+
+    bool empty() const;
 
     void launch(hipStream_t stream,
                 std::size_t global,
@@ -57,11 +79,11 @@ struct MIGRAPHX_GPU_EXPORT kernel
     void launch(hipStream_t stream,
                 std::size_t global,
                 std::size_t local,
-                std::vector<void*> args,
+                pointers args,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
 
-    template <class... Ts>
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
         return [=](auto&&... xs) {

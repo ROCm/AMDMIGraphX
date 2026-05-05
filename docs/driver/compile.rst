@@ -34,6 +34,10 @@ Perform an exhaustive search to find the fastest version of generated kernels fo
 
 Quantize for fp16
 
+.. option::  --bf16
+
+Quantize for bf16
+
 .. option::  --int8
 
 Quantize for int8

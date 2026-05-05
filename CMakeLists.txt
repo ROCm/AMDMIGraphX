@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
-    message(FATAL_ERROR "The binary and source directroy cannot be the same")
+    message(FATAL_ERROR "The binary and source directory cannot be the same")
 endif()
 
 # Setup valid strings for build type
@@ -52,20 +52,13 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
-find_package(ROCM REQUIRED)
+include(DetectPackageBackend)
+detect_package_backend()
+
+find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
-if(WIN32)
-option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" OFF)
-else()
 option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
-endif()
-
-if(WIN32)
-option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" OFF)
-else()
-option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
-endif()
 
 if(WIN32)
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
@@ -73,14 +66,23 @@ else()
 option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
 endif()
 
-if(WIN32)
-option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" OFF)
-else()
+option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+
+if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
+    message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
 endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
+
+option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
+
+# Strip symbols for release
+if(MIGRAPHX_STRIP_SYMBOLS AND NOT WIN32 AND NOT APPLE)
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
+endif()
 
 if(WIN32) # CK is not yet ported to Windows
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" OFF)
@@ -88,25 +90,13 @@ else()
 option(MIGRAPHX_USE_COMPOSABLEKERNEL "Enable MIGraphX to use composable kernel JIT library" ON)
 endif()
 
-find_path(HALF_INCLUDE_DIR half.hpp PATH_SUFFIXES half)
-if (NOT HALF_INCLUDE_DIR)
-    message(FATAL_ERROR "Could not find half.hpp - Please check that the install path of half.hpp has been added to CMAKE_PREFIX_PATH")
-else()
-    message(STATUS "half.hpp is at ${HALF_INCLUDE_DIR}")
-endif()
-
-include(CheckTypeSize)
-set(CMAKE_REQUIRED_INCLUDES ${HALF_INCLUDE_DIR})
-set(CMAKE_EXTRA_INCLUDE_FILES half.hpp)
-check_type_size("half_float::detail::expr" HALF_EXPR LANGUAGE CXX)
-set(CMAKE_REQUIRED_INCLUDES)
-set(CMAKE_EXTRA_INCLUDE_FILES)
+option(MIGRAPHX_USE_EIGEN "Enable Eigen for optimized ref GEMM" ON)
 
 include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.12.0)
+rocm_setup_version(VERSION 2.16.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 
@@ -129,10 +119,9 @@ set(MIGRAPHX_ENABLE_FPGA Off CACHE BOOL "")
 
 set(MIGRAPHX_HAS_EXECUTORS_DEFAULT Off)
 find_package(ParallelSTL QUIET)
-# TODO: resolve parallism issue
-# if(ParallelSTL_FOUND)
-# set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
-# endif()
+if(ParallelSTL_FOUND)
+    set(MIGRAPHX_HAS_EXECUTORS_DEFAULT On)
+endif()
 option(MIGRAPHX_HAS_EXECUTORS "C++ supports parallel executors" ${MIGRAPHX_HAS_EXECUTORS_DEFAULT})
 if(MIGRAPHX_HAS_EXECUTORS AND ParallelSTL_USES_TBB)
     list(APPEND PACKAGE_DEPENDS libtbb2)
@@ -159,7 +148,6 @@ elseif(MIGRAPHX_ENABLE_GPU)
 endif()
 rocm_enable_clang_tidy(
     CHECKS
-        boost-*
         bugprone-*
         cert-*
         clang-analyzer-*
@@ -175,9 +163,12 @@ rocm_enable_clang_tidy(
         modernize-*
         performance-*
         readability-*
+        -bugprone-crtp-constructor-accessibility
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
+        -bugprone-nondeterministic-pointer-iteration-order
+        -bugprone-return-const-ref-from-parameter
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
         # Disable the aliased reserved identifiers
@@ -208,7 +199,6 @@ rocm_enable_clang_tidy(
         -clang-diagnostic-disabled-macro-expansion
         -clang-diagnostic-extern-c-compat
         -clang-diagnostic-unused-command-line-argument
-        -cppcoreguidelines-avoid-capture-default-when-capturing-this
         -cppcoreguidelines-avoid-const-or-ref-data-members
         -cppcoreguidelines-avoid-do-while
         -cppcoreguidelines-explicit-virtual-functions
@@ -222,7 +212,6 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-reinterpret-cast
         -cppcoreguidelines-pro-type-union-access
         -cppcoreguidelines-pro-type-vararg
-        -cppcoreguidelines-rvalue-reference-param-not-moved
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-use-default-member-init
         -cppcoreguidelines-virtual-class-destructor
@@ -249,6 +238,7 @@ rocm_enable_clang_tidy(
         -readability-else-after-return
         -readability-function-cognitive-complexity
         -readability-identifier-length
+        -readability-math-missing-parentheses
         -readability-named-parameter
         -readability-redundant-member-init
         -readability-redundant-string-init
@@ -286,6 +276,11 @@ rocm_enable_cppcheck(
         portability
     SUPPRESS
         ConfigurationNotChecked
+        duplInheritedMember
+        assertWithSideEffect
+        returnByReference
+        throwInEntryPoint
+        redundantCopyLocalConst
         unmatchedSuppression
         unusedFunction
         ctuPointerArith
@@ -301,12 +296,15 @@ rocm_enable_cppcheck(
         # Disable because of too many FPs
         arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
+        definePrefix:*src/targets/gpu/kernels/include/migraphx/kernels/test.hpp
+        UseNamedLogicOperator:*src/targets/gpu/kernels/include/migraphx/kernels/debug.hpp
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp
         useSmartPointer:*make_shared_array.hpp
         migraphx-RedundantLocalVariable:*src/api/api.cpp
         migraphx-UseSmartPointer:*src/api/api.cpp
     FORCE
+    EXHAUSTIVE
     INCONCLUSIVE
     RULE_FILE
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/cppcheck/rules.xml
@@ -323,12 +321,18 @@ rocm_enable_cppcheck(
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/device/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/targets/gpu/kernels/include
         ${CMAKE_CURRENT_SOURCE_DIR}/test/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/api/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/onnx/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/op/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/tf/include
     DEFINE
         MIGRAPHX_MLIR=1
-        MIGRAPHX_ENABLE_HIPBLASLT_GEMM=1
         MIGRAPHX_HAS_EXECUTORS=0
         CPPCHECK=1
         MIGRAPHX_USE_MIOPEN=1
+        MIGRAPHX_NGLOBAL=1024
+        MIGRAPHX_NLOCAL=256
+        MIGRAPHX_WAVEFRONTSIZE=64
         BUILD_DEV=
         __device__=
         __host__=
@@ -339,6 +343,7 @@ rocm_enable_cppcheck(
         HAS_HALF_V1
         TYPE_ERASED_DECLARATION
         NDEBUG
+        MIGRAPHX_GUARD_TEST_TEST_HPP
 )
 
 include(ROCMCreatePackage)
@@ -362,25 +367,45 @@ foreach(py_file ${backend_files})
     configure_file(${py_file} ${DEST_DIR}/lib/onnx_migraphx/. COPYONLY)
 endforeach(py_file)
 
-if(BUILD_ADDRESS_SANITIZER)
-    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan" )
+if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+    if(NOT MIGRAPHX_THEROCK_GPU_ARCH)
+        message(FATAL_ERROR "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH (e.g. -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x).")
+    endif()
+    # TheRock amdrocm packages (RFC0009-OS-Packaging-Requirements):
+    #   Gfxarch=False packages: amdrocm-{component}
+    #   Gfxarch=True  packages: amdrocm-{component}-{gpu_arch}
+    # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime")
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn-${MIGRAPHX_THEROCK_GPU_ARCH}")
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-blas-${MIGRAPHX_THEROCK_GPU_ARCH}")
+    endif()
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel")
+
+    # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
+    set(ROCM_DEP_ROCMCORE OFF)
 else()
-    set(DEPENDS_HIP_RUNTIME "hip-runtime-amd" )
+    # Default ROCm (default for ROCM packaging)
+    if(BUILD_ADDRESS_SANITIZER)
+        set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan")
+    else()
+        set(DEPENDS_HIP_RUNTIME "hip-runtime-amd")
+    endif()
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND PACKAGE_DEPENDS miopen-hip)
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS)
+        list(APPEND PACKAGE_DEPENDS rocblas)
+    endif()
+    if(MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND PACKAGE_DEPENDS hipblaslt)
+    endif()
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 endif()
-
-if(MIGRAPHX_USE_MIOPEN)
-    list(APPEND PACKAGE_DEPENDS miopen-hip)
-endif()
-if(MIGRAPHX_USE_ROCBLAS)
-    list(APPEND PACKAGE_DEPENDS rocblas)
-endif()
-
-if(MIGRAPHX_USE_HIPBLASLT)
-    list(APPEND PACKAGE_DEPENDS hipblaslt)
-endif()
-
-rocm_package_add_deb_dependencies(SHARED_DEPENDS "hip-dev")
-rocm_package_add_rpm_dependencies(SHARED_DEPENDS "hip-devel")
 
 rocm_create_package(
     NAME MIGraphX
@@ -388,5 +413,5 @@ rocm_create_package(
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG
     PTH
-    DEPENDS ${DEPENDS_HIP_RUNTIME} half ${PACKAGE_DEPENDS}
+    DEPENDS ${DEPENDS_HIP_RUNTIME} ${PACKAGE_DEPENDS}
 )

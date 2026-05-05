@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -73,8 +73,8 @@ struct transpose
         }
         else
         {
-            auto input_lens    = input.lens();
-            auto input_strides = input.strides();
+            const auto& input_lens    = input.lens();
+            const auto& input_strides = input.strides();
 
             std::vector<size_t> output_lens(input.ndim());
             std::vector<size_t> output_strides(input.ndim());
@@ -92,7 +92,7 @@ struct transpose
         return args[0].reshape(dyn_out.computed_shape);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 } // namespace op

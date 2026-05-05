@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,8 +53,7 @@ inline migraphx::program read_pb_file(const std::string& name, const migraphx::t
     if(pb_files.find(name) == pb_files.end())
     {
         std::cerr << "Can not find TensorFlow Protobuf file by name: " << name
-                  << " , aborting the program\n"
-                  << std::endl;
+                  << " , aborting the program" << std::endl;
         std::abort();
     }
     return migraphx::parse_tf_buffer(std::string{pb_files.at(name)}, options);

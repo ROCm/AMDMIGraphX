@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -72,7 +72,10 @@ struct convolution
         }
     }
 
-    value attributes() const { return {{"normalize_padding", "padding"}}; }
+    value attributes() const
+    {
+        return {{"normalize_padding", "padding"}, {"fillcolor", "#4682B4" /* steelblue */}};
+    }
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
@@ -155,14 +158,16 @@ struct convolution
                 auto s        = stride[i];
                 if(x_shape.dynamic())
                 {
-                    auto x = x_shape.dyn_dims()[i + 2];
+                    auto x      = x_shape.dyn_dims()[i + 2];
+                    auto x_opts = x.get_optimals();
                     std::set<std::size_t> optimals{};
-                    std::transform(x.optimals.begin(),
-                                   x.optimals.end(),
+                    std::transform(x_opts.begin(),
+                                   x_opts.end(),
                                    std::inserter(optimals, optimals.begin()),
                                    [&](auto o) { return ceil_div(o, s); });
-                    output_dyn_dims.push_back(
-                        shape::dynamic_dimension{ceil_div(x.min, s), ceil_div(x.max, s), optimals});
+                    auto x_interval = x.get_interval();
+                    output_dyn_dims.push_back(shape::dynamic_dimension{
+                        ceil_div(x_interval.min, s), ceil_div(x_interval.max, s), optimals});
                 }
                 else
                 {

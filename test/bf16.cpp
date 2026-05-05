@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,21 +21,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <cmath>
+#include <migraphx/bf16.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/bf16.hpp>
 #include "test.hpp"
 
+#include <array>
+#include <cmath>
 #include <limits>
 #include <map>
-#include <iomanip>
-#include <bitset>
-#include <set>
-#include <random>
 
 template <class T, class U>
-bool bit_equal(const T& x, const U& y)
+static bool bit_equal(const T& x, const U& y)
 {
     static_assert(sizeof(T) == sizeof(U));
     using type = std::array<char, sizeof(T)>;
@@ -54,7 +51,7 @@ TEST_CASE(check_numeric_limits)
     CHECK(bit_equal(std::numeric_limits<migraphx::bf16>::signaling_NaN(), uint16_t{0x7fa0}));
 }
 
-const std::map<uint16_t, float>& bf16_lut() // NOLINT(readability-function-size)
+const static std::map<uint16_t, float>& bf16_lut() // NOLINT(readability-function-size)
 {
     static const std::map<uint16_t, float> result = {
         {0x0000, 0.0},

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,7 @@ struct convert : unary<convert>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto input = inputs.at(0);
+        const auto& input = inputs.at(0);
         if(input.dynamic())
         {
             return {target_type, input.dyn_dims()};
@@ -61,33 +61,28 @@ struct convert : unary<convert>
         return "${function:convert}<" + shape::cpp_type(target_type) + ">(${0})";
     }
 
-    auto apply() const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        auto type = target_type;
-        return [type](auto x) {
-            auto y = x;
-            shape::visit(type, [&](auto as) {
-                // clamping value between target_type's max and min doesn't work for NaNs,
-                if(std::isnan(static_cast<double>(x)))
-                {
-                    y = as.nan();
-                }
-                else if(shape::is_integral(type) and std::is_floating_point_v<decltype(x)>)
-                {
-                    // for the floating point to integer conversion, clamp first and then convert to
-                    // avoid undefined behaviour
-                    y = as(std::min(std::max(static_cast<double>(x), static_cast<double>(as.min())),
-                                    static_cast<double>(as.max())));
-                }
-                else
-                {
-                    // clamp overflowing/underflowing values to min()/max() instead of +/-infinity
-                    // during downcasting
-                    y = std::min(std::max(as(x), as.min()), as.max());
-                }
+        argument result{dyn_out.computed_shape};
+        result.visit([&](auto output) {
+            args[0].visit([&](auto input) {
+                using output_type = typename decltype(output)::value_type;
+                par_transform(
+                    input.begin(), input.end(), output.begin(), [](auto x) -> output_type {
+                        double dx = x;
+                        if(std::isnan(dx))
+                            return std::numeric_limits<output_type>::quiet_NaN();
+                        if(not std::is_integral<output_type>{} and std::isinf(dx))
+                            return output_type(x);
+                        if(dx >= std::numeric_limits<output_type>::max())
+                            return std::numeric_limits<output_type>::max();
+                        if(dx <= std::numeric_limits<output_type>::lowest())
+                            return std::numeric_limits<output_type>::lowest();
+                        return output_type(dx);
+                    });
             });
-            return y;
-        };
+        });
+        return result;
     }
 
     convert(shape::type_t t) : target_type{t} {}

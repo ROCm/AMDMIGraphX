@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,8 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/erase.hpp>
 #include <migraphx/config.hpp>
+#include <set>
+#include <unordered_set>
 #include <string>
 #include <utility>
 
@@ -46,6 +48,14 @@ MIGRAPHX_EXPORT std::vector<shape> try_compute_shape(const operation& op,
                                                      const std::vector<shape>& inputs);
 
 MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end);
+
+MIGRAPHX_EXPORT bool reaches(instruction_ref start, instruction_ref end, const_module_ref m);
+
+MIGRAPHX_EXPORT bool is_interdependent(const std::vector<instruction_ref>& instructions,
+                                       const_module_ref m,
+                                       instruction_ref root);
+MIGRAPHX_EXPORT std::unordered_set<instruction_ref>
+find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m);
 
 struct MIGRAPHX_EXPORT instruction
 {
@@ -72,7 +82,7 @@ struct MIGRAPHX_EXPORT instruction
 
     bool valid() const;
 
-    shape get_shape() const;
+    const shape& get_shape() const;
     const literal& get_literal() const;
 
     const operation& get_operator() const;
@@ -85,6 +95,14 @@ struct MIGRAPHX_EXPORT instruction
 
     /// Where this instruction is used as an input to another instruction
     const std::vector<instruction_ref>& outputs() const;
+
+    const std::set<std::string>& get_debug_symbols() const;
+
+    /// Avoid using directly because module will not track number of debug symbols
+    void add_debug_symbols(const std::set<std::string>& symbols);
+
+    /// Avoid using directly because module will not track number of debug symbols
+    void remove_debug_symbols();
 
     MIGRAPHX_EXPORT friend bool operator==(const instruction& x, const instruction& y);
 
@@ -131,7 +149,7 @@ struct MIGRAPHX_EXPORT instruction
 
     void finalize(context& ctx);
 
-    static instruction_ref get_output_alias(instruction_ref ins, bool shallow = false);
+    static std::vector<instruction_ref> get_output_alias(instruction_ref ins, bool shallow = false);
 
     void set_normalized(bool value = true);
     bool is_normalized() const;
@@ -179,10 +197,12 @@ struct MIGRAPHX_EXPORT instruction
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     std::vector<module_ref> module_args;
+    std::set<std::string> debug_symbols;
     literal lit;
     bool normalized       = false;
     std::size_t target_id = 0;
 };
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

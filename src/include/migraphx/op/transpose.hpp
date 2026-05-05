@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/dyn_output.hpp>
@@ -63,26 +64,7 @@ struct transpose
             MIGRAPHX_THROW("TRANSPOSE: Invalid permutation");
         }
 
-        // Range-only dynamic shapes do not carry strides; permute dims only.
-        if(input.dynamic() and not input.symbolic())
-        {
-            std::vector<shape::dynamic_dimension> output_dyn_dims(input.ndim());
-            std::transform(dims.cbegin(), dims.cend(), output_dyn_dims.begin(), [&](auto dim) {
-                return input.dyn_dims()[dim];
-            });
-            return {input.type(), output_dyn_dims};
-        }
-
-        auto permute = [&](const auto& src) {
-            std::vector<typename std::decay_t<decltype(src)>::value_type> out(input.ndim());
-            for(std::size_t i = 0; i < input.ndim(); i++)
-                out[i] = src[dims[i]];
-            return out;
-        };
-
-        if(input.symbolic())
-            return {input.type(), permute(input.dyn_dims()), permute(input.dyn_strides())};
-        return {input.type(), permute(input.lens()), permute(input.strides())};
+        return reorder_shape(input, dims);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

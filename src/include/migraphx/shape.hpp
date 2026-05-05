@@ -475,9 +475,7 @@ struct MIGRAPHX_EXPORT shape
 
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
-    shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map) const;
-    // Collapse a fully-fixed shape to a static one; throws on non-fixed dimensions.
-    shape to_static() const;
+    shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map = {}) const;
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);

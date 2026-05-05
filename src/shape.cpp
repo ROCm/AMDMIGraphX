@@ -989,13 +989,6 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
     return {type(), static_lens, static_strides};
 }
 
-shape shape::to_static() const
-{
-    if(not this->is_fixed())
-        MIGRAPHX_THROW("SHAPE: to_static() requires fully-fixed dimensions");
-    return this->to_static(std::unordered_map<sym::expr, std::size_t>{});
-}
-
 std::size_t shape::element_space() const { return impl->element_space(); }
 
 std::string shape::type_string() const { return name(this->type()); }

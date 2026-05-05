@@ -37,8 +37,10 @@
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/logger.hpp>
 #include <onnx.pb.h>
 #include <iomanip>
+#include <set>
 #include <sstream>
 
 namespace migraphx {
@@ -259,6 +261,31 @@ void onnx_parser::parse_undefined(module* mod, const std::string& name)
     }
 }
 
+static void warn_unresolved_dim_params(const onnx_parser& parser, const onnx::GraphProto& graph)
+{
+    std::set<std::string> unresolved;
+    for(const auto& input : graph.input())
+    {
+        if(contains(parser.map_input_dims, input.name()) or
+           contains(parser.map_dyn_input_dims, input.name()))
+            continue;
+        for(const auto& d : input.type().tensor_type().shape().dim())
+        {
+            // Skip batch dims and dims that are already set
+            if(d.has_dim_param() and not contains(parser.dim_params, d.dim_param()) and
+               to_lower(d.dim_param()).find("batch") == std::string::npos)
+                unresolved.insert(d.dim_param());
+        }
+    }
+    if(unresolved.empty())
+        return;
+    log::warn() << "Model has unbound symbolic dimension(s): " << join_strings(unresolved, ", ")
+                << ". These default to " << parser.default_dyn_dim_value
+                << " and may cause unexpected behavior. "
+                << "Try setting `--dim-param @<name> <value>` or `--input-dim @<input> <dims>` "
+                   "if program compilation fails.";
+}
+
 void onnx_parser::parse_from(std::istream& is, std::string name)
 {
     auto* mm         = prog.get_main_module();
@@ -275,6 +302,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
 
         if(model.has_graph())
         {
+            warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
         }
     }
@@ -295,6 +323,7 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
 
         if(model.has_graph())
         {
+            warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
         }
     }

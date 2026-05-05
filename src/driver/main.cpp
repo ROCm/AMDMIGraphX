@@ -64,6 +64,7 @@
 
 #include <fstream>
 #include <optional>
+#include <set>
 #include <sstream>
 
 namespace {
@@ -593,6 +594,25 @@ struct program_params
         return map_load_args;
     }
 
+    void warn_unset_inputs(const std::unordered_map<std::string, shape>& param_shapes) const
+    {
+        std::set<std::string> load_arg_names;
+        for(auto&& x : load_args_info)
+            if(not x.empty() and x[0] == '@')
+                load_arg_names.insert(x.substr(1));
+        std::set<std::string> unset;
+        for(const auto& param : param_shapes)
+            if(not contains(param.first, "#output_") and not contains(fill0, param.first) and
+               not contains(fill1, param.first) and not contains(load_arg_names, param.first))
+                unset.insert(param.first);
+        if(unset.empty())
+            return;
+        log::warn() << "Input(s) without explicit values: " << join_strings(unset, ", ")
+                    << ". These will be filled with random data and may cause unexpected behavior. "
+                       "Use `--fill0 <name>`, `--fill1 <name>`, or "
+                       "`--load-arg @<name> <file>` if the program fails to run.";
+    }
+
     auto generate(const program& p,
                   const target& t,
                   bool offload,
@@ -615,6 +635,9 @@ struct program_params
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
             m[s] = fill_argument(static_param_shapes.at(s), 1);
+
+        warn_unset_inputs(param_shapes);
+
         fill_param_map(m, static_param_shapes, t, offload);
         auto load_arg_map = program_params::parse_load_args(load_args_info, t, offload);
         for(auto&& arg : load_arg_map)

@@ -95,18 +95,10 @@ struct slice
      */
     value attributes() const
     {
-        value normalize_axes     = value::object{};
-        normalize_axes["axes"]   = value::array{normalize_attribute::include_min};
-        normalize_axes["starts"] = value::array{normalize_attribute::clip_max,
-                                                normalize_attribute::clip_min,
-                                                normalize_attribute::include_max,
-                                                normalize_attribute::use_len,
-                                                normalize_attribute::include_min};
-        normalize_axes["ends"]   = value::array{normalize_attribute::clip_max,
-                                              normalize_attribute::clip_min,
-                                              normalize_attribute::include_max,
-                                              normalize_attribute::use_len,
-                                              normalize_attribute::include_min};
+        value normalize_axes = value::object{};
+        normalize_axes["axes"] = value::array{normalize_attribute::include_min};
+        normalize_axes["starts"] = value::array{normalize_attribute::clip_max, normalize_attribute::clip_min, normalize_attribute::include_max, normalize_attribute::use_len, normalize_attribute::include_min};
+        normalize_axes["ends"] = value::array{normalize_attribute::clip_max, normalize_attribute::clip_min, normalize_attribute::include_max, normalize_attribute::use_len, normalize_attribute::include_min};
         return {{"normalize_axes", normalize_axes}, {"fillcolor", "#FFA500" /* orange */}};
     }
 

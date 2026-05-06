@@ -146,10 +146,6 @@ def rocmtest = { Map conf = [:], Closure body ->
     env.CCACHE_DIR = ccache
     env.HSA_ENABLE_SDMA = 0
 
-    def commitSha
-    def statusContext = "Jenkins - ${variant}"
-    def buildResult = 'failure'
-
     autoSetGitStatus(context: "Jenkins - ${variant}") {
         def docker_opts
         stage("setup ${variant}") {

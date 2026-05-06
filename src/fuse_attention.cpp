@@ -35,6 +35,7 @@
 #include <queue>
 #include <optional>
 #include <limits>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -165,6 +166,68 @@ map_submod_params_to_inputs(module_ref submod, const std::vector<instruction_ref
     auto expected_inputs = submod->get_inputs(map_param_to_main);
     assert(expected_inputs == group_inputs and "Mapped inputs don't match group inputs");
     return map_param_to_main;
+}
+
+// [...,M,N] pre-flash logits vs [...,G,M,N/G] after split; multibroadcast can't bridge that.
+inline bool logits_shapes_match_flash_split(const std::vector<std::size_t>& in_lens,
+                                             const std::vector<std::size_t>& out_lens,
+                                             std::vector<std::size_t>& reshape_dims,
+                                             std::vector<int64_t>& perm)
+{
+    if(in_lens.size() < 2 or out_lens.size() != in_lens.size() + 1)
+        return false;
+    const auto nd_old = in_lens.size();
+    for(std::size_t i = 0; i < nd_old - 2; ++i)
+    {
+        if(in_lens[i] != out_lens[i])
+            return false;
+    }
+    if(in_lens[nd_old - 2] != out_lens[nd_old - 1])
+        return false;
+    const auto g  = out_lens[nd_old - 2];
+    const auto ng = out_lens[nd_old];
+    if(in_lens[nd_old - 1] != g * ng)
+        return false;
+    reshape_dims.assign(in_lens.begin(), in_lens.end() - 1);
+    reshape_dims.push_back(g);
+    reshape_dims.push_back(ng);
+    perm.resize(reshape_dims.size());
+    std::iota(perm.begin(), perm.end(), int64_t{0});
+    std::swap(perm[nd_old - 2], perm[nd_old - 1]);
+    return true;
+}
+
+// reshape [...,M,G,N/G] + transpose -> [...,G,M,N/G] at end of module
+inline bool try_emit_logits_split_broadcast(module& mod,
+                                            instruction_ref in,
+                                            const std::vector<std::size_t>& out_lens,
+                                            instruction_ref& out)
+{
+    std::vector<std::size_t> reshape_dims;
+    std::vector<int64_t> perm;
+    if(not logits_shapes_match_flash_split(in->get_shape().lens(), out_lens, reshape_dims, perm))
+        return false;
+    auto reshaped = mod.add_instruction(make_op("reshape", {{"dims", reshape_dims}}), in);
+    out           = mod.add_instruction(make_op("transpose", {{"permutation", perm}}), reshaped);
+    return true;
+}
+
+// same chain, inserted before insert_before (deferred multibroadcast in submodule walk order)
+inline bool try_emit_logits_split_broadcast_before(module& mod,
+                                                   instruction_ref insert_before,
+                                                   instruction_ref in,
+                                                   const std::vector<std::size_t>& out_lens,
+                                                   instruction_ref& out)
+{
+    std::vector<std::size_t> reshape_dims;
+    std::vector<int64_t> perm;
+    if(not logits_shapes_match_flash_split(in->get_shape().lens(), out_lens, reshape_dims, perm))
+        return false;
+    auto reshaped =
+        mod.insert_instruction(insert_before, make_op("reshape", {{"dims", reshape_dims}}), {in});
+    out = mod.insert_instruction(
+        insert_before, make_op("transpose", {{"permutation", perm}}), {reshaped});
+    return true;
 }
 
 struct find_attention
@@ -1063,18 +1126,62 @@ struct find_flash_decoding
 
     void rebuild_attention_submodule(
         module& target_mod,
-        const module& source_mod,
+        module& source_mod,
         const std::unordered_map<instruction_ref, instruction_ref>& param_map) const
     {
+        // Match driver graphs: producers before uses when walking the submodule.
+        source_mod.sort();
+
         // map from instructions in the old module to the new ones in the target module
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
         std::unordered_map<std::string, instruction_ref> softmax_parts;
+        std::vector<std::pair<instruction_ref, instruction_ref>> deferred_multibroadcast;
+
+        auto find_multibroadcast_target = [](instruction_ref mb) -> std::optional<instruction_ref> {
+            if(mb->outputs().empty())
+                return std::nullopt;
+            auto parent = mb->outputs().front();
+            if(parent->name() == "sub" or parent->name() == "div")
+            {
+                for(auto in : parent->inputs())
+                    if(in != mb)
+                        return {in};
+                return std::nullopt;
+            }
+            if(parent->name() == "mul")
+            {
+                for(auto in : parent->inputs())
+                    if(in != mb)
+                        return {in};
+                return std::nullopt;
+            }
+            // BERT-style scale: multibroadcast -> convert -> mul(logits, scale)
+            if(parent->name() == "convert")
+            {
+                for(auto consumer : parent->outputs())
+                {
+                    if(consumer->name() != "mul")
+                        continue;
+                    for(auto in : consumer->inputs())
+                        if(in != parent)
+                            return {in};
+                }
+                return std::nullopt;
+            }
+            return std::nullopt;
+        };
 
         for(auto it = source_mod.begin(); it != source_mod.end(); ++it)
         {
             auto ins = it;
             if(ins->name() == "@param" or ins->name() == "@return")
                 continue;
+
+            if(ins->name() == "@literal")
+            {
+                map_old_to_new[ins] = target_mod.add_literal(ins->get_literal());
+                continue;
+            }
 
             // gather inputs for the new instruction
             std::vector<instruction_ref> new_inputs;
@@ -1103,23 +1210,31 @@ struct find_flash_decoding
                 op.from_value(
                     {{"axes", {static_cast<int64_t>(new_input_shape.lens().size() - 1)}}});
             }
-            // TODO make less reliant on ops around it
             else if(op.name() == "multibroadcast")
             {
-                // broadcast target shape is the shape of the
-                // other input to the 'sub' or 'div' instruction.
-                auto parent = ins->outputs().front();
-                assert(parent->name() == "sub" or parent->name() == "div");
+                if(auto target_in = find_multibroadcast_target(ins))
+                {
+                    if(contains(map_old_to_new, *target_in))
+                    {
+                        const auto& target_shape = map_old_to_new.at(*target_in)->get_shape();
+                        op.from_value({{"out_lens", target_shape.lens()}});
+                    }
+                    else
+                    {
+                        deferred_multibroadcast.emplace_back(ins, *target_in);
+                    }
+                }
+            }
 
-                // Find the sibling input that isn't the reduction result
-                auto sibling = std::find_if(parent->inputs().begin(),
-                                            parent->inputs().end(),
-                                            [&](auto i) { return i != ins; });
-                assert(sibling != parent->inputs().end() and
-                       "Could not find sibling for broadcast target");
-
-                const auto& target_shape = map_old_to_new.at(*sibling)->get_shape();
-                op.from_value({{"out_lens", target_shape.lens()}});
+            if(op.name() == "multibroadcast")
+            {
+                const auto out_lens = op.to_value()["out_lens"].to_vector<std::size_t>();
+                instruction_ref split_out;
+                if(try_emit_logits_split_broadcast(target_mod, new_inputs.front(), out_lens, split_out))
+                {
+                    map_old_to_new[ins] = split_out;
+                    continue;
+                }
             }
 
             auto new_ins        = target_mod.add_instruction(op, new_inputs);
@@ -1130,6 +1245,26 @@ struct find_flash_decoding
                 softmax_parts["max"] = new_ins;
             if(op.name() == "reduce_sum")
                 softmax_parts["sum_exp"] = new_ins;
+        }
+
+        for(const auto& p : deferred_multibroadcast)
+        {
+            auto new_mb  = map_old_to_new.at(p.first);
+            auto new_tgt = map_old_to_new.at(p.second);
+            const auto& out_lens = new_tgt->get_shape().lens();
+            instruction_ref split_out;
+            if(try_emit_logits_split_broadcast_before(
+                   target_mod, new_mb, new_mb->inputs().front(), out_lens, split_out))
+            {
+                target_mod.replace_instruction(new_mb, split_out);
+                map_old_to_new[p.first] = split_out;
+            }
+            else
+            {
+                auto fix_op = new_mb->get_operator();
+                fix_op.from_value({{"out_lens", out_lens}});
+                target_mod.replace_instruction(new_mb, fix_op, new_mb->inputs());
+            }
         }
 
         // get the final partial output (O')
@@ -1297,11 +1432,69 @@ struct find_flash_decoding
         auto new_v_param = m_flash_decode.add_parameter(
             v_name, shape{qkv_shapes[2].type(), transform_info.v_shape});
 
-        // build mapping for old params -> new params
+        // build mapping for old params -> new params (Q, K, V)
         std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
         map_old_params_to_new[q_param] = new_q_param;
         map_old_params_to_new[k_param] = new_k_param;
         map_old_params_to_new[v_param] = new_v_param;
+
+        // Flash logits shape: Q' @ K' along last dims -> [..., M, N/G]
+        std::vector<std::size_t> flash_logits_lens = transform_info.q_shape;
+        flash_logits_lens.back()                   = transform_info.k_shape.back();
+
+        // extra group operands (e.g. hoisted scale): submodule param must see flash logits shape
+        for(auto it = submod->begin(); it != submod->end(); ++it)
+        {
+            auto ins = it;
+            if(ins->name() != "@param")
+                continue;
+            if(ins == q_param or ins == k_param or ins == v_param)
+                continue;
+            if(contains(map_old_params_to_new, ins))
+                continue;
+
+            auto aux_name = ins->get_operator().to_value()["parameter"].to<std::string>();
+            auto main_in  = map_param_to_main.at(ins);
+            instruction_ref wired = main_in;
+            const auto& old_lens = main_in->get_shape().lens();
+            if(old_lens != flash_logits_lens)
+            {
+                // logits-shaped [...,M,N] -> wire as [...,G,M,N/G]; mb only works for broadcastable cases
+                const auto nd_old = old_lens.size();
+                if(nd_old >= 2 and nd_old + 1 == flash_logits_lens.size() and
+                   old_lens[nd_old - 2] == flash_logits_lens[nd_old - 1] and
+                   old_lens[nd_old - 1] ==
+                       flash_logits_lens[nd_old - 2] * flash_logits_lens.back())
+                {
+                    std::vector<std::size_t> reshape_dims(old_lens.begin(), old_lens.end() - 1);
+                    reshape_dims.push_back(actual_groups);
+                    reshape_dims.push_back(flash_logits_lens.back());
+                    auto reshaped = mm.insert_instruction(
+                        attn_group_ins, make_op("reshape", {{"dims", reshape_dims}}), main_in);
+                    std::vector<int64_t> perm(reshape_dims.size());
+                    std::iota(perm.begin(), perm.end(), int64_t{0});
+                    std::swap(perm[nd_old - 2], perm[nd_old - 1]);
+                    wired = mm.insert_instruction(
+                        attn_group_ins, make_op("transpose", {{"permutation", perm}}), reshaped);
+                }
+                else
+                {
+                    wired = mm.insert_instruction(
+                        attn_group_ins,
+                        make_op("multibroadcast", {{"out_lens", flash_logits_lens}}),
+                        main_in);
+                }
+            }
+            auto new_aux = m_flash_decode.add_parameter(
+                aux_name, shape{wired->get_shape().type(), flash_logits_lens});
+            map_old_params_to_new[ins] = new_aux;
+
+            for(std::size_t i = 0; i < new_group_inputs.size(); ++i)
+            {
+                if(new_group_inputs[i] == main_in)
+                    new_group_inputs[i] = wired;
+            }
+        }
 
         // don't simply fuse previous attn submod, need to rebuild all the ops
         rebuild_attention_submodule(m_flash_decode, *submod, map_old_params_to_new);
@@ -1596,7 +1789,7 @@ void fuse_attention::apply(module_pass_manager& mpm) const
                                 .configured_min_chunk_size = flash_decoding_min_chunk_size});
 
         // flash decoding for GQA attention
-        match::find_matches(mpm, find_gqa_flash_decoding{.groups = configured_splits});
+        // match::find_matches(mpm, find_gqa_flash_decoding{.groups = configured_splits});
         mpm.run_pass(dead_code_elimination{});
     }
 }

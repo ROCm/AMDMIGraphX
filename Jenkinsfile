@@ -120,6 +120,20 @@ def setCommitStatus(String sha, String state, String context, String description
     }
 }
 
+def autoSetGitStatus = { Map conf = [:], Closure body ->
+    def statusContext = conf.get("context", "Unknown")
+    def commitSha = ${env.GIT_COMMIT};
+    try {
+        setCommitStatus(commitSha, 'pending', statusContext, 'Building')
+        body()
+    }
+    catch (Exception ex) {
+        setCommitStatus(commitSha, 'failure', statusContext, 'Build failed')
+        throw ex
+    }
+    setCommitStatus(commitSha, 'success', statusContext, 'Build succeeded')
+}
+
 def rocmtest = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
@@ -136,13 +150,11 @@ def rocmtest = { Map conf = [:], Closure body ->
     def statusContext = "Jenkins - ${variant}"
     def buildResult = 'failure'
 
-    try {
+    autoSetGitStatus(context: "Jenkins - ${variant}") {
         def docker_opts
         stage("setup ${variant}") {
             sh 'printenv'
             checkout scm
-            commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
-            setCommitStatus(commitSha, 'pending', statusContext, 'Building')
             setup()
 
             def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
@@ -163,15 +175,6 @@ def rocmtest = { Map conf = [:], Closure body ->
                     body()
                 }
             }
-        }
-        buildResult = 'success'
-    } catch (Exception e) {
-        buildResult = 'failure'
-        throw e
-    } finally {
-        if (commitSha) {
-            def description = (buildResult == 'success') ? 'Build succeeded' : 'Build failed'
-            setCommitStatus(commitSha, buildResult, statusContext, description)
         }
     }
 }

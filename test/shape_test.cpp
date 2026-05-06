@@ -2056,7 +2056,22 @@ TEST_CASE(reorder_shape_symbolic)
     std::vector<int64_t> perm = {2, 0, 1};
     auto reordered            = migraphx::reorder_shape(s, perm);
     EXPECT(reordered.symbolic());
-    EXPECT(reordered.dyn_dims().size() == s.dyn_dims().size());
+    std::vector<dd> expected_dims = {dd{lit(4)}, dd{n}, dd{c}};
+    EXPECT(reordered.dyn_dims() == expected_dims);
+    EXPECT(reordered.dyn_strides()[0] == s.dyn_strides()[2]);
+    EXPECT(reordered.dyn_strides()[1] == s.dyn_strides()[0]);
+    EXPECT(reordered.dyn_strides()[2] == s.dyn_strides()[1]);
+}
+
+TEST_CASE(reorder_shape_dyn)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 4, 8}, {4, 4, 8}, {{}, {}, {}}};
+    std::vector<int64_t> perm = {2, 0, 1};
+    auto reordered            = migraphx::reorder_shape(s, perm);
+    EXPECT(reordered.dynamic());
+    EXPECT(not reordered.symbolic());
+    std::vector<dd> expected_dims = {{8, 8}, {1, 4}, {4, 4}};
+    EXPECT(reordered.dyn_dims() == expected_dims);
 }
 
 TEST_CASE(find_permutation_symbolic_stride_ordering_reversal)

@@ -35,6 +35,7 @@
 #include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
+#include <tuple>
 
 #ifdef MIGRAPHX_MLIR
 #include <mlir-c/IR.h>
@@ -47,7 +48,7 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 4
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 5
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -912,10 +913,14 @@ struct mlir_program
         }
     }
 
-    void run_backend_pipeline()
+    void run_backend_pipeline(const std::string& solution)
     {
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
-        mlirMIGraphXAddBackendPipeline(pm_back.get(), target_arch.c_str());
+        MlirMIGraphXBackendOptions opts{};
+        opts.arch       = target_arch.c_str();
+        opts.perfConfig = solution.c_str();
+        opts.optLevel   = 3;
+        mlirMIGraphXAddBackendPipeline(pm_back.get(), &opts);
         logger.clear();
         const size_t trace = value_of(MIGRAPHX_TRACE_MLIR{});
         static std::mutex mutex;
@@ -944,15 +949,17 @@ struct mlir_program
         std::string tuning_cfg_path = string_value_of(MIGRAPHX_MLIR_TUNING_CFG{});
         if(not tuning_cfg_path.empty())
             get_module_tuned();
-        if(not solution.is_null())
-            set_tuning(solution);
+        if(solution.is_null())
+            MIGRAPHX_THROW("MLIR backend pipeline requires a tuning solution");
+        set_tuning(solution);
         // 2nd pipeline to call
-        run_backend_pipeline();
+        run_backend_pipeline(solution.to<std::string>());
 
         code_object_op op{};
-        op.symbol_name                = sym_name;
-        op.code_object                = get_binary();
-        std::tie(op.global, op.local) = get_launch_params();
+        op.symbol_name = sym_name;
+        op.code_object = get_binary();
+        // TODO: update code_object_op to use cluster size
+        std::tie(std::ignore, op.global, op.local) = get_launch_params();
         return op;
     }
 
@@ -964,14 +971,15 @@ struct mlir_program
         num_chiplets       = device.get_chiplet_count();
     }
 
-    std::pair<std::size_t, std::size_t> get_launch_params() const
+    std::tuple<std::size_t, std::size_t, std::size_t> get_launch_params() const
     {
-        uint32_t attrs[2];
-        // returns block and grid sizes
+        uint32_t attrs[3];
+        // returns block, grid and cluster sizes
         mlirGetKernelAttrs(mmodule.get(), attrs);
-        std::size_t local  = attrs[0];
-        std::size_t global = local * attrs[1];
-        return {global, local};
+        std::size_t local   = attrs[0];
+        std::size_t global  = local * attrs[1];
+        std::size_t cluster = attrs[2];
+        return {cluster, global, local};
     }
 
     value::binary get_binary() const
@@ -1126,8 +1134,8 @@ struct mlir_program
     mlir_logger logger;
     problem_params pp;
     std::deque<std::string> strings{};
-    std::string target_arch = "";
-    std::size_t num_cu      = 0;
+    std::string target_arch  = "";
+    std::size_t num_cu       = 0;
     std::size_t num_chiplets = 0;
     std::string sym_name;
 };

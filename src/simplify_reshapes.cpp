@@ -617,8 +617,9 @@ struct find_nop_reshapes
             "reduce_prod",
         };
         // clang-format on
-        return match::any_of(match::name(shape_names)(match::same_shape(match::arg(0))),
-                             match::name(lens_names)(match::same_lens(match::arg(0))));
+        auto shape_match = match::name(shape_names)(match::same_shape(match::arg(0)));
+        auto lens_match  = match::name(lens_names)(match::same_lens(match::arg(0)));
+        return match::any_of(shape_match, lens_match);
     }
 
     void apply(module& m, const match::matcher_result& mr) const

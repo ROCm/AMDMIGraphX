@@ -29,13 +29,12 @@
 #include <migraphx/sym.hpp>
 #include <sstream>
 #include <migraphx/make_op.hpp>
-
 #include <migraphx/serialize.hpp>
-#include <migraphx/sym.hpp>
 
 #include "test.hpp"
 
 using dd = migraphx::shape::dynamic_dimension;
+using se = migraphx::sym::expr;
 using migraphx::sym::lit;
 using migraphx::sym::var;
 

@@ -1224,10 +1224,10 @@ TEST_CASE(if_cross_module_multi_out_find_output)
     run_pass(p1, {.enable_multi_output = true});
     migraphx::program p2;
     {
-        auto* mm   = p2.get_main_module();
-        auto x     = mm->add_parameter("x", s1);
-        auto y     = mm->add_parameter("y", s1);
-        auto cond  = mm->add_parameter("cond", migraphx::shape{migraphx::shape::bool_type, {1}});
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto y    = mm->add_parameter("y", s1);
+        auto cond = mm->add_parameter("cond", migraphx::shape{migraphx::shape::bool_type, {1}});
         auto fused = add_pointwise(
             p2,
             "main:pointwise0",

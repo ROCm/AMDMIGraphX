@@ -42,7 +42,7 @@ static migraphx::instruction_ref add_arg_reduce(migraphx::module& m,
                                                 int axis)
 {
     auto indices = m.add_instruction(migraphx::make_op("gpu::make_indices"), {x});
-    auto ar      = m.add_instruction(
+    auto ar = m.add_instruction(
         migraphx::make_op(
             "gpu::arg_reduce",
             {{"op", migraphx::to_value(migraphx::make_op(op_name, {{"axis", axis}}))}}),

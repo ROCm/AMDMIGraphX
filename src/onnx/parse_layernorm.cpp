@@ -146,9 +146,9 @@ struct parse_layernorm : op_parser<parse_layernorm>
                                                  const instruction_ref& result,
                                                  const int64_t& kdims)
     {
-        auto x_shape                              = x->get_shape();
-        auto x_rank                               = x_shape.ndim();
-        auto skipped_axes                         = x_rank - kdims;
+        auto x_shape                = x->get_shape();
+        auto x_rank                 = x_shape.ndim();
+        auto skipped_axes           = x_rank - kdims;
         instruction_ref scale_bcast = scale;
         std::optional<instruction_ref> bias_bcast = bias;
         if(skipped_axes > 0)

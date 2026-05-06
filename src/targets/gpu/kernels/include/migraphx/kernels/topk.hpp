@@ -81,8 +81,8 @@ constexpr auto compare_topk_pair(Compare compare)
 }
 
 template <class T, class Type = typename T::type>
-constexpr auto get_index_type(T)
-    -> conditional_t<(sizeof(Type) < sizeof(index_int)), Type, index_int>;
+constexpr auto
+    get_index_type(T) -> conditional_t<(sizeof(Type) < sizeof(index_int)), Type, index_int>;
 
 constexpr auto get_index_type() -> uint16_t;
 

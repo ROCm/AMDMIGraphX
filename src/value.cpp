@@ -571,8 +571,8 @@ static std::size_t compute_hash(rank<0>, const std::string& key, std::nullptr_t)
 }
 
 template <class Range>
-static auto compute_hash(rank<1>, const std::string& key, const Range& x)
-    -> decltype(hash_value(*x.begin()))
+static auto
+compute_hash(rank<1>, const std::string& key, const Range& x) -> decltype(hash_value(*x.begin()))
 {
     std::size_t h = hash_value(key);
     for(const auto& v : x)

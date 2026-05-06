@@ -71,7 +71,9 @@ inline bool ends_with(const std::string& value, const std::string& suffix)
 }
 // NOLINTBEGIN(performance-unnecessary-value-param)
 template <class Strings>
-inline std::string join_strings(Strings strings, const std::string& delim)
+inline std::string
+join_strings(Strings strings,
+             const std::string& delim) 
 // NOLINTEND(performance-unnecessary-value-param)
 {
     auto it = strings.begin();

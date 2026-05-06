@@ -122,7 +122,7 @@ def setCommitStatus(String sha, String state, String context, String description
 
 def autoSetGitStatus = { Map conf = [:], Closure body ->
     def statusContext = conf.get("context", "Unknown")
-    def commitSha = ${env.GIT_COMMIT};
+    def commitSha = env.GIT_COMMIT
     try {
         setCommitStatus(commitSha, 'pending', statusContext, 'Building')
         body()

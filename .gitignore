@@ -93,3 +93,6 @@ depend*/
 
 # local Python virtual environment
 .venv/
+
+# Local environment variables
+.env/

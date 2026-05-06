@@ -302,6 +302,19 @@ pipeline {
                     }
                 }
 
+                stage('HIP Clang Static') {
+                    agent {
+                        label rocmnodename('mi100+')
+                    }
+                    steps {
+                        script {
+                            rocmtest([:]) {
+                                cmake_build(flags: "-DBUILD_SHARED_LIBS=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                            }
+                        }
+                    }
+                }
+
                 stage('HIP Clang Release Navi32') {
                     agent {
                         label rocmnodename('navi32')

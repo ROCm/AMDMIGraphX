@@ -115,7 +115,7 @@ void validate_qkv_separate_dynamic_kv_n(const shape& query_shape,
                                         const shape& value_shape,
                                         multi_head_attention_parameters& params)
 {
-    if(query_shape.dynamic())
+    if(query_shape.dynamic() and not std::all_of(query_shape.dyn_dims().begin(), query_shape.dyn_dims().end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
         MIGRAPHX_THROW("MultiHeadAttention: query must be static when key/value sequence length "
                        "n is dynamic.");
 
@@ -216,10 +216,21 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         const auto& query_shape = args[0]->get_shape();
         const auto query_dim    = query_shape.ndim();
 
-        if(query_shape.dynamic())
+        if(query_shape.dynamic() and not std::all_of(query_shape.dyn_dims().begin(), query_shape.dyn_dims().end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
             MIGRAPHX_THROW("MultiHeadAttention: dynamic query is not supported.");
 
-        const auto query_lens = query_shape.lens();
+        // const auto query_lens = query_shape.lens();
+        auto query_dyn_shape = query_shape.to_dynamic();
+        auto query_dyn_dims = query_dyn_shape.dyn_dims();
+        std::vector<std::size_t> query_lens(query_dyn_dims.size());
+        if(std::all_of(query_dyn_dims.begin(), query_dyn_dims.end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+        {
+            std::transform(query_dyn_dims.begin(), query_dyn_dims.end(), query_lens.begin(), [](const shape::dynamic_dimension& dim) { return dim.get_interval().max; });
+        }
+        else
+        {
+            MIGRAPHX_THROW("MultiHeadAttention: Input must be fixed if dynamic");
+        }
 
         params.kv_sequence_length_dynamic = false;
         params.batch_size                 = query_lens[0];

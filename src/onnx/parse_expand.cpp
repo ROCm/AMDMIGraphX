@@ -50,14 +50,18 @@ struct parse_expand : op_parser<parse_expand>
         else
         {
             const shape& shape_0 = args[0]->get_shape();
-            if(shape_0.dynamic())
-            {
-                MIGRAPHX_THROW(
-                    "PARSE_EXPAND: dynamic input tensor with fixed dims input not supported");
-            }
-            const auto& in_lens = shape_0.lens();
             std::vector<std::size_t> dims;
             arg_s.visit([&](auto input) { dims.assign(input.begin(), input.end()); });
+            if(shape_0.dynamic())
+            {
+                shape target_shape{shape_0.type(), dims};
+                auto out_dyn_dims = compute_broadcasted_dyn_dims(shape_0, target_shape);
+                return info.add_instruction(
+                    make_op("multibroadcast", {{"out_dyn_dims", to_value(out_dyn_dims)}}),
+                    args[0],
+                    args[0]);
+            }
+            const auto& in_lens = shape_0.lens();
             auto out_lens = compute_broadcasted_lens(in_lens, dims);
             return info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}),
                                         args[0]);

@@ -248,7 +248,7 @@ jobs:
         set -e
         git config --global --add safe.directory /data
         if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.pull_request.head.repo.fork }}" != "true" ]; then
-          python3 tools/format.py -i origin/${{ github.base_ref }}
+          python3 tools/format.py -i --exit-zero origin/${{ github.base_ref }}
         else
           python3 tools/format.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
         fi

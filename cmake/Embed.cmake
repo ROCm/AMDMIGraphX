@@ -24,7 +24,7 @@
 
 include_guard(GLOBAL)
 
-if(BUILD_SHARED_LIBS)
+if(NOT BUILD_SHARED_LIBS)
     set(EMBED_USE_DEFAULT CArrays)
 elseif(WIN32)
     set(EMBED_USE_DEFAULT RC)

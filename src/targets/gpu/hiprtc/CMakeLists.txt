@@ -22,9 +22,8 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_executable(migraphx-hiprtc-driver
-    main.cpp
-)
+add_executable(migraphx-hiprtc-driver main.cpp)
+migraphx_setup_msvc_runtime_library(migraphx-hiprtc-driver)
 rocm_clang_tidy_check(migraphx-hiprtc-driver)
 # On Windows, the driver's default 1MB stack size is not enough - increasing to 4MB.
 set(STACK_SIZE 4194304)

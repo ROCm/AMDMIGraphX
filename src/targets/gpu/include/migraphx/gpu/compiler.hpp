@@ -186,17 +186,17 @@ struct compiler : auto_register_compiler<Derived>
     }
 
     template <class D = Derived>
-    auto invoke_compile(
-        rank<1>, context& ctx, instruction_ref ins, operation op, const value& solution) const
-        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
+    auto
+    invoke_compile(rank<1>, context& ctx, instruction_ref ins, operation op, const value& solution)
+        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
     {
         return derived().compile(ctx, ins, std::move(op), solution);
     }
 
     template <class D = Derived>
-    auto invoke_compile(
-        rank<0>, context& ctx, instruction_ref ins, operation op, const value& solution) const
-        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
+    auto
+    invoke_compile(rank<0>, context& ctx, instruction_ref ins, operation op, const value& solution)
+        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
     {
         assert(solution.empty());
         (void)solution;

@@ -135,7 +135,7 @@ std::string md5(const std::string_view& str)
     std::transform(tail_src_begin, str.end(), tail[0].begin(), &to_uint8);
     tail[0][remainder] = 0x80;
 
-    const bool need_two    = (remainder >= block_size - 8);
+    const bool need_two            = (remainder >= block_size - 8);
     const std::uint64_t bit_length = std::uint64_t{str.size()} * 8u;
     auto& last = need_two ? tail[1] : tail[0]; // cppcheck-suppress constVariableReferenc
     const auto bit_indices = range(8);

@@ -55,6 +55,7 @@ add_dependencies(migraphx_c generate)
 
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 migraphx_generate_export_header(migraphx_c DIRECTORY migraphx/api)
+migraphx_setup_msvc_runtime_library(migraphx_c)
 
 # migraphx_c is stable API interface library. SO version of this should be 
 # bumped when binary compatibility is broken. 

@@ -91,6 +91,7 @@ add_embed_library(migraphx_kernels ${KERNEL_FILES} RELATIVE ${CMAKE_CURRENT_SOUR
 configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
+migraphx_setup_msvc_runtime_library(migraphx_device)
 
 add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
@@ -129,6 +130,7 @@ if(MIGRAPHX_USE_COMPOSABLEKERNEL)
 endif()
 
 add_library(migraphx_gpu_kernel_file_check EXCLUDE_FROM_ALL)
+migraphx_setup_msvc_runtime_library(migraphx_gpu_kernel_file_check)
 
 set(CK_TIDY_SKIP_KERNEL_FILES "ck" "ck_gemm" "ck_gemm_softmax_gemm")
 foreach(KERNEL_FILE ${KERNEL_FILES})
@@ -206,6 +208,7 @@ endif()
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
+migraphx_setup_msvc_runtime_library(migraphx_gpu)
 
 function(register_migraphx_gpu_ops PREFIX)
     foreach(OP ${ARGN})

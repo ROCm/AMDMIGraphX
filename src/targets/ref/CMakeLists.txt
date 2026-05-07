@@ -34,6 +34,7 @@ target_link_libraries(migraphx_ref PRIVATE Threads::Threads)
 target_link_libraries(migraphx_ref PUBLIC migraphx)
 
 migraphx_generate_export_header(migraphx_ref)
+migraphx_setup_msvc_runtime_library(migraphx_ref)
 
 rocm_install_targets(
   PRIVATE

@@ -49,8 +49,11 @@ endif()
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
+cmake_policy(SET CMP0091 NEW)
+
 project(migraphx LANGUAGES C CXX)
 include(CTest)
+include(RuntimeLibrary)
 
 include(DetectPackageBackend)
 detect_package_backend()

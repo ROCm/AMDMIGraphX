@@ -79,6 +79,7 @@ endif()
 target_link_libraries(migraphx_cpu PRIVATE migraphx)
 
 migraphx_generate_export_header(migraphx_cpu)
+migraphx_setup_msvc_runtime_library(migraphx_cpu)
 
 find_package(OpenMP)
 if(WIN32)

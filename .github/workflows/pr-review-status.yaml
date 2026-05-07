@@ -51,9 +51,16 @@ jobs:
 
       - run: pip install requests
 
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-slug: gh-app-migraphx-bot-pr-write
+          private-key: ${{ secrets.GH_APP_MIGRAPHX_BOT_PR_WRITE_PRIVATE_KEY }}
+
       - name: Generate data.json
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: python tools/pr-review-status.py --json > pr_review_dashboard/data.json
 
       - name: Upload Pages artifact

@@ -196,6 +196,7 @@ add_library(migraphx_gpu
 
 if(MIGRAPHX_USE_MIOPEN)
     target_sources(migraphx_gpu
+        PRIVATE
             abs.cpp
             perfdb.cpp)
 endif()

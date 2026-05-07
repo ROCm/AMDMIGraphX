@@ -607,7 +607,7 @@ struct program_params
                 unset.insert(param.first);
         if(unset.empty())
             return;
-        log::warn() << "Input(s) without explicit values: " << join_strings(unset, ", ")
+        log::warn() << "Input(s) without explicit values: " << join_strings(std::move(unset), ", ")
                     << ". These will be filled with random data and may cause unexpected behavior. "
                        "Use `--fill0 <name>`, `--fill1 <name>`, or "
                        "`--load-arg @<name> <file>` if the program fails to run.";

@@ -279,9 +279,9 @@ static void warn_unresolved_dim_params(const onnx_parser& parser, const onnx::Gr
     }
     if(unresolved.empty())
         return;
-    log::warn() << "Model has unbound symbolic dimension(s): " << join_strings(unresolved, ", ")
-                << ". These default to " << parser.default_dyn_dim_value
-                << " and may cause unexpected behavior. "
+    log::warn() << "Model has unbound symbolic dimension(s): "
+                << join_strings(std::move(unresolved), ", ") << ". These default to "
+                << parser.default_dyn_dim_value << " and may cause unexpected behavior. "
                 << "Try setting `--dim-param @<name> <value>` or `--input-dim @<input> <dims>` "
                    "if program compilation fails.";
 }

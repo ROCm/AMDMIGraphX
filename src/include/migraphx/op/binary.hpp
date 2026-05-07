@@ -70,9 +70,42 @@ struct binary : op_name<Derived>
         auto s1 = inputs.at(1);
         if(s0.dynamic() or s1.dynamic())
         {
-            if(s0.dynamic() != s1.dynamic())
-                MIGRAPHX_THROW("BINARY: " + point_function() +
-                               ": mixed static and dynamic shapes not supported");
+            // if(s0.dynamic() != s1.dynamic())
+            //     MIGRAPHX_THROW("BINARY: " + point_function() +
+            //                    ": mixed static and dynamic shapes not supported");
+            if(s0.dynamic() and not s1.dynamic())
+            {
+                if(s1.elements() != 1 and not std::all_of(s0.dyn_dims().begin(), s0.dyn_dims().end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+                {
+                    std::cout << "s0: " << s0 << std::endl;
+                    std::cout << "s1: " << s1 << std::endl;
+                    auto broadcasted_dims = compute_broadcasted_dyn_dims(s0, s1);
+                    std::cout << "broadcasted_dims: " << std::endl;
+                    for(auto dim : broadcasted_dims)
+                    {
+                        std::cout << dim << std::endl;
+                    }
+                    MIGRAPHX_THROW("BINARY: " + point_function() +
+                                   ": dynamic shape with non-fixed dimensions not supported");
+                }
+            }
+            if (s1.dynamic() and not s0.dynamic())
+            {
+                if(s0.elements() != 1 and not std::all_of(s1.dyn_dims().begin(), s1.dyn_dims().end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+                {
+                    std::cout << "s0: " << s0 << std::endl;
+                    std::cout << "s1: " << s1 << std::endl;
+                    auto broadcasted_dims = compute_broadcasted_dyn_dims(s0, s1);
+                    std::cout << "broadcasted_dims: " << std::endl;
+                    for(auto dim : broadcasted_dims)
+                    {
+                        std::cout << dim << std::endl;
+                    }
+                    MIGRAPHX_THROW("BINARY: " + point_function() +
+                                   ": dynamic shape with non-fixed dimensions not supported");
+                }
+            }
+
             return {s0.type(), compute_broadcasted_dyn_dims(s0, s1)};
         }
         check_shapes{{s0, s1}, static_cast<const Derived&>(*this), true}.same_dims();

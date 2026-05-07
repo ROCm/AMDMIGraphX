@@ -296,7 +296,15 @@ fuse_input_ops_and_gemm_based_op(module_ref mm,
             mm->add_parameter(param_name(input_cnt++, "y"), upper_input->get_shape().as_standard());
         for(const auto& op : reverse(op_stream))
         {
-            prev_input = mm->add_instruction(op, {prev_input});
+            // if op is multibroadcast and is dynamic, use the 2 input version
+            if(op.name() == "multibroadcast" and upper_input->get_shape().dynamic())
+            {
+                prev_input = mm->add_instruction(op, {prev_input, prev_input});
+            }
+            else
+            {
+                prev_input = mm->add_instruction(op, {prev_input});
+            }
         }
         imm_inputs.push_back(prev_input);
     }

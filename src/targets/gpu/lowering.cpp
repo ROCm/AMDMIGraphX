@@ -529,17 +529,21 @@ struct miopen_apply
     void add_reshape_lazy_op()
     {
         apply_map.emplace("reshape", [=](instruction_ref ins) {
+            // check if reshape dims contains any 0s 
+            auto dims = ins->get_operator().to_value().at("dims");
+            if(std::any_of(dims.begin(), dims.end(), [](auto dim) { return dim == 0; }))
+            {
+                return ins;
+            }
             std::vector<instruction_ref> before_contiguous_args = ins->inputs();
             auto before_alloc = insert_allocation(ins, std::prev(ins)->get_shape());
             before_contiguous_args.push_back(before_alloc);
             auto before_contig =
                 mod->insert_instruction(ins, make_op("gpu::contiguous"), {before_contiguous_args});
-
             auto new_reshape_lazy = mod->insert_instruction(
                 ins,
                 make_op("reshape_lazy", {{"dims", {ins->get_operator().to_value().at("dims")}}}),
                 before_contig);
-
             std::vector<instruction_ref> after_contiguous_args = {new_reshape_lazy};
             auto after_alloc = insert_allocation(new_reshape_lazy, new_reshape_lazy->get_shape());
             after_contiguous_args.push_back(after_alloc);

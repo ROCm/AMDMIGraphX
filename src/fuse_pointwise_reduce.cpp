@@ -29,6 +29,9 @@
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/env.hpp>
+#include <iostream>
+#include <migraphx/program.hpp>
+#include <migraphx/module.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,15 +48,24 @@ static std::size_t get_split_size(std::size_t default_split)
 
 void fuse_pointwise_reduce::apply(module_pass_manager& mpm) const
 {
+    mpm.get_module().debug_print();
+    std::cout << "fuse_pointwise" << std::endl;
     mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = false});
+    std::cout << "optimize_module" << std::endl;
     mpm.run_pass(optimize_module{});
+    std::cout << "fuse_reduce" << std::endl;
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = false});
+    std::cout << "fuse_pointwise" << std::endl;
     mpm.run_pass(fuse_pointwise{.enable_rewrite_reshapes = true});
+    std::cout << "fuse_reduce" << std::endl;
     mpm.run_pass(fuse_reduce{.enable_rewrite_reshapes = true});
+    std::cout << "split_reduce" << std::endl;
     mpm.run_pass(split_reduce{.split_size = get_split_size(split_size)});
+    std::cout << "fuse_pointwise" << std::endl;
     mpm.run_pass(fuse_pointwise{.enable_rewrite_broadcasts = true});
     if(not enabled(MIGRAPHX_DISABLE_MULTI_OUTPUT_FUSION{}))
     {
+        std::cout << "fuse_pointwise_multi_output" << std::endl;
         mpm.run_pass(fuse_pointwise{.enable_multi_output = true});
     }
 }

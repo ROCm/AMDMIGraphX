@@ -133,8 +133,17 @@ static void create_pointwise_modules(module_pass_manager& mpm)
                        [&](auto input) { return param_map[input]; });
         auto r = pm->add_instruction(ins->get_operator(), inputs);
         pm->add_return({r});
-
+        std::cout << "replace_instruction" << std::endl;
+        for(auto input : pointwise_inputs)
+        {
+            input->debug_print();
+        }
+        std::cout << "ins: " << std::endl;
+        ins->debug_print();
+        std::cout << "pm: " << std::endl;
+        pm->debug_print();
         mpm.get_module().replace_instruction(ins, make_op("pointwise"), pointwise_inputs, {pm});
+        std::cout << "replace_instruction done" << std::endl;
     }
 }
 
@@ -363,11 +372,15 @@ static void rewrite_broadcasts(module_pass_manager& mpm)
 
 void fuse_pointwise::apply(module_pass_manager& mpm) const
 {
+    std::cout << "eliminate_identity" << std::endl;
     mpm.run_pass(eliminate_identity{});
+    std::cout << "create_pointwise_modules" << std::endl;
     create_pointwise_modules(mpm);
+    std::cout << "dead_code_elimination" << std::endl;
     mpm.run_pass(dead_code_elimination{});
     if(enabled(MIGRAPHX_DISABLE_POINTWISE_FUSION{}))
     {
+        std::cout << "fuse_pointwise disabled" << std::endl;
         return;
     }
     for(int i = 0; i < 8; i++)

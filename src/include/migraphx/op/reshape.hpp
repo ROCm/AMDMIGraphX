@@ -152,9 +152,9 @@ struct reshape
 
         if(n_neg_dims > 0)
         {
-            std::cout << "input shape: " << inputs.front() << std::endl;
+            // std::cout << "input shape: " << inputs.front() << std::endl;
             
-            std::cout << "missing_dim = " << inputs.front().element_space() << " / " << std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>()) << std::endl;
+            // std::cout << "missing_dim = " << inputs.front().element_space() << " / " << std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>()) << std::endl;
             size_t missing_dim =
                 inputs.front().elements() /
                 std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
@@ -164,12 +164,12 @@ struct reshape
                     rdims[i] = missing_dim;
             }
         }
-        std::cout << "rdims: " << std::endl;
-        for(auto r : rdims)
-        {
-            std::cout << r << " ";
-        }
-        std::cout << std::endl;
+        // std::cout << "rdims: " << std::endl;
+        // for(auto r : rdims)
+        // {
+        //     std::cout << r << " ";
+        // }
+        // std::cout << std::endl;
         auto s = shape{inputs.front().type(), rdims};
 
         if(s.elements() != inputs.front().elements())
@@ -189,7 +189,7 @@ struct reshape
             MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
 
         const auto& s0 = inputs.front();
-        std::cout << "s0: " << s0 << std::endl;
+        // std::cout << "s0: " << s0 << std::endl;
         if(inputs.size() == 1)
         {
             if(s0.dynamic())

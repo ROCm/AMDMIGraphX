@@ -77,6 +77,7 @@ add_api_test(onnx_op_list test_onnx_op_list.cpp ${TEST_ONNX_DIR})
 add_api_test(trace_callback test_trace_callback.cpp ${TEST_ONNX_DIR})
 endif()
 if(MIGRAPHX_ENABLE_PYTHON AND MIGRAPHX_ENABLE_TENSORFLOW)
+add_api_test(tf_parser test_tf_parser.cpp ${TEST_TF_DIR})
 endif()
 # GPU-based tests
 if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_ONNX)

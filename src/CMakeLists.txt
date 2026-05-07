@@ -149,8 +149,7 @@ add_library(migraphx
 )
 
 if(MIGRAPHX_USE_MIOPEN)
-    target_sources(migraphx
-            sqlite.cpp)
+    target_sources(migraphx PRIVATE sqlite.cpp)
 endif()
 
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)

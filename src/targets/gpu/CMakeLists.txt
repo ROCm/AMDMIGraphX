@@ -202,6 +202,7 @@ add_library(migraphx_gpu
 
 if(MIGRAPHX_USE_MIOPEN)
     target_sources(migraphx_gpu
+        PRIVATE
             abs.cpp
             perfdb.cpp)
 endif()
@@ -270,10 +271,6 @@ if(MIGRAPHX_ENABLE_MLIR)
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
-    # HIPRTC workaround for CMake version 4.0+
-    if(CMAKE_VERSION VERSION_GREATER_EQUAL 4)
-        set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE INTERNAL "" FORCE)
-    endif()
     find_package(hiprtc REQUIRED)
     message(STATUS "MIGraphX is using hipRTC")
     target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)

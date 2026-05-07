@@ -48,7 +48,8 @@ mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1()
     mlss_conv_op op;
     op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
     op.symbol_name = "main";
-    op.n_groups    = 64;
+    // 56 seems to give the best minimum latency on gfx1201
+    op.n_groups    = 56;
     op.block_size  = 256;
     return op;
 }

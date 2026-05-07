@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,9 +68,13 @@ struct unary : op_name<Derived>
     {
         check_shapes{inputs, static_cast<const Derived&>(*this), true}.has(1);
         auto s = inputs.at(0);
-        if(s.dynamic() or s.broadcasted())
+        if(s.dynamic() or s.scalar())
         {
             return s;
+        }
+        else if(s.broadcasted())
+        {
+            return {s.type(), s.lens()};
         }
         else
         {

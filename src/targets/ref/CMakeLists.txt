@@ -26,6 +26,7 @@ add_library(migraphx_ref
     target.cpp
     lowering.cpp
 )
+enable_static_init(migraphx_ref)
 set_target_properties(migraphx_ref PROPERTIES EXPORT_NAME ref)
 rocm_set_soversion(migraphx_ref ${MIGRAPHX_SO_VERSION})
 

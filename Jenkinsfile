@@ -309,7 +309,7 @@ pipeline {
                     steps {
                         script {
                             rocmtest([:]) {
-                                cmake_build(flags: "-DBUILD_SHARED_LIBS=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                                cmake_build(flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }

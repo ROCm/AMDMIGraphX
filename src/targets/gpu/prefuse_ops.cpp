@@ -23,6 +23,7 @@
  */
 #include <migraphx/matcher.hpp>
 #include <migraphx/permutation.hpp>
+#include <migraphx/half.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/gemm_softmax_gemm.hpp>
 #include <migraphx/match/layernorm.hpp>
@@ -332,12 +333,17 @@ struct winograd_conv
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(2).same_ndims();
+        check_shapes{inputs, *this}.has(2);
+        // inputs[0] = activation, NCHW [N, C, H, W]
+        // inputs[1] = pre-transformed filter, [K, C, 4, 4]  (16 winograd elements)
         auto x_lens = inputs[0].lens();
         auto w_lens = inputs[1].lens();
+        if(x_lens.size() != 4 or w_lens.size() != 4 or w_lens[2] != 4 or w_lens[3] != 4)
+            MIGRAPHX_THROW("gpu::winograd_conv: expected NCHW input and [K,C,4,4] pre-transformed filter");
         std::vector<std::size_t> out_lens;
         out_lens.push_back(x_lens[0]);
         out_lens.push_back(w_lens[0]);
+        // The original conv was 3x3 stride-1 padded; output spatial dim = input spatial dim.
         for(std::size_t i = 0; i < 2; i++)
         {
             std::size_t total_pad = 0;
@@ -345,12 +351,107 @@ struct winograd_conv
                 total_pad += padding[i];
             if(i + 2 < padding.size())
                 total_pad += padding[i + 2];
-            out_lens.push_back(x_lens[i + 2] + total_pad - w_lens[i + 2] + 1);
+            // Original kernel was 3x3 (now stored pre-transformed as 4x4) - subtract 3.
+            out_lens.push_back(x_lens[i + 2] + total_pad - 3 + 1);
         }
         return inputs[0].with_lens(out_lens);
     }
 };
 MIGRAPHX_REGISTER_OP(winograd_conv);
+
+// Compute U = G * g * G^T for one 3x3 filter, returning 16 elements row-major.
+// G = [[1, 0, 0], [.5, .5, .5], [.5, -.5, .5], [0, 0, 1]]
+//
+// When `miopen_signs` is true, six positions are negated to match MIOpen's
+// DPP-cooperative input transform sign convention: V_miopen has the same six
+// positions negated vs the standard B^T*d*B, so the negations cancel during
+// the U·V dot product. The six positions are e ∈ {3, 7, 11, 12, 13, 14},
+// i.e. (i,j) where (i==3) XOR (j==3) — the "row 3 and column 3 cross minus
+// the (3,3) corner".
+template <class T>
+inline std::array<T, 16> winograd_filter_pretransform_3x3(const T* g, bool miopen_signs)
+{
+    const T half = T{0.5};
+    // Step 1: t = G * g  (4x3) - declared uninitialized since we write all entries.
+    std::array<T, 12> t;
+    for(int j = 0; j < 3; ++j)
+    {
+        const T g0       = g[0 * 3 + j];
+        const T g1       = g[1 * 3 + j];
+        const T g2       = g[2 * 3 + j];
+        t[0 * 3 + j]     = g0;
+        t[1 * 3 + j]     = half * (g0 + g1 + g2);
+        t[2 * 3 + j]     = half * (g0 - g1 + g2);
+        t[3 * 3 + j]     = g2;
+    }
+    // Step 2: U = t * G^T  (4x4)
+    std::array<T, 16> u;
+    for(int i = 0; i < 4; ++i)
+    {
+        const T t0   = t[i * 3 + 0];
+        const T t1   = t[i * 3 + 1];
+        const T t2   = t[i * 3 + 2];
+        u[i * 4 + 0] = t0;
+        u[i * 4 + 1] = half * (t0 + t1 + t2);
+        u[i * 4 + 2] = half * (t0 - t1 + t2);
+        u[i * 4 + 3] = t2;
+    }
+    if(miopen_signs)
+    {
+        u[3]  = T{0} - u[3];
+        u[7]  = T{0} - u[7];
+        u[11] = T{0} - u[11];
+        u[12] = T{0} - u[12];
+        u[13] = T{0} - u[13];
+        u[14] = T{0} - u[14];
+    }
+    return u;
+}
+
+// Pre-transform a [K, C, 3, 3] constant weight literal into a [K, C, 4, 4]
+// literal containing G * g * G^T for each (k, c). The resulting 16 elements
+// per filter are then loaded directly by the winograd kernel without any
+// runtime filter_transform - mirrors MIOpen's offline-transformed filter.
+//
+// For half-type filters, MIOpen sign convention is applied (6 positions
+// negated) to match the DPP-cooperative input transform's V layout.
+inline literal pretransform_filter_literal(const literal& w_lit)
+{
+    const auto& s      = w_lit.get_shape();
+    const std::size_t K = s.lens()[0];
+    const std::size_t C = s.lens()[1];
+
+    // Both fp16 and fp32 kernels use the 4-lane DPP-cooperative input transform,
+    // which produces V_alt with 6 sign-flipped positions vs canonical
+    // V = B^T*d*B (positions e ∈ {3, 7, 11, 12, 13, 14}).  The matching
+    // pretransformed U_alt has the same 6 negations so the dot product
+    // U_alt · V_alt = U · V leaves the inverse transform intact.
+    const bool miopen_signs = (s.type() == shape::half_type or s.type() == shape::float_type);
+
+    literal result;
+    w_lit.visit([&](auto w_view) {
+        using T = std::remove_cv_t<typename decltype(w_view)::value_type>;
+        if constexpr(std::is_floating_point<T>::value or
+                     std::is_same<T, migraphx::half>::value)
+        {
+            std::vector<T> out(K * C * 16);
+            for(std::size_t k = 0; k < K; ++k)
+            {
+                for(std::size_t c = 0; c < C; ++c)
+                {
+                    std::array<T, 9> g;
+                    for(std::size_t i = 0; i < 9; ++i)
+                        g[i] = static_cast<T>(w_view(k, c, i / 3, i % 3));
+                    const auto u =
+                        winograd_filter_pretransform_3x3<T>(g.data(), miopen_signs);
+                    std::copy(u.begin(), u.end(), out.begin() + (k * C + c) * 16);
+                }
+            }
+            result = literal{shape{s.type(), {K, C, 4, 4}}, out};
+        }
+    });
+    return result;
+}
 
 MIGRAPHX_PRED_MATCHER(conv_winograd_compatible, instruction_ref ins)
 {
@@ -387,6 +488,18 @@ struct find_winograd_convolution
         if(input->get_shape().lens().size() != 4)
             return;
 
+        // Filter must be a compile-time constant so we can pre-transform
+        // (G * g * G^T) offline and skip filter_transform at kernel runtime
+        // - matches MIOpen's offline-transformed filter strategy.
+        if(not weights->can_eval())
+            return;
+
+        auto w_arg = weights->eval();
+        if(w_arg.empty())
+            return;
+        literal w_lit{w_arg.get_shape(), w_arg.data()};
+        literal w_pre = pretransform_filter_literal(w_lit);
+
         auto v        = ins->get_operator().to_value();
         auto pad_vals = v.at("padding");
         std::vector<std::size_t> padding;
@@ -395,7 +508,8 @@ struct find_winograd_convolution
                        std::back_inserter(padding),
                        [](const value& x) { return x.to<std::size_t>(); });
 
-        m.replace_instruction(ins, winograd_conv{std::move(padding)}, input, weights);
+        auto pre_w_ins = m.add_literal(std::move(w_pre));
+        m.replace_instruction(ins, winograd_conv{std::move(padding)}, input, pre_w_ins);
     }
 };
 

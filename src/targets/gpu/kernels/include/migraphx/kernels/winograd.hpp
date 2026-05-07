@@ -60,17 +60,6 @@ inline __device__ void sched_barrier_full()
 #endif
 }
 
-// s_clause N: declare the next N+1 memory ops as a single hardware clause.
-// MIOpen uses `s_clause 0x7` (= 8 ops) ahead of ds_load runs.
-template <unsigned int N>
-inline __device__ void s_clause()
-{
-#if defined(__AMDGCN__)
-    static_assert(N >= 1 and N <= 64);
-    asm volatile("s_clause %0" ::"n"(N - 1) : "memory");
-#endif
-}
-
 // ----------------------------------------------------------------------------
 //   Arithmetic primitives
 // ----------------------------------------------------------------------------
@@ -193,59 +182,149 @@ inline __device__ T dpp_row_shl_12(T x)
 }
 #endif
 
-// ----------------------------------------------------------------------------
-//   Winograd F(2x2, 3x3) transforms
-// ----------------------------------------------------------------------------
-
-// B^T * d * B for F(2x2, 3x3). Returns the transformed 4x4 tile.
-template <class T>
-__device__ __attribute__((const)) array<T, 16> input_transform(array<T, 16> d)
+// Full F(2x2, 3x3) inverse transform (A^T M A) computed in-wave, producing
+// y00, y01, y10, y11 in the corner lane of each element-group. All DPP +
+// arithmetic intermediates live in a single inline-asm block scoped to one
+// (kk, tt) output iteration, so the compiler serialises VGPR usage and cannot
+// hoist temporaries across iterations — crucial for keeping VGPR count down
+// on fully-unrolled output loops.
+//
+// Transform:
+//   Row stage: m_val → r0, r1 (3 row_shl, 2 sum, 2 sub)
+//   Col stage: r0 → y00, y01; r1 → y10, y11 (6 quad_perm, 4 sum, 4 sub)
+// 20 DPP+ALU ops total, 7 scratch VGPRs declared locally.
+inline __device__ void winograd_output_transform_f(float m_val,
+                                                   float& y00,
+                                                   float& y01,
+                                                   float& y10,
+                                                   float& y11)
 {
-    array<T, 16> t{};
-    repeat_c<4>([&](auto j) {
-        t[0u * 4u + j] = d[0u * 4u + j] - d[2u * 4u + j];
-        t[1u * 4u + j] = d[1u * 4u + j] + d[2u * 4u + j];
-        t[2u * 4u + j] = d[2u * 4u + j] - d[1u * 4u + j];
-        t[3u * 4u + j] = d[1u * 4u + j] - d[3u * 4u + j];
-    });
-    array<T, 16> v{};
-    repeat_c<4>([&](auto i) {
-        const auto base = i * 4u;
-        v[base + 0u]    = t[base + 0u] - t[base + 2u];
-        v[base + 1u]    = t[base + 1u] + t[base + 2u];
-        v[base + 2u]    = t[base + 2u] - t[base + 1u];
-        v[base + 3u]    = t[base + 1u] - t[base + 3u];
-    });
-    return v;
+#if defined(__AMDGCN__)
+    float mk1, mk2, mk3, r0, r1, tq1, tq2, tq3;
+    asm("v_mov_b32 %[mk1], %[mv] row_shl:4 row_mask:0xf bank_mask:0xf\n"
+        "v_mov_b32 %[mk2], %[mv] row_shl:8 row_mask:0xf bank_mask:0xf\n"
+        "v_mov_b32 %[mk3], %[mv] row_shl:12 row_mask:0xf bank_mask:0xf\n"
+        "v_add_f32 %[r0], %[mv], %[mk1]\n"
+        "v_add_f32 %[r0], %[r0], %[mk2]\n"
+        "v_sub_f32 %[r1], %[mk1], %[mk2]\n"
+        "v_sub_f32 %[r1], %[r1], %[mk3]\n"
+        "v_mov_b32 %[tq1], %[r0] quad_perm:[1,1,1,1] row_mask:0xf bank_mask:0xf\n"
+        "v_mov_b32 %[tq2], %[r0] quad_perm:[2,2,2,2] row_mask:0xf bank_mask:0xf\n"
+        "v_mov_b32 %[tq3], %[r0] quad_perm:[3,3,3,3] row_mask:0xf bank_mask:0xf\n"
+        "v_add_f32 %[y00], %[r0], %[tq1]\n"
+        "v_add_f32 %[y00], %[y00], %[tq2]\n"
+        "v_sub_f32 %[y01], %[tq1], %[tq2]\n"
+        "v_sub_f32 %[y01], %[y01], %[tq3]\n"
+        "v_mov_b32 %[tq1], %[r1] quad_perm:[1,1,1,1] row_mask:0xf bank_mask:0xf\n"
+        "v_mov_b32 %[tq2], %[r1] quad_perm:[2,2,2,2] row_mask:0xf bank_mask:0xf\n"
+        "v_mov_b32 %[tq3], %[r1] quad_perm:[3,3,3,3] row_mask:0xf bank_mask:0xf\n"
+        "v_add_f32 %[y10], %[r1], %[tq1]\n"
+        "v_add_f32 %[y10], %[y10], %[tq2]\n"
+        "v_sub_f32 %[y11], %[tq1], %[tq2]\n"
+        "v_sub_f32 %[y11], %[y11], %[tq3]\n"
+        : [y00] "=&v"(y00), [y01] "=&v"(y01), [y10] "=&v"(y10), [y11] "=&v"(y11),
+          [mk1] "=&v"(mk1), [mk2] "=&v"(mk2), [mk3] "=&v"(mk3),
+          [r0] "=&v"(r0), [r1] "=&v"(r1),
+          [tq1] "=&v"(tq1), [tq2] "=&v"(tq2), [tq3] "=&v"(tq3)
+        : [mv] "v"(m_val));
+#else
+    (void)m_val;
+    y00 = m_val;
+    y01 = m_val;
+    y10 = m_val;
+    y11 = m_val;
+#endif
 }
 
-// G * g * G^T for F(2x2, 3x3). Returns the 4x4 U tile.
-template <class T>
-__device__ __attribute__((const)) array<T, 16> filter_transform(array<T, 9> g)
+// ----------------------------------------------------------------------------
+//   Winograd F(2x2, 3x3) input transform - cooperative 4-lane DPP variant
+// ----------------------------------------------------------------------------
+
+// MIOpen-style 4-lane-per-tile DPP-cooperative input transform B^T * d * B
+// for F(2x2, 3x3), packed across two channels A/B (low/high half for fp16,
+// adjacent VGPRs for fp32).
+//
+// Layout assumption (input):
+//   Each 4-lane quad cooperates on ONE 4x4 input tile.
+//   Lane j ∈ {0, 1, 2, 3} within a quad holds COLUMN j of the input.
+//   v[i] for i = 0..3 holds the 4 ROW values of column j (channels packed).
+//
+// Output (in-place):
+//   v[i] holds V_alt[i][j] for the lane's column j, where V_alt has 6 sign
+//   flips vs standard V = B^T*d*B at positions e ∈ {3, 7, 11, 12, 13, 14}.
+//
+// The matching offline U pretransform negates the same 6 positions, so the
+// dot product U_alt · V_alt = U · V (standard), leaving the inverse
+// transform unaffected.
+//
+// `sign` carries the per-lane v181 vector replicated across each channel:
+// +1.0 for lane 1 (col j=1), -1.0 for lanes 0/2/3 (cols j=0/2/3).
+//
+// Algorithm (matches MIOpen exactly for fp16; fp32 mirrors the same shape):
+//   Row stage: t = B^T * d, computed in-place across v[0..3]:
+//     v0 = v0 - v2          # t[0] = d[0] - d[2]
+//     v3 = v3 - v1          # = -t[3] (sign absorbed into v[3])
+//     v2 = v2 - v1          # t[2] = d[2] - d[1]
+//     v1 = 2*v1 + v2_new    # = v1 + v2_orig = t[1] (one FMA, MIOpen trick)
+//   Col stage: cross-lane DPP quad_perm:[2,2,1,1] then FMA with sign s:
+//     For each VGPR v[i], lane[k] reads lane[shuffled_k]:
+//       lane 0 ← lane 2;  lane 1 ← lane 2;  lane 2 ← lane 1;  lane 3 ← lane 1
+//     v[i] = v[i] + shuffled[v[i]] * s
+
+// fp16 specialization: row stage as plain vector ops (compiler emits
+// v_pk_add/sub_f16) followed by per-VGPR DPP shuffle + v_pk_fma_f16.
+// Avoiding inline asm for the row stage lets the compiler interleave the
+// individual ALU ops with surrounding GEMM dots.
+inline __device__ void input_transform_packed_dpp(array<vec<half, 2>, 4>& v,
+                                                   vec<half, 2> sign)
 {
-    const auto half = T{0.5};
-    array<T, 12> u{};
-    repeat_c<3>([&](auto j) {
-        const auto g0  = g[0u * 3u + j];
-        const auto g1  = g[1u * 3u + j];
-        const auto g2  = g[2u * 3u + j];
-        u[0u * 3u + j] = g0;
-        u[1u * 3u + j] = half * (g0 + g1 + g2);
-        u[2u * 3u + j] = half * (g0 - g1 + g2);
-        u[3u * 3u + j] = g2;
-    });
-    array<T, 16> uu{};
+    // Row stage (read original values, write back; compiler emits 4 v_pk_*).
+    const vec<half, 2> v0o = v[0];
+    const vec<half, 2> v1o = v[1];
+    const vec<half, 2> v2o = v[2];
+    const vec<half, 2> v3o = v[3];
+    v[0] = v0o - v2o;     // t[0]
+    v[1] = v1o + v2o;     // t[1]
+    v[2] = v2o - v1o;     // t[2]
+    v[3] = v3o - v1o;     // -t[3]
+    // Col stage: per-VGPR DPP shuffle + FMA with per-lane sign.
     repeat_c<4>([&](auto i) {
-        const auto u0   = u[i * 3u + 0u];
-        const auto u1   = u[i * 3u + 1u];
-        const auto u2   = u[i * 3u + 2u];
-        const auto base = i * 4u;
-        uu[base + 0u]   = u0;
-        uu[base + 1u]   = half * (u0 + u1 + u2);
-        uu[base + 2u]   = half * (u0 - u1 + u2);
-        uu[base + 3u]   = u2;
+        vec<half, 2> shuf = v[i];
+        // 32-bit DPP shuffle on the packed half2 register.
+        using U = uint32_t;
+        U sh    = dpp_perm_2211(__builtin_bit_cast(U, shuf));
+        shuf    = __builtin_bit_cast(vec<half, 2>, sh);
+        v[i]    = shuf * sign + v[i];
     });
-    return uu;
+}
+
+// fp32 specialization: row stage is plain scalar FMAs; col stage uses
+// v_mov_b32 quad_perm:[2,2,1,1] DPP shuffle followed by v_fma_f32.
+// Each channel is processed independently (no fp32 packed instruction).
+//
+// Implemented in C++ with explicit per-channel ops + inline-asm DPP shuffle
+// helpers - clean enough that the compiler emits 8 v_fma_f32 row + 8 v_mov
+// + 8 v_fma_f32 col = 24 ALU ops per cooperating lane.
+inline __device__ void input_transform_packed_dpp(array<vec<float, 2>, 4>& v,
+                                                   vec<float, 2> sign)
+{
+    // Row stage: read original values then write back, no in-place hazard.
+    const vec<float, 2> v0_orig = v[0];
+    const vec<float, 2> v1_orig = v[1];
+    const vec<float, 2> v2_orig = v[2];
+    const vec<float, 2> v3_orig = v[3];
+    v[0] = v0_orig - v2_orig;                                // t[0] = d[0] - d[2]
+    v[1] = v1_orig + v2_orig;                                // t[1] = d[1] + d[2]
+    v[2] = v2_orig - v1_orig;                                // t[2] = d[2] - d[1]
+    v[3] = v3_orig - v1_orig;                                // -t[3] = d[3] - d[1]
+
+    // Col stage: per-VGPR DPP shuffle + FMA with per-lane sign.
+    repeat_c<4>([&](auto i) {
+        const float shuf_a = dpp_perm_2211(v[i][0]);
+        const float shuf_b = dpp_perm_2211(v[i][1]);
+        v[i][0]            = v[i][0] + sign[0] * shuf_a;
+        v[i][1]            = v[i][1] + sign[1] * shuf_b;
+    });
 }
 
 // Inline-asm fp32 row-stage transform (A^T * M). DPP fused into v_add/v_sub.
@@ -444,6 +523,32 @@ __device__ __attribute__((const)) array<T, 9> load_filter(W w, index_int k, inde
     return g;
 }
 
+// Read 16-element pre-transformed filter (W shape is [K, C, 4, 4], populated
+// offline by prefuse_ops::pretransform_filter_literal with U = G * g * G^T).
+// Single 16-byte / 32-byte memcpy for the common packed-stride case.
+template <class T, class W>
+__device__ __attribute__((const)) array<T, 16> load_filter_xformed(W w,
+                                                                    index_int k,
+                                                                    index_int c)
+{
+    constexpr auto ws = typename W::shape_type{};
+    array<T, 16> u;
+    if constexpr(ws.strides[2] == 4u and ws.strides[3] == 1u)
+    {
+        const T* base = w.data() + k * ws.strides[0] + c * ws.strides[1];
+        __builtin_memcpy(u.data(), base, 16u * sizeof(T));
+    }
+    else
+    {
+        repeat_c<16>([&](auto e) {
+            const auto i = e / 4u;
+            const auto j = e % 4u;
+            u[e]         = w[make_array<index_int>(k, c, i, j)];
+        });
+    }
+    return u;
+}
+
 } // namespace winograd
 
 // ============================================================================
@@ -513,10 +618,8 @@ template <index_int KT_DIV,
 __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
 {
     using winograd::dot2_acc;
-    using winograd::filter_transform;
-    using winograd::input_transform;
-    using winograd::load_filter;
-    using winograd::load_tile;
+    using winograd::input_transform_packed_dpp;
+    using winograd::load_filter_xformed;
     using winograd::set_prio;
 
     using out_type = typename Y::type;
@@ -568,19 +671,30 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
 
     // ---- LDS ring buffer for U/V staging.
     //
-    // Layout has CH as OUTER dimension so that within one channel slab the
-    // K (or tile) dimension is contiguous in memory.  Loading KT consecutive
-    // K values for one element + one channel becomes a single ds_load_b128
-    // (16 bytes for KT=8 fp16, or KT=4 fp32) instead of fragmented narrow
-    // loads.  We then issue CH such loads (one per channel of the pair).
+    // Layout has CH as INNERMOST dim, packing (ch_a, ch_b) at every (e, k)
+    // slot.  For fp16 each slot is a vec<half,2> directly consumable by
+    // v_dot2_f32_f16 - no v_perm_b32 unpacking needed between the LDS read
+    // and the dot product.  For fp32 each slot is two adjacent floats used
+    // by paired FMAs.  Mirrors MIOpen's hi/lo packed buffer-load pattern.
     //
-    //   u_lds[ring][ch][16 elements][K_BLOCK]
-    //   v_lds[ring][ch][16 elements][T_BLOCK]
-    constexpr index_int CH  = 2u;
-    constexpr auto u_shape  = make_shape(index_ints<RING, CH, N_ELEM, K_BLOCK>{});
-    constexpr auto v_shape  = make_shape(index_ints<RING, CH, N_ELEM, T_BLOCK>{});
-    constexpr index_int U_N = RING * CH * N_ELEM * K_BLOCK;
-    constexpr index_int V_N = RING * CH * N_ELEM * T_BLOCK;
+    //   u_lds[ring][16 elements][K_PAD][CH]
+    //   v_lds[ring][16 elements][T_PAD][CH]
+    //
+    // K_PAD = K_BLOCK + 1 (likewise T_PAD) so the per-element row size is
+    // an odd multiple of the LDS bank period.  Without padding all 16 lanes
+    // in an element-group would hit the same 4 banks during ds_load_b128 (a
+    // 16-way conflict); the +1 stride spreads them across distinct banks.
+    //
+    // A single ds_load_b128 returns 16 bytes = 4 packed (k, ch) pairs for
+    // fp16 (or 2 packed pairs for fp32), which load straight into the dot
+    // operand registers.
+    constexpr index_int CH    = 2u;
+    constexpr index_int K_PAD = K_BLOCK + 1u;
+    constexpr index_int T_PAD = T_BLOCK + 1u;
+    constexpr auto u_shape    = make_shape(index_ints<RING, N_ELEM, K_PAD, CH>{});
+    constexpr auto v_shape    = make_shape(index_ints<RING, N_ELEM, T_PAD, CH>{});
+    constexpr index_int U_N   = RING * CH * N_ELEM * K_PAD;
+    constexpr index_int V_N   = RING * CH * N_ELEM * T_PAD;
 
     __shared__ uninitialized_buffer<out_type, U_N> u_smem;
     __shared__ uninitialized_buffer<out_type, V_N> v_smem;
@@ -592,177 +706,316 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
 
     constexpr diff_int pad = 1;
 
+    // ---- Per-lane sign vector for the 4-lane DPP cooperative input transform.
+    //
+    // The col stage of the cooperative transform applies
+    //   v[i]' = shuffled[v[i]] * sign + v[i]
+    // with quad_perm:[2,2,1,1].  For the result to equal V_alt[i][j] (with 6
+    // sign-flipped positions vs the canonical V), `sign` must hold:
+    //   lane 0 in quad: -1   (j=0:  V[i][0] = t[i][0] - t[i][2])
+    //   lane 1 in quad: +1   (j=1:  V[i][1] = t[i][1] + t[i][2])
+    //   lane 2 in quad: -1   (j=2:  V[i][2] = t[i][2] - t[i][1])
+    //   lane 3 in quad: -1   (j=3:  V[i][3] = -t[i][1] + t[i][3]; sign absorbed
+    //                              into v[3] = -t[3] from the row stage)
+    //
+    // Both channel slots are set to the same value so the FMA applies the
+    // same per-lane sign to both packed channels.
+    vec<out_type, CH> in_xform_sign;
+    {
+        const out_type s =
+            ((local & 3u) == 1u) ? out_type{1} : static_cast<out_type>(-1.0f);
+        in_xform_sign[0] = s;
+        in_xform_sign[1] = s;
+    }
+
     auto stage = [&](index_int p, index_int slot) {
         const index_int c_a = p * 2u;
         const index_int c_b = c_a + 1u;
 
-        idx.local_stride(_c<K_BLOCK>, [&](auto kk) {
+        // Filter is PRE-TRANSFORMED offline (prefuse_ops::pretransform_filter_literal):
+        //   w shape is [K, C, 4, 4] containing U = G * g * G^T per (k, c).
+        //
+        // Distribute global loads UNIFORMLY across all BLOCK threads (matches
+        // MIOpen's pattern of every-thread loading). Per channel pair the
+        // total filter data is K_BLOCK * 16 * CH halves; each thread handles
+        // one (kk, ch) filter chunk's slice of E_PER_THREAD elements.
+        //
+        // Layout: thread `local` covers position p = local within the linear
+        // span of K_BLOCK*CH filter chunks, then loads E_PER_THREAD
+        // contiguous transformed elements from that chunk.
+        constexpr index_int FILT_CHUNKS  = K_BLOCK * CH;            // 64 chunks
+        constexpr index_int E_PER_THREAD = (16u * FILT_CHUNKS + BLOCK - 1u) / BLOCK;
+        // For canonical (BLOCK=256, FILT_CHUNKS=64): E_PER_THREAD = 4 (one
+        // chunk requires 16/E_PER_THREAD = 4 threads, total 256 threads).
+        constexpr index_int THREADS_PER_CHUNK = (16u + E_PER_THREAD - 1u) / E_PER_THREAD;
+        // chunk_id covers (kk, ch); slice_id covers element offset within chunk.
+        const index_int chunk_id = local / THREADS_PER_CHUNK;
+        const index_int slice_id = local % THREADS_PER_CHUNK;
+        if(chunk_id < FILT_CHUNKS)
+        {
+            const index_int kk = chunk_id / CH;
+            const index_int ch_idx = chunk_id % CH;
             const index_int my_k = k_block * K_BLOCK + kk;
-            array<out_type, 9> g_a{};
-            array<out_type, 9> g_b{};
-            if(my_k < K_)
+            const index_int c    = (ch_idx == 0u) ? c_a : c_b;
+            const index_int e0   = slice_id * E_PER_THREAD;
+            array<out_type, E_PER_THREAD> chunk{};
+            if(my_k < K_ and c < C_ and e0 < 16u)
             {
-                if(c_a < C_)
-                    g_a = load_filter<out_type>(w, my_k, c_a);
-                if(c_b < C_)
-                    g_b = load_filter<out_type>(w, my_k, c_b);
+                // Pre-transformed filter is [K, C, 4, 4] with packed strides.
+                // Read E_PER_THREAD contiguous halves at (k, c, e0).
+                constexpr auto ws = typename W::shape_type{};
+                if constexpr(ws.strides[2] == 4u and ws.strides[3] == 1u)
+                {
+                    const out_type* base =
+                        w.data() + my_k * ws.strides[0] + c * ws.strides[1] + e0;
+                    __builtin_memcpy(chunk.data(), base, sizeof(chunk));
+                }
+                else
+                {
+                    repeat_c<E_PER_THREAD>([&](auto i) {
+                        const index_int e = e0 + i;
+                        if(e < 16u)
+                            chunk[i] = w[make_array<index_int>(my_k, c, e / 4u, e % 4u)];
+                    });
+                }
             }
-            const auto u_a = filter_transform(g_a);
-            const auto u_b = filter_transform(g_b);
-            repeat_c<16>([&](auto e) {
-                u_lds[make_array<index_int>(slot, 0u, e, kk)] = u_a[e];
-                u_lds[make_array<index_int>(slot, 1u, e, kk)] = u_b[e];
+            // Write to LDS: each thread's E_PER_THREAD halves go into its
+            // (kk, ch) chunk at element positions [e0, e0+E_PER_THREAD).
+            repeat_c<E_PER_THREAD>([&](auto i) {
+                const index_int e = e0 + i;
+                if(e < 16u)
+                    u_lds[make_array<index_int>(slot, e, kk, ch_idx)] = chunk[i];
             });
-        });
+        }
 
-        idx.local_stride(_c<T_BLOCK>, [&](auto tt) {
-            const index_int tile_g = t_block * T_BLOCK + tt;
-            array<out_type, 16> d_a{};
-            array<out_type, 16> d_b{};
-            if(tile_g < total_)
+        // ---- 4-lane DPP-cooperative input transform (MIOpen-style).
+        //
+        // Lane decomposition (within the workgroup of BLOCK threads):
+        //   col_in_quad = local & 3        - column j ∈ 0..3 within 4-lane quad
+        //   quad_id     = local / 4        - quad index 0..(BLOCK/4 - 1)
+        //
+        // Each quad cooperates on ONE tile.  Lane j holds COLUMN j of the
+        // 4x4 input, with 4 packed channel-pair values (one per row i=0..3).
+        //
+        // After the cooperative transform, lane j has v[i] = V_alt[i][j] for
+        // i = 0..3, both channels packed.  Each lane writes 4 entries to LDS
+        // at element positions e = i * 4 + j.
+        //
+        // BLOCK / 4 quads available; if T_BLOCK <= BLOCK/4, only the first
+        // T_BLOCK quads are engaged for input staging.  Remaining lanes still
+        // participate in the per-thread filter staging above.
+        {
+            const index_int col_in_quad = local & 3u;
+            const index_int quad_id     = local >> 2u;
+            if(quad_id < T_BLOCK)
             {
-                const index_int n_    = tile_g / t_pi;
-                const index_int t_img = tile_g % t_pi;
-                const index_int th    = t_img / t_w;
-                const index_int tw    = t_img % t_w;
-                const diff_int r0     = static_cast<diff_int>(th * 2u) - pad;
-                const diff_int c0     = static_cast<diff_int>(tw * 2u) - pad;
-                if(c_a < C_)
-                    d_a = load_tile<out_type>(x, n_, c_a, r0, c0);
-                if(c_b < C_)
-                    d_b = load_tile<out_type>(x, n_, c_b, r0, c0);
+                const index_int tile_g = t_block * T_BLOCK + quad_id;
+                array<vec<out_type, CH>, 4> v;
+                repeat_c<4>([&](auto i) {
+                    v[i][0] = out_type{};
+                    v[i][1] = out_type{};
+                });
+                if(tile_g < total_)
+                {
+                    const index_int n_    = tile_g / t_pi;
+                    const index_int t_img = tile_g % t_pi;
+                    const index_int th    = t_img / t_w;
+                    const index_int tw    = t_img % t_w;
+                    const diff_int r0     = static_cast<diff_int>(th * 2u) - pad;
+                    const diff_int c0     = static_cast<diff_int>(tw * 2u) - pad;
+                    const diff_int ww     = c0 + static_cast<diff_int>(col_in_quad);
+                    constexpr auto xs     = typename X::shape_type{};
+                    constexpr auto H_in   = _c<index_int{xs.lens[2]}>;
+                    constexpr auto W_in   = _c<index_int{xs.lens[3]}>;
+                    const bool w_ok       = (ww >= 0 and ww < diff_int{W_in});
+                    const bool a_ok       = (c_a < C_);
+                    const bool b_ok       = (c_b < C_);
+                    if(w_ok)
+                    {
+                        repeat_c<4>([&](auto i) {
+                            const diff_int hh = r0 + diff_int{i};
+                            if(hh >= 0 and hh < diff_int{H_in})
+                            {
+                                if(a_ok)
+                                    v[i][0] =
+                                        x[make_array<index_int>(n_,
+                                                                 c_a,
+                                                                 index_int(hh),
+                                                                 index_int(ww))];
+                                if(b_ok)
+                                    v[i][1] =
+                                        x[make_array<index_int>(n_,
+                                                                 c_b,
+                                                                 index_int(hh),
+                                                                 index_int(ww))];
+                            }
+                        });
+                    }
+                }
+                input_transform_packed_dpp(v, in_xform_sign);
+                repeat_c<4>([&](auto i) {
+                    const index_int e = i * 4u + col_in_quad;
+                    __builtin_memcpy(&v_lds[make_array<index_int>(slot, e, quad_id, 0u)],
+                                     &v[i],
+                                     sizeof(v[i]));
+                });
             }
-            const auto v_a = input_transform(d_a);
-            const auto v_b = input_transform(d_b);
-            repeat_c<16>([&](auto e) {
-                v_lds[make_array<index_int>(slot, 0u, e, tt)] = v_a[e];
-                v_lds[make_array<index_int>(slot, 1u, e, tt)] = v_b[e];
-            });
-        });
+        }
     };
 
     // GEMM consume one channel pair from LDS slot.
-    // With CH-outer LDS layout, KT contiguous K values for one (e, ch) are a
-    // single ds_load_b128 (16 bytes for KT=4 fp32 or KT=8 fp16).  We force
-    // the compiler to emit b128 by reading via vec<out_type, N> chunks.
+    //
+    // Operand layout:
+    //   u_pair[k] = (u_a[k], u_b[k])   - packed CH-wide per K value for ITS
+    //                                    element (e = my_e).
+    //   v_pair[t] = (v_a[t], v_b[t])   - packed CH-wide per tile value.
+    //
+    // Because LDS has CH as innermost dim, each ds_load_b128 returns 16 bytes
+    // worth of contiguous (k, ch) halves already in v_dot2_f32_f16 operand
+    // order - no v_perm_b32 needed between the load and the dot.
     constexpr index_int B128_HALVES = 16u / sizeof(out_type); // 8 fp16, 4 fp32
-    static_assert(KT % B128_HALVES == 0 or KT < B128_HALVES,
-                  "KT should be a multiple of b128 chunk for full vectorization");
-    static_assert(TT_ % B128_HALVES == 0 or TT_ < B128_HALVES,
-                  "TT should be a multiple of b128 chunk");
+    constexpr index_int B128_PAIRS  = B128_HALVES / CH;        // 4 fp16, 2 fp32
+    static_assert(KT % B128_PAIRS == 0 or KT < B128_PAIRS,
+                  "KT should be a multiple of b128 pair-chunk for full vectorization");
+    static_assert(TT_ % B128_PAIRS == 0 or TT_ < B128_PAIRS,
+                  "TT should be a multiple of b128 pair-chunk");
 
-    auto gemm = [&](index_int slot) {
-        alignas(16) array<out_type, KT> u_a;
-        alignas(16) array<out_type, KT> u_b;
-        alignas(16) array<out_type, TT_> v_a;
-        alignas(16) array<out_type, TT_> v_b;
-
-        // Vector-load via vec<out_type, B128_HALVES> chunks. This forces the
-        // compiler's LDS load lowering to emit ds_load_b128.
-        if constexpr(KT >= B128_HALVES)
+    // Helpers to load one LDS slot's worth of u_pair/v_pair into VGPRs.
+    auto load_slot_u = [&](index_int slot, array<out_type, KT * CH>& u_pair) {
+        if constexpr(KT >= B128_PAIRS)
         {
-            constexpr index_int N_CHUNKS = KT / B128_HALVES;
+            constexpr index_int N_CHUNKS = KT / B128_PAIRS;
             using uvec                   = vec<out_type, B128_HALVES>;
-            const uvec* u_a_v            = reinterpret_cast<const uvec*>(
-                &u_lds[make_array<index_int>(slot, 0u, my_e, my_k_div * KT)]);
-            const uvec* u_b_v = reinterpret_cast<const uvec*>(
-                &u_lds[make_array<index_int>(slot, 1u, my_e, my_k_div * KT)]);
-            uvec* u_a_dst = reinterpret_cast<uvec*>(u_a.data());
-            uvec* u_b_dst = reinterpret_cast<uvec*>(u_b.data());
-            repeat_c<N_CHUNKS>([&](auto i) {
-                u_a_dst[i] = u_a_v[i];
-                u_b_dst[i] = u_b_v[i];
-            });
+            const uvec* u_v              = reinterpret_cast<const uvec*>(
+                &u_lds[make_array<index_int>(slot, my_e, my_k_div * KT, 0u)]);
+            uvec* u_dst = reinterpret_cast<uvec*>(u_pair.data());
+            repeat_c<N_CHUNKS>([&](auto i) { u_dst[i] = u_v[i]; });
         }
         else
         {
-            __builtin_memcpy(u_a.data(),
-                             &u_lds[make_array<index_int>(slot, 0u, my_e, my_k_div * KT)],
-                             KT * sizeof(out_type));
-            __builtin_memcpy(u_b.data(),
-                             &u_lds[make_array<index_int>(slot, 1u, my_e, my_k_div * KT)],
-                             KT * sizeof(out_type));
+            __builtin_memcpy(u_pair.data(),
+                             &u_lds[make_array<index_int>(slot, my_e, my_k_div * KT, 0u)],
+                             KT * CH * sizeof(out_type));
         }
-        if constexpr(TT_ >= B128_HALVES)
+    };
+    auto load_slot_v = [&](index_int slot, array<out_type, TT_ * CH>& v_pair) {
+        if constexpr(TT_ >= B128_PAIRS)
         {
-            constexpr index_int N_CHUNKS = TT_ / B128_HALVES;
+            constexpr index_int N_CHUNKS = TT_ / B128_PAIRS;
             using vvec                   = vec<out_type, B128_HALVES>;
-            const vvec* v_a_v            = reinterpret_cast<const vvec*>(
-                &v_lds[make_array<index_int>(slot, 0u, my_e, my_t_div * TT_)]);
-            const vvec* v_b_v = reinterpret_cast<const vvec*>(
-                &v_lds[make_array<index_int>(slot, 1u, my_e, my_t_div * TT_)]);
-            vvec* v_a_dst = reinterpret_cast<vvec*>(v_a.data());
-            vvec* v_b_dst = reinterpret_cast<vvec*>(v_b.data());
-            repeat_c<N_CHUNKS>([&](auto i) {
-                v_a_dst[i] = v_a_v[i];
-                v_b_dst[i] = v_b_v[i];
-            });
+            const vvec* v_v              = reinterpret_cast<const vvec*>(
+                &v_lds[make_array<index_int>(slot, my_e, my_t_div * TT_, 0u)]);
+            vvec* v_dst = reinterpret_cast<vvec*>(v_pair.data());
+            repeat_c<N_CHUNKS>([&](auto i) { v_dst[i] = v_v[i]; });
         }
         else
         {
-            __builtin_memcpy(v_a.data(),
-                             &v_lds[make_array<index_int>(slot, 0u, my_e, my_t_div * TT_)],
-                             TT_ * sizeof(out_type));
-            __builtin_memcpy(v_b.data(),
-                             &v_lds[make_array<index_int>(slot, 1u, my_e, my_t_div * TT_)],
-                             TT_ * sizeof(out_type));
+            __builtin_memcpy(v_pair.data(),
+                             &v_lds[make_array<index_int>(slot, my_e, my_t_div * TT_, 0u)],
+                             TT_ * CH * sizeof(out_type));
         }
+    };
 
-        repeat_c<KT>([&](auto m) {
-            repeat_c<TT_>([&](auto nn) {
-                const auto ai = m * TT_ + nn;
+    // Run KT*TT_ dots accumulating into acc, consuming u_pair/v_pair.
+    //
+    // MIOpen's GEMM layout (matching v4-v67 register order):
+    //   T-outer / K-inner.  acc[t * KT + k].
+    //   For each tile t (V[t] in v86-v93), broadcast across all K (U[0..7] in
+    //   v70-v77).  This matches MIOpen's exact instruction stream:
+    //     v_dot2_f32_f16 v4,  v70, v86, v4   # acc(t=0,k=0)
+    //     v_dot2_f32_f16 v5,  v71, v86, v5   # acc(t=0,k=1)
+    //     ...
+    //     v_dot2_f32_f16 v11, v77, v86, v11  # acc(t=0,k=7)
+    //     v_dot2_f32_f16 v12, v70, v87, v12  # acc(t=1,k=0)
+    //     ...
+    auto dot_block = [&](const array<out_type, KT * CH>& u_pair,
+                         const array<out_type, TT_ * CH>& v_pair) {
+        repeat_c<TT_>([&](auto nn) {
+            repeat_c<KT>([&](auto m) {
+                const auto ai = nn * KT + m;
                 if constexpr(sizeof(out_type) == 2u)
                 {
                     vec<half, 2> up;
                     vec<half, 2> vp;
-                    up[0]   = u_a[m];
-                    up[1]   = u_b[m];
-                    vp[0]   = v_a[nn];
-                    vp[1]   = v_b[nn];
+                    up[0]   = u_pair[m * CH + 0u];
+                    up[1]   = u_pair[m * CH + 1u];
+                    vp[0]   = v_pair[nn * CH + 0u];
+                    vp[1]   = v_pair[nn * CH + 1u];
                     acc[ai] = dot2_acc(up, vp, acc[ai]);
                 }
                 else
                 {
-                    acc[ai] = __builtin_fmaf(u_a[m], v_a[nn], acc[ai]);
-                    acc[ai] = __builtin_fmaf(u_b[m], v_b[nn], acc[ai]);
+                    acc[ai] = __builtin_fmaf(
+                        u_pair[m * CH + 0u], v_pair[nn * CH + 0u], acc[ai]);
+                    acc[ai] = __builtin_fmaf(
+                        u_pair[m * CH + 1u], v_pair[nn * CH + 1u], acc[ai]);
                 }
             });
         });
     };
 
-    // Software-pipelined channel loop.
+    auto gemm = [&](index_int slot) {
+        alignas(16) array<out_type, KT * CH> u_pair;   // interleaved (u_a, u_b)
+        alignas(16) array<out_type, TT_ * CH> v_pair;  // interleaved (v_a, v_b)
+        load_slot_u(slot, u_pair);
+        load_slot_v(slot, v_pair);
+        // Barrier between LDS loads and dots - empirically the best perf:
+        // without it the compiler sometimes hoists dots before the load
+        // arrives, then waits on dscnt mid-stream creating bubbles.
+        winograd::sched_barrier_full();
+        dot_block(u_pair, v_pair);
+    };
+
+    // Software-pipelined channel loop. Mirrors MIOpen's pipeline:
+    //
+    //   pre:    issue buffer_loads for iter 0, transform + ds_store iter 0
+    //   loop p in [0, n_pairs - 1):
+    //     issue buffer_loads for iter p+1   <- hide global-load latency
+    //                                          behind the dot-product chain
+    //     gemm(p)                            <- 64+ v_dot / v_fma per thread
+    //     transform + ds_store iter p+1     <- hide ALU+ds_store latency
+    //                                          behind the next sync
+    //     sync
+    //   post:   gemm(n_pairs - 1)
+    //
+    // Wave priority stays at 1 from before the loop through the final dot
+    // product, then drops back to 0 for the output transform.
     constexpr index_int n_pairs = (C_ + 1u) / 2u;
+    set_prio<1>();
     if constexpr(RING == 1u)
     {
         for(index_int p = 0; p < n_pairs; ++p)
         {
             stage(p, 0u);
             __syncthreads();
-            set_prio<1>();
             gemm(0u);
-            set_prio<0>();
             __syncthreads();
         }
     }
     else
     {
+        // RING >= 2: software-pipelined channel loop with gemm() FIRST in the
+        // body so the compiler can interleave gemm's dot-product chain with
+        // stage's input/filter transform ALU ops (they have no LDS aliasing
+        // because gemm reads slot cur = p%RING and stage writes slot next =
+        // (p+1)%RING). The single __syncthreads at end of each body protects
+        // the next iter's gemm from this iter's stage writes.
         if constexpr(n_pairs > 0u)
         {
             stage(0u, 0u);
             __syncthreads();
-            set_prio<1>();
             for(index_int p = 0; p + 1u < n_pairs; ++p)
             {
                 const index_int cur  = p % RING;
                 const index_int next = (p + 1u) % RING;
-                stage(p + 1u, next);
                 gemm(cur);
+                stage(p + 1u, next);
                 __syncthreads();
             }
             gemm((n_pairs - 1u) % RING);
-            set_prio<0>();
         }
     }
+    set_prio<0>();
 
     // ---- In-wave DPP-based output transform (MIOpen-style, no LDS exchange).
     //
@@ -810,7 +1063,7 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
 
     repeat_c<KT>([&](auto m_kk) {
         repeat_c<TT_>([&](auto m_tt) {
-            const index_int ai = m_kk * TT_ + m_tt;
+            const index_int ai = m_tt * KT + m_kk;  // T outer / K inner
             Acc m_val          = acc[ai];
 
             // --- Row stage via row_shl (cross-quad within row-of-16).
@@ -822,7 +1075,6 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
             Acc r1 = m_k1 - m_k2 - m_k3;  // lanes 0..3: R[1][j=lane]
 
             // --- Col stage via quad_perm (within 4-lane quad).
-            // For Y[0][*] apply to r0; for Y[1][*] apply to r1.
             Acc r0_q1 = dpp_perm_1111(r0);
             Acc r0_q2 = dpp_perm_2222(r0);
             Acc r0_q3 = dpp_perm_3333(r0);

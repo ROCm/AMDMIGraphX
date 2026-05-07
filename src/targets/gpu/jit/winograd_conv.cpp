@@ -185,34 +185,40 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         }
         else
         {
-            // MIOpen-canonical: 256-thread block, K_BLOCK=T_BLOCK=32.
+            // ---- High-occupancy variants (16 acc/thread, ~80 VGPR → 4 wg/CU).
+            add(4, 4, 4, 4, 1); // 256-thr, 16x16 output
+            add(4, 4, 4, 4, 2);
+            add(2, 8, 4, 4, 1); // 256-thr, 8x32
+            add(8, 2, 4, 4, 1); // 256-thr, 32x8
+            add(2, 4, 4, 4, 1); // 128-thr, 8x16
+            add(4, 2, 4, 4, 1); // 128-thr, 16x8
+            add(2, 2, 4, 4, 1); // 64-thr, 8x8
+
+            // ---- Medium tile (32 acc/thread, ~110 VGPR → 2 wg/CU).
+            add(2, 4, 8, 4, 1);
+            add(4, 2, 4, 8, 1);
+            add(2, 2, 8, 4, 1);
+            add(2, 2, 4, 8, 1);
+            add(4, 4, 8, 4, 1);
+            add(4, 4, 4, 8, 1);
+
+            // ---- MIOpen-canonical 64 acc/thread (~120-200 VGPR → 1 wg/CU).
             add(4, 4, 8, 8, 1);
             add(4, 4, 8, 8, 2);
-            // 64-thread blocks with large per-thread tiles (best for medium
-            // K, large spatial - winner on most fp32 benchmarks tested).
-            add(2, 2, 8, 8, 1);
+            add(2, 2, 8, 8, 1); // 64-thr block
             add(2, 2, 8, 8, 2);
-            // 128-thread blocks with rectangular tiles.
             add(2, 8, 8, 8, 1); // 16x64 output
             add(2, 8, 8, 8, 2);
             add(8, 2, 8, 8, 1); // 64x16 output
             add(8, 2, 8, 8, 2);
-            // Wider per-thread K (won by exhaustive tune).
+
+            // ---- Wider per-thread K (winning some K-large cases).
             add(2, 8, 16, 8, 1);
             add(2, 8, 16, 8, 2);
             add(2, 4, 16, 8, 1);
             add(4, 2, 16, 8, 1);
-            // 256-thread variants with smaller per-thread tiles (lower regs).
-            add(4, 4, 4, 4, 1); // 16x16 output, 16 acc/thread
-            add(4, 4, 4, 4, 2);
-            add(4, 2, 8, 8, 1); // 128 threads
-            add(2, 4, 8, 8, 1);
-            add(2, 4, 4, 4, 1);
-            add(4, 2, 4, 4, 1);
-            add(2, 2, 4, 4, 1);
-            add(4, 2, 4, 8, 1);
-            add(2, 4, 8, 4, 1);
-            // Tiny problems.
+
+            // ---- Tiny problems.
             add(2, 2, 2, 2, 1);
             add(1, 4, 4, 4, 1); // 64 threads
             add(4, 1, 4, 4, 1);

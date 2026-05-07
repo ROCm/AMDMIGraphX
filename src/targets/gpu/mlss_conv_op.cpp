@@ -145,18 +145,18 @@ argument mlss_conv_op::compute(context& ctx,
     //   d_sync: n_groups uint32 values for inter-workgroup synchronization
     //   d_acc:  one float per output element for partial accumulation
     // Allocate, zero, and free them here so no module-level allocation is needed.
-    hipDeviceptr_t d_sync = nullptr;
-    hipDeviceptr_t d_acc  = nullptr;
-    if(has_bias)
-    {
-        const std::size_t sync_bytes = n_groups * sizeof(uint32_t);
-        const std::size_t acc_bytes  = output.get_shape().bytes();
-        (void)hipMalloc(&d_sync, sync_bytes);
-        (void)hipMalloc(&d_acc,  acc_bytes);
-        hipStream_t stream = ctx.get_stream().get();
-        (void)hipMemsetAsync(d_sync, 0, sync_bytes, stream);
-        (void)hipMemsetAsync(d_acc,  0, acc_bytes,  stream);
-    }
+    // hipDeviceptr_t d_sync = nullptr;
+    // hipDeviceptr_t d_acc  = nullptr;
+    // if(has_bias)
+    // {
+    //     const std::size_t sync_bytes = n_groups * sizeof(uint32_t);
+    //     const std::size_t acc_bytes  = output.get_shape().bytes();
+    //     (void)hipMalloc(&d_sync, sync_bytes);
+    //     (void)hipMalloc(&d_acc,  acc_bytes);
+    //     hipStream_t stream = ctx.get_stream().get();
+    //     (void)hipMemsetAsync(d_sync, 0, sync_bytes, stream);
+    //     (void)hipMemsetAsync(d_acc,  0, acc_bytes,  stream);
+    // }
 
     float alpha = 1.0f;
     float beta  = 0.0f;
@@ -282,18 +282,18 @@ argument mlss_conv_op::compute(context& ctx,
     kargs.emplace_back(f_G_stride);
     kargs.emplace_back(o_G_stride);
 
-    if(has_bias)
-    {
-        // Trailing args required when F_BIAS is set (offsets 0xc8–0xe7).
-        kargs.emplace_back(static_cast<uint8_t>(0));   // activation_mode = none
-        kargs.emplace_back(static_cast<uint8_t>(255)); // sync_limit
-        kargs.emplace_back(static_cast<uint8_t>(0));   // sync_period
-        kargs.emplace_back(static_cast<uint8_t>(0));   // reserved8
-        kargs.emplace_back(static_cast<uint32_t>(0));  // reserved9
-        kargs.emplace_back(reinterpret_cast<uint64_t>(d_sync)); // sync_addr
-        kargs.emplace_back(reinterpret_cast<uint64_t>(d_acc));  // acc_addr
-        kargs.emplace_back(static_cast<uint64_t>(0));      // a_offset
-    }
+    // if(has_bias)
+    // {
+    //     // Trailing args required when F_BIAS is set (offsets 0xc8–0xe7).
+    //     kargs.emplace_back(static_cast<uint8_t>(0));   // activation_mode = none
+    //     kargs.emplace_back(static_cast<uint8_t>(255)); // sync_limit
+    //     kargs.emplace_back(static_cast<uint8_t>(0));   // sync_period
+    //     kargs.emplace_back(static_cast<uint8_t>(0));   // reserved8
+    //     kargs.emplace_back(static_cast<uint32_t>(0));  // reserved9
+    //     kargs.emplace_back(reinterpret_cast<uint64_t>(d_sync)); // sync_addr
+    //     kargs.emplace_back(reinterpret_cast<uint64_t>(d_acc));  // acc_addr
+    //     kargs.emplace_back(static_cast<uint64_t>(0));      // a_offset
+    // }
 
     hipStream_t stream = ctx.get_stream().get();
 
@@ -305,13 +305,13 @@ argument mlss_conv_op::compute(context& ctx,
     auto [start, stop] = ctx.get_perf_events();
     k.launch(stream, grid_blocks * block_size, block_size, kargs, start, stop);
 
-    if(has_bias)
-    {
-        // Sync before freeing so the kernel has finished reading d_sync/d_acc.
-        (void)hipStreamSynchronize(stream);
-        (void)hipFree(d_sync);
-        (void)hipFree(d_acc);
-    }
+    // if(has_bias)
+    // {
+    //     // Sync before freeing so the kernel has finished reading d_sync/d_acc.
+    //     (void)hipStreamSynchronize(stream);
+    //     (void)hipFree(d_sync);
+    //     (void)hipFree(d_acc);
+    // }
 
     return args.back();
 }

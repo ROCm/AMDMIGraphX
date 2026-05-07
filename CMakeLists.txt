@@ -92,7 +92,7 @@ endif()
 
 option(MIGRAPHX_USE_EIGEN "Enable Eigen for optimized ref GEMM" ON)
 
-include(SetupVersion)
+include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 

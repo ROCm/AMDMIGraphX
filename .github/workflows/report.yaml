@@ -17,6 +17,7 @@ jobs:
         uses: actions/create-github-app-token@v2
         with:
           app-slug: gh-app-migraphx-bot-pr-write
+          private-key: ${{ secrets.GH_APP_MIGRAPHX_BOT_PR_WRITE_PRIVATE_KEY }}
 
       - name: Download artifacts
         id: dl_art

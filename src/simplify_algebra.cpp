@@ -1019,6 +1019,20 @@ struct find_concat_op
                 });
                 if(not is_valid_concat(inputs, iaxis))
                     return {start, last};
+                // concat([x]*N) along an axis where lens[iaxis]==1 is just a multibroadcast
+                if(inputs.front()->get_shape().lens().at(iaxis) == 1 and
+                   std::all_of(std::next(inputs.begin()), inputs.end(), [&](auto j) {
+                       return j == inputs.front();
+                   }))
+                {
+                    auto bcast = m.insert_instruction(
+                        ins,
+                        make_op("multibroadcast",
+                                {{"out_lens", get_output_lens(start, last, iaxis)}}),
+                        inputs.front());
+                    concats.push_back(bcast);
+                    continue;
+                }
                 auto concat =
                     m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
                 concats.push_back(concat);

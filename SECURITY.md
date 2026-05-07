@@ -12,8 +12,6 @@ Currently supported MIGraphX releases for security updates.
 | < 2.14  | :x:                |
 
 
-# Security Policy
-
 ## Reporting a Vulnerability
 
 **Do not open a public GitHub issue.** Report privately via one of:

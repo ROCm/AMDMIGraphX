@@ -564,6 +564,16 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("offload_copy")    = true,
             py::arg("fast_math")       = true,
             py::arg("exhaustive_tune") = false)
+        .def(
+            "finalize",
+            [](migraphx::program& p, const migraphx::target& t) { p.finalize(t); },
+            "Attach a target+context and finalize without running compile "
+            "passes. Use this on programs loaded from .mxr files that are "
+            "already lowered (e.g. dumps from "
+            "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR), where calling compile() would "
+            "rerun rewrites like auto_contiguous and corrupt the saved "
+            "code_object_op input shapes.",
+            py::arg("t"))
         .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(
             "create_module",
@@ -574,10 +584,19 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  migraphx::parameter_map pm;
                  for(auto x : params)
                  {
-                     std::string key      = x.first.cast<std::string>();
-                     py::buffer b         = x.second.cast<py::buffer>();
-                     py::buffer_info info = b.request();
-                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                     std::string key = x.first.cast<std::string>();
+                     // Accept a migraphx.argument directly (preserves tuple-typed shapes
+                     // which can't round-trip through the Python buffer protocol).
+                     if(py::isinstance<migraphx::argument>(x.second))
+                     {
+                         pm[key] = x.second.cast<migraphx::argument>();
+                     }
+                     else
+                     {
+                         py::buffer b         = x.second.cast<py::buffer>();
+                         py::buffer_info info = b.request();
+                         pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                     }
                  }
                  return p.eval(pm);
              })
@@ -589,10 +608,17 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  migraphx::parameter_map pm;
                  for(auto x : params)
                  {
-                     std::string key      = x.first.cast<std::string>();
-                     py::buffer b         = x.second.cast<py::buffer>();
-                     py::buffer_info info = b.request();
-                     pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                     std::string key = x.first.cast<std::string>();
+                     if(py::isinstance<migraphx::argument>(x.second))
+                     {
+                         pm[key] = x.second.cast<migraphx::argument>();
+                     }
+                     else
+                     {
+                         py::buffer b         = x.second.cast<py::buffer>();
+                         py::buffer_info info = b.request();
+                         pm[key]              = migraphx::argument(to_shape(info), info.ptr);
+                     }
                  }
                  migraphx::execution_environment exec_env{
                      migraphx::any_ptr(reinterpret_cast<void*>(stream), stream_name), true};

@@ -114,6 +114,16 @@ struct MIGRAPHX_EXPORT program
 
     void finalize();
 
+    // Attach `t` to a program that hasn't been compiled yet (e.g. one loaded
+    // from an .mxr produced by `compile_plan::save_binaries`, which contains
+    // already-lowered GPU code objects but no targets/contexts), then
+    // finalize. Unlike `compile()`, this runs no passes -- it just sets up
+    // the target + context and calls `finalize()`. Mirrors what
+    // `time_program` (src/targets/gpu/time_op.cpp) does internally so the
+    // program becomes runnable without re-running any rewrites that would
+    // mutate already-lowered instructions.
+    void finalize(const target& t);
+
     void perf_report(std::ostream& os,
                      std::size_t n,
                      parameter_map params,

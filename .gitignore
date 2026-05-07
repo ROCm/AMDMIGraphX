@@ -14,22 +14,31 @@
 
 # Vim swap files
 .*.sw?
-.sw?
+*.sw?
 
 # Visual Studio
 .vs
-/.vscode/*
 
 # Sublime Text settings
 *.sublime-workspace
 *.sublime-project
 
 # Eclipse Project settings
-*.*project
+.project
+.cproject
+.pydevproject
 .settings
 
+# JetBrains config
+.idea
+
 # OS X specific files
-.DS_store
+.DS_Store
+
+# VSCode: ignore by default, allow shared configs at repo root
+/.vscode/*
+!/.vscode/settings.json
+!/.vscode/extensions.json
 
 #==============================================================================#
 # Explicit files to ignore (only matches one).
@@ -45,51 +54,41 @@
 /ID
 .gitusers
 /compile_commands.json
-
 /CMakeSettings.json
-
-# documentation artifacts
-_toc.yml
 
 #==============================================================================#
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).
 #==============================================================================#
-# Nested build directory
-/build
+
+# Build directories (root only)
+/build*
+/cmake-build*
+
+# Recommended location to install rbuild dependencies from README.md
+/depend*
+
+# Python virtual envs
+venv_rbuild
+.venv
 
 # Downloaded models
 test/onnx/models
-
-# Python virtual env
-venv_rbuild
 
 # ONNX test generated files
 test/onnx/load_save_arg.msgpack
 test/onnx/migraphx_api_load_save_argument.msgpack
 
-# VS2017 and VSCode config files.
-.vscode
-.vs
-
-# documentation artifacts
+# Documentation artifacts
 docs/_build
-docs/_images
-docs/_static
-docs/_templates
-docs/doxygen/DoxygenWarningLog.txt
-docs/doxygen/html/
-docs/doxygen/xml/
 docs/_doxygen
+docs/doxygen/DoxygenWarningLog.txt
+docs/doxygen/html
+docs/doxygen/xml
 docs/html
+docs/_toc.yml
 /_readthedocs
 
-# JetBrains config directories (ignoring symlinks)
-.idea/
-cmake-build*/
-build*/
-
-# Recommended location to install rbuild dependencies from README.md
-depend*/
-
-# local Python virtual environment
-.venv/
+# Environment / secret files
+.env
+.env.*
+!.env.example

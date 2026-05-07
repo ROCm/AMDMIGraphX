@@ -218,6 +218,9 @@ jobs:
   format:
     runs-on: ubuntu-latest
     needs: [ build_image, check_image ]
+    permissions:
+      contents: read
+      pull-requests: write
     env:
       DOCKER_TAG_UBUNTU: ${{ needs.check_image.outputs.imagetag }}
 
@@ -244,7 +247,17 @@ jobs:
       run: |
         set -e
         git config --global --add safe.directory /data
-        python3 tools/format.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
+        if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ github.event.pull_request.head.repo.fork }}" != "true" ]; then
+          python3 tools/format.py -i --exit-zero origin/${{ github.base_ref }}
+        else
+          python3 tools/format.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
+        fi
+
+    - uses: reviewdog/action-suggester@v1
+      if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+      with:
+        tool_name: format.py
+        fail_level: error
 
   sles:
     runs-on: ROCM-Ubuntu

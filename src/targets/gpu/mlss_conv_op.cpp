@@ -149,7 +149,10 @@ argument mlss_conv_op::compute(context& ctx,
     // hipDeviceptr_t d_acc  = nullptr;
     // if(has_bias)
     // {
-    //     const std::size_t sync_bytes = n_groups * sizeof(uint32_t);
+    //     // The validate script uses n_groups=64 for the bias path; override here
+    //     // so the sync/acc buffer indexing matches what the kernel expects.
+    //     ng = 64;
+    //     const std::size_t sync_bytes = 64 * sizeof(uint32_t);
     //     const std::size_t acc_bytes  = output.get_shape().bytes();
     //     (void)hipMalloc(&d_sync, sync_bytes);
     //     (void)hipMalloc(&d_acc,  acc_bytes);
@@ -282,18 +285,20 @@ argument mlss_conv_op::compute(context& ctx,
     kargs.emplace_back(f_G_stride);
     kargs.emplace_back(o_G_stride);
 
-    // if(has_bias)
-    // {
-    //     // Trailing args required when F_BIAS is set (offsets 0xc8–0xe7).
-    //     kargs.emplace_back(static_cast<uint8_t>(0));   // activation_mode = none
-    //     kargs.emplace_back(static_cast<uint8_t>(255)); // sync_limit
-    //     kargs.emplace_back(static_cast<uint8_t>(0));   // sync_period
-    //     kargs.emplace_back(static_cast<uint8_t>(0));   // reserved8
-    //     kargs.emplace_back(static_cast<uint32_t>(0));  // reserved9
-    //     kargs.emplace_back(reinterpret_cast<uint64_t>(d_sync)); // sync_addr
-    //     kargs.emplace_back(reinterpret_cast<uint64_t>(d_acc));  // acc_addr
-    //     kargs.emplace_back(static_cast<uint64_t>(0));      // a_offset
-    // }
+    if(has_bias)
+    {
+        // Trailing args required when F_BIAS is set (offsets 0xc8–0xe7).
+        // kernel_argument requires a non-const lvalue, so copy member to locals.
+        uint8_t act_mode = activation_mode;
+        kargs.emplace_back(act_mode);                    // 0=none, 4=ReLU
+        // kargs.emplace_back(static_cast<uint8_t>(255));  // sync_limit
+        // kargs.emplace_back(static_cast<uint8_t>(0));    // sync_period
+        // kargs.emplace_back(static_cast<uint8_t>(0));    // reserved8
+        // kargs.emplace_back(static_cast<uint32_t>(0));   // reserved9
+        // kargs.emplace_back(reinterpret_cast<uint64_t>(d_sync)); // sync_addr
+        // kargs.emplace_back(reinterpret_cast<uint64_t>(d_acc));  // acc_addr
+        // kargs.emplace_back(static_cast<uint64_t>(0));   // a_offset
+    }
 
     hipStream_t stream = ctx.get_stream().get();
 

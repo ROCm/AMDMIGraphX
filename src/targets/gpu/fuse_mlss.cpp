@@ -559,6 +559,162 @@ struct find_mlss_conv_bias
     }
 };
 
+// ---------------------------------------------------------------------------
+// Matcher for conv+bias+relu pattern:
+//   relu(add(convolution(input, weight_literal), broadcast(bias_literal)))
+// Same as find_mlss_conv_bias but sets activation_mode=4 (ReLU) and matches
+// the relu instruction as the outermost node to replace.
+// ---------------------------------------------------------------------------
+struct find_mlss_conv_bias_relu
+{
+    context* ctx = nullptr;
+
+    auto matcher() const
+    {
+        auto conv_with_literal_weight =
+            match::name("convolution")(
+                match::arg(0)(match::any()),
+                match::arg(1)(match::name("@literal")));
+
+        auto broadcast_of_literal =
+            match::name("broadcast")(
+                match::arg(0)(match::name("@literal")));
+
+        auto add_conv_bias =
+            match::name("add")(
+                match::arg(0)(conv_with_literal_weight),
+                match::arg(1)(broadcast_of_literal));
+
+        return match::name("relu")(match::arg(0)(add_conv_bias));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto relu_ins  = r.result;
+        auto add_ins   = relu_ins->inputs()[0];   // add
+        auto conv_ins  = add_ins->inputs()[0];    // convolution
+        auto bcast_ins = add_ins->inputs()[1];    // broadcast
+        auto bias_ins  = bcast_ins->inputs()[0];  // @literal {K}
+
+        auto conv_inputs = conv_ins->inputs();
+        if(conv_inputs.size() < 2)
+            return;
+        auto act_ins = conv_inputs[0];
+        auto wt_ins  = conv_inputs[1];
+
+        // ---- shape / attribute checks (same as find_mlss_conv_bias) ----
+        const auto act_lens = act_ins->get_shape().lens();
+        const auto wt_lens  = wt_ins->get_shape().lens();
+        const auto out_lens = conv_ins->get_shape().lens();
+
+        const auto dtype = act_ins->get_shape().type();
+        if(dtype != shape::float_type and dtype != shape::half_type)
+            return;
+        if(wt_ins->get_shape().type() != dtype)
+            return;
+        if(conv_ins->get_shape().type() != dtype)
+            return;
+
+        const auto& op_val = conv_ins->get_operator().to_value();
+        auto get_vec = [&](const std::string& key) -> std::vector<std::size_t> {
+            return op_val.get(key, std::vector<std::size_t>{});
+        };
+        if(op_val.get("group", std::size_t{1}) != 1)
+            return;
+        if(get_vec("dilation") != std::vector<std::size_t>{1, 1})
+            return;
+
+        const auto cur_padding = get_vec("padding");
+        const auto cur_stride  = get_vec("stride");
+
+        struct conv_shape_entry
+        {
+            std::vector<std::size_t> act;
+            std::vector<std::size_t> wt;
+            std::vector<std::size_t> out;
+            std::vector<std::size_t> padding;
+            std::vector<std::size_t> stride;
+        };
+
+        static const std::vector<conv_shape_entry> fp32_shapes = {
+            {{1, 64, 56, 56},    {64, 64, 3, 3},    {1, 64, 56, 56},    {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 28, 28},   {128, 128, 3, 3},  {1, 128, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 14, 14},   {256, 256, 3, 3},  {1, 256, 14, 14},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 3, 224, 224},   {64, 3, 3, 3},     {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
+            {{1, 64, 224, 224},  {64, 64, 3, 3},    {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
+            {{1, 64, 112, 112},  {128, 64, 3, 3},   {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 112, 112}, {128, 128, 3, 3},  {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 56, 56},   {256, 128, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 56, 56},   {256, 256, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 28, 28},   {512, 256, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 28, 28},   {512, 512, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 14, 14},   {512, 512, 3, 3},  {1, 512, 14, 14},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 7, 7},     {512, 512, 3, 3},  {1, 512, 7, 7},     {1, 1, 1, 1}, {1, 1}},
+        };
+
+        static const std::vector<conv_shape_entry> fp16pk_shapes = {
+            {{1, 64, 56, 56},    {64, 64, 3, 3},    {1, 64, 56, 56},    {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 28, 28},   {128, 128, 3, 3},  {1, 128, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 14, 14},   {256, 256, 3, 3},  {1, 256, 14, 14},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 3, 224, 224},   {64, 3, 3, 3},     {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
+            {{1, 64, 224, 224},  {64, 64, 3, 3},    {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
+            {{1, 64, 112, 112},  {128, 64, 3, 3},   {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 112, 112}, {128, 128, 3, 3},  {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 56, 56},   {256, 128, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 56, 56},   {256, 256, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 28, 28},   {512, 256, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 28, 28},   {512, 512, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 14, 14},   {512, 512, 3, 3},  {1, 512, 14, 14},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 7, 7},     {512, 512, 3, 3},  {1, 512, 7, 7},     {1, 1, 1, 1}, {1, 1}},
+        };
+
+        auto shape_match = [&](const std::vector<conv_shape_entry>& table) {
+            return std::any_of(table.begin(), table.end(), [&](const conv_shape_entry& e) {
+                return act_lens == e.act and wt_lens == e.wt and out_lens == e.out and
+                       cur_padding == e.padding and cur_stride == e.stride;
+            });
+        };
+
+        mlss_conv_op op;
+        if(dtype == shape::float_type)
+        {
+            if(shape_match(fp32_shapes))
+                op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1();
+            else
+                return;
+        }
+        else
+        {
+            if(not shape_match(fp16pk_shapes))
+                return;
+            op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
+        }
+
+        op.pad_h           = static_cast<int32_t>(cur_padding[0]);
+        op.pad_w           = static_cast<int32_t>(cur_padding[1]);
+        op.has_bias        = true;
+        op.activation_mode = 4; // ReLU
+
+        auto& m = mpm.get_module();
+
+        // Output shape matches the relu output (same as conv/add output).
+        const auto out_shape  = relu_ins->get_shape();
+        auto output_alloc = m.insert_instruction(
+            relu_ins, make_op("allocate", {{"shape", to_value(out_shape)}}));
+
+        // Replace the relu instruction; conv, add, broadcast become dead.
+        m.replace_instruction(relu_ins, op, {act_ins, wt_ins, bias_ins, output_alloc});
+
+        // Remove now-dead instructions inner-to-outer.
+        if(add_ins->outputs().empty())
+            m.remove_instruction(add_ins);
+        if(bcast_ins->outputs().empty())
+            m.remove_instruction(bcast_ins);
+        if(conv_ins->outputs().empty())
+            m.remove_instruction(conv_ins);
+    }
+};
+
 void fuse_mlss::apply(module_pass_manager& mpm) const
 {
     const auto& gfx_name = ctx->get_current_device().get_gfx_name();
@@ -570,8 +726,8 @@ void fuse_mlss::apply(module_pass_manager& mpm) const
 
     if(mlss_op_enabled("conv"))
     {
-        // Fuse conv+bias first so the plain-conv matcher doesn't consume the
-        // convolution instruction before the bias add can be matched.
+        // Match most-specific patterns first to avoid partial consumption.
+        match::find_matches(mpm, find_mlss_conv_bias_relu{ctx});
         match::find_matches(mpm, find_mlss_conv_bias{ctx});
         match::find_matches(mpm, find_mlss_conv{ctx});
     }

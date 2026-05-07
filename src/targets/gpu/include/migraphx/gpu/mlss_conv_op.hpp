@@ -50,17 +50,21 @@ struct mlss_conv_op
     // has_bias: when true args layout is [input, weight, bias, output]
     // and the kernel is launched with F_BIAS (bit 7) set in flags64.
     bool has_bias = false;
+    // activation_mode: kernel activation applied after bias add.
+    //   0 = none, 4 = ReLU  (matches kernel F_USE_ACTIVATION_MODE ABI)
+    uint8_t activation_mode = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.code_object, "code_object"),
-                    f(self.symbol_name, "symbol_name"),
-                    f(self.n_groups,    "n_groups"),
-                    f(self.block_size,  "block_size"),
-                    f(self.pad_h,       "pad_h"),
-                    f(self.pad_w,       "pad_w"),
-                    f(self.has_bias,    "has_bias"));
+        return pack(f(self.code_object,      "code_object"),
+                    f(self.symbol_name,      "symbol_name"),
+                    f(self.n_groups,         "n_groups"),
+                    f(self.block_size,       "block_size"),
+                    f(self.pad_h,            "pad_h"),
+                    f(self.pad_w,            "pad_w"),
+                    f(self.has_bias,         "has_bias"),
+                    f(self.activation_mode,  "activation_mode"));
     }
 
     // Non-reflected: rebuilt in finalize()

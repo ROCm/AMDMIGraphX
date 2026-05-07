@@ -76,10 +76,11 @@ mlss_conv_op mlss_conv_op::make_navi48_fp16pk_f2x3_stride1()
     return op;
 }
 
-// Returns the shape of args[2] (the pre-allocated output buffer).
+// Returns the shape of the last arg (the pre-allocated output buffer).
+// Layout: [input, weight, output] or [input, weight, bias, output].
 shape mlss_conv_op::compute_shape(std::vector<shape> inputs) const
 {
-    return inputs[2];
+    return inputs.back();
 }
 
 void mlss_conv_op::finalize(context&, const shape&, const std::vector<shape>&)
@@ -92,14 +93,17 @@ argument mlss_conv_op::compute(context& ctx,
                                 const shape&,
                                 const std::vector<argument>& args) const
 {
-    // args layout (injected by find_mlss_conv::apply):
+    // args layout (injected by find_mlss_conv / find_mlss_conv_bias):
     //   [0] input activation  e.g. float_type {1, 64, 128, 128}
     //   [1] weight literal    e.g. float_type {128, 64, 3, 3}
     //   [2] output buffer     e.g. float_type {1, 128, 128, 128}  (pre-allocated, returned)
+    // When has_bias=true:
+    //   [2] bias literal      e.g. float_type {128}
+    //   [3] output buffer     e.g. float_type {1, 128, 128, 128}  (pre-allocated, returned)
 
     const auto& input  = args[0];
     const auto& weight = args[1];
-    const auto& output = args[2];
+    const auto& output = args.back();
 
     const auto in_lens  = input.get_shape().lens();  // N, C, H, W
     const auto wt_lens  = weight.get_shape().lens(); // K, C, R, S
@@ -121,14 +125,38 @@ argument mlss_conv_op::compute(context& ctx,
     int32_t G     = 1;
     int32_t ng    = static_cast<int32_t>(n_groups);
 
-    // flags64: bit10 = fast tile-index division
-    uint64_t flags64 = uint64_t{1} << 10;
+    // flags64 encoding:
+    //   no-bias path: bit10 = fast tile-index division
+    //   bias path: bit7  = F_BIAS
+    //              bit9  = F_NKCHR_STRIDES  (deprecated, recommended=1)
+    //              bit14 = F_USE_ACTIVATION_MODE (deprecated, recommended=1)
+    //              bit15 = F_USE_EXTENDED_FLAGS_64 (deprecated, recommended=1)
+    uint64_t flags64 = has_bias
+        ? ((uint64_t{1} << 7) | (uint64_t{1} << 9) | (uint64_t{1} << 14) | (uint64_t{1} << 15))
+        : (uint64_t{1} << 10);
 
     // Device pointers as uint64_t (kernel ABI)
     uint64_t p_data   = reinterpret_cast<uint64_t>(input.data());
     uint64_t p_filter = reinterpret_cast<uint64_t>(weight.data());
     uint64_t p_output = reinterpret_cast<uint64_t>(output.data());
-    uint64_t p_bias   = 0; // bias unused
+    uint64_t p_bias   = has_bias ? reinterpret_cast<uint64_t>(args[2].data()) : 0;
+
+    // When F_BIAS is set the kernel requires two extra scratch buffers:
+    //   d_sync: n_groups uint32 values for inter-workgroup synchronization
+    //   d_acc:  one float per output element for partial accumulation
+    // Allocate, zero, and free them here so no module-level allocation is needed.
+    hipDeviceptr_t d_sync = nullptr;
+    hipDeviceptr_t d_acc  = nullptr;
+    if(has_bias)
+    {
+        const std::size_t sync_bytes = n_groups * sizeof(uint32_t);
+        const std::size_t acc_bytes  = output.get_shape().bytes();
+        (void)hipMalloc(&d_sync, sync_bytes);
+        (void)hipMalloc(&d_acc,  acc_bytes);
+        hipStream_t stream = ctx.get_stream().get();
+        (void)hipMemsetAsync(d_sync, 0, sync_bytes, stream);
+        (void)hipMemsetAsync(d_acc,  0, acc_bytes,  stream);
+    }
 
     float alpha = 1.0f;
     float beta  = 0.0f;
@@ -200,6 +228,15 @@ argument mlss_conv_op::compute(context& ctx,
     //   0xbc  d_G_stride  int32
     //   0xc0  f_G_stride  int32
     //   0xc4  o_G_stride  int32
+    // When has_bias (F_BIAS set) the kernel reads 8 more fields (0xc8–0xe7):
+    //   0xc8  activation_mode  uint8  (0 = none, 4 = ReLU)
+    //   0xc9  sync_limit       uint8  (255 = DEFAULT_SYNC_LIMIT)
+    //   0xca  sync_period      uint8  (0)
+    //   0xcb  reserved8        uint8  (0)
+    //   0xcc  reserved9        uint32 (0)
+    //   0xd0  sync_addr        uint64 (pointer to d_sync, zeroed)
+    //   0xd8  acc_addr         uint64 (pointer to d_acc, zeroed)
+    //   0xe0  a_offset         uint64 (0)
     // -----------------------------------------------------------------------
     std::vector<kernel_argument> kargs;
 
@@ -245,6 +282,19 @@ argument mlss_conv_op::compute(context& ctx,
     kargs.emplace_back(f_G_stride);
     kargs.emplace_back(o_G_stride);
 
+    if(has_bias)
+    {
+        // Trailing args required when F_BIAS is set (offsets 0xc8–0xe7).
+        kargs.emplace_back(static_cast<uint8_t>(0));   // activation_mode = none
+        kargs.emplace_back(static_cast<uint8_t>(255)); // sync_limit
+        kargs.emplace_back(static_cast<uint8_t>(0));   // sync_period
+        kargs.emplace_back(static_cast<uint8_t>(0));   // reserved8
+        kargs.emplace_back(static_cast<uint32_t>(0));  // reserved9
+        kargs.emplace_back(reinterpret_cast<uint64_t>(d_sync)); // sync_addr
+        kargs.emplace_back(reinterpret_cast<uint64_t>(d_acc));  // acc_addr
+        kargs.emplace_back(static_cast<uint64_t>(0));      // a_offset
+    }
+
     hipStream_t stream = ctx.get_stream().get();
 
     // -----------------------------------------------------------------------
@@ -255,7 +305,15 @@ argument mlss_conv_op::compute(context& ctx,
     auto [start, stop] = ctx.get_perf_events();
     k.launch(stream, grid_blocks * block_size, block_size, kargs, start, stop);
 
-    return args[2];
+    if(has_bias)
+    {
+        // Sync before freeing so the kernel has finished reading d_sync/d_acc.
+        (void)hipStreamSynchronize(stream);
+        (void)hipFree(d_sync);
+        (void)hipFree(d_acc);
+    }
+
+    return args.back();
 }
 
 } // namespace gpu

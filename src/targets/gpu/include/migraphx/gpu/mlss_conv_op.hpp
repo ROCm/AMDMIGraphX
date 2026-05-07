@@ -47,6 +47,9 @@ struct mlss_conv_op
     // pad_h, pad_w: convolution padding along H and W axes
     int32_t pad_h = 0;
     int32_t pad_w = 0;
+    // has_bias: when true args layout is [input, weight, bias, output]
+    // and the kernel is launched with F_BIAS (bit 7) set in flags64.
+    bool has_bias = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -56,7 +59,8 @@ struct mlss_conv_op
                     f(self.n_groups,    "n_groups"),
                     f(self.block_size,  "block_size"),
                     f(self.pad_h,       "pad_h"),
-                    f(self.pad_w,       "pad_w"));
+                    f(self.pad_w,       "pad_w"),
+                    f(self.has_bias,    "has_bias"));
     }
 
     // Non-reflected: rebuilt in finalize()
@@ -73,10 +77,11 @@ struct mlss_conv_op
     shape compute_shape(std::vector<shape> inputs) const;
     argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     void finalize(context&, const shape&, const std::vector<shape>&);
-    // args layout: [0]=input, [1]=weight, [2]=output
-    std::vector<std::size_t> output_alias(const std::vector<shape>&) const
+    // args layout: [0]=input, [1]=weight, [2]=output  (no bias)
+    //              [0]=input, [1]=weight, [2]=bias, [3]=output  (has_bias)
+    std::vector<std::size_t> output_alias(const std::vector<shape>& inputs) const
     {
-        return {2};
+        return {inputs.size() - 1};
     }
 };
 

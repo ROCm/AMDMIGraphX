@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_executable(driver 
+add_executable(driver
     main.cpp
     verify.cpp
     passes.cpp
@@ -51,6 +51,7 @@ file(STRINGS "${CMAKE_SOURCE_DIR}/test/onnx/.onnxrt-commit" String_output)
 target_compile_definitions(driver PUBLIC MIGRAPHX_ORT_SHA1="${String_output}")
 
 target_link_libraries(driver migraphx_all_targets migraphx_onnx migraphx_tf)
+migraphx_setup_msvc_runtime_library(driver)
 
 if(MIGRAPHX_ENABLE_PYTHON)
     target_link_libraries(driver migraphx_py)

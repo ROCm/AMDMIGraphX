@@ -29,6 +29,7 @@ message("KERNELS_TESTS: ${KERNELS_TESTS}")
 
 add_embed_library(kernel_tests ${KERNELS_TESTS} RELATIVE ${CMAKE_CURRENT_SOURCE_DIR})
 rocm_add_test_executable(test_gpu_kernels main.cpp)
+migraphx_setup_msvc_runtime_library(test_gpu_kernels)
 
 target_link_libraries(test_gpu_kernels migraphx migraphx_gpu kernel_tests)
 

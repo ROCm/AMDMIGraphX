@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,12 +24,6 @@
 find_package(protobuf QUIET CONFIG)
 
 if(protobuf_FOUND)
-    # On Windows, dependency projects need to be compiled with MSVC,
-    # because a few of them are failing to compile with the Clang compiler.
-    filter_target_linked_libraries(
-        protobuf::libprotobuf
-            FLATTEN FILTER "absl::" EXCLUDE REGEX "-ignore:4221")
-
     add_library(tf-proto STATIC ${PROTO_SRCS})
     protobuf_generate(
         TARGET tf-proto
@@ -72,13 +66,16 @@ if(MSVC)
 else()
     target_compile_options(tf-proto PRIVATE -w)
 endif()
+
 set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
+migraphx_setup_msvc_runtime_library(tf-proto)
 
 file(GLOB TF_SRCS CONFIGURE_DEPENDS *.cpp)
 add_library(migraphx_tf ${TF_SRCS} ${PROJECT_SOURCE_DIR}/src/protobuf_memswap_instantiation.cpp)
-migraphx_generate_export_header(migraphx_tf)
+migraphx_setup_msvc_runtime_library(migraphx_tf)
 target_include_directories(migraphx_tf PRIVATE include)
 set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)
+migraphx_generate_export_header(migraphx_tf)
 rocm_set_soversion(migraphx_tf ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_tf)
 target_link_libraries(migraphx_tf PRIVATE tf-proto)
@@ -91,4 +88,3 @@ rocm_install_targets(
   PRIVATE
   TARGETS migraphx_tf
 )
-

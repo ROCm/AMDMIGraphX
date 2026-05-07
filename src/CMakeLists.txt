@@ -31,8 +31,6 @@ include(RegisterOp)
 include(CheckCXXLinkerFlag)
 include(CheckCXXSourceCompiles)
 
-include(LinkedLibraries)
-
 set(CMAKE_REQUIRED_FLAGS "-Werror=deprecated-declarations")
 check_cxx_source_compiles("
 #include <algorithm>
@@ -161,10 +159,9 @@ target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
-    target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
-    # Due to BinSkim errors EnableControlFlowGuard
-    target_compile_options(migraphx PUBLIC "SHELL:-Xclang -cfguard")
 endif()
+
+migraphx_setup_msvc_runtime_library(migraphx)
 
 configure_file(version.h.in include/migraphx/version.h)
 add_library(migraphx_version INTERFACE)

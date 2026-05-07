@@ -22,18 +22,22 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_executable(migraphx-hiprtc-driver main.cpp)
-migraphx_setup_msvc_runtime_library(migraphx-hiprtc-driver)
-rocm_clang_tidy_check(migraphx-hiprtc-driver)
-# On Windows, the driver's default 1MB stack size is not enough - increasing to 4MB.
-set(STACK_SIZE 4194304)
-if(MSVC)
-    target_link_options(migraphx-hiprtc-driver PRIVATE /STACK:${STACK_SIZE})
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_SIMULATE_ID MATCHES "MSVC")
-    target_link_options(migraphx-hiprtc-driver PRIVATE -Xlinker /stack:${STACK_SIZE})
-endif()
-target_link_libraries(migraphx-hiprtc-driver PRIVATE migraphx_gpu)
-add_dependencies(migraphx_all_targets migraphx-hiprtc-driver)
-rocm_install_targets(
-    TARGETS migraphx-hiprtc-driver
-)
+include_guard()
+
+include(CMakeDependentOption)
+
+cmake_dependent_option(MIGRAPHX_USE_MSVC_STATIC_RUNTIME
+        "" OFF "WIN32" OFF)
+
+function(migraphx_setup_msvc_runtime_library target)
+    if(MSVC AND (CMAKE_CXX_COMPILER STREQUAL Clang OR CMAKE_C_COMPILER STREQUAL Clang))
+        target_compile_definitions(${target} PRIVATE
+                "$<$<CONFIG:Debug>:_DEBUG;_ITERATOR_DEBUG_LEVEL=2>")
+    endif()
+    if(NOT MIGRAPHX_USE_MSVC_STATIC_RUNTIME)
+        set(__suffix "DLL")
+    endif()
+    set_target_properties(${target} PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${__suffix}")
+    unset(__suffix)
+endfunction()

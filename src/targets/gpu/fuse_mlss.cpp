@@ -32,6 +32,7 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
 #include <migraphx/gpu/mlss_mha_op.hpp>
+#include <migraphx/gpu/mlss_conv_op.hpp>
 #include <migraphx/gpu/mlss/mha/gfx1201_mha_64x64x48_64x48x64.hpp>
 #ifdef MIGRAPHX_USE_AMDMLSS
 #include <amdmlss/amdmlss_api.h>
@@ -217,16 +218,197 @@ struct find_mlss_attention
     }
 };
 
+// ---------------------------------------------------------------------------
+// Matcher for convolution instructions matching ResNet-50 fp32 shapes.
+// The matcher checks the op name and then validates shapes/attributes in apply().
+// ---------------------------------------------------------------------------
+struct find_mlss_conv
+{
+    context* ctx = nullptr;
+
+    auto matcher() const
+    {
+        return match::name("convolution")(
+            match::arg(0)(match::any()),
+            match::arg(1)(match::name("@literal")));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+
+        // Retrieve the two instruction inputs: activation and weight literal.
+        auto inputs = ins->inputs();
+        if(inputs.size() < 2)
+            return;
+
+        auto act_ins = inputs[0];
+        auto wt_ins  = inputs[1];
+
+        // ---- shape checks ----
+        const auto act_lens = act_ins->get_shape().lens();
+        const auto wt_lens  = wt_ins->get_shape().lens();
+        const auto out_lens = ins->get_shape().lens();
+
+        const auto dtype = act_ins->get_shape().type();
+        if(dtype != shape::float_type and dtype != shape::half_type)
+            return;
+        if(wt_ins->get_shape().type() != dtype)
+            return;
+        if(ins->get_shape().type() != dtype)
+            return;
+
+        // ---- convolution attribute checks ----
+        const auto& op_val = ins->get_operator().to_value();
+        auto get_vec = [&](const std::string& key) -> std::vector<std::size_t> {
+            return op_val.get(key, std::vector<std::size_t>{});
+        };
+
+        if(op_val.get("group", std::size_t{1}) != 1)
+            return;
+        if(get_vec("dilation") != std::vector<std::size_t>{1, 1})
+            return;
+
+        // Each entry: {act_lens, wt_lens, out_lens, padding, stride}
+        struct conv_shape_entry
+        {
+            std::vector<std::size_t> act;
+            std::vector<std::size_t> wt;
+            std::vector<std::size_t> out;
+            std::vector<std::size_t> padding;
+            std::vector<std::size_t> stride;
+        };
+
+        // fp32 supported shapes (ResNet-50 + VGG-19, stride-1 kernels)
+        static const std::vector<conv_shape_entry> fp32_shapes = {
+            // ResNet-50 1x1 stride-1 (bottleneck expand/compress)
+            // {{1, 64, 56, 56},    {64, 64, 1, 1},    {1, 64, 56, 56},    {0, 0, 0, 0}, {1, 1}},
+            // {{1, 64, 56, 56},    {256, 64, 1, 1},   {1, 256, 56, 56},   {0, 0, 0, 0}, {1, 1}},
+            // {{1, 256, 56, 56},   {64, 256, 1, 1},   {1, 64, 56, 56},    {0, 0, 0, 0}, {1, 1}},
+            // {{1, 128, 28, 28},   {512, 128, 1, 1},  {1, 512, 28, 28},   {0, 0, 0, 0}, {1, 1}},
+            // {{1, 512, 28, 28},   {128, 512, 1, 1},  {1, 128, 28, 28},   {0, 0, 0, 0}, {1, 1}},
+            // {{1, 256, 14, 14},   {1024, 256, 1, 1}, {1, 1024, 14, 14},  {0, 0, 0, 0}, {1, 1}},
+            // {{1, 1024, 14, 14},  {256, 1024, 1, 1}, {1, 256, 14, 14},   {0, 0, 0, 0}, {1, 1}},
+            // {{1, 512, 7, 7},     {2048, 512, 1, 1}, {1, 2048, 7, 7},    {0, 0, 0, 0}, {1, 1}},
+            // {{1, 2048, 7, 7},    {512, 2048, 1, 1}, {1, 512, 7, 7},     {0, 0, 0, 0}, {1, 1}},
+
+            // ResNet-50 3x3 stride-1
+            {{1, 64, 56, 56},    {64, 64, 3, 3},    {1, 64, 56, 56},    {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 28, 28},   {128, 128, 3, 3},  {1, 128, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 14, 14},   {256, 256, 3, 3},  {1, 256, 14, 14},   {1, 1, 1, 1}, {1, 1}},
+
+            // vgg19 (224x224)
+            {{1, 3, 224, 224},   {64, 3, 3, 3},     {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
+            {{1, 64, 224, 224},  {64, 64, 3, 3},    {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
+            // vgg19 (112x112)
+            {{1, 64, 112, 112},  {128, 64, 3, 3},   {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 112, 112}, {128, 128, 3, 3},  {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
+            // vgg19 (56x56)
+            {{1, 128, 56, 56},   {256, 128, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 56, 56},   {256, 256, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
+            // vgg19 (28x28)
+            {{1, 256, 28, 28},   {512, 256, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 28, 28},   {512, 512, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            // vgg19 (14x14)
+            {{1, 512, 14, 14},   {512, 512, 3, 3},  {1, 512, 14, 14},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 7, 7},     {512, 512, 3, 3},  {1, 512, 7, 7},     {1, 1, 1, 1}, {1, 1}},
+        };
+
+        // fp16pk supported shapes (NAVI48_fp16pk_f2x3_stride1):
+        // R=2, S=3, pad_h=0, pad_w=1 -> out_h = H-1, out_w = W
+        static const std::vector<conv_shape_entry> fp16pk_shapes = {
+            {{1, 64, 56, 56},    {64, 64, 3, 3},    {1, 64, 56, 56},    {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 28, 28},   {128, 128, 3, 3},  {1, 128, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 14, 14},   {256, 256, 3, 3},  {1, 256, 14, 14},   {1, 1, 1, 1}, {1, 1}},
+
+            // vgg19 (224x224)
+            {{1, 3, 224, 224},   {64, 3, 3, 3},     {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
+            {{1, 64, 224, 224},  {64, 64, 3, 3},    {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
+            // vgg19 (112x112)
+            {{1, 64, 112, 112},  {128, 64, 3, 3},   {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
+            {{1, 128, 112, 112}, {128, 128, 3, 3},  {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
+            // vgg19 (56x56)
+            {{1, 128, 56, 56},   {256, 128, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 256, 56, 56},   {256, 256, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
+            // vgg19 (28x28)
+            {{1, 256, 28, 28},   {512, 256, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 28, 28},   {512, 512, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
+            // vgg19 (14x14)
+            {{1, 512, 14, 14},   {512, 512, 3, 3},  {1, 512, 14, 14},   {1, 1, 1, 1}, {1, 1}},
+            {{1, 512, 7, 7},     {512, 512, 3, 3},  {1, 512, 7, 7},     {1, 1, 1, 1}, {1, 1}},
+        };
+
+        // fp32 stride-2 supported shapes (GFX12_fp32_f3x2_ostride2):
+        // stride=2; R, S, pad passed as runtime args so any filter size is supported
+        static const std::vector<conv_shape_entry> fp32_ostride2_shapes = {
+            {{1, 32, 256, 256},  {64, 32, 3, 2},    {1, 64, 128, 128},  {1, 1, 0, 0}, {2, 2}},
+            // ResNet-50 stem: 7x7 stride-2
+            // {{1, 3, 224, 224},   {64, 3, 7, 7},     {1, 64, 112, 112},  {3, 3, 3, 3}, {2, 2}},
+            // ResNet-50 1x1 stride-2 (downsample projections)
+            // {{1, 256, 56, 56},   {128, 256, 1, 1},  {1, 128, 28, 28},   {0, 0, 0, 0}, {2, 2}},
+            // {{1, 256, 56, 56},   {512, 256, 1, 1},  {1, 512, 28, 28},   {0, 0, 0, 0}, {2, 2}},
+            // {{1, 512, 28, 28},   {256, 512, 1, 1},  {1, 256, 14, 14},   {0, 0, 0, 0}, {2, 2}},
+            // {{1, 512, 28, 28},   {1024, 512, 1, 1}, {1, 1024, 14, 14},  {0, 0, 0, 0}, {2, 2}},
+            // {{1, 1024, 14, 14},  {512, 1024, 1, 1}, {1, 512, 7, 7},     {0, 0, 0, 0}, {2, 2}},
+            // {{1, 1024, 14, 14},  {2048, 1024, 1, 1},{1, 2048, 7, 7},    {0, 0, 0, 0}, {2, 2}},
+        };
+
+        const auto cur_padding = get_vec("padding");
+        const auto cur_stride  = get_vec("stride");
+
+        auto shape_match = [&](const std::vector<conv_shape_entry>& table) {
+            return std::any_of(table.begin(), table.end(), [&](const conv_shape_entry& e) {
+                return act_lens == e.act and wt_lens == e.wt and out_lens == e.out and
+                       cur_padding == e.padding and cur_stride == e.stride;
+            });
+        };
+
+        // ---- build the mlss_conv_op ----
+        mlss_conv_op op;
+        if(dtype == shape::float_type)
+        {
+            // if(shape_match(fp32_ostride2_shapes))
+            //     op = mlss_conv_op::make_gfx12_fp32_f3x2_ostride2();
+            if(shape_match(fp32_shapes))
+                op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1();
+            else
+                return;
+        }
+        else // half_type
+        {
+            if(not shape_match(fp16pk_shapes))
+                return;
+            op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
+        }
+
+        // Set pad_h and pad_w from the convolution padding attribute.
+        // MIGraphX padding layout: {pad_h_begin, pad_w_begin, pad_h_end, pad_w_end}
+        op.pad_h = static_cast<int32_t>(cur_padding[0]);
+        op.pad_w = static_cast<int32_t>(cur_padding[1]);
+
+        auto& m = mpm.get_module();
+
+        const auto out_shape  = ins->get_shape();
+
+        // Output buffer
+        auto output_alloc = m.insert_instruction(
+            ins, make_op("allocate", {{"shape", to_value(out_shape)}}));
+
+        m.replace_instruction(ins, op, {act_ins, wt_ins, output_alloc});
+    }
+};
+
 void fuse_mlss::apply(module_pass_manager& mpm) const
 {
     const auto& gfx_name = ctx->get_current_device().get_gfx_name();
     if(not starts_with(gfx_name, "gfx1201"))
         return;
 
-    if(not mlss_op_enabled("mha"))
-        return;
+    if(mlss_op_enabled("mha"))
+        match::find_matches(mpm, find_mlss_attention{ctx});
 
-    match::find_matches(mpm, find_mlss_attention{ctx});
+    if(mlss_op_enabled("conv"))
+        match::find_matches(mpm, find_mlss_conv{ctx});
 }
 
 } // namespace gpu

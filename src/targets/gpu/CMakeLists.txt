@@ -203,6 +203,7 @@ add_library(migraphx_gpu
     write_literals.cpp
     fuse_mlss.cpp
     mlss_mha_op.cpp
+    mlss_conv_op.cpp
     ${JIT_GPU_SRCS}
     ${MIOPEN_SRCS}
 )

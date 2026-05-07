@@ -42,7 +42,6 @@ if [[ ("${ID}" == "sles") ]]; then
     python3-devel \
     python3-pip \
     rocblas-devel \
-    rocm-cmake \
     libgfortran5 \
     hipblas-devel \
     hipblaslt-devel
@@ -61,7 +60,6 @@ else
     hipblas-dev \
     hipblaslt-dev \
     hipcc \
-    rocm-cmake \
     rocm-llvm-dev \
     libtbb-dev
 fi

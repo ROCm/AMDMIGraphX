@@ -34,6 +34,7 @@ migraphx_setup_msvc_runtime_library(test_gpu_kernels)
 target_link_libraries(test_gpu_kernels migraphx migraphx_gpu kernel_tests)
 
 add_library(migraphx_gpu_test_kernel_file_check EXCLUDE_FROM_ALL ${KERNELS_TESTS})
+migraphx_setup_msvc_runtime_library(migraphx_gpu_test_kernel_file_check)
 target_link_libraries(migraphx_gpu_test_kernel_file_check compile_migraphx_gpu_kernels)
 rocm_clang_tidy_check(migraphx_gpu_test_kernel_file_check)
 

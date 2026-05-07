@@ -193,11 +193,8 @@ inline __device__ T dpp_row_shl_12(T x)
 //   Row stage: m_val → r0, r1 (3 row_shl, 2 sum, 2 sub)
 //   Col stage: r0 → y00, y01; r1 → y10, y11 (6 quad_perm, 4 sum, 4 sub)
 // 20 DPP+ALU ops total, 7 scratch VGPRs declared locally.
-inline __device__ void winograd_output_transform_f(float m_val,
-                                                   float& y00,
-                                                   float& y01,
-                                                   float& y10,
-                                                   float& y11)
+inline __device__ void
+winograd_output_transform_f(float m_val, float& y00, float& y01, float& y10, float& y11)
 {
 #if defined(__AMDGCN__)
     float mk1, mk2, mk3, r0, r1, tq1, tq2, tq3;
@@ -222,10 +219,18 @@ inline __device__ void winograd_output_transform_f(float m_val,
         "v_add_f32 %[y10], %[y10], %[tq2]\n"
         "v_sub_f32 %[y11], %[tq1], %[tq2]\n"
         "v_sub_f32 %[y11], %[y11], %[tq3]\n"
-        : [y00] "=&v"(y00), [y01] "=&v"(y01), [y10] "=&v"(y10), [y11] "=&v"(y11),
-          [mk1] "=&v"(mk1), [mk2] "=&v"(mk2), [mk3] "=&v"(mk3),
-          [r0] "=&v"(r0), [r1] "=&v"(r1),
-          [tq1] "=&v"(tq1), [tq2] "=&v"(tq2), [tq3] "=&v"(tq3)
+        : [y00] "=&v"(y00),
+          [y01] "=&v"(y01),
+          [y10] "=&v"(y10),
+          [y11] "=&v"(y11),
+          [mk1] "=&v"(mk1),
+          [mk2] "=&v"(mk2),
+          [mk3] "=&v"(mk3),
+          [r0] "=&v"(r0),
+          [r1] "=&v"(r1),
+          [tq1] "=&v"(tq1),
+          [tq2] "=&v"(tq2),
+          [tq3] "=&v"(tq3)
         : [mv] "v"(m_val));
 #else
     (void)m_val;
@@ -275,18 +280,17 @@ inline __device__ void winograd_output_transform_f(float m_val,
 // v_pk_add/sub_f16) followed by per-VGPR DPP shuffle + v_pk_fma_f16.
 // Avoiding inline asm for the row stage lets the compiler interleave the
 // individual ALU ops with surrounding GEMM dots.
-inline __device__ void input_transform_packed_dpp(array<vec<half, 2>, 4>& v,
-                                                   vec<half, 2> sign)
+inline __device__ void input_transform_packed_dpp(array<vec<half, 2>, 4>& v, vec<half, 2> sign)
 {
     // Row stage (read original values, write back; compiler emits 4 v_pk_*).
     const vec<half, 2> v0o = v[0];
     const vec<half, 2> v1o = v[1];
     const vec<half, 2> v2o = v[2];
     const vec<half, 2> v3o = v[3];
-    v[0] = v0o - v2o;     // t[0]
-    v[1] = v1o + v2o;     // t[1]
-    v[2] = v2o - v1o;     // t[2]
-    v[3] = v3o - v1o;     // -t[3]
+    v[0]                   = v0o - v2o; // t[0]
+    v[1]                   = v1o + v2o; // t[1]
+    v[2]                   = v2o - v1o; // t[2]
+    v[3]                   = v3o - v1o; // -t[3]
     // Col stage: per-VGPR DPP shuffle + FMA with per-lane sign.
     repeat_c<4>([&](auto i) {
         vec<half, 2> shuf = v[i];
@@ -305,18 +309,17 @@ inline __device__ void input_transform_packed_dpp(array<vec<half, 2>, 4>& v,
 // Implemented in C++ with explicit per-channel ops + inline-asm DPP shuffle
 // helpers - clean enough that the compiler emits 8 v_fma_f32 row + 8 v_mov
 // + 8 v_fma_f32 col = 24 ALU ops per cooperating lane.
-inline __device__ void input_transform_packed_dpp(array<vec<float, 2>, 4>& v,
-                                                   vec<float, 2> sign)
+inline __device__ void input_transform_packed_dpp(array<vec<float, 2>, 4>& v, vec<float, 2> sign)
 {
     // Row stage: read original values then write back, no in-place hazard.
     const vec<float, 2> v0_orig = v[0];
     const vec<float, 2> v1_orig = v[1];
     const vec<float, 2> v2_orig = v[2];
     const vec<float, 2> v3_orig = v[3];
-    v[0] = v0_orig - v2_orig;                                // t[0] = d[0] - d[2]
-    v[1] = v1_orig + v2_orig;                                // t[1] = d[1] + d[2]
-    v[2] = v2_orig - v1_orig;                                // t[2] = d[2] - d[1]
-    v[3] = v3_orig - v1_orig;                                // -t[3] = d[3] - d[1]
+    v[0]                        = v0_orig - v2_orig; // t[0] = d[0] - d[2]
+    v[1]                        = v1_orig + v2_orig; // t[1] = d[1] + d[2]
+    v[2]                        = v2_orig - v1_orig; // t[2] = d[2] - d[1]
+    v[3]                        = v3_orig - v1_orig; // -t[3] = d[3] - d[1]
 
     // Col stage: per-VGPR DPP shuffle + FMA with per-lane sign.
     repeat_c<4>([&](auto i) {
@@ -527,9 +530,7 @@ __device__ __attribute__((const)) array<T, 9> load_filter(W w, index_int k, inde
 // offline by prefuse_ops::pretransform_filter_literal with U = G * g * G^T).
 // Single 16-byte / 32-byte memcpy for the common packed-stride case.
 template <class T, class W>
-__device__ __attribute__((const)) array<T, 16> load_filter_xformed(W w,
-                                                                    index_int k,
-                                                                    index_int c)
+__device__ __attribute__((const)) array<T, 16> load_filter_xformed(W w, index_int k, index_int c)
 {
     constexpr auto ws = typename W::shape_type{};
     array<T, 16> u;
@@ -722,8 +723,7 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
     // same per-lane sign to both packed channels.
     vec<out_type, CH> in_xform_sign;
     {
-        const out_type s =
-            ((local & 3u) == 1u) ? out_type{1} : static_cast<out_type>(-1.0f);
+        const out_type s = ((local & 3u) == 1u) ? out_type{1} : static_cast<out_type>(-1.0f);
         in_xform_sign[0] = s;
         in_xform_sign[1] = s;
     }
@@ -743,7 +743,7 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
         // Layout: thread `local` covers position p = local within the linear
         // span of K_BLOCK*CH filter chunks, then loads E_PER_THREAD
         // contiguous transformed elements from that chunk.
-        constexpr index_int FILT_CHUNKS  = K_BLOCK * CH;            // 64 chunks
+        constexpr index_int FILT_CHUNKS  = K_BLOCK * CH; // 64 chunks
         constexpr index_int E_PER_THREAD = (16u * FILT_CHUNKS + BLOCK - 1u) / BLOCK;
         // For canonical (BLOCK=256, FILT_CHUNKS=64): E_PER_THREAD = 4 (one
         // chunk requires 16/E_PER_THREAD = 4 threads, total 256 threads).
@@ -753,11 +753,11 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
         const index_int slice_id = local % THREADS_PER_CHUNK;
         if(chunk_id < FILT_CHUNKS)
         {
-            const index_int kk = chunk_id / CH;
+            const index_int kk     = chunk_id / CH;
             const index_int ch_idx = chunk_id % CH;
             const index_int my_k = k_block * K_BLOCK + kk;
-            const index_int c    = (ch_idx == 0u) ? c_a : c_b;
-            const index_int e0   = slice_id * E_PER_THREAD;
+            const index_int c      = (ch_idx == 0u) ? c_a : c_b;
+            const index_int e0     = slice_id * E_PER_THREAD;
             array<out_type, E_PER_THREAD> chunk{};
             if(my_k < K_ and c < C_ and e0 < 16u)
             {
@@ -766,8 +766,7 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
                 constexpr auto ws = typename W::shape_type{};
                 if constexpr(ws.strides[2] == 4u and ws.strides[3] == 1u)
                 {
-                    const out_type* base =
-                        w.data() + my_k * ws.strides[0] + c * ws.strides[1] + e0;
+                    const out_type* base = w.data() + my_k * ws.strides[0] + c * ws.strides[1] + e0;
                     __builtin_memcpy(chunk.data(), base, sizeof(chunk));
                 }
                 else
@@ -837,17 +836,11 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
                             if(hh >= 0 and hh < diff_int{H_in})
                             {
                                 if(a_ok)
-                                    v[i][0] =
-                                        x[make_array<index_int>(n_,
-                                                                 c_a,
-                                                                 index_int(hh),
-                                                                 index_int(ww))];
+                                    v[i][0] = x[make_array<index_int>(
+                                        n_, c_a, index_int(hh), index_int(ww))];
                                 if(b_ok)
-                                    v[i][1] =
-                                        x[make_array<index_int>(n_,
-                                                                 c_b,
-                                                                 index_int(hh),
-                                                                 index_int(ww))];
+                                    v[i][1] = x[make_array<index_int>(
+                                        n_, c_b, index_int(hh), index_int(ww))];
                             }
                         });
                     }
@@ -855,9 +848,8 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
                 input_transform_packed_dpp(v, in_xform_sign);
                 repeat_c<4>([&](auto i) {
                     const index_int e = i * 4u + col_in_quad;
-                    __builtin_memcpy(&v_lds[make_array<index_int>(slot, e, quad_id, 0u)],
-                                     &v[i],
-                                     sizeof(v[i]));
+                    __builtin_memcpy(
+                        &v_lds[make_array<index_int>(slot, e, quad_id, 0u)], &v[i], sizeof(v[i]));
                 });
             }
         }
@@ -874,7 +866,7 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
     // worth of contiguous (k, ch) halves already in v_dot2_f32_f16 operand
     // order - no v_perm_b32 needed between the load and the dot.
     constexpr index_int B128_HALVES = 16u / sizeof(out_type); // 8 fp16, 4 fp32
-    constexpr index_int B128_PAIRS  = B128_HALVES / CH;        // 4 fp16, 2 fp32
+    constexpr index_int B128_PAIRS  = B128_HALVES / CH;       // 4 fp16, 2 fp32
     static_assert(KT % B128_PAIRS == 0 or KT < B128_PAIRS,
                   "KT should be a multiple of b128 pair-chunk for full vectorization");
     static_assert(TT_ % B128_PAIRS == 0 or TT_ < B128_PAIRS,
@@ -945,18 +937,16 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
                 }
                 else
                 {
-                    acc[ai] = __builtin_fmaf(
-                        u_pair[m * CH + 0u], v_pair[nn * CH + 0u], acc[ai]);
-                    acc[ai] = __builtin_fmaf(
-                        u_pair[m * CH + 1u], v_pair[nn * CH + 1u], acc[ai]);
+                    acc[ai] = __builtin_fmaf(u_pair[m * CH + 0u], v_pair[nn * CH + 0u], acc[ai]);
+                    acc[ai] = __builtin_fmaf(u_pair[m * CH + 1u], v_pair[nn * CH + 1u], acc[ai]);
                 }
             });
         });
     };
 
     auto gemm = [&](index_int slot) {
-        alignas(16) array<out_type, KT * CH> u_pair;   // interleaved (u_a, u_b)
-        alignas(16) array<out_type, TT_ * CH> v_pair;  // interleaved (v_a, v_b)
+        alignas(16) array<out_type, KT * CH> u_pair;  // interleaved (u_a, u_b)
+        alignas(16) array<out_type, TT_ * CH> v_pair; // interleaved (v_a, v_b)
         load_slot_u(slot, u_pair);
         load_slot_v(slot, v_pair);
         // Barrier between LDS loads and dots - empirically the best perf:
@@ -1063,7 +1053,7 @@ __device__ void winograd_conv_f2x3_s1_kernel(X x, W w, Y y)
 
     repeat_c<KT>([&](auto m_kk) {
         repeat_c<TT_>([&](auto m_tt) {
-            const index_int ai = m_tt * KT + m_kk;  // T outer / K inner
+            const index_int ai = m_tt * KT + m_kk; // T outer / K inner
             Acc m_val          = acc[ai];
 
             // --- Row stage via row_shl (cross-quad within row-of-16).

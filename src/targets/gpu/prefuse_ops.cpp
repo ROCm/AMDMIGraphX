@@ -339,7 +339,8 @@ struct winograd_conv
         auto x_lens = inputs[0].lens();
         auto w_lens = inputs[1].lens();
         if(x_lens.size() != 4 or w_lens.size() != 4 or w_lens[2] != 4 or w_lens[3] != 4)
-            MIGRAPHX_THROW("gpu::winograd_conv: expected NCHW input and [K,C,4,4] pre-transformed filter");
+            MIGRAPHX_THROW(
+                "gpu::winograd_conv: expected NCHW input and [K,C,4,4] pre-transformed filter");
         std::vector<std::size_t> out_lens;
         out_lens.push_back(x_lens[0]);
         out_lens.push_back(w_lens[0]);
@@ -376,13 +377,13 @@ inline std::array<T, 16> winograd_filter_pretransform_3x3(const T* g, bool miope
     std::array<T, 12> t;
     for(int j = 0; j < 3; ++j)
     {
-        const T g0       = g[0 * 3 + j];
-        const T g1       = g[1 * 3 + j];
-        const T g2       = g[2 * 3 + j];
-        t[0 * 3 + j]     = g0;
-        t[1 * 3 + j]     = half * (g0 + g1 + g2);
-        t[2 * 3 + j]     = half * (g0 - g1 + g2);
-        t[3 * 3 + j]     = g2;
+        const T g0   = g[0 * 3 + j];
+        const T g1   = g[1 * 3 + j];
+        const T g2   = g[2 * 3 + j];
+        t[0 * 3 + j] = g0;
+        t[1 * 3 + j] = half * (g0 + g1 + g2);
+        t[2 * 3 + j] = half * (g0 - g1 + g2);
+        t[3 * 3 + j] = g2;
     }
     // Step 2: U = t * G^T  (4x4)
     std::array<T, 16> u;
@@ -417,7 +418,7 @@ inline std::array<T, 16> winograd_filter_pretransform_3x3(const T* g, bool miope
 // negated) to match the DPP-cooperative input transform's V layout.
 inline literal pretransform_filter_literal(const literal& w_lit)
 {
-    const auto& s      = w_lit.get_shape();
+    const auto& s       = w_lit.get_shape();
     const std::size_t K = s.lens()[0];
     const std::size_t C = s.lens()[1];
 
@@ -431,8 +432,7 @@ inline literal pretransform_filter_literal(const literal& w_lit)
     literal result;
     w_lit.visit([&](auto w_view) {
         using T = std::remove_cv_t<typename decltype(w_view)::value_type>;
-        if constexpr(std::is_floating_point<T>::value or
-                     std::is_same<T, migraphx::half>::value)
+        if constexpr(std::is_floating_point<T>::value or std::is_same<T, migraphx::half>::value)
         {
             std::vector<T> out(K * C * 16);
             for(std::size_t k = 0; k < K; ++k)
@@ -442,8 +442,7 @@ inline literal pretransform_filter_literal(const literal& w_lit)
                     std::array<T, 9> g;
                     for(std::size_t i = 0; i < 9; ++i)
                         g[i] = static_cast<T>(w_view(k, c, i / 3, i % 3));
-                    const auto u =
-                        winograd_filter_pretransform_3x3<T>(g.data(), miopen_signs);
+                    const auto u = winograd_filter_pretransform_3x3<T>(g.data(), miopen_signs);
                     std::copy(u.begin(), u.end(), out.begin() + (k * C + c) * 16);
                 }
             }

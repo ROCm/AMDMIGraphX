@@ -308,7 +308,10 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
             }
         }
     }
-    if(string_value_of(MIGRAPHX_GPU_ARCH{}).empty())
+    auto& contexts = this->impl->contexts;
+
+    if(not std::any_of(
+        contexts.begin(), contexts.end(), [](const auto& c) { return c.is_cross_compile(); }))
         this->finalize();
 }
 
@@ -327,7 +330,7 @@ void program::compile(const target& t, compile_options options)
     auto&& passes = t.get_passes(this->impl->contexts.front(), options);
     run_passes(*this, passes, options.trace);
     auto mods = this->get_modules();
-    bool cross_compiling = not string_value_of(MIGRAPHX_GPU_ARCH{}).empty();
+    bool cross_compiling = this->impl->contexts.front().is_cross_compile();
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {

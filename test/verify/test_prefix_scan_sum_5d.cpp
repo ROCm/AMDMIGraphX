@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,25 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_NONZERO_HPP
-#define MIGRAPHX_GUARD_RTGLIB_DEVICE_NONZERO_HPP
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+template <int Axis>
+struct test_prefix_scan_sum_5d : verify_program<test_prefix_scan_sum_5d<Axis>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5, 6}};
+        auto x = mm->add_parameter("x", s);
+        mm->add_instruction(
+            migraphx::make_op("prefix_scan_sum", {{"axis", Axis}, {"exclusive", false}}), x);
+        return p;
+    }
+};
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
-
-argument MIGRAPHX_DEVICE_EXPORT nonzero(hipStream_t stream,
-                                        const argument& result,
-                                        const argument& arg_data);
-
-} // namespace device
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_prefix_scan_sum_5d<0>;
+template struct test_prefix_scan_sum_5d<2>;
+template struct test_prefix_scan_sum_5d<4>;

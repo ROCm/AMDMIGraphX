@@ -30,7 +30,6 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/logger.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -75,7 +74,7 @@ struct precompile_op : action<precompile_op>
         run_passes(prog, {lowering{}, compile_ops{&ctx, exhaustive}});
         auto op = get_code_object(prog);
         auto t  = time_op(ctx, op, inputs, p.get(v, "iterations", 100));
-        log::info() << preop << ": " << t << "ms";
+        std::cout << preop << ": " << t << "ms" << std::endl;
     }
 };
 

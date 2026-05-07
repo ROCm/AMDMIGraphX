@@ -20,43 +20,44 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
-#define MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/nonzero.hpp>
-#include <migraphx/gpu/miopen.hpp>
+// cppcheck-suppress-file noExplicitConstructor
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include <type_traits>
 
-struct context;
-
-struct hip_nonzero
+void test_type_trait()
 {
-    op::nonzero op;
+    // cppcheck-suppress migraphx-AvoidNestedValue
+    static_assert(std::is_same<int, int>::value);
+}
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
+auto test_generic_var()
+{
+    return [](auto i) {
+        // cppcheck-suppress migraphx-AvoidNestedValue
+        return decltype(i)::value;
+    };
+}
 
-    std::string name() const { return "gpu::nonzero"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
+namespace a {
+inline namespace n1 {
+struct value
+{
+    int x;
+    value(int y);
 };
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+value::value(int y) : x(y) {}
 
-#endif
+} // namespace n1
+} // namespace a
+
+namespace b {
+a::value test_value_as_class()
+{
+    a::value v(42);
+    return v;
+}
+} // namespace b

@@ -253,7 +253,7 @@ inline std::string to_hex_string(const Range& r, bool lsb = false)
     return std::accumulate(r.begin(), r.end(), std::string{}, [&](std::string acc, const auto& x) {
         using type         = std::make_unsigned_t<std::decay_t<decltype(x)>>;
         const auto u       = bit_cast<type>(x);
-        const auto to_byte = [&](std::ptrdiff_t b) -> std::uint8_t {
+        const auto to_byte = [&](std::size_t b) -> std::uint8_t {
             return (u >> (b * 8u)) & 0xffu;
         };
         const auto append_hex = [&](std::string s, std::uint8_t byte) {

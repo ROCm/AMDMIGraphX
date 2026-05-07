@@ -122,6 +122,7 @@ std::string md5(const std::string_view& str)
     std::array<std::uint8_t, block_size> block{};
     for(std::size_t i = 0; i < full_blocks; ++i)
     {
+        // NOLINTNEXTLINE(readability-qualified-auto)
         const auto chunk_begin = str.begin() + (i * block_size);
         std::transform(chunk_begin, chunk_begin + block_size, block.begin(), &to_uint8);
         state = process_block(state, block);
@@ -131,13 +132,14 @@ std::string md5(const std::string_view& str)
     // message bit length in the last 8 bytes (little-endian). Two blocks are
     // needed when the bit-length field no longer fits in the current block.
     std::array<std::array<std::uint8_t, block_size>, 2> tail{};
+    // NOLINTNEXTLINE(readability-qualified-auto)
     const auto tail_src_begin = str.begin() + (full_blocks * block_size);
     std::transform(tail_src_begin, str.end(), tail[0].begin(), &to_uint8);
     tail[0][remainder] = 0x80;
 
     const bool need_two            = (remainder >= block_size - 8);
     const std::uint64_t bit_length = std::uint64_t{str.size()} * 8u;
-    // cppcheck-suppress constVariableReferenc
+    // cppcheck-suppress constVariableReference
     auto& last             = need_two ? tail[1] : tail[0];
     const auto bit_indices = range(8);
     transform_partial_sum(

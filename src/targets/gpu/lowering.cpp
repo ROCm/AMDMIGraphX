@@ -93,8 +93,6 @@ struct miopen_apply
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
         add_extend_op("fixed_pad");
-        add_extend_op("nonzero");
-        add_extend_op("prefix_scan_sum");
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
@@ -118,6 +116,7 @@ struct miopen_apply
         add_concat_past_present_op();
         add_scan_slice_op();
         add_fill_op();
+        add_dyn_slice_op();
     }
 
     void copy_params() const
@@ -578,6 +577,33 @@ struct miopen_apply
                                                     {{"op", to_value(ins->get_operator())},
                                                      {"output_shape", to_value(ins->get_shape())}}),
                                             ins->inputs());
+        });
+    }
+
+    void add_dyn_slice_op()
+    {
+        apply_map.emplace("slice", [=](instruction_ref ins) {
+            auto inputs = ins->inputs();
+            if(inputs.size() > 1)
+            {
+                std::vector<instruction_ref> cpu_inputs;
+                // Copy only the small runtime metadata inputs (starts/ends/axes) to CPU.
+                // inputs[0] (data) stays on GPU since slice creates an aliased view into it.
+                for(std::size_t i = 1; i < inputs.size(); ++i)
+                {
+                    cpu_inputs.push_back(
+                        mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]));
+                }
+                cpu_inputs.front() =
+                    mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+                for(std::size_t i = 1; i < inputs.size(); ++i)
+                {
+                    inputs[i] = cpu_inputs[i - 1];
+                }
+                return mod->replace_instruction(
+                    ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
+            }
+            return ins;
         });
     }
 };

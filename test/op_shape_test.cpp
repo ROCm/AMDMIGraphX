@@ -39,42 +39,30 @@ using se = migraphx::sym::expr;
 using migraphx::sym::lit;
 using migraphx::sym::var;
 
-template <class... Ts>
-static void expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    std::vector<migraphx::shape> shapes{xs...};
-    std::vector<migraphx::instruction_ref> args(shapes.size());
-    std::transform(
-        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
-    mm->add_instruction(op, args);
-    if(p.get_output_shapes().back() != expected)
-    {
-        std::cout << "FAILED: Incorrect shape for " << op << ": ";
-        std::cout << expected << " != " << p.get_output_shapes().back() << std::endl;
-        for(auto&& s : shapes)
-            std::cout << "    " << s << std::endl;
-    }
-}
 
 template <class... Ts>
-static void throws_shape(const migraphx::operation& op, Ts... xs)
+struct expect_shape
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    std::vector<migraphx::shape> shapes{xs...};
-    std::vector<migraphx::instruction_ref> args(shapes.size());
-    std::transform(
-        shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
-    bool thrown = test::throws([&] { mm->add_instruction(op, args); });
-    if(not thrown)
+    expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs, test::source_location loc = test::source_location{})
     {
-        std::cout << "FAILED: No error found for " << op.name() << ": ";
-        for(auto&& s : shapes)
-            std::cout << "    " << s << std::endl;
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<migraphx::shape> shapes{xs...};
+        std::vector<migraphx::instruction_ref> args(shapes.size());
+        std::transform(
+            shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
+        mm->add_instruction(op, args);
+        if(p.get_output_shapes().back() != expected)
+        {
+            test::failed(loc) << "Incorrect shape for " << op << ": " << expected << " != " << p.get_output_shapes().back();
+            for(auto&& s : shapes)
+                std::cout << "    " << s << std::endl;
+        }
     }
-}
+};
+
+template <class... Ts>
+expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs) -> expect_shape<Ts...>;
 
 template <class...>
 struct always_false : std::false_type
@@ -82,11 +70,37 @@ struct always_false : std::false_type
 };
 
 template <class... Ts>
-[[maybe_unused]] static void throws_shape(const migraphx::shape&, Ts...)
+struct throws_shape
 {
-    static_assert(always_false<Ts...>{},
-                  "An expected shape should not be passed to throws_shape function");
-}
+    throws_shape(const migraphx::operation& op, Ts... xs, test::source_location loc = test::source_location{})
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        std::vector<migraphx::shape> shapes{xs...};
+        std::vector<migraphx::instruction_ref> args(shapes.size());
+        std::transform(
+            shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
+        bool thrown = test::throws([&] { mm->add_instruction(op, args); });
+        if(not thrown)
+        {
+            test::failed(loc) << ": No error found for " << op.name() << ": ";
+            for(auto&& s : shapes)
+                std::cout << "    " << s << std::endl;
+        }
+    }
+
+    throws_shape(const migraphx::shape&, Ts...)
+    {
+        static_assert(always_false<Ts...>{},
+                      "An expected shape should not be passed to throws_shape function");
+    }
+};
+
+template <class... Ts>
+throws_shape(const migraphx::operation& op, Ts... xs) -> throws_shape<Ts...>;
+
+template <class... Ts>
+throws_shape(const migraphx::shape&, Ts... xs) -> throws_shape<Ts...>;
 
 TEST_CASE(allocate_static)
 {

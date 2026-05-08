@@ -44,6 +44,21 @@
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
 namespace test {
+#if defined (__has_builtin) && __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && __has_builtin(__builtin_FUNCTION)
+struct source_location
+{
+    const char* function = __builtin_FUNCTION();
+    const char* file     = __builtin_FILE();
+    int line             = __builtin_LINE();
+};
+#else
+struct source_location
+{
+    const char* function = "";
+    const char* file     = "";
+    int line             = 0;
+};
+#endif
 
 template <int N>
 struct rank : rank<N - 1>
@@ -410,16 +425,44 @@ inline std::atomic<int>& failures()
 
 inline void report_failure(int n = 1) { failures() += n; }
 
+struct failed
+{
+    failed(source_location ploc = source_location{})
+    : loc(ploc)
+    {}
+
+    failed(const failed&)            = delete;
+    failed& operator=(const failed&) = delete;
+
+    ~failed()
+    {
+        report_failure();
+        if(loc.function != nullptr and *loc.function != 0)
+            std::cout << loc.function << std::endl;
+        if(loc.file != nullptr and *loc.file != 0)
+            std::cout << loc.file << ":" << loc.line << ":" << std::endl;
+        std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset;
+        std::cout << ss.str() << std::endl;
+    }
+
+    source_location loc;
+    std::ostringstream ss;
+
+    template<class T>
+    failed& operator<<(const T& x)
+    {
+        ss << x;
+        return *this;
+    }
+};
+
 template <class T, class F>
-void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
+void check_predicate(const T& x, const char* msg, F f, source_location loc = source_location{})
 {
     if(not bool(x.value()))
     {
-        report_failure();
-        std::cout << func << std::endl;
-        std::cout << file << ":" << line << ":" << std::endl;
-        std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "
-                  << "[ " << x << " ]" << std::endl;
+        failed(loc) << msg << " "
+                  << "[ " << x << " ]";
         f();
     }
 }
@@ -906,6 +949,7 @@ inline void run(int argc, const char* argv[])
 
 } // namespace test
 
+
 // NOLINTNEXTLINE
 #define TEST_CAPTURE(...) test::capture{}->*__VA_ARGS__
 
@@ -918,18 +962,18 @@ inline void run(int argc, const char* argv[])
 #endif
 
 // NOLINTNEXTLINE
+#define TEST_SOURCE_LOCATION test::source_location{TEST_PRETTY_FUNCTION, __FILE__, __LINE__}
+
+// NOLINTNEXTLINE
 #define CHECK(...) \
-    test::failed(  \
-        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, TEST_PRETTY_FUNCTION, __FILE__, __LINE__, [] {})
+    test::check_predicate(  \
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, [] {}, TEST_SOURCE_LOCATION)
 
 // NOLINTNEXTLINE
 #define EXPECT(...)                         \
-    test::failed(TEST_CAPTURE(__VA_ARGS__), \
+    test::check_predicate(TEST_CAPTURE(__VA_ARGS__), \
                  #__VA_ARGS__,              \
-                 TEST_PRETTY_FUNCTION,      \
-                 __FILE__,                  \
-                 __LINE__,                  \
-                 &test::fail)
+                 &test::fail, TEST_SOURCE_LOCATION)
 
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)

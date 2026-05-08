@@ -1,0 +1,83 @@
+name: windows
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - master
+      - 'release/**'
+
+jobs:
+  windows-cpu:
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      matrix:
+        configuration:
+          - Release
+          - Debug
+
+
+    steps:
+    - uses: actions/checkout@v4.2.2
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12
+
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v1.9
+      with:
+        cmake-version: 3.20.0
+
+    - name: Install LLVM/Clang
+      uses: KyleMayes/install-llvm-action@v2
+      with:
+        version: "20"
+        directory: ${{ runner.temp }}/llvm
+
+    - name: Install rbuild
+      run: pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+
+    - name: Cache dependencies
+      continue-on-error: true
+      uses: actions/cache@v4.2.0
+      id: deps_cache
+      with:
+        path: ${{ github.workspace }}/cget
+        key: windows-cget-clang-${{ matrix.configuration }}-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
+        restore-keys: windows-cget-clang-cpu-
+
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3
+
+    - name: Install dependencies
+      env:
+        CC: clang-cl
+        CXX: clang-cl
+        CXXFLAGS: "/std:c++17"
+      run: |
+        rbuild prepare -d cget -s gh-win-cpu -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.configuration }}
+
+    - name: Build and test
+      env:
+        CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
+        CXXFLAGS: -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1 -ftrivial-auto-var-init=zero
+        CC: clang
+        CXX: clang++
+      run: |
+        rbuild build -d cget -s gh-win-cpu -G Ninja -T tests \
+          -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
+          -DCTEST_TIMEOUT=5000
+        cd build
+        cmake --build . --target driver
+        ctest -j 8 --output-on-failure --timeout 5000 -E 'test_bf16|test_float32|test_half|test_logger_test|test_schedule_test|test_ref'
+
+
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3

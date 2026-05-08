@@ -449,6 +449,14 @@ struct miopen_apply
     void add_nms_op()
     {
         apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
+            // Fixed-output NMS is handled by the JIT kernel registered via
+            // jit/nonmaxsuppression.cpp; route it through insert_precompile_op
+            // so compile_ops picks it up later. The dynamic-output mode still
+            // falls back to the CPU implementation.
+            auto op_val = ins->get_operator().to_value();
+            if(not op_val.at("use_dyn_output").to<bool>())
+                return insert_precompile_op(ins);
+
             auto s      = ins->get_shape();
             auto output = insert_allocation(ins, s);
             std::vector<instruction_ref> cpu_inputs;

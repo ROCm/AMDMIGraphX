@@ -139,6 +139,34 @@ struct bitonic_sort
                 lane_merge(get_bit(id, w), x);
         });
     }
+
+    // Block-level bitonic sort over a power-of-two buffer in shared or global
+    // memory. All threads in the block cooperate; buf must point to N elements
+    // visible to every thread. The compare_function determines the final order
+    // (e.g. greater{} -> descending). The buffer must be sized to N (a
+    // compile-time power of 2); callers pad with sentinel values when the
+    // logical length is smaller.
+    template <index_int N, class T>
+    __device__ void block_sort(index idx, T* buf) const
+    {
+        static_assert(is_power_of_2(N), "N must be a power of 2");
+        for(index_int k = 2; k <= N; k <<= 1)
+        {
+            for(index_int j = k >> 1; j > 0; j >>= 1)
+            {
+                idx.local_stride(N, [&](auto tid) {
+                    index_int partner = tid ^ j;
+                    if(partner > tid)
+                    {
+                        const bool reverse = (tid & k) != 0;
+                        if(this->compare(buf[tid], buf[partner], reverse))
+                            swap(buf[tid], buf[partner]);
+                    }
+                });
+                __syncthreads();
+            }
+        }
+    }
 };
 
 MIGRAPHX_AUTO_DEDUCE(bitonic_sort);

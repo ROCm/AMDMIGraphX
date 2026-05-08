@@ -46,6 +46,24 @@ if [[ ("${ID}" == "sles") ]]; then
     libgfortran5 \
     hipblas-devel \
     hipblaslt-devel
+elif [[ ("${ID}" == "rhel") || ("${ID}" == "almalinux") || ("${ID}" == "rocky") || ("${ID}" == "centos") || ("${ID}" == "fedora") || ("${ID_LIKE}" == *"rhel"*) || ("${ID_LIKE}" == *"fedora"*) ]]; then
+  # RHEL / AlmaLinux / Rocky / CentOS / Fedora (used for manylinux_2_28 RPM builds)
+  dnf install -y --nobest \
+    cmake \
+    numactl-devel \
+    miopen-hip-devel \
+    openmp-extras-runtime \
+    openmp-extras-devel \
+    python3-devel \
+    python3-pip \
+    rocblas-devel \
+    libgfortran \
+    hipblas-devel \
+    hipblaslt-devel \
+    hipcc \
+    rocm-cmake \
+    rocm-llvm-devel \
+    tbb-devel
 else
   # Need pip3 and Python headers to build dependencies
   apt update && apt install -y \

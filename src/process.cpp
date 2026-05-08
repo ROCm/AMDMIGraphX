@@ -282,6 +282,16 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
             MIGRAPHX_THROW("Error closing STDIN handle for writing (" +
                            std::to_string(GetLastError()) + ")");
 
+        {
+            TCHAR buf[MIGRAPHX_PROCESS_BUFSIZE];
+            DWORD bytes_read = 0;
+            while(ReadFile(output.get_read_handle(), buf, sizeof(buf), &bytes_read, nullptr) !=
+                      FALSE and
+                  bytes_read > 0)
+            {
+            }
+        }
+
         WaitForSingleObject(process_info.hProcess, INFINITE);
 
         DWORD status{};

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -215,6 +215,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 4)
         {
+            // Skip validation if the mask is empty (optional input not provided)
+            if(args.at(4)->get_shape().elements() == 0)
+                return;
+
             const auto key_pad_lens     = args.at(4)->get_shape().lens();
             const auto key_pad_len_size = key_pad_lens.size();
             const auto key_pad_type     = args.at(4)->get_shape().type();
@@ -285,29 +289,154 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             auto bias      = args.at(3);
             auto bias_lens = bias->get_shape().lens();
 
-            if(bias_lens.size() != 1)
-                MIGRAPHX_THROW("MultiHeadAttention: Bias must be 1D shape");
-
-            if(bias_lens[0] != params.hidden_size_v + (2 * params.hidden_size))
-                MIGRAPHX_THROW("MultiheadAttention: Bias must be of size hidden_size + hidden_size "
-                               "+ v_hidden_size");
-
-            params.qkv_biased = true;
+            if(bias_lens.size() == 1)
+            {
+                if(bias_lens[0] != params.hidden_size_v + (2 * params.hidden_size))
+                    MIGRAPHX_THROW(
+                        "MultiheadAttention: 1D Bias must be of size hidden_size + hidden_size "
+                        "+ v_hidden_size");
+                params.qkv_biased = true;
+            }
+            else
+            {
+                // For other bias shapes, skip bias processing but don't throw error
+                params.qkv_biased = false;
+            }
         }
+    }
+
+    void check_attention_bias(const std::vector<instruction_ref>& args,
+                              const multi_head_attention_parameters& params) const
+    {
+        if(args.size() > 5)
+        {
+            const auto attn_bias_lens = args.at(5)->get_shape().lens();
+
+            if(attn_bias_lens.size() != 4)
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias must be 4D shape");
+
+            // attention_bias shape: (batch_size, num_heads, sequence_length, total_sequence_length)
+            if(attn_bias_lens[0] != params.batch_size)
+                MIGRAPHX_THROW(
+                    "MultiHeadAttention: attention_bias first dimension must be batch_size");
+
+            if(attn_bias_lens[1] != params.num_heads)
+                MIGRAPHX_THROW(
+                    "MultiHeadAttention: attention_bias second dimension must be num_heads");
+
+            if(attn_bias_lens[2] != params.q_sequence_length)
+                MIGRAPHX_THROW(
+                    "MultiHeadAttention: attention_bias third dimension must be sequence_length");
+
+            if(attn_bias_lens[3] != params.kv_sequence_length)
+                MIGRAPHX_THROW("MultiHeadAttention: attention_bias fourth dimension must be "
+                               "total_sequence_length");
+        }
+    }
+
+    void check_past_key(const std::vector<instruction_ref>& args,
+                        const multi_head_attention_parameters& params) const
+    {
+        if(args.size() <= 6)
+            return;
+
+        // Skip validation if past_key is empty (optional input not provided)
+        if(args.at(6)->get_shape().elements() == 0)
+            return;
+
+        const auto past_key_lens = args.at(6)->get_shape().lens();
+        if(past_key_lens.size() != 4)
+            MIGRAPHX_THROW("MultiHeadAttention: past_key must be 4D shape");
+
+        if(past_key_lens[0] != params.batch_size)
+            MIGRAPHX_THROW("MultiHeadAttention: past_key first dimension must be batch_size");
+
+        if(past_key_lens[1] != params.num_heads)
+            MIGRAPHX_THROW("MultiHeadAttention: past_key second dimension must be num_heads");
+
+        if(past_key_lens[3] != params.head_size)
+            MIGRAPHX_THROW("MultiHeadAttention: past_key fourth dimension must be head_size");
+    }
+
+    void check_past_value(const std::vector<instruction_ref>& args,
+                          const multi_head_attention_parameters& params) const
+    {
+        if(args.size() <= 7)
+            return;
+
+        // Skip validation if past_value is empty (optional input not provided)
+        if(args.at(7)->get_shape().elements() == 0)
+            return;
+
+        const auto past_value_lens = args.at(7)->get_shape().lens();
+        if(past_value_lens.size() != 4)
+            MIGRAPHX_THROW("MultiHeadAttention: past_value must be 4D shape");
+
+        if(past_value_lens[0] != params.batch_size)
+            MIGRAPHX_THROW("MultiHeadAttention: past_value first dimension must be batch_size");
+
+        if(past_value_lens[1] != params.num_heads)
+            MIGRAPHX_THROW("MultiHeadAttention: past_value second dimension must be num_heads");
+
+        if(past_value_lens[3] != params.head_size_v)
+            MIGRAPHX_THROW("MultiHeadAttention: past_value fourth dimension must be head_size_v");
+    }
+
+    void check_past_key_value_match(const std::vector<instruction_ref>& args) const
+    {
+        if(args.size() <= 7)
+            return;
+
+        // Skip if either past_key or past_value is empty
+        if(args.at(6)->get_shape().elements() == 0 or args.at(7)->get_shape().elements() == 0)
+            return;
+
+        const auto past_key_lens   = args.at(6)->get_shape().lens();
+        const auto past_value_lens = args.at(7)->get_shape().lens();
+        if(past_value_lens[2] != past_key_lens[2])
+            MIGRAPHX_THROW("MultiHeadAttention: past_key and past_value must have "
+                           "matching past_sequence_length");
+    }
+
+    void check_past_sequence_length(const std::vector<instruction_ref>& args) const
+    {
+        if(args.size() <= 8)
+            return;
+
+        // Skip validation if past_sequence_length is empty
+        if(args.at(8)->get_shape().elements() == 0)
+            return;
+
+        const auto past_seq_len_type = args.at(8)->get_shape().type();
+        if(past_seq_len_type != shape::int32_type)
+            MIGRAPHX_THROW("MultiHeadAttention: past_sequence_length must be a int32 tensor");
+    }
+
+    void check_past_inputs(const std::vector<instruction_ref>& args,
+                           const multi_head_attention_parameters& params) const
+    {
+        check_past_key(args, params);
+        check_past_value(args, params);
+        check_past_key_value_match(args);
+        check_past_sequence_length(args);
     }
 
     void check_inputs(const std::vector<instruction_ref>& args,
                       multi_head_attention_parameters& params) const
     {
-        if(args.empty() or args.size() > 5)
-            MIGRAPHX_THROW("MultiHeadAttention: Wrong number of inputs. Only 'query', 'key' and "
-                           "'value', bias and key_padding_mask inputs are supported.");
+        if(args.empty() or args.size() > 9)
+            MIGRAPHX_THROW(
+                "MultiHeadAttention: Wrong number of inputs. Only 'query', 'key', "
+                "'value', bias, key_padding_mask, attention_bias, past_key, past_value, and "
+                "past_sequence_length inputs are supported.");
 
         // Order matters here. Most parameters defined by input query, key, value parameters
         // This must be used first to extract hidden size, batch, etc
         check_query_dim(args, params);
         check_bias(args, params);
         check_key_padding_mask(args, params);
+        check_attention_bias(args, params);
+        check_past_inputs(args, params);
     }
 
     std::tuple<instruction_ref, instruction_ref, instruction_ref>
@@ -584,10 +713,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         return params;
     }
 
-    instruction_ref parse(const op_desc& /*opd*/,
-                          const onnx_parser& parser,
-                          const onnx_parser::node_info& info,
-                          const std::vector<instruction_ref>& args) const
+    std::vector<instruction_ref> parse(const op_desc& /*opd*/,
+                                       const onnx_parser& parser,
+                                       const onnx_parser::node_info& info,
+                                       const std::vector<instruction_ref>& args) const
     {
         auto params = handle_attributes(info, parser);
         check_inputs(args, params);
@@ -618,10 +747,59 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             value = info.add_instruction(make_op("transpose", {{"permutation", perm}}), value);
         }
 
+        // Handle past_key and past_value concatenation using concat_past_present
+        std::optional<instruction_ref> present_key;
+        std::optional<instruction_ref> present_value;
+        if(args.size() > 7)
+        {
+            auto past_key   = args[6];
+            auto past_value = args[7];
+
+            // Only use concat_past_present if past states are non-empty
+            if(past_key->get_shape().elements() > 0 and past_value->get_shape().elements() > 0)
+            {
+                // If past_sequence_length is provided (input 8), use it, otherwise use batch-wise
+                // zeros
+                instruction_ref seqlens_k;
+                if(args.size() > 8 and args[8]->get_shape().elements() > 0)
+                {
+                    seqlens_k = args[8];
+                }
+                else
+                {
+                    std::vector<int32_t> zeros(params.batch_size, 0);
+                    seqlens_k = info.add_literal(
+                        migraphx::literal{migraphx::shape{migraphx::shape::int32_type,
+                                                          {static_cast<size_t>(params.batch_size)}},
+                                          zeros});
+                }
+
+                std::vector<instruction_ref> concat_k_inputs{key, seqlens_k, past_key};
+                std::vector<instruction_ref> concat_v_inputs{value, seqlens_k, past_value};
+
+                // Use concat_past_present operator for efficient KV cache concatenation
+                present_key = info.add_instruction(
+                    make_op("concat_past_present", {{"kv_num_heads", params.num_heads}}),
+                    concat_k_inputs);
+                present_value = info.add_instruction(
+                    make_op("concat_past_present", {{"kv_num_heads", params.num_heads}}),
+                    concat_v_inputs);
+
+                key   = present_key.value();
+                value = present_value.value();
+            }
+        }
+
         // Set attention mask and bias when detected on input
         std::optional<instruction_ref> attn_mask;
         if(args.size() > 4)
             attn_mask = create_input_mask(info, args.at(4), query->get_shape(), params);
+
+        std::optional<instruction_ref> attn_bias;
+        if(args.size() > 5)
+        {
+            attn_bias = args.at(5);
+        }
 
         float scale = 1 / std::sqrt(params.head_size);
         if(contains(info.attributes, "scale"))
@@ -635,23 +813,41 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         auto result = info.add_instruction(make_op("dot"), query, key_transposed);
 
-        // Must apply mask only before scaling
+        if(attn_bias.has_value())
+        {
+            result = info.add_common_op("add", result, attn_bias.value());
+        }
+
+        // Apply attention mask
         if(attn_mask.has_value())
         {
             result = info.add_common_op("add", result, attn_mask.value());
         }
 
-        result      = info.add_common_op("mul", result, scale_literal);
-        result      = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
-        result      = info.add_instruction(make_op("dot"), result, value);
-        result      = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
-        result      = info.add_instruction(
+        result         = info.add_common_op("mul", result, scale_literal);
+        auto qk_output = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
+        result         = info.add_instruction(make_op("dot"), qk_output, value);
+        result = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
+        result = info.add_instruction(
             make_op(
                 "reshape",
                 {{"dims", {params.batch_size, params.q_sequence_length, params.hidden_size_v}}}),
             result);
 
-        return result;
+        // Return outputs based on what's available: present key, present value and qk are optional
+        std::vector<instruction_ref> outputs = {result};
+
+        // Add present_key and present_value if past states were provided and non-empty
+        if(present_key.has_value() and present_value.has_value())
+        {
+            outputs.push_back(present_key.value());
+            outputs.push_back(present_value.value());
+        }
+
+        // Note: QK output could be added here if needed
+        // outputs.push_back(qk_output);
+
+        return outputs;
     }
 };
 

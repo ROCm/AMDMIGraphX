@@ -28,6 +28,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <bitset>
 #include <queue>
@@ -189,6 +190,15 @@ const std::vector<module_ref>& instruction::module_inputs() const { return modul
 
 const std::vector<instruction_ref>& instruction::outputs() const { return output; }
 
+const std::set<std::string>& instruction::get_debug_symbols() const { return debug_symbols; }
+
+void instruction::add_debug_symbols(const std::set<std::string>& symbols)
+{
+    debug_symbols.insert(symbols.begin(), symbols.end());
+}
+
+void instruction::remove_debug_symbols() { debug_symbols.clear(); }
+
 bool operator==(const instruction& x, const instruction& y)
 {
     if(not std::equal(x.arguments.begin(),
@@ -261,6 +271,7 @@ void instruction::replace(instruction_ref ins,
 
 void instruction::replace(operation o, const shape& r, std::vector<instruction_ref> args)
 {
+    lit        = literal{};
     normalized = false;
     op         = std::move(o);
     replace(r);
@@ -272,7 +283,8 @@ void instruction::replace(operation o,
                           std::vector<instruction_ref> args,
                           std::vector<module_ref> mdl_args)
 {
-    op = std::move(o);
+    lit = literal{};
+    op  = std::move(o);
     replace(r);
     replace(std::move(args), std::move(mdl_args));
 }
@@ -440,6 +452,12 @@ void instruction::print(std::ostream& os,
     // print tid
     if(ins->target_id != 0)
         os << ", target_id=" << ins->target_id;
+
+    // print debug symbols if they exist
+    if(not ins->debug_symbols.empty())
+    {
+        os << " # " << join_strings(ins->debug_symbols, ", ");
+    }
 }
 
 static void debug_name(std::ostream& os, const instruction& ins)
@@ -470,7 +488,14 @@ void instruction::debug_print() const
     }
     if(not this->inputs().empty())
         std::cout << ")";
-    std::cout << " -> " << this->get_shape() << std::endl;
+    std::cout << " -> " << this->get_shape();
+
+    // print debug symbols if they exist
+    if(not debug_symbols.empty())
+    {
+        std::cout << " # " << join_strings(debug_symbols, ", ");
+    }
+    std::cout << std::endl;
 }
 
 std::vector<instruction_ref> instruction::get_output_alias(instruction_ref ins, bool shallow)
@@ -576,6 +601,8 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     std::size_t n           = std::distance(start, end);
     if(n < small)
     {
+        // Stop condition is ins distance to end > N or
+        // same instruction already visited.
         std::bitset<small> visited;
         auto stop = [&](auto ins) {
             auto i = std::distance(ins, end);
@@ -590,6 +617,9 @@ static auto track_visits(instruction_ref start, instruction_ref end, F f)
     }
     else
     {
+        // Make a hashmap of instructions between start and end.
+        // Stop condition is instruction not in the hashmap or
+        // same instruction already visited.
         auto instructions     = range(start, std::next(end));
         auto instruction_refs = iterator_for(instructions);
         std::unordered_set<instruction_ref> in_range(instruction_refs.begin(),

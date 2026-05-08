@@ -410,6 +410,7 @@ if 'enable_onnx' in globals():
             invoke='migraphx::set_use_debug_symbols($@)',
         )
 
+
     api.add_function('migraphx_parse_onnx',
                      api.params(name='const char*',
                                 options='migraphx::onnx_options'),

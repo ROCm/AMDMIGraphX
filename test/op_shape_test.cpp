@@ -39,22 +39,26 @@ using se = migraphx::sym::expr;
 using migraphx::sym::lit;
 using migraphx::sym::var;
 
-
 template <class... Ts>
 struct expect_shape
 {
-    expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs, test::source_location loc = test::source_location{})
+    expect_shape(const migraphx::shape& expected,
+                 const migraphx::operation& op,
+                 Ts... xs,
+                 test::source_location loc = test::source_location{})
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
         std::vector<migraphx::shape> shapes{xs...};
         std::vector<migraphx::instruction_ref> args(shapes.size());
-        std::transform(
-            shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
+        std::transform(shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) {
+            return mm->add_outline(s);
+        });
         mm->add_instruction(op, args);
         if(p.get_output_shapes().back() != expected)
         {
-            test::failed(loc) << "Incorrect shape for " << op << ": " << expected << " != " << p.get_output_shapes().back();
+            test::failed(loc) << "Incorrect shape for " << op << ": " << expected
+                              << " != " << p.get_output_shapes().back();
             for(auto&& s : shapes)
                 std::cout << "    " << s << std::endl;
         }
@@ -62,7 +66,8 @@ struct expect_shape
 };
 
 template <class... Ts>
-expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs) -> expect_shape<Ts...>;
+expect_shape(const migraphx::shape& expected, const migraphx::operation& op, Ts... xs)
+    -> expect_shape<Ts...>;
 
 template <class...>
 struct always_false : std::false_type
@@ -72,14 +77,17 @@ struct always_false : std::false_type
 template <class... Ts>
 struct throws_shape
 {
-    throws_shape(const migraphx::operation& op, Ts... xs, test::source_location loc = test::source_location{})
+    throws_shape(const migraphx::operation& op,
+                 Ts... xs,
+                 test::source_location loc = test::source_location{})
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
         std::vector<migraphx::shape> shapes{xs...};
         std::vector<migraphx::instruction_ref> args(shapes.size());
-        std::transform(
-            shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) { return mm->add_outline(s); });
+        std::transform(shapes.begin(), shapes.end(), args.begin(), [&](auto&& s) {
+            return mm->add_outline(s);
+        });
         bool thrown = test::throws([&] { mm->add_instruction(op, args); });
         if(not thrown)
         {

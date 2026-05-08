@@ -44,7 +44,8 @@
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
 namespace test {
-#if defined (__has_builtin) && __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && __has_builtin(__builtin_FUNCTION)
+#if defined(__has_builtin) && __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && \
+    __has_builtin(__builtin_FUNCTION)
 struct source_location
 {
     const char* function = __builtin_FUNCTION();
@@ -427,9 +428,7 @@ inline void report_failure(int n = 1) { failures() += n; }
 
 struct failed
 {
-    failed(source_location ploc = source_location{})
-    : loc(ploc)
-    {}
+    failed(source_location ploc = source_location{}) : loc(ploc) {}
 
     failed(const failed&)            = delete;
     failed& operator=(const failed&) = delete;
@@ -448,7 +447,7 @@ struct failed
     source_location loc;
     std::ostringstream ss;
 
-    template<class T>
+    template <class T>
     failed& operator<<(const T& x)
     {
         ss << x;
@@ -462,7 +461,7 @@ void check_predicate(const T& x, const char* msg, F f, source_location loc = sou
     if(not bool(x.value()))
     {
         failed(loc) << msg << " "
-                  << "[ " << x << " ]";
+                    << "[ " << x << " ]";
         f();
     }
 }
@@ -949,7 +948,6 @@ inline void run(int argc, const char* argv[])
 
 } // namespace test
 
-
 // NOLINTNEXTLINE
 #define TEST_CAPTURE(...) test::capture{}->*__VA_ARGS__
 
@@ -962,18 +960,17 @@ inline void run(int argc, const char* argv[])
 #endif
 
 // NOLINTNEXTLINE
-#define TEST_SOURCE_LOCATION test::source_location{TEST_PRETTY_FUNCTION, __FILE__, __LINE__}
+#define TEST_SOURCE_LOCATION \
+    test::source_location { TEST_PRETTY_FUNCTION, __FILE__, __LINE__ }
 
 // NOLINTNEXTLINE
 #define CHECK(...) \
-    test::check_predicate(  \
-        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, [] {}, TEST_SOURCE_LOCATION)
+    test::check_predicate(TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, [] {}, TEST_SOURCE_LOCATION)
 
 // NOLINTNEXTLINE
-#define EXPECT(...)                         \
-    test::check_predicate(TEST_CAPTURE(__VA_ARGS__), \
-                 #__VA_ARGS__,              \
-                 &test::fail, TEST_SOURCE_LOCATION)
+#define EXPECT(...)        \
+    test::check_predicate( \
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, &test::fail, TEST_SOURCE_LOCATION)
 
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)

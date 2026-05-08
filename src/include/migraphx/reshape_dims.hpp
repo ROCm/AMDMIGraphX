@@ -39,7 +39,7 @@ struct reshape_dims_options
     bool lazy = false;
 };
 
-optional<shape> reshape_dims(const shape& input,
+MIGRAPHX_EXPORT optional<shape> reshape_dims(const shape& input,
                              const std::vector<std::size_t>& rdims,
                              reshape_dims_options options);
 

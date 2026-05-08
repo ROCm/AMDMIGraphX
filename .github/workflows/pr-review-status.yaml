@@ -1,6 +1,12 @@
 name: PR Review Dashboard
 
 on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    types:
+      - ready_for_review
   schedule:
     - cron: '0 * * * *'
   workflow_dispatch:
@@ -45,9 +51,16 @@ jobs:
 
       - run: pip install requests
 
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.GH_APP_MIGRAPHX_BOT_PR_WRITE_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_MIGRAPHX_BOT_PR_WRITE_PRIVATE_KEY }}
+
       - name: Generate data.json
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: python tools/pr-review-status.py --json > pr_review_dashboard/data.json
 
       - name: Upload Pages artifact

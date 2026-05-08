@@ -55,8 +55,8 @@ void fast_mm::apply(module& m) const
         });
 
         auto half_conv = m.insert_instruction(ins, ins->get_operator(), inputs);
-        auto converted = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", out_type}}), half_conv);
+        auto converted =
+            m.insert_instruction(ins, make_op("convert", {{"target_type", out_type}}), half_conv);
         m.replace_instruction(ins, converted);
     }
 }

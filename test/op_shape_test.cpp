@@ -5488,7 +5488,8 @@ TEST_CASE(unary_scalar_input)
 TEST_CASE(unary_broadcast_input)
 {
     migraphx::shape ss{migraphx::shape::half_type, {2, 3}, {1, 0}};
-    expect_shape(ss, migraphx::make_op("sin"), ss);
+    migraphx::shape s{migraphx::shape::half_type, {2, 3}};
+    expect_shape(s, migraphx::make_op("sin"), ss);
 }
 
 TEST_CASE(where_broadcast_input)

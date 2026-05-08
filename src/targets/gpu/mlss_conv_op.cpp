@@ -24,15 +24,16 @@
 #include <migraphx/gpu/mlss_conv_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
+#ifdef MIGRAPHX_HAS_MLSS_HEADERS
 
 namespace mlss_fp32 {
-#include <migraphx/gpu/mlss/conv/ShaderTypes_GFX12_fp32_f2x3_stride1.llvm.cpp>
+#include <archive/conv/mxn/Winograd/Base/gfx1201/fp32/ShaderTypes_GFX12_fp32_f2x3_stride1.llvm.cpp>
 } // namespace mlss_fp32
 namespace mlss_fp32_ostride2 {
-#include <migraphx/gpu/mlss/conv/ShaderTypes_GFX12_fp32_f3x2_ostride2.llvm.cpp>
+#include <archive/conv/mxn/Winograd/Base/gfx1201/fp32/ShaderTypes_GFX12_fp32_f3x2_ostride2.llvm.cpp>
 } // namespace mlss_fp32_ostride2
 namespace mlss_fp16pk {
-#include <migraphx/gpu/mlss/conv/ShaderTypes_NAVI48_fp16pk_f2x3_stride1.llvm.cpp>
+#include <archive/conv/mxn/Winograd/Rage/gfx1201/fp16/ShaderTypes_NAVI48_fp16pk_f2x3_stride1.llvm.cpp>
 } // namespace mlss_fp16pk
 
 #include <hip/hip_runtime_api.h>
@@ -305,3 +306,4 @@ argument mlss_conv_op::compute(context& ctx,
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_HAS_MLSS_HEADERS

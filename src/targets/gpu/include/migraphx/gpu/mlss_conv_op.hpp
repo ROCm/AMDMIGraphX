@@ -78,12 +78,14 @@ struct mlss_conv_op
     // Non-reflected: rebuilt in finalize()
     kernel k{};
 
+#ifdef MIGRAPHX_HAS_MLSS_HEADERS
     // Factory: constructs an op pre-loaded with the GFX12 fp32 conv shader.
     static mlss_conv_op make_gfx12_fp32_f2x3_stride1();
     // Factory: constructs an op pre-loaded with the GFX12 fp32 f3x2 ostride2 conv shader.
     static mlss_conv_op make_gfx12_fp32_f3x2_ostride2();
     // Factory: constructs an op pre-loaded with the NAVI48 fp16pk conv shader.
     static mlss_conv_op make_navi48_fp16pk_f2x3_stride1();
+#endif
 
     std::string name() const { return "gpu::mlss_conv"; }
     shape compute_shape(std::vector<shape> inputs) const;

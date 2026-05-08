@@ -24,8 +24,9 @@
 #include <migraphx/gpu/mlss_mha_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
+#ifdef MIGRAPHX_HAS_MLSS_HEADERS
 namespace mlss_mha {
-#include <migraphx/gpu/mlss/mha/gfx1201_mha_64x64x48_64x48x64.hpp>
+#include <archive/mha/wmma/gfx1201/fp16/gfx1201_mha_64x64x48_64x48x64.hpp>
 } // namespace mlss_mha
 
 namespace migraphx {
@@ -140,3 +141,4 @@ argument mlss_mha_op::compute(context& ctx,
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_HAS_MLSS_HEADERS

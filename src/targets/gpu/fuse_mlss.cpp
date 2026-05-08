@@ -54,6 +54,8 @@ bool mlss_enabled()
     return not string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS{}, "").empty();
 }
 
+#ifdef MIGRAPHX_HAS_MLSS_HEADERS
+
 static bool mlss_op_enabled(std::string_view op_name)
 {
     const auto ops = split_string(string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS{}, ""), ',');
@@ -594,9 +596,11 @@ struct find_mlss_conv_bias_relu
             m.remove_instruction(conv_ins);
     }
 };
+#endif // MIGRAPHX_HAS_MLSS_HEADERS
 
 void fuse_mlss::apply(module_pass_manager& mpm) const
 {
+#ifdef MIGRAPHX_HAS_MLSS_HEADERS
     const auto& gfx_name = ctx->get_current_device().get_gfx_name();
     if(not starts_with(gfx_name, "gfx1201"))
         return;
@@ -611,6 +615,7 @@ void fuse_mlss::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlss_conv_bias{ctx});
         match::find_matches(mpm, find_mlss_conv{ctx});
     }
+#endif // MIGRAPHX_HAS_MLSS_HEADERS
 }
 
 } // namespace gpu

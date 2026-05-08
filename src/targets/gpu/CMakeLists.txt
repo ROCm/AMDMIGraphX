@@ -416,6 +416,13 @@ if(MIGRAPHX_USE_AMDMLSS)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_AMDMLSS=1)
 endif()
 
+find_path(MIGRAPHX_MLSS_HEADER_DIR NAMES archive)
+if(MIGRAPHX_MLSS_HEADER_DIR)
+    message(STATUS "Using AMDMLSS headers")
+    target_include_directories(migraphx_gpu BEFORE PRIVATE "${MIGRAPHX_MLSS_HEADER_DIR}")
+    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_HAS_MLSS_HEADERS=1)
+endif()
+
 add_subdirectory(driver)
 add_subdirectory(hiprtc)
 

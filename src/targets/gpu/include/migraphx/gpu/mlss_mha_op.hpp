@@ -56,7 +56,9 @@ struct mlss_mha_op
                     f(self.scale, "scale"));
     }
 
+#ifdef MIGRAPHX_HAS_MLSS_HEADERS
     static mlss_mha_op make_gfx1201_fp16_packed_qkv(float scale, std::size_t global, std::size_t local);
+#endif
 
     std::string name() const { return "gpu::mlss_mha"; }
     shape compute_shape(std::vector<shape> inputs) const;

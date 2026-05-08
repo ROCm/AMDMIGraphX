@@ -145,6 +145,7 @@ add_library(migraphx
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp
+    fast_mm.cpp
     value.cpp
     verify_args.cpp
 )

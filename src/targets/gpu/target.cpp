@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
+#include <migraphx/fast_mm.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
@@ -132,6 +133,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         rewrite_gelu{options.fast_math},
         optimize_module{},
         layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
+        dead_code_elimination{},
+        fast_mm{},
         dead_code_elimination{},
         fuse_horizontal{},
         dead_code_elimination{},

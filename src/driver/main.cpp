@@ -650,6 +650,33 @@ struct compiler_target
     target get_target() const { return make_target(target_name); }
 };
 
+struct timer
+{
+    using clock = std::chrono::high_resolution_clock;
+    using time_point = typename clock::time_point;
+
+    time_point e{};
+    time_point s{clock::now()};
+
+    void start()
+    {
+        e = time_point{};
+        s = clock::now();
+    }
+
+    void stop()
+    {
+        e = clock::now();
+    }
+
+    void report_duration() const
+    {
+        log::info() << "Compilation time: "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(e - s).count()
+                    << "ms";
+    }
+};
+
 struct compiler
 {
     loader l;
@@ -661,6 +688,7 @@ struct compiler
     bool to_fp8  = false;
     bool to_int8 = false;
     bool to_int4 = false;
+    bool report_time = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -686,6 +714,7 @@ struct compiler
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
+        ap(report_time, {"--time"}, ap.help("Report compilation time"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -760,7 +789,11 @@ struct compiler
             quantize_int4_weights(p);
         }
         log::info() << "Compiling ...";
+        timer c;
         p.compile(t, co);
+        c.stop();
+        if(report_time)
+            c.report_duration();
         l.save(p);
         return p;
     }

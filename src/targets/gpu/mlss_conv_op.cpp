@@ -24,6 +24,7 @@
 #include <migraphx/gpu/mlss_conv_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
+
 namespace mlss_fp32 {
 #include <migraphx/gpu/mlss/conv/ShaderTypes_GFX12_fp32_f2x3_stride1.llvm.cpp>
 } // namespace mlss_fp32
@@ -113,15 +114,15 @@ argument mlss_conv_op::compute(context& ctx,
     // Geometry — matches kernel_execution_conv_fp32_f2x3_stride1_cg64_kg128.cpp
     // G=1 (single conv group), n_groups=64 (wavefront tile count).
     // -----------------------------------------------------------------------
-    int32_t N     = static_cast<int32_t>(in_lens[0]);  // 1
-    int32_t Cg    = static_cast<int32_t>(in_lens[1]);  // 64
-    int32_t H     = static_cast<int32_t>(in_lens[2]);  // 128
-    int32_t W     = static_cast<int32_t>(in_lens[3]);  // 128
-    int32_t Kg    = static_cast<int32_t>(wt_lens[0]);  // 128
-    int32_t R     = static_cast<int32_t>(wt_lens[2]);  // 3
-    int32_t S     = static_cast<int32_t>(wt_lens[3]);  // 3
-    int32_t out_h = static_cast<int32_t>(out_lens[2]); // 128
-    int32_t out_w = static_cast<int32_t>(out_lens[3]); // 128
+    int32_t N     = static_cast<int32_t>(in_lens[0]);
+    int32_t Cg    = static_cast<int32_t>(in_lens[1]);
+    int32_t H     = static_cast<int32_t>(in_lens[2]);
+    int32_t W     = static_cast<int32_t>(in_lens[3]);
+    int32_t Kg    = static_cast<int32_t>(wt_lens[0]);
+    int32_t R     = static_cast<int32_t>(wt_lens[2]);
+    int32_t S     = static_cast<int32_t>(wt_lens[3]);
+    int32_t out_h = static_cast<int32_t>(out_lens[2]);
+    int32_t out_w = static_cast<int32_t>(out_lens[3]);
     int32_t G     = 1;
     int32_t ng    = static_cast<int32_t>(n_groups);
 
@@ -141,31 +142,11 @@ argument mlss_conv_op::compute(context& ctx,
     uint64_t p_output = reinterpret_cast<uint64_t>(output.data());
     uint64_t p_bias   = has_bias ? reinterpret_cast<uint64_t>(args[2].data()) : 0;
 
-    // When F_BIAS is set the kernel requires two extra scratch buffers:
-    //   d_sync: n_groups uint32 values for inter-workgroup synchronization
-    //   d_acc:  one float per output element for partial accumulation
-    // Allocate, zero, and free them here so no module-level allocation is needed.
-    // hipDeviceptr_t d_sync = nullptr;
-    // hipDeviceptr_t d_acc  = nullptr;
-    // if(has_bias)
-    // {
-    //     // The validate script uses n_groups=64 for the bias path; override here
-    //     // so the sync/acc buffer indexing matches what the kernel expects.
-    //     ng = 64;
-    //     const std::size_t sync_bytes = 64 * sizeof(uint32_t);
-    //     const std::size_t acc_bytes  = output.get_shape().bytes();
-    //     (void)hipMalloc(&d_sync, sync_bytes);
-    //     (void)hipMalloc(&d_acc,  acc_bytes);
-    //     hipStream_t stream = ctx.get_stream().get();
-    //     (void)hipMemsetAsync(d_sync, 0, sync_bytes, stream);
-    //     (void)hipMemsetAsync(d_acc,  0, acc_bytes,  stream);
-    // }
-
     float alpha = 1.0f;
     float beta  = 0.0f;
 
     // -----------------------------------------------------------------------
-    // Strides (int32_t, NCHW — identical derivation to reference file)
+    // Strides (int32_t, NCHW)
     // -----------------------------------------------------------------------
     int32_t d_N_stride = G * Cg * H * W;
     int32_t d_C_stride = H * W;

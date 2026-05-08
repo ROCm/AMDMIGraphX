@@ -24,12 +24,27 @@
 #include <migraphx/gpu/mlss_mha_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
+namespace mlss_mha {
+#include <migraphx/gpu/mlss/mha/gfx1201_mha_64x64x48_64x48x64.hpp>
+} // namespace mlss_mha
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_REGISTER_OP(mlss_mha_op);
+
+mlss_mha_op mlss_mha_op::make_gfx1201_fp16_packed_qkv(float scale, std::size_t global, std::size_t local)
+{
+    const auto& shader = mlss_mha::multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201;
+    mlss_mha_op op;
+    op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
+    op.symbol_name = std::string(shader.m_kernelName);
+    op.global      = global;
+    op.local       = local;
+    op.scale       = scale;
+    return op;
+}
 
 shape mlss_mha_op::compute_shape(std::vector<shape> inputs) const
 {

@@ -174,8 +174,6 @@ struct reshape
         auto s = reshape_dims(inputs.front(), rdims, {.lazy = false});
         if(not s.has_value())
             return shape{inputs.front().type(), rdims};
-        // MIGRAPHX_THROW("Reshape: Invalid from " + to_string(inputs.front()) + " to " +
-        // to_string_range(rdims));
 
         return s.value();
     }
@@ -208,7 +206,6 @@ struct reshape
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        assert(dyn_out.computed_shape.standard());
         if(args.size() == 1)
         {
             argument result{dyn_out.computed_shape};

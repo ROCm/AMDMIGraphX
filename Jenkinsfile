@@ -71,6 +71,10 @@ def cmake_build = { bconf ->
     def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
     def flags = bconf.get("flags", "")
     def gpu_debug = bconf.get("gpu_debug", "0")
+    def skip_package = bconf.get("skip_package", false)
+    def targets =  "all package check"
+    if(skip_package)
+        targets = "all check"
     def cmd = """
         ulimit -c unlimited
         echo "leak:dnnl::impl::malloc" > suppressions.txt
@@ -92,13 +96,13 @@ def cmake_build = { bconf ->
         make -j\$(nproc) generate VERBOSE=1
         git diff
         git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-        make -j\$(nproc) all package check VERBOSE=1
+        make -j\$(nproc) ${targets} VERBOSE=1
         md5sum ./*.deb
     """
     echo cmd
     sh cmd
     // Only archive from master or develop
-    if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+    if (!skip_package && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
 }
@@ -309,7 +313,7 @@ pipeline {
                     steps {
                         script {
                             rocmtest([:]) {
-                                cmake_build(flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                                cmake_build(skip_package: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,7 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <array>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -29,11 +28,13 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/half.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
 #include <migraphx/gpu/mlss_mha_op.hpp>
 #include <migraphx/gpu/mlss_conv_op.hpp>
+#include <array>
 #ifdef MIGRAPHX_USE_AMDMLSS
 #include <amdmlss/amdmlss_api.h>
 #include <iostream>
@@ -328,7 +329,7 @@ struct find_mlss_conv
         {
             if(shape_match(conv_mxn_shapes))
                 op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1();
-            else if (shape_match(fp32_ostride2_shapes))
+            else if(shape_match(fp32_ostride2_shapes))
                 op = mlss_conv_op::make_gfx12_fp32_f3x2_ostride2();
             else
                 return;

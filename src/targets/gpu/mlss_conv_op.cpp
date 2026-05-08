@@ -231,18 +231,18 @@ argument mlss_conv_op::compute(context& ctx,
     kargs.emplace_back(W);
     kargs.emplace_back(Kg);
     kargs.emplace_back(ng);
-    kargs.emplace_back(flags64);   // uint64, align-8 → offset 0x18 ✓
-    kargs.emplace_back(p_data);    // uint64 → offset 0x20 ✓
-    kargs.emplace_back(p_filter);  // uint64 → offset 0x28 ✓
-    kargs.emplace_back(p_output);  // uint64 → offset 0x30 ✓
-    kargs.emplace_back(uint64_t{0}); // reserved3 → offset 0x38 ✓
+    kargs.emplace_back(flags64);     // uint64, align-8 → offset 0x18
+    kargs.emplace_back(p_data);      // uint64 → offset 0x20
+    kargs.emplace_back(p_filter);    // uint64 → offset 0x28
+    kargs.emplace_back(p_output);    // uint64 → offset 0x30
+    kargs.emplace_back(uint64_t{0}); // reserved3 → offset 0x38
     kargs.emplace_back(R);
     kargs.emplace_back(S);
     kargs.emplace_back(cur_pad_h);
     kargs.emplace_back(cur_pad_w);
     kargs.emplace_back(out_h);
     kargs.emplace_back(out_w);
-    kargs.emplace_back(p_bias);    // uint64, align-8 → offset 0x58 ✓
+    kargs.emplace_back(p_bias);      // uint64, align-8 → offset 0x58
     kargs.emplace_back(alpha);
     kargs.emplace_back(beta);
     // d/f/o/b offsets (8 × uint32, unused) → offsets 0x68–0x87
@@ -253,34 +253,21 @@ argument mlss_conv_op::compute(context& ctx,
     kargs.emplace_back(d_N_stride);
     kargs.emplace_back(d_C_stride);
     kargs.emplace_back(d_H_stride);
-    kargs.emplace_back(zero32);    // reserved4 → offset 0x94 ✓
+    kargs.emplace_back(zero32);      // reserved4 → offset 0x94
     kargs.emplace_back(f_K_stride);
     kargs.emplace_back(f_C_stride);
     kargs.emplace_back(f_R_stride);
-    kargs.emplace_back(zero32);    // reserved5 → offset 0xa4 ✓
+    kargs.emplace_back(zero32);      // reserved5 → offset 0xa4
     kargs.emplace_back(o_N_stride);
     kargs.emplace_back(o_K_stride);
     kargs.emplace_back(o_H_stride);
-    kargs.emplace_back(zero32);    // reserved6 → offset 0xb4 ✓
+    kargs.emplace_back(zero32);      // reserved6 → offset 0xb4
     kargs.emplace_back(G);
     kargs.emplace_back(d_G_stride);
     kargs.emplace_back(f_G_stride);
     kargs.emplace_back(o_G_stride);
-
-    if(has_bias)
-    {
-        // Trailing args required when F_BIAS is set (offsets 0xc8–0xe7).
-        // kernel_argument requires a non-const lvalue, so copy member to locals.
-        uint8_t act_mode = static_cast<uint8_t>(activation_mode);
-        kargs.emplace_back(act_mode);                    // 0=none, 4=ReLU
-        // kargs.emplace_back(static_cast<uint8_t>(255));  // sync_limit
-        // kargs.emplace_back(static_cast<uint8_t>(0));    // sync_period
-        // kargs.emplace_back(static_cast<uint8_t>(0));    // reserved8
-        // kargs.emplace_back(static_cast<uint32_t>(0));   // reserved9
-        // kargs.emplace_back(reinterpret_cast<uint64_t>(d_sync)); // sync_addr
-        // kargs.emplace_back(reinterpret_cast<uint64_t>(d_acc));  // acc_addr
-        // kargs.emplace_back(static_cast<uint64_t>(0));   // a_offset
-    }
+    uint8_t act_mode = static_cast<uint8_t>(activation_mode);
+    kargs.emplace_back(act_mode);   
 
     hipStream_t stream = ctx.get_stream().get();
 
@@ -291,14 +278,6 @@ argument mlss_conv_op::compute(context& ctx,
 
     auto [start, stop] = ctx.get_perf_events();
     k.launch(stream, grid_blocks * block_size, block_size, kargs, start, stop);
-
-    // if(has_bias)
-    // {
-    //     // Sync before freeing so the kernel has finished reading d_sync/d_acc.
-    //     (void)hipStreamSynchronize(stream);
-    //     (void)hipFree(d_sync);
-    //     (void)hipFree(d_acc);
-    // }
 
     return args.back();
 }

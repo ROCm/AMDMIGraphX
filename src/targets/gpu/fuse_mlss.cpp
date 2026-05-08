@@ -480,7 +480,7 @@ struct find_mlss_conv_bias
 // ---------------------------------------------------------------------------
 // Matcher for conv+bias+relu pattern:
 //   relu(add(convolution(input, weight_literal), broadcast(bias_literal)))
-// Same as find_mlss_conv_bias but sets activation_mode=4 (ReLU) and matches
+// Same as find_mlss_conv_bias but sets activation_mode=relu and matches
 // the relu instruction as the outermost node to replace.
 // ---------------------------------------------------------------------------
 struct find_mlss_conv_bias_relu
@@ -573,7 +573,7 @@ struct find_mlss_conv_bias_relu
         op.pad_h           = static_cast<int32_t>(cur_padding[0]);
         op.pad_w           = static_cast<int32_t>(cur_padding[1]);
         op.has_bias        = true;
-        op.activation_mode = 4; // ReLU
+        op.activation_mode = static_cast<uint8_t>(mlss_activation_mode::relu);
 
         auto& m = mpm.get_module();
 

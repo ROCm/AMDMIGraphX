@@ -270,7 +270,7 @@ argument mlss_conv_op::compute(context& ctx,
     {
         // Trailing args required when F_BIAS is set (offsets 0xc8–0xe7).
         // kernel_argument requires a non-const lvalue, so copy member to locals.
-        uint8_t act_mode = activation_mode;
+        uint8_t act_mode = static_cast<uint8_t>(activation_mode);
         kargs.emplace_back(act_mode);                    // 0=none, 4=ReLU
         // kargs.emplace_back(static_cast<uint8_t>(255));  // sync_limit
         // kargs.emplace_back(static_cast<uint8_t>(0));    // sync_period

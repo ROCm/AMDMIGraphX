@@ -36,6 +36,15 @@ namespace gpu {
 
 struct context;
 
+enum class mlss_activation_mode : uint8_t
+{
+    identity    = 0,
+    leaky_relu  = 1,
+    sigmoid     = 2,
+    scaled_tanh = 3,
+    relu        = 4,
+};
+
 struct mlss_conv_op
 {
     value::binary code_object{};
@@ -51,8 +60,7 @@ struct mlss_conv_op
     // and the kernel is launched with F_BIAS (bit 7) set in flags64.
     bool has_bias = false;
     // activation_mode: kernel activation applied after bias add.
-    //   0 = none, 4 = ReLU  (matches kernel F_USE_ACTIVATION_MODE ABI)
-    uint8_t activation_mode = 0;
+    uint8_t activation_mode = static_cast<uint8_t>(mlss_activation_mode::identity);
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

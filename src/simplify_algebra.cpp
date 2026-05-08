@@ -2372,6 +2372,118 @@ struct find_pow2
     }
 };
 
+// Multiple gathers that read from the same constant 2D embedding table with
+// axis=0 and compatible (same dtype + same trailing dims) index tensors can
+// be collapsed into a single batched gather:
+//
+//   gather(T, idx_i)  for i in 0..K-1
+//      ==>
+//   slice_i(gather(T, concat(idx_0, ..., idx_{K-1})))
+//
+// This avoids reading T multiple times and shrinks the working set seen by
+// the cross-table horizontal fusion pass that runs later.  Anchoring on a
+// gather lets us reuse only the existing matcher primitives
+// (match::name, match::arg, match::is_constant, match::ndim) and walk the
+// shared parent's outputs in apply() — the same sibling-fanout pattern that
+// find_splits / find_split_concat already use.
+struct find_same_table_gathers
+{
+    auto matcher() const
+    {
+        return match::name("gather")(
+            match::arg(0)(match::is_constant(), match::ndim(2)));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto data = ins->inputs().at(0);
+        auto idx  = ins->inputs().at(1);
+
+        if(ins->get_operator().to_value()["axis"].to<int>() != 0)
+            return;
+        if(idx->get_shape().scalar() or idx->get_shape().lens().empty())
+            return;
+
+        const auto idx_type  = idx->get_shape().type();
+        const auto& idx_lens = idx->get_shape().lens();
+        std::vector<std::size_t> trailing(idx_lens.begin() + 1, idx_lens.end());
+
+        std::vector<instruction_ref> sibling_gathers;
+        for(auto out : data->outputs())
+        {
+            // Skip orphaned siblings (already replaced by an earlier
+            // application of this matcher in the same find_matches pass).
+            if(out->outputs().empty())
+                continue;
+            if(out->name() != "gather")
+                continue;
+            if(out->get_operator().to_value()["axis"].to<int>() != 0)
+                continue;
+            auto out_idx = out->inputs().at(1);
+            if(out_idx->get_shape().scalar() or out_idx->get_shape().lens().empty())
+                continue;
+            if(out_idx->get_shape().type() != idx_type)
+                continue;
+            const auto& out_lens = out_idx->get_shape().lens();
+            if(not std::equal(
+                   out_lens.begin() + 1, out_lens.end(), trailing.begin(), trailing.end()))
+                continue;
+            sibling_gathers.push_back(out);
+        }
+
+        if(sibling_gathers.size() < 2)
+            return;
+
+        // Sort siblings into module order so that std::next(latest) is a
+        // safe insertion point — every sibling's index tensor dominates it.
+        std::unordered_map<instruction_ref, std::size_t> pos;
+        std::size_t p = 0;
+        for(auto i : iterator_for(m))
+            pos[i] = p++;
+        std::sort(sibling_gathers.begin(), sibling_gathers.end(), [&](auto a, auto b) {
+            return pos.at(a) < pos.at(b);
+        });
+
+        auto insert_pt = std::next(sibling_gathers.back());
+
+        std::vector<instruction_ref> idx_inputs;
+        idx_inputs.reserve(sibling_gathers.size());
+        for(const auto& g : sibling_gathers)
+            idx_inputs.push_back(g->inputs().at(1));
+
+        auto concat_idx =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), idx_inputs);
+
+        auto batched_gather = m.insert_instruction(
+            insert_pt, make_op("gather", {{"axis", 0}}), data, concat_idx);
+
+        std::vector<instruction_ref> slices;
+        slices.reserve(sibling_gathers.size());
+        std::size_t offset = 0;
+        for(const auto& g : sibling_gathers)
+        {
+            auto sz = g->inputs().at(1)->get_shape().lens().front();
+            slices.push_back(m.insert_instruction(
+                insert_pt,
+                make_op("slice",
+                        {{"axes", std::vector<int64_t>{0}},
+                         {"starts", std::vector<int64_t>{static_cast<int64_t>(offset)}},
+                         {"ends", std::vector<int64_t>{static_cast<int64_t>(offset + sz)}}}),
+                batched_gather));
+            offset += sz;
+        }
+
+        // Move consumers of the original gathers to after the slices so that
+        // replace_instruction's positional invariants hold.
+        for(auto g : sibling_gathers)
+            m.move_output_instructions_after(g, slices.back());
+
+        for(std::size_t i = 0; i < sibling_gathers.size(); ++i)
+            m.replace_instruction(sibling_gathers[i], slices[i]);
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
@@ -2407,6 +2519,7 @@ void simplify_algebra::apply(module& m) const
                             find_splits{},
                             find_split_reshape{},
                             find_split_transpose{},
+                            find_same_table_gathers{},
                             find_pow2{});
 
         dead_code_elimination{}.apply(m);

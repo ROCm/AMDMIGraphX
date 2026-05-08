@@ -135,7 +135,6 @@ bool gfx_default_rocblas(const context& ctx)
 {
     return gfx_default_rocblas_impl(get_gfx_name(ctx.get_current_device().get_device_name()));
 }
-#endif
 
 static bool hipblaslt_supported_impl(const std::string& gfx_name)
 {
@@ -143,6 +142,7 @@ static bool hipblaslt_supported_impl(const std::string& gfx_name)
             (starts_with(gfx_name, "gfx95") and gfx_name >= "gfx950") or
             starts_with(gfx_name, "gfx110") or starts_with(gfx_name, "gfx120"));
 }
+#endif
 
 bool hipblaslt_supported()
 {

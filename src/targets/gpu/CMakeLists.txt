@@ -22,11 +22,6 @@
 # THE SOFTWARE.
 # ####################################################################################
 
-# HIP SDK on Windows does not detect platform correctly, defaulting to "amd"
-if(NOT HIP_PLATFORM AND CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(HIP_PLATFORM "amd")
-endif()
-
 find_package(hip REQUIRED)
 
 if(NOT WIN32)

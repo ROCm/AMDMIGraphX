@@ -50,7 +50,7 @@ jobs:
       id: deps_cache
       with:
         path: ${{ github.workspace }}/cget
-        key: windows-cget-clang-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
+        key: windows-cget-clang-${{ matrix.configuration }}-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
         restore-keys: windows-cget-clang-cpu-
 
     # - name: Setup tmate session

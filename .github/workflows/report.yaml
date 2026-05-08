@@ -18,6 +18,7 @@ jobs:
         with:
           client-id: ${{ vars.GH_APP_MIGRAPHX_BOT_PR_WRITE_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_MIGRAPHX_BOT_PR_WRITE_PRIVATE_KEY }}
+          repositories: AMDMIGraphX,migraphx-reports,migraphx-benchmark-utils
 
       - name: Download artifacts
         id: dl_art

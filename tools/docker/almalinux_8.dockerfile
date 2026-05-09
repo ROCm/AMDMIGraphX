@@ -74,7 +74,8 @@ ENV PATH=/opt/rh/gcc-toolset-13/root/usr/bin:$PATH \
 RUN dnf install -y --nobest \
         rocm-device-libs \
         hip-devel \
-        miopen-hip \
+        hipblaslt-devel \
+        miopen-hip-devel \
         rocblas && \
     dnf clean all
 
@@ -120,4 +121,14 @@ ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
 COPY ./tools/requirements-py.txt /
+
 RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
+
+ENV ROCM_PATH=/opt/rocm \
+    HIP_PATH=/opt/rocm \
+    PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:${PATH} \
+    LD_LIBRARY_PATH=/opt/rocm/lib:/opt/rocm/lib64:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/opt/rocm/lib:/opt/rocm/lib64:${LIBRARY_PATH} \
+    CMAKE_PREFIX_PATH=/opt/rocm:${CMAKE_PREFIX_PATH} \
+    CPATH=/opt/rocm/include:${CPATH}
+

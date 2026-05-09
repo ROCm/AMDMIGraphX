@@ -401,7 +401,7 @@ auto is_mlir_conv_backwards(mlir_mode mode)
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
 
-        return not(w.lens().size() != 4 and group > 1);
+        return (w.lens().size() == 4 or not (group > 1));
     });
 }
 

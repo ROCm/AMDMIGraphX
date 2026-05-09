@@ -26,10 +26,17 @@ RUN dnf install -y dnf-plugins-core epel-release && \
 
 # Base build, packaging and language tooling.  rpm-build / rpmdevtools are
 # required so that `make package` (CPack RPM generator) can emit RPMs.
-# gcc-toolset-13 supplies a modern C++17/20-capable host compiler (EL8 system
-# gcc is 8.5 and is too old for several MIGraphX dependencies).
+# We install BOTH system gcc/gcc-c++ AND gcc-toolset-13:
+#   * System gcc (8.5) gives ROCm's clang++ a default GCC toolchain it can
+#     auto-discover under /usr/lib/gcc/x86_64-redhat-linux/8/ so that
+#     `-lstdc++` resolves at link time (lld doesn't search gcc-toolset paths).
+#   * gcc-toolset-13 supplies a modern C++17/20-capable libstdc++ that we
+#     prefer for the host compiles via a ROCm clang config file below.
 RUN dnf install -y --nobest \
         cmake \
+        gcc \
+        gcc-c++ \
+        libstdc++-devel \
         gcc-toolset-13 \
         gcc-toolset-13-libatomic-devel \
         gdb \
@@ -79,6 +86,16 @@ RUN ldconfig
 
 # Workaround broken miopen cmake files (note: lib64 on EL, not lib/x86_64-linux-gnu)
 RUN sed -i 's,;/usr/lib64/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
+
+# Point ROCm's clang/clang++ at gcc-toolset-13 so it picks up the newer
+# libstdc++ headers and link library.  Without this, clang scans /usr for a
+# gcc install and falls back to the EL8 system gcc 8.5 libstdc++.
+# A clang config file alongside the binary is read on every invocation.
+RUN printf '%s\n' '--gcc-toolchain=/opt/rh/gcc-toolset-13/root/usr' \
+        | tee /opt/rocm/llvm/bin/clang.cfg \
+              /opt/rocm/llvm/bin/clang++.cfg \
+              /opt/rocm/llvm/bin/clang-cpp.cfg \
+        > /dev/null
 
 # Workaround for distributions running cmake < 3.25 (EL8 ships cmake 3.20)
 RUN sed -i -e 's/^block/if(COMMAND block)\nblock/g' \

@@ -397,7 +397,7 @@ auto is_mlir_conv_backwards(mlir_mode mode)
                input.type()))
             return false;
 
-        auto w = ins->inputs().at(1)->get_shape();
+        auto w     = ins->inputs().at(1)->get_shape();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
         if(w.lens().size() != 4 and group > 1)
@@ -1535,10 +1535,10 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
                             .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
 
     // gfx12 lacks an accurate half version of MIOpen convolution_backwards path, so
-    // always route it through rocMLIR regardless of MIOpen availability or user 
+    // always route it through rocMLIR regardless of MIOpen availability or user
     // env-var overrides.
-    mlir_mode conv_backwards_mode = get_mode(
-        "convolution_backwards", MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all);
+    mlir_mode conv_backwards_mode =
+        get_mode("convolution_backwards", MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all);
     if(starts_with(device_name, "gfx12"))
     {
         conv_backwards_mode = mlir_mode::all;

@@ -1,0 +1,123 @@
+# MIGraphX build environment with TheRock (amdrocm-*) RPM packages on AlmaLinux 8.
+#
+# Produces manylinux_2_28-compatible RPM packages (glibc 2.28, covers
+# EL8/RHEL8/Rocky/AlmaLinux derivatives).
+#
+# Build args:
+#   GPU_ARCH          GPU architecture family (e.g. gfx120x, gfx94x)
+#   ROCM_RELEASE_URL  TheRock ROCm RPM nightly repository URL
+#
+# Build:
+#   docker build --build-arg GPU_ARCH=<gpu_arch> \
+#       --build-arg ROCM_RELEASE_URL=<rocm_release_url> \
+#       -f tools/docker/therock_rpm.docker -t migraphx-therock-rpm .
+#
+# Run:
+#   docker run -it --device=/dev/kfd --device=/dev/dri --group-add video \
+#       -v $(pwd):/code/AMDMIGraphX migraphx-therock-rpm
+#
+# Build MIGraphX inside the container:
+#   cd /code/AMDMIGraphX
+#   rbuild build -d depend -B build \
+#       -DGPU_TARGETS=$(rocminfo | grep -o -m1 'gfx.*')
+
+FROM almalinux:8.10
+
+ARG GPU_ARCH=gfx120x
+ARG ROCM_RELEASE_URL=https://rocm.nightlies.amd.com/rpm/20260509-25590201084/x86_64
+
+# Add TheRock ROCm RPM nightly repository.
+# Nightlies are currently unsigned, so gpgcheck is disabled.
+RUN printf '%s\n' \
+        '[therock-rocm]' \
+        'name=TheRock ROCm Nightly' \
+        "baseurl=${ROCM_RELEASE_URL}" \
+        'enabled=1' \
+        'gpgcheck=0' \
+        > /etc/yum.repos.d/therock-rocm.repo
+
+# Enable EPEL + PowerTools (CRB on EL8) so build dependencies resolve
+RUN dnf install -y dnf-plugins-core epel-release && \
+    dnf config-manager --set-enabled powertools && \
+    dnf clean all
+
+# Base build tooling.
+# gcc-toolset-13 provides a C++17/20-capable libstdc++ for host compiles;
+# system gcc 8.5 is kept so ROCm's clang can auto-discover a GCC toolchain.
+RUN dnf install -y --nobest \
+        cmake \
+        gcc \
+        gcc-c++ \
+        libstdc++-devel \
+        gcc-toolset-13 \
+        gcc-toolset-13-libatomic-devel \
+        gdb \
+        git \
+        make \
+        pkgconfig \
+        which \
+        wget \
+        curl \
+        file \
+        rpm-build \
+        rpmdevtools \
+        redhat-rpm-config \
+        zlib-devel \
+        openssl-devel \
+        numactl-devel \
+        libgfortran \
+        glibc-langpack-en \
+        python3.12 \
+        python3.12-devel \
+        python3.12-pip && \
+    dnf clean all
+
+# Make python3.12 the default python3 / pip3
+RUN alternatives --set python3 /usr/bin/python3.12 && \
+    alternatives --set python /usr/bin/python3.12 || true
+
+# Activate gcc-toolset-13 for all subsequent layers and at container runtime
+ENV PATH=/opt/rh/gcc-toolset-13/root/usr/bin:$PATH \
+    LD_LIBRARY_PATH=/opt/rh/gcc-toolset-13/root/usr/lib64 \
+    MANPATH=/opt/rh/gcc-toolset-13/root/usr/share/man \
+    PCP_DIR=/opt/rh/gcc-toolset-13/root
+
+# Install TheRock ROCm libraries (amdrocm-* naming convention)
+RUN dnf install -y --nobest \
+        amdrocm-runtime \
+        amdrocm-runtime-devel \
+        amdrocm-llvm \
+        amdrocm-core-${GPU_ARCH} \
+        amdrocm-core-devel-${GPU_ARCH} \
+        amdrocm-blas-${GPU_ARCH} \
+        amdrocm-blas-devel-${GPU_ARCH} \
+        amdrocm-hipblas-common-devel-${GPU_ARCH} \
+        amdrocm-dnn-${GPU_ARCH} \
+        amdrocm-dnn-devel-${GPU_ARCH} && \
+    dnf clean all
+
+# Point ROCm's clang/clang++ at gcc-toolset-13 so it picks up the newer
+# libstdc++ headers and link library instead of falling back to system gcc 8.5.
+RUN printf '%s\n' '--gcc-toolchain=/opt/rh/gcc-toolset-13/root/usr' \
+        | tee /opt/rocm/llvm/bin/clang.cfg \
+              /opt/rocm/llvm/bin/clang++.cfg \
+              /opt/rocm/llvm/bin/clang-cpp.cfg \
+        > /dev/null
+
+# Install rbuild
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+
+# Add ROCm bin to PATH
+ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:${PATH} \
+    LD_LIBRARY_PATH=/opt/rocm/lib:/opt/rocm/lib64:${LD_LIBRARY_PATH} \
+    LIBRARY_PATH=/opt/rocm/lib:/opt/rocm/lib64:${LIBRARY_PATH} \
+    CMAKE_PREFIX_PATH=/opt/rocm:${CMAKE_PREFIX_PATH} \
+    CPATH=/opt/rocm/include:${CPATH}
+
+# Expose GPU arch for CMake packaging (TheRock backend):
+#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=$GPU_ARCH_FOR_THEROCK
+ENV GPU_ARCH_FOR_THEROCK=${GPU_ARCH}
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8

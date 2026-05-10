@@ -7,10 +7,11 @@ RUN dpkg --add-architecture i386
 
 # Install rocm key
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
-    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
 
 # Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.1.1/ jammy main > /etc/apt/sources.list.d/rocm.list'
+RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/7.2.3/ jammy main > /etc/apt/sources.list.d/rocm.list'
 
 # From docs.amd.com for installing rocm. Needed to install properly
 RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
@@ -23,7 +24,7 @@ RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     add-apt-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main"
 
 # Install dependencies
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     apt-utils \
     bison \
     build-essential \
@@ -70,9 +71,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rm -rf /var/lib/apt/lists/*
 
 # Install pytorch
-RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torch-2.8.0%2Brocm7.1.1.lw.gitcba8b9d2-cp310-cp310-linux_x86_64.whl\
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/torchvision-0.24.0%2Brocm7.1.1.gitb919bd0c-cp310-cp310-linux_x86_64.whl\
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.1.1/triton-3.4.0%2Brocm7.1.1.git0cace8d2-cp310-cp310-linux_x86_64.whl
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.3/torch-2.8.0%2Brocm7.2.3.lw.git2742f6d1-cp310-cp310-linux_x86_64.whl \
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.3/torchvision-0.24.0%2Brocm7.2.3.gitb919bd0c-cp310-cp310-linux_x86_64.whl \
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.3/triton-3.4.0%2Brocm7.2.3.git0cace8d2-cp310-cp310-linux_x86_64.whl
 
 # add this for roctracer dependencies
 RUN pip3 install CppHeaderParser

@@ -1427,17 +1427,13 @@ struct find_reshape_cont
         auto lens = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());
 
-        if(in_ins->get_shape() != ins->get_shape())
+        if(in_ins->get_shape().lens() != ins->get_shape().lens())
         {
             return;
         }
 
-        if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
-               return i->get_shape().standard();
-           }))
-        {
+        if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
             return;
-        }
 
         auto out_lens = ins->get_shape().lens();
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());

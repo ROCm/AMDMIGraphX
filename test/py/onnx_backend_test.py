@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -325,7 +325,7 @@ def disabled_tests_onnx_1_8_0(backend_test):
 def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendPyTorchConvertedModelTest
-    # MaxPool dialtion is partially supported on GPU by a workaround
+    # MaxPool dilation is partially supported on GPU by a workaround
     # But these tests require too large allocations to work properly
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')
@@ -1231,12 +1231,43 @@ def create_backend_test(testname=None, target_device=None):
         if version.parse(onnx.__version__) >= version.parse("1.18.0"):
             disabled_tests_onnx_1_18_0(backend_test)
 
+    _check_include_patterns_match(backend_test)
 
 # import all test cases at global scope to make
 # them visible to python.unittest.
     globals().update(backend_test.enable_report().test_cases)
 
     return backend_test
+
+
+def _check_include_patterns_match(backend_test):
+    """Warn for backend_test.include(...) patterns that match no tests.
+
+    Without this guard a typo (e.g. r'.*test_abss.*' instead of r'.*test_abs.*')
+    silently filters every test out of that include, the suite reports zero
+    failures, and CI passes even though that include contributed no coverage.
+    Surface unmatched patterns at test setup time so misspellings — and dead
+    entries left behind when ONNX renames or removes tests — are visible.
+    """
+    all_test_names = {
+        name
+        for items_map in backend_test._test_items.values()
+        for name in items_map
+    }
+    unmatched = sorted(
+        pat.pattern
+        for pat in backend_test._include_patterns
+        if not any(pat.search(name) for name in all_test_names)
+    )
+    if unmatched:
+        print(
+            "onnx_backend_test.py: WARNING: {} include() pattern(s) matched "
+            "no test cases (check for misspellings or stale entries):"
+            .format(len(unmatched)),
+            file=sys.stderr,
+        )
+        for pattern in unmatched:
+            print("  " + pattern, file=sys.stderr)
 
 
 def parse_args():

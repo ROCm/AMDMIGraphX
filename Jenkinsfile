@@ -1,4 +1,5 @@
 DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
+DOCKER_IMAGE_ORT = 'rocm/migraphx-ci-jenkins-ubuntu-ort'
 
 def getgputargets() {
     targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201"
@@ -102,20 +103,46 @@ def cmake_build = { bconf ->
     }
 }
 
+def setCommitStatus(String sha, String state, String context, String description = '') {
+    def GITHUB_API_URL="https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/statuses/${sha}"
+    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+        sh """curl -L \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer \$TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -d '{"state":"${state}", \
+                   "description":"${description}", \
+                   "context":"${context}", \
+                   "target_url":"${env.BUILD_URL}"}' \
+              ${GITHUB_API_URL} \
+        """
+    }
+}
+
 def rocmtest = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
 
     def docker_args = conf.get("docker_args", "")
+    def image = conf.get("image", DOCKER_IMAGE)
+    def imageTag = conf.get("imageTag", env.IMAGE_TAG)
     def ccache = "/workspaces/.cache/ccache"
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
     env.HSA_ENABLE_SDMA = 0
-    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+
+    def commitSha
+    def statusContext = "Jenkins - ${variant}"
+    def buildResult = 'failure'
+
+    try {
         def docker_opts
         stage("setup ${variant}") {
             sh 'printenv'
             checkout scm
+            commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+            setCommitStatus(commitSha, 'pending', statusContext, 'Building')
             setup()
 
             def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
@@ -126,16 +153,25 @@ def rocmtest = { Map conf = [:], Closure body ->
 
             withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                 sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
-                sh "docker pull ${DOCKER_IMAGE}:${env.IMAGE_TAG}"
+                sh "docker pull ${image}:${imageTag}"
             }
         }
 
         stage("build ${variant}") {
-            withDockerContainer(image: "${DOCKER_IMAGE}:${env.IMAGE_TAG}", args: docker_opts + docker_args) {
+            withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
                 timeout(time: 4, unit: 'HOURS') {
                     body()
                 }
             }
+        }
+        buildResult = 'success'
+    } catch (Exception e) {
+        buildResult = 'failure'
+        throw e
+    } finally {
+        if (commitSha) {
+            def description = (buildResult == 'success') ? 'Build succeeded' : 'Build failed'
+            setCommitStatus(commitSha, buildResult, statusContext, description)
         }
     }
 }
@@ -169,7 +205,7 @@ pipeline {
                             checkout scm
                             def calculateImageTagScript = """
                                 shopt -s globstar
-                                sha256sum **/Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
+                                sha256sum Dockerfile **/*requirements.txt **/install_prereqs.sh **/rbuild.ini **/test/onnx/.onnxrt-commit | sha256sum | cut -d " " -f 1
                             """
                             env.IMAGE_TAG = sh(script: "bash -c '${calculateImageTagScript}'", returnStdout: true).trim()
                             env.IMAGE_EXISTS = sh(script: "docker manifest inspect ${DOCKER_IMAGE}:${IMAGE_TAG}", returnStatus: true) == 0 ? 'true' : 'false'
@@ -178,6 +214,7 @@ pipeline {
                 }
             }
         }
+
 
         stage('Build image') {
             when {
@@ -204,6 +241,7 @@ pipeline {
                 }
             }
         }
+
 
         stage('Tests') {
             parallel {
@@ -338,6 +376,50 @@ pipeline {
                 }
             }
         }
+        stage('Check ORT image') {
+            steps {
+                script {
+                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking ORT image', failureDescription: 'Failed to check ORT image', successDescription: 'ORT image check succeeded') {
+                        withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                            sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                            sh 'printenv'
+                            checkout scm
+                            def calculateOrtImageTagScript = """
+                                sha256sum tools/docker/ort.dockerfile test/onnx/.onnxrt-commit tools/build_and_test_onnxrt.sh tools/pai_test_launcher.sh tools/pai_provider_test_launcher.sh | sha256sum | cut -d " " -f 1
+                            """
+                            env.IMAGE_TAG_ORT = sh(script: "bash -c '${calculateOrtImageTagScript}'", returnStdout: true).trim()
+                            env.IMAGE_EXISTS_ORT = sh(script: "docker manifest inspect ${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", returnStatus: true) == 0 ? 'true' : 'false'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build ORT image') {
+            when {
+                expression { env.IMAGE_EXISTS_ORT == 'false' || params.FORCE_DOCKER_IMAGE_BUILD }
+            }
+            steps {
+                script {
+                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
+                        withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
+                            sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
+                            checkout scm
+                            def builtOrtImage
+
+                            try {
+                                sh "docker pull ${DOCKER_IMAGE_ORT}:latest"
+                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f tools/docker/ort.dockerfile --cache-from ${DOCKER_IMAGE_ORT}:latest .")
+                            } catch(Exception ex) {
+                                builtOrtImage = docker.build("${DOCKER_IMAGE_ORT}:${IMAGE_TAG_ORT}", "-f tools/docker/ort.dockerfile --no-cache .")
+                            }
+                            builtOrtImage.push("${IMAGE_TAG_ORT}")
+                            builtOrtImage.push("latest")
+                        }
+                    }
+                }
+            }
+        }
 
         stage('ONNX Runtime Tests') {
             parallel {
@@ -347,12 +429,12 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest(setup: setuppackage, docker_args: '-u root') {
+                            rocmtest(setup: setuppackage, docker_args: '-u root', image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
                                 sh '''
                                     apt install half
                                     #ls -lR
                                     md5sum ./build/*.deb
-                                    dpkg -i ./build/*.deb
+                                    apt install -y --allow-unauthenticated ./build/*.deb
                                     env
                                     cd /onnxruntime && ./build_and_test_onnxrt.sh
                                 '''

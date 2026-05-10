@@ -105,7 +105,7 @@ struct nop
 {
     static std::string as_string() { return ""; }
     template <class T>
-    static auto call(T&& x)
+    static T call(T&& x)
     {
         return static_cast<T&&>(x);
     }
@@ -190,10 +190,24 @@ Stream& print_stream_impl(rank<4>, Stream& s, std::nullptr_t)
     return s;
 }
 
+template <class Stream, class Optional>
+auto print_stream_impl(rank<5>, Stream& s, const Optional& x)
+    -> decltype(bool(Optional{*x}), x.has_value(), x.value(), void())
+{
+    if(x.has_value())
+    {
+        print_stream(s, x.value());
+    }
+    else
+    {
+        s << "nullopt";
+    }
+}
+
 template <class Stream, class T>
 void print_stream(Stream& s, const T& x)
 {
-    print_stream_impl(rank<5>{}, s, x);
+    print_stream_impl(rank<6>{}, s, x);
 }
 
 template <class T>
@@ -212,20 +226,25 @@ template <class T, class Operator>
 lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                                        \
-    template <class V>                                                             \
-    auto operator op(V&& rhs2) const                                               \
-    {                                                                              \
-        return make_expression(*this, std::forward<V>(rhs2), name{}); /* NOLINT */ \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                                                  \
+    template <class V>                                                                       \
+    friend auto operator op(self_t lhs2, V&& rhs2) /* NOLINT */                              \
+    {                                                                                        \
+        return make_expression(std::move(lhs2), std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_UNARY_OPERATOR(op, name) \
-    auto operator op() const { return make_lhs_expression(lhs, name{}); /* NOLINT */ }
+#define TEST_EXPR_UNARY_OPERATOR(op, name)                                      \
+    friend auto operator op(self_t self) /* NOLINT */                           \
+    {                                                                           \
+        return make_lhs_expression(static_cast<decltype(self.lhs)&&>(self.lhs), \
+                                   name{}); /* NOLINT */                        \
+    }
 
 template <class T, class U, class Operator>
 struct expression
 {
+    using self_t = expression;
     T lhs;
     U rhs;
 
@@ -268,8 +287,9 @@ lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator)
 template <class T, class Operator>
 struct lhs_expression
 {
+    using self_t = lhs_expression;
     T lhs;
-    explicit lhs_expression(T e) : lhs(std::move(e)) {}
+    explicit lhs_expression(T e) : lhs(static_cast<T&&>(e)) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {
@@ -347,15 +367,9 @@ auto make_function(const std::string& name, F f)
 struct capture
 {
     template <class T>
-    auto operator->*(const T& x) const
+    auto operator->*(T&& x) const
     {
-        return make_lhs_expression(x);
-    }
-
-    template <class T, class Operator>
-    auto operator->*(const lhs_expression<T, Operator>& x) const
-    {
-        return x;
+        return make_lhs_expression(std::forward<T>(x));
     }
 };
 
@@ -916,6 +930,7 @@ inline void run(int argc, const char* argv[])
                  __FILE__,                  \
                  __LINE__,                  \
                  &test::fail)
+
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 

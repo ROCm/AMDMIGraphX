@@ -3,7 +3,7 @@ name: MIGraphX Performance Tests
 on:
   pull_request_target:
     branches: [develop]
-    types: [opened, synchronize, closed]
+    types: [opened, synchronize, closed, labeled]
   schedule:
     - cron: "0 7 * * 1-6"
 
@@ -12,7 +12,7 @@ on:
       rocm_release:
         description: ROCm Version
         required: true
-        default: '7.1.1'
+        default: '7.2.3'
       performance_reports_repo:
         description: Repository where performance reports are stored
         required: true
@@ -41,14 +41,37 @@ on:
         description: -m for Max value; -s for Std dev; -r for Threshold file
         required: true
         default: '-r'
+      model_path:
+        description: Host path to NFS-backed models (ARC runner mount)
+        required: false
+        default: "/migraphx-models"
+      perf_workspace:
+        description: Writable NFS-backed workspace for reports/scratch (ARC runner mount)
+        required: false
+        default: "/mnt/migraphx-perf-work"
+      runner_label:
+        description: Self-hosted runner label (ARC scale set linux-migraphx-mi250-1)
+        required: false
+        default: "linux-migraphx-mi250-1"
 
 concurrency: 
-  group: "perftest-${{ github.head_ref ||  github.base_ref || 'schedule' }}"
+  group: "perftest-${{ github.head_ref || github.base_ref || 'schedule' }}"
   cancel-in-progress: true
+
+env:
+  # Defaults when not overridden by config.md or workflow_dispatch
+  MIGRAPHX_MODEL_PATH_DEFAULT: /migraphx-models
+  MIGRAPHX_PERF_WORKSPACE_DEFAULT: /mnt/migraphx-perf-work
+  MIGRAPHX_RUNNER_LABEL: linux-migraphx-mi250-1
 
 jobs:
   get_config:
     runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event.action == 'closed' ||
+      contains(github.event.pull_request.labels.*.name, 'ok-to-test')
     outputs:
       rocm_version: ${{ steps.read_config.outputs.rocm_version }}
       utils_repo: ${{ steps.read_config.outputs.utils_repo }}
@@ -58,11 +81,18 @@ jobs:
       perf_number: ${{ steps.read_config.outputs.perf_number }}
       perf_flag: ${{ steps.read_config.outputs.perf_flag }}
       perf_timeout: ${{ steps.read_config.outputs.perf_timeout }}
+      model_path: ${{ steps.read_config.outputs.model_path }}
+      perf_workspace: ${{ steps.read_config.outputs.perf_workspace }}
+      runner_label: ${{ steps.read_config.outputs.runner_label }}
     steps:
       - name: checkout
         uses: actions/checkout@v4
       - name: read_config
         id: read_config
+        env:
+          MIGRAPHX_MODEL_PATH_DEFAULT: ${{ env.MIGRAPHX_MODEL_PATH_DEFAULT }}
+          MIGRAPHX_PERF_WORKSPACE_DEFAULT: ${{ env.MIGRAPHX_PERF_WORKSPACE_DEFAULT }}
+          MIGRAPHX_RUNNER_LABEL_DEFAULT: ${{ env.MIGRAPHX_RUNNER_LABEL }}
         run: |
           ROCM_VERSION=$(grep 'ROCM_VERSION' .github/workflows/config.md | cut -d "'" -f2)
           BENCHMARK_UTILS_REPO=$(grep 'BENCHMARK_UTILS_REPO' .github/workflows/config.md | cut -d "'" -f2)
@@ -72,6 +102,23 @@ jobs:
           RESULTS_TO_COMPARE=$(grep 'RESULTS_TO_COMPARE' .github/workflows/config.md | cut -d "'" -f2)
           CALCULATION_METHOD_FLAG=$(grep 'CALCULATION_METHOD_FLAG' .github/workflows/config.md | cut -d "'" -f2)
           PERFORMANCE_TEST_TIMEOUT=$(grep 'PERFORMANCE_TEST_TIMEOUT' .github/workflows/config.md | cut -d "'" -f2)
+          
+          MODEL_PATH=""
+          PERF_WS=""
+          if grep -q 'MIGRAPHX_MODEL_PATH' .github/workflows/config.md 2>/dev/null; then
+            MODEL_PATH=$(grep 'MIGRAPHX_MODEL_PATH' .github/workflows/config.md | cut -d "'" -f2)
+          fi
+          if grep -q 'MIGRAPHX_PERF_WORKSPACE' .github/workflows/config.md 2>/dev/null; then
+            PERF_WS=$(grep 'MIGRAPHX_PERF_WORKSPACE' .github/workflows/config.md | cut -d "'" -f2)
+          fi
+          RUNNER_LABEL=""
+          if grep -q 'MIGRAPHX_RUNNER_LABEL' .github/workflows/config.md 2>/dev/null; then
+            RUNNER_LABEL=$(grep 'MIGRAPHX_RUNNER_LABEL' .github/workflows/config.md | cut -d "'" -f2)
+          fi
+          MODEL_PATH="${MODEL_PATH:-$MIGRAPHX_MODEL_PATH_DEFAULT}"
+          PERF_WS="${PERF_WS:-$MIGRAPHX_PERF_WORKSPACE_DEFAULT}"
+          RUNNER_LABEL="${RUNNER_LABEL:-$MIGRAPHX_RUNNER_LABEL_DEFAULT}"
+
           echo "rocm_version=$ROCM_VERSION"
           echo "rocm_version=$ROCM_VERSION" >> $GITHUB_OUTPUT
           echo "utils_repo=$BENCHMARK_UTILS_REPO" >> $GITHUB_OUTPUT
@@ -81,10 +128,13 @@ jobs:
           echo "perf_number=$RESULTS_TO_COMPARE" >> $GITHUB_OUTPUT
           echo "perf_flag=$CALCULATION_METHOD_FLAG" >> $GITHUB_OUTPUT
           echo "perf_timeout=$PERFORMANCE_TEST_TIMEOUT" >> $GITHUB_OUTPUT
-      
+          echo "model_path=$MODEL_PATH" >> $GITHUB_OUTPUT
+          echo "perf_workspace=$PERF_WS" >> $GITHUB_OUTPUT
+          echo "runner_label=$RUNNER_LABEL" >> $GITHUB_OUTPUT
+
   call_reusable:
     needs: get_config
-    uses: ROCm/migraphx-benchmark/.github/workflows/perf-test.yml@main
+    uses: ROCm/migraphx-benchmark/.github/workflows/perf-test.yml@testing
     with:
       rocm_release: ${{ github.event.inputs.rocm_release || needs.get_config.outputs.rocm_version }}
       benchmark_utils_repo: ${{ github.event.inputs.benchmark_utils_repo || needs.get_config.outputs.utils_repo }}
@@ -94,7 +144,8 @@ jobs:
       result_number: ${{ github.event.inputs.result_number || needs.get_config.outputs.perf_number }}
       flags: ${{ github.event.inputs.flags || needs.get_config.outputs.perf_flag }}
       model_timeout: ${{ github.event.inputs.model_timeout || needs.get_config.outputs.perf_timeout }}
+      model_path: ${{ github.event.inputs.model_path || needs.get_config.outputs.model_path }}
+      perf_workspace: ${{ github.event.inputs.perf_workspace || needs.get_config.outputs.perf_workspace }}
+      runs_on: ${{ github.event.inputs.runner_label || needs.get_config.outputs.runner_label }}
     secrets:
-      gh_token: ${{ secrets.MIGRAPHX_BOT_TOKEN }}
-      mail_user: ${{ secrets.MAIL_USERNAME }}
-      mail_pass: ${{ secrets.MAIL_PASSWORD }}
+      BENCHMARK_UTILS_READ_TOKEN: ${{ secrets.BENCHMARK_UTILS_READ_TOKEN }}

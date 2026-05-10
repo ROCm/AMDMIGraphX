@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${SCRIPT_DIR}/build"
 DRIVER="${BUILD_DIR}/bin/driver"
-CK_DIR="${BUILD_DIR}/saved_models/ck_models"
+CK_DIR="${BUILD_DIR}/saved_models/ck_full_models"
 MLIR_DIR="${BUILD_DIR}/saved_models/mlir_models"
 NITER=2500
 MEASURE_PASSES=5
@@ -244,7 +244,7 @@ if [[ "$NO_PERF_SETUP" != "1" ]]; then
     trap teardown_perf_env EXIT
 fi
 
-CSV="${SCRIPT_DIR}/benchmark_splitkv_ck_vs_mlir_${NUM_SPLITS}_splits.csv"
+CSV="${SCRIPT_DIR}/benchmark_splitkv_ck_full_vs_mlir_${NUM_SPLITS}_splits.csv"
 if [[ "$DISCOVERY_MODE" == "1" ]]; then
     METRICS_LOG="${SCRIPT_DIR}/gpu_metrics_${NUM_SPLITS}_splits_gpu${GPU_ID}_$(date '+%Y%m%d_%H%M%S').log"
     echo "GPU metrics log: $METRICS_LOG"
@@ -276,7 +276,7 @@ for M in 1 16 32; do
             for O in 32 48 64 80 96 128 192 256; do
                 TAG="${NUM_SPLITS}_${BATCH}_${NHEAD}_${M}_${N}_${K}_${O}"
 
-                CK_MODEL="${CK_DIR}/ck_${TAG}.mxr"
+                CK_MODEL="${CK_DIR}/ck_full_${TAG}.mxr"
                 MLIR_MODEL="${MLIR_DIR}/mlir_${TAG}.mxr"
 
                 if [[ ! -f "$CK_MODEL" ]]; then

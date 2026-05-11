@@ -32,7 +32,8 @@
 
 template <class T>
 TEST_CASE_TEMPLATE(test_numeric_limits)
-{}
+{
+}
 
 #else
 
@@ -98,4 +99,3 @@ TEST_CASE_REGISTER(test_numeric_limits<long long>);
 TEST_CASE_REGISTER(test_numeric_limits<unsigned long long>);
 TEST_CASE_REGISTER(test_numeric_limits<double>);
 TEST_CASE_REGISTER(test_numeric_limits<float>);
-

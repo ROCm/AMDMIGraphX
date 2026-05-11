@@ -28,7 +28,13 @@
 #include <rocm/limits.hpp>
 #include <migraphx/kernels/test.hpp>
 
-#ifndef __HIPCC_RTC__
+#ifdef __HIPCC_RTC__
+
+template <class T>
+TEST_CASE_TEMPLATE(test_numeric_limits)
+{}
+
+#else
 
 #include <limits>
 #include <cmath>
@@ -74,6 +80,7 @@ TEST_CASE_TEMPLATE(test_numeric_limits)
         EXPECT(std::numeric_limits<T>::signaling_NaN() == rocm::numeric_limits<T>::signaling_NaN());
     }
 }
+#endif
 
 TEST_CASE_REGISTER(test_numeric_limits<char>);
 TEST_CASE_REGISTER(test_numeric_limits<signed char>);
@@ -92,4 +99,3 @@ TEST_CASE_REGISTER(test_numeric_limits<unsigned long long>);
 TEST_CASE_REGISTER(test_numeric_limits<double>);
 TEST_CASE_REGISTER(test_numeric_limits<float>);
 
-#endif

@@ -400,19 +400,29 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     if(NOT MIGRAPHX_THEROCK_GPU_ARCH)
         message(FATAL_ERROR "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH (e.g. -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x).")
     endif()
-    # TheRock amdrocm packages (RFC0009-OS-Packaging-Requirements):
-    #   Gfxarch=False packages: amdrocm-{component}
-    #   Gfxarch=True  packages: amdrocm-{component}-{gpu_arch}
+
+    # TheRock versioned packaging (RFC0009-OS-Packaging-Requirements):
+    #   Versioned (installed by meta-package): amdrocm-{component}{MAJOR.MINOR}[-{gpu_arch}]
+    #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
+    # We target versioned names to match what install_rocm_packages.sh actually installs.
     # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
-    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime")
+    set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
+        "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
+    if(MIGRAPHX_THEROCK_ROCM_VERSION)
+        set(_VER "${MIGRAPHX_THEROCK_ROCM_VERSION}")
+    else()
+        set(_VER "")
+    endif()
+
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${_VER}")
     if(MIGRAPHX_USE_MIOPEN)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn-${MIGRAPHX_THEROCK_GPU_ARCH}")
+        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${_VER}-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
     if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-blas-${MIGRAPHX_THEROCK_GPU_ARCH}")
+        list(APPEND PACKAGE_DEPENDS "amdrocm-blas${_VER}-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
-    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev")
-    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel")
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${_VER}")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${_VER}")
 
     # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
     set(ROCM_DEP_ROCMCORE OFF)

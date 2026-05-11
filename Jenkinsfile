@@ -97,7 +97,7 @@ def cmake_build = { bconf ->
         git diff
         git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
         make -j\$(nproc) ${targets} VERBOSE=1
-        [[ -n \$(compgen -G "./*.deb") ]] && md5sum ./*.deb
+        [ -n "\$(ls ./*.deb 2>/dev/null)" ] && md5sum ./*.deb
     """
     echo cmd
     sh cmd

@@ -1,15 +1,17 @@
-# MIGraphX build environment with TheRock (amdrocm-*) RPM packages on AlmaLinux 8.
+# MIGraphX build environment with TheRock (amdrocm-*) RPM packages.
 #
-# Produces manylinux_2_28-compatible RPM packages (glibc 2.28, covers
-# EL8/RHEL8/Rocky/AlmaLinux derivatives).
+# Based on the same manylinux_2_28 image that TheRock uses for its own
+# portable builds (glibc 2.28, AlmaLinux 8 derivative). ROCm is installed
+# via TheRock's official install_rocm_packages.sh script.
 #
 # Build args:
-#   GPU_ARCH          GPU architecture family (e.g. gfx120x, gfx94x)
-#   ROCM_RELEASE_URL  TheRock ROCm RPM nightly repository URL
+#   GPU_ARCH       GPU architecture family for TheRock packages (e.g. gfx94x, gfx120x)
+#   ROCM_VERSION   Full ROCm version string (e.g. 7.13.0a20260509 for nightly)
+#   RELEASE_TYPE   nightlies | prereleases | stable (default: nightlies)
 #
 # Build:
-#   docker build --build-arg GPU_ARCH=<gpu_arch> \
-#       --build-arg ROCM_RELEASE_URL=<rocm_release_url> \
+#   docker build --build-arg GPU_ARCH=gfx94x \
+#       --build-arg ROCM_VERSION=7.13.0a20260509 \
 #       -f tools/docker/therock_rpm.docker -t migraphx-therock-rpm .
 #
 # Run:
@@ -18,105 +20,91 @@
 #
 # Build MIGraphX inside the container:
 #   cd /code/AMDMIGraphX
-#   rbuild build -d depend -B build \
-#       -DGPU_TARGETS=$(rocminfo | grep -o -m1 'gfx.*')
+#   rbuild package -d depend -B build \
+#       -DGPU_TARGETS=<real_gpu_target> \
+#       -DMIGRAPHX_PACKAGE_BACKEND=therock \
+#       -DMIGRAPHX_THEROCK_GPU_ARCH=$GPU_ARCH_FOR_THEROCK
 
-FROM almalinux:8.10
+FROM quay.io/pypa/manylinux_2_28_x86_64
 
-ARG GPU_ARCH=gfx120x
-ARG ROCM_RELEASE_URL=https://rocm.nightlies.amd.com/rpm/20260509-25590201084/x86_64
+ARG GPU_ARCH=gfx94x
+ARG ROCM_VERSION=7.13.0a20260509
+ARG RELEASE_TYPE=nightlies
 
-# Add TheRock ROCm RPM nightly repository.
-# Nightlies are currently unsigned, so gpgcheck is disabled.
-RUN printf '%s\n' \
-        '[therock-rocm]' \
-        'name=TheRock ROCm Nightly' \
-        "baseurl=${ROCM_RELEASE_URL}" \
-        'enabled=1' \
-        'gpgcheck=0' \
-        > /etc/yum.repos.d/therock-rocm.repo
+# Use Python 3.12 from the manylinux multi-python install
+ENV PATH="/opt/python/cp312-cp312/bin:${PATH}"
 
-# Enable EPEL + PowerTools (CRB on EL8) so build dependencies resolve
-RUN dnf install -y dnf-plugins-core epel-release && \
-    dnf config-manager --set-enabled powertools && \
-    dnf clean all
-
-# Base build tooling.
-# gcc-toolset-13 provides a C++17/20-capable libstdc++ for host compiles;
-# system gcc 8.5 is kept so ROCm's clang can auto-discover a GCC toolchain.
-RUN dnf install -y --nobest \
-        cmake \
-        gcc \
-        gcc-c++ \
-        libstdc++-devel \
-        gcc-toolset-13 \
+######## GCC Toolset (aligned with TheRock's build_manylinux_x86_64.Dockerfile) ########
+# Remove any pre-existing gcc-toolset, then install gcc-toolset-13.
+RUN yum install -y epel-release && \
+    yum remove -y gcc-toolset* && \
+    yum install -y \
+        gcc-toolset-13-binutils \
+        gcc-toolset-13-gcc \
+        gcc-toolset-13-gcc-c++ \
+        gcc-toolset-13-gcc-gfortran \
         gcc-toolset-13-libatomic-devel \
-        gdb \
-        git \
-        make \
-        pkgconfig \
-        which \
-        wget \
-        curl \
-        file \
+        gcc-toolset-13-libstdc++-devel && \
+    yum clean all && rm -rf /var/cache/yum
+
+# Activate gcc-toolset-13 (aligned with TheRock's ENV setup)
+ENV LIBRARY_PATH="" \
+    LD_LIBRARY_PATH=""
+ENV DEVTOOLSET_ROOTPATH="/opt/rh/gcc-toolset-13/root"
+ENV PATH="/opt/rh/gcc-toolset-13/root/usr/bin:${PATH}" \
+    LIBRARY_PATH="/opt/rh/gcc-toolset-13/root/usr/lib64:/opt/rh/gcc-toolset-13/root/usr/lib:${LIBRARY_PATH}" \
+    LD_LIBRARY_PATH="/opt/rh/gcc-toolset-13/root/usr/lib64:/opt/rh/gcc-toolset-13/root/usr/lib:${LD_LIBRARY_PATH}"
+
+######## CMake (pin to 3.27.9, same as TheRock's build image) ########
+# The manylinux base ships cmake 4.x which breaks older cmake_minimum_required.
+RUN pip install cmake==3.27.9 && cmake --version
+
+######## Extra build tools for MIGraphX RPM packaging ########
+# python3.12-devel: manylinux Python is statically linked and lacks libpython3.so;
+# MIGraphX MLIR bindings require Development.Embed (shared libpython + headers).
+# Must match 3.12 to avoid version mismatch with the manylinux cp312 interpreter.
+RUN yum install -y \
+        python3.12-devel \
         rpm-build \
         rpmdevtools \
-        redhat-rpm-config \
-        zlib-devel \
-        openssl-devel \
-        numactl-devel \
-        libgfortran \
-        glibc-langpack-en \
-        python3.12 \
-        python3.12-devel \
-        python3.12-pip && \
-    dnf clean all
+        redhat-rpm-config && \
+    yum clean all && rm -rf /var/cache/yum
 
-# Make python3.12 the default python3 / pip3
-RUN alternatives --set python3 /usr/bin/python3.12 && \
-    alternatives --set python /usr/bin/python3.12 || true
+######## Install ROCm via TheRock's official script ########
+RUN curl -fsSL https://raw.githubusercontent.com/ROCm/TheRock/main/dockerfiles/install_rocm_packages.sh \
+        -o /tmp/install_rocm_packages.sh && \
+    chmod +x /tmp/install_rocm_packages.sh && \
+    /tmp/install_rocm_packages.sh "${ROCM_VERSION}" "${GPU_ARCH}" "${RELEASE_TYPE}" && \
+    rm -f /tmp/install_rocm_packages.sh
 
-# Activate gcc-toolset-13 for all subsequent layers and at container runtime
-ENV PATH=/opt/rh/gcc-toolset-13/root/usr/bin:$PATH \
-    LD_LIBRARY_PATH=/opt/rh/gcc-toolset-13/root/usr/lib64 \
-    MANPATH=/opt/rh/gcc-toolset-13/root/usr/share/man \
-    PCP_DIR=/opt/rh/gcc-toolset-13/root
-
-# Install TheRock ROCm libraries (amdrocm-* naming convention)
+# The meta-package covers runtime libraries; install additional -devel
+# packages needed for compiling MIGraphX against ROCm.
 RUN dnf install -y --nobest \
-        amdrocm-runtime \
         amdrocm-runtime-devel \
-        amdrocm-llvm \
-        amdrocm-core-${GPU_ARCH} \
         amdrocm-core-devel-${GPU_ARCH} \
-        amdrocm-blas-${GPU_ARCH} \
         amdrocm-blas-devel-${GPU_ARCH} \
         amdrocm-hipblas-common-devel-${GPU_ARCH} \
-        amdrocm-dnn-${GPU_ARCH} \
         amdrocm-dnn-devel-${GPU_ARCH} && \
     dnf clean all
 
-# Point ROCm's clang/clang++ at gcc-toolset-13 so it picks up the newer
-# libstdc++ headers and link library instead of falling back to system gcc 8.5.
+######## symlink ROCm clang to gcc-toolset-13 ########
 RUN printf '%s\n' '--gcc-toolchain=/opt/rh/gcc-toolset-13/root/usr' \
         | tee /opt/rocm/llvm/bin/clang.cfg \
               /opt/rocm/llvm/bin/clang++.cfg \
               /opt/rocm/llvm/bin/clang-cpp.cfg \
         > /dev/null
 
-# Install rbuild
-ENV PIP_BREAK_SYSTEM_PACKAGES=1
-RUN pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+######## Install rbuild ########
+RUN pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 
-# Add ROCm bin to PATH
-ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:${PATH} \
+######## Environment ########
+ENV ROCM_PATH=/opt/rocm \
+    PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:${PATH} \
     LD_LIBRARY_PATH=/opt/rocm/lib:/opt/rocm/lib64:${LD_LIBRARY_PATH} \
     LIBRARY_PATH=/opt/rocm/lib:/opt/rocm/lib64:${LIBRARY_PATH} \
     CMAKE_PREFIX_PATH=/opt/rocm:${CMAKE_PREFIX_PATH} \
     CPATH=/opt/rocm/include:${CPATH}
 
-# Expose GPU arch for CMake packaging (TheRock backend):
-#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=$GPU_ARCH_FOR_THEROCK
 ENV GPU_ARCH_FOR_THEROCK=${GPU_ARCH}
 
 ENV LC_ALL=C.UTF-8

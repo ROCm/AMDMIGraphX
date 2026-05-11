@@ -43,9 +43,19 @@
 #ifndef MIGRAPHX_GUARD_TEST_TEST_HPP
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
+#if defined(__has_builtin) && !defined(CPPCHECK)
+#if __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && __has_builtin(__builtin_FUNCTION)
+#define TEST_HAS_BUILT_IN_SOURCE_LOCATION 1
+#else
+#define TEST_HAS_BUILT_IN_SOURCE_LOCATION 0
+#endif
+#else
+#define TEST_HAS_BUILT_IN_SOURCE_LOCATION 0
+#endif
+
 namespace test {
-#if defined(__has_builtin) && __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && \
-    __has_builtin(__builtin_FUNCTION)
+
+#if TEST_HAS_BUILT_IN_SOURCE_LOCATION
 struct source_location
 {
     const char* function = __builtin_FUNCTION();

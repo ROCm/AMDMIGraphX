@@ -1241,8 +1241,8 @@ struct find_gather
         if(dlens.empty())
             return;
 
-        const auto axis_index = static_cast<std::size_t>(
-            tune_axis(static_cast<int>(dlens.size()), gather_op.axis, gather_op.name()));
+        const std::size_t axis_index = 
+            tune_axis(dlens.size(), gather_op.axis, gather_op.name());
         const auto axis_len = dlens.at(axis_index);
         if(axis_len == 0)
             return;
@@ -1368,17 +1368,13 @@ struct find_reshape_cont
         auto lens = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());
 
-        if(in_ins->get_shape() != ins->get_shape())
+        if(in_ins->get_shape().lens() != ins->get_shape().lens())
         {
             return;
         }
 
-        if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
-               return i->get_shape().standard();
-           }))
-        {
+        if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
             return;
-        }
 
         auto out_lens = ins->get_shape().lens();
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());

@@ -70,16 +70,35 @@ endif()
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
 
-option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
-
-if(WIN32)
-option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
-else()
-option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binary Analyzer" OFF)
+    option(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES "Use Spectre-mitigated libraries" OFF)
+    if(MSVC AND MSVC_VERSION GREATER_EQUAL 1900)
+        if(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS)
+            message(STATUS "Control Flow Guard enabled")
+            add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/guard:cf>)
+            add_link_options(/guard:cf /DYNAMICBASE)
+        endif()
+        if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
+            message(STATUS "Using Spectre-mitigated libraries")
+            add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/Qspectre>)
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        if(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS)
+            message(STATUS "Control Flow Guard enabled")
+            add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:SHELL:-Xclang -cfguard>")
+            add_link_options(-Wl,-guard:cf)
+        endif()
+        if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
+            message(WARNING "Spectre-mitigated libraries are not yet available for Clang in this project.")
+        endif()
+    endif()
 endif()
 
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
 
 if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
     message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
@@ -175,6 +194,7 @@ rocm_enable_clang_tidy(
         performance-*
         readability-*
         -bugprone-crtp-constructor-accessibility
+        -bugprone-derived-method-shadowing-base-method
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
@@ -182,6 +202,7 @@ rocm_enable_clang_tidy(
         -bugprone-return-const-ref-from-parameter
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
+        -bugprone-unintended-char-ostream-output
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
@@ -217,6 +238,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-misleading-capture-default-by-value
         -cppcoreguidelines-missing-std-forward
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+        -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
         -cppcoreguidelines-pro-type-member-init
@@ -225,25 +247,30 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-use-default-member-init
+        -cppcoreguidelines-use-enum-class
         -cppcoreguidelines-virtual-class-destructor
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
+        -misc-const-correctness
         -misc-include-cleaner
         -misc-macro-parentheses
         -misc-no-recursion
+        -misc-override-with-different-visibility
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-type-traits
         -modernize-use-default-member-init
         -modernize-use-nodiscard
         -modernize-use-override
+        -modernize-use-scoped-lock
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-avoid-endl
         -performance-type-promotion-in-math-fn
         -performance-enum-size
         -readability-braces-around-statements
+        -readability-container-size-empty
         -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
         -readability-else-after-return
@@ -252,9 +279,11 @@ rocm_enable_clang_tidy(
         -readability-math-missing-parentheses
         -readability-named-parameter
         -readability-redundant-member-init
+        -readability-redundant-parentheses
         -readability-redundant-string-init
         -readability-suspicious-call-argument
         -readability-uppercase-literal-suffix
+        -readability-use-concise-preprocessor-directives
         -*-avoid-c-arrays
         -*-explicit-constructor
         -*-magic-numbers

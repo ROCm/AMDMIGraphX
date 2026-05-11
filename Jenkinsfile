@@ -103,6 +103,23 @@ def cmake_build = { bconf ->
     }
 }
 
+def setCommitStatus(String sha, String state, String context, String description = '') {
+    def GITHUB_API_URL="https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/statuses/${sha}"
+    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+        sh """curl -L \
+              -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer \$TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -d '{"state":"${state}", \
+                   "description":"${description}", \
+                   "context":"${context}", \
+                   "target_url":"${env.BUILD_URL}"}' \
+              ${GITHUB_API_URL} \
+        """
+    }
+}
+
 def rocmtest = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
@@ -114,11 +131,18 @@ def rocmtest = { Map conf = [:], Closure body ->
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
     env.HSA_ENABLE_SDMA = 0
-    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
+
+    def commitSha
+    def statusContext = "Jenkins - ${variant}"
+    def buildResult = 'failure'
+
+    try {
         def docker_opts
         stage("setup ${variant}") {
             sh 'printenv'
             checkout scm
+            commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+            setCommitStatus(commitSha, 'pending', statusContext, 'Building')
             setup()
 
             def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
@@ -139,6 +163,15 @@ def rocmtest = { Map conf = [:], Closure body ->
                     body()
                 }
             }
+        }
+        buildResult = 'success'
+    } catch (Exception e) {
+        buildResult = 'failure'
+        throw e
+    } finally {
+        if (commitSha) {
+            def description = (buildResult == 'success') ? 'Build succeeded' : 'Build failed'
+            setCommitStatus(commitSha, buildResult, statusContext, description)
         }
     }
 }

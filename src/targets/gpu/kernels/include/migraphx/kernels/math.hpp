@@ -55,7 +55,8 @@ constexpr auto to_native(T x)
 constexpr migraphx::half to_native(__half x) { return bit_cast<migraphx::half>(x); }
 
 template <class T>
-constexpr auto to_hip(T x) { return x; }
+constexpr auto to_hip(T x)
+{ return x; }
 constexpr __half to_hip(migraphx::half x) { return bit_cast<__half>(x); }
 
 template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>

@@ -36,7 +36,6 @@ rocm_clang_tidy_check(migraphx_fpga)
 target_link_libraries(migraphx_fpga migraphx)
 
 migraphx_generate_export_header(migraphx_fpga)
-migraphx_setup_msvc_runtime_library(migraphx_fpga)
 
 rocm_install_targets(
     PRIVATE

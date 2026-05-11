@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -79,7 +79,6 @@ endif()
 target_link_libraries(migraphx_cpu PRIVATE migraphx)
 
 migraphx_generate_export_header(migraphx_cpu)
-migraphx_setup_msvc_runtime_library(migraphx_cpu)
 
 find_package(OpenMP)
 if(WIN32)

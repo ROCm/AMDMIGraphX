@@ -161,7 +161,6 @@ if(WIN32)
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
 endif()
 
-migraphx_setup_msvc_runtime_library(migraphx)
 configure_file(config.h.in include/migraphx/config.h)
 
 configure_file(version.h.in include/migraphx/version.h)

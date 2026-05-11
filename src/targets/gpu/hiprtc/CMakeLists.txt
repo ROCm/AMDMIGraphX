@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,8 +22,9 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_executable(migraphx-hiprtc-driver main.cpp)
-migraphx_setup_msvc_runtime_library(migraphx-hiprtc-driver)
+add_executable(migraphx-hiprtc-driver
+    main.cpp
+)
 rocm_clang_tidy_check(migraphx-hiprtc-driver)
 # On Windows, the driver's default 1MB stack size is not enough - increasing to 4MB.
 set(STACK_SIZE 4194304)

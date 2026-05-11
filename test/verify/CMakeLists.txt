@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,6 @@
 file(GLOB VERIFY_TESTS CONFIGURE_DEPENDS *.cpp)
 
 add_executable(test_verify ${VERIFY_TESTS})
-migraphx_setup_msvc_runtime_library(test_verify)
 rocm_mark_as_test(test_verify)
 rocm_install_test(TARGETS test_verify)
 target_link_libraries(test_verify migraphx migraphx_all_targets)

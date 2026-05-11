@@ -94,6 +94,12 @@ tmp_dir::~tmp_dir()
     {
         std::error_code ec;
         fs::remove_all(path, ec);
+#ifndef _WIN32
+        if(ec)
+        {
+            log::info() << "Failed to remove " << path << ": " << ec.message();
+        }
+#endif
     }
 }
 

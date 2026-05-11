@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,6 @@
 
 function(add_tf_test TEST_NAME)
     rocm_add_test_executable(${TEST_NAME} ${ARGN})
-    migraphx_setup_msvc_runtime_library(${TEST_NAME})
     rocm_clang_tidy_check(${TEST_NAME})
     target_link_libraries(${TEST_NAME} migraphx_tf pb_files)
     target_include_directories(${TEST_NAME} PUBLIC ../include include)

@@ -295,7 +295,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
                 {
                     if(WaitForSingleObject(process_info.hProcess, 0) == WAIT_OBJECT_0)
                         break;
-                    Sleep(1);
+                    Sleep(0);
                     continue;
                 }
                 while(available > 0)

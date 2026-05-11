@@ -408,21 +408,15 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
     set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
-    if(MIGRAPHX_THEROCK_ROCM_VERSION)
-        set(_VER "${MIGRAPHX_THEROCK_ROCM_VERSION}")
-    else()
-        set(_VER "")
-    endif()
-
-    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${_VER}")
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
     if(MIGRAPHX_USE_MIOPEN)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${_VER}-${MIGRAPHX_THEROCK_GPU_ARCH}")
+        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
     if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-blas${_VER}-${MIGRAPHX_THEROCK_GPU_ARCH}")
+        list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
-    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${_VER}")
-    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${_VER}")
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${MIGRAPHX_THEROCK_ROCM_VERSION}")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${MIGRAPHX_THEROCK_ROCM_VERSION}")
 
     # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
     set(ROCM_DEP_ROCMCORE OFF)

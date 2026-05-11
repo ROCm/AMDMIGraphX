@@ -284,11 +284,31 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 
         {
             TCHAR buf[MIGRAPHX_PROCESS_BUFSIZE];
-            DWORD bytes_read = 0;
-            while(ReadFile(output.get_read_handle(), buf, sizeof(buf), &bytes_read, nullptr) !=
-                      FALSE and
-                  bytes_read > 0)
+            while(true)
             {
+                DWORD available{};
+                BOOL result = PeekNamedPipe(
+                    output.get_read_handle(), nullptr, 0, nullptr, &available, nullptr);
+                if(result == FALSE)
+                    break;
+                if(available == 0)
+                {
+                    if(WaitForSingleObject(process_info.hProcess, 0) == WAIT_OBJECT_0)
+                        break;
+                    Sleep(1);
+                    continue;
+                }
+                while(available > 0)
+                {
+                    DWORD bytes_read{};
+                    DWORD to_read = (std::min)(available, static_cast<DWORD>(sizeof(buf)));
+                    result        = ReadFile(
+                        output.get_read_handle(), buf, to_read, &bytes_read, nullptr);
+                    WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, bytes_read, nullptr, nullptr);
+                    available -= bytes_read;
+                    if(result == FALSE or available == 0 or bytes_read == 0)
+                        break;
+                }
             }
         }
 

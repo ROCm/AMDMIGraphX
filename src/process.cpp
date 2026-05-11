@@ -306,7 +306,7 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
                         output.get_read_handle(), buf, to_read, &bytes_read, nullptr);
                     WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, bytes_read, nullptr, nullptr);
                     available -= bytes_read;
-                    if(result == FALSE or available == 0 or bytes_read == 0)
+                    if(result == FALSE or bytes_read == 0)
                         break;
                 }
             }

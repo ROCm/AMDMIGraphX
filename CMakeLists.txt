@@ -23,6 +23,8 @@
 #####################################################################################
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
+cmake_policy(SET CMP0099 NEW)
+
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     message(FATAL_ERROR "The binary and source directory cannot be the same")
 endif()

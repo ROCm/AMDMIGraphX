@@ -44,7 +44,8 @@
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
 #if defined(__has_builtin) && !defined(CPPCHECK)
-#if __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && __has_builtin(__builtin_FUNCTION)
+#if __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && \
+    __has_builtin(__builtin_FUNCTION)
 #define TEST_HAS_BUILT_IN_SOURCE_LOCATION 1
 #else
 #define TEST_HAS_BUILT_IN_SOURCE_LOCATION 0

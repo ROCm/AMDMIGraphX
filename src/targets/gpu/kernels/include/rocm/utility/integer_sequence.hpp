@@ -26,7 +26,7 @@
 #define ROCM_GUARD_UTILITY_INTEGER_SEQUENCE_HPP
 
 #include <rocm/config.hpp>
-#include <rocm/stdint.hpp>
+#include <rocm/stddef.hpp>
 
 namespace rocm {
 inline namespace ROCM_INLINE_NS {

@@ -68,11 +68,9 @@ else()
 endif()
 
 set_target_properties(tf-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
-migraphx_setup_msvc_runtime_library(tf-proto)
 
 file(GLOB TF_SRCS CONFIGURE_DEPENDS *.cpp)
 add_library(migraphx_tf ${TF_SRCS} ${PROJECT_SOURCE_DIR}/src/protobuf_memswap_instantiation.cpp)
-migraphx_setup_msvc_runtime_library(migraphx_tf)
 target_include_directories(migraphx_tf PRIVATE include)
 set_target_properties(migraphx_tf PROPERTIES EXPORT_NAME tf)
 migraphx_generate_export_header(migraphx_tf)

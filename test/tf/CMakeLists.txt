@@ -24,8 +24,7 @@
 
 function(add_tf_test TEST_NAME)
     rocm_add_test_executable(${TEST_NAME} ${ARGN})
-    migraphx_setup_msvc_runtime_library(${TEST_NAME})
-    rocm_clang_tidy_check(${TEST_NAME})
+        rocm_clang_tidy_check(${TEST_NAME})
     target_link_libraries(${TEST_NAME} migraphx_tf pb_files)
     target_include_directories(${TEST_NAME} PUBLIC ../include include)
 endfunction()

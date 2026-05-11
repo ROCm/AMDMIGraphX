@@ -34,7 +34,6 @@ if(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
 endif()
 
 add_library(register_targets STATIC register_target.cpp)
-migraphx_setup_msvc_runtime_library(register_targets)
 target_link_libraries(register_targets PRIVATE migraphx migraphx_all_targets)
 
 file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
@@ -46,8 +45,7 @@ endif()
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
     rocm_add_test_executable(test_${BASE_NAME} ${TEST})
-    migraphx_setup_msvc_runtime_library(test_${BASE_NAME})
-    rocm_clang_tidy_check(test_${BASE_NAME})
+        rocm_clang_tidy_check(test_${BASE_NAME})
 endforeach()
 
 if(MIGRAPHX_ENABLE_GPU)
@@ -57,8 +55,7 @@ if(MIGRAPHX_ENABLE_GPU)
     foreach(TEST ${GPU_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
         rocm_add_test_executable(test_gpu_${BASE_NAME} ${TEST})
-        migraphx_setup_msvc_runtime_library(test_gpu_${BASE_NAME})
-        rocm_clang_tidy_check(test_gpu_${BASE_NAME})
+                rocm_clang_tidy_check(test_gpu_${BASE_NAME})
         set_tests_properties(test_gpu_${BASE_NAME} PROPERTIES
             COST 10
             RESOURCE_LOCK gpu
@@ -78,8 +75,7 @@ if(MIGRAPHX_ENABLE_FPGA)
     foreach(TEST ${FPGA_TESTS})
         get_filename_component(BASE_NAME ${TEST} NAME_WE)
         rocm_add_test_executable(test_fpga_${BASE_NAME} ${TEST})
-        migraphx_setup_msvc_runtime_library(test_fpga_${BASE_NAME})
-        rocm_clang_tidy_check(test_fpga_${BASE_NAME})
+                rocm_clang_tidy_check(test_fpga_${BASE_NAME})
         set_tests_properties(test_fpga_${BASE_NAME} PROPERTIES
             COST 10
             RESOURCE_LOCK fpga
@@ -117,8 +113,7 @@ if(MIGRAPHX_ENABLE_GPU AND MIGRAPHX_ENABLE_CPU AND MIGRAPHX_ENABLE_FPGA)
         get_filename_component(BASE_NAME ${MULTI_TARGET_TEST} NAME_WE)
         set(TEST_NAME test_${BASE_NAME})
         add_executable(${TEST_NAME} ${MULTI_TARGET_TEST})
-        migraphx_setup_msvc_runtime_library(${TEST_NAME})
-        rocm_clang_tidy_check(${TEST_NAME})
+                rocm_clang_tidy_check(${TEST_NAME})
         target_link_libraries(${TEST_NAME} migraphx migraphx_onnx migraphx_tf migraphx_all_targets register_targets)
         target_include_directories(${TEST_NAME} PUBLIC include)
         add_test(NAME ${TEST_NAME} COMMAND $<TARGET_FILE:${TEST_NAME}> WORKING_DIRECTORY ${TEST_MULTI_TARGET_DIR})
@@ -143,8 +138,7 @@ int main() {}\n"
         ${CMAKE_CURRENT_BINARY_DIR}/header-main-include-${NAME}.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/header-static-include-${NAME}.cpp
     )
-    migraphx_setup_msvc_runtime_library(${NAME})
-endfunction()
+    endfunction()
 
 function(test_headers PREFIX)
     file(GLOB HEADERS CONFIGURE_DEPENDS ${ARGN})

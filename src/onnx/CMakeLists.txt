@@ -43,11 +43,9 @@ else()
 endif()
 
 set_target_properties(onnx-proto PROPERTIES POSITION_INDEPENDENT_CODE On)
-migraphx_setup_msvc_runtime_library(onnx-proto)
 
 file(GLOB ONNX_SRCS CONFIGURE_DEPENDS *.cpp)
 add_library(migraphx_onnx ${ONNX_SRCS} ${PROJECT_SOURCE_DIR}/src/protobuf_memswap_instantiation.cpp)
-migraphx_setup_msvc_runtime_library(migraphx_onnx)
 target_include_directories(migraphx_onnx PRIVATE include)
 set_target_properties(migraphx_onnx PROPERTIES EXPORT_NAME onnx)
 migraphx_generate_export_header(migraphx_onnx)

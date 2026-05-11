@@ -23,7 +23,6 @@
 #####################################################################################
 
 add_library(migraphx_py py_loader.cpp)
-migraphx_setup_msvc_runtime_library(migraphx_py)
 migraphx_generate_export_header(migraphx_py)
 target_include_directories(migraphx_py PRIVATE include)
 target_link_libraries(migraphx_py PUBLIC migraphx)
@@ -38,7 +37,6 @@ foreach(PYTHON_VERSION ${PYTHON_VERSIONS})
     add_dependencies(migraphx_py migraphx_pybind_${PYTHON_VERSION})
 
     add_library(migraphx_py_${PYTHON_VERSION} py.cpp)
-    migraphx_setup_msvc_runtime_library(migraphx_py_${PYTHON_VERSION})
     target_include_directories(migraphx_py_${PYTHON_VERSION} PRIVATE include)
     target_link_libraries(migraphx_py_${PYTHON_VERSION} PUBLIC migraphx)
     target_link_libraries(migraphx_py_${PYTHON_VERSION} PRIVATE pybind11::pybind11 python${PYTHON_VERSION}::runtime)

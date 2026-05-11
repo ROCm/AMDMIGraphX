@@ -60,6 +60,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
 
+#include <migraphx/time.hpp>
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
@@ -650,33 +651,6 @@ struct compiler_target
     target get_target() const { return make_target(target_name); }
 };
 
-struct timer
-{
-    using clock = std::chrono::high_resolution_clock;
-    using time_point = typename clock::time_point;
-
-    time_point e{};
-    time_point s{clock::now()};
-
-    void start()
-    {
-        e = time_point{};
-        s = clock::now();
-    }
-
-    void stop()
-    {
-        e = clock::now();
-    }
-
-    void report_duration() const
-    {
-        log::info() << "Compilation time: "
-                    << std::chrono::duration_cast<std::chrono::milliseconds>(e - s).count()
-                    << "ms";
-    }
-};
-
 struct compiler
 {
     loader l;
@@ -789,11 +763,11 @@ struct compiler
             quantize_int4_weights(p);
         }
         log::info() << "Compiling ...";
-        timer c;
+        timer c{};
         p.compile(t, co);
-        c.stop();
+        auto r{c.record<std::chrono::milliseconds>()};
         if(report_time)
-            c.report_duration();
+            log::info() << "Compilation time: " << r << "ms";
         l.save(p);
         return p;
     }

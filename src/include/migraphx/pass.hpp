@@ -64,9 +64,7 @@ namespace detail {
 template <class T>
 auto module_pass_manager_apply(rank<1>, const T& x, module_pass_manager& mpm)
     -> decltype(x.apply(get_module(mpm)))
-{
-    return x.apply(get_module(mpm));
-}
+{ return x.apply(get_module(mpm)); }
 
 template <class T>
 void module_pass_manager_apply(rank<0>, const T&, module_pass_manager&)
@@ -75,9 +73,7 @@ void module_pass_manager_apply(rank<0>, const T&, module_pass_manager&)
 
 template <class T>
 void module_pass_manager_apply(const T& x, module_pass_manager& mpm)
-{
-    module_pass_manager_apply(rank<1>{}, x, mpm);
-}
+{ module_pass_manager_apply(rank<1>{}, x, mpm); }
 
 } // namespace detail
 
@@ -103,29 +99,21 @@ struct pass
     static auto
     private_detail_te_default_apply(char, T&& private_detail_te_self, module_pass_manager& mpm)
         -> decltype(private_detail_te_self.apply(mpm))
-    {
-        private_detail_te_self.apply(mpm);
-    }
+    { private_detail_te_self.apply(mpm); }
 
     template <class T>
     static void
     private_detail_te_default_apply(float, T&& private_detail_te_self, module_pass_manager& mpm)
-    {
-        migraphx::detail::module_pass_manager_apply(private_detail_te_self, mpm);
-    }
+    { migraphx::detail::module_pass_manager_apply(private_detail_te_self, mpm); }
 
     template <class T>
     static auto private_detail_te_default_apply(char, T&& private_detail_te_self, program& p)
         -> decltype(private_detail_te_self.apply(p))
-    {
-        private_detail_te_self.apply(p);
-    }
+    { private_detail_te_self.apply(p); }
 
     template <class T>
     static void private_detail_te_default_apply(float, T&& private_detail_te_self, program& p)
-    {
-        migraphx::nop(private_detail_te_self, p);
-    }
+    { migraphx::nop(private_detail_te_self, p); }
 
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
@@ -176,7 +164,7 @@ struct pass
               typename = private_te_constraints<PrivateDetailTypeErasedT>,
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, pass>{}>::type>
-    pass& operator=(PrivateDetailTypeErasedT&& value)
+    pass& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -280,25 +268,17 @@ struct pass
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        {
-            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
-        }
+        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::string name() const override { return private_detail_te_value.name(); }
 
         void apply(module_pass_manager& mpm) const override
-        {
-
-            private_detail_te_default_apply(char(0), private_detail_te_value, mpm);
-        }
+        { private_detail_te_default_apply(char(0), private_detail_te_value, mpm); }
 
         void apply(program& p) const override
-        {
-
-            private_detail_te_default_apply(char(0), private_detail_te_value, p);
-        }
+        { private_detail_te_default_apply(char(0), private_detail_te_value, p); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -314,9 +294,7 @@ struct pass
     };
 
     bool private_detail_te_handle_empty() const
-    {
-        return private_detail_te_handle_mem_var == nullptr;
-    }
+    { return private_detail_te_handle_mem_var == nullptr; }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -337,15 +315,11 @@ struct pass
 
 template <typename ValueType>
 inline const ValueType* any_cast(const pass* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType* any_cast(pass* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType& any_cast(pass& x)

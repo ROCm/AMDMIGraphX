@@ -48,7 +48,6 @@ struct hip_compile_options
     std::int64_t output_arg                    = -1;
     std::string src_file                       = "main.cpp";
 
-
     /**
      * @brief Set the launch parameters but allow v to override the values
      *

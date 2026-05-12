@@ -81,7 +81,7 @@ struct test_suite : std::enable_shared_from_this<test_suite>
         options.global      = 1;
         options.local       = ctx.get_current_device().get_wavefront_size();
         options.kernel_name = "gpu_test_kernel";
-        options.src_file = src_name;
+        options.src_file    = src_name;
     }
 
     std::string generate_source() const

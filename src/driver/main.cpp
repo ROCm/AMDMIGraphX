@@ -765,7 +765,7 @@ struct compiler
         log::info() << "Compiling ...";
         timer c{};
         p.compile(t, co);
-        auto r{c.record<std::chrono::milliseconds>()};
+        auto r = c.record<std::chrono::milliseconds>();
         if(report_time)
             log::info() << "Compilation time: " << r << "ms";
         l.save(p);

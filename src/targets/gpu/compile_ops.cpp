@@ -159,13 +159,7 @@ struct dynamic_code_object_op
             return results.front();
         }
 
-
-        // dynamic_code_object_op::compute is never called for static instructions. 
-        // Always recompute the output shape from actual (static) input shapes. 
-        // The pre-allocated output buffer may have been sized for the max dynamic
-        // dimensions (e.g. TopK with k=100 placeholder) while the actual output
-        // is smaller (e.g. k=10 when input n=10).  Reshaping the buffer to the
-        // computed shape ensures the compiled kernel sees the correct dimensions.
+        //static shape code can't be here, remove the check.
         auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
         static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
         

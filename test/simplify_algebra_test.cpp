@@ -5392,9 +5392,9 @@ TEST_CASE(same_table_gathers_basic)
         auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {1}});
         auto idx4 = m2.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
 
-        auto concat_idx = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 0}}),
-            std::vector<migraphx::instruction_ref>{idx1, idx2, idx3, idx4});
+        auto concat_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx1, idx2, idx3, idx4});
 
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
 
@@ -5438,9 +5438,8 @@ TEST_CASE(same_table_gathers_two_siblings)
         auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
         auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
 
-        auto concat_idx =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx1, idx2});
+        auto concat_idx = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                             std::vector<migraphx::instruction_ref>{idx1, idx2});
 
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
 
@@ -5494,9 +5493,8 @@ TEST_CASE(same_table_gathers_shared_index)
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 0));
         auto idx = m2.add_parameter("idx", {migraphx::shape::int32_type, {2}});
 
-        auto concat_idx =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx, idx, idx});
+        auto concat_idx = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                             std::vector<migraphx::instruction_ref>{idx, idx, idx});
 
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
 
@@ -5907,9 +5905,9 @@ TEST_CASE(same_table_gathers_end_to_end_cleanup)
         auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {1}});
         auto idx4 = m2.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
 
-        auto concat_idx = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 0}}),
-            std::vector<migraphx::instruction_ref>{idx1, idx2, idx3, idx4});
+        auto concat_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx1, idx2, idx3, idx4});
 
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
 

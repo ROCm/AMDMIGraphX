@@ -2389,10 +2389,7 @@ struct find_pow2
 struct find_same_table_gathers
 {
     auto matcher() const
-    {
-        return match::name("gather")(
-            match::arg(0)(match::is_constant(), match::ndim(2)));
-    }
+    { return match::name("gather")(match::arg(0)(match::is_constant(), match::ndim(2))); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -2448,15 +2445,16 @@ struct find_same_table_gathers
         auto insert_pt = std::next(sibling_gathers.back());
 
         std::vector<instruction_ref> idx_inputs;
-        idx_inputs.reserve(sibling_gathers.size());
-        for(const auto& g : sibling_gathers)
-            idx_inputs.push_back(g->inputs().at(1));
+        std::transform(sibling_gathers.begin(),
+                       sibling_gathers.end(),
+                       std::back_inserter(idx_inputs),
+                       [](auto g) { return g->inputs().at(1); });
 
         auto concat_idx =
             m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), idx_inputs);
 
-        auto batched_gather = m.insert_instruction(
-            insert_pt, make_op("gather", {{"axis", 0}}), data, concat_idx);
+        auto batched_gather =
+            m.insert_instruction(insert_pt, make_op("gather", {{"axis", 0}}), data, concat_idx);
 
         std::vector<instruction_ref> slices;
         slices.reserve(sibling_gathers.size());

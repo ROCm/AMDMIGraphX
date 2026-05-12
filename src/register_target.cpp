@@ -27,6 +27,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/dynamic_loader.hpp>
 #include <migraphx/fileutils.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/version.h>
 
 namespace migraphx {
@@ -84,6 +85,14 @@ target make_target(const std::string& name)
         MIGRAPHX_THROW("Requested target '" + name + "' is not loaded or not supported");
     }
     return it->second;
+}
+
+target make_target(const std::string& name, const value& options)
+{
+    target t = make_target(name);
+    if(not options.is_null())
+        t.from_value(options);
+    return t;
 }
 
 std::vector<std::string> get_targets()

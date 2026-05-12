@@ -637,6 +637,13 @@ struct compiler_target
     std::string target_name = "ref";
 #endif
 
+    // GPU cross-compile options. When gpu_arch is non-empty, the GPU target is
+    // configured for cross-compilation against the given architecture without
+    // requiring a physical device.
+    std::string gpu_arch         = {};
+    std::size_t gpu_num_cu       = 120;
+    std::size_t gpu_num_chiplets = 1;
+
     void parse(argument_parser& ap)
     {
         ap(target_name, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value("gpu"));
@@ -645,9 +652,31 @@ struct compiler_target
            {"--ref"},
            ap.help("Compile on the reference implementation"),
            ap.set_value("ref"));
+        ap(gpu_arch,
+           {"--gpu-arch"},
+           ap.help("Cross-compile for the given GPU architecture (e.g. gfx942) without "
+                   "requiring a physical device. Only applies to the gpu target."));
+        ap(gpu_num_cu,
+           {"--gpu-num-cus"},
+           ap.help("Number of compute units to assume for cross-compilation. "
+                   "Only used when --gpu-arch is set."));
+        ap(gpu_num_chiplets,
+           {"--gpu-num-chiplets"},
+           ap.help("Number of chiplets (XCCs) to assume for cross-compilation. "
+                   "Only used when --gpu-arch is set."));
     }
 
-    target get_target() const { return make_target(target_name); }
+    target get_target() const
+    {
+        if(target_name == "gpu" and not gpu_arch.empty())
+        {
+            return make_target(target_name,
+                               value{{"gpu_arch", gpu_arch},
+                                     {"gpu_num_cu", gpu_num_cu},
+                                     {"gpu_num_chiplets", gpu_num_chiplets}});
+        }
+        return make_target(target_name);
+    }
 };
 
 struct compiler

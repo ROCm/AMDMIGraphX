@@ -172,6 +172,9 @@ def target(h):
     h.constructor('create',
                   api.params(name='const char*'),
                   fname='migraphx::get_target')
+    h.constructor('create_with_options',
+                  api.params(name='const char*', options_json='const char*'),
+                  fname='migraphx::get_target_with_options')
 
 
 @api.handle('migraphx_program_parameter_shapes',

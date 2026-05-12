@@ -792,7 +792,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         "Deserialize MIGraphX program",
         py::arg("b"));
 
-    m.def("get_target", &migraphx::make_target);
+    m.def("get_target",
+          [](const std::string& name, py::kwargs kwargs) {
+              if(kwargs.empty())
+                  return migraphx::make_target(name);
+              return migraphx::make_target(name, migraphx::to_value(kwargs));
+          });
     m.def("create_argument", [](const migraphx::shape& s, const std::vector<double>& values) {
         if(values.size() != s.elements())
             MIGRAPHX_THROW("Values and shape elements do not match");

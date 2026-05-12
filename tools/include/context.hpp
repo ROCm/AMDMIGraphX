@@ -75,6 +75,12 @@ void wait_for_context(T&, any_ptr)
 template <class T>
 void finish_on_context(T&, any_ptr){}
 
+template <class T>
+bool is_cross_compile_context(const T&)
+{
+    return false;
+}
+
 <%
  interface('context',
            virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
@@ -82,6 +88,8 @@ void finish_on_context(T&, any_ptr){}
            virtual('get_queue', returns = 'any_ptr', default = 'get_queue_context'),
            virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
            virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
+           virtual('is_cross_compile', returns = 'bool', const = True,
+                   default = 'is_cross_compile_context'),
            virtual('finish', returns = 'void', const = True)) %>
 
     inline void migraphx_to_value(value& v, const context& ctx)

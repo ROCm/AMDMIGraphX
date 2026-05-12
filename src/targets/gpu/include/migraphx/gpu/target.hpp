@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,8 +24,11 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_TARGET_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_TARGET_HPP
 
+#include <cstddef>
+#include <string>
 #include <migraphx/program.hpp>
 #include <migraphx/compile_options.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/gpu/config.hpp>
 
 namespace migraphx {
@@ -34,6 +37,21 @@ namespace gpu {
 
 struct MIGRAPHX_GPU_EXPORT target
 {
+    /// Cross-compile arch name (e.g. "gfx942"). Empty means use the local device.
+    std::string gpu_arch          = {};
+    std::size_t gpu_num_cu        = 120;
+    std::size_t gpu_num_chiplets  = 1;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.gpu_arch, "gpu_arch"),
+                    f(self.gpu_num_cu, "gpu_num_cu"),
+                    f(self.gpu_num_chiplets, "gpu_num_chiplets"));
+    }
+
+    bool is_cross_compile() const { return not gpu_arch.empty(); }
+
     std::string name() const;
     std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) const;
     migraphx::context get_context() const;

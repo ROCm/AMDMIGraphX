@@ -92,9 +92,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_ARCH)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_NUM_CU)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_NUM_CHIPLETS)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -210,33 +207,28 @@ std::string target::name() const { return "gpu"; }
 
 migraphx::context target::get_context() const
 {
-    auto arch = string_value_of(MIGRAPHX_GPU_ARCH{});
-    if(not arch.empty())
-    {
-        auto num_cu       = value_of(MIGRAPHX_GPU_NUM_CU{}, 120);
-        auto num_chiplets = value_of(MIGRAPHX_GPU_NUM_CHIPLETS{}, 1);
-        return context(arch, num_cu, num_chiplets);
-    }
+    if(is_cross_compile())
+        return context(gpu_arch, gpu_num_cu, gpu_num_chiplets);
     return context(gpu::get_device_id());
 }
 
 argument target::copy_to(const argument& arg) const
 {
-    if(not string_value_of(MIGRAPHX_GPU_ARCH{}).empty())
+    if(is_cross_compile())
         MIGRAPHX_THROW("Cannot copy data in cross-compilation mode");
     return gpu::to_gpu(arg);
 }
 
 argument target::copy_from(const argument& arg) const
 {
-    if(not string_value_of(MIGRAPHX_GPU_ARCH{}).empty())
+    if(is_cross_compile())
         MIGRAPHX_THROW("Cannot copy data in cross-compilation mode");
     return gpu::from_gpu(arg);
 }
 
 argument target::allocate(const shape& s) const
 {
-    if(not string_value_of(MIGRAPHX_GPU_ARCH{}).empty())
+    if(is_cross_compile())
         MIGRAPHX_THROW("Cannot allocate GPU memory in cross-compilation mode");
     return gpu::allocate_gpu(s);
 }

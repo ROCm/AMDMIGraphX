@@ -145,6 +145,13 @@ static auto to_objptr_vector(const U* x, std::size_t n)
 
 static target get_target(const std::string& name) { return make_target(name); }
 
+static target get_target_with_options(const std::string& name, const char* options_json)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return make_target(name);
+    return make_target(name, from_json_string(options_json));
+}
+
 static void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
 static void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
@@ -1339,6 +1346,17 @@ extern "C" migraphx_status migraphx_target_create(migraphx_target_t* target, con
     auto api_error_result = migraphx::try_([&] {
         *target = object_cast<migraphx_target_t>(
             allocate<migraphx::target>(migraphx::get_target((name))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_target_create_with_options(migraphx_target_t* target,
+                                                               const char* name,
+                                                               const char* options_json)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *target = object_cast<migraphx_target_t>(
+            allocate<migraphx::target>(migraphx::get_target_with_options((name), (options_json))));
     });
     return api_error_result;
 }

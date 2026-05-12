@@ -155,31 +155,6 @@ struct find_static_2in_broadcasts : match::supports_dynamic_shapes
 };
 
 /**
- * Convert 2 input symbolic shape broadcast/multibroadcast into 1 input version. Mirrors the
- * static analog above; fires only when the resulting shape is fully symbolic so that the
- * target dimensions are known at compile time and can be carried as the 1-input op's
- * `out_dyn_dims` attribute. Range-based dynamic broadcasts keep the 2-arg form for runtime
- * resolution.
- * From:
- * broadcast_op(argument_with_symbolic_shape, argument_with_symbolic_shape)
- * To:
- * broadcast_op(argument); broadcast_op.out_dyn_dims = symbolic_output_dims
- */
-struct find_symbolic_2in_broadcasts : match::supports_dynamic_shapes
-{
-    auto matcher() const { return match::broadcast(match::nargs(2), match::symbolic_shape()); }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins          = mr.result;
-        auto out_dyn_dims = ins->get_shape().dyn_dims();
-        auto broadcast_op = ins->get_operator();
-        broadcast_op.from_value({{"out_dyn_dims", to_value(out_dyn_dims)}});
-        m.replace_instruction(ins, broadcast_op, ins->inputs().at(0));
-    }
-};
-
-/**
  * Simplify slice with 2 inputs to the 1 input version if inputs[1] is constant.
  * From:
  * slice(data, constant_input); two attributes set
@@ -717,7 +692,6 @@ void simplify_dyn_ops::apply(module& m) const
                         find_static_dimensions_of{},
                         find_const_alloc_reshapes{},
                         find_static_2in_broadcasts{},
-                        find_symbolic_2in_broadcasts{},
                         find_const_2in_slice{},
                         find_const_3in_slice{},
                         find_const_4in_slice{},

@@ -2474,8 +2474,10 @@ struct find_same_table_gathers
         for(auto g : sibling_gathers)
             m.move_output_instructions_after(g, slices.back());
 
-        for(std::size_t i = 0; i < sibling_gathers.size(); ++i)
+        for (auto i: range(sibling_gathers.size()))
+        {
             m.replace_instruction(sibling_gathers[i], slices[i]);
+        }
     }
 };
 

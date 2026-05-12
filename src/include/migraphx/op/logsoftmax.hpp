@@ -53,15 +53,15 @@ struct logsoftmax
     std::string name() const { return "logsoftmax"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        if(inputs.at(0).packed())
-        {
-            return inputs.at(0);
-        }
-        else
-        {
-            auto lens = inputs.at(0).lens();
-            return {inputs.at(0).type(), lens};
-        }
+        check_shapes{inputs, *this, true}.has(1);
+        auto s0 = inputs[0];
+        if(s0.packed())
+            return s0;
+        if(s0.symbolic())
+            return {s0.type(), s0.dyn_dims()};
+        if(s0.dynamic())
+            return s0;
+        return {s0.type(), s0.lens()};
     }
 
     auto output() const

@@ -4887,6 +4887,129 @@ TEST_CASE(softmax_dyn1)
     expect_shape(input, migraphx::make_op("softmax", {{"axis", 0}}), input);
 }
 
+TEST_CASE(softmax_sym_axis0)
+{
+    // Symbol at axis 0; output shape == input shape (softmax is shape-preserving).
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("softmax", {{"axis", 0}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(softmax_sym_axis_middle)
+{
+    // Symbol in middle axis; softmax across a different axis -> shape unchanged, symbol intact.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("softmax", {{"axis", 1}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(softmax_sym_axis_neg)
+{
+    // Symbol at last axis; softmax across that symbolic axis -> shape unchanged.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("softmax", {{"axis", -1}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(softmax_sym_all)
+{
+    // Fully symbolic 3D input.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("softmax", {{"axis", 2}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
+}
+
+TEST_CASE(softmax_sym_unpacked)
+{
+    // Non-packed symbolic input should be rebuilt with default packed sym strides,
+    // mirroring the static non-packed -> packed behavior.
+    auto n = var("n", {1, 8});
+    migraphx::shape input{
+        migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}, {lit(12), lit(4), lit(1)}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    EXPECT(not input.packed());
+    EXPECT(expected.packed());
+    expect_shape(expected, migraphx::make_op("softmax", {{"axis", 1}}), input);
+}
+
+TEST_CASE(logsoftmax_dyn)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 6}, {4, 6}}};
+    expect_shape(input, migraphx::make_op("logsoftmax", {{"axis", 2}}), input);
+}
+
+TEST_CASE(logsoftmax_sym_axis0)
+{
+    // Symbol at axis 0; logsoftmax is shape-preserving.
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", 1}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(logsoftmax_sym_axis_middle)
+{
+    // Symbol in middle axis; logsoftmax across the symbolic axis -> shape unchanged.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", 2}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(logsoftmax_sym_axis_neg)
+{
+    // Symbol at last axis; logsoftmax across a non-symbolic axis -> shape unchanged.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", -2}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(logsoftmax_sym_all)
+{
+    // Fully symbolic 3D input.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", 0}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
+}
+
+TEST_CASE(logsoftmax_sym_unpacked)
+{
+    // Non-packed symbolic input should be rebuilt with default packed sym strides.
+    auto n = var("n", {1, 8});
+    migraphx::shape input{
+        migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}, {lit(12), lit(4), lit(1)}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    EXPECT(not input.packed());
+    EXPECT(expected.packed());
+    expect_shape(expected, migraphx::make_op("logsoftmax", {{"axis", 2}}), input);
+}
+
 TEST_CASE(test_argmax)
 {
     {

@@ -55,14 +55,13 @@ struct softmax
     {
         check_shapes{inputs, *this, true}.has(1);
         auto s0 = inputs[0];
-        if(s0.dynamic() or s0.packed())
-        {
+        if(s0.packed())
             return s0;
-        }
-        else
-        {
-            return {s0.type(), s0.lens()};
-        }
+        if(s0.symbolic())
+            return {s0.type(), s0.dyn_dims()};
+        if(s0.dynamic())
+            return s0;
+        return {s0.type(), s0.lens()};
     }
 
     auto output() const

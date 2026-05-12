@@ -54,6 +54,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     hipsolver \
     rocthrust \
     rocrand \
+    rocprofiler-sdk \
     hipsparse \
     rccl \
     rocm-smi-lib \
@@ -70,6 +71,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+
 # Install pytorch
 RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.3/torch-2.8.0%2Brocm7.2.3.lw.git2742f6d1-cp310-cp310-linux_x86_64.whl \
                  https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.3/torchvision-0.24.0%2Brocm7.2.3.gitb919bd0c-cp310-cp310-linux_x86_64.whl \
@@ -83,6 +85,9 @@ RUN ln -s /opt/rocm-* /opt/rocm
 RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
 RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
 RUN ldconfig
+
+# ATT library
+RUN wget -O /opt/rocm/lib/librocprof-trace-decoder.so https://github.com/ROCm/rocprof-trace-decoder/raw/7e58204a955e5787b9b38087f3ad502f07ff78ef/releases/linux_glibc_2_28_x86_64/librocprof-trace-decoder.so
 
 # Workaround broken miopen cmake files
 RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake

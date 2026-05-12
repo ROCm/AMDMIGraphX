@@ -197,7 +197,7 @@ struct array<T, 0>
 
 // CTAD
 template <class T, class... U>
-ROCM_HIP_HOST_DEVICE array(T, U...) -> array<T, 1 + sizeof...(U)>;
+ROCM_HIP_HOST_DEVICE_DEDUCTION_GUIDE array(T, U...) -> array<T, 1 + sizeof...(U)>;
 
 // swap
 template <class T, size_t N>

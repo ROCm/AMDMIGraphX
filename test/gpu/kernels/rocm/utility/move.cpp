@@ -50,6 +50,7 @@ struct movable
 TEST_CASE(move_lvalue)
 {
     int x = 42;
+    EXPECT(is_lvalue(x));
     EXPECT(not is_lvalue(rocm::move(x)));
 }
 

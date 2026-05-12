@@ -51,13 +51,9 @@ TEST_CASE(default_init)
 
 // ---- CTAD ----
 #ifdef MIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE
-TEST_CASE(ctad)
-{
-}
+TEST_CASE(ctad) {}
 
-TEST_CASE(ctad_single)
-{
-}
+TEST_CASE(ctad_single) {}
 #else
 TEST_CASE(ctad)
 {

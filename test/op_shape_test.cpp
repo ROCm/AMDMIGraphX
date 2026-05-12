@@ -3510,12 +3510,18 @@ TEST_CASE(reduce_prod) { test_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_prod_sym) { test_sym_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum) { test_reduce_ops("reduce_sum"); }
 TEST_CASE(reduce_sum_sym) { test_sym_reduce_ops("reduce_sum"); }
+TEST_CASE(reduce_any) { test_reduce_ops("reduce_any"); }
+TEST_CASE(reduce_any_sym) { test_sym_reduce_ops("reduce_any"); }
+TEST_CASE(reduce_all) { test_reduce_ops("reduce_all"); }
+TEST_CASE(reduce_all_sym) { test_sym_reduce_ops("reduce_all"); }
 
 TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops("reduce_max"); }
 TEST_CASE(reduce_min_dyn) { test_dyn_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops("reduce_sum"); }
+TEST_CASE(reduce_any_dyn) { test_dyn_reduce_ops("reduce_any"); }
+TEST_CASE(reduce_all_dyn) { test_dyn_reduce_ops("reduce_all"); }
 
 TEST_CASE(reduce_max_variable_axes) { test_reduce_ops_variable_axes("reduce_max"); }
 TEST_CASE(reduce_max_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_max"); }
@@ -3527,6 +3533,10 @@ TEST_CASE(reduce_prod_variable_axes) { test_reduce_ops_variable_axes("reduce_pro
 TEST_CASE(reduce_prod_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_prod"); }
 TEST_CASE(reduce_sum_variable_axes) { test_reduce_ops_variable_axes("reduce_sum"); }
 TEST_CASE(reduce_sum_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_sum"); }
+TEST_CASE(reduce_any_variable_axes) { test_reduce_ops_variable_axes("reduce_any"); }
+TEST_CASE(reduce_any_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_any"); }
+TEST_CASE(reduce_all_variable_axes) { test_reduce_ops_variable_axes("reduce_all"); }
+TEST_CASE(reduce_all_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_all"); }
 
 TEST_CASE(reshape_shape)
 {

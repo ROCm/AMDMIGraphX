@@ -2464,10 +2464,7 @@ struct find_same_table_gathers
             auto sz = g->inputs().at(1)->get_shape().lens().front();
             slices.push_back(m.insert_instruction(
                 insert_pt,
-                make_op("slice",
-                        {{"axes", std::vector<int64_t>{0}},
-                         {"starts", std::vector<int64_t>{static_cast<int64_t>(offset)}},
-                         {"ends", std::vector<int64_t>{static_cast<int64_t>(offset + sz)}}}),
+                make_op("slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {offset + sz}}}),
                 batched_gather));
             offset += sz;
         }

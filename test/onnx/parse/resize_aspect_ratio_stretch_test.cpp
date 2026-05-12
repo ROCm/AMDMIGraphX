@@ -41,12 +41,12 @@ TEST_CASE(resize_aspect_ratio_stretch_test)
 
     // keep_aspect_ratio_policy="stretch" is accepted as a no-op: it is the
     // Resize-18 default and matches the existing per-axis semantics.
-    auto r = mm->add_instruction(
-        migraphx::make_op("resize",
-                          {{"sizes", {1, 1, 4, 8}},
-                           {"nearest_mode", "floor"},
-                           {"coordinate_transformation_mode", "asymmetric"}}),
-        inx);
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"sizes", {1, 1, 4, 8}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx);
     mm->add_return({r});
 
     auto prog = read_onnx("resize_aspect_ratio_stretch_test.onnx");

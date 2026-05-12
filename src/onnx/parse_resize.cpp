@@ -286,7 +286,9 @@ struct parse_resize : op_parser<parse_resize>
                (last_arg_elements == args.front()->get_shape().ndim() or
                 (is_axes_used() and last_arg_elements == r_attr.axes.size())))
             {
-                MIGRAPHX_THROW("PARSE_RESIZE: keep_aspect_ratio_policy is not supported!");
+                MIGRAPHX_THROW("PARSE_RESIZE: keep_aspect_ratio_policy=\"" +
+                               attr.at("keep_aspect_ratio_policy").s() +
+                               "\" is not supported (only \"stretch\" is accepted)");
             }
         }
 

@@ -298,6 +298,27 @@ TEST_CASE(dynamic_dimension_intersection)
     EXPECT(fib.value() == shape::dynamic_dimension{3, 4});
 }
 
+TEST_CASE(dynamic_dimension_intersection_sym_mismatch)
+{
+    auto k1 = var("k1", {1, 128});
+    auto k2 = var("k2", {1, 128});
+    dd a{k1};
+    dd b{k2};
+    EXPECT(not a.intersection(b).has_value());
+}
+
+TEST_CASE(dynamic_dimension_intersection_sym_vs_range)
+{
+    auto k = var("k", {1, 128});
+    dd a{k};
+    dd b{1, 64};
+    auto result = a.intersection(b);
+    EXPECT(result.has_value());
+    EXPECT(result->get_interval().min == 1);
+    EXPECT(result->get_interval().max == 64);
+    EXPECT(not result->is_symbolic());
+}
+
 TEST_CASE(dynamic_dimension_serialize)
 {
     using migraphx::shape;

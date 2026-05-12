@@ -35,12 +35,10 @@ struct test_nms : verify_program<test_nms>
         auto* mm = p.get_main_module();
 
         migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-
         migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
-        std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
 
         auto boxes_l         = mm->add_parameter("boxes", boxes_s);
-        auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+        auto scores_l        = mm->add_parameter("scores", scores_s);
         auto max_out_l       = mm->add_literal(int64_t{4});
         auto iou_threshold   = mm->add_literal(0.5f);
         auto score_threshold = mm->add_literal(0.0f);
@@ -68,18 +66,10 @@ struct test_nms_multi_batch : verify_program<test_nms_multi_batch>
         auto* mm = p.get_main_module();
 
         migraphx::shape boxes_s{migraphx::shape::float_type, {2, 6, 4}};
-        std::vector<float> boxes_vec = {0.5, 0.5, 1.0, 1.0, 0.5, 0.6,   1.0, 1.0, 0.5, 0.4,  1.0,
-                                        1.0, 0.5, 10.5, 1.0, 1.0, 0.5,  10.6, 1.0, 1.0, 0.5, 100.5,
-                                        1.0, 1.0, 0.5, 0.5, 1.0, 1.0,   0.5, 0.6, 1.0, 1.0, 0.5,
-                                        0.4, 1.0, 1.0, 0.5, 10.5, 1.0,  1.0, 0.5, 10.6, 1.0, 1.0,
-                                        0.5, 100.5, 1.0, 1.0};
-
         migraphx::shape scores_s{migraphx::shape::float_type, {2, 1, 6}};
-        std::vector<float> scores_vec = {
-            0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f, 0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
 
-        auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
-        auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+        auto boxes_l         = mm->add_parameter("boxes", boxes_s);
+        auto scores_l        = mm->add_parameter("scores", scores_s);
         auto max_out_l       = mm->add_literal(int64_t{4});
         auto iou_threshold   = mm->add_literal(0.5f);
         auto score_threshold = mm->add_literal(0.0f);
@@ -107,16 +97,10 @@ struct test_nms_multi_class : verify_program<test_nms_multi_class>
         auto* mm = p.get_main_module();
 
         migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-        std::vector<float> boxes_vec = {0.0, 0.0, 1.0,   1.0,   0.0, 0.1,   1.0, 1.1, 0.0,
-                                        -0.1, 1.0, 0.9,  0.0,   10.0, 1.0,  11.0, 0.0, 10.1,
-                                        1.0, 11.1, 0.0,  100.0, 1.0,  101.0};
-
         migraphx::shape scores_s{migraphx::shape::float_type, {1, 2, 6}};
-        std::vector<float> scores_vec = {
-            0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f, 0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
 
-        auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
-        auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+        auto boxes_l         = mm->add_parameter("boxes", boxes_s);
+        auto scores_l        = mm->add_parameter("scores", scores_s);
         auto max_out_l       = mm->add_literal(int64_t{2});
         auto iou_threshold   = mm->add_literal(0.5f);
         auto score_threshold = mm->add_literal(0.0f);
@@ -143,15 +127,10 @@ struct test_nms_not_center : verify_program<test_nms_not_center>
         auto* mm = p.get_main_module();
 
         migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-        std::vector<float> boxes_vec = {1.0, 1.0,  0.0, 0.0,  0.0, 0.1,   1.0, 1.1,
-                                        0.0, 0.9,  1.0, -0.1, 0.0, 10.0,  1.0, 11.0,
-                                        1.0, 10.1, 0.0, 11.1, 1.0, 101.0, 0.0, 100.0};
-
         migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
-        std::vector<float> scores_vec = {0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
 
-        auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
-        auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+        auto boxes_l         = mm->add_parameter("boxes", boxes_s);
+        auto scores_l        = mm->add_parameter("scores", scores_s);
         auto max_out_l       = mm->add_literal(int64_t{4});
         auto iou_threshold   = mm->add_literal(0.5f);
         auto score_threshold = mm->add_literal(0.0f);

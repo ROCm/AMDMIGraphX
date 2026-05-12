@@ -162,20 +162,20 @@ __device__ void nms_make_iou_mask(index idx, const nms_data* sorted, uint8_t* ma
     }
 }
 
-// Phase 3: greedy filter, mirroring the prototype but using a global atomic
-// counter to compact outputs from all (batch, class) blocks into a single
-// dense output buffer.
+// Phase 3: greedy filter that writes selections into a per-block region of a
+// scratch buffer (block_id * N entries) and stores the per-block count. A
+// follow-up serial compaction kernel gathers per-block regions in block_id
+// order to produce a deterministic compacted output that matches the CPU op.
 template <index_int N>
-__device__ void nms_filter_atomic(index idx,
-                                  const nms_data* sorted,
-                                  const uint8_t* mask,
-                                  int batch_idx,
-                                  int class_idx,
-                                  index_int max_output,
-                                  float score_thr,
-                                  unsigned long long* global_count, // NOLINT
-                                  int64_t* output,
-                                  index_int output_capacity)
+__device__ void nms_filter_per_block(index idx,
+                                     const nms_data* sorted,
+                                     const uint8_t* mask,
+                                     int batch_idx,
+                                     int class_idx,
+                                     index_int max_output,
+                                     float score_thr,
+                                     int64_t* raw_output,    // [num_blocks * N * 3]
+                                     int32_t* block_counts)  // [num_blocks]
 {
     __shared__ uint8_t removed[N > 0 ? N : 1];
     // Match the CPU op: only filter by score when score_threshold > 0 (the CPU
@@ -186,6 +186,9 @@ __device__ void nms_filter_atomic(index idx,
         removed[i] = (do_filter and sorted[i].score < score_thr) ? 1 : 0;
     });
     __syncthreads();
+
+    const index_int block_id = idx.group;
+    int64_t* my_output       = raw_output + block_id * N * 3;
 
     index_int output_idx = 0;
     for(index_int i = 0; i < N; ++i)
@@ -199,13 +202,9 @@ __device__ void nms_filter_atomic(index idx,
         {
             if(idx.local == 0)
             {
-                const unsigned long long slot = atomicAdd(global_count, 1ull); // NOLINT
-                if(slot < static_cast<unsigned long long>(output_capacity))
-                {
-                    output[slot * 3 + 0] = batch_idx;
-                    output[slot * 3 + 1] = class_idx;
-                    output[slot * 3 + 2] = sorted[i].box_index;
-                }
+                my_output[output_idx * 3 + 0] = batch_idx;
+                my_output[output_idx * 3 + 1] = class_idx;
+                my_output[output_idx * 3 + 2] = sorted[i].box_index;
             }
             ++output_idx;
             // Update removed[] using row i of the IoU mask. Each thread handles
@@ -217,10 +216,47 @@ __device__ void nms_filter_atomic(index idx,
         }
         __syncthreads();
     }
+
+    if(idx.local == 0)
+        block_counts[block_id] = static_cast<int32_t>(output_idx);
+}
+
+// Serial compaction: a single thread walks per-block regions in block_id order
+// (which equals the CPU op's (batch, class) iteration order) and copies the
+// first block_counts[b] entries of each region into a contiguous prefix of the
+// final output buffer. Trailing slots are left as the zero fill applied before
+// this kernel runs.
+template <index_int NumBlocks, index_int NumBoxes>
+__device__ void
+nms_compact(index idx, const int64_t* raw_output, const int32_t* block_counts, int64_t* output)
+{
+    if(idx.global == 0)
+    {
+        index_int dst = 0;
+        for(index_int b = 0; b < NumBlocks; ++b)
+        {
+            const int32_t cnt  = block_counts[b];
+            const int64_t* src = raw_output + b * NumBoxes * 3;
+            for(int32_t i = 0; i < cnt; ++i)
+            {
+                output[dst * 3 + 0] = src[i * 3 + 0];
+                output[dst * 3 + 1] = src[i * 3 + 1];
+                output[dst * 3 + 2] = src[i * 3 + 2];
+                ++dst;
+            }
+        }
+    }
 }
 
 // Per-block driver: one block per (batch_idx, class_idx). Workspace pointers
-// are sliced into per-block segments using idx.group.
+// are sliced into per-block segments using idx.group. Selections are written
+// to a per-block region of `raw_output` and the per-block count is written to
+// `block_counts`; a follow-up compact kernel produces the final compacted
+// output that matches the CPU op's ordering.
+//
+// `raw_output_buf` is intentionally the last parameter so that JIT-compiled
+// callers (which use `inputs.back()` as the kernel's output buffer) treat it
+// as the chained output flowing into the compact kernel.
 template <bool CenterPointBox,
           index_int NumBatches,
           index_int NumClasses,
@@ -233,8 +269,8 @@ template <bool CenterPointBox,
           class ScoreThr,
           class Sorted,
           class Mask,
-          class Count,
-          class Output>
+          class Counts,
+          class RawOutput>
 __device__ void nonmaxsuppression(Boxes boxes,
                                   Scores scores,
                                   MaxOut max_out_p,
@@ -242,8 +278,8 @@ __device__ void nonmaxsuppression(Boxes boxes,
                                   ScoreThr score_thr_p,
                                   Sorted sorted_buf,
                                   Mask mask_buf,
-                                  Count count_buf,
-                                  Output output)
+                                  Counts counts_buf,
+                                  RawOutput raw_output_buf)
 {
     static_assert(NumBatches > 0, "num_batches must be > 0");
     static_assert(NumClasses > 0, "num_classes must be > 0");
@@ -281,23 +317,38 @@ __device__ void nonmaxsuppression(Boxes boxes,
     // signed value is treated as a very large unsigned (effectively unlimited).
     // Mirror that here by reinterpreting as unsigned and then capping at
     // NumBoxes, which is the most we could ever emit per (batch, class) block.
-    const auto max_unsigned         = static_cast<uint64_t>(max_out_val);
-    const index_int max_output      = (max_unsigned > static_cast<uint64_t>(NumBoxes))
-                                          ? static_cast<index_int>(NumBoxes)
-                                          : static_cast<index_int>(max_unsigned);
-    const index_int output_capacity = output.get_shape().lens[0];
-    auto* count_addr =
-        reinterpret_cast<unsigned long long*>(count_buf.data()); // NOLINT
-    nms_filter_atomic<NumBoxes>(idx,
-                                my_sorted,
-                                my_mask,
-                                batch_idx,
-                                class_idx,
-                                max_output,
-                                score_thr_val,
-                                count_addr,
-                                output.data(),
-                                output_capacity);
+    const auto max_unsigned    = static_cast<uint64_t>(max_out_val);
+    const index_int max_output = (max_unsigned > static_cast<uint64_t>(NumBoxes))
+                                     ? static_cast<index_int>(NumBoxes)
+                                     : static_cast<index_int>(max_unsigned);
+    nms_filter_per_block<NumBoxes>(idx,
+                                   my_sorted,
+                                   my_mask,
+                                   batch_idx,
+                                   class_idx,
+                                   max_output,
+                                   score_thr_val,
+                                   reinterpret_cast<int64_t*>(raw_output_buf.data()),
+                                   reinterpret_cast<int32_t*>(counts_buf.data()));
+}
+
+// Serial compact wrapper invoked from the second JIT kernel. Reads the
+// per-block counts and raw_output produced by `nonmaxsuppression` and copies
+// selections into the final output in block_id (i.e. (batch, class)) order.
+// `output` is last to match the JIT convention of using `inputs.back()` as
+// the kernel's logical output buffer.
+template <index_int NumBlocks, index_int NumBoxes, class Counts, class RawOutput, class Output>
+__device__ void nonmaxsuppression_compact(Counts counts_buf,
+                                          RawOutput raw_output_buf,
+                                          Output output)
+{
+    static_assert(NumBlocks > 0, "num_blocks must be > 0");
+
+    auto idx = make_index();
+    nms_compact<NumBlocks, NumBoxes>(idx,
+                                     reinterpret_cast<const int64_t*>(raw_output_buf.data()),
+                                     reinterpret_cast<const int32_t*>(counts_buf.data()),
+                                     output.data());
 }
 
 } // namespace migraphx

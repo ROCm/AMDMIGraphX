@@ -29,13 +29,13 @@
 // ---- helpers to inspect value category of a forwarded expression ----
 
 template <class T>
-constexpr bool is_lvalue(T&)
+static constexpr bool is_lvalue(T&)
 {
     return true;
 }
 
 template <class T>
-constexpr bool is_lvalue(T&&)
+static constexpr bool is_lvalue(T&&)
 {
     return false;
 }
@@ -136,7 +136,7 @@ TEST_CASE(forward_udt_rvalue)
 // ---- perfect forwarding in a generic context ----
 
 template <class T>
-constexpr int perfect_forward(T&& x)
+static constexpr int perfect_forward(T&& x)
 {
     return rocm::forward<T>(x);
 }

@@ -30,7 +30,7 @@
     static_assert(rocm::is_same<expected, rocm::remove_cv_t<decltype(__VA_ARGS__)>>{})
 
 template <class T, bool Specialized, class U = T>
-constexpr void test_numeric_limits()
+static constexpr void test_numeric_limits()
 {
     using nl = rocm::numeric_limits<T>;
     static_assert(nl::is_specialized == Specialized);
@@ -79,7 +79,7 @@ constexpr void test_numeric_limits()
 }
 
 template <class T, bool Specialized = true>
-constexpr void test_numeric_limits_all()
+static constexpr void test_numeric_limits_all()
 {
     test_numeric_limits<T, Specialized, T>();
     test_numeric_limits<const T, Specialized, T>();

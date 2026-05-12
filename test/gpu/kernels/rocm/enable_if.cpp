@@ -65,25 +65,25 @@ struct specialize<T, typename rocm::enable_if<not check<T>{}>::type> : rocm::boo
 };
 
 template <class T>
-constexpr typename rocm::enable_if<check<T>{}, bool>::type returns(T)
+static constexpr typename rocm::enable_if<check<T>{}, bool>::type returns(T)
 {
     return true;
 }
 
 template <class T>
-constexpr typename rocm::enable_if<not check<T>{}, bool>::type returns(T)
+static constexpr typename rocm::enable_if<not check<T>{}, bool>::type returns(T)
 {
     return false;
 }
 
 template <class T>
-constexpr rocm::enable_if_t<check<T>{}, bool> alias(T)
+static constexpr rocm::enable_if_t<check<T>{}, bool> alias(T)
 {
     return true;
 }
 
 template <class T>
-constexpr rocm::enable_if_t<not check<T>{}, bool> alias(T)
+static constexpr rocm::enable_if_t<not check<T>{}, bool> alias(T)
 {
     return false;
 }

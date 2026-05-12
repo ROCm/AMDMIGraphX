@@ -29,13 +29,13 @@
 // ---- helpers to inspect value category ----
 
 template <class T>
-constexpr bool is_lvalue(T&)
+static constexpr bool is_lvalue(T&)
 {
     return true;
 }
 
 template <class T>
-constexpr bool is_lvalue(T&&)
+static constexpr bool is_lvalue(T&&)
 {
     return false;
 }

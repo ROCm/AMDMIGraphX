@@ -235,7 +235,7 @@ TEST_CASE(swap_free)
 TEST_CASE(begin_end)
 {
     rocm::array<int, 3> a = {1, 2, 3};
-    auto it               = a.begin();
+    auto *it               = a.begin();
     EXPECT(*it == 1);
     ++it;
     EXPECT(*it == 2);
@@ -248,7 +248,7 @@ TEST_CASE(begin_end)
 TEST_CASE(begin_end_const)
 {
     const rocm::array<int, 3> a = {10, 20, 30};
-    auto it                     = a.begin();
+    const auto *it                     = a.begin();
     EXPECT(*it == 10);
     EXPECT(*(a.end() - 1) == 30);
 }
@@ -256,7 +256,7 @@ TEST_CASE(begin_end_const)
 TEST_CASE(cbegin_cend)
 {
     rocm::array<int, 3> a = {1, 2, 3};
-    auto it               = a.cbegin();
+    const auto *it               = a.cbegin();
     EXPECT(*it == 1);
     EXPECT(a.cend() - a.cbegin() == 3);
 }
@@ -460,8 +460,8 @@ TEST_CASE(iterate_forward)
 {
     rocm::array<int, 5> a = {1, 2, 3, 4, 5};
     int sum               = 0;
-    for(auto it = a.begin(); it != a.end(); ++it)
-        sum += *it;
+    for(int & it : a)
+        sum += it;
     EXPECT(sum == 15);
 }
 

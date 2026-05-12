@@ -139,6 +139,8 @@ foreach(KERNEL_FILE ${KERNEL_FILES})
 endforeach()
 
 target_link_libraries(migraphx_gpu_kernel_file_check compile_migraphx_gpu_kernels)
+# Copy the .clang-tidy files over
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/rocm/.clang-tidy ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/rocm/.clang-tidy COPYONLY)
 
 rocm_clang_tidy_check(migraphx_gpu_kernel_file_check)
 

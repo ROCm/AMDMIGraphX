@@ -50,7 +50,15 @@ TEST_CASE(default_init)
 }
 
 // ---- CTAD ----
+#ifdef MIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE
+TEST_CASE(ctad)
+{
+}
 
+TEST_CASE(ctad_single)
+{
+}
+#else
 TEST_CASE(ctad)
 {
     rocm::array a = {1, 2, 3, 4};
@@ -65,6 +73,7 @@ TEST_CASE(ctad_single)
     EXPECT(a.size() == 1);
     EXPECT(a[0] == 99);
 }
+#endif
 
 // ---- size / max_size / empty ----
 

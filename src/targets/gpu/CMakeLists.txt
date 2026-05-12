@@ -100,6 +100,31 @@ if(HAS_HIP_LAMBDA_HOST_DEVICE)
     target_compile_options(compile_for_gpu INTERFACE -fhip-lambda-host-device)
 endif()
 
+function(check_hip_deduction_guide VAR)
+    set(CMAKE_REQUIRED_LIBRARIES hip::device)
+    check_cxx_source_compiles("
+template<class T>
+struct S
+{
+    T x;
+};
+
+template<class T>
+S(T) -> S<T>;
+
+__attribute__((device)) auto f()
+{
+    return S{1};
+}
+    " ${VAR})
+endfunction()
+check_hip_deduction_guide(HIP_HAS_WORKING_DEDUCTION_GUIDE)
+
+if(NOT HIP_HAS_WORKING_DEDUCTION_GUIDE)
+    message(STATUS "Enable deduction guide workaround")
+    target_compile_definitions(compile_for_gpu INTERFACE MIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE=1)
+endif()
+
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
 rocm_clang_tidy_check(migraphx_device)

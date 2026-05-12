@@ -25,6 +25,7 @@
 #include <rocm/integral_constant.hpp>
 #include <migraphx/kernels/test.hpp>
 
+// NOLINTBEGIN(hicpp-signed-bitwise,modernize-use-bool-literals,readability-implicit-bool-conversion)
 struct test_operators_with_value
 {
     static_assert(rocm::true_type::value);
@@ -89,6 +90,9 @@ struct test_operators_with_value
     static_assert(one_type_bit_or_two_type::value == (1 | 2));
 };
 
+// NOLINTEND(hicpp-signed-bitwise,modernize-use-bool-literals,readability-implicit-bool-conversion)
+
+// NOLINTBEGIN(hicpp-signed-bitwise,modernize-use-bool-literals,readability-implicit-bool-conversion)
 struct test_operators_implicit_conversion
 {
     static_assert(rocm::true_type());
@@ -153,6 +157,9 @@ struct test_operators_implicit_conversion
     static_assert(one_type_bit_or_two_type() == (1 | 2));
 };
 
+// NOLINTEND(hicpp-signed-bitwise,modernize-use-bool-literals,readability-implicit-bool-conversion)
+
+// NOLINTBEGIN(hicpp-signed-bitwise,modernize-use-bool-literals,readability-implicit-bool-conversion)
 struct test_operators_with_integrals
 {
     using one_type = rocm::integral_constant<int, 1>;
@@ -190,6 +197,7 @@ struct test_operators_with_integrals
     static_assert((one_type() ^ two_type()) == (1 ^ 2));
     static_assert((one_type() | two_type()) == (1 | 2));
 };
+// NOLINTEND(hicpp-signed-bitwise,modernize-use-bool-literals,readability-implicit-bool-conversion)
 
 TEST_CASE(bool_constant)
 {

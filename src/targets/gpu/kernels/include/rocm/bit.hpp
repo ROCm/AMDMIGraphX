@@ -82,7 +82,10 @@ template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
 constexpr T bit_floor(T x) noexcept
 {
     if(x != 0)
-        return T(1) << (bit_width(x) - 1);
+    {
+        unsigned shift = bit_width(x) - 1;
+        return T{1} << shift;
+    }
     return 0;
 }
 
@@ -91,12 +94,12 @@ constexpr T bit_ceil(T x) noexcept
 {
     if(x <= 1)
         return 1;
-    auto e = bit_width(T(x - 1));
+    unsigned e = bit_width(T(x - 1));
     ROCM_ASSERT(e < numeric_limits<T>::digits);
     if constexpr(is_same<T, decltype(+x)>{})
-        return T(1) << e;
-    constexpr int offset_for_ub = numeric_limits<unsigned>::digits - numeric_limits<T>::digits;
-    return T(1u << (e + offset_for_ub) >> offset_for_ub);
+        return T{1} << e;
+    constexpr unsigned offset_for_ub = numeric_limits<unsigned>::digits - numeric_limits<T>::digits;
+    return 1u << (e + offset_for_ub) >> offset_for_ub;
 }
 
 template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
@@ -108,16 +111,24 @@ constexpr bool has_single_bit(T x) noexcept
 template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
 constexpr T rotl(T x, int s) noexcept
 {
-    const int n = numeric_limits<T>::digits;
-    int r       = s % n;
+    constexpr int n = numeric_limits<T>::digits;
+    int r           = s % n;
 
     if(r == 0)
         return x;
 
     if(r > 0)
-        return (x << r) | (x >> (n - r));
+    {
+        unsigned ur    = r;
+        unsigned shift = n - r;
+        // NOLINTNEXTLINE(hicpp-signed-bitwise)
+        return (x << ur) | (x >> shift);
+    }
 
-    return (x >> -r) | (x << (n + r));
+    unsigned ur    = -r;
+    unsigned shift = n + r;
+    // NOLINTNEXTLINE(hicpp-signed-bitwise)
+    return (x >> ur) | (x << shift);
 }
 
 template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>

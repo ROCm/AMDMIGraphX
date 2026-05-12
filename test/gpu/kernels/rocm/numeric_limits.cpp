@@ -26,6 +26,7 @@
 #include <rocm/limits.hpp>
 #include <rocm/type_traits.hpp>
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_CHECK_NUMERIC_LIMITS_MEM(expected, ...) \
     static_assert(rocm::is_same<expected, rocm::remove_cv_t<decltype(__VA_ARGS__)>>{})
 

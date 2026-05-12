@@ -38,7 +38,9 @@ constexpr T&& forward(remove_reference_t<T>& x) noexcept
 }
 
 template <class T>
-constexpr T&& forward(remove_reference_t<T>&& x) noexcept
+constexpr T&&
+// NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
+forward(remove_reference_t<T>&& x) noexcept
 {
     static_assert(not is_lvalue_reference<T>{}, "can not forward an rvalue as an lvalue");
     return static_cast<T&&>(x);

@@ -216,8 +216,9 @@ constexpr array<remove_cv_t<T>, N> to_array_lvalue(T (&a)[N], rocm::index_sequen
 }
 
 template <class T, size_t N, size_t... Is>
-constexpr array<remove_cv_t<T>, N> to_array_rvalue(T (&&a)[N],
-                                                   rocm::index_sequence<Is...>) // NOLINT
+constexpr array<remove_cv_t<T>, N>
+// NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
+to_array_rvalue(T (&&a)[N], rocm::index_sequence<Is...>) // NOLINT
 {
     return {{static_cast<T&&>(a[Is])...}};
 }

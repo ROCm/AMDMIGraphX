@@ -299,6 +299,7 @@ struct numeric_limits<const volatile T> : numeric_limits<T>
 {
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_DEFINE_NUMERIC_LIMITS_INT(T)                        \
     template <>                                                  \
     struct numeric_limits<T> : detail::numeric_limits_integer<T> \
@@ -320,6 +321,7 @@ ROCM_DEFINE_NUMERIC_LIMITS_INT(unsigned long);
 ROCM_DEFINE_NUMERIC_LIMITS_INT(long long);
 ROCM_DEFINE_NUMERIC_LIMITS_INT(unsigned long long);
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_DEFINE_NUMERIC_LIMITS_FLOAT(T, base)                            \
     template <>                                                              \
     struct numeric_limits<T> : detail::numeric_limits_fp_mixin<detail::base> \

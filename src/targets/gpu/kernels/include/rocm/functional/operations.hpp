@@ -30,6 +30,7 @@
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_FUNCTIONAL_BINARY_OP(name, op, result)                                  \
     template <class T = void>                                                        \
     struct name                                                                      \
@@ -49,6 +50,7 @@ inline namespace ROCM_INLINE_NS {
         }                                                                            \
     };
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_FUNCTIONAL_UNARY_OP(name, op, result)                                        \
     template <class T = void>                                                             \
     struct name                                                                           \
@@ -72,9 +74,11 @@ ROCM_FUNCTIONAL_BINARY_OP(minus, -, T)
 ROCM_FUNCTIONAL_BINARY_OP(multiplies, *, T)
 ROCM_FUNCTIONAL_BINARY_OP(divides, /, T)
 ROCM_FUNCTIONAL_BINARY_OP(modulus, %, T)
+// NOLINTBEGIN(hicpp-signed-bitwise)
 ROCM_FUNCTIONAL_BINARY_OP(bit_and, &, T)
 ROCM_FUNCTIONAL_BINARY_OP(bit_or, |, T)
 ROCM_FUNCTIONAL_BINARY_OP(bit_xor, ^, T)
+// NOLINTEND(hicpp-signed-bitwise)
 
 ROCM_FUNCTIONAL_BINARY_OP(equal_to, ==, bool)
 ROCM_FUNCTIONAL_BINARY_OP(not_equal_to, !=, bool)
@@ -87,6 +91,7 @@ ROCM_FUNCTIONAL_BINARY_OP(logical_or, or, bool)
 
 ROCM_FUNCTIONAL_UNARY_OP(negate, -, T)
 ROCM_FUNCTIONAL_UNARY_OP(logical_not, not, bool)
+// NOLINTNEXTLINE(hicpp-signed-bitwise)
 ROCM_FUNCTIONAL_UNARY_OP(bit_not, ~, T)
 
 } // namespace ROCM_INLINE_NS

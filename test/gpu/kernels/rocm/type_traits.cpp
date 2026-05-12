@@ -40,6 +40,7 @@ struct is_same<T, T>
     constexpr operator bool() const noexcept { return true; }
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_CHECK_TYPE(...) EXPECT(test_tt::is_same<__VA_ARGS__>{})
 
 enum enum1
@@ -104,15 +105,18 @@ struct incomplete_type;
     m(test_tt::enum1, __VA_ARGS__)
 // clang-format on
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_TRANSFORM_CHECK_VISITOR(x, name, from_suffix, to_suffix) \
     ROCM_CHECK_TYPE(x to_suffix, name<x from_suffix>::type);          \
     ROCM_CHECK_TYPE(x to_suffix, name##_t<x from_suffix>);
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_TRANSFORM_CHECK(name, from_suffix, to_suffix) \
     ROCM_VISIT_TYPES(ROCM_TRANSFORM_CHECK_VISITOR, name, from_suffix, to_suffix)
 
 } // namespace test_tt
 
+// NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(add_pointer)
 {
     ROCM_TRANSFORM_CHECK(rocm::add_pointer, , *);
@@ -124,6 +128,7 @@ TEST_CASE(add_pointer)
     ROCM_TRANSFORM_CHECK(rocm::add_pointer, volatile*, volatile**);
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(remove_pointer)
 {
     // Non-pointer types are unchanged
@@ -169,13 +174,15 @@ struct c1c2
     c1c2() {}
     c1c2(c1 const&) {}
     c1c2(c2 const&) {}
-    c1c2& operator=(c1c2 const&) { return *this; }
+    c1c2& operator=(c1c2 const&) = default;
 };
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_CHECK_COMMON_TYPE(expected, ...)                        \
     ROCM_CHECK_TYPE(rocm::common_type<__VA_ARGS__>::type, expected); \
     ROCM_CHECK_TYPE(rocm::common_type_t<__VA_ARGS__>, expected);
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define ROCM_CHECK_COMMON_TYP_E2(expected, a, b) \
     ROCM_CHECK_COMMON_TYPE(expected, a, b);      \
     ROCM_CHECK_COMMON_TYPE(expected, b, a);
@@ -235,6 +242,7 @@ TEST_CASE(is_void)
     EXPECT(not rocm::is_void<int&&>{});
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(remove_cv)
 {
     ROCM_TRANSFORM_CHECK(rocm::remove_cv, , );
@@ -257,6 +265,7 @@ TEST_CASE(remove_cv)
     ROCM_TRANSFORM_CHECK(rocm::remove_cv, const&&, const&&);
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(remove_reference)
 {
     ROCM_TRANSFORM_CHECK(rocm::remove_reference, , );
@@ -277,6 +286,7 @@ TEST_CASE(remove_reference)
     ROCM_TRANSFORM_CHECK(rocm::remove_reference, (&&)[2], [2]);
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(remove_cvref)
 {
     // cv-qualifiers stripped
@@ -341,6 +351,7 @@ TEST_CASE(remove_cvref)
     ROCM_TRANSFORM_CHECK(rocm::remove_cvref, const volatile(&&)[2], [2]);
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(add_const)
 {
     // Plain types get const
@@ -371,6 +382,7 @@ TEST_CASE(add_const)
     ROCM_TRANSFORM_CHECK(rocm::add_const, (&)[2], (&)[2]);
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(add_volatile)
 {
     // Plain types get volatile
@@ -400,6 +412,7 @@ TEST_CASE(add_volatile)
     ROCM_TRANSFORM_CHECK(rocm::add_volatile, (&)[2], (&)[2]);
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(add_cv)
 {
     // Plain types get const volatile
@@ -429,6 +442,7 @@ TEST_CASE(add_cv)
     ROCM_TRANSFORM_CHECK(rocm::add_cv, (&)[2], (&)[2]);
 }
 
+// NOLINTNEXTLINE(readability-function-size)
 TEST_CASE(type_identity)
 {
     ROCM_TRANSFORM_CHECK(rocm::type_identity, , );

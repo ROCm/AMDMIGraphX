@@ -3344,6 +3344,76 @@ static void test_reduce_ops(const std::string& name)
     }
 }
 
+// symbolic shape: reduced axes collapse to literal 1; non-reduced symbolic dims are preserved.
+// Cases vary which axis carries the symbol and which axes get reduced so that both "reduce
+// symbolic" and "preserve symbolic" paths are exercised. Each case also round-trips through
+// to_static(sym_map) to verify equivalence with the static-input compute_shape result.
+static void test_sym_reduce_ops(const std::string& name)
+{
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+
+    auto check = [&](const migraphx::shape& sym_input,
+                     const std::vector<int64_t>& red_axes,
+                     const std::unordered_map<se, std::size_t>& sym_map,
+                     const migraphx::shape& expected) {
+        auto op = migraphx::make_op(name, {{"axes", red_axes}});
+        expect_shape(expected, op, sym_input);
+        migraphx::shape static_input = sym_input.to_static(sym_map);
+        EXPECT(op.compute_shape({sym_input}).to_static(sym_map) ==
+               op.compute_shape({static_input}));
+    };
+
+    // Symbol at axis 0; reduce trailing fixed axes -> symbol preserved at axis 0.
+    check({migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}},
+          {2, 3},
+          {{n, 7}},
+          {migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(1)}, dd{lit(1)}}});
+
+    // Symbol in middle axis; reduce that symbolic axis -> collapses to lit(1).
+    check({migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}},
+          {1},
+          {{m, 5}},
+          {migraphx::shape::float_type, {dd{lit(2)}, dd{lit(1)}, dd{lit(4)}}});
+
+    // Symbol at last axis; reduce a non-symbolic axis via negative index -> symbol preserved.
+    check({migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{k}}},
+          {0},
+          {{k, 9}},
+          {migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}, dd{k}}});
+
+    // Two symbols at axes 0 and 2; reduce the symbol at axis -1 -> first symbol preserved.
+    check({migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{k}}},
+          {-1},
+          {{n, 4}, {k, 11}},
+          {migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(1)}}});
+
+    // Fully symbolic 3D input; reduce all axes -> static-shaped lit(1) output.
+    check({migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}},
+          {0, 1, 2},
+          {{n, 7}, {m, 5}, {k, 9}},
+          {migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{lit(1)}}});
+
+    // Symbol at last axis of a 4D input; reduce only that axis -> all other dims unchanged.
+    check({migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{n}}},
+          {-1},
+          {{n, 6}},
+          {migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{lit(1)}}});
+
+    // 2D input with two distinct symbols; reduce one of them.
+    check({migraphx::shape::float_type, {dd{m}, dd{k}}},
+          {0},
+          {{m, 5}, {k, 9}},
+          {migraphx::shape::float_type, {dd{lit(1)}, dd{k}}});
+
+    // Fully symbolic 3D input; reduce a middle axis so symbols on either side both survive.
+    check({migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}},
+          {1},
+          {{n, 7}, {m, 5}, {k, 9}},
+          {migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{k}}});
+}
+
 // dynamic shape
 static void test_dyn_reduce_ops(const std::string& name)
 {
@@ -3394,11 +3464,52 @@ static void test_reduce_ops_variable_axes(const std::string& name)
     }
 }
 
+// Symbolic input + variable axes: each dim materializes to {1, upper_bound}; the upper bound
+// for a symbolic dim comes from its sym::expr eval_interval, for a fixed dim from its literal
+// value. Cases cover symbols at varied positions and a fully symbolic input.
+static void test_sym_reduce_ops_variable_axes(const std::string& name)
+{
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+
+    // Symbol at axis 0.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 16}, {1, 3}, {1, 4}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+    // Symbol in middle axis.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 2}, {1, 8}, {1, 4}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+    // Symbol at last axis.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{k}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 2}, {1, 3}, {1, 64}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+    // Fully symbolic 3D input.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 16}, {1, 8}, {1, 64}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+}
+
 TEST_CASE(reduce_max) { test_reduce_ops("reduce_max"); }
+TEST_CASE(reduce_max_sym) { test_sym_reduce_ops("reduce_max"); }
 TEST_CASE(reduce_min) { test_reduce_ops("reduce_min"); }
+TEST_CASE(reduce_min_sym) { test_sym_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean) { test_reduce_ops("reduce_mean"); }
+TEST_CASE(reduce_mean_sym) { test_sym_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod) { test_reduce_ops("reduce_prod"); }
+TEST_CASE(reduce_prod_sym) { test_sym_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum) { test_reduce_ops("reduce_sum"); }
+TEST_CASE(reduce_sum_sym) { test_sym_reduce_ops("reduce_sum"); }
 
 TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops("reduce_max"); }
 TEST_CASE(reduce_min_dyn) { test_dyn_reduce_ops("reduce_min"); }
@@ -3407,10 +3518,15 @@ TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops("reduce_sum"); }
 
 TEST_CASE(reduce_max_variable_axes) { test_reduce_ops_variable_axes("reduce_max"); }
+TEST_CASE(reduce_max_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_max"); }
 TEST_CASE(reduce_min_variable_axes) { test_reduce_ops_variable_axes("reduce_min"); }
+TEST_CASE(reduce_min_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_min"); }
 TEST_CASE(reduce_mean_variable_axes) { test_reduce_ops_variable_axes("reduce_mean"); }
+TEST_CASE(reduce_mean_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_mean"); }
 TEST_CASE(reduce_prod_variable_axes) { test_reduce_ops_variable_axes("reduce_prod"); }
+TEST_CASE(reduce_prod_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_prod"); }
 TEST_CASE(reduce_sum_variable_axes) { test_reduce_ops_variable_axes("reduce_sum"); }
+TEST_CASE(reduce_sum_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_sum"); }
 
 TEST_CASE(reshape_shape)
 {

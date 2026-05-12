@@ -185,7 +185,11 @@ void replace_allocate::apply(module_pass_manager& mpm) const
             continue;
 
         auto s = ins->get_shape();
-        if(not root_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
+        // Dynamic outputs should use internal allocation (hip::allocate) rather than
+        // becoming output parameters. This lets dynamic_code_object_op::compute()
+        // reshape the buffer to the actual runtime dimensions after execution.
+        if(not root_offload_copy and model.needs_out_params() and contains(mod_output_names, ins) and
+           not s.any_of_dynamic())
         {
             auto out_param = m.add_parameter(mod_output_names[ins], s);
             if(contains(mod_output_debug_symbols, ins))

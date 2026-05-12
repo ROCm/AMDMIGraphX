@@ -2429,20 +2429,20 @@ struct find_same_table_gathers
             sibling_gathers.push_back(out);
         }
 
+        // Implies no siblings found so no need to further apply
         if(sibling_gathers.size() < 2)
             return;
 
-        // Sort siblings into module order so that std::next(latest) is a
-        // safe insertion point — every sibling's index tensor dominates it.
-        std::unordered_map<instruction_ref, std::size_t> pos;
-        std::size_t p = 0;
-        for(auto i : iterator_for(m))
-            pos[i] = p++;
-        std::sort(sibling_gathers.begin(), sibling_gathers.end(), [&](auto a, auto b) {
-            return pos.at(a) < pos.at(b);
-        });
+        // Insertion point: std::next(latest sibling in module order).  Sorting all of
+        // them is overkill — concat/slice/replace below are order-agnostic, so we only
+        // need to know the latest.  Every sibling's idx tensor dominates that sibling,
+        // so it also dominates `insert_pt`, which is what makes the concat valid.
+        auto latest = std::max_element(
+            sibling_gathers.begin(),
+            sibling_gathers.end(),
+            by(std::less<>{}, [&](instruction_ref g) { return std::distance(m.begin(), g); }));
 
-        auto insert_pt = std::next(sibling_gathers.back());
+        auto insert_pt = std::next(*latest);
 
         std::vector<instruction_ref> idx_inputs;
         std::transform(sibling_gathers.begin(),

@@ -253,6 +253,10 @@ jobs:
           python3 tools/format.py origin/${{ github.event_name == 'pull_request' && github.base_ref || 'develop' }}
         fi
 
+    - name: Fix file ownership
+      if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
+      run: sudo chown -R $(id -u):$(id -g) .
+
     - uses: reviewdog/action-suggester@v1
       if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
       with:

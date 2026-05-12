@@ -183,6 +183,7 @@ rocm_enable_clang_tidy(
         performance-*
         readability-*
         -bugprone-crtp-constructor-accessibility
+        -bugprone-derived-method-shadowing-base-method
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
@@ -190,6 +191,7 @@ rocm_enable_clang_tidy(
         -bugprone-return-const-ref-from-parameter
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
+        -bugprone-unintended-char-ostream-output
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
@@ -225,6 +227,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-misleading-capture-default-by-value
         -cppcoreguidelines-missing-std-forward
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+        -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
         -cppcoreguidelines-pro-type-member-init
@@ -233,25 +236,30 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-use-default-member-init
+        -cppcoreguidelines-use-enum-class
         -cppcoreguidelines-virtual-class-destructor
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
+        -misc-const-correctness
         -misc-include-cleaner
         -misc-macro-parentheses
         -misc-no-recursion
+        -misc-override-with-different-visibility
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-type-traits
         -modernize-use-default-member-init
         -modernize-use-nodiscard
         -modernize-use-override
+        -modernize-use-scoped-lock
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-avoid-endl
         -performance-type-promotion-in-math-fn
         -performance-enum-size
         -readability-braces-around-statements
+        -readability-container-size-empty
         -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
         -readability-else-after-return
@@ -260,9 +268,11 @@ rocm_enable_clang_tidy(
         -readability-math-missing-parentheses
         -readability-named-parameter
         -readability-redundant-member-init
+        -readability-redundant-parentheses
         -readability-redundant-string-init
         -readability-suspicious-call-argument
         -readability-uppercase-literal-suffix
+        -readability-use-concise-preprocessor-directives
         -*-avoid-c-arrays
         -*-explicit-constructor
         -*-magic-numbers
@@ -390,19 +400,23 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     if(NOT MIGRAPHX_THEROCK_GPU_ARCH)
         message(FATAL_ERROR "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH (e.g. -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x).")
     endif()
-    # TheRock amdrocm packages (RFC0009-OS-Packaging-Requirements):
-    #   Gfxarch=False packages: amdrocm-{component}
-    #   Gfxarch=True  packages: amdrocm-{component}-{gpu_arch}
+
+    # TheRock versioned packaging (RFC0009-OS-Packaging-Requirements):
+    #   Versioned (installed by meta-package): amdrocm-{component}{MAJOR.MINOR}[-{gpu_arch}]
+    #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
+    # We target versioned names to match what install_rocm_packages.sh actually installs.
     # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
-    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime")
+    set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
+        "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
     if(MIGRAPHX_USE_MIOPEN)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn-${MIGRAPHX_THEROCK_GPU_ARCH}")
+        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
     if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-blas-${MIGRAPHX_THEROCK_GPU_ARCH}")
+        list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
-    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev")
-    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel")
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${MIGRAPHX_THEROCK_ROCM_VERSION}")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${MIGRAPHX_THEROCK_ROCM_VERSION}")
 
     # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
     set(ROCM_DEP_ROCMCORE OFF)

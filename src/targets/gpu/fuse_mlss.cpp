@@ -250,6 +250,51 @@ static constexpr conv_shape_entry conv_mxn_shapes[] = {
     // vgg19 (14x14)
     {{1, 512, 14, 14},   {512, 512, 3, 3},  {1, 512, 14, 14},   {1, 1, 1, 1}, {1, 1}},
     {{1, 512, 7, 7},     {512, 512, 3, 3},  {1, 512, 7, 7},     {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 512x512 encoder
+    // {{1, 32,  512, 512}, {32,  32,  3, 3},  {1, 32,  512, 512}, {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 256x256
+    // {{1, 32,  256, 256}, {64,  32,  3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
+    // {{1, 64,  256, 256}, {64,  64,  3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
+    // gfrf-v2 128x128
+    // {{1, 64,  128, 128}, {128, 64,  3, 3},  {1, 128, 128, 128}, {1, 1, 1, 1}, {1, 1}},
+    {{1, 128, 128, 128}, {128, 128, 3, 3},  {1, 128, 128, 128}, {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 64x64
+    // {{1, 128, 64,  64},  {256, 128, 3, 3},  {1, 256, 64,  64},  {1, 1, 1, 1}, {1, 1}},
+    // {{1, 256, 64,  64},  {256, 256, 3, 3},  {1, 256, 64,  64},  {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 32x32
+    // {{1, 256, 32,  32},  {256, 256, 3, 3},  {1, 256, 32,  32},  {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 16x16
+    // {{1, 256, 16,  16},  {256, 256, 3, 3},  {1, 256, 16,  16},  {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 8x8
+    // {{1, 256, 8,   8},   {256, 256, 3, 3},  {1, 256, 8,   8},   {1, 1, 1, 1}, {1, 1}},
+    // {{1, 512, 8,   8},   {512, 512, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
+    // {{1, 256, 8,   8},   {512, 256, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 4x4
+    // {{1, 256, 4,   4},   {256, 256, 3, 3},  {1, 256, 4,   4},   {1, 1, 1, 1}, {1, 1}},
+    // {{1, 512, 4,   4},   {512, 512, 3, 3},  {1, 512, 4,   4},   {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 decoder 16x16
+    // {{1, 256, 16,  16},  {512, 256, 3, 3},  {1, 512, 16,  16},  {1, 1, 1, 1}, {1, 1}},
+    // {{1, 512, 16,  16},  {512, 512, 3, 3},  {1, 512, 16,  16},  {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 decoder 32x32
+    // {{1, 256, 32,  32},  {512, 256, 3, 3},  {1, 512, 32,  32},  {1, 1, 1, 1}, {1, 1}},
+    // {{1, 512, 32,  32},  {512, 512, 3, 3},  {1, 512, 32,  32},  {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 decoder 64x64
+    // {{1, 256, 64,  64},  {512, 256, 3, 3},  {1, 512, 64,  64},  {1, 1, 1, 1}, {1, 1}},
+    // {{1, 512, 64,  64},  {512, 512, 3, 3},  {1, 512, 64,  64},  {1, 1, 1, 1}, {1, 1}},
+    // gfrf-v2 decoder 128x128
+    // {{1, 512, 128, 128}, {256, 512, 3, 3},  {1, 256, 128, 128}, {1, 1, 1, 1}, {1, 1}},
+    // {{1, 256, 128, 128}, {128, 256, 3, 3},  {1, 128, 128, 128}, {1, 1, 1, 1}, {1, 1}},
+    // {{1, 128, 128, 128}, {256, 128, 3, 3},  {1, 256, 128, 128}, {1, 1, 1, 1}, {1, 1}},
+    // {{1, 256, 128, 128}, {256, 256, 3, 3},  {1, 256, 128, 128}, {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 decoder 256x256
+    // {{1, 128, 256, 256}, {64,  128, 3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
+    // {{1, 64,  256, 256}, {128, 64,  3, 3},  {1, 128, 256, 256}, {1, 1, 1, 1}, {1, 1}},
+    // {{1, 128, 256, 256}, {128, 128, 3, 3},  {1, 128, 256, 256}, {1, 1, 1, 1}, {1, 1}},
+    // // gfrf-v2 decoder 512x512
+    // {{1, 128, 512, 512}, {64,  128, 3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
+    // {{1, 64,  512, 512}, {32,  64,  3, 3},  {1, 32,  512, 512}, {1, 1, 1, 1}, {1, 1}},
+    // {{1, 32,  512, 512}, {64,  32,  3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
+    // {{1, 64,  512, 512}, {64,  64,  3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
 };
 
 // ---------------------------------------------------------------------------
@@ -597,6 +642,125 @@ struct find_mlss_conv_bias_relu
             m.remove_instruction(conv_ins);
     }
 };
+// ---------------------------------------------------------------------------
+// Matcher for conv+bias+leaky_relu pattern:
+//   leaky_relu[alpha=a](add(convolution(input, weight_literal), broadcast(bias_literal)))
+// Same as find_mlss_conv_bias_relu but sets activation_mode=leaky_relu and
+// stores the alpha attribute into op.activation_alpha, which is passed to the
+// kernel via the alpha field (offset 0x60 in the kernarg buffer).
+// ---------------------------------------------------------------------------
+struct find_mlss_conv_bias_leaky_relu
+{
+    context* ctx = nullptr;
+
+    auto matcher() const
+    {
+        auto conv_with_literal_weight =
+            match::name("convolution")(
+                match::arg(0)(match::any()),
+                match::arg(1)(match::name("@literal")));
+
+        auto broadcast_of_literal =
+            match::name("broadcast")(
+                match::arg(0)(match::name("@literal")));
+
+        auto add_conv_bias =
+            match::name("add")(
+                match::arg(0)(conv_with_literal_weight),
+                match::arg(1)(broadcast_of_literal));
+
+        return match::name("leaky_relu")(match::arg(0)(add_conv_bias));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto lrelu_ins = r.result;
+        auto add_ins   = lrelu_ins->inputs()[0];  // add
+        auto conv_ins  = add_ins->inputs()[0];    // convolution
+        auto bcast_ins = add_ins->inputs()[1];    // broadcast
+        auto bias_ins  = bcast_ins->inputs()[0];  // @literal {K}
+
+        auto conv_inputs = conv_ins->inputs();
+        if(conv_inputs.size() < 2)
+            return;
+        auto act_ins = conv_inputs[0];
+        auto wt_ins  = conv_inputs[1];
+
+        // ---- shape / attribute checks (same as find_mlss_conv_bias) ----
+        const auto act_lens = act_ins->get_shape().lens();
+        const auto wt_lens  = wt_ins->get_shape().lens();
+        const auto out_lens = conv_ins->get_shape().lens();
+
+        const auto dtype = act_ins->get_shape().type();
+        if(dtype != shape::float_type and dtype != shape::half_type)
+            return;
+        if(wt_ins->get_shape().type() != dtype)
+            return;
+        if(conv_ins->get_shape().type() != dtype)
+            return;
+
+        const auto& op_val = conv_ins->get_operator().to_value();
+        auto get_vec = [&](const std::string& key) -> std::vector<std::size_t> {
+            return op_val.get(key, std::vector<std::size_t>{});
+        };
+        if(op_val.get("group", std::size_t{1}) != 1)
+            return;
+        if(get_vec("dilation") != std::vector<std::size_t>{1, 1})
+            return;
+
+        const auto cur_padding = get_vec("padding");
+        const auto cur_stride  = get_vec("stride");
+
+        auto veq = [](const std::vector<std::size_t>& v, const auto& a) {
+            return v.size() == a.size() and std::equal(v.begin(), v.end(), a.begin());
+        };
+        auto shape_match = [&](const auto& table) {
+            return std::any_of(std::begin(table), std::end(table), [&](const conv_shape_entry& e) {
+                return veq(act_lens, e.act) and veq(wt_lens, e.wt) and veq(out_lens, e.out) and
+                       veq(cur_padding, e.padding) and veq(cur_stride, e.stride);
+            });
+        };
+
+        mlss_conv_op op;
+        if(dtype == shape::float_type)
+        {
+            if(shape_match(conv_mxn_shapes))
+                op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1();
+            else
+                return;
+        }
+        else
+        {
+            if(not shape_match(conv_mxn_shapes))
+                return;
+            op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
+        }
+
+        op.pad_h           = static_cast<int32_t>(cur_padding[0]);
+        op.pad_w           = static_cast<int32_t>(cur_padding[1]);
+        op.has_bias        = true;
+        op.activation_mode = static_cast<uint8_t>(mlss_activation_mode::leaky_relu);
+
+        // Read the alpha attribute from the leaky_relu operator.
+        const auto& lrelu_val  = lrelu_ins->get_operator().to_value();
+        op.activation_alpha    = lrelu_val.get("alpha", 0.0f);
+
+        auto& m = mpm.get_module();
+
+        const auto out_shape = lrelu_ins->get_shape();
+        auto output_alloc = m.insert_instruction(
+            lrelu_ins, make_op("allocate", {{"shape", to_value(out_shape)}}));
+
+        m.replace_instruction(lrelu_ins, op, {act_ins, wt_ins, bias_ins, output_alloc});
+
+        if(add_ins->outputs().empty())
+            m.remove_instruction(add_ins);
+        if(bcast_ins->outputs().empty())
+            m.remove_instruction(bcast_ins);
+        if(conv_ins->outputs().empty())
+            m.remove_instruction(conv_ins);
+    }
+};
 #endif // MIGRAPHX_HAS_MLSS_HEADERS
 
 void fuse_mlss::apply(module_pass_manager& mpm) const
@@ -613,6 +777,7 @@ void fuse_mlss::apply(module_pass_manager& mpm) const
     {
         // Match most-specific patterns first to avoid partial consumption.
         match::find_matches(mpm, find_mlss_conv_bias_relu{ctx});
+        match::find_matches(mpm, find_mlss_conv_bias_leaky_relu{ctx});
         match::find_matches(mpm, find_mlss_conv_bias{ctx});
         match::find_matches(mpm, find_mlss_conv{ctx});
     }

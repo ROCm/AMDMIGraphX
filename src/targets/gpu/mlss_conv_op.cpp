@@ -51,7 +51,7 @@ mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1()
     op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
     op.symbol_name = "main";
     // 56 seems to give the best minimum latency on gfx1201
-    op.n_groups    = 56;
+    op.n_groups    = 64;
     op.block_size  = 256;
     return op;
 }
@@ -143,7 +143,7 @@ argument mlss_conv_op::compute(context& ctx,
     uint64_t p_output = reinterpret_cast<uint64_t>(output.data());
     uint64_t p_bias   = has_bias ? reinterpret_cast<uint64_t>(args[2].data()) : 0;
 
-    float alpha = 1.0f;
+    float alpha = activation_alpha;
     float beta  = 0.0f;
 
     // -----------------------------------------------------------------------
@@ -267,7 +267,7 @@ argument mlss_conv_op::compute(context& ctx,
     kargs.emplace_back(f_G_stride);
     kargs.emplace_back(o_G_stride);
     uint8_t act_mode = static_cast<uint8_t>(activation_mode);
-    kargs.emplace_back(act_mode);   
+    kargs.emplace_back(act_mode); // 0=identity, 4=ReLU
 
     hipStream_t stream = ctx.get_stream().get();
 

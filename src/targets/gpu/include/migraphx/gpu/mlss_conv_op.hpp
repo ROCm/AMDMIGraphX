@@ -61,18 +61,22 @@ struct mlss_conv_op
     bool has_bias = false;
     // activation_mode: kernel activation applied after bias add.
     uint8_t activation_mode = static_cast<uint8_t>(mlss_activation_mode::identity);
+    // activation_alpha: parameter for parameterized activations (e.g. leaky_relu slope).
+    // Passed to the kernel via the alpha field (offset 0x60 in the kernarg buffer).
+    float activation_alpha = 0.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.code_object,      "code_object"),
-                    f(self.symbol_name,      "symbol_name"),
-                    f(self.n_groups,         "n_groups"),
-                    f(self.block_size,       "block_size"),
-                    f(self.pad_h,            "pad_h"),
-                    f(self.pad_w,            "pad_w"),
-                    f(self.has_bias,         "has_bias"),
-                    f(self.activation_mode,  "activation_mode"));
+        return pack(f(self.code_object,       "code_object"),
+                    f(self.symbol_name,       "symbol_name"),
+                    f(self.n_groups,          "n_groups"),
+                    f(self.block_size,        "block_size"),
+                    f(self.pad_h,             "pad_h"),
+                    f(self.pad_w,             "pad_w"),
+                    f(self.has_bias,          "has_bias"),
+                    f(self.activation_mode,   "activation_mode"),
+                    f(self.activation_alpha,  "activation_alpha"));
     }
 
     // Non-reflected: rebuilt in finalize()

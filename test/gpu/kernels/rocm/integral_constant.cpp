@@ -33,15 +33,15 @@ struct test_operators_with_value
     using one_type = rocm::integral_constant<int, 1>;
     using two_type = rocm::integral_constant<int, 2>;
 
-    using not_true_type = decltype( not rocm::true_type());
-    static_assert( not not_true_type::value);
+    using not_true_type = decltype(not rocm::true_type());
+    static_assert(not not_true_type::value);
 
     using true_type_and_false_type = decltype(rocm::true_type() and rocm::false_type());
-    static_assert( not true_type_and_false_type::value);
+    static_assert(not true_type_and_false_type::value);
     using true_type_or_false_type = decltype(rocm::true_type() or rocm::false_type());
     static_assert(true_type_or_false_type::value);
 
-    using not_two_type = decltype( not two_type());
+    using not_two_type = decltype(not two_type());
     static_assert(not_two_type::value == (not 2));
 
 // GCC confuses the complement operator with the destructor
@@ -97,15 +97,15 @@ struct test_operators_implicit_conversion
     using one_type = rocm::integral_constant<int, 1>;
     using two_type = rocm::integral_constant<int, 2>;
 
-    using not_true_type = decltype( not rocm::true_type());
-    static_assert( not not_true_type());
+    using not_true_type = decltype(not rocm::true_type());
+    static_assert(not not_true_type());
 
     using true_type_and_false_type = decltype(rocm::true_type() and rocm::false_type());
-    static_assert( not true_type_and_false_type());
+    static_assert(not true_type_and_false_type());
     using true_type_or_false_type = decltype(rocm::true_type() or rocm::false_type());
     static_assert(true_type_or_false_type());
 
-    using not_two_type = decltype( not two_type());
+    using not_two_type = decltype(not two_type());
     static_assert(not_two_type() == (not 2));
 
 // GCC confuses the complement operator with the destructor
@@ -158,9 +158,9 @@ struct test_operators_with_integrals
     using one_type = rocm::integral_constant<int, 1>;
     using two_type = rocm::integral_constant<int, 2>;
 
-    static_assert( not (not rocm::true_type()));
+    static_assert(not(not rocm::true_type()));
 
-    static_assert( not (rocm::true_type() and rocm::false_type()));
+    static_assert(not(rocm::true_type() and rocm::false_type()));
     static_assert((rocm::true_type() or rocm::false_type()));
 
     static_assert((not two_type()) == (not 2));
@@ -194,7 +194,7 @@ struct test_operators_with_integrals
 TEST_CASE(bool_constant)
 {
     EXPECT(rocm::bool_constant<true>{});
-    EXPECT( not rocm::bool_constant<false>{});
+    EXPECT(not rocm::bool_constant<false>{});
     EXPECT(rocm::bool_constant<true>{} == rocm::true_type{});
     EXPECT(rocm::bool_constant<false>{} == rocm::false_type{});
 }

@@ -2372,8 +2372,6 @@ struct find_pow2
     }
 };
 
-
-
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times

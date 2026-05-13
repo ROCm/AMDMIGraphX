@@ -5295,9 +5295,9 @@ TEST_CASE(same_table_gathers_split_by_idx_type)
         auto idx32b = m1.add_parameter("idx32b", {migraphx::shape::int32_type, {3}});
         auto idx64  = m1.add_parameter("idx64", {migraphx::shape::int64_type, {2}});
 
-        auto g_a   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx32a);
-        auto g_b   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx32b);
-        auto g_c   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx64);
+        auto g_a = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx32a);
+        auto g_b = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx32b);
+        auto g_c = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx64);
 
         m1.add_return({g_a, g_b, g_c});
     }
@@ -5324,7 +5324,7 @@ TEST_CASE(same_table_gathers_split_by_idx_type)
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {5}}}), bg);
 
         // Lone int64 gather is left alone (sibling count = 1)
-        auto g_c   = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx64);
+        auto g_c = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx64);
 
         m2.add_return({s_a, s_b, g_c});
     }

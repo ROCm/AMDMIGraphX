@@ -249,7 +249,9 @@ struct allocation_model
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
+        {
+            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
+        }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
@@ -258,13 +260,22 @@ struct allocation_model
         std::string copy() const override { return private_detail_te_value.copy(); }
 
         operation allocate(const shape& s) const override
-        { return private_detail_te_value.allocate(s); }
+        {
+
+            return private_detail_te_value.allocate(s);
+        }
 
         operation preallocate(const shape& s, std::string id) const override
-        { return private_detail_te_value.preallocate(s, std::move(id)); }
+        {
+
+            return private_detail_te_value.preallocate(s, std::move(id));
+        }
 
         bool needs_out_params() const override
-        { return private_detail_te_value.needs_out_params(); }
+        {
+
+            return private_detail_te_value.needs_out_params();
+        }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -280,7 +291,9 @@ struct allocation_model
     };
 
     bool private_detail_te_handle_empty() const
-    { return private_detail_te_handle_mem_var == nullptr; }
+    {
+        return private_detail_te_handle_mem_var == nullptr;
+    }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -301,11 +314,15 @@ struct allocation_model
 
 template <typename ValueType>
 inline const ValueType* any_cast(const allocation_model* x)
-{ return x->any_cast<ValueType>(); }
+{
+    return x->any_cast<ValueType>();
+}
 
 template <typename ValueType>
 inline ValueType* any_cast(allocation_model* x)
-{ return x->any_cast<ValueType>(); }
+{
+    return x->any_cast<ValueType>();
+}
 
 template <typename ValueType>
 inline ValueType& any_cast(allocation_model& x)

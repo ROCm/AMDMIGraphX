@@ -54,4 +54,3 @@ struct test_topk_dynamic
 };
 
 template struct test_topk_dynamic<10>;
-

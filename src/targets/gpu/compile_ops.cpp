@@ -159,7 +159,7 @@ struct dynamic_code_object_op
             return results.front();
         }
 
-        //static shape code can't be here, remove the check.
+        // static shape code can't be here, remove the check.
         auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
         static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
         // Skip JIT compilation when dynamic shape resolves to 0 elements at runtime

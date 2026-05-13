@@ -3178,6 +3178,16 @@ TEST_CASE(prefix_scan_sum_dyn)
     }
 }
 
+TEST_CASE(prefix_scan_sum_sym)
+{
+    auto n = var("n", {5, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}}};
+    expect_shape(
+        s,
+        migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", 0}, {"reverse", 0}}),
+        s);
+}
+
 TEST_CASE(prefix_scan_sum_dyn_2d)
 {
     {
@@ -3189,6 +3199,17 @@ TEST_CASE(prefix_scan_sum_dyn_2d)
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", 0}, {"reverse", 0}}),
             s);
     }
+}
+
+TEST_CASE(prefix_scan_sum_sym_2d)
+{
+    auto n = var("n", {5, 8});
+    auto m = var("m", {3, 7});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    expect_shape(
+        s,
+        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", 0}, {"reverse", 0}}),
+        s);
 }
 
 TEST_CASE(random_uniform)

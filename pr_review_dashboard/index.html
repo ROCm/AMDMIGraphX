@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="PR review status dashboard for ROCm/AMDMIGraphX — tracks review progress, approvals, and CI status.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📊</text></svg>">
+<title>AMDMIGraphX — PR Review Status</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --red: #f85149;
+    --yellow: #d29922;
+    --green: #3fb950;
+    --blue: #58a6ff;
+    --purple: #a371f7;
+    --orange: #db6d28;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  header h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+  header p  { color: var(--text-muted); font-size: 0.9rem; }
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 2rem;
+  }
+
+  .summary-card {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.6rem 0.75rem;
+    text-align: center;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.15s;
+  }
+  .summary-card:hover {
+    border-color: var(--text-muted);
+    text-decoration: none;
+  }
+  .summary-card .count {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .summary-card .label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin-top: 0.15rem;
+  }
+  .summary-card.total          .count { color: var(--blue); }
+  .summary-card.needs_reviews  .count { color: var(--red); }
+  .summary-card.in_review      .count { color: var(--yellow); }
+  .summary-card.changes_requested .count { color: var(--orange); }
+  .summary-card.approved          .count { color: var(--purple); }
+  .summary-card.ready_to_merge    .count { color: var(--green); }
+
+  .bucket { margin-bottom: 2rem; }
+
+  .table-scroll {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+
+  .bucket-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .dot.red    { background: var(--red); }
+  .dot.yellow { background: var(--yellow); }
+  .dot.green  { background: var(--green); }
+  .dot.orange { background: var(--orange); }
+  .dot.purple { background: var(--purple); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    font-size: 0.9rem;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg);
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(136,198,255,0.04); }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .author-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+  }
+
+  .label-badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: var(--border);
+    color: var(--text-muted);
+    margin-right: 0.25rem;
+  }
+
+  .reviewers { color: var(--text-muted); font-size: 0.85rem; }
+
+  .ci-cell { text-align: center; }
+  .ci-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .ci-dot.success { background: var(--green); }
+  .ci-dot.failure { background: var(--red); }
+  .ci-dot.pending { background: var(--yellow); }
+  .ci-dot.none    { background: var(--text-muted); }
+
+  .approvals-cell { text-align: center; white-space: nowrap; }
+
+  .note-cell {
+    font-size: 0.82rem;
+    color: var(--yellow);
+    max-width: 220px;
+  }
+  .note-cell .note-author {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .empty-msg {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  #loading {
+    text-align: center;
+    padding: 4rem 0;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+  }
+
+  #error {
+    text-align: center;
+    padding: 2rem;
+    color: var(--red);
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AMDMIGraphX — PR Review Status</h1>
+  <p id="timestamp">Loading…</p>
+</header>
+
+<div id="loading">⏳ Loading report data…</div>
+<div id="error"></div>
+<div id="content" style="display:none;">
+  <div class="summary" id="summary"></div>
+  <div id="buckets"></div>
+</div>
+
+<script>
+const BUCKET_META = [
+  { key: 'needs_reviews',     dot: 'red',    title: 'Needs Reviews'     },
+  { key: 'in_review',         dot: 'yellow', title: 'Has 2+ Reviewers'  },
+  { key: 'changes_requested', dot: 'orange', title: 'Changes Requested' },
+  { key: 'approved',          dot: 'purple', title: 'Has 2+ Approvals'  },
+  { key: 'ready_to_merge',    dot: 'green',  title: 'Ready to Merge'    },
+];
+
+function esc(str) {
+  const el = document.createElement('span');
+  el.textContent = str;
+  return el.innerHTML;
+}
+
+function relativeTime(dateStr) {
+  if (!dateStr) return '—';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (isNaN(diff)) return '—';
+  const mins  = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days  = Math.floor(diff / 86400000);
+  if (mins  < 60) return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  return `${days}d ago`;
+}
+
+function buildTable(prs) {
+  if (!prs.length) return '<div class="empty-msg">No pull requests in this category 🎉</div>';
+
+  prs = prs.slice().sort((a, b) => b.number - a.number);
+
+  let rows = prs.map(pr => {
+    const labels = pr.labels.map(l => `<span class="label-badge">${esc(l)}</span>`).join(' ');
+    const reviewers = pr.reviewers.length
+      ? pr.reviewers.map(r => `<a href="https://github.com/${encodeURIComponent(r)}">@${esc(r)}</a>`).join(', ')
+      : '—';
+    const requested = (pr.requested_reviewers || []).length
+      ? pr.requested_reviewers.map(r => `<a href="https://github.com/${encodeURIComponent(r)}">@${esc(r)}</a>`).join(', ')
+      : '—';
+    const note = pr.dash_note
+      ? `<div>${esc(pr.dash_note.body)}</div><div class="note-author">— ${esc(pr.dash_note.author)}</div>`
+      : '';
+    const approvals = pr.member_approvals || 0;
+    const ci = esc(pr.ci_status || 'none');
+    return `<tr>
+      <td><a href="${esc(pr.url)}">#${pr.number}</a></td>
+      <td><div class="author-cell">${pr.author_avatar ? `<img class="avatar" src="${esc(pr.author_avatar)}${pr.author_avatar.includes('?') ? '&amp;s=40' : '?s=40'}" alt="">` : ''}${esc(pr.author)}</div></td>
+      <td>${esc(pr.title)} ${labels}</td>
+      <td class="approvals-cell">${approvals}/2</td>
+      <td class="ci-cell"><span class="ci-dot ${ci}" title="${ci}"></span></td>
+      <td class="note-cell">${note}</td>
+      <td class="reviewers">${reviewers}</td>
+      <td class="reviewers">${requested}</td>
+      <td title="${esc(pr.updated_at)}">${relativeTime(pr.updated_at)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="table-scroll"><table>
+    <thead><tr><th>PR</th><th>Author</th><th>Title</th><th>Approvals</th><th>CI</th><th>Note</th><th>Reviewers</th><th>Requested</th><th>Updated</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+async function init() {
+  try {
+    const resp = await fetch('data.json');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    // Timestamp
+    const ts = new Date(data.generated_at);
+    document.getElementById('timestamp').textContent =
+      `Last updated: ${ts.toUTCString()}  •  ${data.total_prs} open non-draft PRs`;
+
+    // Summary cards — generated from BUCKET_META so titles stay in sync
+    let summaryHTML = '<div class="summary-card total"><div class="count">' + data.total_prs + '</div><div class="label">Total PRs</div></div>';
+    for (const { key, title } of BUCKET_META) {
+      summaryHTML += `<a class="summary-card ${key}" href="#bucket-${key}"><div class="count">${data.counts[key]}</div><div class="label">${title}</div></a>`;
+    }
+    document.getElementById('summary').innerHTML = summaryHTML;
+
+    // Bucket tables
+    let bucketsHTML = '';
+    for (const { key, dot, title } of BUCKET_META) {
+      bucketsHTML += `
+        <div class="bucket" id="bucket-${key}">
+          <div class="bucket-header"><span class="dot ${dot}"></span> ${title} (${data.buckets[key].length})</div>
+          ${buildTable(data.buckets[key])}
+        </div>`;
+    }
+    document.getElementById('buckets').innerHTML = bucketsHTML;
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+
+  } catch (err) {
+    document.getElementById('loading').style.display = 'none';
+    const el = document.getElementById('error');
+    el.style.display = 'block';
+    el.textContent = `Failed to load data: ${err.message}`;
+  }
+}
+
+init();
+</script>
+
+</body>
+</html>

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -125,14 +125,14 @@ void run_verify::validate(const migraphx::target& t,
 
 std::pair<migraphx::program, std::vector<migraphx::argument>>
 run_verify::run_ref(migraphx::program p,
-                    migraphx::parameter_map inputs,
+                    const migraphx::parameter_map& inputs,
                     const migraphx::compile_options& c_opts) const
 {
     migraphx::target t = migraphx::make_target("ref");
     auto_print pp{p, t.name()};
     auto trace_target = migraphx::string_value_of(MIGRAPHX_TRACE_TEST_COMPILE{});
     compile_check(p, t, c_opts, (trace_target == "ref"));
-    return std::make_pair(std::move(p), p.eval(std::move(inputs)));
+    return std::make_pair(std::move(p), p.eval(inputs));
 }
 
 std::pair<migraphx::program, std::vector<migraphx::argument>>
@@ -205,9 +205,10 @@ void run_verify::verify(const program_info& pi) const
         {
             if(x.second.dynamic())
             {
-                // create static shape using maximum dimensions
-                migraphx::shape static_shape{x.second.type(), x.second.max_lens()};
-                m[x.first] = migraphx::generate_argument(static_shape, get_hash(x.first));
+                auto static_shape = contains(pi.test_dims, x.first)
+                                        ? pi.test_dims.at(x.first)
+                                        : migraphx::shape{x.second.type(), x.second.max_lens()};
+                m[x.first]        = migraphx::generate_argument(static_shape, get_hash(x.first));
             }
             else
             {

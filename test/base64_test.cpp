@@ -23,6 +23,7 @@
  */
 #include <migraphx/base64.hpp>
 #include "test.hpp"
+#include <array>
 
 TEST_CASE(base64_encoding)
 {

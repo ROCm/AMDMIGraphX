@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -82,7 +82,8 @@ OutputIt par_transform(InputIt first1, InputIt last1, OutputIt d_first, UnaryOpe
 #if MIGRAPHX_HAS_EXECUTORS
     return std::transform(std::execution::par, first1, last1, d_first, std::move(unary_op));
 #else
-    return std::transform(first1, last1, d_first, std::move(unary_op));
+    simple_par_for(last1 - first1, [&](auto i) { d_first[i] = unary_op(first1[i]); });
+    return d_first + (last1 - first1);
 #endif
 }
 
@@ -94,7 +95,8 @@ OutputIt par_transform(
     return std::transform(
         std::execution::par, first1, last1, first2, d_first, std::move(binary_op));
 #else
-    return std::transform(first1, last1, first2, d_first, std::move(binary_op));
+    simple_par_for(last1 - first1, [&](auto i) { d_first[i] = binary_op(first1[i], first2[i]); });
+    return d_first + (last1 - first1);
 #endif
 }
 

@@ -29,6 +29,7 @@
 #include <migraphx/requires.hpp>
 #include <migraphx/iota_iterator.hpp>
 #include <migraphx/as_number.hpp>
+#include <migraphx/byte.hpp>
 
 #include <iostream>
 #include <utility>

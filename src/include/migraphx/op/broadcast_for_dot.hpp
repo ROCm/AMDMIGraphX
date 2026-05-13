@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,8 +56,9 @@ struct broadcast_for_dot
         auto s1 = inputs.at(1);
         if(s0.dynamic() or s1.dynamic())
         {
-            s0           = s0.to_dynamic();
-            s1           = s1.to_dynamic();
+            auto aligned = shape::to_dynamic({s0, s1});
+            s0           = aligned[0];
+            s1           = aligned[1];
             auto dds0_it = s0.dyn_dims().end() - 2;
             auto dds1_it = s1.dyn_dims().end() - 2;
             std::vector<shape::dynamic_dimension> sliced_dds0{s0.dyn_dims().begin(), dds0_it};
@@ -83,7 +84,7 @@ struct broadcast_for_dot
         return args[0].reshape(dyn_out.computed_shape);
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 
     value attributes() const { return {{"fillcolor", "#9ACD32" /* yellowgreen */}}; }
 };

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,11 @@ static migraphx::shape make_shape(std::vector<std::size_t> lens)
 static migraphx::shape make_shape(std::vector<std::size_t> lens, std::vector<std::size_t> strides)
 {
     return {migraphx::shape::float_type, std::move(lens), std::move(strides)};
+}
+
+static migraphx::shape make_dyn_shape(std::vector<migraphx::shape::dynamic_dimension> dyn_dims)
+{
+    return {migraphx::shape::float_type, std::move(dyn_dims)};
 }
 
 static bool verify_shape(const migraphx::shape& s1, const migraphx::shape& s2)
@@ -187,6 +192,14 @@ TEST_CASE(empty)
 {
     auto rshapes = migraphx::reduce_dims({});
     EXPECT(rshapes.empty());
+}
+
+TEST_CASE(dynamic_shape)
+{
+    std::vector<migraphx::shape> ishapes = {make_dyn_shape({{1, 4}, {2, 6}, {3, 12}}),
+                                            make_dyn_shape({{1, 4}, {2, 6}, {3, 12}})};
+    auto rshapes                         = migraphx::reduce_dims(ishapes);
+    EXPECT(ishapes == rshapes);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

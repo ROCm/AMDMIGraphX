@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,9 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/marker.hpp>
 #include <migraphx/supported_segments.hpp>
+#include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
+#include <migraphx/logger.hpp>
 
 #include <iostream>
 #include <queue>
@@ -171,6 +173,12 @@ context& program::get_context() const
 {
     assert(impl->contexts.size() == 1);
     return impl->contexts.front();
+}
+
+void program::clear_context()
+{
+    impl->contexts.clear();
+    impl->targets.clear();
 }
 
 instruction_ref program::validate() const
@@ -462,30 +470,33 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
 template <class F>
 static std::vector<argument> generic_eval(const module* mod,
                                           std::vector<context>& ctx,
-                                          std::unordered_map<std::string, argument> params,
-                                          std::unordered_map<instruction_ref, argument> results,
+                                          const std::unordered_map<std::string, argument>& params,
+                                          pmr::unordered_map<instruction_ref, argument>& results,
                                           F trace)
 {
     assert(mod->validate() == mod->end());
-    results.reserve(mod->size() * 2);
     std::vector<argument> values;
     values.reserve(16);
     for(auto ins : iterator_for(*mod))
     {
-        assert(results.find(ins) == results.end());
+        assert(mod->name() != "main" or results.find(ins) == results.end());
+#ifndef NDEBUG
+        results.emplace(ins, argument{});
+#endif
         const auto& name = ins->name();
         if(name == "@literal")
         {
-            results.emplace(ins, trace(ins, [&] { return ins->get_literal().get_argument(); }));
+            results.insert_or_assign(ins,
+                                     trace(ins, [&] { return ins->get_literal().get_argument(); }));
         }
         else if(name == "@param")
         {
-            results.emplace(
+            results.insert_or_assign(
                 ins, trace(ins, [&] {
                     auto param_name = any_cast<builtin::param>(ins->get_operator()).parameter;
                     if(not contains(params, param_name))
                         MIGRAPHX_THROW("Parameter not found: " + param_name);
-                    auto param = params[param_name];
+                    auto param = params.at(param_name);
                     // TODO: may want to check correct number of dimensions and/or was within bounds
                     if(not ins->get_shape().any_of_dynamic() and
                        param.get_shape() != ins->get_shape())
@@ -499,7 +510,13 @@ static std::vector<argument> generic_eval(const module* mod,
         }
         else if(name == "@outline")
         {
-            results.emplace(ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+            results.insert_or_assign(
+                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+        }
+        else if(name == "@comment")
+        {
+            results.insert_or_assign(
+                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
         }
         else if(name == "@return")
         {
@@ -528,7 +545,7 @@ static std::vector<argument> generic_eval(const module* mod,
                 return generic_eval(smod, ctx, inputs, results, trace);
             };
 
-            results.emplace(
+            results.insert_or_assign(
                 ins, trace(ins, [&] {
                     auto op = ins->normalized_operator();
                     if(op.is_context_free())
@@ -548,26 +565,79 @@ static std::vector<argument> generic_eval(const module* mod,
 template <class F>
 static std::vector<argument> generic_eval(const program& p,
                                           std::vector<context>& ctx,
-                                          std::unordered_map<std::string, argument> params,
+                                          const std::unordered_map<std::string, argument>& params,
                                           F trace)
 {
     const module* mm = p.get_main_module();
-    return generic_eval(mm, ctx, std::move(params), {}, trace);
+#if MIGRAPHX_HAS_PMR
+    std::size_t n = p.total_instructions();
+    std::vector<char> buffer(n * (sizeof(instruction_ref) + sizeof(argument)) * 4);
+    std::pmr::monotonic_buffer_resource bres(
+        buffer.data(), buffer.size(), std::pmr::null_memory_resource());
+    pmr::unordered_map<instruction_ref, argument> results(&bres);
+    results.reserve(n);
+#else
+    pmr::unordered_map<instruction_ref, argument> results;
+#endif
+    return generic_eval(mm, ctx, params, results, trace);
+}
+
+std::size_t program::total_instructions() const
+{
+    return transform_accumulate(impl->modules.begin(),
+                                impl->modules.end(),
+                                std::size_t{0},
+                                std::plus<>{},
+                                [](const auto& p) { return p.second.size(); });
 }
 
 std::vector<argument> program::eval_with_context(std::vector<context>& ctx,
-                                                 parameter_map params) const
+                                                 const parameter_map& params) const
 {
-    const module* mm = this->get_main_module();
-    return generic_eval(mm, ctx, std::move(params), {}, [](auto&&, auto f) { return f(); });
+    return generic_eval(*this, ctx, params, [](auto&&, auto f) { return f(); });
 }
 
-std::vector<argument> program::eval(parameter_map params, execution_environment exec_env) const
+static void print_trace_buffer(const argument& buffer, int trace_level)
+{
+    if(trace_level == 2)
+    {
+        std::cout << "Output has " << to_string_range(classify_argument(buffer)) << std::endl;
+        std::cout << "Output: ";
+        preview_argument(std::cout, buffer);
+        std::cout << std::endl;
+        print_statistics(std::cout, buffer);
+    }
+    else
+    {
+        std::cout << "Output: " << buffer << std::endl;
+    }
+}
+
+static bool is_inspectable(const std::string& op)
+{
+    return not op.empty() and op.front() != '@' and op != "load";
+}
+
+std::vector<argument> program::eval(const parameter_map& params,
+                                    execution_environment exec_env) const
 {
     auto& contexts = this->impl->contexts;
+    auto& targets  = this->impl->targets;
 
-    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
-    std::vector<argument> ret;
+    auto copy_to_host = [&](const argument& result, std::size_t target_id) -> migraphx::argument {
+        try
+        {
+            return targets.at(target_id).copy_from(result);
+        }
+        catch(const migraphx::exception&)
+        {
+            return result;
+        }
+        catch(...)
+        {
+            MIGRAPHX_THROW("Failed to copy result to host.\n");
+        }
+    };
 
     if(exec_env.async)
     {
@@ -575,63 +645,51 @@ std::vector<argument> program::eval(parameter_map params, execution_environment 
         contexts.front().wait_for(exec_env.queue);
     }
 
+    // When MIGRAPHX_TRACE_EVAL is set, overwrite any user-provided trace callback with our trace
+    // output
+    auto trace_level = value_of(MIGRAPHX_TRACE_EVAL{});
+    std::unordered_map<instruction_ref, std::string> ins_out;
     if(trace_level > 0)
     {
-        std::unordered_map<instruction_ref, std::string> ins_out;
-        // get instruction names
         this->print([&](auto x, const auto& ins_names) {
             std::stringstream ss;
             instruction::print(ss, x, ins_names);
             ins_out[x] = ss.str();
         });
-        ret = generic_eval(*this, contexts, std::move(params), [&](instruction_ref ins, auto f) {
+        exec_env.trace = [trace_level](instruction_ref, const argument& output) {
+            if(trace_level > 1 and not output.empty())
+                print_trace_buffer(output, trace_level);
+        };
+    }
+
+    std::vector<argument> ret;
+
+    if(exec_env.trace)
+    {
+        ret = generic_eval(*this, contexts, params, [&](instruction_ref ins, auto f) {
             const auto& ctx = contexts[ins->get_target_id()];
-            ctx.finish();
-            std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+            if(trace_level > 0)
+            {
+                ctx.finish();
+                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+            }
             timer t{};
             auto result = f();
             double t1   = t.record<milliseconds>();
             ctx.finish();
-            double t2 = t.record<milliseconds>();
-            std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
-            if(trace_level > 1 and ins->name().front() != '@' and ins->name() != "load" and
-               not result.empty())
+            if(trace_level > 0)
             {
-                migraphx::argument buffer;
-                try
-                {
-                    const target& tgt = this->impl->targets.at(ins->get_target_id());
-                    buffer            = tgt.copy_from(result);
-                }
-                catch(const migraphx::exception&)
-                {
-                    // instruction was run on host then no need to copy buffer from target
-                    buffer = result;
-                }
-                catch(...)
-                {
-                    MIGRAPHX_THROW("MIGraphX program execution with MIGRAPHX_TRACE_EVAL failed.\n");
-                }
-                if(trace_level == 2)
-                {
-                    std::cout << "Output has " << to_string_range(classify_argument(buffer))
-                              << std::endl;
-                    std::cout << "Output: ";
-                    preview_argument(std::cout, buffer);
-                    std::cout << std::endl;
-                    print_statistics(std::cout, buffer);
-                }
-                else
-                {
-                    std::cout << "Output: " << buffer << std::endl;
-                }
+                double t2 = t.record<milliseconds>();
+                std::cout << "Time: " << t1 << "ms, " << t2 << "ms" << std::endl;
             }
+            if(is_inspectable(ins->name()) and not result.empty())
+                exec_env.trace(ins, copy_to_host(result, ins->get_target_id()));
             return result;
         });
     }
     else
     {
-        ret = generic_eval(*this, contexts, std::move(params), [&](auto&&, auto f) { return f(); });
+        ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
     }
 
     if(exec_env.async)
@@ -661,7 +719,7 @@ static std::string get_migraphx_version()
 program file version is for the data structure or format of the MXR file. Version should be bumped
 if any changes occur to the format of the MXR file.
 */
-const int program_file_version = 7;
+const int program_file_version = 8;
 
 value program::to_value() const
 {
@@ -706,12 +764,14 @@ value program::to_value() const
                                    [&](auto mod_ref) { return mod_ref->name(); });
                     node["module_inputs"] = module_inputs;
                 }
-
+                if(not ins->get_debug_symbols().empty())
+                {
+                    node["debug_symbols"] = migraphx::to_value(ins->get_debug_symbols());
+                }
                 nodes.push_back(node);
             },
             names);
-        mod_val["nodes"] = nodes;
-
+        mod_val["nodes"]         = nodes;
         module_vals[mod->name()] = mod_val;
     }
 
@@ -785,6 +845,10 @@ static void mod_from_val(module_ref mod,
             }
         }
         output->set_normalized(normalized);
+        if(node.contains("debug_symbols"))
+        {
+            output->add_debug_symbols(from_value<std::set<std::string>>(node.at("debug_symbols")));
+        }
         instructions[node.at("output").to<std::string>()] = output;
     }
 }
@@ -804,9 +868,9 @@ void program::from_value(const value& v)
     auto migx_version = v.at("migraphx_version").to<std::string>();
     if(migx_version != get_migraphx_version())
     {
-        std::cerr << "[WARNING]: MXR File was created using MIGraphX version: " << migx_version
-                  << ", while installed MIGraphX is at version: " << get_migraphx_version()
-                  << ", operators implementation could be mismatched.\n";
+        log::warn() << "MXR File was created using MIGraphX version: " << migx_version
+                    << ", while installed MIGraphX is at version: " << get_migraphx_version()
+                    << ", operators implementation could be mismatched.";
     }
 
     migraphx::from_value(v.at("targets"), this->impl->targets);
@@ -977,7 +1041,7 @@ void program::perf_report(
 
     std::unordered_map<instruction_ref, std::string> names;
     this->print(names, [&](auto ins, const auto& ins_names) {
-        instruction::print(std::cout, ins, ins_names);
+        instruction::print(os, ins, ins_names);
 
         // skip return instruction
         if(ins->name() == "@return")
@@ -1019,10 +1083,10 @@ void program::perf_report(
     os << percentile_90_time << "ms, " << percentile_95_time << "ms, " << percentile_99_time
        << "ms)" << std::endl;
     os << "Total instructions time: " << total_instruction_time << "ms" << std::endl;
-    os << "Overhead time: " << overhead_time << "ms"
-       << ", " << calculate_overhead_time << "ms" << std::endl;
-    os << "Overhead: " << std::round(overhead_percent) << "%"
-       << ", " << std::round(calculate_overhead_percent) << "%" << std::endl;
+    os << "Overhead time: " << overhead_time << "ms" << ", " << calculate_overhead_time << "ms"
+       << std::endl;
+    os << "Overhead: " << std::round(overhead_percent) << "%" << ", "
+       << std::round(calculate_overhead_percent) << "%" << std::endl;
 }
 
 void program::debug_print() const { std::cout << *this << std::endl; }
@@ -1155,10 +1219,10 @@ void program::print_cpp(std::ostream& os) const
     }
 }
 
-void program::dry_run(std::unordered_map<std::string, argument> params) const
+void program::dry_run(const parameter_map& params) const
 {
     auto& ctx = this->impl->contexts;
-    generic_eval(*this, ctx, std::move(params), [](auto ins, auto&&...) {
+    generic_eval(*this, ctx, params, [](auto ins, auto&&...) {
         return argument{ins->get_shape(), nullptr};
     });
 }
@@ -1167,7 +1231,7 @@ void program::annotate(std::ostream& os, const std::function<void(instruction_re
 {
     for(auto& pp : this->impl->modules)
     {
-        std::cout << pp.first << ":" << std::endl;
+        os << pp.first << ":" << std::endl;
         pp.second.annotate(os, a);
     }
 }
@@ -1338,7 +1402,7 @@ program& program::sort()
         current_mod->sort();
         mqueue.pop();
         auto child_mods = current_mod->get_sub_modules(true);
-        for(auto& sub_mod : child_mods)
+        for(const auto& sub_mod : child_mods)
         {
             mqueue.push(sub_mod);
         }
@@ -1346,7 +1410,10 @@ program& program::sort()
     return *this;
 }
 
-bool operator==(const program& x, const program& y) { return to_string(x) == to_string(y); }
+bool operator==(const program& x, const program& y)
+{
+    return migraphx::to_string(x) == migraphx::to_string(y);
+}
 
 std::ostream& operator<<(std::ostream& os, const program& p)
 {

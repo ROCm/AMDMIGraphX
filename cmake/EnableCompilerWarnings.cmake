@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -87,6 +87,7 @@ else()
                 -Weverything
                 -Wno-c++98-compat
                 -Wno-c++98-compat-pedantic
+                -Wno-c2y-extensions
                 -Wno-conversion
                 -Wno-double-promotion
                 -Wno-exit-time-destructors
@@ -95,8 +96,13 @@ else()
                 -Wno-float-conversion
                 -Wno-gnu-anonymous-struct
                 -Wno-gnu-zero-variadic-macro-arguments
+                -Wno-experimental-lifetime-safety-intra-tu-suggestions
+                -Wno-lifetime-safety-intra-tu-suggestions
+                -Wno-lifetime-safety-cross-tu-suggestions
+                -Wno-missing-noreturn
                 -Wno-missing-prototypes
                 -Wno-nested-anon-types
+                -Wno-nrvo
                 -Wno-option-ignored
                 -Wno-padded
                 -Wno-shorten-64-to-32
@@ -108,6 +114,8 @@ else()
                 # This is broken for now for moved values
                 -Wno-shadow-uncaptured-local
                 # -Wno-c++2a-designator
+                # -Weverything gives contradictory warnings, so disable the one that requires default in switch
+                -Wno-switch-default
             )
             if(WIN32 AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19")
                 list(APPEND CMAKE_COMPILER_WARNINGS

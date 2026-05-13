@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,7 +47,7 @@ template <typename Derived>
 struct scatter_op : op_name<Derived>
 {
     int64_t axis = 0;
-    // skip scattering indicies that are out of bounds
+    // skip scattering indices that are out of bounds
     bool skip_out_of_bounds = false;
 
     template <class Self, class F>

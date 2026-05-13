@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -106,8 +106,8 @@ struct topk
         visit_all(res_val, args.front())([&](auto output, auto input) {
             res_ind.visit([&](auto out_ind) {
                 using type = typename decltype(input)::value_type;
-                std::vector<std::pair<type, int64_t>> data(relements);
                 par_for(outer_shape.elements(), [&](auto i) {
+                    std::vector<std::pair<type, int64_t>> data(relements);
                     auto outer_idx = outer_shape.multi(i);
                     auto x         = input.slice_at({axis}, outer_idx);
                     auto y         = output.slice_at({axis}, outer_idx);

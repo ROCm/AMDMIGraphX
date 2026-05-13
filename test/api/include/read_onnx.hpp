@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -38,8 +38,7 @@ inline migraphx::program read_onnx(const std::string& name,
                   << std::endl;
         std::abort();
     }
-    auto prog = migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
-    return prog;
+    return migraphx::parse_onnx_buffer(std::string{onnx_files.at(name)}, options);
 }
 
 #endif // MIGRAPHX_GUARD_INCLUDE_READ_ONNX_HPP

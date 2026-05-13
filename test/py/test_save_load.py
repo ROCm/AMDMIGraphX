@@ -40,6 +40,22 @@ def test_conv_relu(format):
         assert s1 == s2
         assert p1.sort() == p2.sort()
 
+def test_save_load_buffer():
+    p1 = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
+    print(p1)
+
+    s1 = p1.get_output_shapes()[-1]
+
+    p1_bytes = migraphx.save_buffer(p1)
+    assert isinstance(p1_bytes, bytes)
+
+    p2 = migraphx.load_buffer(p1_bytes)
+    print(p2)
+    s2 = p2.get_output_shapes()[-1]
+
+    assert s1 == s2
+    assert p1.sort() == p2.sort()
+
 
 def create_buffer(t, data, shape):
     a = array.array(t, data)
@@ -62,3 +78,4 @@ if __name__ == "__main__":
     test_load_save_arg()
     test_conv_relu('msgpack')
     test_conv_relu('json')
+    test_save_load_buffer()

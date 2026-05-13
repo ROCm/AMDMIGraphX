@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -102,6 +102,7 @@ add_py_test(save_load test_save_load.py common ${VENV} WORKING_DIRECTORY ${TEST_
 add_py_test(op test_op.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(shape test_shape.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(module_construct test_module_construct.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
+add_py_test(macro test_macro.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(literal test_literal.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 add_py_test(autocast_fp8 test_autocast_fp8.py common ${VENV} WORKING_DIRECTORY ${TEST_ONNX_DIR})
 if(MIGRAPHX_ENABLE_GPU)

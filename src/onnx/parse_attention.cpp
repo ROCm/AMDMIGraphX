@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -709,7 +709,7 @@ struct parse_attention : op_parser<parse_attention>
         // each attention head
 
         if(attention.padding_mode() == mask_pad::raw)
-        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indicies
+        { // Raw Mask - 0 means mask, 1 means pass through. Apply mask_filter_val to mask indices
           // and zero otherwise
             // Need to generate from 2 dims or 3 dim cases
             return generate_raw_mask_per_batch(info, attention);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +31,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/sat_ops.hpp>
+#include <migraphx/reshape_dims.hpp>
 
 #include <algorithm>
 
@@ -104,16 +105,18 @@ struct reshape
             std::size_t max_cur_elements = 1;
             for(const auto& dd : output_dyn_dims)
             {
-                min_cur_elements = mul_sat(min_cur_elements, dd.min);
-                max_cur_elements = mul_sat(max_cur_elements, dd.max);
+                auto dd_interval = dd.get_interval();
+                min_cur_elements = mul_sat(min_cur_elements, dd_interval.min);
+                max_cur_elements = mul_sat(max_cur_elements, dd_interval.max);
             }
             // accumulate the elements in the input dimensions
             std::size_t min_input_elements = 1;
             std::size_t max_input_elements = 1;
             for(const auto& dd : input_dyn_dims)
             {
-                min_input_elements = mul_sat(min_input_elements, dd.min);
-                max_input_elements = mul_sat(max_input_elements, dd.max);
+                auto dd_interval   = dd.get_interval();
+                min_input_elements = mul_sat(min_input_elements, dd_interval.min);
+                max_input_elements = mul_sat(max_input_elements, dd_interval.max);
             }
 
             // maximum dimensions should never accumulate to zero
@@ -160,14 +163,19 @@ struct reshape
             }
         }
 
-        auto s = shape{inputs.front().type(), rdims};
+        auto nelements =
+            std::accumulate(rdims.begin(), rdims.end(), std::size_t{1}, std::multiplies<>{});
 
-        if(s.elements() != inputs.front().elements())
+        if(nelements != inputs.front().elements())
             MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
-                           std::to_string(s.elements()) + " elements whereas the input has " +
+                           std::to_string(nelements) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
 
-        return s;
+        auto s = reshape_dims(inputs.front(), rdims, {.lazy = false});
+        if(not s.has_value())
+            return shape{inputs.front().type(), rdims};
+
+        return s.value();
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -198,7 +206,6 @@ struct reshape
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        assert(dyn_out.computed_shape.standard());
         if(args.size() == 1)
         {
             argument result{dyn_out.computed_shape};

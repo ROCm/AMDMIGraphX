@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -38,9 +39,12 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
+#include <migraphx/source_location.hpp>
+#include <migraphx/trace_info.hpp>
 #include <array>
 #include <algorithm>
 #include <cstdarg>
+#include <sstream>
 
 namespace migraphx {
 
@@ -54,7 +58,8 @@ extern "C" MIGRAPHX_C_EXPORT void migraphx_test_private_disable_exception_catch(
 #endif
 
 template <class F>
-migraphx_status try_(F f, bool output = true) // NOLINT
+migraphx_status
+try_(F f, bool output = true, source_location llc = source_location::current()) // NOLINT
 {
 #ifdef MIGRAPHX_BUILD_TESTING
     if(disable_exception_catch)
@@ -71,7 +76,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const migraphx::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             if(ex.error > 0)
                 return migraphx_status(ex.error);
             else
@@ -80,7 +85,7 @@ migraphx_status try_(F f, bool output = true) // NOLINT
         catch(const std::exception& ex)
         {
             if(output)
-                std::cerr << "MIGraphX Error: " << ex.what() << std::endl;
+                std::cerr << llc.function_name() << ": Error: " << ex.what() << std::endl;
             return migraphx_status_unknown_error;
         }
         catch(...)
@@ -176,6 +181,11 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
     options.limit_max_iterations = value;
 }
 
+static void set_use_debug_symbols(onnx_options& options, bool value)
+{
+    options.use_debug_symbols = value;
+}
+
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }
@@ -257,7 +267,7 @@ static void add_op_name(quantize_int8_options& options, const char* name)
     options.op_names.insert(name);
 }
 
-static void add_calibration_data(quantize_int8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_int8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }
@@ -277,7 +287,7 @@ struct quantize_fp8_options
     std::vector<parameter_map> calibration = {};
 };
 
-static void add_calibration_data(quantize_fp8_options& options, parameter_map& data)
+static void add_calibration_data(quantize_fp8_options& options, const parameter_map& data)
 {
     options.calibration.push_back(data);
 }
@@ -285,6 +295,13 @@ static void add_calibration_data(quantize_fp8_options& options, parameter_map& d
 static void quantize_fp8_wrap(program& prog, const target& t, quantize_fp8_options& options)
 {
     migraphx::quantize_fp8(prog, t, options.calibration);
+}
+
+static size_t get_onnx_operators_size() { return migraphx::get_onnx_operators().size(); }
+
+static char* get_onnx_operator_name_at_index(std::size_t index)
+{
+    return const_cast<char*>(get_onnx_operators().at(index).c_str()); // NOLINT
 }
 
 #ifdef __clang__
@@ -368,19 +385,9 @@ struct custom_operation
         return op.compute(std::move(ctx), std::move(output_shape), std::move(inputs));
     }
 
-    std::ptrdiff_t output_alias(std::vector<shape> inputs) const
+    std::vector<std::size_t> output_alias(std::vector<shape> inputs) const
     {
-        auto alias_vec = op.output_alias(std::move(inputs));
-        // TODO: For now, only support one output alias
-        if(alias_vec.empty())
-        {
-            return -1;
-        }
-        if(alias_vec.size() > 1)
-        {
-            MIGRAPHX_THROW("Currently, CustomOps in MIGraphX only supports one output_alias");
-        }
-        return alias_vec.front();
+        return op.output_alias(std::move(inputs));
     }
 
     bool runs_on_offload_target() const { return op.runs_on_offload_target(); }
@@ -393,6 +400,20 @@ static void register_custom_op(const CustomOp& op)
 }
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
+
+static std::vector<argument>
+run_trace(program& p, const parameter_map& params, const std::function<void(trace_info)>& callback)
+{
+    execution_environment exec_env;
+    const auto* mm = p.get_main_module();
+    exec_env.trace = [&, mm](instruction_ref ins, const argument& output) {
+        auto idx = std::distance(mm->begin(), ins);
+        std::ostringstream oss;
+        oss << ins->get_operator();
+        callback(trace_info{static_cast<std::size_t>(idx), oss.str(), output});
+    };
+    return p.eval(params, exec_env);
+}
 
 } // namespace migraphx
 

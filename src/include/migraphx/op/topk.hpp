@@ -77,7 +77,7 @@ struct topk
         }
         else
         {
-            auto lens  = inputs.at(0).lens();
+            auto lens = inputs.at(0).lens();
             // Clamp k to input size: k may be a placeholder (max dim) from parse time
             auto kk    = std::min(static_cast<std::size_t>(k), lens[axis]);
             lens[axis] = kk;

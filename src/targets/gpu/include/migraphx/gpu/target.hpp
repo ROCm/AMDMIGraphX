@@ -38,9 +38,9 @@ namespace gpu {
 struct MIGRAPHX_GPU_EXPORT target
 {
     /// Cross-compile arch name (e.g. "gfx942"). Empty means use the local device.
-    std::string gpu_arch          = {};
-    std::size_t gpu_num_cu        = 120;
-    std::size_t gpu_num_chiplets  = 1;
+    std::string gpu_arch         = {};
+    std::size_t gpu_num_cu       = 120;
+    std::size_t gpu_num_chiplets = 1;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

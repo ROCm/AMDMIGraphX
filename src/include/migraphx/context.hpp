@@ -75,9 +75,7 @@ void finish_on_context(T&, any_ptr)
 
 template <class T>
 bool is_cross_compile_context(const T&)
-{
-    return false;
-}
+{ return false; }
 
 #ifdef TYPE_ERASED_DECLARATION
 
@@ -156,15 +154,11 @@ struct context
     template <class T>
     static auto private_detail_te_default_is_cross_compile(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.is_cross_compile())
-    {
-        return private_detail_te_self.is_cross_compile();
-    }
+    { return private_detail_te_self.is_cross_compile(); }
 
     template <class T>
     static bool private_detail_te_default_is_cross_compile(float, T&& private_detail_te_self)
-    {
-        return is_cross_compile_context(private_detail_te_self);
-    }
+    { return is_cross_compile_context(private_detail_te_self); }
 
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
@@ -375,10 +369,7 @@ struct context
         { private_detail_te_default_finish_on(char(0), private_detail_te_value, queue); }
 
         bool is_cross_compile() const override
-        {
-
-            return private_detail_te_default_is_cross_compile(char(0), private_detail_te_value);
-        }
+        { return private_detail_te_default_is_cross_compile(char(0), private_detail_te_value); }
 
         void finish() const override { private_detail_te_value.finish(); }
 

@@ -126,9 +126,7 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 
 template <class T>
 value to_value_target(const T& x)
-{
-    return migraphx::to_value(x);
-}
+{ return migraphx::to_value(x); }
 
 template <class T>
 void from_value_target(T& x, const value& v)
@@ -139,37 +137,38 @@ void from_value_target(T& x, const value& v)
 }
 
 <%
- interface('target',
-           virtual('name', returns = 'std::string', const = True),
-           virtual('get_passes',
-                   ctx     = 'context&',
-                   options = 'const compile_options&',
-                   returns = 'std::vector<pass>',
-                   const   = True),
-           virtual('get_context', returns = 'context', const = True),
-           virtual('find_supported',
-                   returns = 'supported_segments',
-                   mod     = 'const_module_ref',
-                   m       = 'support_metric',
-                   const   = True,
-                   default = 'target_find_supported'),
-           virtual('copy_to',
-                   returns = 'argument',
-                   input   = 'const argument&',
-                   const   = True,
-                   default = 'copy_to_target'),
-           virtual('copy_from',
-                   returns = 'argument',
-                   input   = 'const argument&',
-                   const   = True,
-                   default = 'copy_from_target'),
-           virtual('allocate',
-                   s       = 'const shape&',
-                   returns = 'argument',
-                   const   = True,
-                   default = 'target_allocate'),
-           virtual('to_value', returns = 'value', const = True, default = 'to_value_target'),
-           virtual('from_value', v = 'const value&', default = 'from_value_target')) %>
+    interface('target',
+              virtual('name', returns = 'std::string', const = True),
+              virtual('get_passes',
+                      ctx     = 'context&',
+                      options = 'const compile_options&',
+                      returns = 'std::vector<pass>',
+                      const   = True),
+              virtual('get_context', returns = 'context', const = True),
+              virtual('find_supported',
+                      returns = 'supported_segments',
+                      mod     = 'const_module_ref',
+                      m       = 'support_metric',
+                      const   = True,
+                      default = 'target_find_supported'),
+              virtual('copy_to',
+                      returns = 'argument',
+                      input   = 'const argument&',
+                      const   = True,
+                      default = 'copy_to_target'),
+              virtual('copy_from',
+                      returns = 'argument',
+                      input   = 'const argument&',
+                      const   = True,
+                      default = 'copy_from_target'),
+              virtual('allocate',
+                      s       = 'const shape&',
+                      returns = 'argument',
+                      const   = True,
+                      default = 'target_allocate'),
+              virtual('to_value', returns = 'value', const = True, default = 'to_value_target'),
+              virtual('from_value', v = 'const value&', default = 'from_value_target'))
+%>
 
 #endif
 

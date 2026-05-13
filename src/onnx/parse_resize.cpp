@@ -267,13 +267,11 @@ struct parse_resize : op_parser<parse_resize>
         void set_aspect_ratio_policy(const onnx_parser::attribute_map& attr,
                                      const std::vector<instruction_ref>& args) const
         {
-            // Attribute introduced in opset 18; not present in opset <= 17.
-            if(not contains(attr, "keep_aspect_ratio_policy"))
-                return;
-
-            // 'stretch' is the opset-18 default and matches the existing per-axis
+            // 1. Attribute introduced in opset 18; not present in opset <= 17.
+            // 2.'stretch' is the opset-18 default and matches the existing per-axis
             // semantics, so accept it as a no-op.
-            if(attr.at("keep_aspect_ratio_policy").s() == "stretch")
+            if(not contains(attr, "keep_aspect_ratio_policy") or
+               attr.at("keep_aspect_ratio_policy").s() == "stretch")
                 return;
 
             // TODO: Add support for 'not_larger' and 'not_smaller' policies.

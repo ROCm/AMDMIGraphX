@@ -40,9 +40,14 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/par.hpp>
 
-/*
-https://github.com/onnx/onnx/blob/main/docs/Operators.md#NonMaxSuppression
-*/
+/**
+ *  nonmaxsuppression(boxes,
+ *                    scores,
+ *                    optional(max_output_boxes_per_class),
+ *                    optional(iou_threshold),
+ *                    optional(score_threshold));
+ *  Outputs tuple of {tensor with dims[max_num_boxes, 3]: selected_box_indices, scalar int64_t: num_selected_indices} 
+ */
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
@@ -50,13 +55,11 @@ namespace op {
 struct nonmaxsuppression
 {
     bool center_point_box = false;
-    bool use_dyn_output   = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.center_point_box, "center_point_box"),
-                    f(self.use_dyn_output, "use_dyn_output"));
+        return pack(f(self.center_point_box, "center_point_box"));
     }
 
     std::string name() const { return "nonmaxsuppression"; }
@@ -87,21 +90,9 @@ struct nonmaxsuppression
             }
         };
 
-        bool needs_dyn_output = use_dyn_output or inputs.at(0).dynamic() or inputs.at(1).dynamic();
-
-        if(needs_dyn_output)
-        {
-            std::vector<shape::dynamic_dimension> out_lens = {};
-            out_lens.push_back({0, max_num_boxes});
-            out_lens.push_back({3, 3});
-            return {shape::int64_type, out_lens};
-        }
-        else
-        {
-            fixed_shape_error_check();
-            std::vector<std::size_t> out_lens = {max_num_boxes, 3};
-            return {shape::int64_type, out_lens};
-        }
+        fixed_shape_error_check();
+        std::vector<std::size_t> out_lens = {max_num_boxes, 3};
+        return {shape::int64_type, out_lens};
     }
 
     struct box
@@ -236,7 +227,6 @@ struct nonmaxsuppression
                             double iou_threshold,
                             double score_threshold) const
     {
-        std::fill(output.begin(), output.end(), 0);
         const auto& lens       = scores.get_shape().lens();
         const auto num_batches = lens[0];
         const auto num_classes = lens[1];
@@ -325,14 +315,12 @@ struct nonmaxsuppression
                                            score_threshold);
             });
         });
-        if(output_shape.dynamic())
-        {
-            return result.reshape({output_shape.type(), {num_selected, 3}});
-        }
-        else
-        {
-            return result;
-        }
+        shape scalar_int_shape = {shape::int64_type, {1}};
+        argument num_selected_result{scalar_int_shape};
+        num_selected_result.visit([&](auto output){
+            output.begin() = num_selected;
+        });
+        return {{result, num_selected}};
     }
 };
 

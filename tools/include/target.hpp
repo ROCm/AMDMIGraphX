@@ -126,7 +126,9 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 
 template <class T>
 value to_value_target(const T& x)
-{ return migraphx::to_value(x); }
+{
+    return migraphx::to_value(x);
+}
 
 template <class T>
 void from_value_target(T& x, const value& v)

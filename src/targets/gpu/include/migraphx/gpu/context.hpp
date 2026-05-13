@@ -74,7 +74,9 @@ struct hip_device
         : cross_compile_mode(true),
           chiplet_count_override(chiplets),
           device_props(make_cross_compile_device_props(arch_name, cu_count))
-    { add_stream(); }
+    {
+        add_stream();
+    }
 
     struct stream
     {
@@ -291,7 +293,9 @@ struct context
     }
 
     bool is_cross_compile() const
-    { return current_device != nullptr and current_device->is_cross_compile(); }
+    {
+        return current_device != nullptr and current_device->is_cross_compile();
+    }
 
     bool get_exhaustive_tune_flag() const { return exhaustive_tune; }
 

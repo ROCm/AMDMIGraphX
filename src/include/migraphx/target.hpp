@@ -126,7 +126,9 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 
 template <class T>
 value to_value_target(const T& x)
-{ return migraphx::to_value(x); }
+{
+    return migraphx::to_value(x);
+}
 
 template <class T>
 void from_value_target(T& x, const value& v)
@@ -232,22 +234,30 @@ struct target
     template <class T>
     static auto private_detail_te_default_to_value(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.to_value())
-    { return private_detail_te_self.to_value(); }
+    {
+        return private_detail_te_self.to_value();
+    }
 
     template <class T>
     static value private_detail_te_default_to_value(float, T&& private_detail_te_self)
-    { return to_value_target(private_detail_te_self); }
+    {
+        return to_value_target(private_detail_te_self);
+    }
 
     template <class T>
     static auto
     private_detail_te_default_from_value(char, T&& private_detail_te_self, const value& v)
         -> decltype(private_detail_te_self.from_value(v))
-    { private_detail_te_self.from_value(v); }
+    {
+        private_detail_te_self.from_value(v);
+    }
 
     template <class T>
     static void
     private_detail_te_default_from_value(float, T&& private_detail_te_self, const value& v)
-    { from_value_target(private_detail_te_self, v); }
+    {
+        from_value_target(private_detail_te_self, v);
+    }
 
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
@@ -503,10 +513,14 @@ struct target
         }
 
         value to_value() const override
-        { return private_detail_te_default_to_value(char(0), private_detail_te_value); }
+        {
+            return private_detail_te_default_to_value(char(0), private_detail_te_value);
+        }
 
         void from_value(const value& v) override
-        { private_detail_te_default_from_value(char(0), private_detail_te_value, v); }
+        {
+            private_detail_te_default_from_value(char(0), private_detail_te_value, v);
+        }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };

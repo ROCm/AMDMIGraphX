@@ -77,7 +77,9 @@ void finish_on_context(T&, any_ptr){}
 
 template <class T>
 bool is_cross_compile_context(const T&)
-{ return false; }
+{
+    return false;
+}
 
 <%
     interface(

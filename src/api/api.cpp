@@ -30,6 +30,7 @@
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/quantization.hpp>
@@ -39,11 +40,11 @@
 #include <migraphx/json.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/source_location.hpp>
-#include <migraphx/netron_output.hpp>
+#include <migraphx/trace_info.hpp>
 #include <array>
-#include <fstream>
 #include <algorithm>
 #include <cstdarg>
+#include <sstream>
 
 namespace migraphx {
 
@@ -339,22 +340,6 @@ static std::vector<shape> get_output_shapes(program& p) { return p.get_output_sh
 
 static void print_program(const program& p) { std::cout << p << std::endl; }
 
-static void save_program(program& p, const char* name, const file_options& options)
-{
-    if(options.format == "onnx_for_netron")
-    {
-        std::ofstream os(name, std::ios::binary);
-        if(not os.is_open())
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Failed to open file for writing: " + std::string(name));
-        write_netron_output(p, os);
-    }
-    else
-    {
-        migraphx::save(p, name, options);
-    }
-}
-
 static void print_module(const module& m) { std::cout << m << std::endl; }
 
 static migraphx::instruction_ref add_allocation(module& m, const migraphx::shape& s)
@@ -415,6 +400,20 @@ static void register_custom_op(const CustomOp& op)
 }
 
 static migraphx::context get_context(const program& p) { return p.get_context(); }
+
+static std::vector<argument>
+run_trace(program& p, const parameter_map& params, const std::function<void(trace_info)>& callback)
+{
+    execution_environment exec_env;
+    const auto* mm = p.get_main_module();
+    exec_env.trace = [&, mm](instruction_ref ins, const argument& output) {
+        auto idx = std::distance(mm->begin(), ins);
+        std::ostringstream oss;
+        oss << ins->get_operator();
+        callback(trace_info{static_cast<std::size_t>(idx), oss.str(), output});
+    };
+    return p.eval(params, exec_env);
+}
 
 } // namespace migraphx
 
@@ -650,6 +649,17 @@ struct migraphx_module
     {
     }
     migraphx::module object;
+};
+
+extern "C" struct migraphx_trace_info;
+struct migraphx_trace_info
+{
+    template <class... Ts>
+    migraphx_trace_info(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::trace_info object;
 };
 
 extern "C" struct migraphx_program;
@@ -1682,6 +1692,62 @@ extern "C" migraphx_status migraphx_module_add_allocation(migraphx_instruction_t
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_trace_info_destroy(migraphx_trace_info_t trace_info)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((trace_info)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_trace_info_assign_to(migraphx_trace_info_t output,
+                                                         const_migraphx_trace_info_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_trace_info_create(migraphx_trace_info_t* trace_info)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *trace_info = object_cast<migraphx_trace_info_t>(allocate<migraphx::trace_info>());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_trace_info_get_index(size_t* out,
+                                                         const_migraphx_trace_info_t trace_info)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(trace_info == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter trace_info: Null pointer");
+        *out = (trace_info->object).index;
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_trace_info_get_name(const char** out,
+                                                        const_migraphx_trace_info_t trace_info)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(trace_info == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter trace_info: Null pointer");
+        *out = (trace_info->object).name.c_str();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_trace_info_get_result(const_migraphx_argument_t* out,
+                                                          const_migraphx_trace_info_t trace_info)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(trace_info == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter trace_info: Null pointer");
+        *out = object_cast<const_migraphx_argument_t>(&((trace_info->object).result));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_program_destroy(migraphx_program_t program)
 {
     auto api_error_result = migraphx::try_([&] { destroy((program)); });
@@ -1815,6 +1881,30 @@ extern "C" migraphx_status migraphx_program_run_async(migraphx_arguments_t* out,
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
+                                                      migraphx_program_t program,
+                                                      migraphx_program_parameters_t params,
+                                                      migraphx_trace_callback_t callback,
+                                                      void* data)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(program == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter program: Null pointer");
+        if(params == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter params: Null pointer");
+        *out = allocate<migraphx_arguments_t>(
+            migraphx::run_trace(((program->object)),
+                                ((params->object)),
+                                [callback, data](const migraphx::trace_info& info) {
+                                    migraphx_trace_info handle{info};
+                                    auto status = callback(&handle, data);
+                                    if(status != migraphx_status_success)
+                                        MIGRAPHX_THROW(status, "Trace callback returned an error");
+                                }));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_program_equal(bool* out, const_migraphx_program_t program, const_migraphx_program_t x)
 {
@@ -1901,7 +1991,7 @@ migraphx_save(migraphx_program_t p, const char* name, migraphx_file_options_t op
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter p: Null pointer");
         if(options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter options: Null pointer");
-        migraphx::save_program((p->object), (name), (options->object));
+        migraphx::save((p->object), (name), (options->object));
     });
     return api_error_result;
 }

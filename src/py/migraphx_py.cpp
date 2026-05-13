@@ -38,9 +38,7 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/load_save.hpp>
-#include <migraphx/netron_output.hpp>
 #include <migraphx/register_target.hpp>
-#include <fstream>
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
@@ -766,19 +764,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     m.def(
         "save",
         [](const migraphx::program& p, const std::string& name, const std::string& format) {
-            if(format == "onnx_for_netron")
-            {
-                std::ofstream os(name, std::ios::binary);
-                if(not os.is_open())
-                    throw std::runtime_error("Failed to open file for writing: " + name);
-                migraphx::write_netron_output(p, os);
-            }
-            else
-            {
-                migraphx::file_options options;
-                options.format = format;
-                migraphx::save(p, name, options);
-            }
+            migraphx::file_options options;
+            options.format = format;
+            return migraphx::save(p, name, options);
         },
         "Save MIGraphX program",
         py::arg("p"),

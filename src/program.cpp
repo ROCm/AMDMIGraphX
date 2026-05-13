@@ -671,9 +671,9 @@ std::vector<argument> program::eval(const parameter_map& params,
             if(trace_level > 0)
             {
                 ctx.finish();
-                //The ins_out map is populated from the main module's 
-                //but when dynamic_code_object_op::compute recursively calls generic_eval 
-                //on its runtime sub-module ins_out don't have it.
+                // The ins_out map is populated from the main module's
+                // but when dynamic_code_object_op::compute recursively calls generic_eval
+                // on its runtime sub-module ins_out don't have it.
                 if(ins_out.find(ins) != ins_out.end())
                     std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
                 else

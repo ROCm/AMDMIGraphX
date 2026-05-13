@@ -165,7 +165,6 @@ struct dynamic_code_object_op
         // Skip JIT compilation when dynamic shape resolves to 0 elements at runtime
         if(args.front().get_shape().elements() == 0)
             return static_args.back();
-        
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation
         module static_submod;

@@ -55,7 +55,9 @@ struct as_shape
         return s;
     }
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
-    { return args.front().reshape(dyn_out.computed_shape); }
+    {
+        return args.front().reshape(dyn_out.computed_shape);
+    }
     std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 

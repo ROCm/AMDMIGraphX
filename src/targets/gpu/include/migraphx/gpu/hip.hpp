@@ -259,7 +259,8 @@ struct hip_allocate_memory
         argument a = allocate_gpu(s);
         store_preallocated_param(ctx, id, a);
     }
-    // This scratch buffers need to be use in runtime JIT. Some op returns tuple output e.g topk it need global lifetime buffer to avoid dangling.
+    // This scratch buffers need to be use in runtime JIT. Some op returns tuple output e.g topk it
+    // need global lifetime buffer to avoid dangling.
     lifetime get_lifetime() const { return lifetime::global; }
 };
 

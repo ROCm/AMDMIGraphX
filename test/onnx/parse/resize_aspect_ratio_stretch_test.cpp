@@ -22,31 +22,34 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/register_target.hpp>
+#include <onnx_test.hpp>
 
-namespace {
-struct auto_load_targets
+TEST_CASE(resize_aspect_ratio_stretch_test)
 {
-    auto_load_targets()
-    {
-        migraphx::make_target("ref");
-#ifdef HAVE_CPU
-        migraphx::make_target("cpu");
-#endif
-#ifdef HAVE_GPU
-        migraphx::make_target("gpu");
-#endif
-#ifdef HAVE_FPGA
-        migraphx::make_target("fpga");
-#endif
-    }
-};
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wglobal-constructors"
-#endif
-[[maybe_unused]] static auto load_targets{auto_load_targets{}};
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-} // namespace
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    // These are from the ONNX file but not used by the 1-input resize
+    std::vector<int64_t> out_len = {1, 1, 4, 8};
+    migraphx::shape so{migraphx::shape::int64_type, {4}};
+    mm->add_literal(migraphx::literal(so, out_len));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
+    auto inx = mm->add_parameter("X", sx);
+
+    mm->add_instruction(migraphx::make_op("undefined"));
+
+    // keep_aspect_ratio_policy="stretch" is accepted as a no-op: it is the
+    // Resize-18 default and matches the existing per-axis semantics.
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"sizes", {1, 1, 4, 8}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx);
+    mm->add_return({r});
+
+    auto prog = read_onnx("resize_aspect_ratio_stretch_test.onnx");
+
+    EXPECT(p == prog);
+}

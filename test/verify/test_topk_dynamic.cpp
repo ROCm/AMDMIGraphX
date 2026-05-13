@@ -35,7 +35,7 @@ struct test_topk_dynamic
     migraphx::program create_program() const
     {
         migraphx::program p;
-        auto* mm = p.get_main_module();
+        auto* mm                                            = p.get_main_module();
         std::vector<migraphx::shape::dynamic_dimension> dds = {{1, 100}};
         migraphx::shape s{migraphx::shape::float_type, dds};
         auto data = mm->add_parameter("data", s);

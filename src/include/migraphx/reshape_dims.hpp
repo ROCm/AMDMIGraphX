@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,33 +20,29 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_RESHAPE_DIMS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_RESHAPE_DIMS_HPP
 
-#include <migraphx/register_target.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/optional.hpp>
+#include <vector>
 
-namespace {
-struct auto_load_targets
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+struct shape;
+
+struct reshape_dims_options
 {
-    auto_load_targets()
-    {
-        migraphx::make_target("ref");
-#ifdef HAVE_CPU
-        migraphx::make_target("cpu");
-#endif
-#ifdef HAVE_GPU
-        migraphx::make_target("gpu");
-#endif
-#ifdef HAVE_FPGA
-        migraphx::make_target("fpga");
-#endif
-    }
+    bool lazy = false;
 };
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wglobal-constructors"
-#endif
-[[maybe_unused]] static auto load_targets{auto_load_targets{}};
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-} // namespace
+
+MIGRAPHX_EXPORT optional<shape> reshape_dims(const shape& input,
+                                             const std::vector<std::size_t>& rdims,
+                                             reshape_dims_options options);
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_MIGRAPHX_RESHAPE_DIMS_HPP

@@ -267,20 +267,26 @@ struct parse_resize : op_parser<parse_resize>
         void set_aspect_ratio_policy(const onnx_parser::attribute_map& attr,
                                      const std::vector<instruction_ref>& args) const
         {
-            // TODO: Add support for this instead of keeping it as a check
-            if(contains(attr, "keep_aspect_ratio_policy"))
+            // 1. Attribute introduced in opset 18; not present in opset <= 17.
+            // 2.'stretch' is the opset-18 default and matches the existing per-axis
+            // semantics, so accept it as a no-op.
+            if(not contains(attr, "keep_aspect_ratio_policy") or
+               attr.at("keep_aspect_ratio_policy").s() == "stretch")
+                return;
+
+            // TODO: Add support for 'not_larger' and 'not_smaller' policies.
+            shape last_arg_shape     = args.back()->get_shape();
+            size_t last_arg_elements = last_arg_shape.elements();
+            // Check if the last arg is 'sizes' input.
+            // This attribute is only relevant if 'sizes' input is used.
+            // The shape constraints for 'sizes' are below:
+            if(last_arg_shape.type() == shape::int64_type and
+               (last_arg_elements == args.front()->get_shape().ndim() or
+                (is_axes_used() and last_arg_elements == r_attr.axes.size())))
             {
-                shape last_arg_shape     = args.back()->get_shape();
-                size_t last_arg_elements = last_arg_shape.elements();
-                // Check if the last arg is 'sizes' input.
-                // This attribute is only relevant if 'sizes' input is used.
-                // The shape constraints for 'sizes' are below:
-                if(last_arg_shape.type() == shape::int64_type and
-                   (last_arg_elements == args.front()->get_shape().ndim() or
-                    (is_axes_used() and last_arg_elements == r_attr.axes.size())))
-                {
-                    MIGRAPHX_THROW("PARSE_RESIZE: keep_aspect_ratio_policy is not supported!");
-                }
+                MIGRAPHX_THROW("PARSE_RESIZE: keep_aspect_ratio_policy=\"" +
+                               attr.at("keep_aspect_ratio_policy").s() +
+                               "\" is not supported (only \"stretch\" is accepted)");
             }
         }
 

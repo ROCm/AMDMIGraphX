@@ -148,6 +148,7 @@ struct test_nms_not_center : verify_program<test_nms_not_center>
     }
 };
 
+// TODO: update this test
 // Test NMS with dynamic inputs that have different compile-time spatial ranges.
 // This reproduces the scenario from nms_repro_minidimmismatch.py where
 // boxes has 10 spatial entries and scores has 5, but at runtime both are

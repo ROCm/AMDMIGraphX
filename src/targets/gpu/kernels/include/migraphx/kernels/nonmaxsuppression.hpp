@@ -28,6 +28,8 @@
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/math.hpp>
+#include <migraphx/kernels/ops.hpp>
+#include <migraphx/kernels/scan.hpp>
 #include <migraphx/kernels/sort.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/types.hpp>
@@ -164,8 +166,8 @@ __device__ void nms_make_iou_mask(index idx, const nms_data* sorted, uint8_t* ma
 
 // Phase 3: greedy filter that writes selections into a per-block region of a
 // scratch buffer (block_id * N entries) and stores the per-block count. A
-// follow-up serial compaction kernel gathers per-block regions in block_id
-// order to produce a deterministic compacted output that matches the CPU op.
+// follow-up compaction kernel gathers per-block regions in block_id order to
+// produce a deterministic compacted output that matches the CPU op.
 template <index_int N>
 __device__ void nms_filter_per_block(index idx,
                                      const nms_data* sorted,
@@ -221,42 +223,60 @@ __device__ void nms_filter_per_block(index idx,
         block_counts[block_id] = static_cast<int32_t>(output_idx);
 }
 
-// Serial compaction: a single thread walks per-block regions in block_id order
-// (which equals the CPU op's (batch, class) iteration order) and copies the
-// first block_counts[b] entries of each region into a contiguous prefix of the
-// final output buffer. Trailing slots are left as the zero fill applied before
-// this kernel runs.
+// Single-block compaction: an exclusive prefix scan over block_counts gives
+// each per-block region a base offset in the final output; threads in the
+// single launched block then scatter the per-block selections in parallel.
+// Block_id order is preserved, which matches the CPU op's (batch, class)
+// iteration order, and each block writes its `block_counts[b]` entries in
+// order, so the final output is bit-for-bit identical to the serial walker.
+// Trailing slots are left as the zero fill applied before this kernel runs.
 template <index_int NumBlocks, index_int NumBoxes>
 __device__ void
 nms_compact(index idx, const int64_t* raw_output, const int32_t* block_counts, int64_t* output)
 {
-    if(idx.global == 0)
-    {
-        index_int dst = 0;
-        for(index_int b = 0; b < NumBlocks; ++b)
+    static_assert(NumBlocks > 0, "num_blocks must be > 0");
+    // offsets[] is sized 4 * NumBlocks bytes in LDS, well within the 64 KB
+    // per-block budget for any realistic ONNX NMS (nb * nc).
+    static_assert(NumBlocks <= 16384,
+                  "nms_compact: NumBlocks exceeds the LDS budget for offsets[]");
+
+    __shared__ int32_t offsets[NumBlocks];
+
+    // Exclusive prefix sum: emit(b, inclusive) -> offsets[b] = inclusive - counts[b].
+    block_scan(
+        idx,
+        op::sum{},
+        int32_t{0},
+        index_int{NumBlocks},
+        [&](auto b) -> int32_t { return block_counts[b]; },
+        [&](auto b, auto inclusive) { offsets[b] = inclusive - block_counts[b]; });
+    __syncthreads();
+
+    // Parallel scatter: flatten (b, i) so all threads see roughly equal work,
+    // regardless of how `block_counts[b]` is distributed across blocks.
+    constexpr index_int total = NumBlocks * NumBoxes;
+    idx.local_stride(total, [&](auto bi) {
+        const index_int b = bi / NumBoxes;
+        const index_int i = bi % NumBoxes;
+        if(i < static_cast<index_int>(block_counts[b]))
         {
-            const int32_t cnt  = block_counts[b];
-            const int64_t* src = raw_output + b * NumBoxes * 3;
-            for(int32_t i = 0; i < cnt; ++i)
-            {
-                output[dst * 3 + 0] = src[i * 3 + 0];
-                output[dst * 3 + 1] = src[i * 3 + 1];
-                output[dst * 3 + 2] = src[i * 3 + 2];
-                ++dst;
-            }
+            const int64_t* src = raw_output + (b * NumBoxes + i) * 3;
+            int64_t* dst       = output + (offsets[b] + i) * 3;
+            dst[0]             = src[0];
+            dst[1]             = src[1];
+            dst[2]             = src[2];
         }
-    }
+    });
 }
 
-// Per-block driver: one block per (batch_idx, class_idx). Workspace pointers
-// are sliced into per-block segments using idx.group. Selections are written
-// to a per-block region of `raw_output` and the per-block count is written to
-// `block_counts`; a follow-up compact kernel produces the final compacted
-// output that matches the CPU op's ordering.
+// Per-block sort driver: one block per (batch_idx, class_idx). Loads boxes /
+// scores for this (batch, class) into a per-block region of `sorted_buf` and
+// runs a block-level bitonic sort. The result feeds the follow-up filter
+// kernel, which reads `sorted_buf` and writes the IoU mask / per-block
+// selection list.
 //
-// `raw_output_buf` is intentionally the last parameter so that JIT-compiled
-// callers (which use `inputs.back()` as the kernel's output buffer) treat it
-// as the chained output flowing into the compact kernel.
+// `sorted_buf` is the last parameter so the JIT framework treats it as the
+// chained output flowing into the filter kernel.
 template <bool CenterPointBox,
           index_int NumBatches,
           index_int NumClasses,
@@ -264,22 +284,56 @@ template <bool CenterPointBox,
           index_int AlignedNumBoxes,
           class Boxes,
           class Scores,
+          class Sorted>
+__device__ void nonmaxsuppression_sort(Boxes boxes, Scores scores, Sorted sorted_buf)
+{
+    static_assert(NumBatches > 0, "num_batches must be > 0");
+    static_assert(NumClasses > 0, "num_classes must be > 0");
+
+    auto idx                 = make_index();
+    const index_int block_id = idx.group;
+    const int batch_idx      = static_cast<int>(block_id / NumClasses);
+    const int class_idx      = static_cast<int>(block_id % NumClasses);
+
+    nms_data* my_sorted =
+        reinterpret_cast<nms_data*>(sorted_buf.data()) + block_id * AlignedNumBoxes;
+
+    const float* boxes_b   = boxes.data() + batch_idx * NumBoxes * 4;
+    const float* scores_bc = scores.data() + (batch_idx * NumClasses + class_idx) * NumBoxes;
+
+    nms_load_and_sort<CenterPointBox, NumBoxes, AlignedNumBoxes>(
+        idx, boxes_b, scores_bc, my_sorted);
+}
+
+// Per-block filter driver: one block per (batch_idx, class_idx). Reads the
+// previously-sorted records out of `sorted_buf`, builds the IoU mask in
+// `mask_buf`, then runs the greedy filter writing selections into a per-block
+// region of `raw_output` and the per-block count into `counts_buf`.
+//
+// The box-coordinate convention has already been normalized into corner form
+// in `sorted_buf`, so this driver does not need `CenterPointBox`.
+//
+// `raw_output_buf` is intentionally the last parameter so that JIT-compiled
+// callers (which use `inputs.back()` as the kernel's output buffer) treat it
+// as the chained output flowing into the compact kernel.
+template <index_int NumBatches,
+          index_int NumClasses,
+          index_int NumBoxes,
+          index_int AlignedNumBoxes,
+          class Sorted,
           class MaxOut,
           class IouThr,
           class ScoreThr,
-          class Sorted,
           class Mask,
           class Counts,
           class RawOutput>
-__device__ void nonmaxsuppression(Boxes boxes,
-                                  Scores scores,
-                                  MaxOut max_out_p,
-                                  IouThr iou_thr_p,
-                                  ScoreThr score_thr_p,
-                                  Sorted sorted_buf,
-                                  Mask mask_buf,
-                                  Counts counts_buf,
-                                  RawOutput raw_output_buf)
+__device__ void nonmaxsuppression_filter(Sorted sorted_buf,
+                                         MaxOut max_out_p,
+                                         IouThr iou_thr_p,
+                                         ScoreThr score_thr_p,
+                                         Mask mask_buf,
+                                         Counts counts_buf,
+                                         RawOutput raw_output_buf)
 {
     static_assert(NumBatches > 0, "num_batches must be > 0");
     static_assert(NumClasses > 0, "num_classes must be > 0");
@@ -294,18 +348,11 @@ __device__ void nonmaxsuppression(Boxes boxes,
         reinterpret_cast<nms_data*>(sorted_buf.data()) + block_id * AlignedNumBoxes;
     uint8_t* my_mask = reinterpret_cast<uint8_t*>(mask_buf.data()) + block_id * iou_packed_size;
 
-    const float* boxes_b   = boxes.data() + batch_idx * NumBoxes * 4;
-    const float* scores_bc = scores.data() + (batch_idx * NumClasses + class_idx) * NumBoxes;
-
     // Pull scalar tensor inputs once. They're broadcast to all threads via the
     // common load (each thread reads the same single element).
     const int64_t max_out_val = max_out_p[0];
     const float iou_thr_val   = iou_thr_p[0];
     const float score_thr_val = score_thr_p[0];
-
-    nms_load_and_sort<CenterPointBox, NumBoxes, AlignedNumBoxes>(
-        idx, boxes_b, scores_bc, my_sorted);
-    __syncthreads();
 
     if constexpr(NumBoxes > 1)
     {
@@ -332,8 +379,8 @@ __device__ void nonmaxsuppression(Boxes boxes,
                                    reinterpret_cast<int32_t*>(counts_buf.data()));
 }
 
-// Serial compact wrapper invoked from the second JIT kernel. Reads the
-// per-block counts and raw_output produced by `nonmaxsuppression` and copies
+// Compact wrapper invoked from the final JIT kernel. Reads the per-block
+// counts and raw_output produced by `nonmaxsuppression_filter` and copies
 // selections into the final output in block_id (i.e. (batch, class)) order.
 // `output` is last to match the JIT convention of using `inputs.back()` as
 // the kernel's logical output buffer.

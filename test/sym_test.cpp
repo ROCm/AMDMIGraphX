@@ -499,10 +499,20 @@ TEST_CASE(eval_trunc_division)
 
 TEST_CASE(eval_unbound_throws)
 {
-    auto h = var("h");
-    auto w = var("w");
+    auto h = var("h", {1, 8});
+    auto w = var("w", {1, 8});
     EXPECT(test::throws([&] { h.eval_uint({}); }));
     EXPECT(test::throws([&] { (h + w).eval_uint({{h, 1}}); }));
+}
+
+TEST_CASE(eval_uint_falls_back_to_fixed_bounds)
+{
+    // Fixed-bound vars (min == max) are resolved from their own bounds.
+    auto n = var("n", {4, 4});
+    EXPECT(n.eval_uint({}) == 4);
+    EXPECT((n * 8).eval_uint({}) == 32);
+    auto h = var("h", {1, 8});
+    EXPECT((h + n).eval_uint({{h, 2}}) == 6);
 }
 
 TEST_CASE(eval_division_by_zero_throws)

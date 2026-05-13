@@ -409,6 +409,7 @@ struct loader
         {
             auto v                        = from_json_string(convert_to_json(default_dyn_dim));
             options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
+            options.default_set           = true;
         }
         options.skip_unknown_operators = skip_unknown_operators;
         options.print_program_on_error = true;

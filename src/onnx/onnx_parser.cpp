@@ -263,6 +263,8 @@ void onnx_parser::parse_undefined(module* mod, const std::string& name)
 
 static void warn_unresolved_dim_params(const onnx_parser& parser, const onnx::GraphProto& graph)
 {
+    if(parser.default_set)
+        return;
     std::set<std::string> unresolved;
     for(const auto& input : graph.input())
     {

@@ -30,7 +30,6 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/dyn_output.hpp>
-#include <migraphx/lifetime.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -258,9 +257,6 @@ struct hip_allocate_memory
         argument a = allocate_gpu(s);
         store_preallocated_param(ctx, id, a);
     }
-    // This scratch buffers need to be use in runtime JIT. Some op returns tuple output e.g topk it
-    // need global lifetime buffer to avoid dangling.
-    lifetime get_lifetime() const { return lifetime::global; }
 };
 
 struct hip_copy_literal

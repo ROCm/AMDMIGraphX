@@ -447,6 +447,31 @@ TEST_CASE(conv_dyn_img_weights)
                  weights_shape);
 }
 
+TEST_CASE(conv_kernel_too_large)
+{
+    // Spatial input smaller than kernel collapses output to 0 (cap, not throw).
+    migraphx::shape input{migraphx::shape::float_type, {1, 3, 2, 2}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 5, 5}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 0, 0}};
+    expect_shape(expected,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(conv_kernel_too_large_dyn)
+{
+    migraphx::shape input_dyn_shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 2}, {2, 2}}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {1, 3, 5, 5}};
+    migraphx::shape output_dyn_shape{migraphx::shape::float_type, {{1, 1}, {1, 1}, {0, 0}, {0, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+}
+
 TEST_CASE(conv_attr_shape_mismatch)
 {
     migraphx::shape input_dyn_shape = {migraphx::shape::float_type,

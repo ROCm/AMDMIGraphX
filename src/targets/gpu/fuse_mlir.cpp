@@ -1528,8 +1528,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         match::find_matches(
             mpm,
             find_mlir_fused_geg_ops{
-                .conv_mode = get_mode(
-                    "fused_convolution", mlir_ops.fused_convolution, mlir_mode::fast),
+                .conv_mode =
+                    get_mode("fused_convolution", mlir_ops.fused_convolution, mlir_mode::fast),
                 .dot_mode = get_mode("fused_dot", mlir_ops.fused_dot, mlir_mode::fast),
                 .gfx_name = device_name,
                 .enable_geg_multi_out_intermediates = enable_geg_multi_out_intermediates});

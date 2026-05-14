@@ -1710,12 +1710,12 @@ struct find_conv_dot_horiz_fusion
             // TODO: Check if axes match
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
-            auto fused     = m.insert_instruction(std::next(input), op, input, concat);
+            auto fused = m.insert_instruction(std::next(input), op, input, concat);
             std::vector<module::instruction_replacement> replacers;
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
-                int64_t len = arg->get_shape().lens()[axis];
+                int64_t len   = arg->get_shape().lens()[axis];
                 auto slice_op = make_op(
                     "slice", {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}});
                 replacers.push_back(module::instruction_replacement{arg, slice_op, {fused}, {}});
@@ -2372,6 +2372,48 @@ struct find_pow2
     }
 };
 
+// Fold reduce_*[axes] over axes of length 1 into the input (no-op).
+struct find_reduce_no_op
+{
+    auto matcher() const
+    {
+        return match::name("reduce_max",
+                           "reduce_min",
+                           "reduce_sum",
+                           "reduce_prod",
+                           "reduce_mean",
+                           "reduce_any",
+                           "reduce_all");
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        // Variable-axes form (data + axes) has dynamic output; skip.
+        if(ins->inputs().size() != 1)
+            return;
+
+        const auto& in = ins->inputs().front();
+        const auto& sh = in->get_shape();
+        if(sh.dynamic())
+            return;
+
+        auto axes = ins->get_operator().to_value()["axes"].to_vector<std::int64_t>();
+        if(axes.empty())
+            return;
+
+        const auto& lens         = sh.lens();
+        const auto rank          = static_cast<std::int64_t>(lens.size());
+        const bool all_singleton = std::all_of(axes.begin(), axes.end(), [&](std::int64_t a) {
+            if(a < 0)
+                a += rank;
+            return a >= 0 and a < rank and lens[a] == 1;
+        });
+        if(all_singleton)
+            m.replace_instruction(ins, in);
+    }
+};
+
 void simplify_algebra::apply(module& m) const
 {
     // Run simplifications multiple times
@@ -2407,7 +2449,8 @@ void simplify_algebra::apply(module& m) const
                             find_splits{},
                             find_split_reshape{},
                             find_split_transpose{},
-                            find_pow2{});
+                            find_pow2{},
+                            find_reduce_no_op{});
 
         dead_code_elimination{}.apply(m);
     });

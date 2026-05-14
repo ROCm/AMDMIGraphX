@@ -37,7 +37,6 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/compile_options.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
 #include <migraphx/gpu/hsa_chiplet.hpp>
@@ -273,10 +272,6 @@ struct context
 
     void set_exhaustive_tune_flag(bool t) { exhaustive_tune = t; }
 
-    mlir_ops_options get_mlir_ops() const { return mlir_ops; }
-
-    void set_mlir_ops(const mlir_ops_options& ops) { mlir_ops = ops; }
-
     hip_device::stream& get_stream() { return get_current_device().get_stream(); }
     hip_device::stream& get_stream(std::size_t n) { return get_current_device().get_stream(n); }
 
@@ -390,7 +385,6 @@ struct context
     std::shared_ptr<hip_device> current_device;
     std::vector<shared<hip_event_ptr>> events;
     bool exhaustive_tune = false;
-    mlir_ops_options mlir_ops;
     bool measure_perf    = false;
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;

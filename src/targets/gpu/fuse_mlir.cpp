@@ -128,7 +128,7 @@ static bool specific_op(std::string_view option, bool fallback = false)
     return contains(options, option);
 }
 
-bool mlir_attention_enabled(context* ctx)
+bool mlir_attention_enabled(context* ctx, const mlir_ops_options& mlir_ops)
 {
 #ifdef MIGRAPHX_MLIR
     if(not mlir_enabled())
@@ -141,7 +141,7 @@ bool mlir_attention_enabled(context* ctx)
     if(specific_op<requested>("attention"))
         return true;
     // if attention is not set by env check mlir ops
-    return ctx->get_mlir_ops().attention;
+    return mlir_ops.attention;
 #else
     return false;
 #endif
@@ -1529,8 +1529,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             mpm,
             find_mlir_fused_geg_ops{
                 .conv_mode = get_mode(
-                    "fused_convolution", ctx->get_mlir_ops().fused_convolution, mlir_mode::fast),
-                .dot_mode = get_mode("fused_dot", ctx->get_mlir_ops().fused_dot, mlir_mode::fast),
+                    "fused_convolution", mlir_ops.fused_convolution, mlir_mode::fast),
+                .dot_mode = get_mode("fused_dot", mlir_ops.fused_dot, mlir_mode::fast),
                 .gfx_name = device_name,
                 .enable_geg_multi_out_intermediates = enable_geg_multi_out_intermediates});
         mpm.run_pass(dead_code_elimination{});
@@ -1540,14 +1540,14 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         mpm,
         find_mlir_fused_ops{
             .conv_mode = get_mode(
-                "fused_convolution", ctx->get_mlir_ops().fused_convolution, mlir_mode::fast),
-            .dot_mode = get_mode("fused_dot", ctx->get_mlir_ops().fused_dot, mlir_mode::fast)});
+                "fused_convolution", mlir_ops.fused_convolution, mlir_mode::fast),
+            .dot_mode = get_mode("fused_dot", mlir_ops.fused_dot, mlir_mode::fast)});
 
     // gfx12 lacks an accurate half version of MIOpen convolution_backwards path, so
     // always route it through rocMLIR regardless of MIOpen availability or user
     // env-var overrides.
     mlir_mode conv_backwards_mode =
-        get_mode("convolution_backwards", ctx->get_mlir_ops().convolution_backwards, 
+        get_mode("convolution_backwards", mlir_ops.convolution_backwards, 
                     MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all);
     if(starts_with(device_name, "gfx12"))
     {
@@ -1556,10 +1556,10 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_conv_op{.mode    = get_mode("convolution", ctx->get_mlir_ops().convolution, mlir_mode::fast),
+        find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_ops.convolution, mlir_mode::fast),
                                      .counter = &counter},
         find_mlir_standalone_conv_backwards_op{.mode = conv_backwards_mode, .counter = &counter},
-        find_mlir_standalone_dot_op{.mode = get_mode("dot", ctx->get_mlir_ops().dot, mlir_mode::fast), .counter = &counter});
+        find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_ops.dot, mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});
     if(enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
@@ -1568,8 +1568,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             mpm,
             find_mlir_split_reduce{
                 .conv_mode = get_mode(
-                    "fused_convolution", ctx->get_mlir_ops().fused_convolution, mlir_mode::fast),
-                .dot_mode = get_mode("fused_dot", ctx->get_mlir_ops().fused_dot, mlir_mode::fast)});
+                    "fused_convolution", mlir_ops.fused_convolution, mlir_mode::fast),
+                .dot_mode = get_mode("fused_dot", mlir_ops.fused_dot, mlir_mode::fast)});
     }
 
     match::find_matches(mpm, find_pointwise_mlir{});

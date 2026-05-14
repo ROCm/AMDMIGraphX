@@ -192,8 +192,8 @@ TEST_CASE(topk_k_equals_n)
     migraphx::shape s{migraphx::shape::float_type, {3, 5}};
     auto data = mm->add_parameter("data", s);
     // k=5 equals axis=1 dimension of 5
-    auto r  = mm->add_instruction(
-        migraphx::make_op("topk", {{"axis", 1}, {"k", 5}, {"largest", 0}}), data);
+    auto r = mm->add_instruction(migraphx::make_op("topk", {{"axis", 1}, {"k", 5}, {"largest", 0}}),
+                                 data);
     auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
     auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
     mm->add_return({r0, r1});

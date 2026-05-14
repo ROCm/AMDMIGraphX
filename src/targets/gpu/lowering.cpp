@@ -239,7 +239,7 @@ struct miopen_apply
     instruction_ref insert_dynamic_code_object_op(instruction_ref ins) const
     {
         assert(ins->get_operator().name() == "gpu::precompile_op");
-        //some op returns a tuple shape e.g. TopK
+        // some op returns a tuple shape e.g. TopK
         if(not ins->get_shape().any_of_dynamic())
             return ins;
 

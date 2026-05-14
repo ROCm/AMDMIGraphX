@@ -36,9 +36,6 @@
 
 namespace migraphx {
 
-// Per-box record carried through the sort. Box corners are stored normalized
-// to (xmin, ymin, xmax, ymax) so the IoU computation is independent of the
-// center_point_box attribute.
 struct nms_data
 {
     float score;
@@ -47,24 +44,25 @@ struct nms_data
 };
 
 // Decode a single box into (xmin, ymin, xmax, ymax) corners.
-template <bool CenterPointBox>
-__device__ inline array<float, 4> nms_normalize_box(const float* b)
+// Normalize such that [x1, y1] is the bottom left corner
+template <bool CenterPointBox, class Box>
+__device__ inline array<float, 4> nms_normalize_box(Box box)
 {
     if constexpr(CenterPointBox)
     {
-        const float xc = b[0];
-        const float yc = b[1];
-        const float hw = b[2] * 0.5f;
-        const float hh = b[3] * 0.5f;
+        const float xc = box[0];
+        const float yc = box[1];
+        const float hw = box[2] * 0.5f;
+        const float hh = box[3] * 0.5f;
         return {xc - hw, yc - hh, xc + hw, yc + hh};
     }
     else
     {
         // ONNX layout: [y1, x1, y2, x2]; corners may be in either order.
-        const float y1   = b[0];
-        const float x1   = b[1];
-        const float y2   = b[2];
-        const float x2   = b[3];
+        const float y1   = box[0];
+        const float x1   = box[1];
+        const float y2   = box[2];
+        const float x2   = box[3];
         const float xmin = min(x1, x2);
         const float xmax = max(x1, x2);
         const float ymin = min(y1, y2);
@@ -73,8 +71,9 @@ __device__ inline array<float, 4> nms_normalize_box(const float* b)
     }
 }
 
+template <class Box>
 __device__ inline bool
-nms_iou_over_threshold(const array<float, 4>& a, const array<float, 4>& b, float threshold)
+nms_iou_over_threshold(const Box a, Box b, float threshold)
 {
     const float left   = max(a[0], b[0]);
     const float right  = min(a[2], b[2]);
@@ -97,6 +96,7 @@ __device__ inline index_int nms_packed_idx(index_int i, index_int j, index_int N
     return (i * N - (i * (i + 1)) / 2) + j - (i + 1);
 }
 
+// Comparator for sorting nms_data{}.
 struct nms_score_greater
 {
     constexpr bool operator()(const nms_data& a, const nms_data& b) const
@@ -105,18 +105,42 @@ struct nms_score_greater
     }
 };
 
-// Phase 1: load (score, box, box_index) tuples into a per-block buffer of
-// AlignedN entries (power of two), padding the [N, AlignedN) tail with sentinel
-// values, then sort the buffer in descending order by score.
-template <bool CenterPointBox, index_int N, index_int AlignedN>
-__device__ void nms_load_and_sort(index idx,
-                                  const float* boxes_b,   // [N, 4]
-                                  const float* scores_bc, // [N]
-                                  nms_data* sorted)
+// Phase 1
+// One block per (batch_idx, class_idx).
+// Load data into per-block buffer of nms_data.
+// Pads values after N with sentinel values.
+// Sorts the nms_data in descending order by score.
+// boxes_tv: dims([N, 4]) of float.
+// scores_tv: dims([N]) of float.
+// sorted_tv: dims([N]) of nms_data{}.
+template <bool CenterPointBox,
+          index_int NumBatches,
+          index_int NumClasses,
+          index_int NumBoxes,
+          index_int AlignedNumBoxes,
+          class Boxes,
+          class Scores,
+          class Output>
+__device__ void nonmaxsuppression_sort(Boxes boxes_tv, Scores scores_tv, Output out_tv)
 {
-    idx.local_stride(AlignedN, [&](auto i) {
-        nms_data d;
-        if(i < N)
+    static_assert(NumBatches > 0, "num_batches must be > 0");
+    static_assert(NumClasses > 0, "num_classes must be > 0");
+
+    auto idx = make_index();
+    const index_int block_id = idx.group;
+    const int batch_idx      = static_cast<int>(block_id / NumClasses);
+    const int class_idx      = static_cast<int>(block_id % NumClasses);
+    
+    constexpr auto block_out_shape = make_shape(index_ints<AlignedNumBoxes>{});
+    auto* p = reinterpret_cast<nms_data*>(out_tv.data()) + block_id * AlignedNumBoxes;
+    auto block_out_tv = make_tensor_view<nms_data>(p, block_out_shape);
+
+    const auto* boxes_b   = boxes_tv.data() + batch_idx * NumBoxes * 4;
+    const auto* scores_bc = scores_tv.data() + (batch_idx * NumClasses + class_idx) * NumBoxes;
+
+    nms_data d;
+    idx.local_stride(AlignedNumBoxes, [&](auto i) {
+        if(i < NumBoxes)
         {
             d.score     = scores_bc[i];
             d.box       = nms_normalize_box<CenterPointBox>(boxes_b + i * 4);
@@ -130,14 +154,15 @@ __device__ void nms_load_and_sort(index idx,
             d.box       = array<float, 4>{0.f, 0.f, 0.f, 0.f};
             d.box_index = -1;
         }
-        sorted[i] = d;
+        block_out_tv[i] = d;
     });
     __syncthreads();
-    bitonic_sort<nms_score_greater>{nms_score_greater{}}.template block_sort<AlignedN>(idx, sorted);
+    bitonic_sort<nms_score_greater>{nms_score_greater{}}.template block_sort<AlignedNumBoxes>(idx, block_out_tv);
 }
 
-// Phase 2: build the packed upper-triangular IoU mask for the N sorted boxes.
-// Work is striped (i, N-1-i) per thread so each thread does roughly the same
+// Phase 2
+// Build the packed upper-triangular IoU mask for the N sorted boxes.
+// Work is striped such that each thread does a multiple of 2 rows so each does roughly the same
 // amount of work regardless of where it falls in the triangle.
 template <index_int N>
 __device__ void nms_make_iou_mask(index idx, const nms_data* sorted, uint8_t* mask, float iou_thr)
@@ -164,17 +189,16 @@ __device__ void nms_make_iou_mask(index idx, const nms_data* sorted, uint8_t* ma
     }
 }
 
-// Phase 3: greedy filter that writes selections into a per-block region of a
-// scratch buffer (block_id * N entries) and stores the per-block count. A
-// follow-up compaction kernel gathers per-block regions in block_id order to
-// produce a deterministic compacted output that matches the CPU op.
+// Phase 3
+// Greedy filter that writes selections into a per-block region of a
+// scratch buffer (block_id * N entries) and stores the per-block count.
 template <index_int N>
 __device__ void nms_filter_per_block(index idx,
                                      const nms_data* sorted,
                                      const uint8_t* mask,
                                      int batch_idx,
                                      int class_idx,
-                                     index_int max_output,
+                                     int64_t max_output,
                                      float score_thr,
                                      int64_t* raw_output,    // [num_blocks * N * 3]
                                      int32_t* block_counts)  // [num_blocks]
@@ -223,6 +247,72 @@ __device__ void nms_filter_per_block(index idx,
         block_counts[block_id] = static_cast<int32_t>(output_idx);
 }
 
+// Per-block filter driver: one block per (batch_idx, class_idx). Reads the
+// previously-sorted records out of `sorted_buf`, builds the IoU mask in
+// `mask_buf`, then runs the greedy filter writing selections into a per-block
+// region of `raw_output` and the per-block count into `counts_buf`.
+//
+// Expecting box-coordinate convention has already been normalized into corner form
+// in `sorted_buf`.
+//
+// `raw_output_buf` is intentionally the last parameter so that JIT-compiled
+// callers (which use `inputs.back()` as the kernel's output buffer) treat it
+// as the chained output flowing into the compact kernel.
+template <index_int NumBatches,
+          index_int NumClasses,
+          index_int NumBoxes,
+          index_int AlignedNumBoxes,
+          class Sorted,
+          class MaxOut,
+          class IouThr,
+          class ScoreThr,
+          class Mask,
+          class Counts,
+          class RawOutput>
+__device__ void nonmaxsuppression_filter(Sorted sorted_buf,
+                                         MaxOut max_out_p,
+                                         IouThr iou_thr_p,
+                                         ScoreThr score_thr_p,
+                                         Mask mask_buf,
+                                         Counts counts_buf,
+                                         RawOutput raw_output_buf)
+{
+    static_assert(NumBatches > 0, "num_batches must be > 0");
+    static_assert(NumClasses > 0, "num_classes must be > 0");
+
+    auto idx                            = make_index();
+    const index_int block_id            = idx.group;
+    const int batch_idx                 = static_cast<int>(block_id / NumClasses);
+    const int class_idx                 = static_cast<int>(block_id % NumClasses);
+    constexpr index_int iou_packed_size = (NumBoxes > 1) ? (NumBoxes * (NumBoxes - 1)) / 2 : 1;
+
+    nms_data* my_sorted =
+        reinterpret_cast<nms_data*>(sorted_buf.data()) + block_id * AlignedNumBoxes;
+    uint8_t* my_mask = reinterpret_cast<uint8_t*>(mask_buf.data()) + block_id * iou_packed_size;
+
+    // Pull scalar tensor inputs once. They're broadcast to all threads via the
+    // common load (each thread reads the same single element).
+    const int64_t max_output_boxes_per_class = max_out_p[0];
+    const float iou_thr_val   = iou_thr_p[0];
+    const float score_thr_val = score_thr_p[0];
+
+    if constexpr(NumBoxes > 1)
+    {
+        nms_make_iou_mask<NumBoxes>(idx, my_sorted, my_mask, iou_thr_val);
+        __syncthreads();
+    }
+
+    nms_filter_per_block<NumBoxes>(idx,
+                                   my_sorted,
+                                   my_mask,
+                                   batch_idx,
+                                   class_idx,
+                                   max_output_boxes_per_class,
+                                   score_thr_val,
+                                   reinterpret_cast<int64_t*>(raw_output_buf.data()),
+                                   reinterpret_cast<int32_t*>(counts_buf.data()));
+}
+
 // Single-block compaction: an exclusive prefix scan over block_counts gives
 // each per-block region a base offset in the final output; threads in the
 // single launched block then scatter the per-block selections in parallel.
@@ -230,6 +320,7 @@ __device__ void nms_filter_per_block(index idx,
 // iteration order, and each block writes its `block_counts[b]` entries in
 // order, so the final output is bit-for-bit identical to the serial walker.
 // Trailing slots are left as the zero fill applied before this kernel runs.
+// TODO: this explaination makes no sense
 template <index_int NumBlocks, index_int NumBoxes>
 __device__ void
 nms_compact(index idx, const int64_t* raw_output, const int32_t* block_counts, int64_t* output)
@@ -269,116 +360,6 @@ nms_compact(index idx, const int64_t* raw_output, const int32_t* block_counts, i
     });
 }
 
-// Per-block sort driver: one block per (batch_idx, class_idx). Loads boxes /
-// scores for this (batch, class) into a per-block region of `sorted_buf` and
-// runs a block-level bitonic sort. The result feeds the follow-up filter
-// kernel, which reads `sorted_buf` and writes the IoU mask / per-block
-// selection list.
-//
-// `sorted_buf` is the last parameter so the JIT framework treats it as the
-// chained output flowing into the filter kernel.
-template <bool CenterPointBox,
-          index_int NumBatches,
-          index_int NumClasses,
-          index_int NumBoxes,
-          index_int AlignedNumBoxes,
-          class Boxes,
-          class Scores,
-          class Sorted>
-__device__ void nonmaxsuppression_sort(Boxes boxes, Scores scores, Sorted sorted_buf)
-{
-    static_assert(NumBatches > 0, "num_batches must be > 0");
-    static_assert(NumClasses > 0, "num_classes must be > 0");
-
-    auto idx                 = make_index();
-    const index_int block_id = idx.group;
-    const int batch_idx      = static_cast<int>(block_id / NumClasses);
-    const int class_idx      = static_cast<int>(block_id % NumClasses);
-
-    nms_data* my_sorted =
-        reinterpret_cast<nms_data*>(sorted_buf.data()) + block_id * AlignedNumBoxes;
-
-    const float* boxes_b   = boxes.data() + batch_idx * NumBoxes * 4;
-    const float* scores_bc = scores.data() + (batch_idx * NumClasses + class_idx) * NumBoxes;
-
-    nms_load_and_sort<CenterPointBox, NumBoxes, AlignedNumBoxes>(
-        idx, boxes_b, scores_bc, my_sorted);
-}
-
-// Per-block filter driver: one block per (batch_idx, class_idx). Reads the
-// previously-sorted records out of `sorted_buf`, builds the IoU mask in
-// `mask_buf`, then runs the greedy filter writing selections into a per-block
-// region of `raw_output` and the per-block count into `counts_buf`.
-//
-// The box-coordinate convention has already been normalized into corner form
-// in `sorted_buf`, so this driver does not need `CenterPointBox`.
-//
-// `raw_output_buf` is intentionally the last parameter so that JIT-compiled
-// callers (which use `inputs.back()` as the kernel's output buffer) treat it
-// as the chained output flowing into the compact kernel.
-template <index_int NumBatches,
-          index_int NumClasses,
-          index_int NumBoxes,
-          index_int AlignedNumBoxes,
-          class Sorted,
-          class MaxOut,
-          class IouThr,
-          class ScoreThr,
-          class Mask,
-          class Counts,
-          class RawOutput>
-__device__ void nonmaxsuppression_filter(Sorted sorted_buf,
-                                         MaxOut max_out_p,
-                                         IouThr iou_thr_p,
-                                         ScoreThr score_thr_p,
-                                         Mask mask_buf,
-                                         Counts counts_buf,
-                                         RawOutput raw_output_buf)
-{
-    static_assert(NumBatches > 0, "num_batches must be > 0");
-    static_assert(NumClasses > 0, "num_classes must be > 0");
-
-    auto idx                            = make_index();
-    const index_int block_id            = idx.group;
-    const int batch_idx                 = static_cast<int>(block_id / NumClasses);
-    const int class_idx                 = static_cast<int>(block_id % NumClasses);
-    constexpr index_int iou_packed_size = (NumBoxes > 1) ? (NumBoxes * (NumBoxes - 1)) / 2 : 1;
-
-    nms_data* my_sorted =
-        reinterpret_cast<nms_data*>(sorted_buf.data()) + block_id * AlignedNumBoxes;
-    uint8_t* my_mask = reinterpret_cast<uint8_t*>(mask_buf.data()) + block_id * iou_packed_size;
-
-    // Pull scalar tensor inputs once. They're broadcast to all threads via the
-    // common load (each thread reads the same single element).
-    const int64_t max_out_val = max_out_p[0];
-    const float iou_thr_val   = iou_thr_p[0];
-    const float score_thr_val = score_thr_p[0];
-
-    if constexpr(NumBoxes > 1)
-    {
-        nms_make_iou_mask<NumBoxes>(idx, my_sorted, my_mask, iou_thr_val);
-        __syncthreads();
-    }
-
-    // The CPU op reads max_output_boxes_per_class as std::size_t, so a negative
-    // signed value is treated as a very large unsigned (effectively unlimited).
-    // Mirror that here by reinterpreting as unsigned and then capping at
-    // NumBoxes, which is the most we could ever emit per (batch, class) block.
-    const auto max_unsigned    = static_cast<uint64_t>(max_out_val);
-    const index_int max_output = (max_unsigned > static_cast<uint64_t>(NumBoxes))
-                                     ? static_cast<index_int>(NumBoxes)
-                                     : static_cast<index_int>(max_unsigned);
-    nms_filter_per_block<NumBoxes>(idx,
-                                   my_sorted,
-                                   my_mask,
-                                   batch_idx,
-                                   class_idx,
-                                   max_output,
-                                   score_thr_val,
-                                   reinterpret_cast<int64_t*>(raw_output_buf.data()),
-                                   reinterpret_cast<int32_t*>(counts_buf.data()));
-}
-
 // Compact wrapper invoked from the final JIT kernel. Reads the per-block
 // counts and raw_output produced by `nonmaxsuppression_filter` and copies
 // selections into the final output in block_id (i.e. (batch, class)) order.
@@ -387,7 +368,7 @@ __device__ void nonmaxsuppression_filter(Sorted sorted_buf,
 template <index_int NumBlocks, index_int NumBoxes, class Counts, class RawOutput, class Output>
 __device__ void nonmaxsuppression_compact(Counts counts_buf,
                                           RawOutput raw_output_buf,
-                                          Output output)
+                                          Output output_indices)
 {
     static_assert(NumBlocks > 0, "num_blocks must be > 0");
 
@@ -395,7 +376,7 @@ __device__ void nonmaxsuppression_compact(Counts counts_buf,
     nms_compact<NumBlocks, NumBoxes>(idx,
                                      reinterpret_cast<const int64_t*>(raw_output_buf.data()),
                                      reinterpret_cast<const int32_t*>(counts_buf.data()),
-                                     output.data());
+                                     output_indices.data());
 }
 
 } // namespace migraphx

@@ -41,9 +41,9 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         auto op = parser.load(opd.op_name, info);
         auto nms_ins = info.add_instruction(op, args);
         // variable ends input slice to handle dynamic shape output
-        auto nms_indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
-        auto nms_num_selected = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
-        auto slice_ins = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {0}}}, nms_indices, nms_num_selected));
+        auto indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
+        auto num_selected = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
+        auto slice_ins = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
         return slice_ins;
     }
 };

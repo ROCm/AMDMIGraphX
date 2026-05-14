@@ -108,7 +108,7 @@ struct miopen_apply
         add_if_op();
         add_loop_op();
         add_neg_op();
-        add_nms_op();
+        //add_nms_op();
         add_lrn_op();
         add_convolution_backwards_op();
         add_select_module_op();

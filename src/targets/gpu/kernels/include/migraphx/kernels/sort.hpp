@@ -146,8 +146,8 @@ struct bitonic_sort
     // (e.g. greater{} -> descending). The buffer must be sized to N (a
     // compile-time power of 2); callers pad with sentinel values when the
     // logical length is smaller.
-    template <index_int N, class T>
-    __device__ void block_sort(index idx, T* buf) const
+    template <index_int N, class Array>
+    __device__ void block_sort(index idx, Array& buf) const
     {
         static_assert(is_power_of_2(N), "N must be a power of 2");
         for(index_int k = 2; k <= N; k <<= 1)

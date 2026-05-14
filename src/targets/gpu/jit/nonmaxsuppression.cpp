@@ -135,54 +135,48 @@ MIGRAPHX_GLOBAL void nms_compact_kernel(${params})
 } // namespace migraphx
 )__migraphx__";
 
+// TODO: use compute_block_size and/or compute_global_for?
+// TODO: Don't need num_batches, num_classes, num_boxes as template parameters since tensor_view has shapes.
 struct nms_compiler : compiler<nms_compiler>
 {
     std::vector<std::string> names() const { return {"nonmaxsuppression"}; }
 
-    // Compile the per-block sort kernel. `inputs` is:
-    //   [boxes, scores, sorted]
-    // `sorted` is the last input so the framework treats it as the kernel's
-    // chained output flowing into the filter kernel. Launch is sized to
-    // AlignedNumBoxes so the bitonic sort has enough lane-parallelism even
-    // when NumBoxes is small relative to it.
+    // Compile the sort kernel.
+    // inputs: [boxes, scores, sorted]
     operation
     compile_sort(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         const auto& boxes_s  = inputs[0];
         const auto& scores_s = inputs[1];
-        const auto nb        = boxes_s.lens()[0];
-        const auto b         = boxes_s.lens()[1];
-        const auto nc        = scores_s.lens()[1];
-        const auto aligned_b = static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(b)));
-        // bitonic block_sort uses __syncthreads between every stage; pad up
-        // to a wavefront so degenerate cases (e.g. NumBoxes <= 1) still
-        // launch a valid block.
-        const auto block_size = std::min<std::size_t>(
-            std::max<std::size_t>(aligned_b, std::size_t{64}), std::size_t{1024});
+        const auto num_batches        = boxes_s.lens()[0];
+        const auto num_boxes          = boxes_s.lens()[1];
+        const auto num_classes        = scores_s.lens()[1];
+        const auto aligned_b = static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
+        // clamp between 64 and 1024 threads based on aligned_num_boxes
+        const auto block_size = std::min<std::size_t>(std::max<std::size_t>(aligned_b, std::size_t{64}), std::size_t{1024});
 
         hip_compile_options options;
         options.inputs         = inputs;
         options.output         = inputs.back(); // sorted buffer
         options.kernel_name    = "nms_sort_kernel";
         options.virtual_inputs = inputs;
-        options.set_launch_params(v, block_size * nb * nc, block_size);
+        options.set_launch_params(v, block_size * num_batches * num_classes, block_size);
 
         auto src = interpolate_string(
             nms_sort_kernel_src,
             {{"params", enum_params(inputs.size(), "void * private_p")},
              {"args", enum_params(inputs.size(), "private_p")},
-             {"num_batches", std::to_string(nb)},
-             {"num_classes", std::to_string(nc)},
-             {"num_boxes", std::to_string(b)},
+             {"num_batches", std::to_string(num_batches)},
+             {"num_classes", std::to_string(num_classes)},
+             {"num_boxes", std::to_string(num_boxes)},
              {"aligned_num_boxes", std::to_string(aligned_b)},
              {"center_point_box",
               v.at("center_point_box").to<bool>() ? "true" : "false"}});
         return compile_hip_code_object(ctx, src, options);
     }
 
-    // Compile the per-block filter kernel. `inputs` is:
-    //   [sorted, max, iou, score_thr, mask, counts, raw_output]
-    // `raw_output` is the last input so the framework treats it as the
+    // inputs: [sorted, max, iou, score_thr, mask, counts, raw_output]
+    // `raw_output` is the last input so the framework treats it as the(
     // kernel's chained output flowing into the compact kernel. The filter's
     // inner loops are O(N) per (batch, class), so the launch is sized to
     // NumBoxes (not AlignedNumBoxes) to avoid leaving padding-only threads
@@ -225,6 +219,7 @@ struct nms_compiler : compiler<nms_compiler>
         return compile_hip_code_object(ctx, src, options);
     }
 
+    // TODO: REDO this whole thing. It doesn't make sense.
     // Compile the compaction kernel. `inputs` is:
     //   [counts, raw_output, output]
     // Launched as a single block: an exclusive prefix scan over counts gives
@@ -260,6 +255,7 @@ struct nms_compiler : compiler<nms_compiler>
         options.output         = inputs.back();
         options.kernel_name    = "nms_compact_kernel";
         options.virtual_inputs = inputs;
+        // BUG: this is not one block
         options.set_launch_params(v, block_size, block_size); // one block
 
         auto src = interpolate_string(
@@ -397,14 +393,6 @@ struct nms_compiler : compiler<nms_compiler>
                         ins2, make_op("hip::allocate", {{"shape", to_value(raw_output_s)}}));
                     auto counts = m.insert_instruction(
                         ins2, make_op("hip::allocate", {{"shape", to_value(counts_s)}}));
-
-                    // Pre-zero the final output buffer so unwritten rows match
-                    // the CPU implementation's behavior (trailing zeros). The
-                    // counts and raw_out scratch don't need zeroing: each
-                    // block writes its count exactly once and the compact
-                    // kernel only reads counts[b] entries from each block.
-                    out = m.insert_instruction(
-                        ins2, make_op("hip::fill", {{"value", 0}}), out);
 
                     // Phase 1: sort. Inputs are [boxes, scores, sorted]; the
                     // returned `sort_ins` is the post-write `sorted` buffer

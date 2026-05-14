@@ -72,7 +72,7 @@ struct nonmaxsuppression
         auto max_classes           = inputs.at(1).max_lens().at(1);
         auto max_spatial_dimension = inputs.at(0).max_lens().at(1);
         // Per ONNX spec, output is [num_selected_indices, 3] where each row is
-        // [batch_index, class_index, box_index].  The maximum possible
+        // [batch_index, class_index, box_index]. The maximum possible
         // num_selected_indices = num_batches * num_classes * spatial_dimension.
         const auto max_num_boxes = max_batches * max_classes * max_spatial_dimension;
 
@@ -92,7 +92,9 @@ struct nonmaxsuppression
 
         fixed_shape_error_check();
         std::vector<std::size_t> out_lens = {max_num_boxes, 3};
-        return {shape::int64_type, out_lens};
+        shape s_ind{shape::int64_type, out_lens};
+        shape s_num_selected{shape::int64_type, {1}};
+        return shape({s_ind, s_num_selected});
     }
 
     struct box
@@ -223,7 +225,7 @@ struct nonmaxsuppression
     std::size_t compute_nms(Output output,
                             const Boxes& boxes,
                             const Scores& scores,
-                            std::size_t max_output_boxes_per_class,
+                            int64_t max_output_boxes_per_class,
                             double iou_threshold,
                             double score_threshold) const
     {
@@ -320,7 +322,7 @@ struct nonmaxsuppression
         num_selected_result.visit([&](auto output){
             output.begin() = num_selected;
         });
-        return {{result, num_selected}};
+        return {{result, num_selected_result}};
     }
 };
 

@@ -43,14 +43,18 @@ struct test_nms : verify_program<test_nms>
         auto iou_threshold   = mm->add_literal(0.5f);
         auto score_threshold = mm->add_literal(0.0f);
 
-        auto r =
+        auto nms =
             mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", 1}}),
                                 boxes_l,
                                 scores_l,
                                 max_out_l,
                                 iou_threshold,
                                 score_threshold);
-        mm->add_return({r});
+
+        auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+        auto num_selected = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+        auto slice_ins = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
+        mm->add_return({slice_ins});
 
         return p;
     }

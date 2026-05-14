@@ -105,7 +105,7 @@ struct nms_score_greater
     }
 };
 
-// Kernel 1.
+// Phase 1
 // One block per (batch_idx, class_idx).
 // Load data into per-block buffer of nms_data.
 // Pads values after N with sentinel values.
@@ -148,8 +148,7 @@ __device__ void nonmaxsuppression_sort(Boxes boxes_tv, Scores scores_tv, Output 
         }
         else
         {
-            // Sentinel: -inf score so it never beats any real entry, and a
-            // negative box_index so accidental dereferencing is detectable.
+            // Sentinel: -inf score so it never beats any real entry
             d.score     = -__FLT_MAX__;
             d.box       = array<float, 4>{0.f, 0.f, 0.f, 0.f};
             d.box_index = -1;
@@ -160,12 +159,14 @@ __device__ void nonmaxsuppression_sort(Boxes boxes_tv, Scores scores_tv, Output 
     bitonic_sort<nms_score_greater>{nms_score_greater{}}.template block_sort<AlignedNumBoxes>(idx, block_out_tv);
 }
 
-// Part of kernel 2.
+// Phase 2
 // Build the packed upper-triangular IoU mask for the N sorted boxes.
 // Work is striped such that each thread does a multiple of 2 rows so each does roughly the same
 // amount of work regardless of where it falls in the triangle.
-template <index_int N>
-__device__ void nms_make_iou_mask(index idx, const nms_data* sorted, uint8_t* mask, float iou_thr)
+// `sorted`: sorted nms_data{} tensor
+// `mask`: bool mask tensor
+template <index_int N, class SortedData, class Mask>
+__device__ void nms_make_iou_mask(index idx, const SortedData sorted, Mask mask, float iou_threshold)
 {
     constexpr index_int half = N / 2;
 
@@ -173,7 +174,7 @@ __device__ void nms_make_iou_mask(index idx, const nms_data* sorted, uint8_t* ma
         for(index_int j = i + 1; j < N; ++j)
         {
             mask[nms_packed_idx(i, j, N)] =
-                nms_iou_over_threshold(sorted[i].box, sorted[j].box, iou_thr) ? 1 : 0;
+                nms_iou_over_threshold(sorted[i].box, sorted[j].box, iou_threshold) ? 1 : 0;
         }
     };
 
@@ -189,7 +190,7 @@ __device__ void nms_make_iou_mask(index idx, const nms_data* sorted, uint8_t* ma
     }
 }
 
-// Part of kernel 2.
+// Phase 2
 // Greedy filter that writes selections into a per-block region of a
 // scratch buffer (block_id * N entries) and stores the per-block count.
 template <index_int N>
@@ -282,8 +283,8 @@ __device__ void nonmaxsuppression_filter(Sorted sorted_buf,
 
     auto idx                            = make_index();
     const index_int block_id            = idx.group;
-    const int batch_idx                 = static_cast<int>(block_id / NumClasses);
-    const int class_idx                 = static_cast<int>(block_id % NumClasses);
+    const int batch_idx                 = block_id / NumClasses;
+    const int class_idx                 = block_id % NumClasses;
     constexpr index_int iou_packed_size = (NumBoxes > 1) ? (NumBoxes * (NumBoxes - 1)) / 2 : 1;
 
     nms_data* my_sorted =
@@ -314,7 +315,7 @@ __device__ void nonmaxsuppression_filter(Sorted sorted_buf,
 }
 
 
-// Kernel 3.
+// Phase 3
 // Move batch/class box index entries to the beginning of the output buffer.
 // Runs with 1 block. Swaps indices within `output_indices`.
 // `bc_counts`: Number of selected boxes per batch per class. (read-only)

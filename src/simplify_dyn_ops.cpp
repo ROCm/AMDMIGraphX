@@ -412,7 +412,7 @@ struct find_const_alloc_fill : match::supports_dynamic_shapes
  * From:
  * broadcast_for_dot(static_shape_arg, static_shape_arg)
  * To:
- * multibroadcast(static_shape_arg); output_lens = static_broadcast_for_doted_shape
+ * multibroadcast(static_shape_arg); output_lens = static_broadcast_for_dotted_shape
  */
 struct find_static_broadcast_for_dot : match::supports_dynamic_shapes
 {

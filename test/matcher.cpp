@@ -1188,4 +1188,14 @@ TEST_CASE(match_finder)
     match::find_matches(mm, match_find_sum{sum}, match_find_literal{sum});
 }
 
+TEST_CASE(match_same_lens_inner_fails)
+{
+    migraphx::module mm;
+    auto one = mm.add_literal(1);
+    mm.add_instruction(pass_op{}, one);
+    auto m = match::same_lens(match::name("fake_op"));
+    auto r = find_match(mm, m);
+    EXPECT(r.result == mm.end());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

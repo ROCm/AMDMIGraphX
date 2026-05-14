@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added YOLO26 object detection example notebook.
 * Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).
 * Added a dedicated logger for MIGraphX.
 * [Linux] Use HSA API to query number of chiplets for architectures where this is applicable (ex. gfx90a).
@@ -16,10 +17,14 @@ Full documentation for MIGraphX is available at
 * Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
+* Added trace callback function to allow inspection of instruction output buffers; see `examples/migraphx/cpp_trace_callback` for an example (#4780).
 * Added JIT compiler for `multinomial` operation (#4721).
 * Added build support for python 3.14 (#4754).
 * Added debug symbols for MIGraphX instructions such that parsed and compiled instructions can be tracked back to their ONNX origin node (#4626)
 * Added environment variable `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` to dump mxr files for benchmarking. (#4766)
+* Added per-channel scale/zero-point support for `QLinearConv` operator.
+* Added N-D scale and zero-point support for `QLinearMatMul` operator.
+* Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 
 ### Changed
 
@@ -33,6 +38,8 @@ Full documentation for MIGraphX is available at
 * Replaced usages of `std::cout` and `std::cerr` with the logger (#4732)
 * Converted RNN variable sequence length operations (`rnn_var_sl_shift_sequence`, `rnn_var_sl_shift_output`, `rnn_var_sl_last_output`) from device implementation to JIT compilation (#4755).
 * Allowing all grouped convolutions to go through rocMLIR. Previously only allowed 2D convolutions (#4815). 
+* Updated `bcast_qdq_instr` to accept an `axis` parameter for broadcasting 1-D scale/zero-point along the correct dimension.
+* Updated `QLinearConv` bias handling to dequantize bias using the product of input and weight scales before adding to the convolution output.
 
 ### Resolved issues
 

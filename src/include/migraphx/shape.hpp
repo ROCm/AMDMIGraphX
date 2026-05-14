@@ -447,12 +447,29 @@ struct MIGRAPHX_EXPORT shape
 
     shape with_type(type_t t) const;
 
-    // convert the shape to an equivalent dynamic shape with constant symbolic strides
+    // convert the shape to an equivalent range-based dynamic shape: each static len becomes
+    // dd{len, len} (strides are not carried); a symbolic shape is demoted by evaluating
+    // each dim's interval/optimals (symbolic strides are dropped). Idempotent on a shape
+    // that is already range-based dynamic.
     shape to_dynamic() const;
+
+    // Align a list of shapes to a single representation. If any input contains a
+    // range-based dynamic shape (at any nesting level), every shape is converted via
+    // to_dynamic() (symbolic inputs are demoted). Otherwise every shape is converted
+    // via to_symbolic() (static inputs are promoted to symbolic literals). Recurses
+    // into tuple sub-shapes.
+    static std::vector<shape> to_dynamic(const std::vector<shape>& shapes);
+
+    // convert the shape to an equivalent symbolic dynamic shape: each static len becomes
+    // dd{sym::lit(len)} and each static stride becomes sym::lit(stride). Idempotent on a
+    // shape that is already symbolic. Throws on a range-based dynamic shape.
+    shape to_symbolic() const;
 
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
     shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map) const;
+    // Collapse a fully-fixed shape to a static one; throws on non-fixed dimensions.
+    shape to_static() const;
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
@@ -571,6 +588,26 @@ struct MIGRAPHX_EXPORT shape
     std::size_t element_space() const;
 
     void debug_print() const;
+
+    /// Whether a dim-like value has a single, known static integer value.
+    static bool is_fixed_dim(std::size_t) { return true; }
+    static bool is_fixed_dim(const dynamic_dimension& d) { return d.is_fixed(); }
+
+    /// Extract the static integer value from a fixed dim-like value. Caller is
+    /// responsible for ensuring `is_fixed_dim(x)` first.
+    static std::size_t static_dim_value(std::size_t x) { return x; }
+    static std::size_t static_dim_value(const dynamic_dimension& d)
+    {
+        if(not d.is_fixed())
+            MIGRAPHX_THROW("shape::static_dim_value: dimension is not fixed");
+        return d.get_interval().max;
+    }
+
+    /// Whether all dims of this shape have a single, known static integer value.
+    /// True for static shapes, range-based shapes with all-fixed dims, symbolic
+    /// shapes whose dims are all literals (or vars with collapsed bounds), and
+    /// tuple shapes whose sub-shapes are all fixed.
+    bool is_fixed() const;
 
     private:
     shape(std::shared_ptr<shape_impl> pimpl);

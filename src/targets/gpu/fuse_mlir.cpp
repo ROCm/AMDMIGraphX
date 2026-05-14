@@ -1556,8 +1556,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
 
     match::find_matches(
         mpm,
-        find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_ops.convolution, mlir_mode::fast),
-                                     .counter = &counter},
+        find_mlir_standalone_conv_op{
+            .mode    = get_mode("convolution", mlir_ops.convolution, mlir_mode::fast),
+            .counter = &counter},
         find_mlir_standalone_conv_backwards_op{.mode = conv_backwards_mode, .counter = &counter},
         find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_ops.dot, mlir_mode::fast), .counter = &counter});
 

@@ -603,8 +603,8 @@ migraphx_compile_options_set_fast_math(migraphx_compile_options_t compile_option
 MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_exhaustive_tune_flag(
     migraphx_compile_options_t compile_options, bool value);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_compile_mode(
-    migraphx_compile_options_t compile_options, int8_t value);
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_compile_options_set_compile_mode(migraphx_compile_options_t compile_options, int8_t value);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx(migraphx_program_t* out,
                                                       const char* name,

@@ -66,6 +66,14 @@ typedef enum
 
 } migraphx_status;
 
+typedef enum
+{
+    migraphx_compile_mode_eager    = 0,
+    migraphx_compile_mode_balanced = 50,
+    migraphx_compile_mode_max      = 100,
+
+} migraphx_compile_mode;
+
 #define MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES(x, t) migraphx_shape_##x,
 /// An enum to represent the different data type inputs
 typedef enum
@@ -594,6 +602,9 @@ migraphx_compile_options_set_fast_math(migraphx_compile_options_t compile_option
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_exhaustive_tune_flag(
     migraphx_compile_options_t compile_options, bool value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_compile_mode(
+    migraphx_compile_options_t compile_options, int8_t value);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx(migraphx_program_t* out,
                                                       const char* name,

@@ -42,7 +42,7 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
 
-    compile_modes compile_mode = compile_modes::BALANCED;
+    compile_modes compile_mode = compile_modes::balanced;
 
     tracer trace{};
 };

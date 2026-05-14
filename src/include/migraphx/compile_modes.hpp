@@ -33,12 +33,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 enum class compile_modes
 {
-    EAGER    = 0,
-    BALANCED = 50,
-    MAX      = 100
+    eager    = 0,
+    balanced = 50,
+    max      = 100
 };
 
-MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(const uint8_t mode);
+MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(uint8_t mode);
 MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(const std::string& mode);
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -567,7 +567,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("offload_copy")    = true,
             py::arg("fast_math")       = true,
             py::arg("exhaustive_tune") = false,
-            py::arg("compile_mode")    = migraphx::compile_modes::BALANCED)
+            py::arg("compile_mode")    = migraphx::compile_modes::balanced)
         .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(
             "create_module",
@@ -639,9 +639,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .value("bidirectional", migraphx::op::rnn_direction::bidirectional);
 
     py::enum_<migraphx::compile_modes>(m, "compile_modes")
-        .value("eager", migraphx::compile_modes::EAGER)
-        .value("balanced", migraphx::compile_modes::BALANCED)
-        .value("max", migraphx::compile_modes::MAX);
+        .value("eager", migraphx::compile_modes::eager)
+        .value("balanced", migraphx::compile_modes::balanced)
+        .value("max", migraphx::compile_modes::max);
 
     py::class_<py_macro>(m, "macro")
         .def(py::init([](const std::string& name, py::kwargs kwargs) {

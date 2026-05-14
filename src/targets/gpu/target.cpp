@@ -38,13 +38,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
 
-    if(options.compile_mode == compile_modes::MAX)
+    if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
     pipeline_factory factory{&gctx, options};
 
     std::vector<std::vector<pass>> pipelines;
-    if(options.compile_mode == compile_modes::EAGER)
+    if(options.compile_mode == compile_modes::eager)
     {
         pipelines = {
             factory.dynamic_shapes_pipeline(),

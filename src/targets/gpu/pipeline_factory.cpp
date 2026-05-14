@@ -118,7 +118,7 @@ std::vector<pass> pipeline_factory::required_pipeline() const
             dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},
-            eliminate_data_type_for_gpu{.disable_64bit = options.compile_mode != compile_modes::EAGER and options.fast_math},
+            eliminate_data_type_for_gpu{.disable_64bit = options.compile_mode != compile_modes::eager and options.fast_math},
             rewrite_resize{.affine_only = true},
             dead_code_elimination{}
     };
@@ -214,7 +214,7 @@ std::vector<pass> pipeline_factory::backend_pipeline() const
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
-            compile_ops{get_context(), options.exhaustive_tune, options.compile_mode == compile_modes::EAGER},
+            compile_ops{get_context(), options.exhaustive_tune, options.compile_mode == compile_modes::eager},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},

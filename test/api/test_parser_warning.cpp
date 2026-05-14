@@ -73,4 +73,12 @@ TEST_CASE(set_default_dyn_dim_value_suppresses_unbound_dim_warning)
     EXPECT(not sink.any_unbound_dim_warning());
 }
 
+TEST_CASE(unbound_dim_param_emits_warning)
+{
+    warning_sink sink;
+    (void)read_onnx("dim_param_test.onnx");
+
+    EXPECT(sink.any_unbound_dim_warning());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

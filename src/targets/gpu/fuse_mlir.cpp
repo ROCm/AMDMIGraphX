@@ -1546,8 +1546,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     // always route it through rocMLIR regardless of MIOpen availability or user
     // env-var overrides.
     mlir_mode conv_backwards_mode =
-        get_mode("convolution_backwards", mlir_ops.convolution_backwards, 
-                    MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all);
+        get_mode("convolution_backwards",
+                 mlir_ops.convolution_backwards,
+                 MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all);
     if(starts_with(device_name, "gfx12"))
     {
         conv_backwards_mode = mlir_mode::all;

@@ -22,9 +22,9 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/promote_literals.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/promote_literals.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_common_subexpression.hpp>

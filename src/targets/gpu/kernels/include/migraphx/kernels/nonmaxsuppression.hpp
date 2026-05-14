@@ -256,9 +256,10 @@ __device__ void nms_filter_per_block(index idx,
 // Expecting box-coordinate convention has already been normalized into corner form
 // in `sorted_buf`.
 //
-// `raw_output_buf` is intentionally the last parameter so that JIT-compiled
-// callers (which use `inputs.back()` as the kernel's output buffer) treat it
-// as the chained output flowing into the compact kernel.
+// The parameter order matches the flatten order of the precompile_op tuple
+// output (raw_output, counts). `sorted_buf` and `mask_buf` are scratch inputs
+// allocated upstream; `raw_output_buf` and `counts_buf` are the two halves of
+// the tuple-typed output buffer.
 template <index_int NumBatches,
           index_int NumClasses,
           index_int NumBoxes,
@@ -268,15 +269,15 @@ template <index_int NumBatches,
           class IouThr,
           class ScoreThr,
           class Mask,
-          class Counts,
-          class RawOutput>
+          class RawOutput,
+          class Counts>
 __device__ void nonmaxsuppression_filter(Sorted sorted_buf,
                                          MaxOut max_out_p,
                                          IouThr iou_thr_p,
                                          ScoreThr score_thr_p,
                                          Mask mask_buf,
-                                         Counts counts_buf,
-                                         RawOutput raw_output_buf)
+                                         RawOutput raw_output_buf,
+                                         Counts counts_buf)
 {
     static_assert(NumBatches > 0, "num_batches must be > 0");
     static_assert(NumClasses > 0, "num_classes must be > 0");
@@ -317,16 +318,24 @@ __device__ void nonmaxsuppression_filter(Sorted sorted_buf,
 
 // Phase 3
 // Move batch/class box index entries to the beginning of the output buffer.
-// Runs with 1 block. Swaps indices within `output_indices`.
+// Runs with 1 block. Reads from `raw_indices` (the filter kernel's per-block
+// output) and writes the compacted selections into `output_indices`.
 // `bc_counts`: Number of selected boxes per batch per class. (read-only)
-// `output_indices`: Output box indices that are initially segemented by non-initialized values between selected
-// indices between each batch/class. After this kernel, the selected indicies will be compacted to the beginning
-// of the tensor.
+// `raw_indices`: Per-block raw indices written by the filter kernel
+// (read-only).
+// `output_indices`: Output box indices, packed contiguously at the beginning
+// of the buffer in (batch, class) iteration order.
 // `output_num_selected`: Total number of selected boxes.
-template <index_int NumBatchClass, index_int NumBoxes, class Counts, class IdxOutput, class NumOutput>
+template <index_int NumBatchClass,
+          index_int NumBoxes,
+          class Counts,
+          class RawIndices,
+          class IdxOutput,
+          class NumOutput>
 __device__ void nonmaxsuppression_compact(const Counts bc_counts,
-                                          NumOutput output_num_selected,
-                                          IdxOutput output_indices)
+                                          RawIndices raw_indices,
+                                          IdxOutput output_indices,
+                                          NumOutput output_num_selected)
 {
     static_assert(NumBatchClass > 0, "NumBatchClass must be > 0");
     static_assert(NumBatchClass <= 16000, "nms_compact: NumBlocks exceeds the LDS budget for offsets[]");

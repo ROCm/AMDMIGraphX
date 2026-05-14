@@ -183,6 +183,7 @@ add_library(migraphx_gpu
     pack_args.cpp
     prefuse_ops.cpp
     prepare_mlir.cpp
+    prepare_nonmaxsuppression.cpp
     prepare_reduce.cpp
     perfdb.cpp
     pooling.cpp

@@ -108,7 +108,6 @@ struct miopen_apply
         add_if_op();
         add_loop_op();
         add_neg_op();
-        //add_nms_op();
         add_lrn_op();
         add_convolution_backwards_op();
         add_select_module_op();
@@ -444,34 +443,6 @@ struct miopen_apply
 
             return mod->replace_instruction(
                 ins, make_op("gpu::loop", ins->get_operator().to_value()), inputs, mod_args);
-        });
-    }
-
-    void add_nms_op()
-    {
-        apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
-            // Fixed-output NMS is handled by the JIT kernel registered via
-            // jit/nonmaxsuppression.cpp; route it through insert_precompile_op
-            // so compile_ops picks it up later. The dynamic-output mode still
-            // falls back to the CPU implementation.
-            auto op_val = ins->get_operator().to_value();
-            if(not op_val.at("use_dyn_output").to<bool>())
-                return insert_precompile_op(ins);
-
-            auto s      = ins->get_shape();
-            auto output = insert_allocation(ins, s);
-            std::vector<instruction_ref> cpu_inputs;
-            auto inputs = ins->inputs();
-            std::transform(
-                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
-                });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
-            auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
-            return mod->replace_instruction(ins, gpu_out);
         });
     }
 

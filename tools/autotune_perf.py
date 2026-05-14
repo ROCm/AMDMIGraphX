@@ -23,7 +23,11 @@
 # THE SOFTWARE.
 #####################################################################################
 
-"""Run migraphx-driver perf under curated MIGraphX environment-variable knobs."""
+"""Run migraphx-driver perf under curated MIGraphX environment-variable knobs.
+
+``MIGRAPHX_MLIR_USE_SPECIFIC_OPS`` values follow ``fuse_mlir.cpp`` (fused, convolution, dot, attention).
+There is no ``MIGRAPHX_DISABLE_MIOPEN_POOLING``; pooling is probed with ``MIGRAPHX_ENABLE_MIOPEN_POOLING=1``.
+"""
 
 from __future__ import annotations
 
@@ -38,11 +42,15 @@ from typing import Iterable
 
 TOTAL_TIME_MS = re.compile(r"Total time:\s*([0-9]+\.?[0-9]*)\s*ms")
 
+_MLIR_OPS_WHITELIST = "convolution,dot,fused,attention"
+
 KNOBS: tuple[tuple[str, str, str], ...] = (
     ("NHWC layout", "MIGRAPHX_ENABLE_NHWC", "1"),
     ("GEMM provider rocBLAS", "MIGRAPHX_SET_GEMM_PROVIDER", "rocblas"),
     ("Enable CK GEMM", "MIGRAPHX_ENABLE_CK", "1"),
     ("Disable MLIR", "MIGRAPHX_DISABLE_MLIR", "1"),
+    ("MLIR use specific ops", "MIGRAPHX_MLIR_USE_SPECIFIC_OPS", _MLIR_OPS_WHITELIST),
+    ("Enable MIOpen pooling", "MIGRAPHX_ENABLE_MIOPEN_POOLING", "1"),
     ("Conv->dot rewrite", "MIGRAPHX_ENABLE_REWRITE_DOT", "1"),
 )
 
@@ -60,11 +68,15 @@ def resolve_driver(explicit: str | None) -> str:
     env_path = os.environ.get("MIGRAPHX_DRIVER")
     if env_path:
         return env_path
+    cwd_driver = os.path.join(os.getcwd(), "bin", "migraphx-driver")
+    if os.path.isfile(cwd_driver) and os.access(cwd_driver, os.X_OK):
+        return cwd_driver
     which = shutil.which("migraphx-driver")
     if which:
         return which
     print(
-        "error: migraphx-driver not found. Pass --driver PATH or set MIGRAPHX_DRIVER.",
+        "error: migraphx-driver not found. Try building first (./bin/migraphx-driver "
+        "from the build tree), pass --driver PATH, or set MIGRAPHX_DRIVER.",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -197,7 +209,10 @@ def main() -> None:
     parser.add_argument(
         "--driver",
         metavar="PATH",
-        help="migraphx-driver binary (default: MIGRAPHX_DRIVER or PATH)",
+        help=(
+            "migraphx-driver binary (default: MIGRAPHX_DRIVER, else ./bin/migraphx-driver "
+            "under the current working directory if present and executable, else PATH)"
+        ),
     )
     parser.add_argument(
         "-o",

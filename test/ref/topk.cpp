@@ -228,9 +228,8 @@ TEST_CASE(topk_k_equals_n)
 
     // All 5 elements returned per row, sorted ascending (smallest first)
     EXPECT(ret_val.size() == 15u);
-    std::vector<float> gold_val = {1.9, 2.0, 2.1, 2.3, 2.5,
-                                   0.1, 0.2, 0.8, 3.3, 4.5,
-                                   0.8, 1.0, 1.5, 2.1, 4.5};
+    std::vector<float> gold_val = {
+        1.9, 2.0, 2.1, 2.3, 2.5, 0.1, 0.2, 0.8, 3.3, 4.5, 0.8, 1.0, 1.5, 2.1, 4.5};
     EXPECT(ret_val == gold_val);
     std::vector<int64_t> gold_ind = {4, 2, 0, 1, 3,
                                      3, 1, 4, 0, 2,

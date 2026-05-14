@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_executable(driver 
+add_executable(driver
     main.cpp
     verify.cpp
     passes.cpp

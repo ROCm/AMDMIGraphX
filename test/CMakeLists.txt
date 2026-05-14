@@ -1,7 +1,7 @@
 # ####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -38,9 +38,6 @@ target_link_libraries(register_targets PRIVATE migraphx migraphx_all_targets)
 
 file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 list(REMOVE_ITEM TESTS ${CMAKE_CURRENT_SOURCE_DIR}/register_target.cpp)
-if(NOT MIGRAPHX_USE_MIOPEN)
-    list(REMOVE_ITEM TESTS ${CMAKE_CURRENT_SOURCE_DIR}/sqlite.cpp)
-endif()
 
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)

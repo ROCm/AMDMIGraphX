@@ -684,7 +684,6 @@ struct compiler
     bool to_fp8  = false;
     bool to_int8 = false;
     bool to_int4 = false;
-    bool report_time = false;
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -710,7 +709,6 @@ struct compiler
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
-        ap(report_time, {"--time"}, ap.help("Report compilation time"), ap.set_value(true));
     }
 
     auto params(const program& p)
@@ -787,9 +785,8 @@ struct compiler
         log::info() << "Compiling ...";
         timer c{};
         p.compile(t, co);
-        auto r{c.record<std::chrono::milliseconds>()};
-        if(report_time)
-            log::info() << "Compilation time: " << r << "ms";
+        auto r = c.record<std::chrono::milliseconds>();
+        log::info() << "Compilation time: " << r << "ms";
         l.save(p);
         return p;
     }

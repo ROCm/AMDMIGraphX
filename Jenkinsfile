@@ -222,7 +222,14 @@ pipeline {
             }
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building image', failureDescription: 'Failed to build image', successDescription: 'Image build succeeded') {
+                    def commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+                    def statusContext = "Jenkins - Build image"
+                    def buildImageResult = 'failure'
+
+                    // Post pending status with a fresh token before the long build starts
+                    try { setCommitStatus(commitSha, 'pending', statusContext, 'Building image') } catch(Exception ignored) {}
+
+                    try {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             checkout scm
@@ -237,6 +244,14 @@ pipeline {
                             builtImage.push("${IMAGE_TAG}")
                             builtImage.push("latest")
                         }
+                        buildImageResult = 'success'
+                    } catch(Exception e) {
+                        buildImageResult = 'failure'
+                        throw e
+                    } finally {
+                        // Re-fetch credentials at post-build time so the token is always fresh
+                        def description = (buildImageResult == 'success') ? 'Image build succeeded' : 'Failed to build image'
+                        try { setCommitStatus(commitSha, buildImageResult, statusContext, description) } catch(Exception ignored) {}
                     }
                 }
             }

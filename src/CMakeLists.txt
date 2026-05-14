@@ -126,6 +126,7 @@ add_library(migraphx
     rewrite_dot.cpp
     simplify_qdq.cpp
     split_reduce.cpp
+    sqlite.cpp
     rewrite_gelu.cpp
     rewrite_low_precision.cpp
     rewrite_pooling.cpp
@@ -148,10 +149,6 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
-
-if(MIGRAPHX_USE_MIOPEN)
-    target_sources(migraphx PRIVATE sqlite.cpp)
-endif()
 
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})

@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
 
 #include <migraphx/gpu/context.hpp>
-#include <migraphx/compile_options.hpp>
+#include <migraphx/gpu/mlir_ops.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

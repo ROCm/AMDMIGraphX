@@ -99,6 +99,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
 
+    auto mlir_ops = mlir_ops_options{};
+
     // clang-format off
     return
     {
@@ -147,7 +149,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         simplify_reshapes{.enable_op_shape_transform_op=true},
         dead_code_elimination{},
-        enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx, options.mlir_ops),
+        enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx, mlir_ops),
                                                    .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
         dead_code_elimination{},
         optimize_module{},
@@ -157,7 +159,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
         dead_code_elimination{},
-        enable_pass(mlir_enabled(), fuse_mlir{&ctx, options.mlir_ops}),
+        enable_pass(mlir_enabled(), fuse_mlir{&ctx, mlir_ops}),
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},

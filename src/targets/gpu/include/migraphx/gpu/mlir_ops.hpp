@@ -21,30 +21,51 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
+#ifndef MIGRAPHX_GUARD_GPU_MLIR_OPS_HPP
+#define MIGRAPHX_GUARD_GPU_MLIR_OPS_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/tracer.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-struct compile_options
+struct mlir_ops_options
 {
-    /**
-     * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from an offload device like a GPU.
-     */
-    bool offload_copy = false;
+#ifdef _WIN32
+#if defined(MIGRAPHX_USE_MIOPEN) && MIGRAPHX_USE_MIOPEN == 0
+    bool convolution           = true;
+    bool convolution_backwards = true;
+    bool fused_convolution     = true;
+#else
+    bool convolution           = false;
+    bool convolution_backwards = false;
+    bool fused_convolution     = false;
+#endif
+#if defined(MIGRAPHX_USE_HIPBLASLT) && MIGRAPHX_USE_HIPBLASLT == 0
+    bool attention = true;
+    bool dot       = true;
+    bool fused_dot = true;
+#else
+    bool attention = false;
+    bool dot       = false;
+    bool fused_dot = false;
+#endif
 
-    bool fast_math       = true;
-    bool exhaustive_tune = false;
-
-    tracer trace{};
+#else
+    bool convolution           = false;
+    bool convolution_backwards = false;
+    bool fused_convolution     = false;
+    bool attention             = false;
+    bool dot                   = false;
+    bool fused_dot             = false;
+#endif
 };
 
+
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_GPU_MLIR_OPS_HPP

@@ -37,7 +37,7 @@ struct verify_options
     precision quantize = precision::fp32;
 
     /**
-     * Converts floating point values to double on the ref target.
+     * Converts floating point values to double on the ref target. Also removes Q/DQ pairs on ref.
      */
     bool ref_use_double = false;
 

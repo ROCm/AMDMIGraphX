@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,18 +43,18 @@
         MIGRAPHX_VERSION_PATCH)
 
 #define MIGRAPHX_INLINE_NS MIGRAPHX_VERSION_CONCAT(version, MIGRAPHX_VERSION)
-#endif // build_dev
-#endif // clang_tidy
+#endif // BUILD_DEV
+#endif // MIGRAPHX_USE_CLANG_TIDY
 
 #ifdef DOXYGEN
 #define MIGRAPHX_INLINE_NS internal
-#endif // doxygen
+#endif // DOXYGEN
 
-#ifdef MIGRAPHX_USE_CLANG_TIDY
-#define MIGRAPHX_TIDY_CONST const
+#ifdef CPPCHECK
+#define MIGRAPHX_CPPCHECK_CONST const
 #else
-#define MIGRAPHX_TIDY_CONST
-#endif // tidy_const
+#define MIGRAPHX_CPPCHECK_CONST
+#endif // CPPCHECK
 
 #ifdef NDEBUG
 #define MIGRAPHX_DEBUG_USED [[maybe_unused]]
@@ -62,4 +62,4 @@
 #define MIGRAPHX_DEBUG_USED
 #endif
 
-#endif // clang_tidy
+#endif // MIGRAPHX_GUARD_CONFIG_HPP

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -226,97 +227,6 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         parse_sin_cache(args.at(3), param);
     }
 
-    static instruction_ref apply_rotary_embedding(const instruction_ref& in,
-                                                  const instruction_ref& cos,
-                                                  const instruction_ref& sin,
-                                                  const onnx_parser::node_info& info,
-                                                  const rotary_parameters& params)
-    {
-        if(params.interleaved)
-        {
-            std::vector<float> signs(params.rotary_embedding_dim);
-            for(auto i = 0; i < params.rotary_embedding_dim; ++i)
-            {
-                signs[i] = (i % 2 == 0) ? -1.0 : 1.0;
-            }
-            auto signs_lit = info.add_literal(
-                literal{shape{in->get_shape().type(), {params.rotary_embedding_dim}}, signs});
-            signs_lit = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", in->get_shape().lens()}}), signs_lit);
-            auto mul_cos = info.add_broadcastable_binary_op("mul", in, cos);
-            auto mul_sin = info.add_broadcastable_binary_op("mul", signs_lit, sin);
-
-            auto rs_in = info.add_instruction(
-                make_op("reshape", {{"dims", {in->get_shape().elements() / 2, 2}}}), in);
-            auto evens = info.add_instruction(
-                make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), rs_in);
-            auto odds = info.add_instruction(
-                make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), rs_in);
-            auto in2 = info.add_instruction(make_op("concat", {{"axis", -1}}), odds, evens);
-            in2 = info.add_instruction(make_op("reshape", {{"dims", in->get_shape().lens()}}), in2);
-            mul_sin = info.add_broadcastable_binary_op("mul", mul_sin, in2);
-            return info.add_broadcastable_binary_op("add", mul_sin, mul_cos);
-        }
-
-        auto pos = info.add_instruction(
-            make_op("slice",
-                    {{"axes", {-1}}, {"starts", {0}}, {"ends", {params.rotary_embedding_dim / 2}}}),
-            in);
-        auto neg     = info.add_instruction(make_op("slice",
-                                                    {{"axes", {-1}},
-                                                     {"starts", {params.rotary_embedding_dim / 2}},
-                                                     {"ends", {params.rotary_embedding_dim}}}),
-                                        in);
-        neg          = info.add_instruction(make_op("neg"), neg);
-        auto concat  = info.add_instruction(make_op("concat", {{"axis", -1}}), neg, pos);
-        auto mul_sin = info.add_broadcastable_binary_op("mul", concat, sin);
-        auto mul_cos = info.add_broadcastable_binary_op("mul", in, cos);
-        return info.add_broadcastable_binary_op("add", mul_sin, mul_cos);
-    }
-
-    static instruction_ref get_cache_slice(const instruction_ref& cache,
-                                           const instruction_ref& pos_ids,
-                                           const bool interleaved,
-                                           const onnx_parser::node_info& info,
-                                           const rotary_parameters& params)
-    {
-        instruction_ref rsps;
-        if(pos_ids->get_shape().lens().size() == 1)
-        {
-            rsps = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", {params.batch_size, params.seq_len, 1}}}),
-                pos_ids);
-            std::vector<int> pos_vec(params.seq_len);
-            std::iota(pos_vec.begin(), pos_vec.end(), 0);
-            auto pos_lit = info.add_literal(
-                literal{shape{pos_ids->get_shape().type(), {1, params.seq_len, 1}}, pos_vec});
-            rsps = info.add_broadcastable_binary_op("add", rsps, pos_lit);
-        }
-        else
-        {
-            rsps = info.add_instruction(
-                make_op("reshape", {{"dims", {params.batch_size, params.seq_len, 1}}}), pos_ids);
-        }
-        auto gather = info.add_instruction(make_op("gathernd", {{"batch_dims", 0}}), cache, rsps);
-
-        if(interleaved)
-        {
-            gather = info.add_instruction(
-                make_op("reshape", {{"dims", {gather->get_shape().elements(), 1}}}), gather);
-        }
-
-        auto output = info.add_instruction(make_op("concat", {{"axis", -1}}), gather, gather);
-        std::vector<std::size_t> out_lens = {
-            params.batch_size, params.seq_len, 1, params.rotary_embedding_dim};
-        output   = info.add_instruction(make_op("reshape", {{"dims", out_lens}}), output);
-        out_lens = {
-            params.batch_size, params.seq_len, params.num_heads, params.rotary_embedding_dim};
-        output = info.add_instruction(make_op("multibroadcast", {{"out_lens", out_lens}}), output);
-        out_lens = {
-            params.batch_size, params.num_heads, params.seq_len, params.rotary_embedding_dim};
-        return info.add_instruction(make_op("reshape", {{"dims", out_lens}}), output);
-    }
-
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
                                        const onnx_parser::node_info& info,
@@ -344,8 +254,10 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                 make_op(
                     "reshape",
                     {{"dims",
-                      {params.batch_size, params.num_heads, params.seq_len, params.head_size}}}),
+                      {params.batch_size, params.seq_len, params.num_heads, params.head_size}}}),
                 input);
+            input =
+                info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), input);
         }
         instruction_ref tail;
         if(params.head_diff)
@@ -361,9 +273,11 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
                 input);
         }
 
-        auto cos    = get_cache_slice(cos_cache, position_ids, params.interleaved, info, params);
-        auto sin    = get_cache_slice(sin_cache, position_ids, params.interleaved, info, params);
-        auto output = apply_rotary_embedding(input, cos, sin, info, params);
+        auto output = op::builder::add("rotary_embedding",
+                                       *info.mod,
+                                       {input, position_ids, cos_cache, sin_cache},
+                                       {{"interleaved", params.interleaved}})
+                          .at(0);
 
         if(params.head_diff)
         {
@@ -371,6 +285,8 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
         }
         if(not params.is_bnsh)
         {
+            output =
+                info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), output);
             output = info.add_instruction(
                 make_op("reshape",
                         {{"dims", {params.batch_size, params.seq_len, params.hidden_size}}}),

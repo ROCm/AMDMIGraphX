@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,9 +23,8 @@
  */
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/onnx/checks.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -45,16 +44,7 @@ struct parse_tile : op_parser<parse_tile>
         std::vector<std::int64_t> repeats;
         arg_s.visit([&](auto input) { repeats.assign(input.begin(), input.end()); });
 
-        auto l0 = args[0];
-        for(int i = 0; i < repeats.size(); i++)
-        {
-            auto l1 = l0;
-            for(int j = 1; j < repeats[i]; j++)
-            {
-                l0 = info.add_instruction(make_op("concat", {{"axis", i}}), l0, l1);
-            }
-        }
-        return l0;
+        return op::builder::add("tile", *info.mod, args, {{"repeats", repeats}}).at(0);
     }
 };
 

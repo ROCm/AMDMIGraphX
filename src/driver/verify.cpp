@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,9 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/verify_args.hpp>
+#include <migraphx/simplify_qdq.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/logger.hpp>
 #include <utility>
 
 namespace migraphx {
@@ -43,7 +46,8 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 /**
  * Gives tolerances based on user input (`rms_tol`, `atol`, `rtol` parameters) and defaults.
- * Sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction in found in the
+ * Sets to fp4 tolerances if any fp4x2_type is found.
+ * Else sets to fp16 tolerances if `quantize` input is fp16 or any fp16 instruction is found in the
  * model.
  */
 verify::tolerance get_tolerances(const program& p,
@@ -58,8 +62,17 @@ verify::tolerance get_tolerances(const program& p,
                     ins.get_shape().type() == shape::bf16_type);
         });
     });
+    bool has_fp4   = any_of(p.get_modules(), [](auto&& m) {
+        return any_of(*m, [](auto&& ins) { return (ins.get_shape().type() == shape::fp4x2_type); });
+    });
     migraphx::verify::tolerance result{};
-    if(has_16bit or vo.quantize == precision::fp16 or vo.quantize == precision::bf16)
+    if(has_fp4)
+    {
+        result.rms_tol = 8e-1;
+        result.atol    = 4e-1;
+        result.rtol    = 4e-1;
+    }
+    else if(has_16bit or vo.quantize == precision::fp16 or vo.quantize == precision::bf16)
     {
         result.rms_tol = 8e-2;
         result.atol    = 4e-2;
@@ -87,11 +100,12 @@ static std::vector<argument> run_ref(program p,
 {
     if(vo.ref_use_double)
     {
-        run_passes(p, {fp_to_double{}});
+        run_passes(
+            p, {fp_to_double{}, simplify_qdq{.remove_qdq_only = true}, dead_code_elimination{}});
     }
     p.compile(migraphx::make_target("ref"), options);
     auto out = p.eval(inputs);
-    std::cout << p << std::endl;
+    log::info() << p;
     return out;
 }
 
@@ -126,7 +140,7 @@ static std::vector<argument> run_target(program p,
     }
     auto gpu_out = p.eval(m);
     std::vector<argument> output(gpu_out.size());
-    std::cout << p << std::endl;
+    log::info() << p;
     std::transform(gpu_out.begin(), gpu_out.end(), output.begin(), [&](auto& argu) {
         return options.offload_copy ? argu : t.copy_from(argu);
     });
@@ -151,9 +165,9 @@ bool verify_program(const std::string& name,
         if(ref_outs[i].get_shape().type() != target_outs[i].get_shape().type() or
            ref_outs[i].get_shape().lens() != target_outs[i].get_shape().lens())
         {
-            std::cout << "FAILED: " << name << std::endl;
-            std::cout << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"
-                      << target_outs[i].get_shape() << "}" << std::endl;
+            log::error() << "FAILED: " << name;
+            log::error() << "Shape mismatch {" << ref_outs[i].get_shape() << "} != {"
+                         << target_outs[i].get_shape() << "}";
         }
         else
         {
@@ -161,7 +175,7 @@ bool verify_program(const std::string& name,
         }
     }
     if(passed)
-        std::cout << "MIGraphX verification passed successfully." << std::endl;
+        log::info() << "MIGraphX verification passed successfully.";
     return passed;
 }
 
@@ -198,13 +212,13 @@ void verify_instructions(const program& prog,
         mm_p->add_instruction(ins.get_operator(), inputs);
         try
         {
-            std::cout << "Verify: " << ins.name() << std::endl;
+            log::info() << "Verify: " << ins.name();
             std::cout << p << std::endl;
             verify_program(ins.name(), p, t, options, vo, create_param_map(p, false), tols);
         }
         catch(...)
         {
-            std::cout << "Instruction " << ins.name() << " threw an exception." << std::endl;
+            log::error() << "Instruction " << ins.name() << " threw an exception.";
             throw;
         }
     }
@@ -221,16 +235,16 @@ static bool verify_reduced(program p,
     auto* mm  = p.get_main_module();
     auto last = std::prev(mm->end(), n);
     mm->remove_instructions(last, mm->end());
-    std::cout << "Verify: " << n << std::endl;
-    std::cout << p << std::endl;
+    log::info() << "Verify: " << n;
+    log::info() << p;
     try
     {
         return verify_program(std::to_string(n), p, t, options, vo, inputs, tols);
     }
     catch(const std::exception& e)
     {
-        std::cout << "FAILED: " << n << std::endl;
-        std::cout << "Exception: " << e.what() << std::endl;
+        log::error() << "FAILED: " << n;
+        log::error() << "Exception: " << e.what();
         return false;
     }
 }
@@ -244,13 +258,13 @@ void verify_reduced_program(const program& p,
 {
     const auto* mm = p.get_main_module();
     auto n         = std::distance(mm->begin(), mm->end());
-    std::cout << "Verify steps: " << n << std::endl;
+    log::info() << "Verify steps: " << n;
     for(std::size_t i = 1; i < n; i++)
     {
         auto last = std::prev(mm->end(), i + 1);
         if(contains({"@literal", "@param"}, last->name()))
         {
-            std::cout << "Skip: " << i << std::endl;
+            log::info() << "Skip: " << i;
             continue;
         }
         verify_reduced(p, i, t, options, vo, inputs, tols);

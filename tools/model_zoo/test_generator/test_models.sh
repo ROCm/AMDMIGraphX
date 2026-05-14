@@ -3,7 +3,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -93,6 +93,37 @@ function test() {
 
 mkdir -p $WORK_DIR/logs/fp32/ $WORK_DIR/logs/fp16/
 
+if [ -f $WORK_DIR/logs/Summary.log ]; then
+  rm $WORK_DIR/logs/Summary.log
+fi
+touch $WORK_DIR/logs/Summary.log
+function iterateLogs() {
+  local dir="$1"
+
+  for file in "$dir"/*; do
+    if [ -f "$file" ] && [[ "$file" != "Summary.log" ]]; then
+      processLog "$file"
+    fi
+
+    if [ -d "$file" ]; then
+      iterateLogs "$file"
+    fi
+  done
+}
+function processLog() {
+    local file="$1"
+    TEST_NAME=$(grep 'Running test "' "$file" | sed -E 's/Running test "(.*)" on.*/\1/')
+    if [[ -z "$TEST_NAME" ]]; then
+        return
+    fi
+    LOG_TYPE=$(basename "$(dirname "$file")");
+    TOTAL_CASES=$(grep "Test \"$TEST_NAME\" has" "$file" | sed -E 's/Test.*has ([0-9]+) cases:.*/\1/')
+    PASSED_CASES=$(grep "Passed:" "$file" | sed -E 's/.*Passed: ([0-9]+).*/\1/')
+    FAILED_CASES=$(grep "Failed:" "$file" | sed -E 's/.*Failed: ([0-9]+).*/\1/')
+    echo -e "$TEST_NAME $LOG_TYPE\n Total number of cases = $TOTAL_CASES\n Passed=$PASSED_CASES\n Failed=$FAILED_CASES\n\n" >> "$WORK_DIR/logs/Summary.log"
+}
+
+iterateLogs "$WORK_DIR/logs/"
 for arg in "$@"; do
     iterate "$(dirname $(readlink -e $arg))/$(basename $arg)"
 done

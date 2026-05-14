@@ -127,6 +127,24 @@
 </rule>
 <rule>
     <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[\( \w+ != \w+ \) \?]]></pattern>
+    <message>
+        <id>InvertedLogic</id>
+        <severity>style</severity>
+        <summary>It is cleaner to invert the logic.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
+    <pattern><![CDATA[\( ! \w+ \) \?]]></pattern>
+    <message>
+        <id>InvertedLogic</id>
+        <severity>style</severity>
+        <summary>It is cleaner to invert the logic.</summary>
+    </message>
+</rule>
+<rule>
+    <tokenlist>normal</tokenlist>
     <pattern><![CDATA[for \( (?:(?:\w+|<|>|::) )*(?:\w+|>)(?: &|\*)* (\w+) = \w+ ; \1 < \w+ ; (\1 \+\+|\+\+ \1|\1 \-\-|\-\- \1) \) { \w+ \[ \1 \] = \w+ ; }]]></pattern>
     <message>
         <id>useStlAlgorithm</id>

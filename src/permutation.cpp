@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/sym.hpp>
 #include <map>
 #include <functional>
 
@@ -33,6 +34,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation)
 {
+    if(s.symbolic())
+        return {s.type(),
+                reorder_dims(s.dyn_dims(), permutation),
+                reorder_dims(s.dyn_strides(), permutation)};
     return {s.type(), reorder_dims(s.lens(), permutation), reorder_dims(s.strides(), permutation)};
 }
 
@@ -43,11 +48,50 @@ std::vector<int64_t> invert_permutation(const std::vector<int64_t>& permutation)
 
 std::vector<int64_t> find_permutation(const shape& s)
 {
-    std::vector<std::int64_t> result(s.lens().size());
+    if(s.dynamic() and not s.symbolic())
+        MIGRAPHX_THROW("FIND_PERMUTATION: non-symbolic dynamic shapes not supported");
+    std::vector<std::int64_t> result(s.ndim());
     std::iota(result.begin(), result.end(), 0);
-    std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
-                         return std::make_tuple(s.strides()[x], s.lens()[x]);
-                     }));
+    if(s.symbolic())
+    {
+        // Sort symbolic strides by evaluating at max variable values.
+        // Assumptions (see is_sorted_strides in shape.cpp for details):
+        //  1. Strides are products of dim variables * constant factors (no symbolic divisors)
+        //  2. Strides come from compute_strides() or permutations thereof
+        //  3. Max-eval ordering is consistent with all non-degenerate runtime orderings
+        const auto& strides = s.dyn_strides();
+        const auto& dds     = s.dyn_dims();
+        std::vector<sym::interval> stride_intervals(strides.size());
+        std::transform(strides.begin(), strides.end(), stride_intervals.begin(), [](const auto& e) {
+            return e.eval_interval();
+        });
+        std::vector<int64_t> dim_max(dds.size());
+        std::transform(dds.begin(), dds.end(), dim_max.begin(), [](const auto& dd) {
+            return sym::to<int64_t>(dd.sym_expr.eval_interval().max);
+        });
+        std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
+                             return std::make_tuple(sym::to<int64_t>(stride_intervals[x].max),
+                                                    dim_max[x]);
+                         }));
+        // Assumption 3 guard: when max-eval gives a strict ordering between two
+        // adjacent strides, min-eval must not reverse it. Collapse to equality at
+        // min is expected (e.g. when a dim has min=1), but a sign flip indicates
+        // a symbolic divisor violating assumption 1.
+        if(std::adjacent_find(result.begin(), result.end(), [&](auto a, auto b) {
+               return sym::to<int64_t>(stride_intervals[a].max) >
+                          sym::to<int64_t>(stride_intervals[b].max) and
+                      sym::to<int64_t>(stride_intervals[a].min) <
+                          sym::to<int64_t>(stride_intervals[b].min);
+           }) != result.end())
+            MIGRAPHX_THROW("FIND_PERMUTATION: symbolic stride ordering reversal between "
+                           "max-eval and min-eval. Violation of symbolic stride assumptions.");
+    }
+    else
+    {
+        std::stable_sort(result.begin(), result.end(), by(std::greater<>{}, [&](auto x) {
+                             return std::make_tuple(s.strides()[x], s.lens()[x]);
+                         }));
+    }
     return result;
 }
 
@@ -64,7 +108,7 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
     }
     if(count.empty())
     {
-        std::vector<int64_t> r(shapes.front().lens().size());
+        std::vector<int64_t> r(shapes.front().ndim());
         std::iota(r.begin(), r.end(), 0);
         return r;
     }
@@ -74,13 +118,17 @@ std::vector<int64_t> find_permutation(const std::vector<shape>& shapes)
     return it->first;
 }
 
-std::vector<shape> normalize_permutation(const std::vector<shape>& shapes)
+/// Normalize shapes by reordering them by their permutation
+std::vector<shape> normalize_permutation(const std::vector<shape>& shapes,
+                                         std::vector<int64_t>* permutation)
 {
     auto result = shapes;
     auto perm   = find_permutation(shapes);
     std::transform(result.begin(), result.end(), result.begin(), [&](auto s) {
         return reorder_shape(s, perm);
     });
+    if(permutation != nullptr)
+        *permutation = std::move(perm);
     return result;
 }
 

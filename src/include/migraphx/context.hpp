@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,9 +52,7 @@ struct context
 
 template <class T>
 value to_value_context(const T&)
-{
-    return value{};
-}
+{ return value{}; }
 
 template <class T>
 void from_value_context(T&, const value&)
@@ -63,9 +61,7 @@ void from_value_context(T&, const value&)
 
 template <class T>
 any_ptr get_queue_context(T&)
-{
-    return {};
-}
+{ return {}; }
 
 template <class T>
 void wait_for_context(T&, any_ptr)
@@ -104,70 +100,50 @@ struct context
     template <class T>
     static auto private_detail_te_default_to_value(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.to_value())
-    {
-        return private_detail_te_self.to_value();
-    }
+    { return private_detail_te_self.to_value(); }
 
     template <class T>
     static value private_detail_te_default_to_value(float, T&& private_detail_te_self)
-    {
-        return to_value_context(private_detail_te_self);
-    }
+    { return to_value_context(private_detail_te_self); }
 
     template <class T>
     static auto
     private_detail_te_default_from_value(char, T&& private_detail_te_self, const value& v)
         -> decltype(private_detail_te_self.from_value(v))
-    {
-        private_detail_te_self.from_value(v);
-    }
+    { private_detail_te_self.from_value(v); }
 
     template <class T>
     static void
     private_detail_te_default_from_value(float, T&& private_detail_te_self, const value& v)
-    {
-        from_value_context(private_detail_te_self, v);
-    }
+    { from_value_context(private_detail_te_self, v); }
 
     template <class T>
     static auto private_detail_te_default_get_queue(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.get_queue())
-    {
-        return private_detail_te_self.get_queue();
-    }
+    { return private_detail_te_self.get_queue(); }
 
     template <class T>
     static any_ptr private_detail_te_default_get_queue(float, T&& private_detail_te_self)
-    {
-        return get_queue_context(private_detail_te_self);
-    }
+    { return get_queue_context(private_detail_te_self); }
 
     template <class T>
     static auto private_detail_te_default_wait_for(char, T&& private_detail_te_self, any_ptr queue)
         -> decltype(private_detail_te_self.wait_for(queue))
-    {
-        private_detail_te_self.wait_for(queue);
-    }
+    { private_detail_te_self.wait_for(queue); }
 
     template <class T>
     static void private_detail_te_default_wait_for(float, T&& private_detail_te_self, any_ptr queue)
-    {
-        wait_for_context(private_detail_te_self, queue);
-    }
+    { wait_for_context(private_detail_te_self, queue); }
 
     template <class T>
     static auto private_detail_te_default_finish_on(char, T&& private_detail_te_self, any_ptr queue)
         -> decltype(private_detail_te_self.finish_on(queue))
-    {
-        private_detail_te_self.finish_on(queue);
-    }
+    { private_detail_te_self.finish_on(queue); }
 
     template <class T>
     static void
     private_detail_te_default_finish_on(float, T&& private_detail_te_self, any_ptr queue)
-    {
-        finish_on_context(private_detail_te_self, queue);
-    }
+    { finish_on_context(private_detail_te_self, queue); }
 
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
@@ -224,7 +200,7 @@ struct context
               typename = private_te_constraints<PrivateDetailTypeErasedT>,
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, context>{}>::type>
-    context& operator=(PrivateDetailTypeErasedT&& value)
+    context& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -334,8 +310,7 @@ struct context
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>::value>::type* =
-                nullptr)
+            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>{}>::type* = nullptr)
             : private_detail_te_value(value)
         {
         }
@@ -343,48 +318,31 @@ struct context
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
-                                    int>::type* = nullptr) noexcept
+            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>{}, int>::type* =
+                nullptr) noexcept
             : private_detail_te_value(std::move(value))
         {
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        {
-            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
-        }
+        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         value to_value() const override
-        {
-
-            return private_detail_te_default_to_value(char(0), private_detail_te_value);
-        }
+        { return private_detail_te_default_to_value(char(0), private_detail_te_value); }
 
         void from_value(const value& v) override
-        {
-
-            private_detail_te_default_from_value(char(0), private_detail_te_value, v);
-        }
+        { private_detail_te_default_from_value(char(0), private_detail_te_value, v); }
 
         any_ptr get_queue() override
-        {
-
-            return private_detail_te_default_get_queue(char(0), private_detail_te_value);
-        }
+        { return private_detail_te_default_get_queue(char(0), private_detail_te_value); }
 
         void wait_for(any_ptr queue) override
-        {
-
-            private_detail_te_default_wait_for(char(0), private_detail_te_value, queue);
-        }
+        { private_detail_te_default_wait_for(char(0), private_detail_te_value, queue); }
 
         void finish_on(any_ptr queue) override
-        {
-
-            private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
-        }
+        { private_detail_te_default_finish_on(char(0), private_detail_te_value, queue); }
 
         void finish() const override { private_detail_te_value.finish(); }
 
@@ -402,9 +360,7 @@ struct context
     };
 
     bool private_detail_te_handle_empty() const
-    {
-        return private_detail_te_handle_mem_var == nullptr;
-    }
+    { return private_detail_te_handle_mem_var == nullptr; }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -425,15 +381,11 @@ struct context
 
 template <typename ValueType>
 inline const ValueType* any_cast(const context* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType* any_cast(context* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType& any_cast(context& x)

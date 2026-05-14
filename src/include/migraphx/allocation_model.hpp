@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -130,7 +130,7 @@ struct allocation_model
         typename = private_te_constraints<PrivateDetailTypeErasedT>,
         typename = typename std::enable_if<
             not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, allocation_model>{}>::type>
-    allocation_model& operator=(PrivateDetailTypeErasedT&& value)
+    allocation_model& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -234,8 +234,7 @@ struct allocation_model
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>::value>::type* =
-                nullptr)
+            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>{}>::type* = nullptr)
             : private_detail_te_value(value)
         {
         }
@@ -243,16 +242,14 @@ struct allocation_model
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
-                                    int>::type* = nullptr) noexcept
+            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>{}, int>::type* =
+                nullptr) noexcept
             : private_detail_te_value(std::move(value))
         {
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        {
-            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
-        }
+        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
@@ -261,22 +258,13 @@ struct allocation_model
         std::string copy() const override { return private_detail_te_value.copy(); }
 
         operation allocate(const shape& s) const override
-        {
-
-            return private_detail_te_value.allocate(s);
-        }
+        { return private_detail_te_value.allocate(s); }
 
         operation preallocate(const shape& s, std::string id) const override
-        {
-
-            return private_detail_te_value.preallocate(s, std::move(id));
-        }
+        { return private_detail_te_value.preallocate(s, std::move(id)); }
 
         bool needs_out_params() const override
-        {
-
-            return private_detail_te_value.needs_out_params();
-        }
+        { return private_detail_te_value.needs_out_params(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -292,9 +280,7 @@ struct allocation_model
     };
 
     bool private_detail_te_handle_empty() const
-    {
-        return private_detail_te_handle_mem_var == nullptr;
-    }
+    { return private_detail_te_handle_mem_var == nullptr; }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -315,15 +301,11 @@ struct allocation_model
 
 template <typename ValueType>
 inline const ValueType* any_cast(const allocation_model* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType* any_cast(allocation_model* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType& any_cast(allocation_model& x)

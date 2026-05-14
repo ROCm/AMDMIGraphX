@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -78,7 +78,7 @@ __device__ void run_rotary_embedding(Input input,
         int j         = 0;
         if(ii < rotary_emb_dim)
         {
-            if(params.rotary_interleaved)
+            if(params.interleaved)
             {
                 cache_idx = (ii / 2) % half_rotary_emb_dim;
                 sign      = (ii % 2 == 0) ? -1.0 : 1.0;

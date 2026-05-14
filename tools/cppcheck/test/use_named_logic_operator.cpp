@@ -24,22 +24,13 @@
  */
 #include <utility>
 
-// Test for UseNamedLogicOperator rules from rules.xml
-// Update this regex so that the `tools/cppcheck/test.sh use_named_logic_operator` will pass. It
-// should output "Success" and not return an error code when it passes. There is only single spaces
-// as this matches against the token stream from cppcheck that has been normalized. You can see an
-// output token stream by running `cppcheck --rule='.*'`. It is trying to match the `&&` operator
-// where it can be replaced with an `and`, but it shouldn't match an rvalue ref, but since its just
-// a lexical match with no AST, it needs to use a larger context to disambiguate it in the regex. Do
-// not hardcode type names or variables.
-
 bool f();
 bool g(int, bool);
 bool g(bool);
 
 void test_logical_and_operator(bool a, bool b)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     if(a && b)
     {
         (void)0;
@@ -48,7 +39,7 @@ void test_logical_and_operator(bool a, bool b)
 
 void test_logical_or_operator(bool a, bool b)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     if(a || b)
     {
         (void)0;
@@ -57,7 +48,7 @@ void test_logical_or_operator(bool a, bool b)
 
 void test_logical_not_operator(bool a)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     if(!a)
     {
         (void)0;
@@ -66,7 +57,7 @@ void test_logical_not_operator(bool a)
 
 void test_complex_and_expression(int x, int y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     if(x > 0 && y < 20)
     {
         (void)0;
@@ -75,7 +66,7 @@ void test_complex_and_expression(int x, int y)
 
 void test_while_with_and_operator(int x)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     while(x > 0 && x < 10)
     {
         (void)0;
@@ -84,81 +75,81 @@ void test_while_with_and_operator(int x)
 
 bool test_assign_with_and_operator(int x, bool y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     bool r = x > 0 && y;
     return g(x, r);
 }
 
 void test_function_with_and_operator1(bool a, bool b, bool c, int y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     g(y, !c or (a && b));
 }
 
 void test_function_with_and_operator2(bool a, bool b, bool c, int y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     g(y, c or !(a && b));
 }
 
-// cppcheck-suppress UseNamedLogicOperator
+// cppcheck-suppress migraphx-UseNamedLogicOperator
 auto test_decltype_with_and_operator(bool a, bool b, bool c) -> decltype(!c or (a && b))
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     return !c or (a && b);
 }
 
 void test_function_with_and_operator_function1(int x, int y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     g(y, x > y && f());
 }
 
 void test_function_with_and_operator_function2(int x, int y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     g(x > y && f());
 }
 
 void test_function_with_and_operator_function3(int x, int y)
 {
-    // TODO: UseNamedLogicOperator false negative
+    // migraphx-UseNamedLogicOperator
     g(f() && x > y);
 }
 
 bool test_return_with_and_operator1(int x, bool y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     return x > 0 && y;
 }
 
 bool test_return_with_and_operator2(int x, bool y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     return y && x > 0;
 }
 
 bool test_return_with_and_operator_function1(int x, int y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     return x > y && f();
 }
 
 bool test_return_with_and_operator_function2(int x, int y)
 {
-    // TODO: UseNamedLogicOperator false negative
+    // migraphx-UseNamedLogicOperator
     return f() && x > y;
 }
 
 bool test_return_with_and_operator_pointer(const int* x, int y)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     return x != nullptr && *x > y;
 }
 
 void test_multiple_logical_operators(bool a, bool b, bool c)
 {
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     if((a && b) || !c)
     {
         (void)0;
@@ -175,13 +166,9 @@ void test_multiple_named_logical_operators_should_not_trigget(bool a, bool b, bo
 
 void test_rvalue_ref_should_not_trigger(int&& x);
 
-// TODO: UseNamedLogicOperator false positive - rvalue reference in template
-// cppcheck-suppress UseNamedLogicOperator
 template <class T>
 static T&& test_rvalue_static_template_return_ref_should_not_trigger();
 
-// TODO: UseNamedLogicOperator false positive - rvalue reference in template
-// cppcheck-suppress UseNamedLogicOperator
 template <class T>
 T&& test_rvalue_template_return_ref_should_not_trigger();
 

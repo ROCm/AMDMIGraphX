@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -55,10 +55,13 @@ def clang_format(against, apply=False, path=CLANG_FORMAT_PATH):
     files = [
         f for f in files if f.endswith(CLANG_EXTENSIONS) and not is_excluded(f)
     ]
-    run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
-        files,
-        cwd=get_top(),
-        verbose=True)
+    if files:
+        run([git_clang_format, '--binary', clang_format] + diff_flag + [base] +
+            files,
+            cwd=get_top(),
+            verbose=True)
+    else:
+        print("No modified cpp files to format")
 
 
 def yapf_format(against, apply=False):
@@ -81,6 +84,8 @@ def main():
     parser.add_argument('against', default='develop', nargs='?')
     parser.add_argument('-i', '--in-place', action='store_true')
     parser.add_argument('-q', '--quiet', action='store_true')
+    parser.add_argument('--exit-zero', action='store_true',
+                        help='Exit 0 even when formatting differs')
     args = parser.parse_args()
     try:
         clang_format(args.against, apply=args.in_place)
@@ -90,6 +95,8 @@ def main():
             print(ex.stdout)
         if ex.stderr:
             print(ex.stderr)
+        if args.exit_zero:
+            return
         if not args.quiet:
             print(f"Command '{ex.cmd}' returned {ex.returncode}")
             raise

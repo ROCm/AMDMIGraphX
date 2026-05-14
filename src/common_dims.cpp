@@ -62,13 +62,15 @@ struct common_dim_state
         auto dim_end = compute_end_dim(it, dims->end(), d);
         return range(it, dim_end);
     }
-    void add_axes(std::size_t naxes, std::size_t start) MIGRAPHX_TIDY_CONST
+    // NOLINTNEXTLINE(readability-make-member-function-const)
+    void add_axes(std::size_t naxes, std::size_t start)
     {
         auto axes = compute_axes(naxes, start);
         axes_map->push_back(std::move(axes));
     }
 
-    void add_multi_axes(std::size_t naxes, std::size_t start) MIGRAPHX_TIDY_CONST
+    // NOLINTNEXTLINE(readability-make-member-function-const)
+    void add_multi_axes(std::size_t naxes, std::size_t start)
     {
         auto axes = compute_axes(naxes, start);
         std::transform(axes.begin(),
@@ -116,7 +118,7 @@ static bool compute_common_dim(std::vector<std::size_t>& cd_dims,
     if((d2 % n) != 0)
         return false;
 
-    auto rem = d2 / n;
+    auto rem       = d2 / n;
     auto start_pos = cd_dims.size();
 
     // Add axes mappings

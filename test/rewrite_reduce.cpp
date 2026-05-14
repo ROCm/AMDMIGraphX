@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -76,6 +76,400 @@ TEST_CASE(softmax_upcast)
         auto dtype = ins->get_shape().type();
         return axes.size() == 1 and axes[0] == 1 and dtype == migraphx::shape::float_type;
     }));
+}
+
+TEST_CASE(softmax_dot_scale_where_fp32_convert_after)
+{
+    migraphx::shape dot_shape{migraphx::shape::half_type, {1, 12, 1, 128}};
+    migraphx::shape k_shape{migraphx::shape::half_type, {1, 12, 128, 128}};
+    migraphx::shape scale_shape{migraphx::shape::half_type, {1}};
+    migraphx::shape mask_shape{migraphx::shape::bool_type, {1, 12, 1, 128}};
+    migraphx::shape f32_dot_shape{migraphx::shape::float_type, dot_shape.lens()};
+
+    auto make_dot = [](auto& mod, auto dot_shape, auto k_shape, auto scale_shape, auto mask_shape) {
+        auto q     = mod.add_parameter("q", dot_shape);
+        auto k     = mod.add_parameter("k", k_shape);
+        auto scale = mod.add_parameter("scale", scale_shape);
+        auto mask  = mod.add_parameter("mask", mask_shape);
+        auto ninf =
+            mod.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}},
+                                              {-std::numeric_limits<float>::infinity()}});
+        auto ninf_bc = mod.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", dot_shape.lens()}}), ninf);
+        auto scale_bc = mod.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", dot_shape.lens()}}), scale);
+        auto dot = mod.add_instruction(migraphx::make_op("dot"), q, k);
+        return std::make_tuple(dot, scale_bc, mask, ninf_bc);
+    };
+
+    // Input module: dot -> mul -> where -> softmax
+    migraphx::module m1;
+    {
+        auto [dot, scale_bc, mask, ninf_bc] =
+            make_dot(m1, dot_shape, k_shape, scale_shape, mask_shape);
+        auto mul     = m1.add_instruction(migraphx::make_op("mul"), dot, scale_bc);
+        auto where   = m1.add_instruction(migraphx::make_op("where"), mask, ninf_bc, mul);
+        auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where);
+        m1.add_return({softmax});
+    }
+
+    // Expected module: dot(f16) -> convert(f32) -> mul(f32) -> where(f32) ->
+    // softmax_decomposed(f32) -> convert(f16)
+    migraphx::module m2;
+    {
+        auto [dot, scale_bc, mask, ninf_bc] =
+            make_dot(m2, dot_shape, k_shape, scale_shape, mask_shape);
+        auto cvt_dot = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot);
+        auto cvt_scale = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale_bc);
+        auto mul      = m2.add_instruction(migraphx::make_op("mul"), cvt_dot, cvt_scale);
+        auto cvt_ninf = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ninf_bc);
+        auto where   = m2.add_instruction(migraphx::make_op("where"), mask, cvt_ninf, mul);
+        auto rmax    = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
+        auto rmax_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rmax);
+        auto sub     = m2.add_instruction(migraphx::make_op("sub"), where, rmax_bc);
+        auto exp     = m2.add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum    = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto rsum_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rsum);
+        auto div     = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+        auto cvt_out = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+        m2.add_return({cvt_out});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(softmax_dot_scale_fp32_convert_after)
+{
+    migraphx::shape dot_shape{migraphx::shape::half_type, {1, 12, 1, 128}};
+    migraphx::shape k_shape{migraphx::shape::half_type, {1, 12, 128, 128}};
+    migraphx::shape scale_shape{migraphx::shape::half_type, {1}};
+    migraphx::shape f32_dot_shape{migraphx::shape::float_type, dot_shape.lens()};
+
+    // Input module: dot -> mul -> softmax
+    migraphx::module m1;
+    auto q1        = m1.add_parameter("q", dot_shape);
+    auto k1        = m1.add_parameter("k", k_shape);
+    auto scale1    = m1.add_parameter("scale", scale_shape);
+    auto scale_bc1 = m1.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", dot_shape.lens()}}), scale1);
+    auto dot1     = m1.add_instruction(migraphx::make_op("dot"), q1, k1);
+    auto mul1     = m1.add_instruction(migraphx::make_op("mul"), dot1, scale_bc1);
+    auto softmax1 = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mul1);
+    m1.add_return({softmax1});
+
+    // Expected module: dot(f16) -> convert(f32) -> mul(f32) -> softmax_decomposed(f32) ->
+    // convert(f16)
+    migraphx::module m2;
+    auto q2        = m2.add_parameter("q", dot_shape);
+    auto k2        = m2.add_parameter("k", k_shape);
+    auto scale2    = m2.add_parameter("scale", scale_shape);
+    auto scale_bc2 = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", dot_shape.lens()}}), scale2);
+    auto dot2     = m2.add_instruction(migraphx::make_op("dot"), q2, k2);
+    auto cvt_dot2 = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot2);
+    auto cvt_scale2 = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale_bc2);
+    auto mul2     = m2.add_instruction(migraphx::make_op("mul"), cvt_dot2, cvt_scale2);
+    auto rmax2    = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mul2);
+    auto rmax_bc2 = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rmax2);
+    auto sub2     = m2.add_instruction(migraphx::make_op("sub"), mul2, rmax_bc2);
+    auto exp2     = m2.add_instruction(migraphx::make_op("exp"), sub2);
+    auto rsum2    = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp2);
+    auto rsum_bc2 = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rsum2);
+    auto div2     = m2.add_instruction(migraphx::make_op("div"), exp2, rsum_bc2);
+    auto cvt_out2 = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div2);
+    m2.add_return({cvt_out2});
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Verify dot is found directly when feeding softmax with no mul/where
+TEST_CASE(softmax_dot_only)
+{
+    migraphx::shape dot_shape{migraphx::shape::half_type, {1, 12, 1, 128}};
+    migraphx::shape k_shape{migraphx::shape::half_type, {1, 12, 128, 128}};
+    migraphx::shape f32_dot_shape{migraphx::shape::float_type, dot_shape.lens()};
+
+    migraphx::module m1;
+    auto q1      = m1.add_parameter("q", dot_shape);
+    auto k1      = m1.add_parameter("k", k_shape);
+    auto dot1    = m1.add_instruction(migraphx::make_op("dot"), q1, k1);
+    auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), dot1);
+    m1.add_return({softmax});
+
+    migraphx::module m2;
+    auto q2      = m2.add_parameter("q", dot_shape);
+    auto k2      = m2.add_parameter("k", k_shape);
+    auto dot2    = m2.add_instruction(migraphx::make_op("dot"), q2, k2);
+    auto cvt_dot = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot2);
+    auto rmax    = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), cvt_dot);
+    auto rmax_bc = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rmax);
+    auto sub     = m2.add_instruction(migraphx::make_op("sub"), cvt_dot, rmax_bc);
+    auto exp     = m2.add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum    = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+    auto rsum_bc = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rsum);
+    auto div     = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+    auto cvt_out = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+    m2.add_return({cvt_out});
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Verify no dot found: only softmax internals upcasted (develop behavior)
+TEST_CASE(softmax_no_dot_found)
+{
+    migraphx::shape s{migraphx::shape::half_type, {1, 12, 1, 128}};
+    migraphx::shape f32_s{migraphx::shape::float_type, s.lens()};
+
+    migraphx::module m1;
+    auto x1       = m1.add_parameter("x", s);
+    auto softmax1 = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), x1);
+    m1.add_return({softmax1});
+
+    migraphx::module m2;
+    auto x2    = m2.add_parameter("x", s);
+    auto cvt_x = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x2);
+    auto rmax = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), cvt_x);
+    auto rmax_bc =
+        m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", f32_s.lens()}}), rmax);
+    auto sub  = m2.add_instruction(migraphx::make_op("sub"), cvt_x, rmax_bc);
+    auto exp  = m2.add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+    auto rsum_bc =
+        m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", f32_s.lens()}}), rsum);
+    auto div     = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+    auto cvt_out = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+    m2.add_return({cvt_out});
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Verify backward walk enters mul but finds no upstream dot.
+// The walk follows mul's inputs (both are parameters/broadcasts, not dot),
+// returns nullopt, and the pass only upcasts softmax internals (develop behavior).
+TEST_CASE(softmax_mul_no_upstream_dot)
+{
+    migraphx::shape s{migraphx::shape::half_type, {1, 12, 1, 128}};
+    migraphx::shape scale_shape{migraphx::shape::half_type, {1}};
+    migraphx::shape f32_s{migraphx::shape::float_type, s.lens()};
+
+    migraphx::module m1;
+    auto x1     = m1.add_parameter("x", s);
+    auto scale1 = m1.add_parameter("scale", scale_shape);
+    auto scale_bc1 =
+        m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), scale1);
+    auto mul1     = m1.add_instruction(migraphx::make_op("mul"), x1, scale_bc1);
+    auto softmax1 = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mul1);
+    m1.add_return({softmax1});
+
+    // Expected: mul stays f16, only softmax internals upcasted
+    migraphx::module m2;
+    auto x2     = m2.add_parameter("x", s);
+    auto scale2 = m2.add_parameter("scale", scale_shape);
+    auto scale_bc2 =
+        m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), scale2);
+    auto mul2    = m2.add_instruction(migraphx::make_op("mul"), x2, scale_bc2);
+    auto cvt_mul = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), mul2);
+    auto rmax = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), cvt_mul);
+    auto rmax_bc =
+        m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", f32_s.lens()}}), rmax);
+    auto sub  = m2.add_instruction(migraphx::make_op("sub"), cvt_mul, rmax_bc);
+    auto exp  = m2.add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+    auto rsum_bc =
+        m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", f32_s.lens()}}), rsum);
+    auto div     = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+    auto cvt_out = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+    m2.add_return({cvt_out});
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Verify double mask: dot -> mul -> where -> where -> softmax
+TEST_CASE(softmax_dot_scale_double_where)
+{
+    migraphx::shape dot_shape{migraphx::shape::half_type, {1, 12, 1, 128}};
+    migraphx::shape k_shape{migraphx::shape::half_type, {1, 12, 128, 128}};
+    migraphx::shape scale_shape{migraphx::shape::half_type, {1}};
+    migraphx::shape mask_shape{migraphx::shape::bool_type, {1, 12, 1, 128}};
+    migraphx::shape f32_dot_shape{migraphx::shape::float_type, dot_shape.lens()};
+
+    auto make_inputs =
+        [](auto& mod, auto dot_shape, auto k_shape, auto scale_shape, auto mask_shape) {
+            auto q     = mod.add_parameter("q", dot_shape);
+            auto k     = mod.add_parameter("k", k_shape);
+            auto scale = mod.add_parameter("scale", scale_shape);
+            auto mask1 = mod.add_parameter("mask1", mask_shape);
+            auto mask2 = mod.add_parameter("mask2", mask_shape);
+            auto ninf =
+                mod.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::half_type, {1}},
+                                                  {-std::numeric_limits<float>::infinity()}});
+            auto ninf_bc = mod.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", dot_shape.lens()}}), ninf);
+            auto scale_bc = mod.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", dot_shape.lens()}}), scale);
+            auto dot = mod.add_instruction(migraphx::make_op("dot"), q, k);
+            return std::make_tuple(dot, scale_bc, mask1, mask2, ninf_bc);
+        };
+
+    migraphx::module m1;
+    {
+        auto [dot, scale_bc, mask1, mask2, ninf_bc] =
+            make_inputs(m1, dot_shape, k_shape, scale_shape, mask_shape);
+        auto mul     = m1.add_instruction(migraphx::make_op("mul"), dot, scale_bc);
+        auto where1  = m1.add_instruction(migraphx::make_op("where"), mask1, ninf_bc, mul);
+        auto where2  = m1.add_instruction(migraphx::make_op("where"), mask2, ninf_bc, where1);
+        auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), where2);
+        m1.add_return({softmax});
+    }
+
+    migraphx::module m2;
+    {
+        auto [dot, scale_bc, mask1, mask2, ninf_bc] =
+            make_inputs(m2, dot_shape, k_shape, scale_shape, mask_shape);
+        auto cvt_dot = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot);
+        auto cvt_scale = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale_bc);
+        auto mul      = m2.add_instruction(migraphx::make_op("mul"), cvt_dot, cvt_scale);
+        auto cvt_ninf = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), ninf_bc);
+        auto where1  = m2.add_instruction(migraphx::make_op("where"), mask1, cvt_ninf, mul);
+        auto where2  = m2.add_instruction(migraphx::make_op("where"), mask2, cvt_ninf, where1);
+        auto rmax    = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where2);
+        auto rmax_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rmax);
+        auto sub     = m2.add_instruction(migraphx::make_op("sub"), where2, rmax_bc);
+        auto exp     = m2.add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum    = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto rsum_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rsum);
+        auto div     = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+        auto cvt_out = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+        m2.add_return({cvt_out});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Verify single-input ops between dot and softmax are traversed.
+// dot -> relu -> softmax: the walk follows relu (1 input) to find the dot.
+TEST_CASE(softmax_dot_relu_upcast)
+{
+    migraphx::shape dot_shape{migraphx::shape::half_type, {1, 12, 1, 128}};
+    migraphx::shape k_shape{migraphx::shape::half_type, {1, 12, 128, 128}};
+    migraphx::shape f32_dot_shape{migraphx::shape::float_type, dot_shape.lens()};
+
+    migraphx::module m1;
+    auto q1      = m1.add_parameter("q", dot_shape);
+    auto k1      = m1.add_parameter("k", k_shape);
+    auto dot1    = m1.add_instruction(migraphx::make_op("dot"), q1, k1);
+    auto relu1   = m1.add_instruction(migraphx::make_op("relu"), dot1);
+    auto softmax = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), relu1);
+    m1.add_return({softmax});
+
+    // Expected: dot stays f16, convert(f16->f32) after dot, relu upcasted to f32
+    migraphx::module m2;
+    auto q2      = m2.add_parameter("q", dot_shape);
+    auto k2      = m2.add_parameter("k", k_shape);
+    auto dot2    = m2.add_instruction(migraphx::make_op("dot"), q2, k2);
+    auto cvt_dot = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot2);
+    auto relu2   = m2.add_instruction(migraphx::make_op("relu"), cvt_dot);
+    auto rmax    = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), relu2);
+    auto rmax_bc = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rmax);
+    auto sub     = m2.add_instruction(migraphx::make_op("sub"), relu2, rmax_bc);
+    auto exp     = m2.add_instruction(migraphx::make_op("exp"), sub);
+    auto rsum    = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+    auto rsum_bc = m2.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rsum);
+    auto div     = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+    auto cvt_out = m2.add_instruction(
+        migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+    m2.add_return({cvt_out});
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Verify mul with scale on left: mul(scale_literal, dot) instead of mul(dot, scale)
+// Scale is a literal (evaluable) so can_eval() correctly identifies it as
+// the non-data path, regardless of input ordering.
+TEST_CASE(softmax_dot_scale_left)
+{
+    migraphx::shape dot_shape{migraphx::shape::half_type, {1, 12, 1, 128}};
+    migraphx::shape k_shape{migraphx::shape::half_type, {1, 12, 128, 128}};
+    migraphx::shape scale_shape{migraphx::shape::half_type, {1}};
+    migraphx::shape f32_dot_shape{migraphx::shape::float_type, dot_shape.lens()};
+
+    auto make_graph = [](auto& mod, auto dot_shape, auto k_shape, auto scale_shape) {
+        auto q        = mod.add_parameter("q", dot_shape);
+        auto k        = mod.add_parameter("k", k_shape);
+        auto scale    = mod.add_literal(migraphx::literal{scale_shape, {1.0f / std::sqrt(128.0f)}});
+        auto scale_bc = mod.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", dot_shape.lens()}}), scale);
+        auto dot = mod.add_instruction(migraphx::make_op("dot"), q, k);
+        return std::make_tuple(dot, scale_bc);
+    };
+
+    migraphx::module m1;
+    {
+        auto [dot, scale_bc] = make_graph(m1, dot_shape, k_shape, scale_shape);
+        auto mul             = m1.add_instruction(migraphx::make_op("mul"), scale_bc, dot);
+        auto softmax         = m1.add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mul);
+        m1.add_return({softmax});
+    }
+
+    migraphx::module m2;
+    {
+        auto [dot, scale_bc] = make_graph(m2, dot_shape, k_shape, scale_shape);
+        auto cvt_scale       = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), scale_bc);
+        auto cvt_dot = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot);
+        auto mul     = m2.add_instruction(migraphx::make_op("mul"), cvt_scale, cvt_dot);
+        auto rmax    = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), mul);
+        auto rmax_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rmax);
+        auto sub     = m2.add_instruction(migraphx::make_op("sub"), mul, rmax_bc);
+        auto exp     = m2.add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum    = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto rsum_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", f32_dot_shape.lens()}}), rsum);
+        auto div     = m2.add_instruction(migraphx::make_op("div"), exp, rsum_bc);
+        auto cvt_out = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div);
+        m2.add_return({cvt_out});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(softmax_lse_upcast)
@@ -269,9 +663,9 @@ add_reduce_mean(migraphx::module& m, std::vector<std::size_t> axes, migraphx::in
         axes.begin(), axes.end(), std::size_t{1}, std::multiplies<>{}, [&](auto axis) {
             return input->get_shape().lens()[axis];
         });
-    auto t      = input->get_shape().type();
-    auto rl     = m.add_literal(migraphx::literal{{t, {1}}, {reduce_size}});
-    auto div    = migraphx::add_common_op(m, migraphx::make_op("div"), {input, rl});
+    auto t   = input->get_shape().type();
+    auto rl  = m.add_literal(migraphx::literal{{t, {1}}, {reduce_size}});
+    auto div = migraphx::add_common_op(m, migraphx::make_op("div"), {input, rl});
     return m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", axes}}), div);
 }
 
@@ -413,6 +807,34 @@ TEST_CASE(reduce_mean_variance_sqdiff_diff_axes)
         auto sqdiff   = m2.add_instruction(migraphx::make_op("sqdiff"), x, meanb);
         auto variance = add_reduce_mean(m2, {0, 2}, sqdiff);
         m2.add_return({mean, variance});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(logsoftmax)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 3, 9}};
+    migraphx::module m1;
+    {
+        auto x          = m1.add_parameter("x", s);
+        auto logsoftmax = m1.add_instruction(migraphx::make_op("logsoftmax", {{"axis", 2}}), x);
+        m1.add_return({logsoftmax});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x   = m2.add_parameter("x", s);
+        auto max = m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), x);
+        auto maxb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), max);
+        auto sub = m2.add_instruction(migraphx::make_op("sub"), x, maxb);
+        auto exp = m2.add_instruction(migraphx::make_op("exp"), sub);
+        auto sum = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
+        auto sumb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}), sum);
+        auto div = m2.add_instruction(migraphx::make_op("div"), exp, sumb);
+        auto log = m2.add_instruction(migraphx::make_op("log"), div);
+        m2.add_return({log});
     }
     EXPECT(m1.sort() == m2.sort());
 }

@@ -145,6 +145,8 @@ struct op_builder : auto_register<register_builder_action, T>
         static const std::string& name = get_type_name<T>();
         return {name.substr(name.rfind("::") + 2)};
     }
+
+    std::string name() const { return names().at(0); }
 };
 
 MIGRAPHX_EXPORT bool has_op_builder(const std::string& name);

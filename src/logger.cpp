@@ -21,9 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include "migraphx/functional.hpp"
+#include <migraphx/functional.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/color.hpp>
+#include <migraphx/stringutils.hpp>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -101,9 +102,12 @@ static color severity_color(severity s)
 static sink make_stderr_sink()
 {
     return [](severity s, std::string_view msg, source_location loc) {
-        std::cerr << severity_color(s) << format_timestamp() << " [" << to_string(s) << "] ["
-                  << loc.file_name() << ":" << loc.line() << "] " << msg << color::reset
-                  << std::endl;
+        for(auto&& line : split_string(std::string{msg}, '\n'))
+        {
+            std::cerr << severity_color(s) << format_timestamp() << " [" << to_string(s) << "] ["
+                      << loc.file_name() << ":" << loc.line() << "] " << line << color::reset
+                      << std::endl;
+        }
     };
 }
 
@@ -118,8 +122,11 @@ static sink make_file_sink(const std::string& filename)
     return [file](severity s, std::string_view msg, source_location loc) {
         if(file->is_open())
         {
-            *file << format_timestamp() << " [" << to_string(s) << "] [" << loc.file_name() << ":"
-                  << loc.line() << "] " << msg << std::endl;
+            for(auto&& line : split_string(std::string{msg}, '\n'))
+            {
+                *file << format_timestamp() << " [" << to_string(s) << "] [" << loc.file_name()
+                      << ":" << loc.line() << "] " << line << std::endl;
+            }
         }
     };
 }

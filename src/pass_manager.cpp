@@ -32,6 +32,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -181,7 +182,7 @@ struct module_pm : module_pass_manager
         }
         catch(const std::exception& e)
         {
-            std::cerr << "Error " << p.name() << ": " << e.what() << std::endl;
+            log::error() << "Error " << p.name() << ": " << e.what();
             auto clk         = std::chrono::steady_clock::now().time_since_epoch().count();
             fs::path dirname = fs::temp_directory_path() / "migraphx";
             fs::create_directories(dirname);
@@ -191,7 +192,7 @@ struct module_pm : module_pass_manager
             sanitize(base);
 #endif
             fs::path fname = dirname / base;
-            std::cerr << "Dump: " << fname << std::endl;
+            log::error() << "Dump: " << fname;
             save(*prog, fname.string());
             throw;
         }

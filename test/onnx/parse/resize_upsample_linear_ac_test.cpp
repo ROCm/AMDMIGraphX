@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,11 +23,30 @@
  */
 
 #include <onnx_test.hpp>
-#include <onnx_test_utils.hpp>
 
 TEST_CASE(resize_upsample_linear_ac_test)
 {
-    auto p    = create_upsample_linear_prog();
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    migraphx::shape ss{migraphx::shape::float_type, {4}};
+    std::vector<float> ds = {1, 1, 2, 2};
+    mm->add_literal(migraphx::literal(ss, ds));
+
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 2}};
+    auto x = mm->add_parameter("X", sx);
+
+    mm->add_instruction(migraphx::make_op("undefined"));
+
+    auto r = mm->add_instruction(
+        migraphx::make_op("resize",
+                          {{"scales", {1.0f, 1.0f, 2.0f, 2.0f}},
+                           {"mode", "linear"},
+                           {"coordinate_transformation_mode", "align_corners"}}),
+        x);
+    mm->add_return({r});
+
     auto prog = read_onnx("resize_upsample_linear_ac_test.onnx");
+
     EXPECT(p == prog);
 }

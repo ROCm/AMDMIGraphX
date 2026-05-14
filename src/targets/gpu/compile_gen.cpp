@@ -326,7 +326,7 @@ static void generate_pointwise(cpp_generator& gg,
     g.add_point_op("less", "migraphx::abs(${0} < ${1})");
     g.add_point_op("greater", "migraphx::abs(${0} > ${1})");
     g.add_point_op("not", "migraphx::abs(not ${0})");
-    // Add explict conversions
+    // Add explicit conversions
     g.fresult(
         [](const shape& s) { return "migraphx::convert<" + shape::cpp_type(s.type()) + ">"; });
     gg.create_function(g.generate_module(m)
@@ -431,8 +431,8 @@ void reduce_op::set(instruction_ref ins, const operation& op)
         {
             MIGRAPHX_THROW("Unsupported arg operation");
         }
-        // read creates tuples from (value, index), cast index to index_int
-        read = "[](auto val, auto idx) { return make_tuple(val, static_cast<index_int>(idx)); }";
+        // pack tuples (value, index) per vector lane
+        read = "[](auto val, auto idx) { return make_tuple(val, idx); }";
     }
     else
     {
@@ -494,8 +494,7 @@ std::string generate_reduce(module m, const std::string& name)
     m.sort();
     cpp_generator g;
     g.always_return_tuple();
-    auto param_shapes = m.get_parameter_shapes();
-    auto rlens        = get_rlens(m);
+    auto rlens    = get_rlens(m);
     std::size_t i = 0;
     auto f        = g.generate_module(m, [&](instruction_ref ins, const auto& names) {
         if(contains(ins->name(), "reduce"))
@@ -558,8 +557,10 @@ std::string generate_reduce(module m, const std::string& name)
         }
         if(ins->name() == "gpu::make_indices")
         {
-            auto size = ins->get_operator().to_value()["size"].to<std::size_t>();
-            return "reduce::make_indices(_c<" + std::to_string(size) + ">)";
+            if(ins->inputs().size() != 1)
+                MIGRAPHX_THROW("gpu::make_indices expects one value tensor operand");
+            const auto& val = names.at(ins->inputs().front());
+            return "r.make_indices_from(" + val + ")";
         }
         if(ins->name() == "identity")
         {
@@ -570,6 +571,9 @@ std::string generate_reduce(module m, const std::string& name)
     });
     f.set_attributes({"__device__", "__attribute__((const))"}).set_generic_types(m).set_name(name);
     f.add_generic_param("r");
+
+    // caller is fused_reduce_op(..., f(r, out_idx)), so the function `f` must take out_idx even if
+    // this module's emitted code never references it
     f.add_generic_param("out_idx");
     f.unused_param("out_idx");
     g.create_function(f);

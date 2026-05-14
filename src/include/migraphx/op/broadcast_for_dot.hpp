@@ -56,8 +56,9 @@ struct broadcast_for_dot
         auto s1 = inputs.at(1);
         if(s0.dynamic() or s1.dynamic())
         {
-            s0           = s0.to_dynamic();
-            s1           = s1.to_dynamic();
+            auto aligned = shape::to_dynamic({s0, s1});
+            s0           = aligned[0];
+            s1           = aligned[1];
             auto dds0_it = s0.dyn_dims().end() - 2;
             auto dds1_it = s1.dyn_dims().end() - 2;
             std::vector<shape::dynamic_dimension> sliced_dds0{s0.dyn_dims().begin(), dds0_it};

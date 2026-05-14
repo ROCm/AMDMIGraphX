@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <sstream>
 #include <iostream>
 #include <string>
+#include <migraphx/logger.hpp>
 
 #ifdef _WIN32
 // cppcheck-suppress definePrefix
@@ -91,16 +92,14 @@ tmp_dir::~tmp_dir()
 {
     if(not enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
     {
-        constexpr int max_retries_count = 5;
-        for([[maybe_unused]] auto count : range(max_retries_count))
+        std::error_code ec;
+        fs::remove_all(path, ec);
+#ifndef _WIN32
+        if(ec)
         {
-            std::error_code ec;
-            fs::remove_all(path, ec);
-            if(not ec)
-                break;
-            std::cerr << "Failed to remove " << path << ": " << ec.message() << std::endl;
-            std::this_thread::sleep_for(std::chrono::milliseconds(125));
+            log::info() << "Failed to remove " << path << ": " << ec.message();
         }
+#endif
     }
 }
 

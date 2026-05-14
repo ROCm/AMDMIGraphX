@@ -23,6 +23,8 @@
  *
  */
 // Test for AvoidBranchingStatementAsLastInLoop check
+// cppcheck-suppress-file knownConditionTrueFalse
+// cppcheck-suppress-file redundantContinue
 
 void test_break_as_last_in_for()
 {
@@ -38,7 +40,6 @@ void test_continue_as_last_in_while()
     while(true)
     {
         // cppcheck-suppress migraphx-AvoidBranchingStatementAsLastInLoop
-        // cppcheck-suppress redundantContinue
         continue;
     }
 }
@@ -67,7 +68,8 @@ void test_break_not_last()
 {
     for(int i = 0; i < 10; i++)
     {
-        break;
+        if(i > 5)
+            break;
         int x = 5;
         (void)x;
     }

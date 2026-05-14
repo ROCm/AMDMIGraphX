@@ -148,10 +148,19 @@ struct argmin
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
     {
-        if constexpr(SelectLast)
-            return migraphx::min(x, y, compare_pair(less{}, greater{}));
-        else
-            return migraphx::min(x, y, compare_pair(less{}, less{}));
+        return x([&](auto xv, auto xi) {
+            return y([&](auto yv, auto yi) {
+                return vec_transform_tuple(xv, xi, yv, yi)(
+                    [=](auto ax, auto ai, auto ay, auto ayi) {
+                        auto a = make_tuple(ax, ai);
+                        auto b = make_tuple(ay, ayi);
+                        if constexpr(SelectLast)
+                            return migraphx::min(a, b, compare_pair(less{}, greater{}));
+                        else
+                            return migraphx::min(a, b, compare_pair(less{}, less{}));
+                    });
+            });
+        });
     }
 };
 
@@ -165,10 +174,19 @@ struct argmax
     template <class T, class U>
     MIGRAPHX_DEVICE_CONSTEXPR auto operator()(T x, U y) const
     {
-        if constexpr(SelectLast)
-            return migraphx::max(x, y, compare_pair(less{}, less{}));
-        else
-            return migraphx::max(x, y, compare_pair(less{}, greater{}));
+        return x([&](auto xv, auto xi) {
+            return y([&](auto yv, auto yi) {
+                return vec_transform_tuple(xv, xi, yv, yi)(
+                    [=](auto ax, auto ai, auto ay, auto ayi) {
+                        auto a = make_tuple(ax, ai);
+                        auto b = make_tuple(ay, ayi);
+                        if constexpr(SelectLast)
+                            return migraphx::max(a, b, compare_pair(less{}, less{}));
+                        else
+                            return migraphx::max(a, b, compare_pair(less{}, greater{}));
+                    });
+            });
+        });
     }
 };
 } // namespace op

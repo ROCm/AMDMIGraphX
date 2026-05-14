@@ -22,12 +22,11 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
+
 #include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/tune_axis.hpp>
-#include <migraphx/common.hpp>
-#include <migraphx/onnx/quantize_dequantize_linear.hpp>
+#include <migraphx/op/builder/insert.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,10 +36,10 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
 {
     std::vector<op_desc> operators() const { return {{"QuantizeLinear"}}; }
 
-    instruction_ref parse(const op_desc& opd,
+    instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
-                          std::vector<instruction_ref> args) const
+                          const std::vector<instruction_ref>& args) const
     {
         if(args.size() < 2 or args.size() > 3)
         {
@@ -65,18 +64,23 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
                 ", provided y_zero_point shape: " + to_string_range(args[2]->get_shape().lens()));
         }
 
-        int axis = 1;
+        value options = {};
         if(contains(info.attributes, "axis"))
-            axis = info.attributes.at("axis").i();
+        {
+            options.insert({"axis", info.attributes.at("axis").i()});
+        }
 
-        int block_size = 0;
         if(contains(info.attributes, "block_size"))
-            block_size = info.attributes.at("block_size").i();
+        {
+            options.insert({"block_size", info.attributes.at("block_size").i()});
+        }
 
         std::optional<migraphx::shape::type_t> output_type;
         if(contains(info.attributes, "output_dtype"))
         {
-            output_type = get_type(info.attributes.at("output_dtype").i());
+            const auto& out_type = get_type(info.attributes.at("output_dtype").i());
+            output_type          = out_type;
+            options.insert({"output_type", out_type});
         }
 
         if(output_type.has_value() and args.size() == 3 and
@@ -88,66 +92,7 @@ struct parse_quantizelinear : op_parser<parse_quantizelinear>
                 +", y_zero_point type: " + to_string(args[2]->get_shape().type()));
         }
 
-        args = transform_quantize_dequantize_linear_inputs(
-            info, opd.onnx_name, block_size, axis, args);
-
-        if(output_type == migraphx::shape::fp4x2_type)
-        {
-            // Parsing in pack_fp4 and unpack_fp4 for the FP4 case
-            auto q_ins = info.add_instruction(
-                make_op("quantizelinear", {{"out_type", migraphx::shape::float_type}}), args);
-
-            // packing axis set to fastest dimension
-            auto quantized_shape   = q_ins->get_shape();
-            const auto& qs_strides = quantized_shape.strides();
-            if(qs_strides.empty())
-            {
-                MIGRAPHX_THROW("QuantizeLinear: MX type quantized_shape has no strides");
-            }
-            int fast_axis =
-                std::min_element(qs_strides.cbegin(), qs_strides.cend()) - qs_strides.cbegin();
-            bool odd_fast_axis = (quantized_shape.lens().at(fast_axis) % 2 == 1);
-            if(odd_fast_axis)
-            {
-                // pad fastest dimension by 1 if it is odd
-                std::vector<int64_t> padding(2 * quantized_shape.ndim(), 0);
-                padding.at(fast_axis * 2 + 1) = 1;
-                q_ins = info.add_instruction(make_op("pad", {{"pads", padding}}), q_ins);
-            }
-            // output is fp4x2_type
-            auto pack_ins = info.add_instruction(make_op("pack_fp4", {{"axis", fast_axis}}), q_ins);
-            // output is fp8e4m3fn_type
-            auto unpack_ins =
-                info.add_instruction(make_op("unpack_fp4", {{"axis", fast_axis}}), pack_ins);
-            if(odd_fast_axis)
-            {
-                // slice off padded values
-                unpack_ins = info.add_instruction(
-                    make_op("slice",
-                            {{"axes", {fast_axis}},
-                             {"starts", {0}},
-                             {"ends", {quantized_shape.lens().at(fast_axis)}}}),
-                    unpack_ins);
-            }
-            return unpack_ins;
-        }
-
-        if(parser.opset_version < 19)
-        {
-            auto common_type = common_shape({args[0]->get_shape(), args[1]->get_shape()}).type();
-            std::transform(args.begin(), args.begin() + 2, args.begin(), [&](auto ins) {
-                if(ins->get_shape().type() != common_type)
-                    ins = info.add_instruction(make_op("convert", {{"target_type", common_type}}),
-                                               ins);
-                return ins;
-            });
-        }
-
-        if(output_type.has_value())
-            return info.add_instruction(make_op("quantizelinear", {{"out_type", *output_type}}),
-                                        args);
-        else
-            return info.add_instruction(make_op("quantizelinear"), args);
+        return op::builder::add("quantizelinear", *info.mod, args, options).at(0);
     }
 };
 

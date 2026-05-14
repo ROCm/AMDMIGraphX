@@ -421,6 +421,278 @@ TEST_CASE(concat_pointwise_contiguous)
     EXPECT(p1 == p2);
 }
 
+TEST_CASE(channelwise_conv_pointwise)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {2, 4, 8, 8}};
+    migraphx::shape sw{migraphx::shape::float_type, {4, 1, 3, 3}};
+    migraphx::shape sout{migraphx::shape::float_type, {2, 4, 6, 6}};
+
+    auto create_program = [=](bool first_arg_conv) {
+        migraphx::program p;
+        auto* mm       = p.get_main_module();
+        auto x         = mm->add_parameter("x", sx);
+        auto w         = mm->add_parameter("w", sw);
+        auto z         = mm->add_parameter("z", sout);
+        auto alloc     = migraphx::make_op("allocate", {{"shape", to_value(sout)}});
+        auto alloc_ins = mm->add_instruction(alloc);
+        auto conv_ins =
+            mm->add_instruction(make_precompile_op("gpu::channelwise_conv"), x, w, alloc_ins);
+        std::vector<migraphx::instruction_ref> pw_inputs = {conv_ins, z};
+        if(not first_arg_conv)
+        {
+            pw_inputs = {z, conv_ins};
+        }
+        auto* pw_add =
+            create_pointwise_module(p, "main:pointwise0", pw_inputs, single_pointwise("add"));
+        auto alloc_ins2 = mm->add_instruction(alloc);
+        pw_inputs.push_back(alloc_ins2);
+        auto add_ins = mm->add_instruction(make_precompile_op("pointwise"), pw_inputs, {pw_add});
+        mm->add_return({add_ins});
+        return p;
+    };
+
+    auto create_fused_program = [=]() {
+        migraphx::program p;
+        auto* mm       = p.get_main_module();
+        auto x         = mm->add_parameter("x", sx);
+        auto w         = mm->add_parameter("w", sw);
+        auto z         = mm->add_parameter("z", sout);
+        auto alloc     = migraphx::make_op("allocate", {{"shape", to_value(sout)}});
+        auto alloc_ins = mm->add_instruction(alloc);
+        auto* pw_add =
+            create_pointwise_module(p, "main:pointwise0", {x, z}, single_pointwise("add"));
+        auto conv_op     = migraphx::make_op("gpu::channelwise_conv");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(conv_op)}, {"output_shape", migraphx::to_value(sout)}});
+        auto fused_ins = mm->add_instruction(pre_comp_op, {x, w, z, alloc_ins}, {pw_add});
+        mm->add_return({fused_ins});
+        return p;
+    };
+
+    {
+        migraphx::program p1 = create_program(true);
+        run_pass(p1);
+        migraphx::program p2 = create_fused_program();
+        EXPECT(p1 == p2);
+    }
+    {
+        // conv is not arg(0), should not fuse
+        migraphx::program p1 = create_program(false);
+        run_pass(p1);
+        EXPECT(p1 == create_program(false));
+    }
+}
+
+TEST_CASE(channelwise_conv_pointwise_already_fused)
+{
+    migraphx::shape sx{migraphx::shape::float_type, {2, 4, 8, 8}};
+    migraphx::shape sw{migraphx::shape::float_type, {4, 1, 3, 3}};
+    migraphx::shape sout{migraphx::shape::float_type, {2, 4, 6, 6}};
+
+    auto create_program = [=]() {
+        migraphx::program p;
+        auto* mm       = p.get_main_module();
+        auto x         = mm->add_parameter("x", sx);
+        auto w         = mm->add_parameter("w", sw);
+        auto z         = mm->add_parameter("z", sout);
+        auto y         = mm->add_parameter("y", sout);
+        auto alloc     = migraphx::make_op("allocate", {{"shape", to_value(sout)}});
+        auto alloc_ins = mm->add_instruction(alloc);
+        // channelwise_conv already has a module (already fused)
+        auto* pw_relu =
+            create_pointwise_module(p, "main:pointwise0", {x}, [](auto* pm, const auto& inputs) {
+                return pm->add_instruction(migraphx::make_op("relu"), inputs[0]);
+            });
+        auto conv_op     = migraphx::make_op("gpu::channelwise_conv");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(conv_op)}, {"output_shape", migraphx::to_value(sout)}});
+        auto conv_ins = mm->add_instruction(pre_comp_op, {x, w, z, alloc_ins}, {pw_relu});
+        auto* pw_add =
+            create_pointwise_module(p, "main:pointwise1", {conv_ins, y}, single_pointwise("add"));
+        auto alloc_ins2 = mm->add_instruction(alloc);
+        auto add_ins    = mm->add_instruction(
+            make_precompile_op("pointwise"), {conv_ins, y, alloc_ins2}, {pw_add});
+        mm->add_return({add_ins});
+        return p;
+    };
+
+    // Should not fuse since channelwise_conv already has a module
+    migraphx::program p1 = create_program();
+    run_pass(p1);
+    EXPECT(p1 == create_program());
+}
+
+TEST_CASE(precompile_copy)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+
+    auto create_program = [=]() {
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto alloc1  = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
+        auto* pw_mod = create_pointwise_module(p, "main:pointwise0", {x}, single_pointwise("relu"));
+        auto pw      = mm->add_instruction(make_precompile_op("pointwise"), {x, alloc1}, {pw_mod});
+        auto alloc2  = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
+        auto copy    = mm->add_instruction(migraphx::make_op("hip::copy"), pw, alloc2);
+        mm->add_return({copy});
+        return p;
+    };
+
+    auto create_fused_program = [=]() {
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto alloc   = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
+        auto* pw_mod = create_pointwise_module(p, "main:pointwise0", {x}, single_pointwise("relu"));
+        auto pw_op   = migraphx::make_op("pointwise");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(pw_op)}, {"output_shape", migraphx::to_value(s)}});
+        auto pw = mm->add_instruction(pre_comp_op, {x, alloc}, {pw_mod});
+        mm->add_return({pw});
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    run_pass(p1);
+    migraphx::program p2 = create_fused_program();
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(precompile_copy_non_alloc)
+{
+    // After eliminate_concat the precompile_op's output buffer may be a slice of
+    // a shared super-allocation rather than a plain allocate.  Merging a second
+    // hip::copy on top would redirect the write away from the slice and leave
+    // the first destination unwritten.  Verify the merge is blocked.
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape super_s{migraphx::shape::float_type, {2, 3, 8}};
+    migraphx::shape slice_s{migraphx::shape::float_type, {2, 3, 4}, {24, 8, 1}};
+
+    auto create_program = [=]() {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto super_alloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(super_s)}}));
+        auto slice = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}),
+            super_alloc);
+        auto* pw_mod = create_pointwise_module(p, "main:pointwise0", {x}, single_pointwise("relu"));
+        auto pw_op   = migraphx::make_op("pointwise");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(pw_op)}, {"output_shape", migraphx::to_value(slice_s)}});
+        auto pw   = mm->add_instruction(pre_comp_op, {x, slice}, {pw_mod});
+        auto dest = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
+        auto copy = mm->add_instruction(migraphx::make_op("hip::copy"), pw, dest);
+        mm->add_return({copy});
+        return p;
+    };
+
+    // hip::copy is NOT merged into the precompile_op; instead
+    // find_contiguous_copy wraps the leftover hip::copy.
+    auto create_expected_program = [=]() {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto super_alloc =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(super_s)}}));
+        auto slice = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}),
+            super_alloc);
+        auto* pw_mod = create_pointwise_module(p, "main:pointwise0", {x}, single_pointwise("relu"));
+        auto pw_op   = migraphx::make_op("pointwise");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(pw_op)}, {"output_shape", migraphx::to_value(slice_s)}});
+        auto pw      = mm->add_instruction(pre_comp_op, {x, slice}, {pw_mod});
+        auto dest    = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
+        auto copy_op = migraphx::make_op("hip::copy");
+        auto copy_precompile = migraphx::make_op(
+            "gpu::precompile_op", {{"op", migraphx::to_value(copy_op)}, {"additional_args", 0}});
+        auto copy = mm->add_instruction(copy_precompile, pw, dest);
+        mm->add_return({copy});
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    run_pass(p1);
+    migraphx::program p2 = create_expected_program();
+    EXPECT(p1 == p2);
+}
+
+TEST_CASE(precompile_copy_chained)
+{
+    // Simulate the nested concat scenario: a chain of hip::copy operations
+    // where the precompile_op feeds into two copies through eliminate_concat.
+    // Only the first copy should be merged; the second must remain.
+    migraphx::shape s{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape super_s1{migraphx::shape::float_type, {2, 3, 8}};
+    migraphx::shape super_s2{migraphx::shape::float_type, {2, 3, 8}};
+    migraphx::shape slice_s{migraphx::shape::float_type, {2, 3, 4}, {24, 8, 1}};
+
+    auto create_program = [=]() {
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto alloc   = mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(s)}}));
+        auto* pw_mod = create_pointwise_module(p, "main:pointwise0", {x}, single_pointwise("relu"));
+        // precompile_op with a plain allocation — eligible for first merge
+        auto pw = mm->add_instruction(make_precompile_op("pointwise"), {x, alloc}, {pw_mod});
+        // First copy into slice of super-alloc 1 (from eliminate_concat for concat1)
+        auto super1 =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(super_s1)}}));
+        auto slice1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), super1);
+        auto copy1 = mm->add_instruction(migraphx::make_op("hip::copy"), pw, slice1);
+        // Second copy into slice of super-alloc 2 (from eliminate_concat for concat2)
+        auto super2 =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(super_s2)}}));
+        auto slice2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), super2);
+        auto copy2 = mm->add_instruction(migraphx::make_op("hip::copy"), copy1, slice2);
+        mm->add_return({copy2});
+        return p;
+    };
+
+    auto create_expected_program = [=]() {
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto* pw_mod = create_pointwise_module(p, "main:pointwise0", {x}, single_pointwise("relu"));
+        // First merge happened: precompile_op now writes to slice1
+        auto super1 =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(super_s1)}}));
+        auto slice1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), super1);
+        auto pw_op       = migraphx::make_op("pointwise");
+        auto pre_comp_op = migraphx::make_op(
+            "gpu::precompile_op",
+            {{"op", migraphx::to_value(pw_op)}, {"output_shape", migraphx::to_value(slice_s)}});
+        auto pw = mm->add_instruction(pre_comp_op, {x, slice1}, {pw_mod});
+        // Second copy is NOT merged — wrapped by find_contiguous_copy
+        auto super2 =
+            mm->add_instruction(migraphx::make_op("allocate", {{"shape", to_value(super_s2)}}));
+        auto slice2 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {4}}}), super2);
+        auto copy_op         = migraphx::make_op("hip::copy");
+        auto copy_precompile = migraphx::make_op(
+            "gpu::precompile_op", {{"op", migraphx::to_value(copy_op)}, {"additional_args", 0}});
+        auto copy2 = mm->add_instruction(copy_precompile, pw, slice2);
+        mm->add_return({copy2});
+        return p;
+    };
+
+    migraphx::program p1 = create_program();
+    run_pass(p1);
+    migraphx::program p2 = create_expected_program();
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(concat_pointwise_multi_use)
 {
     migraphx::shape s1 = migraphx::shape::from_permutation(

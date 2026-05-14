@@ -185,16 +185,7 @@ cppcheck -j $(nproc) \
     --enable=information,warning,style \
     --addon=$SCRIPT_DIR/migraphx.py \
     --rule-file=$SCRIPT_DIR/rules.xml $INLINE_SUPPR_FLAG \
-    --suppress=constVariable \
-    --suppress=constVariablePointer \
-    --suppress=knownConditionTrueFalse \
-    --suppress=missingIncludeSystem \
-    --suppress=noConstructor \
-    --suppress=unassignedVariable \
-    --suppress=unreachableCode \
-    --suppress=unreadVariable \
-    --suppress=unusedAllocatedMemory \
-    --suppress=unusedStructMember \
+    --suppress=checkersReport \
     --cppcheck-build-dir="$BUILD_DIR" $TEST_FILES
 
 echo ""

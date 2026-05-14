@@ -105,7 +105,7 @@ struct nms_score_greater
     }
 };
 
-// Phase 1
+// Kernel 1.
 // One block per (batch_idx, class_idx).
 // Load data into per-block buffer of nms_data.
 // Pads values after N with sentinel values.
@@ -160,7 +160,7 @@ __device__ void nonmaxsuppression_sort(Boxes boxes_tv, Scores scores_tv, Output 
     bitonic_sort<nms_score_greater>{nms_score_greater{}}.template block_sort<AlignedNumBoxes>(idx, block_out_tv);
 }
 
-// Phase 2
+// Part of kernel 2.
 // Build the packed upper-triangular IoU mask for the N sorted boxes.
 // Work is striped such that each thread does a multiple of 2 rows so each does roughly the same
 // amount of work regardless of where it falls in the triangle.
@@ -189,7 +189,7 @@ __device__ void nms_make_iou_mask(index idx, const nms_data* sorted, uint8_t* ma
     }
 }
 
-// Phase 3
+// Part of kernel 2.
 // Greedy filter that writes selections into a per-block region of a
 // scratch buffer (block_id * N entries) and stores the per-block count.
 template <index_int N>
@@ -313,70 +313,57 @@ __device__ void nonmaxsuppression_filter(Sorted sorted_buf,
                                    reinterpret_cast<int32_t*>(counts_buf.data()));
 }
 
-// Single-block compaction: an exclusive prefix scan over block_counts gives
-// each per-block region a base offset in the final output; threads in the
-// single launched block then scatter the per-block selections in parallel.
-// Block_id order is preserved, which matches the CPU op's (batch, class)
-// iteration order, and each block writes its `block_counts[b]` entries in
-// order, so the final output is bit-for-bit identical to the serial walker.
-// Trailing slots are left as the zero fill applied before this kernel runs.
-// TODO: this explaination makes no sense
-template <index_int NumBlocks, index_int NumBoxes>
-__device__ void
-nms_compact(index idx, const int64_t* raw_output, const int32_t* block_counts, int64_t* output)
+
+// Kernel 3.
+// Move batch/class box index entries to the beginning of the output buffer.
+// Runs with 1 block. Swaps indices within `output_indices`.
+// `bc_counts`: Number of selected boxes per batch per class. (read-only)
+// `output_indices`: Output box indices that are initially segemented by non-initialized values between selected
+// indices between each batch/class. After this kernel, the selected indicies will be compacted to the beginning
+// of the tensor.
+// `output_num_selected`: Total number of selected boxes.
+template <index_int NumBatchClass, index_int NumBoxes, class Counts, class IdxOutput, class NumOutput>
+__device__ void nonmaxsuppression_compact(const Counts bc_counts,
+                                          NumOutput output_num_selected,
+                                          IdxOutput output_indices)
 {
-    static_assert(NumBlocks > 0, "num_blocks must be > 0");
-    // offsets[] is sized 4 * NumBlocks bytes in LDS, well within the 64 KB
-    // per-block budget for any realistic ONNX NMS (nb * nc).
-    static_assert(NumBlocks <= 16384,
-                  "nms_compact: NumBlocks exceeds the LDS budget for offsets[]");
-
-    __shared__ int32_t offsets[NumBlocks];
-
-    // Exclusive prefix sum: emit(b, inclusive) -> offsets[b] = inclusive - counts[b].
+    static_assert(NumBatchClass > 0, "NumBatchClass must be > 0");
+    static_assert(NumBatchClass <= 16000, "nms_compact: NumBlocks exceeds the LDS budget for offsets[]");
+    __shared__ array<index_int, NumBatchClass> offsets;
+    // Exclusive prefix sum on bc_counts to get offsets
     block_scan(
         idx,
         op::sum{},
-        int32_t{0},
-        index_int{NumBlocks},
-        [&](auto b) -> int32_t { return block_counts[b]; },
-        [&](auto b, auto inclusive) { offsets[b] = inclusive - block_counts[b]; });
+        0,
+        NumBlocks,
+        [&](auto i) -> int32_t { return bc_counts[i]; },
+        [&](auto i, auto inclusive_value) { offsets[i] = inclusive_value - block_counts[i]; });
     __syncthreads();
 
-    // Parallel scatter: flatten (b, i) so all threads see roughly equal work,
-    // regardless of how `block_counts[b]` is distributed across blocks.
-    constexpr index_int total = NumBlocks * NumBoxes;
-    idx.local_stride(total, [&](auto bi) {
-        const index_int b = bi / NumBoxes;
-        const index_int i = bi % NumBoxes;
-        if(i < static_cast<index_int>(block_counts[b]))
+    // Get num_selected_boxes from last value of exclusive scan and add last bc_counts value.
+    if(idx.local == 0)
+    {
+        output_num_selected[0] = offsets[NumBatchClass-1] + block_counts[NumBlocks-1];
+    }
+
+    // swap index values to make the output packed
+    constexpr index_int index_size = 3;
+    constexpr index_int max_entries = NumBatchClass * NumBoxes;
+    idx.local_stride(max_entries, [&](auto i) {
+        const index_int batch_class_idx = i / NumBoxes;
+        const index_int box_idx = i & NumBoxes;
+        if(box_idx < block_counts[batch_class_idx])
         {
-            const int64_t* src = raw_output + (b * NumBoxes + i) * 3;
-            int64_t* dst       = output + (offsets[b] + i) * 3;
-            dst[0]             = src[0];
-            dst[1]             = src[1];
-            dst[2]             = src[2];
+            auto src = [&](auto j){return output_indices[batch_class_idx * NumBoxes + box_idx * index_size + j]};
+            auto dst = [&](auto j){return output_indices[(offsets[batch_class_idx] + box_idx) * index_size + j]};
+            array<int64_t, 3> tmp_src = {src(0), src(1), src(2)};
+            for(int k = 0; k < 3; ++k)
+            {
+                src(k) = dst(k);
+                dst(k) = tmp_src[k];
+            }
         }
     });
-}
-
-// Compact wrapper invoked from the final JIT kernel. Reads the per-block
-// counts and raw_output produced by `nonmaxsuppression_filter` and copies
-// selections into the final output in block_id (i.e. (batch, class)) order.
-// `output` is last to match the JIT convention of using `inputs.back()` as
-// the kernel's logical output buffer.
-template <index_int NumBlocks, index_int NumBoxes, class Counts, class RawOutput, class Output>
-__device__ void nonmaxsuppression_compact(Counts counts_buf,
-                                          RawOutput raw_output_buf,
-                                          Output output_indices)
-{
-    static_assert(NumBlocks > 0, "num_blocks must be > 0");
-
-    auto idx = make_index();
-    nms_compact<NumBlocks, NumBoxes>(idx,
-                                     reinterpret_cast<const int64_t*>(raw_output_buf.data()),
-                                     reinterpret_cast<const int32_t*>(counts_buf.data()),
-                                     output_indices.data());
 }
 
 } // namespace migraphx

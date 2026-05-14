@@ -47,8 +47,6 @@ struct as_shape
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this, true}.has(1).standard();
-        if(inputs.front().dynamic() and not inputs.front().symbolic())
-            MIGRAPHX_THROW("AS_SHAPE: input must be static or symbolic");
         if(s.dynamic() and not s.symbolic())
             MIGRAPHX_THROW("AS_SHAPE: target shape must be static or symbolic");
         assert(inputs.front().sym_elements() >= s.sym_elements());

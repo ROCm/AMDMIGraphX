@@ -567,6 +567,13 @@ TEST_CASE(as_shape_sym)
         target, migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}), input);
 }
 
+TEST_CASE(as_shape_dyn_target_throws)
+{
+    migraphx::shape input{migraphx::shape::float_type, {4, 4}};
+    migraphx::shape target{migraphx::shape::float_type, {{1, 4}, {2, 8}}};
+    throws_shape(migraphx::make_op("as_shape", {{"shape", migraphx::to_value(target)}}), input);
+}
+
 TEST_CASE(contiguous_shape_singleton_dim)
 {
     migraphx::shape output{migraphx::shape::float_type, {5, 1, 8}, {8, 8, 1}};

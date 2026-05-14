@@ -63,7 +63,6 @@ struct mlir_ops_options
 #endif
 };
 
-
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

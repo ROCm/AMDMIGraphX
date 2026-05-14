@@ -29,8 +29,7 @@
 
 // Test k > n with dynamic shapes: k=100 placeholder but runtime input has fewer elements
 template <std::size_t N>
-struct test_topk_dynamic
-    : verify_program<test_topk_dynamic<N>>
+struct test_topk_dynamic : verify_program<test_topk_dynamic<N>>
 {
     migraphx::program create_program() const
     {

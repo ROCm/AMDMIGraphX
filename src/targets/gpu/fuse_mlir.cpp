@@ -1539,9 +1539,8 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(
         mpm,
         find_mlir_fused_ops{
-            .conv_mode = get_mode(
-                "fused_convolution", mlir_ops.fused_convolution, mlir_mode::fast),
-            .dot_mode = get_mode("fused_dot", mlir_ops.fused_dot, mlir_mode::fast)});
+            .conv_mode = get_mode("fused_convolution", mlir_ops.fused_convolution, mlir_mode::fast),
+            .dot_mode  = get_mode("fused_dot", mlir_ops.fused_dot, mlir_mode::fast)});
 
     // gfx12 lacks an accurate half version of MIOpen convolution_backwards path, so
     // always route it through rocMLIR regardless of MIOpen availability or user

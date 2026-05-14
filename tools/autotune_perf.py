@@ -40,7 +40,7 @@ TOTAL_TIME_MS = re.compile(r"Total time:\s*([0-9]+\.?[0-9]*)\s*ms")
 
 KNOBS: tuple[tuple[str, str, str], ...] = (
     ("NHWC layout", "MIGRAPHX_ENABLE_NHWC", "1"),
-    ("Disable hipBLASLt", "MIGRAPHX_DISABLE_HIPBLASLT", "1"),
+    ("GEMM provider rocBLAS", "MIGRAPHX_SET_GEMM_PROVIDER", "rocblas"),
     ("Enable CK GEMM", "MIGRAPHX_ENABLE_CK", "1"),
     ("Disable MLIR", "MIGRAPHX_DISABLE_MLIR", "1"),
     ("Conv->dot rewrite", "MIGRAPHX_ENABLE_REWRITE_DOT", "1"),
@@ -70,14 +70,31 @@ def resolve_driver(explicit: str | None) -> str:
     sys.exit(1)
 
 
-def warn_confounded_env(knobs: Iterable[tuple[str, str, str]]) -> None:
+def note_cleared_parent_knobs(knobs: Iterable[tuple[str, str, str]]) -> None:
     for _, name, _ in knobs:
         if name in os.environ:
             print(
-                f"warning: {name} is set in the environment; "
-                "results may be confounded.",
+                f"note: {name} is set in the environment; "
+                "it is unset for each autotune run for an isolated comparison.",
                 file=sys.stderr,
             )
+
+
+def scrub_knob_vars(env: dict[str, str], knobs: Iterable[tuple[str, str, str]]) -> None:
+    for _, name, _ in knobs:
+        env.pop(name, None)
+
+
+_LOG_SNIP_LEN = 4000
+
+
+def log_failed_driver_run(label: str, returncode: int, text: str) -> None:
+    snippet = text.strip()
+    if len(snippet) > _LOG_SNIP_LEN:
+        snippet = "... (truncated)\n" + snippet[-_LOG_SNIP_LEN:]
+    print(f"autotune: {label}: driver exit {returncode}", file=sys.stderr)
+    if snippet:
+        print(snippet, file=sys.stderr)
 
 
 def run_perf(
@@ -85,8 +102,10 @@ def run_perf(
     perf_argv: list[str],
     env_name: str | None,
     env_value: str | None,
+    label: str,
 ) -> float | None:
     env = os.environ.copy()
+    scrub_knob_vars(env, KNOBS)
     if env_name is not None and env_value is not None:
         env[env_name] = env_value
     proc = subprocess.run(
@@ -98,7 +117,33 @@ def run_perf(
         check=False,
     )
     text = proc.stdout or ""
-    return parse_total_time_ms(text)
+    parsed = parse_total_time_ms(text)
+    if proc.returncode != 0 or parsed is None:
+        log_failed_driver_run(label, proc.returncode, text)
+        return None
+    return parsed
+
+
+_MODEL_SUFFIXES = (
+    ".onnx",
+    ".pb",
+    ".mxr",
+    ".tf",
+    ".json",
+)
+
+
+def infer_model_argument(perf_argv: list[str]) -> str | None:
+    for tok in perf_argv[1:]:
+        if tok.startswith("-"):
+            continue
+        low = tok.lower()
+        if any(low.endswith(s) for s in _MODEL_SUFFIXES):
+            return tok
+    for tok in perf_argv[1:]:
+        if not tok.startswith("-"):
+            return tok
+    return None
 
 
 def write_config(
@@ -109,12 +154,16 @@ def write_config(
     env_value: str,
     winner_ms: float,
 ) -> None:
-    pct = (winner_ms - baseline_ms) / baseline_ms * 100.0
-    pct_prefix = "+" if pct >= 0 else ""
+    if baseline_ms > 0:
+        pct = (winner_ms - baseline_ms) / baseline_ms * 100.0
+        pct_prefix = "+" if pct >= 0 else ""
+        winner_comment = f"# Winner:   {winner_ms} ms ({pct_prefix}{pct}%)"
+    else:
+        winner_comment = f"# Winner:   {winner_ms} ms (no % delta; baseline was 0 ms)"
     lines = (
         f"# Autotune config for {model_file}",
         f"# Baseline: {baseline_ms} ms",
-        f"# Winner:   {winner_ms} ms ({pct_prefix}{pct}%)",
+        winner_comment,
         "#",
         "# Source this file before running migraphx-driver / your application.",
         f"export {env_name}={env_value}",
@@ -127,8 +176,9 @@ def write_config(
 def default_config_path(perf_argv: list[str], explicit: str | None) -> str:
     if explicit:
         return explicit
-    if len(perf_argv) >= 2:
-        return perf_argv[1] + ".tune"
+    model = infer_model_argument(perf_argv)
+    if model:
+        return model + ".tune"
     return "migraphx_perf.tune"
 
 
@@ -167,19 +217,19 @@ def main() -> None:
         perf_argv.insert(0, "perf")
 
     driver = resolve_driver(args.driver)
-    warn_confounded_env(KNOBS)
+    note_cleared_parent_knobs(KNOBS)
 
     rows: list[tuple[str, str | None, str | None]] = [("baseline", None, None)]
     rows.extend((lab, nam, val) for lab, nam, val in KNOBS)
 
-    model_display = perf_argv[1] if len(perf_argv) >= 2 else "(unknown)"
+    model_display = infer_model_argument(perf_argv) or "(unknown)"
     print(f"Autotune: {len(rows)} configurations on {model_display}")
 
     label_width = max(len(r[0]) for r in rows) + 2
     times: list[float | None] = []
     for index, (label, env_name, env_value) in enumerate(rows, start=1):
         print(f"[{index}/{len(rows)}] {label} ... ", end="", flush=True)
-        t_ms = run_perf(driver, perf_argv, env_name, env_value)
+        t_ms = run_perf(driver, perf_argv, env_name, env_value, label)
         times.append(t_ms)
         if t_ms is None:
             print("failed")
@@ -206,9 +256,12 @@ def main() -> None:
             continue
         line += f"{t_ms} ms"
         if env_name is not None:
-            pct = (t_ms - baseline) / baseline * 100.0
-            pct_prefix = "+" if pct >= 0 else ""
-            line += f"  {pct_prefix}{pct}%"
+            if baseline > 0:
+                pct = (t_ms - baseline) / baseline * 100.0
+                pct_prefix = "+" if pct >= 0 else ""
+                line += f"  {pct_prefix}{pct}%"
+            else:
+                line += "  n/a"
         if i == win_index and env_name is not None:
             line += "  <-- best"
         print(line)

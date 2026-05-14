@@ -46,11 +46,14 @@
 #if defined(__has_builtin) && !defined(CPPCHECK)
 #if __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && \
     __has_builtin(__builtin_FUNCTION)
+// NOLINTNEXTLINE
 #define TEST_HAS_BUILT_IN_SOURCE_LOCATION 1
 #else
+// NOLINTNEXTLINE
 #define TEST_HAS_BUILT_IN_SOURCE_LOCATION 0
 #endif
 #else
+// NOLINTNEXTLINE
 #define TEST_HAS_BUILT_IN_SOURCE_LOCATION 0
 #endif
 

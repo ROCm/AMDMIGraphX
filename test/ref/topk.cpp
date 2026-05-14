@@ -156,7 +156,7 @@ TEST_CASE(topk_k_greater_than_n_dynamic)
     migraphx::shape s{migraphx::shape::float_type, dds};
     auto data = mm->add_parameter("data", s);
     // k=100 is the max placeholder from parse time
-    auto r  = mm->add_instruction(
+    auto r = mm->add_instruction(
         migraphx::make_op("topk", {{"axis", 0}, {"k", 100}, {"largest", 1}}), data);
     auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
     auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);

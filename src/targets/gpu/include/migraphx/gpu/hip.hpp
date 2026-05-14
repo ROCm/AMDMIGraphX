@@ -253,7 +253,6 @@ struct hip_allocate_memory
     {
         return get_preallocation(ctx, id);
     }
-
     void finalize(context& ctx, const shape&, const std::vector<shape>&) const
     {
         argument a = allocate_gpu(s);

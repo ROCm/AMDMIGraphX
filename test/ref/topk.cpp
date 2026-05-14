@@ -201,9 +201,21 @@ TEST_CASE(topk_k_equals_n)
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> input_data = {
-        2.1, 2.3, 2.0, 2.5, 1.9,
-        3.3, 0.2, 4.5, 0.1, 0.8,
-        1.0, 4.5, 2.1, 0.8, 1.5,
+        2.1,
+        2.3,
+        2.0,
+        2.5,
+        1.9,
+        3.3,
+        0.2,
+        4.5,
+        0.1,
+        0.8,
+        1.0,
+        4.5,
+        2.1,
+        0.8,
+        1.5,
     };
     migraphx::parameter_map pp;
     pp["data"] = migraphx::argument(s, input_data.data());

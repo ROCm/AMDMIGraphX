@@ -186,7 +186,7 @@ python3 tools/format.py -i
 
 **Instruction (`src/include/migraphx/instruction.hpp`):**
 - References an operation and input instructions
-- Immutable - modifications return new instruction refs
+- Mutable IR node/reference; passes may rewrite instructions in place via APIs such as `replace`, `set_normalized`, and `set_target_id`
 
 **Operation (`src/include/migraphx/operation.hpp`):**
 - Defines computation semantics
@@ -449,9 +449,9 @@ TEST_CASE(test_my_pass)
 
     migraphx::module m2;
     {
-        auto input = m1.add_parameter("input", {migraphx::shape::float_type, {3, 3}});
-        auto result = m1.add_instruction(migraphx::make_op("relu2"), input);
-        m1.add_return({result});
+        auto input = m2.add_parameter("input", {migraphx::shape::float_type, {3, 3}});
+        auto result = m2.add_instruction(migraphx::make_op("relu"), input);
+        m2.add_return({result});
     }
 
     EXPECT(m1 == m2);
@@ -465,7 +465,7 @@ When adding a pass that rewrites structure:
 2. Run only the new pass (plus prerequisites and dead_code_elimination for cleanup)
 3. Create a new module with the expected final structure and assert that it is the same
 
-Use driver for inspection: `migraphx-driver compile --text --passes your_pass`
+Use driver for inspection: `migraphx-driver compile --text --apply-pass your_pass`
 
 ### Numerical Verification
 
@@ -505,7 +505,7 @@ Use driver for inspection: `migraphx-driver compile --text --passes your_pass`
 The GPU backend (`src/targets/gpu/`) implements:
 
 - **Lowering** (`lowering.cpp`): Transform generic ops to GPU-specific ops
-- **Fusion** (`fuse_ops.cpp`, `fuse_pointwise.cpp`, `fuse_ck.cpp`): Kernel fusion optimizations
+- **Fusion** (`fuse_ops.cpp`, `fuse_ck.cpp`; shared pointwise fusion in `src/fuse_pointwise.cpp`): Kernel fusion optimizations
 - **Code generation** (`compile_hip*.cpp`, `compile_miopen.cpp`): HIP/MIOpen/rocBLAS dispatch
 - **Scheduling** (`schedule_model.cpp`): Select optimal implementation
 - **Performance DB** (`perfdb.cpp`, `problem_cache.cpp`): Cache tuning results
@@ -570,7 +570,7 @@ MIGraphX uses type erasure extensively to create extensible systems without trad
 
 ### Creating New Type-Erased Interfaces
 
-**1. Define interface template** in `tools/include/migraphx/<name>.hpp`:
+**1. Define interface template** in `tools/include/<name>.hpp`:
 ```python
 <%
 interface('pass',
@@ -676,7 +676,7 @@ The driver (`./bin/migraphx-driver`) is essential for development, debugging, an
 | `--fp16` / `--int8` | Quantization mode |
 | `--text` / `--json` / `--binary` | Output format |
 | `--batch N` | Set batch size for model |
-| `--input-dim "0,1,3,224,224"` | Set static dimensions |
+| `--input-dim @input 1 3 224 224` | Set static dimensions |
 | `-n N` / `--iterations N` | Number of iterations for perf |
 | `--fill0` / `--fill1` | Fill parameters with 0s or 1s |
 | `-o FILE` / `--output FILE` | Write output to file |
@@ -688,9 +688,9 @@ The driver (`./bin/migraphx-driver`) is essential for development, debugging, an
 migraphx-driver compile model.onnx --gpu --text
 ```
 
-**Custom pass pipeline:**
+**Apply a driver pass:**
 ```bash
-migraphx-driver compile model.onnx --passes=simplify_mul,dead_code_elimination --text
+migraphx-driver compile model.onnx --apply-pass dead_code_elimination --text
 ```
 
 **Performance benchmarking:**
@@ -710,7 +710,6 @@ migraphx-driver verify model.onnx --atol 1e-5 --rtol 1e-5
 **Environment variables:**
 - `MIGRAPHX_TRACE_COMPILE=1` - Trace compilation passes
 - `MIGRAPHX_TRACE_EVAL=1` - Trace evaluation
-- `MIGRAPHX_DUMP_PASSES=1` - Dump IR after each pass
 - `MIGRAPHX_DISABLE_SCHEDULE_PASS=1` - Disable scheduling for debugging
 
 **Performance reporting:**
@@ -718,7 +717,7 @@ migraphx-driver verify model.onnx --atol 1e-5 --rtol 1e-5
 - Driver: `migraphx-driver perf --onnx model.onnx --gpu -n 50`
 
 **IR inspection:**
-- `program.print()` - Print IR to stdout
+- `program.debug_print()` - Print IR to stdout
 - GraphViz output via `graphviz.cpp` helpers
 - ROCm profiling markers via `marker_roctx.*`
 
@@ -766,7 +765,7 @@ migraphx-driver verify model.onnx --atol 1e-5 --rtol 1e-5
 
 **Documentation:**
 - Official docs: `docs/` directory (Sphinx + Doxygen)
-- Developer guides: `xdocs/` directory (detailed contributor documentation)
+- Developer guides: `docs/` directory (detailed contributor documentation)
 - Build documentation: `make -C build doc`
 
 ## Commit & Pull Request Guidelines
@@ -777,7 +776,7 @@ migraphx-driver verify model.onnx --atol 1e-5 --rtol 1e-5
 ## Running Commands
 
 - Do not use `$(nproc)`, run `nproc` first, then use the numeric value directly.
-- When running `make -j$(nproc)`, first resolve `$(nproc)` to a literal number, e.g. run `nproc` first, then use the numeric value directly in the make command (ie `make -j32` if `nproc` returns `32`).
+- When running `make -j$(nproc)`, first resolve `$(nproc)` to a literal number, e.g. run `nproc` first, then use the numeric value directly in the make command (i.e., `make -j32` if `nproc` returns `32`).
 
 ## Workspace Edit Rules
 

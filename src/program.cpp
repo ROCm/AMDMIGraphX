@@ -316,9 +316,8 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
     }
     auto& contexts = this->impl->contexts;
 
-    if(not std::any_of(contexts.begin(), contexts.end(), [](const auto& c) {
-           return is_cross_compiling(c);
-       }))
+    if(not std::any_of(
+           contexts.begin(), contexts.end(), [](const auto& c) { return is_cross_compiling(c); }))
         this->finalize();
 }
 

@@ -96,17 +96,14 @@ bool is_cross_compile_context(const T&)
         virtual('finish', returns = 'void', const = True))
 %>
 
-    /// True iff `c` holds a concrete context impl and that impl reports cross-compiling.
-    /// Safe to call on default-constructed (empty) contexts, unlike `c.is_cross_compile()`.
-    inline bool is_cross_compiling(const context& c)
+/// True iff `c` holds a concrete context impl and that impl reports cross-compiling.
+/// Safe to call on default-constructed (empty) contexts, unlike `c.is_cross_compile()`.
+inline bool is_cross_compiling(const context& c)
 {
     return c.type_id() != typeid(std::nullptr_t) and c.is_cross_compile();
 }
 
-inline void migraphx_to_value(value& v, const context& ctx)
-{
-    v = ctx.to_value();
-}
+inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
 
 inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
 

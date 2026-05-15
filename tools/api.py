@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -679,6 +679,15 @@ def add_function(name: str, *args, **kwargs) -> Function:
     return f
 
 
+def add_callback(name: str,
+                 params: Optional[List[Parameter]] = None,
+                 returns: Optional[str] = None,
+                 **kwargs) -> None:
+    f = Function(name, params=params, returns=returns, virtual=True, **kwargs)
+    f.update()
+    c_header_preamble.append(f.get_cfunction().generate_function_pointer())
+
+
 def once(f: Callable) -> Any:
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -993,6 +1002,8 @@ def vector_c_wrap(p: Parameter) -> None:
 @cwrap('std::string', 'char*')
 def string_c_wrap(p: Parameter) -> None:
     t = Type('char*')
+    if p.type.is_reference() and p.type.is_const():
+        t = t.add_const()
     if p.returns:
         if p.type.is_reference():
             p.add_param(t.add_pointer())

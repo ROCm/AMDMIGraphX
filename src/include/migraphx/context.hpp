@@ -417,6 +417,7 @@ struct context
 
         bool is_cross_compile() const override
         {
+
             return private_detail_te_default_is_cross_compile(char(0), private_detail_te_value);
         }
 

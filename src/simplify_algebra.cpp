@@ -1019,20 +1019,6 @@ struct find_concat_op
                 });
                 if(not is_valid_concat(inputs, iaxis))
                     return {start, last};
-                // concat([x]*N) along an axis where lens[iaxis]==1 is just a multibroadcast
-                if(inputs.front()->get_shape().lens().at(iaxis) == 1 and
-                   std::all_of(std::next(inputs.begin()), inputs.end(), [&](auto j) {
-                       return j == inputs.front();
-                   }))
-                {
-                    auto bcast = m.insert_instruction(
-                        ins,
-                        make_op("multibroadcast",
-                                {{"out_lens", get_output_lens(start, last, iaxis)}}),
-                        inputs.front());
-                    concats.push_back(bcast);
-                    continue;
-                }
                 auto concat =
                     m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
                 concats.push_back(concat);
@@ -1056,6 +1042,59 @@ struct find_concat_op
             m.replace_instruction(ins, args.front());
         else
             m.replace_instruction(ins, make_op("concat", {{"axis", axis}}), args);
+    }
+};
+
+// Collapse `concat(x, x, ..., x)` (N copies of the same instruction) into a
+// single `multibroadcast` when the concat axis has length 1 in the source
+// tensor. This is the common shape that shows up in MoE / KV-cache / RoPE
+// expansion code where a tensor is replicated N times along an axis. The
+// rewrite turns an O(output_size) memcpy into a strided view.
+struct find_concat_same_input
+{
+    auto matcher() const { return match::name("concat"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins           = r.result;
+        const auto& inputs = ins->inputs();
+
+        if(inputs.size() < 2)
+            return;
+
+        // multibroadcast(out_lens=...) is the static form; bail on dynamic.
+        if(ins->get_shape().dynamic())
+            return;
+
+        auto x = inputs.front();
+        if(x->get_shape().dynamic())
+            return;
+
+        // All operands must be the *same* instruction (not just shape-equal).
+        if(not std::all_of(std::next(inputs.begin()), inputs.end(), [&](instruction_ref i) {
+               return i == x;
+           }))
+            return;
+
+        // op::concat normalizes the axis at parse time.
+        auto axis        = any_cast<op::concat>(ins->get_operator()).axis;
+        const auto& lens = x->get_shape().lens();
+        if(axis < 0 or static_cast<std::size_t>(axis) >= lens.size())
+            return;
+
+        // Safe (no data movement) case: the concat axis is size 1 in the
+        // source, so it can be broadcast to N. The general lens[axis] > 1
+        // case requires unsqueeze + multibroadcast + reshape and is left
+        // to a follow-up matcher.
+        if(lens[axis] != 1)
+            return;
+
+        auto out_lens  = lens;
+        out_lens[axis] = inputs.size();
+        assert(out_lens == ins->get_shape().lens());
+
+        m.replace_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
     }
 };
 
@@ -2416,6 +2455,7 @@ void simplify_algebra::apply(module& m) const
                             find_log_exp{},
                             find_log_div{},
                             find_concat_conv{},
+                            find_concat_same_input{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

@@ -164,6 +164,7 @@ add_library(migraphx_gpu
     compile_pointwise.cpp
     compiler.cpp
     device_name.cpp
+    dynamic_ref_gemm.cpp
     eliminate_data_type_for_gpu.cpp
     fixed_pad.cpp
     fuse_ck.cpp
@@ -236,6 +237,10 @@ if(MIGRAPHX_USE_HIPBLASLT)
         OPERATORS gpu::hip_gemm<op::dot> gpu::hip_gemm<op::quant_dot>
         INCLUDES migraphx/gpu/context.hpp)
 endif()
+register_op(migraphx_gpu
+    HEADER migraphx/gpu/dynamic_ref_gemm.hpp
+    OPERATORS gpu::dynamic_ref_gemm
+    INCLUDES migraphx/gpu/context.hpp)
 if (MIGRAPHX_USE_MIOPEN)
     register_op(migraphx_gpu HEADER migraphx/gpu/convolution.hpp
         OPERATORS gpu::miopen_convolution<op::convolution> gpu::miopen_convolution<op::convolution_backwards> gpu::miopen_convolution<op::quant_convolution>

@@ -875,6 +875,33 @@ TEST_CASE(dot_dyn_test0)
                  s_m2);
 }
 
+TEST_CASE(dynamic_gemm_matches_dot_dyn_static_test0)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {5, 5}}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{1, 4}, {8, 8}}},
+                 migraphx::make_op("dynamic_gemm"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dynamic_gemm_matches_dot_2_d_test0)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {5, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {4, 8}},
+                 migraphx::make_op("dynamic_gemm"),
+                 s_m1,
+                 s_m2);
+}
+
+TEST_CASE(dynamic_gemm_mismatch_inner_error)
+{
+    migraphx::shape s_m1{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape s_m2{migraphx::shape::float_type, {6, 8}};
+    throws_shape(migraphx::make_op("dynamic_gemm"), s_m1, s_m2);
+}
+
 TEST_CASE(dot_dyn_test1)
 {
     migraphx::shape s_m1{migraphx::shape::float_type, {{1, 4}, {4, 5, {5}}}};

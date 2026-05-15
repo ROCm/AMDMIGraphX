@@ -1001,6 +1001,20 @@ struct find_mlir_standalone_op : match::supports_dynamic_shapes
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto gemm_based_op = r.result;
+        // if gemm_based_op is dynamic, then replace with a dynamic_gemm op
+        if(gemm_based_op->get_shape().dynamic())
+        {
+            auto gemm_dds = gemm_based_op->get_shape().dyn_dims();
+            if(std::any_of(gemm_dds.begin(), gemm_dds.end(), [&](auto d) { return not d.is_fixed(); }))
+            {
+                // std::cout << "replacing dynamic gemm op" << std::endl;
+                gemm_based_op->debug_print();
+                auto dynamic_gemm_op = mpm.get_module().add_instruction(make_op("dynamic_gemm"), gemm_based_op->inputs());
+                mpm.get_module().replace_instruction(gemm_based_op, dynamic_gemm_op);
+                return;
+            }
+        }
+        // std::cout << "replacing non-dynamic gemm op" << std::endl;
         // enable only for fp32/fp16/i8/fp8 types
         if(std::any_of(gemm_based_op->inputs().begin(), gemm_based_op->inputs().end(), [&](auto i) {
                return not contains({shape::type_t::float_type,
@@ -1567,6 +1581,7 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_unpack_fp4_mlir_op{});
 
     match::find_matches(mpm, find_mlir_output_reshape_ops{});
+    // mpm.get_module().debug_print();
 
 #else
     (void)mpm;

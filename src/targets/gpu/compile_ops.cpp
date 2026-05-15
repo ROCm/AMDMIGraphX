@@ -334,6 +334,7 @@ struct compile_plan
             else
             {
                 const auto& solutions = config->solutions;
+                // std::cout << "Config detailed_problem_info: " << config->detailed_problem_info << std::endl;
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());

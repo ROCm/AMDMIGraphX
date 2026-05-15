@@ -41,6 +41,7 @@ static void insert_gemm_conv(std::set<std::string>& u)
     u.insert("convolution");
     u.insert("quant_convolution");
     u.insert("dot");
+    u.insert("dynamic_gemm");
     u.insert("quant_dot");
 }
 
@@ -76,6 +77,7 @@ static eliminate_data_type for_fp8fnuz()
     if(not hipblaslt_supported())
     {
         unsupported_ops.insert("dot");
+        unsupported_ops.insert("dynamic_gemm");
         unsupported_ops.insert("quant_dot");
     }
 
@@ -98,6 +100,7 @@ static eliminate_data_type for_fp8ocp()
     if(not hipblaslt_supported())
     {
         unsupported_ops.insert("dot");
+        unsupported_ops.insert("dynamic_gemm");
         unsupported_ops.insert("quant_dot");
     }
 

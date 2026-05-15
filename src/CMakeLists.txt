@@ -207,6 +207,7 @@ register_migraphx_ops(
     dimensions_of
     div
     dot
+    dynamic_gemm
     elu
     equal
     erf

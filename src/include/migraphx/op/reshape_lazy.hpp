@@ -51,6 +51,14 @@ struct reshape_lazy
 
     shape dyn_compute_shape(shape s0) const
     {
+        // std::cout << "dyn_compute_shape" << std::endl;
+        // std::cout << "s0: " << s0 << std::endl;
+        // std::cout << "dims: " << std::endl;
+        // for(auto dim : dims)
+        // {
+        //     std::cout << dim << " ";
+        // }
+        // std::cout << std::endl;
         const auto& dyn_dims = s0.dyn_dims();
         auto num_not_fixed   = std::count_if(
             dyn_dims.cbegin(), dyn_dims.cend(), [](const auto& dd) { return not dd.is_fixed(); });
@@ -72,15 +80,15 @@ struct reshape_lazy
                 {
                     num_dd_ele *= dyn_dims[i].get_interval().min;
                 }
-                else
-                {
-                    if(dims[i] != 0 and dims[i] != -1)
-                    {
-                        MIGRAPHX_THROW(
-                            "reshape_lazy: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
-                            "output dimension");
-                    }
-                }
+                // else
+                // {
+                //     if(dims[i] != 0 and dims[i] != -1)
+                //     {
+                //         MIGRAPHX_THROW(
+                //             "reshape_lazy: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
+                //             "output dimension");
+                //     }
+                // }
             }
             
         }

@@ -105,6 +105,7 @@ struct miopen_apply
         add_gemm_op<op::dot>("dot");
         add_gemm_op<op::quant_dot>("quant_dot");
 #endif
+        add_dynamic_ref_gemm_op();
         add_if_op();
         add_loop_op();
         add_neg_op();
@@ -295,6 +296,17 @@ struct miopen_apply
         });
     }
 #endif
+
+    void add_dynamic_ref_gemm_op()
+    {
+        apply_map.emplace("dynamic_gemm", [=](instruction_ref ins) {
+            std::vector<instruction_ref> refs = ins->inputs();
+            assert(refs.size() == 2);
+            auto output = insert_allocation(ins, ins->get_shape());
+            refs.push_back(output);
+            return mod->replace_instruction(ins, make_op("gpu::dynamic_ref_gemm"), refs);
+        });
+    }
 
 #if MIGRAPHX_USE_MIOPEN
     void add_convolution_op(const std::string& name)
@@ -531,7 +543,7 @@ struct miopen_apply
         apply_map.emplace("reshape", [=](instruction_ref ins) {
             // check if reshape dims contains any 0s 
             auto dims = ins->get_operator().to_value().at("dims");
-            if(std::any_of(dims.begin(), dims.end(), [](auto dim) { return dim == 0; }))
+            if(std::any_of(dims.begin(), dims.end(), [](auto dim) { return dim == 0 or dim == -1; }))
             {
                 return ins;
             }

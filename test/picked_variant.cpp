@@ -424,4 +424,161 @@ TEST_CASE(is_derived_from_variant)
     EXPECT(std::get<int>(base_ref) == 42);
 }
 
+TEST_CASE(visit_two_same_picked_variants)
+{
+    pv_t a(std::in_place_type<int>, 5);
+    pv_t b(std::in_place_type<long>, 7L);
+    auto sum = visit(
+        [](auto x, auto y) -> long {
+            if constexpr(std::is_arithmetic_v<std::decay_t<decltype(x)>> and
+                         std::is_arithmetic_v<std::decay_t<decltype(y)>>)
+                return static_cast<long>(x) + static_cast<long>(y);
+            else
+                return -1L;
+        },
+        a,
+        b);
+    EXPECT(sum == 12L);
+}
+
+TEST_CASE(visit_two_different_picked_variants)
+{
+    pv_t a(std::in_place_type<int>, 10);
+    long_pv b(std::in_place_type<long>, 20L);
+    auto sum = visit(
+        [](auto x, auto y) -> long {
+            if constexpr(std::is_arithmetic_v<std::decay_t<decltype(x)>> and
+                         std::is_arithmetic_v<std::decay_t<decltype(y)>>)
+                return static_cast<long>(x) + static_cast<long>(y);
+            else
+                return -1L;
+        },
+        a,
+        b);
+    EXPECT(sum == 30L);
+}
+
+template <class T>
+static constexpr bool is_arith = std::is_arithmetic_v<std::decay_t<T>>;
+
+TEST_CASE(visit_picked_first_then_std_variant)
+{
+    pv_t a(std::in_place_type<int>, 3);
+    std::variant<int, long> b{4};
+    auto sum = visit(
+        [](auto x, auto y) -> long {
+            if constexpr(is_arith<decltype(x)> and is_arith<decltype(y)>)
+                return static_cast<long>(x) + static_cast<long>(y);
+            else
+                return -1L;
+        },
+        a,
+        b);
+    EXPECT(sum == 7L);
+}
+
+TEST_CASE(visit_std_variant_first_then_picked)
+{
+    std::variant<int, long> a{3};
+    pv_t b(std::in_place_type<int>, 4);
+    auto sum = visit(
+        [](auto x, auto y) -> long {
+            if constexpr(is_arith<decltype(x)> and is_arith<decltype(y)>)
+                return static_cast<long>(x) + static_cast<long>(y);
+            else
+                return -1L;
+        },
+        a,
+        b);
+    EXPECT(sum == 7L);
+}
+
+TEST_CASE(visit_three_picked_variants_different_types)
+{
+    pv_t a(std::in_place_type<int>, 1);
+    long_pv b(std::in_place_type<long>, 2L);
+    pv_t c(std::in_place_type<long>, 3L);
+    auto sum = visit(
+        [](auto x, auto y, auto z) -> long {
+            if constexpr(is_arith<decltype(x)> and is_arith<decltype(y)> and
+                         is_arith<decltype(z)>)
+                return static_cast<long>(x) + static_cast<long>(y) + static_cast<long>(z);
+            else
+                return -1L;
+        },
+        a,
+        b,
+        c);
+    EXPECT(sum == 6L);
+}
+
+TEST_CASE(visit_mixed_three_variants)
+{
+    pv_t a(std::in_place_type<int>, 1);
+    std::variant<int, long> b{2L};
+    long_pv c(std::in_place_type<long>, 3L);
+    auto sum = visit(
+        [](auto x, auto y, auto z) -> long {
+            if constexpr(is_arith<decltype(x)> and is_arith<decltype(y)> and
+                         is_arith<decltype(z)>)
+                return static_cast<long>(x) + static_cast<long>(y) + static_cast<long>(z);
+            else
+                return -1L;
+        },
+        a,
+        b,
+        c);
+    EXPECT(sum == 6L);
+}
+
+TEST_CASE(visit_picks_correct_alternative_pair)
+{
+    pv_t a(std::in_place_type<std::string>, "hi");
+    pv_t b(std::in_place_type<int>, 5);
+    auto result = visit(
+        [](auto&& x, auto&& y) -> std::string {
+            using X = std::decay_t<decltype(x)>;
+            using Y = std::decay_t<decltype(y)>;
+            if constexpr(std::is_same_v<X, std::string> and std::is_arithmetic_v<Y>)
+                return x + ":" + std::to_string(y);
+            else
+                return "no-match";
+        },
+        a,
+        b);
+    EXPECT(result == "hi:5");
+}
+
+TEST_CASE(visit_const_multi_variant)
+{
+    const pv_t a(std::in_place_type<int>, 11);
+    const long_pv b(std::in_place_type<int>, 22);
+    auto sum = visit(
+        [](auto x, auto y) -> long {
+            if constexpr(std::is_arithmetic_v<std::decay_t<decltype(x)>> and
+                         std::is_arithmetic_v<std::decay_t<decltype(y)>>)
+                return static_cast<long>(x) + static_cast<long>(y);
+            else
+                return -1L;
+        },
+        a,
+        b);
+    EXPECT(sum == 33L);
+}
+
+TEST_CASE(visit_rvalue_multi_variant)
+{
+    auto sum = visit(
+        [](auto x, auto y) -> long {
+            if constexpr(std::is_arithmetic_v<std::decay_t<decltype(x)>> and
+                         std::is_arithmetic_v<std::decay_t<decltype(y)>>)
+                return static_cast<long>(x) + static_cast<long>(y);
+            else
+                return -1L;
+        },
+        pv_t(std::in_place_type<int>, 100),
+        long_pv(std::in_place_type<long>, 200L));
+    EXPECT(sum == 300L);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

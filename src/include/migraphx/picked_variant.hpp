@@ -46,16 +46,25 @@ struct picked_variant : std::variant<Ts...>
     }
 
     friend constexpr base_t& as_variant(picked_variant& x) { return x; }
-
     friend constexpr const base_t& as_variant(const picked_variant& x) { return x; }
-
     friend constexpr base_t&& as_variant(picked_variant&& x) { return std::move(x); }
-};
 
-// template<class Visitor, class... Variants>
-// constexpr auto visit(Visitor&& vis, Variants&&... vars)
-// MIGRAPHX_RETURNS(std::visit(std::forward<Visitor>(vis),
-// as_variant(std::forward<Variants>(vars))...));
+    // Hidden friend. The first variant parameter is constrained (via SFINAE on
+    // its decayed type) to be this picked_variant specialization, which makes
+    // this overload strictly more specialized than std::visit's fully-generic
+    // `Variants&&...` for partial ordering. ADL through any picked_variant
+    // argument routes here; subsequent variant arguments may be other variants
+    // (std::variant or different picked_variant specializations) and are
+    // forwarded to std::visit, which slices any picked_variant to its base.
+    template <class Visitor,
+              class V,
+              class... Variants,
+              MIGRAPHX_REQUIRES(std::is_same<std::decay_t<V>, picked_variant>{})>
+    friend constexpr auto visit(Visitor&& vis, V&& pv, Variants&&... vars)
+        MIGRAPHX_RETURNS(std::visit(std::forward<Visitor>(vis),
+                                    as_variant(std::forward<V>(pv)),
+                                    std::forward<Variants>(vars)...));
+};
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -59,9 +59,9 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
         auto x = m2.add_parameter("x", xs);
         auto w = m2.add_literal(migraphx::literal{ws, w_data});
 
-        auto abs_w     = m2.add_instruction(migraphx::make_op("abs"), w);
-        auto scale_max = m2.add_instruction(
-            migraphx::make_op("reduce_max", {{"axes", reduce_axes}}), abs_w);
+        auto abs_w = m2.add_instruction(migraphx::make_op("abs"), w);
+        auto scale_max =
+            m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", reduce_axes}}), abs_w);
 
         auto eps = m2.add_literal(
             migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-30f}});
@@ -82,8 +82,8 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
         auto converted = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), conv);
 
-        auto scale_r = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", reshape_dims}}), scale);
+        auto scale_r =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims}}), scale);
         auto scale_out_bc = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), scale_r);
         auto result = m2.add_instruction(migraphx::make_op("mul"), converted, scale_out_bc);

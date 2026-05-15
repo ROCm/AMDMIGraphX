@@ -223,7 +223,8 @@ struct test_constructor_with_variadic_rvalue_ref_should_not_trigger
 struct test_constructor_with_template_rvalue_ref_should_not_trigger
 {
     template <class T>
-    explicit test_constructor_with_template_rvalue_ref_should_not_trigger(T&& x) : b(std::forward<T>(x))
+    explicit test_constructor_with_template_rvalue_ref_should_not_trigger(T&& x)
+        : b(std::forward<T>(x))
     {
     }
     bool b;
@@ -231,7 +232,8 @@ struct test_constructor_with_template_rvalue_ref_should_not_trigger
 
 struct test_constructor_with_string_rvalue_ref_should_not_trigger
 {
-    explicit test_constructor_with_string_rvalue_ref_should_not_trigger(std::string&& x) : s(std::move(x))
+    explicit test_constructor_with_string_rvalue_ref_should_not_trigger(std::string&& x)
+        : s(std::move(x))
     {
     }
     std::string s;

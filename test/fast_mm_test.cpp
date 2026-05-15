@@ -67,8 +67,8 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
         auto eps_bc = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", scale_lens}}), eps);
         auto scale_kd = m2.add_instruction(migraphx::make_op("max"), scale_max, eps_bc);
-        auto scale    = m2.add_instruction(
-            migraphx::make_op("squeeze", {{"axes", reduce_axes}}), scale_kd);
+        auto scale =
+            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", reduce_axes}}), scale_kd);
 
         auto scale_w_bc = m2.add_instruction(
             migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", ws.lens()}}), scale);

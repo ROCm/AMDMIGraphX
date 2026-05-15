@@ -27,7 +27,6 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -36,7 +35,7 @@ void fast_mm::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
-        if(not contains({"convolution", "quant_convolution"}, ins->name()))
+        if(ins->name() != "convolution")
             continue;
 
         const auto out_type = ins->get_shape().type();
@@ -55,8 +54,8 @@ void fast_mm::apply(module& m) const
         });
 
         auto half_conv = m.insert_instruction(ins, ins->get_operator(), inputs);
-        auto converted =
-            m.insert_instruction(ins, make_op("convert", {{"target_type", out_type}}), half_conv);
+        auto converted = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", out_type}}), half_conv);
         m.replace_instruction(ins, converted);
     }
 }

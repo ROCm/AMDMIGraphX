@@ -98,6 +98,7 @@ std::array<std::uint32_t, 4> process_block(std::array<std::uint32_t, 4> state,
         }
         else
         {
+            assert(i < 64);
             fg = {c ^ (b | (~d)), (7u * i) % 16u};
         }
 

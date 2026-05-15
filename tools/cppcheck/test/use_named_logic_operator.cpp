@@ -113,7 +113,7 @@ void test_function_with_and_operator_function2(int x, int y)
 
 void test_function_with_and_operator_function3(int x, int y)
 {
-    // migraphx-UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     g(f() && x > y);
 }
 
@@ -137,7 +137,7 @@ bool test_return_with_and_operator_function1(int x, int y)
 
 bool test_return_with_and_operator_function2(int x, int y)
 {
-    // migraphx-UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     return f() && x > y;
 }
 

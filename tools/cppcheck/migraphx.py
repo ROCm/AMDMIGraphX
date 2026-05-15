@@ -435,10 +435,6 @@ def UseNamedLogicOperator(cfg, data):
             # type or template parameter has no varId.
             if op1.isName and not op1.varId and not op1.function:
                 continue
-            # 'f() && x' is intentionally left unflagged to match the previous
-            # lexical rule.
-            if op1.str == '(' and isFunctionCall(op1.previous):
-                continue
         cppcheck.reportError(
             token, "style",
             "Use named logic operator '%s' for '%s'" % (names[token.str],

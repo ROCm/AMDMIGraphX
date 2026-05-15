@@ -28,6 +28,7 @@
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/copy.hpp>
 
 namespace migraphx {
@@ -61,8 +62,8 @@ struct tile
                 using type          = typename T::type;
                 constexpr auto s    = pad_shape(make_packed_shape(get_shape_c<T>{}));
                 constexpr auto size = s.element_space();
-                __shared__ type buffer[size];
-                auto b = make_tensor_view(buffer, s);
+                __shared__ uninitialized_buffer<type, size> buffer;
+                auto b = make_tensor_view(buffer.data(), s);
                 local_tensor_copy(idx, x, b);
                 f(b);
             };
@@ -77,8 +78,8 @@ struct tile
                 using type          = typename T::type;
                 constexpr auto s    = pad_shape(make_packed_shape(get_shape_c<T>{}));
                 constexpr auto size = s.element_space();
-                __shared__ type buffer[size];
-                auto b = make_tensor_view(buffer, s);
+                __shared__ uninitialized_buffer<type, size> buffer;
+                auto b = make_tensor_view(buffer.data(), s);
                 f(b);
                 local_tensor_copy(idx, b, x);
             };

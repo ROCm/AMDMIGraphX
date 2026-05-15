@@ -43,10 +43,6 @@ void fast_mm::apply(module& m) const
             continue;
 
         auto inputs = ins->inputs();
-        if(std::any_of(inputs.begin(), inputs.end(), [](auto input) {
-               return input->get_shape().type() != shape::float_type;
-           }))
-            continue;
 
         std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             return m.insert_instruction(
@@ -54,8 +50,8 @@ void fast_mm::apply(module& m) const
         });
 
         auto half_conv = m.insert_instruction(ins, ins->get_operator(), inputs);
-        auto converted =
-            m.insert_instruction(ins, make_op("convert", {{"target_type", out_type}}), half_conv);
+        auto converted = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", out_type}}), half_conv);
         m.replace_instruction(ins, converted);
     }
 }

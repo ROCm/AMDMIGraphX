@@ -252,9 +252,12 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     if(options.compile_mode == compile_modes::max)
         ctx.set_exhaustive_tune_flag(true);
 
-    auto passes = get_gpu_independent_passes(ctx, options, options.compile_mode);
-    auto gpu_passes = get_gpu_passes(ctx, gctx, options, options.compile_mode);
-    passes.insert(passes.end(), std::make_move_iterator(gpu_passes.begin()), std::make_move_iterator(gpu_passes.end()));
+    std::vector<std::vector<pass>> pipelines = {
+        get_gpu_independent_passes(ctx, options, options.compile_mode),
+        get_gpu_passes(ctx, gctx, options, options.compile_mode),
+    };
+    std::vector<pass> passes;
+    std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));
     return passes;
 }
 

@@ -33,6 +33,7 @@
 #include <migraphx/kernels/sort.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/types.hpp>
+#include <migraphx/kernels/slice.hpp>
 
 namespace migraphx {
 
@@ -44,7 +45,7 @@ struct nms_data
 };
 
 // Decode a single box into (xmin, ymin, xmax, ymax) corners.
-// Normalize such that [x1, y1] is the bottom left corner
+// Normalize such that [x1, y1] is the bottom left corner.
 template <bool CenterPointBox, class Box>
 __device__ inline array<float, 4> nms_normalize_box(Box box)
 {
@@ -71,9 +72,9 @@ __device__ inline array<float, 4> nms_normalize_box(Box box)
     }
 }
 
-template <class Box>
+template <class Box, class Threshold>
 __device__ inline bool
-nms_iou_over_threshold(const Box a, Box b, float threshold)
+nms_iou_over_threshold(const Box a, Box b, Threshold threshold)
 {
     const float left   = max(a[0], b[0]);
     const float right  = min(a[2], b[2]);
@@ -105,7 +106,6 @@ struct nms_score_greater
     }
 };
 
-// Phase 1
 // One block per (batch_idx, class_idx).
 // Load data into per-block buffer of nms_data.
 // Pads values after N with sentinel values.
@@ -123,8 +123,10 @@ template <bool CenterPointBox,
           class Output>
 __device__ void nonmaxsuppression_sort(Boxes boxes_tv, Scores scores_tv, Output out_tv)
 {
-    static_assert(NumBatches > 0, "num_batches must be > 0");
-    static_assert(NumClasses > 0, "num_classes must be > 0");
+    static_assert(NumBatches > 0);
+    static_assert(NumClasses > 0);
+    static_assert(NumBoxes > 0);
+    static_assert(AlignedNumBoxes > 0);
 
     auto idx = make_index();
     const index_int block_id = idx.group;
@@ -138,87 +140,86 @@ __device__ void nonmaxsuppression_sort(Boxes boxes_tv, Scores scores_tv, Output 
     const auto* boxes_b   = boxes_tv.data() + batch_idx * NumBoxes * 4;
     const auto* scores_bc = scores_tv.data() + (batch_idx * NumClasses + class_idx) * NumBoxes;
 
-    nms_data d;
+    nms_data tmp_data;
     idx.local_stride(AlignedNumBoxes, [&](auto i) {
         if(i < NumBoxes)
         {
-            d.score     = scores_bc[i];
-            d.box       = nms_normalize_box<CenterPointBox>(boxes_b + i * 4);
-            d.box_index = static_cast<int>(i);
+            tmp_data.score     = scores_bc[i];
+            tmp_data.box       = nms_normalize_box<CenterPointBox>(boxes_b + i * 4);
+            tmp_data.box_index = static_cast<int>(i);
         }
         else
         {
             // Sentinel: -inf score so it never beats any real entry
-            d.score     = -__FLT_MAX__;
-            d.box       = array<float, 4>{0.f, 0.f, 0.f, 0.f};
-            d.box_index = -1;
+            tmp_data.score     = -__FLT_MAX__;
+            tmp_data.box       = array<float, 4>{0.f, 0.f, 0.f, 0.f};
+            tmp_data.box_index = -1;
         }
-        block_out_tv[i] = d;
+        block_out_tv[i] = tmp_data;
     });
     __syncthreads();
     bitonic_sort<nms_score_greater>{nms_score_greater{}}.template block_sort<AlignedNumBoxes>(idx, block_out_tv);
 }
 
-// Phase 2
-// Build the packed upper-triangular IoU mask for the N sorted boxes.
+// Build the packed upper-triangular IoU mask for the NumBoxes sorted boxes.
 // Work is striped such that each thread does a multiple of 2 rows so each does roughly the same
 // amount of work regardless of where it falls in the triangle.
 // `sorted`: sorted nms_data{} tensor
 // `mask`: bool mask tensor
-template <index_int N, class SortedData, class Mask>
-__device__ void nms_make_iou_mask(index idx, const SortedData sorted, Mask mask, float iou_threshold)
+template <index_int NumBoxes, class SortedData, class Mask, class IouThreshold>
+__device__ void nms_make_iou_mask(index idx, const SortedData sorted, Mask mask, IouThreshold iou_threshold)
 {
-    constexpr index_int half = N / 2;
+    static_assert(NumBoxes > 0);
+    constexpr index_int half = NumBoxes / 2;
 
     auto fill_row = [&](index_int i) {
-        for(index_int j = i + 1; j < N; ++j)
+        for(index_int j = i + 1; j < NumBoxes; ++j)
         {
-            mask[nms_packed_idx(i, j, N)] =
+            mask[nms_packed_idx(i, j, NumBoxes)] =
                 nms_iou_over_threshold(sorted[i].box, sorted[j].box, iou_threshold) ? 1 : 0;
         }
     };
 
     idx.local_stride(half, [&](auto i) {
         fill_row(i);
-        fill_row(N - 1 - i);
+        fill_row(NumBoxes - 1 - i);
     });
 
-    if constexpr((N & 1) != 0 and N > 1)
+    // Have thread 0 do middle row if odd NumBoxes
+    if constexpr((NumBoxes & 1) != 0 and NumBoxes > 1)
     {
         if(idx.local == 0)
             fill_row(half);
     }
 }
 
-// Phase 2
-// Greedy filter that writes selections into a per-block region of a
-// scratch buffer (block_id * N entries) and stores the per-block count.
-template <index_int N>
+// TODO: use template for types
+// Greedy filter that writes selections into a per-batch per-class region of output.
+template <index_int NumBoxes, index_int NumClasses, class Sorted, class Mask, class Output, class Counts>
 __device__ void nms_filter_per_block(index idx,
-                                     const nms_data* sorted,
-                                     const uint8_t* mask,
-                                     int batch_idx,
-                                     int class_idx,
+                                     const Sorted sorted,
+                                     const Mask mask,
                                      int64_t max_output,
                                      float score_thr,
-                                     int64_t* raw_output,    // [num_blocks * N * 3]
-                                     int32_t* block_counts)  // [num_blocks]
+                                     Output output,
+                                     Counts bc_counts)
 {
-    __shared__ uint8_t removed[N > 0 ? N : 1];
-    // Match the CPU op: only filter by score when score_threshold > 0 (the CPU
-    // takes the same branch). With a non-positive (or sentinel) threshold, all
-    // boxes are kept regardless of sign.
+    static_assert(NumBoxes > 1);
+
+    const index_int block_id = idx.group;
+    const int batch_idx = block_id / NumClasses;
+    const int class_idx = block_id % NumClasses;
+    // TODO: use bits for removed mask
+    __shared__ uint8_t removed[NumBoxes];
+    // Match the ref op: only filter by score when score_threshold > 0.
     const bool do_filter = score_thr > 0.f;
-    idx.local_stride(N, [&](auto i) {
-        removed[i] = (do_filter and sorted[i].score < score_thr) ? 1 : 0;
+    idx.local_stride(NumBoxes, [&](auto i) {
+        removed[i] = (do_filter and sorted[i].score < score_thr);
     });
     __syncthreads();
 
-    const index_int block_id = idx.group;
-    int64_t* my_output       = raw_output + block_id * N * 3;
-
     index_int output_idx = 0;
-    for(index_int i = 0; i < N; ++i)
+    for(index_int i = 0; i < NumBoxes; ++i)
     {
         if(output_idx >= max_output)
         {
@@ -229,37 +230,25 @@ __device__ void nms_filter_per_block(index idx,
         {
             if(idx.local == 0)
             {
-                my_output[output_idx * 3 + 0] = batch_idx;
-                my_output[output_idx * 3 + 1] = class_idx;
-                my_output[output_idx * 3 + 2] = sorted[i].box_index;
+                output[output_idx * 3 + 0] = batch_idx;
+                output[output_idx * 3 + 1] = class_idx;
+                output[output_idx * 3 + 2] = sorted[i].box_index;
             }
             ++output_idx;
-            // Update removed[] using row i of the IoU mask. Each thread handles
-            // a stride of the row to balance work.
-            for(index_int j = i + 1 + idx.local; j < N; j += idx.nlocal())
+            for(index_int j = i + 1 + idx.local; j < NumBoxes; j += idx.nlocal())
             {
-                removed[j] |= mask[nms_packed_idx(i, j, N)];
+                removed[j] |= mask[nms_packed_idx(i, j, NumBoxes)];
             }
         }
         __syncthreads();
     }
 
     if(idx.local == 0)
-        block_counts[block_id] = static_cast<int32_t>(output_idx);
+        bc_counts[block_id] = static_cast<int32_t>(output_idx);
 }
 
-// Per-block filter driver: one block per (batch_idx, class_idx). Reads the
-// previously-sorted records out of `sorted_buf`, builds the IoU mask in
-// `mask_buf`, then runs the greedy filter writing selections into a per-block
-// region of `raw_output` and the per-block count into `counts_buf`.
-//
-// Expecting box-coordinate convention has already been normalized into corner form
-// in `sorted_buf`.
-//
-// The parameter order matches the flatten order of the precompile_op tuple
-// output (raw_output, counts). `sorted_buf` and `mask_buf` are scratch inputs
-// allocated upstream; `raw_output_buf` and `counts_buf` are the two halves of
-// the tuple-typed output buffer.
+// Per-block filter driver: one block per (batch_idx, class_idx).`.
+// Expecting box-coordinate convention has already been normalized into corner form.
 template <index_int NumBatches,
           index_int NumClasses,
           index_int NumBoxes,
@@ -269,91 +258,85 @@ template <index_int NumBatches,
           class IouThr,
           class ScoreThr,
           class Mask,
-          class RawOutput,
+          class Output,
           class Counts>
 __device__ void nonmaxsuppression_filter(Sorted sorted_buf,
                                          MaxOut max_out_p,
                                          IouThr iou_thr_p,
                                          ScoreThr score_thr_p,
-                                         Mask mask_buf,
-                                         RawOutput raw_output_buf,
-                                         Counts counts_buf)
+                                         Mask mask,
+                                         Output output,
+                                         Counts bc_counts)
 {
-    static_assert(NumBatches > 0, "num_batches must be > 0");
-    static_assert(NumClasses > 0, "num_classes must be > 0");
+    static_assert(NumBatches > 0);
+    static_assert(NumClasses > 0);
+    static_assert(NumBoxes > 0);
 
     auto idx                            = make_index();
     const index_int block_id            = idx.group;
-    const int batch_idx                 = block_id / NumClasses;
-    const int class_idx                 = block_id % NumClasses;
-    constexpr index_int iou_packed_size = (NumBoxes > 1) ? (NumBoxes * (NumBoxes - 1)) / 2 : 1;
+    //constexpr index_int iou_packed_size = (NumBoxes > 1) ? (NumBoxes * (NumBoxes - 1)) / 2 : 1;
 
-    nms_data* my_sorted =
-        reinterpret_cast<nms_data*>(sorted_buf.data()) + block_id * AlignedNumBoxes;
-    uint8_t* my_mask = reinterpret_cast<uint8_t*>(mask_buf.data()) + block_id * iou_packed_size;
+    constexpr auto my_sorted_shape = make_shape(index_ints<NumBoxes>{});
+    nms_data* my_sorted_p = reinterpret_cast<nms_data*>(sorted_buf.data()) + block_id * AlignedNumBoxes;
+    auto my_sorted = make_tensor_view<nms_data>(my_sorted_p, my_sorted_shape);
+    
+    auto my_mask = slice_tensor(mask, block_id, slice_axes<1>());
+    auto my_output = slice_tensor(output, block_id, slice_axes<1, 2>());
 
-    // Pull scalar tensor inputs once. They're broadcast to all threads via the
-    // common load (each thread reads the same single element).
+    // Read scalar tensor inputs
     const int64_t max_output_boxes_per_class = max_out_p[0];
     const float iou_thr_val   = iou_thr_p[0];
     const float score_thr_val = score_thr_p[0];
 
-    if constexpr(NumBoxes > 1)
-    {
-        nms_make_iou_mask<NumBoxes>(idx, my_sorted, my_mask, iou_thr_val);
-        __syncthreads();
-    }
+    nms_make_iou_mask<NumBoxes>(idx, my_sorted, my_mask, iou_thr_val);
+    __syncthreads();
 
-    nms_filter_per_block<NumBoxes>(idx,
+    nms_filter_per_block<NumBoxes, NumClasses>(idx,
                                    my_sorted,
                                    my_mask,
-                                   batch_idx,
-                                   class_idx,
                                    max_output_boxes_per_class,
                                    score_thr_val,
-                                   reinterpret_cast<int64_t*>(raw_output_buf.data()),
-                                   reinterpret_cast<int32_t*>(counts_buf.data()));
+                                   my_output,
+                                   bc_counts);
 }
 
 
-// Phase 3
-// Move batch/class box index entries to the beginning of the output buffer.
-// Runs with 1 block. Reads from `raw_indices` (the filter kernel's per-block
-// output) and writes the compacted selections into `output_indices`.
+// Move batch/class box index entries to the beginning of the output buffer. Runs with 1 block.
 // `bc_counts`: Number of selected boxes per batch per class. (read-only)
-// `raw_indices`: Per-block raw indices written by the filter kernel
-// (read-only).
-// `output_indices`: Output box indices, packed contiguously at the beginning
+// `indices`: Box indices, kernel packs selected boxes in-place to the beginning
 // of the buffer in (batch, class) iteration order.
-// `output_num_selected`: Total number of selected boxes.
+// `num_selected`: Total number of selected boxes.
 template <index_int NumBatchClass,
           index_int NumBoxes,
           class Counts,
-          class RawIndices,
-          class IdxOutput,
-          class NumOutput>
+          class Idx,
+          class Num,
+          class Out>
 __device__ void nonmaxsuppression_compact(const Counts bc_counts,
-                                          RawIndices raw_indices,
-                                          IdxOutput output_indices,
-                                          NumOutput output_num_selected)
+                                          const Idx indices,
+                                          Num num_selected,
+                                          Out output)
 {
-    static_assert(NumBatchClass > 0, "NumBatchClass must be > 0");
-    static_assert(NumBatchClass <= 16000, "nms_compact: NumBlocks exceeds the LDS budget for offsets[]");
-    __shared__ array<index_int, NumBatchClass> offsets;
+    static_assert(NumBatchClass > 0);
+    static_assert(NumBoxes > 0);
+    static_assert(NumBatchClass <= 16000, "nms_compact: NumBatchClass exceeds the LDS budget for offsets[]");
+
+    auto idx = make_index();
+    __shared__ index_int offsets[NumBatchClass];
     // Exclusive prefix sum on bc_counts to get offsets
     block_scan(
         idx,
         op::sum{},
         0,
-        NumBlocks,
+        NumBatchClass,
         [&](auto i) -> int32_t { return bc_counts[i]; },
-        [&](auto i, auto inclusive_value) { offsets[i] = inclusive_value - block_counts[i]; });
+        [&](auto i, auto inclusive_value) { offsets[i] = inclusive_value - bc_counts[i]; });
     __syncthreads();
 
     // Get num_selected_boxes from last value of exclusive scan and add last bc_counts value.
     if(idx.local == 0)
     {
-        output_num_selected[0] = offsets[NumBatchClass-1] + block_counts[NumBlocks-1];
+        num_selected[0] = offsets[NumBatchClass-1] + bc_counts[NumBatchClass-1];
     }
 
     // swap index values to make the output packed
@@ -362,15 +345,12 @@ __device__ void nonmaxsuppression_compact(const Counts bc_counts,
     idx.local_stride(max_entries, [&](auto i) {
         const index_int batch_class_idx = i / NumBoxes;
         const index_int box_idx = i & NumBoxes;
-        if(box_idx < block_counts[batch_class_idx])
+        if(box_idx < bc_counts[batch_class_idx])
         {
-            auto src = [&](auto j){return output_indices[batch_class_idx * NumBoxes + box_idx * index_size + j]};
-            auto dst = [&](auto j){return output_indices[(offsets[batch_class_idx] + box_idx) * index_size + j]};
-            array<int64_t, 3> tmp_src = {src(0), src(1), src(2)};
             for(int k = 0; k < 3; ++k)
             {
-                src(k) = dst(k);
-                dst(k) = tmp_src[k];
+                output[(offsets[batch_class_idx] + box_idx) * index_size + k] =
+                indices[batch_class_idx * NumBoxes + box_idx * index_size + k] ;
             }
         }
     });

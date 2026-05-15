@@ -294,7 +294,8 @@ struct nonmaxsuppression
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         // make buffer of maximum size
-        shape max_output_shape = {output_shape.type(), output_shape.max_lens()};
+        auto output_shapes = flatten({output_shape});
+        shape max_output_shape = {output_shapes.at(0).type(), output_shapes.at(0).max_lens()};
         argument result{max_output_shape};
 
         std::size_t max_output_boxes_per_class =
@@ -317,8 +318,7 @@ struct nonmaxsuppression
                                            score_threshold);
             });
         });
-        shape scalar_int_shape = {shape::int64_type, {1}};
-        argument num_selected_result{scalar_int_shape};
+        argument num_selected_result{output_shapes.at(1)};
         num_selected_result.visit([&](auto output){
             output.begin() = num_selected;
         });

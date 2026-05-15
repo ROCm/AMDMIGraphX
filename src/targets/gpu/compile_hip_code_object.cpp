@@ -192,6 +192,9 @@ compute_global_for(const context& ctx, std::size_t n, std::size_t over)
     };
 }
 
+
+// `n`: The amount of parallel work within a block.
+// `max_block_size`: Upper limit on block size.
 std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t max_block_size)
 {
     const std::size_t min_block_size = ctx.get_current_device().get_wavefront_size();

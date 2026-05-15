@@ -35,10 +35,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// Phase-1 ("sort") kernel: each block normalizes its (batch, class)'s boxes
-// and bitonic-sorts them by descending score into a per-block region of the
-// `sorted` scratch buffer. Launch dimensions are sized to AlignedNumBoxes so
-// the sort has enough parallelism even when NumBoxes is small relative to it.
 // NOLINTNEXTLINE
 static const char* const nms_sort_kernel_src = R"__migraphx__(
 #include <migraphx/kernels/nonmaxsuppression.hpp>
@@ -64,13 +60,6 @@ MIGRAPHX_GLOBAL void nms_sort_kernel(${params})
 } // namespace migraphx
 )__migraphx__";
 
-// Phase-2 ("filter") kernel: each block reads its (batch, class)'s sorted
-// records out of the shared `sorted` buffer, builds the IoU mask, runs the
-// greedy filter, and writes selections into a per-block region of the
-// `raw_output` scratch plus a per-block count. No global atomic counter is
-// used, so per-block contents are deterministic. The argument order after the
-// `mask` scratch reflects the precompile_op tuple output flatten order:
-// (raw_output, bc_counts).
 // NOLINTNEXTLINE
 static const char* const nms_filter_kernel_src = R"__migraphx__(
 #include <migraphx/kernels/nonmaxsuppression.hpp>
@@ -87,13 +76,13 @@ MIGRAPHX_GLOBAL void nms_filter_kernel(${params})
                                 auto iou_p,
                                 auto thr_p,
                                 auto mask,
-                                auto raw_out,
+                                auto output,
                                 auto counts) {
         nonmaxsuppression_filter<${num_batches},
                                  ${num_classes},
                                  ${num_boxes},
                                  ${aligned_num_boxes}>(
-            sorted, max_p, iou_p, thr_p, mask, raw_out, counts);
+            sorted, max_p, iou_p, thr_p, mask, output, counts);
     });
 }
 
@@ -102,12 +91,6 @@ MIGRAPHX_GLOBAL void nms_filter_kernel(${params})
 } // namespace migraphx
 )__migraphx__";
 
-// Phase-3 ("compact") kernel: a single block does an exclusive prefix scan
-// over the per-block counts to obtain output offsets, then its threads
-// scatter selections from each per-block region of `raw_output` into the
-// contiguous prefix of the final output. The order of (block_id 0, 1, ...)
-// is the same as the CPU op's (batch, class) iteration order, so the
-// resulting output matches the CPU op exactly.
 // NOLINTNEXTLINE
 static const char* const nms_compact_kernel_src = R"__migraphx__(
 #include <migraphx/kernels/nonmaxsuppression.hpp>
@@ -119,12 +102,12 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void nms_compact_kernel(${params})
 {
-    make_tensors()(${args})([](auto bc_counts,
-                               auto raw_output,
-                               auto output_indices,
-                               auto output_num_selected) {
+    make_tensors()(${args})([](const auto bc_counts,
+                               auto indices,
+                               auto num_selected,
+                               auto output) {
         nonmaxsuppression_compact<${num_batch_class}, ${num_boxes}>(
-            bc_counts, raw_output, output_indices, output_num_selected);
+            bc_counts, indices, num_selected, output);
     });
 }
 
@@ -133,8 +116,7 @@ MIGRAPHX_GLOBAL void nms_compact_kernel(${params})
 } // namespace migraphx
 )__migraphx__";
 
-// Compiler for the per-(batch, class) sort kernel. `inputs` is the
-// precompile_op input list:  [boxes, scores, sorted_alloc].
+// `inputs` is the precompile_op input list:  [boxes, scores, sorted_alloc].
 struct nms_sort_compiler : compiler<nms_sort_compiler>
 {
     std::vector<std::string> names() const { return {"gpu::nms_sort"}; }
@@ -143,30 +125,29 @@ struct nms_sort_compiler : compiler<nms_sort_compiler>
     {
         const auto& boxes_s  = inputs[0];
         const auto& scores_s = inputs[1];
-        const auto nb        = boxes_s.lens()[0];
-        const auto b         = boxes_s.lens()[1];
-        const auto nc        = scores_s.lens()[1];
-        const auto aligned_b =
-            static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(b)));
-        // Clamp the block size to [64, 1024] threads, sized for the bitonic sort.
-        const auto block_size = std::min<std::size_t>(
-            std::max<std::size_t>(aligned_b, std::size_t{64}), std::size_t{1024});
+        const auto num_batches = boxes_s.lens()[0];
+        const auto num_boxes = boxes_s.lens()[1];
+        const auto num_classes = scores_s.lens()[1];
+        const auto aligned_num_boxes =
+            static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
+        // NOTE: topK kernel uses relement/4 for amount of work in a block?
+        auto block_size = compute_block_size(ctx, num_boxes, 1024);
 
         hip_compile_options options;
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.kernel_name    = "nms_sort_kernel";
         options.virtual_inputs = inputs;
-        options.set_launch_params(v, block_size * nb * nc, block_size);
+        options.set_launch_params(v, block_size * num_batches * num_classes, block_size);
 
         auto src = interpolate_string(
             nms_sort_kernel_src,
             {{"params", enum_params(inputs.size(), "void * private_p")},
              {"args", enum_params(inputs.size(), "private_p")},
-             {"num_batches", std::to_string(nb)},
-             {"num_classes", std::to_string(nc)},
-             {"num_boxes", std::to_string(b)},
-             {"aligned_num_boxes", std::to_string(aligned_b)},
+             {"num_batches", std::to_string(num_batches)},
+             {"num_classes", std::to_string(num_classes)},
+             {"num_boxes", std::to_string(num_boxes)},
+             {"aligned_num_boxes", std::to_string(aligned_num_boxes)},
              {"center_point_box", v.at("center_point_box").to<bool>() ? "true" : "false"}});
         return compile_hip_code_object(ctx, src, options);
     }
@@ -177,9 +158,8 @@ struct nms_sort_compiler : compiler<nms_sort_compiler>
     }
 };
 
-// Compiler for the filter kernel. `inputs` is the precompile_op input list:
-//   [sorted, max, iou, thr, mask, tuple_alloc]
-// where `tuple_alloc` is a tuple allocation holding (raw_output, bc_counts).
+// `inputs` is the precompile_op input list: [sorted, max, iou, thr, mask, tuple_alloc].
+// Where `tuple_alloc` is a tuple allocation holding (raw_output, bc_counts).
 // After flattening the tuple, the kernel sees 7 arguments.
 struct nms_filter_compiler : compiler<nms_filter_compiler>
 {
@@ -187,38 +167,30 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        const auto nb = v.at("num_batches").to<std::size_t>();
-        const auto nc = v.at("num_classes").to<std::size_t>();
-        const auto b  = v.at("num_boxes").to<std::size_t>();
-        const auto aligned_b =
-            static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(b)));
-
-        // Clamp the per-block thread count to [64, 256]: a multiple of the
-        // wavefront size keeps __syncthreads / block_scan well-defined, and
-        // 256 is the sweet spot for the O(N) inner loops without inflating
-        // shared-memory pressure on `removed[N]` (which is sized by N, not by
-        // block_size).
-        const auto block_size = std::min<std::size_t>(
-            std::max<std::size_t>(
-                static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(b))),
-                std::size_t{64}),
-            std::size_t{256});
+        const auto num_batches = v.at("num_batches").to<std::size_t>();
+        const auto num_classes = v.at("num_classes").to<std::size_t>();
+        const auto num_boxes  = v.at("num_boxes").to<std::size_t>();
+        const auto aligned_num_boxes =
+            static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
+        // TODO: tune for max block size?
+        // num_boxes/2 because of strided thread work distribution
+        const auto block_size = compute_block_size(ctx, num_boxes/2, 256);
 
         hip_compile_options options;
         options.inputs         = flatten(inputs);
         options.output         = inputs.back();
         options.kernel_name    = "nms_filter_kernel";
         options.virtual_inputs = options.inputs;
-        options.set_launch_params(v, block_size * nb * nc, block_size);
+        options.set_launch_params(v, block_size * num_batches * num_classes, block_size);
 
         auto src = interpolate_string(
             nms_filter_kernel_src,
             {{"params", enum_params(options.inputs.size(), "void * private_p")},
              {"args", enum_params(options.inputs.size(), "private_p")},
-             {"num_batches", std::to_string(nb)},
-             {"num_classes", std::to_string(nc)},
-             {"num_boxes", std::to_string(b)},
-             {"aligned_num_boxes", std::to_string(aligned_b)}});
+             {"num_batches", std::to_string(num_batches)},
+             {"num_classes", std::to_string(num_classes)},
+             {"num_boxes", std::to_string(num_boxes)},
+             {"aligned_num_boxes", std::to_string(aligned_num_boxes)}});
         return compile_hip_code_object(ctx, src, options);
     }
 
@@ -228,30 +200,21 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
     }
 };
 
-// Compiler for the compact kernel. `inputs` is the precompile_op input list:
-//   [bc_counts, raw_output, tuple_alloc]
-// where `tuple_alloc` is a tuple allocation holding (selected_indices,
-// num_selected). After flattening, the kernel sees 4 arguments. `num_blocks`
-// (a.k.a. nb*nc) and `num_boxes` are recovered from the input shapes.
+// `inputs` is the precompile_op input list: [bc_counts, raw_output, tuple_alloc]
+// where `tuple_alloc` is a tuple allocation holding (selected_indices, num_selected).
+// After flattening, the kernel sees 4 arguments.
 struct nms_compact_compiler : compiler<nms_compact_compiler>
 {
     std::vector<std::string> names() const { return {"gpu::nms_compact"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        const auto& cnt_s     = inputs[0];
-        const auto& raw_s     = inputs[1];
-        const auto num_blocks = cnt_s.elements();
-        const auto num_boxes  = (num_blocks > 0)
-                                    ? raw_s.elements() / (num_blocks * std::size_t{3})
-                                    : std::size_t{0};
-
-        const auto total      = std::max(num_blocks * num_boxes, std::size_t{1});
-        const auto block_size = std::min<std::size_t>(
-            std::max<std::size_t>(
-                static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(total))),
-                std::size_t{64}),
-            std::size_t{256});
+        const auto& cnt_s = inputs[0];
+        const auto& indices_s = inputs[1];
+        const auto num_batch_class = cnt_s.elements();
+        const auto num_boxes = indices_s.elements() / (num_batch_class * std::size_t{3});
+        // TODO: tune for max block size?
+        const auto block_size = compute_block_size(ctx, num_boxes, 256);
 
         hip_compile_options options;
         options.inputs         = flatten(inputs);
@@ -264,7 +227,7 @@ struct nms_compact_compiler : compiler<nms_compact_compiler>
             nms_compact_kernel_src,
             {{"params", enum_params(options.inputs.size(), "void * private_p")},
              {"args", enum_params(options.inputs.size(), "private_p")},
-             {"num_batch_class", std::to_string(num_blocks)},
+             {"num_batch_class", std::to_string(num_batch_class)},
              {"num_boxes", std::to_string(num_boxes)}});
         return compile_hip_code_object(ctx, src, options);
     }

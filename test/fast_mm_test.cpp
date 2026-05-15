@@ -40,10 +40,9 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
     migraphx::shape xs{migraphx::shape::float_type, {1, 3, 8, 8}};
     migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
     std::vector<float> w_data(ws.elements(), 0.5f);
-    std::vector<std::size_t> out_lens      = {1, 4, 6, 6};
-    std::vector<std::size_t> scale_lens    = {4, 1, 1, 1};
-    std::vector<std::int64_t> reduce_axes  = {1, 2, 3};
-    std::vector<std::int64_t> reshape_dims = {1, 4, 1, 1};
+    std::vector<std::size_t> out_lens     = {1, 4, 6, 6};
+    std::vector<std::size_t> scale_lens   = {4, 1, 1, 1};
+    std::vector<std::int64_t> reduce_axes = {1, 2, 3};
 
     migraphx::module m1;
     {
@@ -67,10 +66,12 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
             migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-30f}});
         auto eps_bc = m2.add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", scale_lens}}), eps);
-        auto scale = m2.add_instruction(migraphx::make_op("max"), scale_max, eps_bc);
+        auto scale_kd = m2.add_instruction(migraphx::make_op("max"), scale_max, eps_bc);
+        auto scale    = m2.add_instruction(
+            migraphx::make_op("squeeze", {{"axes", reduce_axes}}), scale_kd);
 
         auto scale_w_bc = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", ws.lens()}}), scale);
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", ws.lens()}}), scale);
         auto w_scaled = m2.add_instruction(migraphx::make_op("div"), w, scale_w_bc);
 
         auto xh = m2.add_instruction(
@@ -82,10 +83,8 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
         auto converted = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), conv);
 
-        auto scale_r =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", reshape_dims}}), scale);
         auto scale_out_bc = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", out_lens}}), scale_r);
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), scale);
         auto result = m2.add_instruction(migraphx::make_op("mul"), converted, scale_out_bc);
         m2.add_return({result});
     }

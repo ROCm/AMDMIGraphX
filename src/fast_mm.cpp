@@ -67,10 +67,15 @@ void fast_mm::apply(module& m) const
         auto eps    = m.add_literal(literal{shape{out_type}, {1e-30f}});
         auto eps_bc = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", scale_max->get_shape().lens()}}), eps);
-        auto scale = m.insert_instruction(ins, make_op("max"), scale_max, eps_bc);
+        auto scale_kd = m.insert_instruction(ins, make_op("max"), scale_max, eps_bc);
 
+        // Drop the reduced singleton axes to get a 1-D per-output-channel scale.
+        auto scale =
+            m.insert_instruction(ins, make_op("squeeze", {{"axes", reduce_axes}}), scale_kd);
+
+        // Broadcast 1-D scale along axis 0 of W ([oc, ic, kh, kw]).
         auto scale_w_bc = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", w_shape.lens()}}), scale);
+            ins, make_op("broadcast", {{"axis", 0}, {"out_lens", w_shape.lens()}}), scale);
         auto w_scaled = m.insert_instruction(ins, make_op("div"), w, scale_w_bc);
 
         auto x_h =
@@ -82,14 +87,9 @@ void fast_mm::apply(module& m) const
         auto converted =
             m.insert_instruction(ins, make_op("convert", {{"target_type", out_type}}), half_conv);
 
-        // Reshape per-channel scale from [oc, 1, ..., 1] to [1, oc, 1, ..., 1] so it
-        // aligns with the conv output's channel axis, then broadcast and multiply.
-        std::vector<std::int64_t> out_scale_dims(out_shape.ndim(), 1);
-        out_scale_dims[1] = static_cast<std::int64_t>(w_shape.lens()[0]);
-        auto scale_r =
-            m.insert_instruction(ins, make_op("reshape", {{"dims", out_scale_dims}}), scale);
+        // Broadcast 1-D scale along channel axis 1 of the conv output ([N, oc, ...]).
         auto scale_out_bc = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", out_shape.lens()}}), scale_r);
+            ins, make_op("broadcast", {{"axis", 1}, {"out_lens", out_shape.lens()}}), scale);
         auto result = m.insert_instruction(ins, make_op("mul"), converted, scale_out_bc);
 
         m.replace_instruction(ins, result);

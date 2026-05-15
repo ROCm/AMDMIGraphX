@@ -362,7 +362,7 @@ api.add_function('migraphx_save',
                  api.params(p='migraphx::program&',
                             name='const char*',
                             options='migraphx::file_options'),
-                 fname='migraphx::save_program')
+                 fname='migraphx::save')
 
 
 @auto_handle()

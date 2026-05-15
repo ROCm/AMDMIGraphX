@@ -410,16 +410,16 @@ def UseNamedLogicOperator(cfg, data):
     names = {'&&': 'and', '||': 'or', '!': 'not'}
     # cppcheck rewrites the alternative tokens 'and', 'or' and 'not' to their
     # symbolic spelling in the token list and does not always populate
-    # originalName, so consult the raw token stream to find operators that were
-    # already written in named form.
-    named = {(tok.file, tok.linenr, tok.column)
-             for tok in data.rawTokens if tok.str in ('and', 'or', 'not')}
+    # originalName, so consult the raw token stream for operators that were
+    # written in symbolic form -- anything else was already named.
+    symbolic = {(tok.file, tok.linenr, tok.column)
+                for tok in data.rawTokens if tok.str in names}
+    if not symbolic:
+        return
     for token in cfg.tokenlist:
         if token.str not in names:
             continue
-        if token.originalName in ('and', 'or', 'not'):
-            continue
-        if (token.file, token.linenr, token.column) in named:
+        if (token.file, token.linenr, token.column) not in symbolic:
             continue
         if token.str == '&&':
             # A '&&' token can also be an rvalue reference ('T&&') rather than

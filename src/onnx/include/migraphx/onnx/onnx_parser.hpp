@@ -53,6 +53,7 @@ struct onnx_parser
         std::size_t num_outputs = 1;
         std::string name        = "";
         module* mod             = nullptr;
+        bool is_contiguous(instruction_ref ins) const;
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,

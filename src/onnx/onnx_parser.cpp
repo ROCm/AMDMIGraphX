@@ -111,15 +111,20 @@ static literal from_repeated(shape::type_t t, const T& r)
     return literal{{t, {size}}, r.begin(), r.end()};
 }
 
-instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) const
+bool onnx_parser::node_info::is_contiguous(instruction_ref ins) const
 {
     auto attr       = ins->get_operator().to_value();
     std::string key = "require_std_shape";
-    if((attr.get(key, false)) or (not ins->get_shape().standard()))
+    const bool is_not_contiguous = (attr.get(key, false)) or (not ins->get_shape().standard());
+    return not is_not_contiguous;
+}
+
+instruction_ref onnx_parser::node_info::make_contiguous(instruction_ref ins) const
+{
+    if(not is_contiguous(ins))
     {
         return add_instruction(make_op("contiguous"), ins);
     }
-
     return ins;
 }
 

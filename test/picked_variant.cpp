@@ -500,8 +500,7 @@ TEST_CASE(visit_three_picked_variants_different_types)
     pv_t c(std::in_place_type<long>, 3L);
     auto sum = visit(
         [](auto x, auto y, auto z) -> long {
-            if constexpr(is_arith<decltype(x)> and is_arith<decltype(y)> and
-                         is_arith<decltype(z)>)
+            if constexpr(is_arith<decltype(x)> and is_arith<decltype(y)> and is_arith<decltype(z)>)
                 return static_cast<long>(x) + static_cast<long>(y) + static_cast<long>(z);
             else
                 return -1L;
@@ -519,8 +518,7 @@ TEST_CASE(visit_mixed_three_variants)
     long_pv c(std::in_place_type<long>, 3L);
     auto sum = visit(
         [](auto x, auto y, auto z) -> long {
-            if constexpr(is_arith<decltype(x)> and is_arith<decltype(y)> and
-                         is_arith<decltype(z)>)
+            if constexpr(is_arith<decltype(x)> and is_arith<decltype(y)> and is_arith<decltype(z)>)
                 return static_cast<long>(x) + static_cast<long>(y) + static_cast<long>(z);
             else
                 return -1L;

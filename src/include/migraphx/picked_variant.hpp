@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/requires.hpp>
+#include <migraphx/returns.hpp>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -36,14 +37,34 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class Picker, class... Ts>
 struct picked_variant : std::variant<Ts...>
 {
-    using base = std::variant<Ts...>;
-    using base::base; // inherit default, in_place_type, in_place_index ctors
+    using base_t = std::variant<Ts...>;
+    using base_t::base_t; // inherit default, in_place_type, in_place_index ctors
 
-    template <class T, MIGRAPHX_REQUIRES(not std::is_base_of<base, std::decay_t<T>>{})>
-    picked_variant(T&& x) : base(Picker::apply(std::forward<T>(x)))
+    template <class T, MIGRAPHX_REQUIRES(not std::is_base_of<base_t, std::decay_t<T>>{})>
+    constexpr picked_variant(T&& x) : base_t(Picker::apply(std::forward<T>(x)))
     {
     }
+    
+    friend constexpr base_t& as_variant(picked_variant& x)
+    {
+        return x;
+    }
+
+    friend constexpr const base_t& as_variant(const picked_variant& x)
+    {
+        return x;
+    }
+
+    friend constexpr base_t&& as_variant(picked_variant&& x)
+    {
+        return std::move(x);
+    }
+
 };
+
+// template<class Visitor, class... Variants>
+// constexpr auto visit(Visitor&& vis, Variants&&... vars) MIGRAPHX_RETURNS(std::visit(std::forward<Visitor>(vis), as_variant(std::forward<Variants>(vars))...));
+
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -126,7 +126,7 @@ TEST_CASE(get_if_pointer)
 TEST_CASE(visit_returns_value)
 {
     pv_t v(std::in_place_type<long>, 5L);
-    auto doubled = std::visit(
+    auto doubled = visit(
         [](auto x) -> long {
             if constexpr(std::is_same_v<decltype(x), std::string>)
                 return x.size();
@@ -140,7 +140,7 @@ TEST_CASE(visit_returns_value)
 TEST_CASE(visit_mutates_value)
 {
     pv_t v(std::in_place_type<int>, 1);
-    std::visit(
+    visit(
         [](auto& x) {
             if constexpr(std::is_arithmetic_v<std::decay_t<decltype(x)>>)
                 x += 4;

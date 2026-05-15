@@ -42,6 +42,7 @@
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/optimize_module.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
 #include <migraphx/propagate_precision.hpp>
@@ -170,10 +171,26 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, compile
     else
     {
         return {
+                enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+                dead_code_elimination{},
+                simplify_dyn_ops{},
+                dead_code_elimination{},
                 normalize_ops{},
                 dead_code_elimination{},
-                enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
+                eliminate_identity{},
                 dead_code_elimination{},
+                enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
+                enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
+                simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
+                enable_pass(not mlir_enabled(), rewrite_quantization{}),
+                dead_code_elimination{},
+                rewrite_rnn{},
+                dead_code_elimination{},
+                eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
+                rewrite_resize{.affine_only = true},
+                dead_code_elimination{},
+                //enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
+                //dead_code_elimination{},
                 prefuse_ops{&ctx},
                 dead_code_elimination{},
                 enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(&ctx),

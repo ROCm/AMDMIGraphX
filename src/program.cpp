@@ -316,8 +316,10 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
     }
     auto& contexts = this->impl->contexts;
 
-    if(not std::any_of(
-           contexts.begin(), contexts.end(), [](const auto& c) { return c.is_cross_compile(); }))
+    auto is_cross_compiling = [](const auto& c) {
+        return c.type_id() != typeid(std::nullptr_t) and c.is_cross_compile();
+    };
+    if(not std::any_of(contexts.begin(), contexts.end(), is_cross_compiling))
         this->finalize();
 }
 
@@ -335,8 +337,10 @@ void program::compile(const target& t, compile_options options)
     options.trace();
     auto&& passes = t.get_passes(this->impl->contexts.front(), options);
     run_passes(*this, passes, options.trace);
-    auto mods = this->get_modules();
-    bool cross_compiling = this->impl->contexts.front().is_cross_compile();
+    auto mods                = this->get_modules();
+    const auto& front_ctx    = this->impl->contexts.front();
+    const bool cross_compiling = front_ctx.type_id() != typeid(std::nullptr_t) and
+                                 front_ctx.is_cross_compile();
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {

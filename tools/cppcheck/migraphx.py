@@ -431,8 +431,15 @@ def UseNamedLogicOperator(cfg, data):
             if not token.astOperand2:
                 continue
             op1 = token.astOperand1
-            # An rvalue reference has a bare type name as its left operand; a
-            # type or template parameter has no varId.
+            op2 = token.astOperand2
+            # An rvalue reference declared with a concrete type ('int&& x',
+            # 'std::string&& x') has the declared variable on the right with
+            # its valueType tagged as an RValue reference.
+            if op2.valueType and op2.valueType.reference == 'RValue':
+                continue
+            # An rvalue reference whose type is a template parameter ('T&& x',
+            # 'Ts&&... xs') has a bare type name with no varId as its left
+            # operand.
             if op1.isName and not op1.varId and not op1.function:
                 continue
         cppcheck.reportError(

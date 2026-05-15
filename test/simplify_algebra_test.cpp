@@ -31,6 +31,7 @@
 #include <migraphx/instruction.hpp>
 #include <basic_ops.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/normalize_ops.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
 
@@ -5346,6 +5347,187 @@ TEST_CASE(debug_symbols_simplify_div_const)
         m2.add_return({mul_r});
     }
     EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(simplify_concat_same_input)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 1, 4}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x, x);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", s);
+        auto bcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
+        m2.add_return({bcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_input_negative_axis)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 1, 4}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", -2}}), x, x, x);
+        m1.add_return({concat});
+    }
+    migraphx::run_passes(m1,
+                         {migraphx::normalize_ops{},
+                          migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{}});
+
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", s);
+        auto bcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
+        m2.add_return({bcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_input_multi_use)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 1, 4}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x, x);
+        auto add    = m1.add_instruction(migraphx::make_op("add"), x, x);
+        m1.add_return({concat, add});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x     = m2.add_parameter("x", s);
+        auto bcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
+        auto add = m2.add_instruction(migraphx::make_op("add"), x, x);
+        m2.add_return({bcast, add});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_input_chained_multibroadcast)
+{
+    auto sx = migraphx::shape{migraphx::shape::float_type, {1, 1, 4}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", sx);
+        auto mb =
+            m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 4}}}), x);
+        auto concat =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), mb, mb, mb);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    // find_concat_same_input runs before find_concat_op and short-circuits on
+    // the outer concat, so the result is a chained multibroadcast that
+    // simplify_reshapes (run elsewhere) is responsible for collapsing.
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", sx);
+        auto mb =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 4}}}), x);
+        auto bcast = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), mb);
+        m2.add_return({bcast});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_input_axis_not_one)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 4, 4}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x);
+        m2.add_return({concat});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_different_inputs)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 1, 4}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto y      = m2.add_parameter("y", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, y);
+        m2.add_return({concat});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_same_input_dynamic)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape s{migraphx::shape::float_type, {dd{1, 8}, dd{1, 1}, dd{4, 4}}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x, x);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, x, x);
+        m2.add_return({concat});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(simplify_concat_single_input_unchanged)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 1, 4}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x);
+        m1.add_return({concat});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x      = m2.add_parameter("x", s);
+        auto concat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x);
+        m2.add_return({concat});
+    }
+    EXPECT(m1 == m2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

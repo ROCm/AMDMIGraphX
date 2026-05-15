@@ -44,27 +44,18 @@ struct picked_variant : std::variant<Ts...>
     constexpr picked_variant(T&& x) : base_t(Picker::apply(std::forward<T>(x)))
     {
     }
-    
-    friend constexpr base_t& as_variant(picked_variant& x)
-    {
-        return x;
-    }
 
-    friend constexpr const base_t& as_variant(const picked_variant& x)
-    {
-        return x;
-    }
+    friend constexpr base_t& as_variant(picked_variant& x) { return x; }
 
-    friend constexpr base_t&& as_variant(picked_variant&& x)
-    {
-        return std::move(x);
-    }
+    friend constexpr const base_t& as_variant(const picked_variant& x) { return x; }
 
+    friend constexpr base_t&& as_variant(picked_variant&& x) { return std::move(x); }
 };
 
 // template<class Visitor, class... Variants>
-// constexpr auto visit(Visitor&& vis, Variants&&... vars) MIGRAPHX_RETURNS(std::visit(std::forward<Visitor>(vis), as_variant(std::forward<Variants>(vars))...));
-
+// constexpr auto visit(Visitor&& vis, Variants&&... vars)
+// MIGRAPHX_RETURNS(std::visit(std::forward<Visitor>(vis),
+// as_variant(std::forward<Variants>(vars))...));
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -407,31 +407,42 @@ def UseManagePointer(cfg, data):
 
 @cppcheck.checker
 def UseNamedLogicOperator(cfg, data):
+    names = {'&&': 'and', '||': 'or', '!': 'not'}
+    # cppcheck rewrites the alternative tokens 'and', 'or' and 'not' to their
+    # symbolic spelling in the token list and does not always populate
+    # originalName, so consult the raw token stream to find operators that were
+    # already written in named form.
+    named = {(tok.file, tok.linenr, tok.column)
+             for tok in data.rawTokens if tok.str in ('and', 'or', 'not')}
     for token in cfg.tokenlist:
+        if token.str not in names:
+            continue
+        if token.originalName in ('and', 'or', 'not'):
+            continue
+        if (token.file, token.linenr, token.column) in named:
+            continue
         if token.str == '&&':
-            if token.originalName and token.originalName == 'and':
-                continue
+            # A '&&' token can also be an rvalue reference ('T&&') rather than
+            # a logical operator; require it to be a real expression.
             if not token.astParent:
                 continue
             if not token.astOperand1:
                 continue
             if not token.astOperand2:
                 continue
-            cppcheck.reportError(
-                token, "style",
-                "Use named logic operator 'and' for '&&'")
-        elif token.str == '||':
-            if token.originalName and token.originalName == 'or':
+            op1 = token.astOperand1
+            # An rvalue reference has a bare type name as its left operand; a
+            # type or template parameter has no varId.
+            if op1.isName and not op1.varId and not op1.function:
                 continue
-            cppcheck.reportError(
-                token, "style",
-                "Use named logic operator 'or' for '||'")
-        elif token.str == '!':
-            if token.originalName and token.originalName == 'not':
+            # 'f() && x' is intentionally left unflagged to match the previous
+            # lexical rule.
+            if op1.str == '(' and isFunctionCall(op1.previous):
                 continue
-            cppcheck.reportError(
-                token, "style",
-                "Use named logic operator 'not' for '!'")
+        cppcheck.reportError(
+            token, "style",
+            "Use named logic operator '%s' for '%s'" % (names[token.str],
+                                                       token.str))
 
 @cppcheck.checker
 def UseSmartPointer(cfg, data):

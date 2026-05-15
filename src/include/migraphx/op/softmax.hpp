@@ -58,10 +58,10 @@ struct softmax
         if(s0.packed())
             return s0;
         if(s0.symbolic())
-            return {s0.type(), s0.dyn_dims()};
+            return s0.with_lens(s0.dyn_dims());
         if(s0.dynamic())
             return s0;
-        return {s0.type(), s0.lens()};
+        return s0.with_lens(s0.lens());
     }
 
     auto output() const

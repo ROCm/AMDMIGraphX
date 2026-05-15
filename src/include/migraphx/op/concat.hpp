@@ -81,67 +81,41 @@ struct concat
         // be at least 1.
         check_shapes{inputs, *this, true}.same_ndims().same_type();
 
-        if(std::none_of(inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
+        bool all_static =
+            std::none_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); });
+        auto unified = shape::to_dynamic(inputs);
+
+        const auto& dds0 = unified.front().dyn_dims();
+        for(std::size_t i = 0; i < dds0.size(); ++i)
         {
-            // Static input shapes
-            const auto& first_shape_lens = inputs.front().lens();
-            const auto& type             = inputs.front().type();
-            for(std::size_t ll = 0; ll < first_shape_lens.size(); ll++)
-            {
-                if(ll != axis)
-                {
-                    if(not std::all_of(inputs.begin(), inputs.end(), [&](auto s) {
-                           return s.lens()[ll] == first_shape_lens[ll];
-                       }))
-                    {
-                        MIGRAPHX_THROW("CONCAT: all input dimensions should match along axis " +
-                                       std::to_string(ll));
-                    }
-                }
-            }
-            std::size_t new_dim_axis = 0;
-            for(const auto& input : inputs)
-            {
-                const auto& lens = input.lens();
-                new_dim_axis += lens[axis];
-            }
-            std::vector<std::size_t> new_lens = first_shape_lens;
-            new_lens[axis]                    = new_dim_axis;
+            if(i == axis)
+                continue;
+            if(not std::all_of(unified.begin(), unified.end(), [&](const shape& s) {
+                   return s.dyn_dims()[i] == dds0[i];
+               }))
+                MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
+                               std::to_string(i));
+        }
+
+        auto new_dds  = dds0;
+        new_dds[axis] = std::accumulate(
+            unified.begin() + 1, unified.end(), dds0[axis], [&](const auto& acc, const shape& s) {
+                return acc + s.dyn_dims()[axis];
+            });
+
+        auto type = unified.front().type();
+        if(all_static)
+        {
+            std::vector<std::size_t> new_lens(new_dds.size());
+            std::transform(new_dds.begin(), new_dds.end(), new_lens.begin(), [](const auto& d) {
+                assert(d.sym_expr.is_literal());
+                return d.sym_expr.eval_uint({});
+            });
             return shape::from_permutation(type, new_lens, find_permutation(inputs));
         }
-        else if(std::all_of(
-                    inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
-        {
-            // Dynamic input shapes
-            for(std::size_t index = 0; index < inputs[0].ndim(); index++)
-            {
-                if(index != axis)
-                {
-                    if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
-                           return s.dyn_dims()[index] == inputs[0].dyn_dims()[index];
-                       }))
-                        MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
-                                       std::to_string(index));
-                }
-            }
-            std::size_t new_min = 0;
-            std::size_t new_max = 0;
-            for(const auto& input : inputs)
-            {
-                auto ddim         = input.dyn_dims()[axis];
-                auto dim_interval = ddim.get_interval();
-                new_min += dim_interval.min;
-                new_max += dim_interval.max;
-            }
-
-            auto new_dims  = inputs[0].dyn_dims();
-            new_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
-            return {inputs[0].type(), new_dims};
-        }
-        else
-        {
-            MIGRAPHX_THROW("CONCAT: Cannot mix static and dynamic input shapes.");
-        }
+        if(unified.front().symbolic())
+            return shape::from_permutation(type, new_dds, find_permutation(unified));
+        return {type, new_dds};
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

@@ -2373,6 +2373,36 @@ TEST_CASE(shape_is_compatible_lens_symbolic_same)
     EXPECT(migraphx::shape::is_compatible_lens(s1, s2));
 }
 
+TEST_CASE(shape_is_compatible_symbolic_diff_strides)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape actual{
+        migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}}, {n, n, lit(1)}};
+    migraphx::shape expected{
+        migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}}, {lit(1), lit(1), lit(1)}};
+    EXPECT(actual != expected);
+    EXPECT(migraphx::shape::is_compatible(actual, expected));
+}
+
+TEST_CASE(shape_is_compatible_symbolic_diff_dims)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 16});
+    migraphx::shape actual{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+
+TEST_CASE(shape_is_compatible_lens_symbolic_diff)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{lit(1)}, dd{m}, dd{lit(3)}}};
+    EXPECT(not migraphx::shape::is_compatible_lens(s1, s2));
+}
+
 TEST_CASE(shape_is_compatible_lens_static_vs_symbolic)
 {
     auto n = var("n", {2, 8});

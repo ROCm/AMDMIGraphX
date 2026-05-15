@@ -590,6 +590,31 @@ TEST_CASE(conv_dyn_img_weights)
                  weights_shape);
 }
 
+TEST_CASE(conv_kernel_too_large)
+{
+    // Spatial input smaller than kernel collapses output to 0 (cap, not throw).
+    migraphx::shape input{migraphx::shape::float_type, {1, 3, 2, 2}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 5, 5}};
+    migraphx::shape expected{migraphx::shape::float_type, {1, 1, 0, 0}};
+    expect_shape(expected,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(conv_kernel_too_large_dyn)
+{
+    migraphx::shape input_dyn_shape{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 2}, {2, 2}}};
+    migraphx::shape weights_shape{migraphx::shape::float_type, {1, 3, 5, 5}};
+    migraphx::shape output_dyn_shape{migraphx::shape::float_type, {{1, 1}, {1, 1}, {0, 0}, {0, 0}}};
+    expect_shape(output_dyn_shape,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input_dyn_shape,
+                 weights_shape);
+}
+
 TEST_CASE(conv_attr_shape_mismatch)
 {
     migraphx::shape input_dyn_shape = {migraphx::shape::float_type,
@@ -649,6 +674,59 @@ TEST_CASE(conv_autopad_dyn_kernel)
                                     {"padding_mode", migraphx::op::padding_mode_t::same_lower}}),
                  input_dyn_shape,
                  weights_shape);
+}
+
+TEST_CASE(conv_sym_batch)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(5)}}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(1)}, dd{lit(3)}, dd{lit(3)}}};
+    expect_shape(expected,
+                 migraphx::make_op("convolution",
+                                   {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
+                 input,
+                 weights);
+}
+
+TEST_CASE(conv_sym_img)
+{
+    auto h = var("h", {5, 20}, {10, 15});
+    auto w = var("w", {5, 20}, {10, 15});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}, dd{h}, dd{w}}};
+    migraphx::shape weights{migraphx::shape::float_type, {1, 3, 3, 3}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{lit(1)}, dd{lit(1)}, dd{h - 2}, dd{w - 2}}};
+    auto conv_op = migraphx::make_op(
+        "convolution", {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}});
+    expect_shape(expected, conv_op, input, weights);
+
+    std::unordered_map<se, std::size_t> sym_map = {{h, 12}, {w, 8}};
+    migraphx::shape static_input{migraphx::shape::float_type, {1, 3, 12, 8}};
+    migraphx::shape static_out = conv_op.compute_shape({static_input, weights});
+    EXPECT(expected.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(conv_sym_img_pad_stride)
+{
+    auto n = var("n", {1, 8});
+    auto h = var("h", {10, 50}, {20, 30});
+    auto w = var("w", {10, 50}, {20, 30});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
+    migraphx::shape weights{migraphx::shape::float_type, {16, 3, 5, 5}};
+    // h: ((h + 2*2 - 5) / 2) + 1 = (h - 1)/2 + 1
+    // w: ((w + 2*1 - 5) / 3) + 1 = (w - 3)/3 + 1
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(16)}, dd{(h - 1) / 2 + 1}, dd{(w - 3) / 3 + 1}}};
+    auto conv_op = migraphx::make_op(
+        "convolution", {{"padding", {2, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}});
+    expect_shape(expected, conv_op, input, weights);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}, {h, 26}, {w, 26}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 26, 26}};
+    migraphx::shape static_out = conv_op.compute_shape({static_input, weights});
+    EXPECT(expected.to_static(sym_map) == static_out);
 }
 
 TEST_CASE(contiguous_shape)
@@ -3266,7 +3344,7 @@ TEST_CASE(pooling_dyn_shape3)
 {
     migraphx::shape input{migraphx::shape::float_type,
                           {{4, 4}, {3, 3}, {4, 12, {8}}, {4, 12, {8}}}};
-    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 4}, {2, 4}}};
+    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {2, 4, {3}}, {2, 4, {3}}}};
     expect_shape(output,
                  migraphx::make_op("pooling",
                                    {{"mode", migraphx::op::pooling_mode::max},
@@ -3281,7 +3359,7 @@ TEST_CASE(pooling_dyn_shape4)
 {
     migraphx::shape input{migraphx::shape::float_type,
                           {{4, 4}, {3, 3}, {4, 12, {8}}, {4, 12, {8}}}};
-    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {3, 6}, {3, 6}}};
+    migraphx::shape output{migraphx::shape::float_type, {{4, 4}, {3, 3}, {3, 6, {4}}, {3, 6, {4}}}};
     expect_shape(output,
                  migraphx::make_op("pooling",
                                    {{"mode", migraphx::op::pooling_mode::max},
@@ -3291,6 +3369,76 @@ TEST_CASE(pooling_dyn_shape4)
                                     {"dilations", {1, 1}},
                                     {"ceil_mode", true}}),
                  input);
+}
+
+TEST_CASE(pooling_sym_batch)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{n}, dd{lit(3)}, dd{lit(10)}, dd{lit(10)}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(4)}}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::max},
+                                      {"padding", {0, 0}},
+                                      {"stride", {2, 2}},
+                                      {"lengths", {3, 3}},
+                                      {"dilations", {1, 1}}});
+    expect_shape(expected, pool_op, input);
+
+    auto sym_out                                = pool_op.compute_shape({input});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 10, 10}};
+    auto static_out = pool_op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(pooling_sym_img)
+{
+    auto h = var("h", {5, 20}, {10, 15});
+    auto w = var("w", {5, 20}, {10, 15});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}, dd{h}, dd{w}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{lit(1)}, dd{lit(3)}, dd{h - 2}, dd{w - 2}}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::average},
+                                      {"padding", {0, 0}},
+                                      {"stride", {1, 1}},
+                                      {"lengths", {3, 3}},
+                                      {"dilations", {1, 1}}});
+    expect_shape(expected, pool_op, input);
+
+    auto sym_out                                = pool_op.compute_shape({input});
+    std::unordered_map<se, std::size_t> sym_map = {{h, 12}, {w, 8}};
+    migraphx::shape static_input{migraphx::shape::float_type, {1, 3, 12, 8}};
+    auto static_out = pool_op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
+}
+
+TEST_CASE(pooling_sym_img_pad_dilation)
+{
+    // padding={1,2}, stride={2,3}, lengths={3,3}, dilations={2,1}
+    // h: dilated_length=1+2*(3-1)=5, result=((h+2-5)/2)+1 = (h-3)/2+1
+    // w: dilated_length=1+1*(3-1)=3, result=((w+4-3)/3)+1 = (w+1)/3+1
+    auto n = var("n", {1, 8});
+    auto h = var("h", {10, 50}, {20, 30});
+    auto w = var("w", {10, 50}, {20, 30});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
+    migraphx::shape expected{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(3)}, dd{(h - 3) / 2 + 1}, dd{(w + 1) / 3 + 1}}};
+    auto pool_op = migraphx::make_op("pooling",
+                                     {{"mode", migraphx::op::pooling_mode::max},
+                                      {"padding", {1, 2}},
+                                      {"stride", {2, 3}},
+                                      {"lengths", {3, 3}},
+                                      {"dilations", {2, 1}}});
+    expect_shape(expected, pool_op, input);
+
+    auto sym_out                                = pool_op.compute_shape({input});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}, {h, 26}, {w, 26}};
+    migraphx::shape static_input{migraphx::shape::float_type, {4, 3, 26, 26}};
+    auto static_out = pool_op.compute_shape({static_input});
+    EXPECT(sym_out.to_static(sym_map) == static_out);
 }
 
 TEST_CASE(prefix_scan_sum)

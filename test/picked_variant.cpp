@@ -378,9 +378,9 @@ TEST_CASE(picker_not_invoked_for_in_place_ctor)
 TEST_CASE(picker_not_invoked_for_copy)
 {
     counted_pv source(std::in_place_type<int>, 9);
-    count_picker::counter()  = 0;
-    counted_pv copied        = source; // NOLINT(performance-unnecessary-copy-initialization)
-    counted_pv moved         = std::move(source);
+    count_picker::counter() = 0;
+    counted_pv copied       = source; // NOLINT(performance-unnecessary-copy-initialization)
+    counted_pv moved        = std::move(source);
     EXPECT(count_picker::counter() == 0);
     EXPECT(std::holds_alternative<int>(copied));
     EXPECT(std::holds_alternative<int>(moved));

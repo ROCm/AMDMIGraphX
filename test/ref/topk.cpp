@@ -146,7 +146,7 @@ TEST_CASE(topk_smallest_custom_indices)
     EXPECT(results.second == gold_ind);
 }
 
-// Test k > n with dynamic shapes: k=100 placeholder but runtime input has 10 elements
+// Test k > n with dynamic shapes: k=100 placeholder but runtime input has 5 elements
 TEST_CASE(topk_k_greater_than_n_dynamic)
 {
     migraphx::program p;

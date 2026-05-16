@@ -67,9 +67,11 @@ struct topk
         if(inputs.at(0).dynamic())
         {
             auto dyn_dims     = inputs.at(0).dyn_dims();
+            auto min_lens_vec = inputs.at(0).min_lens();
             auto max_lens_vec = inputs.at(0).max_lens();
-            auto kk           = std::min(static_cast<std::size_t>(k), max_lens_vec[axis]);
-            dyn_dims[axis]    = {kk, kk};
+            auto min_kk       = std::min(static_cast<std::size_t>(k), min_lens_vec[axis]);
+            auto max_kk       = std::min(static_cast<std::size_t>(k), max_lens_vec[axis]);
+            dyn_dims[axis]    = {min_kk, max_kk};
 
             shape s_val{type, dyn_dims};
             shape s_ind{shape::int64_type, dyn_dims};

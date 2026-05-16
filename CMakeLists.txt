@@ -333,6 +333,7 @@ rocm_enable_cppcheck(
         unusedStructMember
         functionStatic
         functionConst
+        passedByValueCallback
         shadowFunction
         shadowVar
         shadowVariable

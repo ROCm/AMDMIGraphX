@@ -215,8 +215,10 @@ get_gpu_independent_passes(context& ctx, const compile_options& options, compile
 
 // Returns lowering and all subsequent passes. List is identical across all modes;
 // the compile mode controls the skip_benchmark flag passed to compile_ops.
-static std::vector<pass>
-get_gpu_passes(context& ctx, migraphx::context& gctx, const compile_options& options, compile_modes mode)
+static std::vector<pass> get_gpu_passes(context& ctx,
+                                        migraphx::context& gctx,
+                                        const compile_options& options,
+                                        compile_modes mode)
 {
     // clang-format off
     return {

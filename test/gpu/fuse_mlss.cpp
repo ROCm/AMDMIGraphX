@@ -257,6 +257,110 @@ TEST_CASE(mlss_conv_bias_relu_vgg19_first_layer)
     }
 }
 
+// Build the pre-pass program that reproduces the slice->conv pattern from
+// gfrf-v2-fp32-1024x1024 pre-fuse IR (instructions @415-@429):
+//
+//   leaky_relu_out : {1, 512, 8, 8}, strides {32768, 64, 8, 1}   (@389/@415 in IR)
+//   slice0 = slice[axis=1, 0:256](leaky_relu_out)                 (@390/@416)
+//     -> {1, 256, 8, 8}, non-contiguous strides {32768, 64, 8, 1}
+//   conv0  = conv(slice0, weight{256,256,3,3}) + bias              (@391/@418 + @419-@421)
+//   slice1 = slice[axis=1, 256:512](leaky_relu_out)               (@423)
+//     -> {1, 256, 8, 8}, non-contiguous strides {32768, 64, 8, 1}
+//   conv1  = conv(slice1, weight{256,256,3,3}) + bias              (@425 + @426-@428)
+//   result = add(conv0, conv1)                                      (@429)
+//
+// Both conv inputs are slices of a {1,512,8,8} tensor on axis=1, giving each a
+// non-contiguous input stride ({32768,64,8,1} vs contiguous {16384,64,8,1}).
+// fuse_mlss matches act_shape={1,256,8,8} in conv_mxn_shapes and emits mlss_conv,
+// but the MLSS kernel assumes contiguous input -- producing wrong values (RMS~0.11).
+// The pass MUST NOT fuse convolutions whose input is a non-contiguous slice.
+static migraphx::program make_slice_conv_bias_program()
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    // Parent activation: {1, 512, 8, 8} -- the leaky_relu output in the model.
+    // We use a parameter so the shape (and its non-contiguous slice strides) are
+    // determined at parse time, exactly as in the model.
+    const migraphx::shape parent_shape{migraphx::shape::float_type, {1, 512, 8, 8}};
+    auto parent = mm->add_parameter("act_512", parent_shape);
+
+    // Slice axis=1: two non-contiguous {1,256,8,8} views into parent.
+    // After slicing, stride[1] stays 64 (parent's) but the shape is 256 channels,
+    // so the effective channel stride is non-contiguous (32768 vs contiguous 16384).
+    auto slice0 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}},   {"ends", {256}}}), parent);
+    auto slice1 = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {256}}, {"ends", {512}}}), parent);
+
+    // conv0: conv(slice0, w0) + bias0  -- shape {1,256,8,8}
+    const migraphx::shape wt_shape{migraphx::shape::float_type, {256, 256, 3, 3}};
+    const migraphx::shape bias_shape{migraphx::shape::float_type, {256}};
+
+    auto w0   = mm->add_literal(migraphx::literal{wt_shape,   std::vector<float>(wt_shape.elements(),   0.0f)});
+    auto b0   = mm->add_literal(migraphx::literal{bias_shape, std::vector<float>(bias_shape.elements(), 0.0f)});
+    auto conv0 = mm->add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1, 1, 1}}, {"stride", {1, 1}},
+                           {"dilation", {1, 1}}, {"group", 1}, {"padding_mode", 0}}),
+        slice0, w0);
+    auto bcast0 = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 256, 8, 8}}}), b0);
+    auto add0 = mm->add_instruction(migraphx::make_op("add"), conv0, bcast0);
+
+    // conv1: conv(slice1, w1) + bias1  -- shape {1,256,8,8}
+    auto w1   = mm->add_literal(migraphx::literal{wt_shape,   std::vector<float>(wt_shape.elements(),   0.0f)});
+    auto b1   = mm->add_literal(migraphx::literal{bias_shape, std::vector<float>(bias_shape.elements(), 0.0f)});
+    auto conv1 = mm->add_instruction(
+        migraphx::make_op("convolution",
+                          {{"padding", {1, 1, 1, 1}}, {"stride", {1, 1}},
+                           {"dilation", {1, 1}}, {"group", 1}, {"padding_mode", 0}}),
+        slice1, w1);
+    auto bcast1 = mm->add_instruction(
+        migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {1, 256, 8, 8}}}), b1);
+    auto add1 = mm->add_instruction(migraphx::make_op("add"), conv1, bcast1);
+
+    // Combine: add(conv0_out, conv1_out)  -- mirrors @429 = add(@422, @428) in IR
+    auto result = mm->add_instruction(migraphx::make_op("add"), add0, add1);
+    mm->add_return({result});
+    return p;
+}
+
+// Regression test: fuse_mlss must NOT fuse convolutions whose activation input
+// is a non-contiguous channel slice of a wider tensor.
+//
+// Pattern from gfrf-v2-fp32-1024x1024 pre-fuse IR (@415-@429):
+//   parent {1,512,8,8} -> slice[0:256] and slice[256:512] -> each {1,256,8,8}
+//   but with non-contiguous stride {32768,64,8,1} instead of {16384,64,8,1}.
+//
+// Fusing these produces gpu::mlss_conv with wrong output values:
+//   --bisect result: compiled instruction 580 FAILS, RMS=0.113, max_diff=20.46
+//
+// The fix: fuse_mlss apply() must check that act_ins->get_shape() ==
+// act_ins->get_shape().as_standard() before emitting mlss_conv.
+// Note: shape::standard() is NOT sufficient -- a channel slice of {1,512,8,8}
+// produces {1,256,8,8} with strides {32768,64,8,1} which still passes standard()
+// because elements()==element_space() and strides are in descending order.
+// as_standard() rebuilds canonical row-major strides from lens alone.
+TEST_CASE(mlss_conv_slice_noncontiguous_input_not_fused)
+{
+    skip_if_not_gfx1201();
+
+    migraphx::program p = make_slice_conv_bias_program();
+    run_pass(p);
+
+    auto* mm = p.get_main_module();
+
+    // Neither conv whose input is a non-contiguous slice may become mlss_conv.
+    bool found_mlss_conv = false;
+    for(auto ins : migraphx::iterator_for(*mm))
+    {
+        if(ins->name() == "gpu::mlss_conv")
+            found_mlss_conv = true;
+    }
+    EXPECT(not found_mlss_conv);
+}
+
 // Verify that an unsupported conv shape (not in conv_mxn_shapes) is NOT fused.
 TEST_CASE(mlss_conv_bias_relu_unsupported_shape_not_fused)
 {

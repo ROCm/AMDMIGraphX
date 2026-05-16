@@ -250,11 +250,11 @@ static constexpr conv_shape_entry conv_mxn_shapes[] = {
     // vgg19 (14x14)
     {{1, 512, 14, 14},   {512, 512, 3, 3},  {1, 512, 14, 14},   {1, 1, 1, 1}, {1, 1}},
     {{1, 512, 7, 7},     {512, 512, 3, 3},  {1, 512, 7, 7},     {1, 1, 1, 1}, {1, 1}},
-    // // gfrf-v2 512x512 encoder -- FAILS VERIFY 
-    // {{1, 32,  512, 512}, {32,  32,  3, 3},  {1, 32,  512, 512}, {1, 1, 1, 1}, {1, 1}},
-    // // gfrf-v2 256x256 -- FAILS VERIFY 
-    // {{1, 32,  256, 256}, {64,  32,  3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
-    // {{1, 64,  256, 256}, {64,  64,  3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
+    // gfrf-v2 512x512 
+    {{1, 32,  512, 512}, {32,  32,  3, 3},  {1, 32,  512, 512}, {1, 1, 1, 1}, {1, 1}},
+    // gfrf-v2 256x256 
+    {{1, 32,  256, 256}, {64,  32,  3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
+    {{1, 64,  256, 256}, {64,  64,  3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
     // gfrf-v2 128x128
     {{1, 64,  128, 128}, {128, 64,  3, 3},  {1, 128, 128, 128}, {1, 1, 1, 1}, {1, 1}},
     {{1, 128, 128, 128}, {128, 128, 3, 3},  {1, 128, 128, 128}, {1, 1, 1, 1}, {1, 1}},
@@ -265,13 +265,16 @@ static constexpr conv_shape_entry conv_mxn_shapes[] = {
     {{1, 256, 32,  32},  {256, 256, 3, 3},  {1, 256, 32,  32},  {1, 1, 1, 1}, {1, 1}},
     // gfrf-v2 16x16
     {{1, 256, 16,  16},  {256, 256, 3, 3},  {1, 256, 16,  16},  {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 8x8
-    {{1, 256, 8,   8},   {256, 256, 3, 3},  {1, 256, 8,   8},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 512, 8,   8},   {512, 512, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 256, 8,   8},   {512, 256, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 4x4
-    {{1, 256, 4,   4},   {256, 256, 3, 3},  {1, 256, 4,   4},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 512, 4,   4},   {512, 512, 3, 3},  {1, 512, 4,   4},   {1, 1, 1, 1}, {1, 1}},
+    // gfrf-v2 8x8 -- FAILS VERIFY (full model)
+    // bisect: @329=mlss_conv{256,256,3,3}@8x8 produces wrong output; root cause may be
+    // the upstream 4x4 mlss_conv (@326) propagating errors through resize, or the 8x8
+    // kernel itself being unreliable in context. Both spatial sizes disabled until fixed.
+    // {{1, 256, 8,   8},   {256, 256, 3, 3},  {1, 256, 8,   8},   {1, 1, 1, 1}, {1, 1}},
+    // {{1, 512, 8,   8},   {512, 512, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
+    // {{1, 256, 8,   8},   {512, 256, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
+    // gfrf-v2 4x4 -- FAILS VERIFY (full model, see 8x8 note above)
+    // {{1, 256, 4,   4},   {256, 256, 3, 3},  {1, 256, 4,   4},   {1, 1, 1, 1}, {1, 1}},
+    // {{1, 512, 4,   4},   {512, 512, 3, 3},  {1, 512, 4,   4},   {1, 1, 1, 1}, {1, 1}},
     // gfrf-v2 decoder 16x16
     {{1, 256, 16,  16},  {512, 256, 3, 3},  {1, 512, 16,  16},  {1, 1, 1, 1}, {1, 1}},
     {{1, 512, 16,  16},  {512, 512, 3, 3},  {1, 512, 16,  16},  {1, 1, 1, 1}, {1, 1}},
@@ -290,11 +293,11 @@ static constexpr conv_shape_entry conv_mxn_shapes[] = {
     {{1, 128, 256, 256}, {64,  128, 3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
     {{1, 64,  256, 256}, {128, 64,  3, 3},  {1, 128, 256, 256}, {1, 1, 1, 1}, {1, 1}},
     {{1, 128, 256, 256}, {128, 128, 3, 3},  {1, 128, 256, 256}, {1, 1, 1, 1}, {1, 1}},
-    // // gfrf-v2 decoder 512x512 -- FAILS VERIFY
-    // {{1, 128, 512, 512}, {64,  128, 3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
-    // {{1, 64,  512, 512}, {32,  64,  3, 3},  {1, 32,  512, 512}, {1, 1, 1, 1}, {1, 1}},
-    // {{1, 32,  512, 512}, {64,  32,  3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
-    // {{1, 64,  512, 512}, {64,  64,  3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
+    // gfrf-v2 decoder 512x512
+    {{1, 128, 512, 512}, {64,  128, 3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
+    {{1, 64,  512, 512}, {32,  64,  3, 3},  {1, 32,  512, 512}, {1, 1, 1, 1}, {1, 1}},
+    {{1, 32,  512, 512}, {64,  32,  3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
+    {{1, 64,  512, 512}, {64,  64,  3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
 };
 
 // ---------------------------------------------------------------------------
@@ -328,6 +331,12 @@ struct find_mlss_conv
         const auto act_lens = act_ins->get_shape().lens();
         const auto wt_lens  = wt_ins->get_shape().lens();
         const auto out_lens = ins->get_shape().lens();
+
+        // Reject non-contiguous activation input (e.g. channel slice of a wider tensor).
+        // A slice on axis=1 keeps the parent's stride so the layout is non-contiguous;
+        // the MLSS kernel assumes contiguous input and produces wrong values in that case.
+        if(act_ins->get_shape() != act_ins->get_shape().as_standard())
+            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
@@ -453,6 +462,14 @@ struct find_mlss_conv_bias
         const auto wt_lens  = wt_ins->get_shape().lens();
         const auto out_lens = conv_ins->get_shape().lens(); // same as add output
 
+        // Reject non-contiguous activation input (e.g. a channel slice of a wider tensor).
+        // shape::standard() is insufficient: a slice on axis=1 of {1,512,8,8} produces
+        // {1,256,8,8} with strides {32768,64,8,1} which still passes standard() because
+        // elements()==element_space() and strides are sorted.  Compare against as_standard()
+        // which rebuilds canonical row-major strides purely from the lens.
+        if(act_ins->get_shape() != act_ins->get_shape().as_standard())
+            return;
+
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
             return;
@@ -573,6 +590,14 @@ struct find_mlss_conv_bias_relu
         const auto wt_lens  = wt_ins->get_shape().lens();
         const auto out_lens = conv_ins->get_shape().lens();
 
+        // Reject non-contiguous activation input (e.g. a channel slice of a wider tensor).
+        // shape::standard() is insufficient: a slice on axis=1 of {1,512,8,8} produces
+        // {1,256,8,8} with strides {32768,64,8,1} which still passes standard() because
+        // elements()==element_space() and strides are sorted.  Compare against as_standard()
+        // which rebuilds canonical row-major strides purely from the lens.
+        if(act_ins->get_shape() != act_ins->get_shape().as_standard())
+            return;
+
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
             return;
@@ -690,6 +715,14 @@ struct find_mlss_conv_bias_leaky_relu
         const auto act_lens = act_ins->get_shape().lens();
         const auto wt_lens  = wt_ins->get_shape().lens();
         const auto out_lens = conv_ins->get_shape().lens();
+
+        // Reject non-contiguous activation input (e.g. a channel slice of a wider tensor).
+        // shape::standard() is insufficient: a slice on axis=1 of {1,512,8,8} produces
+        // {1,256,8,8} with strides {32768,64,8,1} which still passes standard() because
+        // elements()==element_space() and strides are sorted.  Compare against as_standard()
+        // which rebuilds canonical row-major strides purely from the lens.
+        if(act_ins->get_shape() != act_ins->get_shape().as_standard())
+            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)

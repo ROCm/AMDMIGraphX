@@ -1295,9 +1295,11 @@ TEST_CASE(simplify_concat_clip)
         auto min     = m2.add_literal({s, {0}});
         auto max     = m2.add_literal({s, {10}});
         auto concat1 = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
-        auto mb_a    = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), min);
-        auto mb_b    = m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), max);
-        auto clip    = m2.add_instruction(migraphx::make_op("clip"), concat1, mb_a, mb_b);
+        auto mb_a =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), min);
+        auto mb_b =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), max);
+        auto clip = m2.add_instruction(migraphx::make_op("clip"), concat1, mb_a, mb_b);
         m2.add_instruction(pass_op{}, clip);
     }
     EXPECT(m1 == m2);
@@ -5362,9 +5364,9 @@ TEST_CASE(simplify_concat_same_input)
 
     migraphx::module m2;
     {
-        auto x     = m2.add_parameter("x", s);
-        auto bcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
+        auto x = m2.add_parameter("x", s);
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
         m2.add_return({bcast});
     }
     EXPECT(m1 == m2);
@@ -5375,9 +5377,8 @@ TEST_CASE(simplify_concat_same_input_negative_axis)
     auto s = migraphx::shape{migraphx::shape::float_type, {2, 1, 4}};
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", s);
-        auto concat =
-            m1.add_instruction(migraphx::make_op("concat", {{"axis", -2}}), x, x, x);
+        auto x      = m1.add_parameter("x", s);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", -2}}), x, x, x);
         m1.add_return({concat});
     }
     migraphx::run_passes(m1,
@@ -5387,9 +5388,9 @@ TEST_CASE(simplify_concat_same_input_negative_axis)
 
     migraphx::module m2;
     {
-        auto x     = m2.add_parameter("x", s);
-        auto bcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
+        auto x = m2.add_parameter("x", s);
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
         m2.add_return({bcast});
     }
     EXPECT(m1 == m2);
@@ -5409,9 +5410,9 @@ TEST_CASE(simplify_concat_same_input_multi_use)
 
     migraphx::module m2;
     {
-        auto x     = m2.add_parameter("x", s);
-        auto bcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
+        auto x = m2.add_parameter("x", s);
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
         auto add = m2.add_instruction(migraphx::make_op("add"), x, x);
         m2.add_return({bcast, add});
     }
@@ -5426,8 +5427,7 @@ TEST_CASE(simplify_concat_same_input_chained_multibroadcast)
         auto x = m1.add_parameter("x", sx);
         auto mb =
             m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 4}}}), x);
-        auto concat =
-            m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), mb, mb, mb);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), mb, mb, mb);
         m1.add_return({concat});
     }
     run_pass(m1);
@@ -5440,8 +5440,8 @@ TEST_CASE(simplify_concat_same_input_chained_multibroadcast)
         auto x = m2.add_parameter("x", sx);
         auto mb =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 4}}}), x);
-        auto bcast = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), mb);
+        auto bcast =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), mb);
         m2.add_return({bcast});
     }
     EXPECT(m1 == m2);

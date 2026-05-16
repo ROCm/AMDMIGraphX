@@ -1071,9 +1071,8 @@ struct find_concat_same_input
             return;
 
         // All operands must be the *same* instruction (not just shape-equal).
-        if(not std::all_of(std::next(inputs.begin()), inputs.end(), [&](instruction_ref i) {
-               return i == x;
-           }))
+        if(not std::all_of(
+               std::next(inputs.begin()), inputs.end(), [&](instruction_ref i) { return i == x; }))
             return;
 
         // op::concat normalizes the axis at parse time.
@@ -1093,8 +1092,7 @@ struct find_concat_same_input
         out_lens[axis] = inputs.size();
         assert(out_lens == ins->get_shape().lens());
 
-        m.replace_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
+        m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
     }
 };
 

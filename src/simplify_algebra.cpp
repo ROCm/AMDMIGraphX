@@ -2456,13 +2456,13 @@ void simplify_algebra::apply(module& m) const
                             find_log_div{},
                             find_concat_conv{},
                             find_concat_op{},
-                            find_concat_same_input{},
                             find_split_concat{},
                             find_splits{},
                             find_split_reshape{},
                             find_split_transpose{},
                             find_pow2{});
 
+        match::find_matches(m, find_concat_same_input{});
         dead_code_elimination{}.apply(m);
     });
 }

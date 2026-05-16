@@ -127,6 +127,33 @@ argument mlss_conv_op::compute(context& ctx,
     int32_t G     = 1;
     int32_t ng    = static_cast<int32_t>(n_groups);
 
+    // Cap ng to prevent idle workgroups from writing out-of-bounds in the full model.
+    //
+    // The f2x3 Winograd kernel partitions work into tiles of:
+    //   2 output rows  × 2 output cols  × 128 K channels  (F(2,3), "kg128" config)
+    // Total tiles = N × G × ceil(OH/2) × ceil(OW/2) × ceil(Kg/128).
+    //
+    // With n_groups=64 and small spatial outputs, the number of dispatched workgroups
+    // exceeds the total tile count.  Idle workgroups (tile_index >= total_tiles) still
+    // perform out-of-bounds memory writes in the full model, corrupting adjacent buffers.
+    // Setting ng = total_tiles ensures every dispatched workgroup has exactly one tile.
+    //
+    // Validation (Kg_per_wg = 128, per "kg128" kernel config name):
+    //   {1,512,8,8}: total_tiles = 4*4*4 = 64 = ng → no idle wg, passes full model
+    //   {1,256,8,8}: total_tiles = 4*4*2 = 32 < 64 → 32 idle wg, OOB writes, fails
+    //   {1,256,4,4}: total_tiles = 2*2*2 = 8  < 64 → 56 idle wg, OOB writes, fails
+    //
+    // 9.1.2: kernarg n_groups MUST equal actual dispatch count.
+    {
+        const int32_t kg_per_workgroup = 128;
+        int32_t k_groups    = (Kg + kg_per_workgroup - 1) / kg_per_workgroup;
+        int32_t h_tiles     = (out_h + 1) / 2;
+        int32_t w_tiles     = (out_w + 1) / 2;
+        int32_t total_tiles = N * G * h_tiles * w_tiles * k_groups;
+        if(ng > total_tiles)
+            ng = total_tiles;
+    }
+
     // flags64 encoding:
     //   no-bias path: bit10 = fast tile-index division
     //   bias path: bit7  = F_BIAS
@@ -272,9 +299,10 @@ argument mlss_conv_op::compute(context& ctx,
     hipStream_t stream = ctx.get_stream().get();
 
     // -----------------------------------------------------------------------
-    // Launch: grid = N * G * n_groups workgroups of block_size threads each.
+    // Launch: grid = N * G * ng workgroups of block_size threads each.
+    // ng may have been capped below n_groups for small spatial outputs (see above).
     // -----------------------------------------------------------------------
-    std::size_t grid_blocks = static_cast<std::size_t>(N) * G * n_groups;
+    std::size_t grid_blocks = static_cast<std::size_t>(N) * G * ng;
 
     auto [start, stop] = ctx.get_perf_events();
     k.launch(stream, grid_blocks * block_size, block_size, kargs, start, stop);

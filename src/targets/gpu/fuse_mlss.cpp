@@ -265,16 +265,16 @@ static constexpr conv_shape_entry conv_mxn_shapes[] = {
     {{1, 256, 32,  32},  {256, 256, 3, 3},  {1, 256, 32,  32},  {1, 1, 1, 1}, {1, 1}},
     // gfrf-v2 16x16
     {{1, 256, 16,  16},  {256, 256, 3, 3},  {1, 256, 16,  16},  {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 8x8 -- FAILS VERIFY (full model)
-    // bisect: @329=mlss_conv{256,256,3,3}@8x8 produces wrong output; root cause may be
-    // the upstream 4x4 mlss_conv (@326) propagating errors through resize, or the 8x8
-    // kernel itself being unreliable in context. Both spatial sizes disabled until fixed.
-    // {{1, 256, 8,   8},   {256, 256, 3, 3},  {1, 256, 8,   8},   {1, 1, 1, 1}, {1, 1}},
-    // {{1, 512, 8,   8},   {512, 512, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
-    // {{1, 256, 8,   8},   {512, 256, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 4x4 -- FAILS VERIFY (full model, see 8x8 note above)
-    // {{1, 256, 4,   4},   {256, 256, 3, 3},  {1, 256, 4,   4},   {1, 1, 1, 1}, {1, 1}},
-    // {{1, 512, 4,   4},   {512, 512, 3, 3},  {1, 512, 4,   4},   {1, 1, 1, 1}, {1, 1}},
+    // gfrf-v2 8x8 -- re-enabled after n_groups capping fix in mlss_conv_op.cpp.
+    // Root cause of prior failures: n_groups=64 dispatched far more workgroups
+    // than spatial tiles (16 tiles for 8x8), violating Winograd spec 9.1.1.3.
+    // ng is now capped to ceil(OH/2)*ceil(OW/2) before dispatch.
+    {{1, 256, 8,   8},   {256, 256, 3, 3},  {1, 256, 8,   8},   {1, 1, 1, 1}, {1, 1}},
+    {{1, 512, 8,   8},   {512, 512, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
+    {{1, 256, 8,   8},   {512, 256, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
+    // gfrf-v2 4x4 -- re-enabled (same fix; capped to 4 workgroups for 4x4 output)
+    {{1, 256, 4,   4},   {256, 256, 3, 3},  {1, 256, 4,   4},   {1, 1, 1, 1}, {1, 1}},
+    {{1, 512, 4,   4},   {512, 512, 3, 3},  {1, 512, 4,   4},   {1, 1, 1, 1}, {1, 1}},
     // gfrf-v2 decoder 16x16
     {{1, 256, 16,  16},  {512, 256, 3, 3},  {1, 512, 16,  16},  {1, 1, 1, 1}, {1, 1}},
     {{1, 512, 16,  16},  {512, 512, 3, 3},  {1, 512, 16,  16},  {1, 1, 1, 1}, {1, 1}},

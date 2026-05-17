@@ -1411,8 +1411,8 @@ struct find_gather_slice_concat
             std::accumulate(indices_lens.begin() + 1, indices_lens.end(),
                             std::size_t{1}, std::multiplies<>{});
 
-        const std::size_t NOT_SLICE = std::numeric_limits<std::size_t>::max();
-        std::vector<std::size_t> input_rows(all_inputs.size(), NOT_SLICE);
+        const std::size_t not_slice = std::numeric_limits<std::size_t>::max();
+        std::vector<std::size_t> input_rows(all_inputs.size(), not_slice);
         std::size_t total_slices = 0;
 
         for(std::size_t i = 0; i < all_inputs.size(); ++i)
@@ -1448,14 +1448,14 @@ struct find_gather_slice_concat
 
         for(std::size_t i = 0; i < all_inputs.size();)
         {
-            if(input_rows[i] == NOT_SLICE)
+            if(input_rows[i] == not_slice)
             {
                 ++i;
                 continue;
             }
             run_t run;
             run.start_pos = i;
-            while(i < all_inputs.size() and input_rows[i] != NOT_SLICE)
+            while(i < all_inputs.size() and input_rows[i] != not_slice)
             {
                 run.rows.push_back(input_rows[i]);
                 ++i;

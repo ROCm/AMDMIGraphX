@@ -123,8 +123,7 @@ struct picked_variant : std::variant<Ts...>
               class... Variants,
               MIGRAPHX_REQUIRES(not is_picked_variant<std::decay_t<V0>>{} and
                                 std::is_same<std::decay_t<V1>, picked_variant>{})>
-    friend constexpr decltype(auto)
-    visit(Visitor&& vis, V0&& v0, V1&& v1, Variants&&... vars)
+    friend constexpr decltype(auto) visit(Visitor&& vis, V0&& v0, V1&& v1, Variants&&... vars)
     {
         return std::visit(std::forward<Visitor>(vis),
                           as_variant(std::forward<V0>(v0)),

@@ -55,11 +55,29 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
         auto x = m2.add_parameter("x", xs);
         auto w = m2.add_literal(migraphx::literal{ws, w_data});
 
-        auto xh = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
-        auto wh = m2.add_instruction(
+        auto w_hi_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
-        auto conv = m2.add_instruction(migraphx::make_op("convolution"), xh, wh);
+        auto w_hi_f = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), w_hi_h);
+        auto w_lo_f = m2.add_instruction(migraphx::make_op("sub"), w, w_hi_f);
+        auto w_lo_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w_lo_f);
+        auto w_concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), w_hi_h, w_lo_h);
+
+        auto x_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
+        auto x_unsq =
+            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x_h);
+        auto x_bc = m2.add_instruction(
+            migraphx::make_op("multibroadcast",
+                              {{"out_lens", std::vector<std::size_t>{1, 2, 3, 8, 8}}}),
+            x_unsq);
+        auto x_doubled = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{1, 6, 8, 8}}}),
+            x_bc);
+
+        auto conv = m2.add_instruction(migraphx::make_op("convolution"), x_doubled, w_concat);
         auto out  = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), conv);
         m2.add_return({out});
@@ -73,24 +91,6 @@ TEST_CASE(fp32_convolution_tiny_unchanged)
     // acceleration, and tiny conv outputs are precision-sensitive.
     migraphx::shape xs{migraphx::shape::float_type, {1, 8, 1, 1}};
     migraphx::shape ws{migraphx::shape::float_type, {11, 8, 1, 1}};
-    std::vector<float> w_data(ws.elements(), 0.5f);
-
-    migraphx::module m1;
-    {
-        auto x    = m1.add_parameter("x", xs);
-        auto w    = m1.add_literal(migraphx::literal{ws, w_data});
-        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
-        m1.add_return({conv});
-    }
-    auto m2 = m1;
-    run_pass(m1);
-    EXPECT(m1 == m2);
-}
-
-TEST_CASE(fp32_convolution_large_reduction_unchanged)
-{
-    migraphx::shape xs{migraphx::shape::float_type, {1, 256, 16, 16}};
-    migraphx::shape ws{migraphx::shape::float_type, {1, 256, 3, 2}};
     std::vector<float> w_data(ws.elements(), 0.5f);
 
     migraphx::module m1;

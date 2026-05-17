@@ -58,7 +58,7 @@ void fast_mm::apply(module& m) const
         if(op_val.contains("group") and op_val.at("group").to<int>() != 1)
             continue;
 
-        const auto& w_shape = w->get_shape();
+        const auto& w_shape   = w->get_shape();
         std::size_t reduction = 1;
         for(std::size_t i = 1; i < w_shape.ndim(); ++i)
             reduction *= w_shape.lens()[i];

@@ -67,15 +67,13 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
 
         auto x_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
-        auto x_unsq =
-            m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x_h);
-        auto x_bc = m2.add_instruction(
+        auto x_unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), x_h);
+        auto x_bc   = m2.add_instruction(
             migraphx::make_op("multibroadcast",
-                              {{"out_lens", std::vector<std::size_t>{1, 2, 3, 8, 8}}}),
+                                {{"out_lens", std::vector<std::size_t>{1, 2, 3, 8, 8}}}),
             x_unsq);
         auto x_doubled = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{1, 6, 8, 8}}}),
-            x_bc);
+            migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{1, 6, 8, 8}}}), x_bc);
 
         auto conv = m2.add_instruction(migraphx::make_op("convolution"), x_doubled, w_concat);
         auto out  = m2.add_instruction(

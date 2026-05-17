@@ -84,8 +84,7 @@ void fast_mm::apply(module& m) const
         auto w_lo_f = m.insert_instruction(ins, make_op("sub"), w, w_hi_f);
         auto w_lo_h = m.insert_instruction(
             ins, make_op("convert", {{"target_type", shape::half_type}}), w_lo_f);
-        auto w_concat =
-            m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), w_hi_h, w_lo_h);
+        auto w_concat = m.insert_instruction(ins, make_op("concat", {{"axis", 1}}), w_hi_h, w_lo_h);
 
         auto x_h =
             m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), x);
@@ -102,8 +101,8 @@ void fast_mm::apply(module& m) const
         reshape_dims[1] *= 2;
 
         auto x_unsq = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {1}}}), x_h);
-        auto x_bc   = m.insert_instruction(
-            ins, make_op("multibroadcast", {{"out_lens", bc_lens}}), x_unsq);
+        auto x_bc =
+            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", bc_lens}}), x_unsq);
         auto x_doubled =
             m.insert_instruction(ins, make_op("reshape", {{"dims", reshape_dims}}), x_bc);
 

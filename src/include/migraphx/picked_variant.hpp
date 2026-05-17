@@ -84,92 +84,51 @@ struct picked_variant : std::variant<Ts...>
 
     // Hidden friends.
     //
-    // Each takes picked_variant as a concrete (non-deduced) first variant
-    // parameter, which is strictly more specialized than std::visit's deduced
-    // `Variants&&...` per partial ordering on every compiler we target
-    // (including GCC 7) -- unlike a forwarding-reference + SFINAE constraint,
-    // whose effect on partial ordering older compilers don't always honor.
+    // One overload per "position" of the picked_variant argument. Each takes a
+    // forwarding reference constrained via SFINAE on the decayed type so a
+    // single overload covers `&`, `const&`, and `&&`.
     //
-    // The return type is deduced from the body (plain `auto`, not a trailing
-    // `decltype`). This is deliberate: overload resolution only needs the
-    // parameter types, so the body is only substituted into the overload that
-    // is actually selected. If we used a trailing `decltype(std::visit(...))`,
-    // all three overloads would have to substitute their return type during
-    // viability checking -- and the const-lvalue overload would then invoke
-    // std::visit on a `const base_t&`, which would instantiate the visitor
-    // lambda's body with const arguments. That body isn't immediate context,
-    // so a `x += 4`-style mutation would become a hard error during overload
-    // resolution for a perfectly legal non-const call.
+    // Return type is `decltype(auto)` rather than a trailing `decltype(...)`
+    // so the body is only substituted when the overload is actually selected.
+    // std::visit is not required by the standard to be SFINAE-friendly and on
+    // older libstdc++ (e.g. GCC 7 on SLES) it isn't, so a trailing decltype
+    // around a std::visit call would produce hard errors during overload
+    // resolution rather than cleanly removing the overload.
     //
-    // Every variant argument is routed through `as_variant`, including the
-    // trailing pack. The namespace-scope `as_variant` overloads below cover
-    // plain std::variant; together they ensure std::visit only ever sees
-    // std::variant arguments and never the raw picked_variant (which doesn't
-    // have std::variant_size specialized for it).
+    // Every variant argument is routed through `as_variant`. The namespace-
+    // scope overloads above cover plain std::variant; together they ensure
+    // std::visit only ever sees std::variant arguments and never the raw
+    // picked_variant (which doesn't have std::variant_size specialized for
+    // it).
+    //
+    // The position-2 overload handles calls where picked_variant is the
+    // second variant (e.g. visit(f, std_v, pv)). Its SFINAE excludes the case
+    // where the first variant is also a picked_variant -- those are handled
+    // by the position-1 overload.
 
-    template <class Visitor, class... Variants>
-    friend constexpr auto visit(Visitor&& vis, picked_variant& pv, Variants&&... vars)
-    {
-        return std::visit(std::forward<Visitor>(vis),
-                          as_variant(pv),
-                          as_variant(std::forward<Variants>(vars))...);
-    }
-
-    template <class Visitor, class... Variants>
-    friend constexpr auto visit(Visitor&& vis, const picked_variant& pv, Variants&&... vars)
-    {
-        return std::visit(std::forward<Visitor>(vis),
-                          as_variant(pv),
-                          as_variant(std::forward<Variants>(vars))...);
-    }
-
-    template <class Visitor, class... Variants>
-    friend constexpr auto visit(Visitor&& vis, picked_variant&& pv, Variants&&... vars)
-    {
-        return std::visit(std::forward<Visitor>(vis),
-                          as_variant(std::move(pv)),
-                          as_variant(std::forward<Variants>(vars))...);
-    }
-
-    // Position-2 overloads handle calls where picked_variant is the second
-    // variant argument (e.g. visit(f, some_std_variant, pv)). The SFINAE on V0
-    // excludes the case where the first variant is also a picked_variant --
-    // those are handled by the position-1 overloads above, which would
-    // otherwise be ambiguous with these.
     template <class Visitor,
-              class V0,
+              class V,
               class... Variants,
-              MIGRAPHX_REQUIRES(not is_picked_variant<std::decay_t<V0>>{})>
-    friend constexpr auto visit(Visitor&& vis, V0&& v0, picked_variant& pv, Variants&&... vars)
+              MIGRAPHX_REQUIRES(std::is_same<std::decay_t<V>, picked_variant>{})>
+    friend constexpr decltype(auto) visit(Visitor&& vis, V&& pv, Variants&&... vars)
     {
         return std::visit(std::forward<Visitor>(vis),
-                          as_variant(std::forward<V0>(v0)),
-                          as_variant(pv),
+                          as_variant(std::forward<V>(pv)),
                           as_variant(std::forward<Variants>(vars))...);
     }
 
     template <class Visitor,
               class V0,
+              class V1,
               class... Variants,
-              MIGRAPHX_REQUIRES(not is_picked_variant<std::decay_t<V0>>{})>
-    friend constexpr auto
-    visit(Visitor&& vis, V0&& v0, const picked_variant& pv, Variants&&... vars)
+              MIGRAPHX_REQUIRES(not is_picked_variant<std::decay_t<V0>>{} and
+                                std::is_same<std::decay_t<V1>, picked_variant>{})>
+    friend constexpr decltype(auto)
+    visit(Visitor&& vis, V0&& v0, V1&& v1, Variants&&... vars)
     {
         return std::visit(std::forward<Visitor>(vis),
                           as_variant(std::forward<V0>(v0)),
-                          as_variant(pv),
-                          as_variant(std::forward<Variants>(vars))...);
-    }
-
-    template <class Visitor,
-              class V0,
-              class... Variants,
-              MIGRAPHX_REQUIRES(not is_picked_variant<std::decay_t<V0>>{})>
-    friend constexpr auto visit(Visitor&& vis, V0&& v0, picked_variant&& pv, Variants&&... vars)
-    {
-        return std::visit(std::forward<Visitor>(vis),
-                          as_variant(std::forward<V0>(v0)),
-                          as_variant(std::move(pv)),
+                          as_variant(std::forward<V1>(v1)),
                           as_variant(std::forward<Variants>(vars))...);
     }
 };

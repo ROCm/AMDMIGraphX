@@ -1362,8 +1362,8 @@ struct find_gather_slice_concat
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto concat_ins = mr.result;
-        int concat_axis = any_cast<op::concat>(concat_ins->get_operator()).axis;
+        auto concat_ins        = mr.result;
+        auto concat_axis       = concat_ins->get_operator().to_value().at("axis").to<int64_t>();
         const auto& all_inputs = concat_ins->inputs();
 
         instruction_ref gather_ins;
@@ -1372,28 +1372,32 @@ struct find_gather_slice_concat
         {
             if(inp->name() != "slice")
                 continue;
-            auto sop = any_cast<op::slice>(inp->get_operator());
-            if(sop.axes.size() != 1 or sop.ends.front() - sop.starts.front() != 1)
+            auto sop         = inp->get_operator().to_value();
+            auto sop_axes    = sop.at("axes").to_vector<int64_t>();
+            auto sop_starts  = sop.at("starts").to_vector<int64_t>();
+            auto sop_ends    = sop.at("ends").to_vector<int64_t>();
+            if(sop_axes.size() != 1 or sop_ends.front() - sop_starts.front() != 1)
                 continue;
             if(inp->inputs().at(0)->name() != "gather")
                 continue;
             gather_ins = inp->inputs().at(0);
-            slice_axis = static_cast<int>(sop.axes.front());
+            slice_axis = static_cast<int>(sop_axes.front());
             break;
         }
         if(slice_axis < 0)
             return;
 
-        auto gather_op   = any_cast<op::gather>(gather_ins->get_operator());
-        auto data_ins    = gather_ins->inputs().at(0);
-        auto indices_ins = gather_ins->inputs().at(1);
+        auto gather_op_axis = gather_ins->get_operator().to_value().at("axis").to<int64_t>();
+        auto data_ins       = gather_ins->inputs().at(0);
+        auto indices_ins    = gather_ins->inputs().at(1);
 
         const auto& data_lens = data_ins->get_shape().lens();
         if(data_lens.empty())
             return;
 
-        int gather_axis = tune_axis(
-            static_cast<int>(data_lens.size()), gather_op.axis, gather_op.name());
+        int gather_axis = tune_axis(static_cast<int>(data_lens.size()),
+                                    static_cast<int>(gather_op_axis),
+                                    gather_ins->name());
 
         if(slice_axis != gather_axis)
             return;
@@ -1422,13 +1426,15 @@ struct find_gather_slice_concat
                 continue;
             if(inp->inputs().at(0) != gather_ins)
                 continue;
-            auto sop = any_cast<op::slice>(inp->get_operator());
-            if(sop.axes.size() != 1 or
-               static_cast<int>(sop.axes.front()) != slice_axis)
+            auto sop        = inp->get_operator().to_value();
+            auto sop_axes   = sop.at("axes").to_vector<int64_t>();
+            auto sop_starts = sop.at("starts").to_vector<int64_t>();
+            auto sop_ends   = sop.at("ends").to_vector<int64_t>();
+            if(sop_axes.size() != 1 or static_cast<int>(sop_axes.front()) != slice_axis)
                 continue;
-            if(sop.ends.front() - sop.starts.front() != 1)
+            if(sop_ends.front() - sop_starts.front() != 1)
                 continue;
-            auto row = static_cast<std::size_t>(sop.starts.front());
+            auto row = static_cast<std::size_t>(sop_starts.front());
             if(row >= num_rows)
                 continue;
             input_rows[i] = row;

@@ -40,9 +40,6 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
     migraphx::shape xs{migraphx::shape::float_type, {1, 3, 8, 8}};
     migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
     std::vector<float> w_data(ws.elements(), 0.5f);
-    std::vector<std::size_t> out_lens     = {1, 4, 6, 6};
-    std::vector<std::size_t> scale_lens   = {4, 1, 1, 1};
-    std::vector<std::int64_t> reduce_axes = {1, 2, 3};
 
     migraphx::module m1;
     {
@@ -58,36 +55,53 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
         auto x = m2.add_parameter("x", xs);
         auto w = m2.add_literal(migraphx::literal{ws, w_data});
 
-        auto abs_w = m2.add_instruction(migraphx::make_op("abs"), w);
-        auto scale_max =
-            m2.add_instruction(migraphx::make_op("reduce_max", {{"axes", reduce_axes}}), abs_w);
-
-        auto eps = m2.add_literal(
-            migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-30f}});
-        auto eps_bc = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", scale_lens}}), eps);
-        auto scale_kd = m2.add_instruction(migraphx::make_op("max"), scale_max, eps_bc);
-        auto scale =
-            m2.add_instruction(migraphx::make_op("squeeze", {{"axes", reduce_axes}}), scale_kd);
-
-        auto scale_w_bc = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", ws.lens()}}), scale);
-        auto w_scaled = m2.add_instruction(migraphx::make_op("div"), w, scale_w_bc);
-
         auto xh = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
         auto wh = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w_scaled);
-
-        auto conv      = m2.add_instruction(migraphx::make_op("convolution"), xh, wh);
-        auto converted = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
+        auto conv = m2.add_instruction(migraphx::make_op("convolution"), xh, wh);
+        auto out  = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), conv);
-
-        auto scale_out_bc = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", out_lens}}), scale);
-        auto result = m2.add_instruction(migraphx::make_op("mul"), converted, scale_out_bc);
-        m2.add_return({result});
+        m2.add_return({out});
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_convolution_tiny_unchanged)
+{
+    // 11 outputs * 8 reduction = 88 ops — too small to benefit from fp16
+    // acceleration, and tiny conv outputs are precision-sensitive.
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8, 1, 1}};
+    migraphx::shape ws{migraphx::shape::float_type, {11, 8, 1, 1}};
+    std::vector<float> w_data(ws.elements(), 0.5f);
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", xs);
+        auto w    = m1.add_literal(migraphx::literal{ws, w_data});
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_convolution_large_reduction_unchanged)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 256, 16, 16}};
+    migraphx::shape ws{migraphx::shape::float_type, {1, 256, 3, 2}};
+    std::vector<float> w_data(ws.elements(), 0.5f);
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", xs);
+        auto w    = m1.add_literal(migraphx::literal{ws, w_data});
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    auto m2 = m1;
+    run_pass(m1);
     EXPECT(m1 == m2);
 }
 

@@ -1076,7 +1076,7 @@ struct find_concat_same_input
             return;
 
         // op::concat normalizes the axis at parse time.
-        auto axis        =  ins->get_operator().to_value()["axis"].to<std::size_t>();
+        auto axis        = ins->get_operator().to_value()["axis"].to<int64_t>();
         const auto& lens = x->get_shape().lens();
         if(axis < 0 or axis >= lens.size())
             return;

@@ -36,6 +36,7 @@
 #include <migraphx/tensor_view.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/par.hpp>
@@ -294,7 +295,7 @@ struct nonmaxsuppression
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         // make buffer of maximum size
-        auto output_shapes = flatten({output_shape});
+        auto output_shapes = flatten_shapes({output_shape});
         shape max_output_shape = {output_shapes.at(0).type(), output_shapes.at(0).max_lens()};
         argument result{max_output_shape};
         argument num_selected_result{output_shapes.at(1)};
@@ -304,7 +305,7 @@ struct nonmaxsuppression
         if(max_output_boxes_per_class == 0)
         {
             num_selected_result.visit([&](auto output){
-                output.at(0) = 0;
+                output[0] = 0;
             });
             return {{result, num_selected_result}};
         }
@@ -323,7 +324,7 @@ struct nonmaxsuppression
             });
         });
         num_selected_result.visit([&](auto output){
-            output.at(0) = num_selected;
+            output[0] = num_selected;
         });
         return {{result, num_selected_result}};
     }

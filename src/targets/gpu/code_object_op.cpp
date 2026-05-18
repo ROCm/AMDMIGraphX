@@ -41,7 +41,7 @@ shape code_object_op::compute_shape(std::vector<shape> inputs) const
     std::transform(einputs.begin(), einputs.end(), einputs.begin(), [](const shape& s) {
         return s.normalize_standard();
     });
-    if(not migraphx::equal(flatten(einputs), flatten(inputs), &shape::is_compatible))
+    if(not migraphx::equal(flatten_shapes(einputs), flatten_shapes(inputs), &shape::is_compatible))
         MIGRAPHX_THROW("Input shapes have changed: [" + to_string_range(einputs) + "] -> [" +
                        to_string_range(inputs) + "]");
     auto output_buffer_shape = inputs.at(get_output_arg(inputs.size()));

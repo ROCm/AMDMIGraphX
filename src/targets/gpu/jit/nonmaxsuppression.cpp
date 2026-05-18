@@ -177,7 +177,7 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
         const auto block_size = compute_block_size(ctx, num_boxes/2, 256);
 
         hip_compile_options options;
-        options.inputs         = flatten(inputs);
+        options.inputs         = flatten_shapes(inputs);
         options.output         = inputs.back();
         options.kernel_name    = "nms_filter_kernel";
         options.virtual_inputs = options.inputs;
@@ -218,7 +218,7 @@ struct nms_compact_compiler : compiler<nms_compact_compiler>
         const auto block_size = compute_block_size(ctx, num_batch_class * num_boxes, 256);
 
         hip_compile_options options;
-        options.inputs         = flatten(inputs);
+        options.inputs         = flatten_shapes(inputs);
         options.output         = inputs.back();
         options.kernel_name    = "nms_compact_kernel";
         options.virtual_inputs = options.inputs;

@@ -65,7 +65,7 @@ struct topk_compiler : compiler<topk_compiler>
     {
         hip_compile_options options;
         options.output      = inputs.back();
-        options.inputs      = flatten(inputs);
+        options.inputs      = flatten_shapes(inputs);
         options.kernel_name = "topk_kernel";
 
         auto axis           = v.at("axis").to<int64_t>();

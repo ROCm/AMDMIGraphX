@@ -1378,14 +1378,14 @@ const std::vector<shape>& shape::sub_shapes() const { return impl->m_shapes; }
 
 void shape::debug_print() const { std::cout << *this << std::endl; }
 
-std::vector<shape> flatten(const std::vector<shape>& shapes)
+std::vector<shape> flatten_shapes(const std::vector<shape>& shapes)
 {
     std::vector<shape> result;
     for(const auto& s : shapes)
     {
         if(s.type() == shape::tuple_type)
         {
-            auto subs = flatten(s.sub_shapes());
+            auto subs = flatten_shapes(s.sub_shapes());
             result.insert(result.end(), subs.begin(), subs.end());
         }
         else

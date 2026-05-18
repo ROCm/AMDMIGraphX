@@ -74,7 +74,7 @@ struct pointwise_compiler : compiler<pointwise_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs         = flatten(inputs);
+        options.inputs         = flatten_shapes(inputs);
         options.output         = inputs.back();
         options.virtual_inputs = reduce_dims(normalize_permutation(options.inputs));
         options.emplace_param("-Wno-float-equal");

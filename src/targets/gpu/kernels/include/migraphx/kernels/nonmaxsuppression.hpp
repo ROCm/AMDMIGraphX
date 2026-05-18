@@ -137,15 +137,19 @@ __device__ void nonmaxsuppression_sort(Boxes boxes_tv, Scores scores_tv, Output 
     auto* p = reinterpret_cast<nms_data*>(out_tv.data()) + block_id * AlignedNumBoxes;
     auto block_out_tv = make_tensor_view<nms_data>(p, block_out_shape);
 
-    const auto* boxes_b   = boxes_tv.data() + batch_idx * NumBoxes * 4;
-    const auto* scores_bc = scores_tv.data() + (batch_idx * NumClasses + class_idx) * NumBoxes;
+    //const auto* boxes_b   = boxes_tv.data() + batch_idx * NumBoxes * 4;
+    //const auto* scores_bc = scores_tv.data() + (batch_idx * NumClasses + class_idx) * NumBoxes;
+    // Get tensor_view slice of boxes. numpy slicing: boxes[batch_idx, :, :]
+    const auto my_boxes = slice_tensor(boxes_tv, batch_idx, slice_axes<1, 2>());
+    // Get tensor_view slice of scores. numpy slicing: scores[batch_idx, class_idx, :]
+    const auto my_scores = slice_tensor(scores_tv, block_id, slice_axes<2>());
 
     nms_data tmp_data;
     idx.local_stride(AlignedNumBoxes, [&](auto i) {
         if(i < NumBoxes)
         {
-            tmp_data.score     = scores_bc[i];
-            tmp_data.box       = nms_normalize_box<CenterPointBox>(boxes_b + i * 4);
+            tmp_data.score     = my_scores[i];
+            tmp_data.box       = nms_normalize_box<CenterPointBox>(my_boxes + i * 4);
             tmp_data.box_index = static_cast<int>(i);
         }
         else

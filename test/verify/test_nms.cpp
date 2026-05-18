@@ -51,10 +51,11 @@ struct test_nms : verify_program<test_nms>
                                 iou_threshold,
                                 score_threshold);
 
-        auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+        //auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
         auto num_selected = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
-        auto slice_ins = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
-        mm->add_return({slice_ins});
+        //auto slice_ins = mm->add_instruction(migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
+        //mm->add_return({slice_ins});
+        mm->add_return({num_selected});
 
         return p;
     }

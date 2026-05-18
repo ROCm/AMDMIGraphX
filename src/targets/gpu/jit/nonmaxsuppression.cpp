@@ -131,14 +131,14 @@ struct nms_sort_compiler : compiler<nms_sort_compiler>
         const auto aligned_num_boxes =
             static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
         // NOTE: topK kernel uses relement/4 for amount of work in a block?
-        auto block_size = compute_block_size(ctx, num_boxes, 1024);
+        auto block_size = compute_block_size(ctx, aligned_num_boxes, 1024);
 
         hip_compile_options options;
         options.inputs         = inputs;
         options.output         = inputs.back();
         options.kernel_name    = "nms_sort_kernel";
         options.virtual_inputs = inputs;
-        options.set_launch_params(v, block_size * num_batches * num_classes, block_size);
+        options.set_launch_params(v, num_batches * num_classes * block_size, block_size);
 
         auto src = interpolate_string(
             nms_sort_kernel_src,
@@ -181,7 +181,7 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
         options.output         = inputs.back();
         options.kernel_name    = "nms_filter_kernel";
         options.virtual_inputs = options.inputs;
-        options.set_launch_params(v, block_size * num_batches * num_classes, block_size);
+        options.set_launch_params(v, num_batches * num_classes * block_size, block_size);
 
         auto src = interpolate_string(
             nms_filter_kernel_src,

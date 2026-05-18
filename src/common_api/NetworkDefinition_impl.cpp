@@ -49,6 +49,7 @@ ITensor* NvNetworkDefinition_impl::addInput(char const* name, DataType type, Dim
 	auto input = mm->add_parameter(name, migraphx::shape{helper::fromDataType(type), helper::dimsToVec(dimensions)});
 	mInputTensors.push_back(std::make_unique<Tensor_impl>(input));
 	auto* ret = mInputTensors.back().get();
+	ret->setName(name);
 	return ret;
 }
 

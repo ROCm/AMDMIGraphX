@@ -297,12 +297,16 @@ struct nonmaxsuppression
         auto output_shapes = flatten({output_shape});
         shape max_output_shape = {output_shapes.at(0).type(), output_shapes.at(0).max_lens()};
         argument result{max_output_shape};
+        argument num_selected_result{output_shapes.at(1)};
 
         std::size_t max_output_boxes_per_class =
             (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
         if(max_output_boxes_per_class == 0)
         {
-            return result;
+            num_selected_result.visit([&](auto output){
+                output.at(0) = 0;
+            });
+            return {{result, num_selected_result}};
         }
         double iou_threshold     = (args.size() > 3) ? (args.at(3).at<double>()) : 0.0f;
         double score_threshold   = (args.size() > 4) ? (args.at(4).at<double>()) : 0.0f;
@@ -318,9 +322,8 @@ struct nonmaxsuppression
                                            score_threshold);
             });
         });
-        argument num_selected_result{output_shapes.at(1)};
         num_selected_result.visit([&](auto output){
-            output.begin() = num_selected;
+            output.at(0) = num_selected;
         });
         return {{result, num_selected_result}};
     }

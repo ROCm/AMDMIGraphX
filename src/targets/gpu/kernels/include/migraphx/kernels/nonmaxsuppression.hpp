@@ -150,8 +150,8 @@ __device__ void nonmaxsuppression_sort(Boxes boxes_tv, Scores scores_tv, Output 
         }
         else
         {
-            // Sentinel: -inf score so it never beats any real entry
-            tmp_data.score     = -__FLT_MAX__;
+            // Sentinel: score so it never beats any real entry
+            tmp_data.score     = numeric_limits<Boxes::value_type>::lowest();
             tmp_data.box       = array<float, 4>{0.f, 0.f, 0.f, 0.f};
             tmp_data.box_index = -1;
         }
@@ -204,8 +204,7 @@ __device__ void nms_filter_per_block(index idx,
                                      Output output,
                                      Counts bc_counts)
 {
-    static_assert(NumBoxes > 1);
-
+    static_assert(NumBoxes > 0);
     const index_int block_id = idx.group;
     const int batch_idx = block_id / NumClasses;
     const int class_idx = block_id % NumClasses;
@@ -344,13 +343,13 @@ __device__ void nonmaxsuppression_compact(const Counts bc_counts,
     constexpr index_int max_entries = NumBatchClass * NumBoxes;
     idx.local_stride(max_entries, [&](auto i) {
         const index_int batch_class_idx = i / NumBoxes;
-        const index_int box_idx = i & NumBoxes;
+        const index_int box_idx = i % NumBoxes;
         if(box_idx < bc_counts[batch_class_idx])
         {
             for(int k = 0; k < 3; ++k)
             {
                 output[(offsets[batch_class_idx] + box_idx) * index_size + k] =
-                indices[batch_class_idx * NumBoxes + box_idx * index_size + k] ;
+                indices[(batch_class_idx * NumBoxes + box_idx) * index_size + k] ;
             }
         }
     });

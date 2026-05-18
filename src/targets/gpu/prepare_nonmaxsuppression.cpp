@@ -189,7 +189,7 @@ struct find_nonmaxsuppression
             m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), filter);
 
         auto compact =
-            m.insert_instruction(ins, make_op("gpu::nms_compact"), bc_counts, output);
+            m.insert_instruction(ins, make_op("gpu::nms_compact"), output, bc_counts);
 
         m.replace_instruction(ins, compact);
     }

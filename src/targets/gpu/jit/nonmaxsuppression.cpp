@@ -104,10 +104,10 @@ MIGRAPHX_GLOBAL void nms_compact_kernel(${params})
 {
     make_tensors()(${args})([](const auto bc_counts,
                                auto indices,
-                               auto num_selected,
-                               auto output) {
+                               auto selected_indices,
+                               auto num_selected) {
         nonmaxsuppression_compact<${num_batch_class}, ${num_boxes}>(
-            bc_counts, indices, num_selected, output);
+            bc_counts, indices, selected_indices, num_selected);
     });
 }
 
@@ -213,8 +213,9 @@ struct nms_compact_compiler : compiler<nms_compact_compiler>
         const auto& indices_s = inputs[1];
         const auto num_batch_class = cnt_s.elements();
         const auto num_boxes = indices_s.elements() / (num_batch_class * std::size_t{3});
-        // TODO: tune for max block size?
-        const auto block_size = compute_block_size(ctx, num_boxes, 256);
+        // TODO: tune for block size?
+        // num_boxes block size could also work?
+        const auto block_size = compute_block_size(ctx, num_batch_class * num_boxes, 256);
 
         hip_compile_options options;
         options.inputs         = flatten(inputs);

@@ -530,6 +530,14 @@ bool NvNetworkDefinition_impl::unmarkUnfusedTensorsAsDebugTensors() noexcept
 	return false;
 }
 
-
+void NvNetworkDefinition_impl::build() noexcept
+{
+	std::for_each(mLayers.begin(), mLayers.end(),
+		[](auto& layer)
+		{
+			layer->build();
+		}
+	);
+}
 
 }  // namespace nvinfer1

@@ -38,6 +38,8 @@ namespace nvinfer1
         void setMetadata(char const* docString) noexcept override;
         char const* getMetadata() const noexcept override;
 
+         virtual void build() noexcept = 0;
+
     protected:
         std::vector<migraphx::instruction_ref> getInputArguments() const noexcept;
 

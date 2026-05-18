@@ -99,8 +99,10 @@ bool NvBuilder_impl::platformHasTf32() const noexcept
 nvinfer1::IHostMemory* NvBuilder_impl::buildSerializedNetwork(INetworkDefinition& network, IBuilderConfig& config) noexcept
 {
     auto& nw_impl = static_cast<NvNetworkDefinition_impl&>(network);
+    
+    nw_impl.build();
+    
     migraphx::program prog = *nw_impl.getProgram();
-
     try
     {
         prog.compile(migraphx::make_target("gpu"));

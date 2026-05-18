@@ -113,6 +113,8 @@ namespace nvinfer1
 
         void setProgram(std::shared_ptr<migraphx::program> program);
         const migraphx::program* getProgram() const;
+        
+        void build() noexcept;
 
     private:
         IBuilder& mBuilder;

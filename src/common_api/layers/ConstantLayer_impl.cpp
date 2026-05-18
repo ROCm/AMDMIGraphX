@@ -22,8 +22,6 @@ ConstantLayer_impl::ConstantLayer_impl(Dims const& dimensions, Weights weights, 
 {
     IConstantLayer::mLayer = static_cast<VLayer*>(static_cast<Layer_impl*>(this));
     IConstantLayer::mImpl = this;
-
-    build();
 }
 
 void ConstantLayer_impl::build() noexcept

@@ -19,9 +19,9 @@ namespace nvinfer1
         void setDimensions(Dims const& dimensions) noexcept override;
         Dims getDimensions() const noexcept override;
 
-    private:
-        void build() noexcept;
+        void build() noexcept override;
 
+    private:
         Dims mDimensions;
         Weights mWeights;
     };

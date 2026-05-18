@@ -25,6 +25,7 @@ Full documentation for MIGraphX is available at
 * Added per-channel scale/zero-point support for `QLinearConv` operator.
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
+* Added deduplication of gather ops which from the same constant embedding data vectors. (#4727)
 
 ### Changed
 

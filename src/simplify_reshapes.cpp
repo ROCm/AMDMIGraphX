@@ -1808,6 +1808,116 @@ struct find_flatten
                               flatten->inputs());
     }
 };
+
+// Multiple gathers that read from the same constant 2D embedding table with
+// axis=0 and compatible (same dtype + same trailing dims) index tensors can
+// be collapsed into a single batched gather:
+//
+//   gather(T, idx_i)  for i in 0..K-1
+//      ==>
+//   slice_i(gather(T, concat(idx_0, ..., idx_{K-1})))
+//
+// This avoids reading T multiple times and shrinks the working set seen by
+// the cross-table horizontal fusion pass that runs later.  Anchoring on a
+// gather lets us reuse only the existing matcher primitives
+// (match::name, match::arg, match::is_constant, match::ndim) and walk the
+// shared parent's outputs in apply() — the same sibling-fanout pattern that
+// find_splits / find_split_concat already use.
+struct find_same_table_gathers
+{
+    auto matcher() const
+    { return match::name("gather")(match::arg(0)(match::is_constant(), match::ndim(2))); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto data = ins->inputs().at(0);
+        auto idx  = ins->inputs().at(1);
+
+        if(ins->get_operator().to_value()["axis"].to<int>() != 0)
+            return;
+        if(idx->get_shape().scalar() or idx->get_shape().lens().empty())
+            return;
+
+        const auto idx_type  = idx->get_shape().type();
+        const auto& idx_lens = idx->get_shape().lens();
+        std::vector<std::size_t> trailing(idx_lens.begin() + 1, idx_lens.end());
+
+        std::vector<instruction_ref> sibling_gathers;
+        for(auto out : data->outputs())
+        {
+            // Skip orphaned siblings (already replaced by an earlier
+            // application of this matcher in the same find_matches pass).
+            if(out->outputs().empty())
+                continue;
+            if(out->name() != "gather")
+                continue;
+            if(out->get_operator().to_value()["axis"].to<int>() != 0)
+                continue;
+            auto out_idx = out->inputs().at(1);
+            if(out_idx->get_shape().scalar() or out_idx->get_shape().lens().empty())
+                continue;
+            if(out_idx->get_shape().type() != idx_type)
+                continue;
+            const auto& out_lens = out_idx->get_shape().lens();
+            if(not std::equal(
+                   out_lens.begin() + 1, out_lens.end(), trailing.begin(), trailing.end()))
+                continue;
+            sibling_gathers.push_back(out);
+        }
+
+        // Implies no siblings found so no need to further apply
+        if(sibling_gathers.size() < 2)
+            return;
+
+        // Insertion point: std::next(latest sibling in module order).  Sorting all of
+        // them is overkill — concat/slice/replace below are order-agnostic, so we only
+        // need to know the latest.  Every sibling's idx tensor dominates that sibling,
+        // so it also dominates `insert_pt`, which is what makes the concat valid.
+        auto latest = std::max_element(
+            sibling_gathers.begin(),
+            sibling_gathers.end(),
+            by(std::less<>{}, [&](instruction_ref g) { return std::distance(m.begin(), g); }));
+
+        auto insert_pt = std::next(*latest);
+
+        std::vector<instruction_ref> idx_inputs;
+        std::transform(sibling_gathers.begin(),
+                       sibling_gathers.end(),
+                       std::back_inserter(idx_inputs),
+                       [](auto g) { return g->inputs().at(1); });
+
+        auto concat_idx =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), idx_inputs);
+
+        auto batched_gather =
+            m.insert_instruction(insert_pt, make_op("gather", {{"axis", 0}}), data, concat_idx);
+
+        std::vector<instruction_ref> slices;
+        slices.reserve(sibling_gathers.size());
+        std::size_t offset = 0;
+        for(const auto& g : sibling_gathers)
+        {
+            auto sz = g->inputs().at(1)->get_shape().lens().front();
+            slices.push_back(m.insert_instruction(
+                insert_pt,
+                make_op("slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {offset + sz}}}),
+                batched_gather));
+            offset += sz;
+        }
+
+        // Move consumers of the original gathers to after the slices so that
+        // replace_instruction's positional invariants hold.
+        for(auto g : sibling_gathers)
+            m.move_output_instructions_after(g, slices.back());
+
+        for (auto i: range(sibling_gathers.size()))
+        {
+            m.replace_instruction(sibling_gathers[i], slices[i]);
+        }
+    }
+};
+
 } // namespace
 
 void simplify_reshapes::apply(module& m) const
@@ -1823,6 +1933,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshape_cont{},
                             find_slice_shape_transforms{},
                             find_nested_shape_transforms{},
+                            find_same_table_gathers{},
                             find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_reshape{},

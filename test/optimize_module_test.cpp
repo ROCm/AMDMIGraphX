@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -182,6 +182,58 @@ TEST_CASE(mul_add_transpose_dot)
         m2.add_return({add});
     }
 
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// End-to-end cleanup: when the module ends in `concat(g_1, ..., g_K)` over the
+// same-table gathers, simplify_algebra produces an even tighter result than
+// find_same_table_gathers alone — find_split_concat sees that the rewritten
+// slices fully partition the merged gather and folds them out, leaving just
+// `gather(emb, concat(idx_1, ..., idx_K))`.  Because the original concat was
+// the module's last instruction, replace_instruction wraps the merged gather
+// in an identity to preserve "last instruction" semantics; m2 mirrors that
+// explicitly.  This documents (and protects) the composition between
+// find_same_table_gathers and find_split_concat.
+TEST_CASE(same_table_gathers_end_to_end_cleanup)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {1}});
+        auto idx4 = m1.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx4);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                           std::vector<migraphx::instruction_ref>{g1, g2, g3, g4});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {1}});
+        auto idx4 = m2.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
+
+        auto concat_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx1, idx2, idx3, idx4});
+
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
+
+        m2.add_instruction(migraphx::make_op("identity"), bg);
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

@@ -1367,7 +1367,7 @@ struct find_gather_slice_concat
         const auto& all_inputs = concat_ins->inputs();
 
         instruction_ref gather_ins;
-        int slice_axis = -1;
+        int64_t slice_axis = -1;
         for(const auto& inp : all_inputs)
         {
             if(inp->name() != "slice")
@@ -1381,7 +1381,7 @@ struct find_gather_slice_concat
             if(inp->inputs().at(0)->name() != "gather")
                 continue;
             gather_ins = inp->inputs().at(0);
-            slice_axis = static_cast<int>(sop_axes.front());
+            slice_axis = sop_axes.front();
             break;
         }
         if(slice_axis < 0)
@@ -1395,15 +1395,15 @@ struct find_gather_slice_concat
         if(data_lens.empty())
             return;
 
-        int gather_axis = tune_axis(static_cast<int>(data_lens.size()),
-                                    static_cast<int>(gather_op_axis),
-                                    gather_ins->name());
+        int64_t gather_axis = tune_axis(data_lens.size(),
+                                        gather_op_axis,
+                                        gather_ins->name());
 
         if(slice_axis != gather_axis)
             return;
 
         auto indices_ndim = indices_ins->get_shape().ndim();
-        if(concat_axis != gather_axis + static_cast<int>(indices_ndim))
+        if(concat_axis != gather_axis + static_cast<int64_t>(indices_ndim))
             return;
 
         const auto& indices_lens = indices_ins->get_shape().lens();
@@ -1430,11 +1430,11 @@ struct find_gather_slice_concat
             auto sop_axes   = sop.at("axes").to_vector<int64_t>();
             auto sop_starts = sop.at("starts").to_vector<int64_t>();
             auto sop_ends   = sop.at("ends").to_vector<int64_t>();
-            if(sop_axes.size() != 1 or static_cast<int>(sop_axes.front()) != slice_axis)
+            if(sop_axes.size() != 1 or sop_axes.front() != slice_axis)
                 continue;
             if(sop_ends.front() - sop_starts.front() != 1)
                 continue;
-            auto row = static_cast<std::size_t>(sop_starts.front());
+            auto row = sop_starts.front();
             if(row >= num_rows)
                 continue;
             input_rows[i] = row;

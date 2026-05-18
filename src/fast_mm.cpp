@@ -70,13 +70,7 @@ void fast_mm::apply(module& m) const
             continue;
 
         // W = W_hi + W_lo where W_hi = fp16-rounded W and W_lo = fp16-rounded
-        // residual. All folds at compile time since W is constant. Concat
-        // along input-channel axis and duplicate X so the fp16 conv computes
-        // X*W_hi + X*W_lo = X*(W_hi+W_lo) ≈ X*W, recovering ~fp32 precision on
-        // the W side. (Experiments show the equivalent hi/lo split on X gives
-        // no further gain on this kernel — the multiplication itself appears
-        // to round to fp16 before accumulation, so per-multiply X rounding is
-        // a hard floor that input-side tricks can't recover.)
+        // residual. All folds at compile time since W is constant.
         auto w_hi_h =
             m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), w);
         auto w_hi_f = m.insert_instruction(

@@ -53,8 +53,6 @@ void GatherLayer_impl::build() noexcept
     case GatherMode::kND:
         mInstructions.push_back(migraphx::op::builder::add("gathernd", *mm, args, {{"batch_dims", mNbElementWiseDims}}).at(0));
         break;
-    default:
-        pass_warning("Unsupported gather mode!", false);
     }
 
     mOutputs[0]->setInstruction(mInstructions.back());

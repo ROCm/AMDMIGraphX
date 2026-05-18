@@ -33,6 +33,7 @@
 #include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/fast_mm.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/fuse_reduce.hpp>
@@ -74,6 +75,7 @@ static std::unordered_map<std::string, pass> create_passes_lookup()
         eliminate_data_type{},
         eliminate_identity{},
         eliminate_pad{},
+        fast_mm{},
         fuse_attention{},
         fuse_pointwise{},
         fuse_reduce{},

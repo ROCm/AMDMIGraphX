@@ -54,7 +54,8 @@ ITensor* NvNetworkDefinition_impl::addInput(char const* name, DataType type, Dim
 
 void NvNetworkDefinition_impl::markOutput(ITensor& tensor) noexcept
 {
-	pass_warning("TODO! implement me!", true);
+	Tensor_impl* impl = dynamic_cast<Tensor_impl*>(&tensor);
+	mOutputTensors.push_back(impl);
 	return;
 }
 

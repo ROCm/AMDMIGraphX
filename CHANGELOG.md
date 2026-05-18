@@ -31,6 +31,7 @@ Full documentation for MIGraphX is available at
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
 * Added documentation for using debug symbols (#4945).
+# Added gather_slice_concat_matcher for slice/concats on data axis of gather ops (#4725)
 
 ### Changed
 

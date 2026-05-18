@@ -128,4 +128,14 @@ char const* Layer_impl::getMetadata() const noexcept
     return nullptr;
 }
     
+std::vector<migraphx::instruction_ref> Layer_impl::getInputArguments() const noexcept
+{
+    std::vector<migraphx::instruction_ref> args{};
+    for (const auto& input : mInputs)
+    {
+        args.push_back(input->getInstruction());
+    }
+    return args;
+}
+
 } // namespace nvinfer1

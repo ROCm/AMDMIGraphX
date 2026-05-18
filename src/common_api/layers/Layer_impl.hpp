@@ -39,6 +39,8 @@ namespace nvinfer1
         char const* getMetadata() const noexcept override;
 
     protected:
+        std::vector<migraphx::instruction_ref> getInputArguments() const noexcept;
+
         LayerType mType;
         std::shared_ptr<migraphx::program> mProgram;
         std::vector<Tensor_impl*> mInputs;

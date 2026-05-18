@@ -40,10 +40,12 @@ namespace nvinfer1
         char const* getDimensionName(int32_t index) const noexcept override;
 
         migraphx::instruction_ref getInstruction() const noexcept;
+        void setInstruction(migraphx::instruction_ref ins) noexcept;
 
     private:
         migraphx::instruction_ref mIns;
         std::string mName;
+        bool mBound = false;
     };
 }
 

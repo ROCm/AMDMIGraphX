@@ -15,7 +15,7 @@ Tensor_impl::Tensor_impl() noexcept
 }
 
 Tensor_impl::Tensor_impl(migraphx::instruction_ref ins) noexcept 
-    : mIns{ins}, mName{ins->name()}
+    : mIns{ins}, mName{ins->name()}, mBound{true}
 {
     mImpl = this;
 }
@@ -28,6 +28,12 @@ Tensor_impl::~Tensor_impl()
 migraphx::instruction_ref Tensor_impl::getInstruction() const noexcept
 {
     return mIns;
+}
+
+void Tensor_impl::setInstruction(migraphx::instruction_ref ins) noexcept 
+{
+    mIns = ins;
+    mBound = true;
 }
 
 void Tensor_impl::setName(char const* name) noexcept
@@ -49,6 +55,7 @@ void Tensor_impl::setDimensions(Dims const& dimensions) noexcept
 
 Dims Tensor_impl::getDimensions() const noexcept
 {
+    if(!mBound) return Dims{};
     return helper::toDimensions(mIns->get_shape());
 }
 

@@ -1062,10 +1062,6 @@ struct find_concat_same_input
         if(inputs.size() < 2)
             return;
 
-        // multibroadcast(out_lens=...) is the static form; bail on dynamic.
-        if(ins->get_shape().dynamic())
-            return;
-
         auto x = inputs.front();
         if(x->get_shape().dynamic())
             return;
@@ -1078,7 +1074,8 @@ struct find_concat_same_input
         // op::concat normalizes the axis at parse time.
         auto axis        = ins->get_operator().to_value()["axis"].to<int64_t>();
         const auto& lens = x->get_shape().lens();
-        if(axis < 0 or axis >= lens.size())
+        assert(axis > 0);
+        if(axis >= lens.size())
             return;
 
         // Safe (no data movement) case: the concat axis is size 1 in the

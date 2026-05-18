@@ -2481,8 +2481,21 @@ TEST_CASE(find_splits_inter_group_dependency)
         auto sum2  = m1.add_instruction(migraphx::make_op("add"), y, relu2);
         m1.add_return({sum1, sum2});
     }
-    migraphx::module m2 = m1;
     run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto x     = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto y = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto relu1 = m2.add_instruction(migraphx::make_op("relu"), x);
+        auto sum1  = m2.add_instruction(migraphx::make_op("add"), relu1, x);
+        auto relu2 = m2.add_instruction(migraphx::make_op("relu"), y);
+        auto sum2  = m2.add_instruction(migraphx::make_op("add"), y, relu2);
+        m2.add_return({sum1, sum2});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

@@ -267,24 +267,279 @@ struct gather_horizontal_fusion
 };
 
 // ---------------------------------------------------------------------------
-// Future: add more horizontal fusion finders here, e.g.
+// Generic dot horizontal fusion
 //
-// struct pointwise_horizontal_fusion
-// {
-//     std::size_t min_group_size() const { return 2; }
-//     bool is_candidate(instruction_ref ins) const { ... }
-//     std::string group_key(instruction_ref ins) const { ... }
-//     std::vector<instruction_ref>
-//         fuse(module& m, const std::vector<instruction_ref>& ops,
-//              instruction_ref insert_pt) const { ... }
-// };
+// Batches structurally-identical dot operations into a single batched GEMM
+// by stacking activations and weights along a new leading dimension (axis 0).
+// The batched dot output is sliced and squeezed back to individual results.
+//
+// Two downstream patterns are absorbed directly:
+//   1. Bias:  dot → add(dot, broadcast(const))  →  batched_dot + batched_add
+//   2. SiLU:  (frontier) → sigmoid → mul(frontier, sigmoid)
+//             →  batched sigmoid + batched mul on the full result
+//
+// These are handled eagerly because they are common in MLP prediction towers
+// and absorbing them avoids relying on multiple simplify_reshapes iterations
+// plus CSE to reconstruct the batched computation.
 // ---------------------------------------------------------------------------
+
+struct dot_horizontal_fusion
+{
+    std::size_t min_group_size() const { return 2; }
+
+    bool is_candidate(instruction_ref ins) const
+    {
+        if(ins->name() != "dot")
+            return false;
+        if(ins->get_shape().dynamic())
+            return false;
+        if(ins->get_shape().ndim() < 2)
+            return false;
+        auto weight = ins->inputs().at(1);
+        return weight->can_eval();
+    }
+
+    // Check whether a single dot's output (possibly through a bias add)
+    // feeds into a SiLU pattern: target → sigmoid → mul(target, sigmoid).
+    static bool has_downstream_silu(instruction_ref dot)
+    {
+        auto target  = dot;
+        auto outputs = target->outputs();
+        if(outputs.size() == 1 and outputs.front()->name() == "add")
+        {
+            auto add_ins       = outputs.front();
+            const auto& inputs = add_ins->inputs();
+            auto other         = (inputs[0] == target) ? inputs[1] : inputs[0];
+            if(other->name() == "broadcast" or other->name() == "multibroadcast")
+                target = add_ins;
+        }
+
+        outputs = target->outputs();
+        if(outputs.size() != 2)
+            return false;
+        instruction_ref sig{};
+        instruction_ref mul{};
+        for(auto out : outputs)
+        {
+            if(out->name() == "sigmoid" and out->inputs().size() == 1 and
+               out->inputs().front() == target)
+                sig = out;
+            else if(out->name() == "mul")
+                mul = out;
+        }
+        if(sig == instruction_ref{} or mul == instruction_ref{})
+            return false;
+        if(sig->outputs().size() != 1 or sig->outputs().front() != mul)
+            return false;
+        const auto& mul_inputs = mul->inputs();
+        return (mul_inputs[0] == target and mul_inputs[1] == sig) or
+               (mul_inputs[0] == sig and mul_inputs[1] == target);
+    }
+
+    auto group_key(instruction_ref ins) const
+    {
+        return std::make_tuple(ins->inputs().at(0)->get_shape().lens(),
+                               ins->inputs().at(1)->get_shape().lens(),
+                               ins->get_shape().type(),
+                               has_downstream_silu(ins));
+    }
+
+    struct bias_detect_result
+    {
+        std::vector<instruction_ref> add_insts;
+        std::vector<instruction_ref> bias_bcasts;
+    };
+
+    struct silu_detect_result
+    {
+        std::vector<instruction_ref> sig_insts;
+        std::vector<instruction_ref> mul_insts;
+    };
+
+    // Check if every dot feeds into add(dot, broadcast(...)). If so, return
+    // the add instructions and bias broadcast instructions.
+    static bool detect_downstream_biases(const std::vector<instruction_ref>& dots,
+                                         bias_detect_result& result)
+    {
+        for(const auto& d : dots)
+        {
+            auto outputs = d->outputs();
+            if(outputs.size() != 1)
+                return false;
+            auto add_ins = outputs.front();
+            if(add_ins->name() != "add")
+                return false;
+            const auto& add_inputs = add_ins->inputs();
+            auto other             = (add_inputs[0] == d) ? add_inputs[1] : add_inputs[0];
+            if(other->name() != "broadcast" and other->name() != "multibroadcast")
+                return false;
+            result.add_insts.push_back(add_ins);
+            result.bias_bcasts.push_back(other);
+        }
+        return true;
+    }
+
+    // Check if every source instruction feeds into a SiLU pattern:
+    //   source → sigmoid(source)
+    //          → mul(source, sigmoid(source))
+    static bool detect_downstream_silu(const std::vector<instruction_ref>& sources,
+                                       silu_detect_result& result)
+    {
+        for(const auto& src : sources)
+        {
+            auto outputs = src->outputs();
+            if(outputs.size() != 2)
+                return false;
+
+            instruction_ref sig_ins{};
+            instruction_ref mul_ins{};
+            bool found_sig = false;
+            bool found_mul = false;
+
+            for(auto out : outputs)
+            {
+                if(out->name() == "sigmoid" and out->inputs().size() == 1 and
+                   out->inputs().front() == src)
+                {
+                    sig_ins   = out;
+                    found_sig = true;
+                }
+                else if(out->name() == "mul")
+                {
+                    mul_ins   = out;
+                    found_mul = true;
+                }
+            }
+
+            if(not found_sig or not found_mul)
+                return false;
+
+            if(sig_ins->outputs().size() != 1 or sig_ins->outputs().front() != mul_ins)
+                return false;
+
+            const auto& mul_inputs = mul_ins->inputs();
+            if(mul_inputs.size() != 2)
+                return false;
+            bool valid = (mul_inputs[0] == src and mul_inputs[1] == sig_ins) or
+                         (mul_inputs[0] == sig_ins and mul_inputs[1] == src);
+            if(not valid)
+                return false;
+
+            result.sig_insts.push_back(sig_ins);
+            result.mul_insts.push_back(mul_ins);
+        }
+        return true;
+    }
+
+    std::vector<instruction_ref>
+    fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
+    {
+        auto num = dots.size();
+
+        // Detect bias absorption before inserting anything — we may need to
+        // advance insert_pt past the add (and broadcast) instructions that
+        // sit between the dots and the natural insertion point.
+        auto advance_past = [&](instruction_ref target) {
+            if(std::any_of(insert_pt, m.end(), [&](auto& i) { return &i == &*target; }))
+                insert_pt = std::next(target);
+        };
+
+        bias_detect_result bias_info;
+        bool absorb = detect_downstream_biases(dots, bias_info);
+        if(absorb)
+        {
+            for(auto add : bias_info.add_insts)
+                advance_past(add);
+        }
+
+        // The "frontier" is the furthest-downstream set of original instructions
+        // that we will absorb.  Bias adds override the dots as frontier.
+        const auto& frontier = absorb ? bias_info.add_insts : dots;
+
+        // Detect SiLU: frontier → sigmoid → mul(frontier, sigmoid)
+        silu_detect_result silu_info;
+        bool has_silu = detect_downstream_silu(frontier, silu_info);
+        if(has_silu)
+        {
+            for(std::size_t i = 0; i < num; ++i)
+            {
+                advance_past(silu_info.sig_insts[i]);
+                advance_past(silu_info.mul_insts[i]);
+            }
+        }
+
+        std::vector<instruction_ref> acts(num);
+        std::transform(dots.begin(), dots.end(), acts.begin(), [&](auto d) {
+            return m.insert_instruction(
+                insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(0));
+        });
+        auto batched_act = m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), acts);
+
+        std::vector<instruction_ref> wts(num);
+        std::transform(dots.begin(), dots.end(), wts.begin(), [&](auto d) {
+            return m.insert_instruction(
+                insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(1));
+        });
+        auto batched_wt = m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), wts);
+
+        auto bd = m.insert_instruction(insert_pt, make_op("dot"), batched_act, batched_wt);
+
+        if(absorb)
+        {
+            std::vector<instruction_ref> unsqueezed_biases(num);
+            for(std::size_t i = 0; i < num; ++i)
+            {
+                unsqueezed_biases[i] = m.insert_instruction(
+                    insert_pt, make_op("unsqueeze", {{"axes", {0}}}), bias_info.bias_bcasts[i]);
+            }
+            auto stacked_bias = m.insert_instruction(
+                insert_pt, make_op("concat", {{"axis", 0}}), unsqueezed_biases);
+            bd = m.insert_instruction(insert_pt, make_op("add"), bd, stacked_bias);
+        }
+
+        if(has_silu)
+        {
+            auto sig_full = m.insert_instruction(insert_pt, make_op("sigmoid"), bd);
+            bd            = m.insert_instruction(insert_pt, make_op("mul"), bd, sig_full);
+        }
+
+        std::vector<instruction_ref> results;
+        results.reserve(num);
+        for(int64_t i = 0; i < num; ++i)
+        {
+            auto sliced = m.insert_instruction(insert_pt,
+                                               make_op("slice",
+                                                       {{"axes", std::vector<int64_t>{0}},
+                                                        {"starts", std::vector<int64_t>{i}},
+                                                        {"ends", std::vector<int64_t>{i + 1}}}),
+                                               bd);
+            results.push_back(
+                m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced));
+        }
+
+        // Replace the furthest-downstream absorbed instructions.  Anything
+        // between the dots and the replaced instruction becomes dead and is
+        // cleaned up by DCE.
+        if(has_silu)
+        {
+            for(std::size_t i = 0; i < silu_info.mul_insts.size(); ++i)
+                m.replace_instruction(silu_info.mul_insts[i], results[i]);
+        }
+        else if(absorb)
+        {
+            for(std::size_t i = 0; i < bias_info.add_insts.size(); ++i)
+                m.replace_instruction(bias_info.add_insts[i], results[i]);
+        }
+
+        return results;
+    }
+};
 
 void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    fuse_horizontal_ops(m, gather_horizontal_fusion{});
+    fuse_horizontal_ops(m, gather_horizontal_fusion{}, dot_horizontal_fusion{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

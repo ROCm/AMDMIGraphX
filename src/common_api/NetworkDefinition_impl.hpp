@@ -119,7 +119,8 @@ namespace nvinfer1
 
         std::shared_ptr<migraphx::program> mProgram = std::make_shared<migraphx::program>();
         std::vector<std::unique_ptr<Tensor_impl>> mInputTensors;
-        std::vector<std::unique_ptr<Tensor_impl>> mOutputTensors;
+        std::vector<Tensor_impl*> mOutputTensors;
+        std::vector<std::unique_ptr<Tensor_impl>> mOwnedOutputTensors;
         std::vector<std::unique_ptr<Layer_impl>> mLayers;
     };
 

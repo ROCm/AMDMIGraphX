@@ -38,7 +38,8 @@ void NvNetworkDefinition_impl::setProgram(std::shared_ptr<migraphx::program> pro
 
 	for(auto param : mProgram->get_main_module()->get_returns())
 	{
-		mOutputTensors.push_back(std::make_unique<Tensor_impl>(param));
+		mOwnedOutputTensors.push_back(std::make_unique<Tensor_impl>(param));
+		mOutputTensors.push_back(mOwnedOutputTensors.back().get());
 	}
 }
 
@@ -135,7 +136,7 @@ int32_t NvNetworkDefinition_impl::getNbOutputs() const noexcept
 
 ITensor* NvNetworkDefinition_impl::getOutput(int32_t index) const noexcept
 {
-	return mOutputTensors.at(index).get();
+	return mOutputTensors.at(index);
 }
 
 IReduceLayer* NvNetworkDefinition_impl::addReduce(

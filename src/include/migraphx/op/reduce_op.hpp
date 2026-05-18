@@ -157,7 +157,7 @@ struct reduce_op : op_name<Derived>
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         // TODO: empty axes with a single input should not throw; in that case
-        // the single input should be reduced over all axes.
+        // it should just do no reduction (ie. no-op)
         auto expected_arg_count = axes.empty() ? 2 : 1;
         check_shapes{inputs, *this, true}.has(expected_arg_count);
         const auto& s0 = inputs[0];

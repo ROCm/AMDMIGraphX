@@ -1348,6 +1348,212 @@ struct find_gather_scalar
     }
 };
 
+struct find_gather_slice_concat
+{
+    static constexpr std::size_t min_run = 4;
+
+    auto matcher() const
+    { 
+        return match::name("concat")(match::any_of[match::inputs()](
+            match::name("slice")(
+                match::used_once(),
+                match::all_of[match::inputs()](match::name("gather"))))); 
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto concat_ins        = mr.result;
+        auto concat_axis       = concat_ins->get_operator().to_value().at("axis").to<int64_t>();
+        const auto& all_inputs = concat_ins->inputs();
+
+        instruction_ref gather_ins;
+        int64_t slice_axis = -1;
+        for(const auto& inp : all_inputs)
+        {
+            if(inp->name() != "slice")
+                continue;
+            auto sop         = inp->get_operator().to_value();
+            auto sop_axes    = sop.at("axes").to_vector<int64_t>();
+            auto sop_starts  = sop.at("starts").to_vector<int64_t>();
+            auto sop_ends    = sop.at("ends").to_vector<int64_t>();
+            if(sop_axes.size() != 1 or sop_ends.front() - sop_starts.front() != 1)
+                continue;
+            if(inp->inputs().at(0)->name() != "gather")
+                continue;
+            gather_ins = inp->inputs().at(0);
+            slice_axis = sop_axes.front();
+            break;
+        }
+        if(slice_axis < 0)
+            return;
+
+        auto gather_op_axis = gather_ins->get_operator().to_value().at("axis").to<int64_t>();
+        auto data_ins       = gather_ins->inputs().at(0);
+        auto indices_ins    = gather_ins->inputs().at(1);
+
+        const auto& data_lens = data_ins->get_shape().lens();
+        if(data_lens.empty())
+            return;
+
+        int64_t gather_axis = tune_axis(data_lens.size(),
+                                        gather_op_axis,
+                                        gather_ins->name());
+
+        if(slice_axis != gather_axis)
+            return;
+
+        auto indices_ndim = indices_ins->get_shape().ndim();
+        if(concat_axis != gather_axis + static_cast<int64_t>(indices_ndim))
+            return;
+
+        const auto& indices_lens = indices_ins->get_shape().lens();
+        if(indices_lens.empty() or indices_ndim < 2)
+            return;
+
+        std::size_t num_rows = indices_lens.front();
+        std::size_t batch_stride =
+            std::accumulate(indices_lens.begin() + 1, indices_lens.end(),
+                            std::size_t{1}, std::multiplies<>{});
+
+        const std::size_t not_slice = std::numeric_limits<std::size_t>::max();
+        std::vector<std::size_t> input_rows(all_inputs.size());
+
+        std::transform(
+            all_inputs.begin(),
+            all_inputs.end(),
+            input_rows.begin(),
+            [&](const instruction_ref& inp) -> std::size_t {
+                if(inp->name() != "slice")
+                    return not_slice;
+                if(inp->inputs().at(0) != gather_ins)
+                    return not_slice;
+                auto sop        = inp->get_operator().to_value();
+                auto sop_axes   = sop.at("axes").to_vector<int64_t>();
+                auto sop_starts = sop.at("starts").to_vector<int64_t>();
+                auto sop_ends   = sop.at("ends").to_vector<int64_t>();
+                if(sop_axes.size() != 1 or sop_axes.front() != slice_axis)
+                    return not_slice;
+                if(sop_ends.front() - sop_starts.front() != 1)
+                    return not_slice;
+                auto row = sop_starts.front();
+                if(row < 0 or static_cast<std::size_t>(row) >= num_rows)
+                    return not_slice;
+                return static_cast<std::size_t>(row);
+            });
+        std::size_t total_slices = std::count_if(
+            input_rows.begin(),
+            input_rows.end(),
+            [&](std::size_t r) { return r != not_slice; });
+
+        if(total_slices < min_run)
+            return;
+
+        struct run_t
+        {
+            std::size_t start_pos;
+            std::size_t len;
+            std::vector<std::size_t> rows;
+        };
+        std::vector<run_t> runs;
+
+        for(std::size_t i = 0; i < all_inputs.size();)
+        {
+            if(input_rows[i] == not_slice)
+            {
+                ++i;
+                continue;
+            }
+            run_t run;
+            run.start_pos = i;
+            while(i < all_inputs.size() and input_rows[i] != not_slice)
+            {
+                run.rows.push_back(input_rows[i]);
+                ++i;
+            }
+            run.len = run.rows.size();
+            if(run.len >= min_run)
+                runs.push_back(std::move(run));
+        }
+
+        if(runs.empty())
+            return;
+
+        std::vector<std::int64_t> trans_perm(indices_ndim);
+        std::iota(trans_perm.begin(), trans_perm.end(), 0);
+        std::rotate(trans_perm.begin(), trans_perm.begin() + 1, trans_perm.end());
+
+        auto make_run_input = [&](const run_t& run) {
+            assert(run.len > 0);
+            const std::size_t n = run.len;
+
+            std::vector<std::int32_t> perm_values(n);
+            std::transform(run.rows.begin(),
+                           run.rows.end(),
+                           perm_values.begin(),
+                           [](std::size_t r) { return static_cast<std::int32_t>(r); });
+            shape perm_shape{shape::int32_type, {n}};
+            auto perm_lit = m.add_literal(
+                literal{perm_shape, perm_values.begin(), perm_values.end()});
+
+            auto idx_subset = m.insert_instruction(
+                concat_ins, make_op("gather", {{"axis", 0}}), indices_ins, perm_lit);
+
+            auto idx_transposed = m.insert_instruction(
+                concat_ins,
+                make_op("transpose", {{"permutation", trans_perm}}),
+                idx_subset);
+
+            auto idx_flat = m.insert_instruction(
+                concat_ins,
+                make_op("reshape",
+                        {{"dims", {static_cast<std::int64_t>(batch_stride * n)}}}),
+                idx_transposed);
+
+            auto new_gather = m.insert_instruction(
+                concat_ins,
+                make_op("gather", {{"axis", gather_axis}}),
+                data_ins,
+                idx_flat);
+
+            auto unit_lens = all_inputs[run.start_pos]->get_shape().lens();
+            std::vector<std::int64_t> target_dims(unit_lens.begin(), unit_lens.end());
+            target_dims[concat_axis] =
+                static_cast<std::int64_t>(n * unit_lens[concat_axis]);
+
+            return m.insert_instruction(
+                concat_ins, make_op("reshape", {{"dims", target_dims}}), new_gather);
+        };
+
+        std::vector<instruction_ref> new_inputs;
+        std::size_t pos = 0;
+        for(const auto& run : runs)
+        {
+            new_inputs.insert(new_inputs.end(),
+                              all_inputs.begin() + pos,
+                              all_inputs.begin() + run.start_pos);
+            new_inputs.push_back(make_run_input(run));
+            pos = run.start_pos + run.len;
+        }
+        new_inputs.insert(new_inputs.end(),
+                          all_inputs.begin() + pos,
+                          all_inputs.end());
+
+        if(new_inputs.size() >= all_inputs.size())
+            return;
+
+        if(new_inputs.size() == 1)
+        {
+            m.replace_instruction(concat_ins, new_inputs.front());
+        }
+        else
+        {
+            m.replace_instruction(concat_ins,
+                                  make_op("concat", {{"axis", concat_axis}}),
+                                  new_inputs);
+        }
+    }
+};
+
 struct find_reshape_cont
 {
     auto matcher() const
@@ -1815,7 +2021,14 @@ void simplify_reshapes::apply(module& m) const
     match::find_matches(m, find_gather_scalar{});
     dead_code_elimination{}.apply(m);
     if(enable_gather_rewrite)
+    {
         match::find_matches(m, find_gather{});
+    }
+    if(enable_gather_slice_concat)
+    {
+        match::find_matches(m, find_gather_slice_concat{});
+        return;
+    }
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_nop_reshapes{},

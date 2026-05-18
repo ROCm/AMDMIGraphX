@@ -34,15 +34,17 @@
 
 #include <test.hpp>
 
-static void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m, bool enable_gather_slice_concat = false)
 {
-    migraphx::run_passes(m,
-                         {
-                             migraphx::simplify_reshapes{.enable_op_shape_transform_op = true,
-                                                         .enable_gather_rewrite        = true},
-                             migraphx::eliminate_common_subexpression{},
-                             migraphx::dead_code_elimination{},
-                         });
+    migraphx::run_passes(
+        m,
+        {
+            migraphx::simplify_reshapes{.enable_op_shape_transform_op = true,
+                                        .enable_gather_rewrite        = true,
+                                        .enable_gather_slice_concat   = enable_gather_slice_concat},
+            migraphx::eliminate_common_subexpression{},
+            migraphx::dead_code_elimination{},
+        });
 }
 
 inline static std::vector<std::vector<std::size_t>>
@@ -5071,6 +5073,303 @@ TEST_CASE(slice_reshape_multibroadcast_rebase_axis)
     auto m2 = m1;
     run_pass(m1);
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
+}
+
+// Helpers used by the gather_slice_concat tests below. The tests use parameter
+// indices (rather than literals) so that find_gather (enabled in run_pass via
+// enable_gather_rewrite) cannot rewrite the gather before find_gather_slice_concat
+// gets a chance to match - find_gather requires constant indices.
+
+namespace {
+
+struct gsc_params
+{
+    migraphx::instruction_ref data;
+    migraphx::instruction_ref indices;
+};
+
+static gsc_params add_data_indices_params(migraphx::module& m,
+                                          const std::vector<std::size_t>& data_lens,
+                                          const std::vector<std::size_t>& indices_lens)
+{
+    auto data    = m.add_parameter("data", {migraphx::shape::float_type, data_lens});
+    auto indices = m.add_parameter("indices", {migraphx::shape::int32_type, indices_lens});
+    return {data, indices};
+}
+
+struct gsc_inputs
+{
+    migraphx::instruction_ref data;
+    migraphx::instruction_ref indices;
+    migraphx::instruction_ref gather;
+};
+
+static gsc_inputs add_gather_inputs(migraphx::module& m,
+                                    const std::vector<std::size_t>& data_lens,
+                                    const std::vector<std::size_t>& indices_lens,
+                                    int gather_axis)
+{
+    auto p = add_data_indices_params(m, data_lens, indices_lens);
+    auto g =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", gather_axis}}), p.data, p.indices);
+    return {p.data, p.indices, g};
+}
+
+static std::vector<migraphx::instruction_ref> add_unit_slices(migraphx::module& m,
+                                                              migraphx::instruction_ref g,
+                                                              int slice_axis,
+                                                              const std::vector<int>& rows)
+{
+    std::vector<migraphx::instruction_ref> slices;
+    slices.reserve(rows.size());
+    for(int r : rows)
+    {
+        slices.push_back(m.add_instruction(
+            migraphx::make_op("slice",
+                              {{"axes", {slice_axis}}, {"starts", {r}}, {"ends", {r + 1}}}),
+            g));
+    }
+    return slices;
+}
+
+static migraphx::instruction_ref add_rewritten_run(migraphx::module& m,
+                                                   migraphx::instruction_ref indices,
+                                                   migraphx::instruction_ref data,
+                                                   int gather_axis,
+                                                   std::size_t batch_stride,
+                                                   const std::vector<std::int64_t>& target_dims,
+                                                   const std::vector<int32_t>& perm)
+{
+    migraphx::shape ps{migraphx::shape::int32_type, {perm.size()}};
+    auto perm_lit = m.add_literal(migraphx::literal{ps, perm});
+    auto idx_subset =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), indices, perm_lit);
+    auto idx_transposed =
+        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), idx_subset);
+    auto idx_flat = m.add_instruction(
+        migraphx::make_op("reshape",
+                          {{"dims", {static_cast<std::int64_t>(batch_stride * perm.size())}}}),
+        idx_transposed);
+    auto new_gather =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", gather_axis}}), data, idx_flat);
+    return m.add_instruction(migraphx::make_op("reshape", {{"dims", target_dims}}), new_gather);
+}
+
+} // namespace
+
+TEST_CASE(gather_slice_concat_full_rewrite)
+{
+    // Four consecutive slice-of-gather inputs that all share the same gather
+    // instruction, slice on the gather axis with width 1, and feed a concat
+    // whose axis is gather_axis + indices_ndim. The whole concat must collapse
+    // into a single rewritten gather + reshape.
+    migraphx::module m1;
+    {
+        auto in     = add_gather_inputs(m1, {3, 5, 7}, {4, 2}, 1);
+        auto slices = add_unit_slices(m1, in.gather, 1, {0, 1, 2, 3});
+        auto c      = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), slices);
+        m1.add_return({c});
+    }
+    run_pass(m1, /*enable_gather_slice_concat=*/true);
+
+    migraphx::module m2;
+    {
+        auto p        = add_data_indices_params(m2, {3, 5, 7}, {4, 2});
+        auto reshaped = add_rewritten_run(m2, p.indices, p.data, 1, 2, {3, 1, 2, 28}, {0, 1, 2, 3});
+        m2.add_return({reshaped});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_permuted_rows)
+{
+    // Slices visit gather rows out of order. The synthesized perm literal
+    // must capture the exact concat order so the rewritten gather pulls rows
+    // in the same sequence the concat would have.
+    migraphx::module m1;
+    {
+        auto in     = add_gather_inputs(m1, {3, 5, 7}, {4, 2}, 1);
+        auto slices = add_unit_slices(m1, in.gather, 1, {3, 1, 0, 2});
+        auto c      = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), slices);
+        m1.add_return({c});
+    }
+    run_pass(m1, true);
+
+    migraphx::module m2;
+    {
+        auto p        = add_data_indices_params(m2, {3, 5, 7}, {4, 2});
+        auto reshaped = add_rewritten_run(m2, p.indices, p.data, 1, 2, {3, 1, 2, 28}, {3, 1, 0, 2});
+        m2.add_return({reshaped});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_mixed_run_with_passthrough)
+{
+    // A run of four slice-of-gather inputs followed by an unrelated parameter.
+    // The run fuses into a single rewritten input; the trailing parameter
+    // stays verbatim in the new concat. Exercises the new_inputs.size() != 1
+    // branch of the rewrite (single-output concat fallback is not taken).
+    migraphx::module m1;
+    {
+        auto in     = add_gather_inputs(m1, {3, 5, 7}, {4, 2}, 1);
+        auto extra  = m1.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
+        auto inputs = add_unit_slices(m1, in.gather, 1, {0, 1, 2, 3});
+        inputs.push_back(extra);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), inputs);
+        m1.add_return({c});
+    }
+    run_pass(m1, true);
+
+    migraphx::module m2;
+    {
+        auto p        = add_data_indices_params(m2, {3, 5, 7}, {4, 2});
+        auto extra    = m2.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
+        auto reshaped = add_rewritten_run(m2, p.indices, p.data, 1, 2, {3, 1, 2, 28}, {0, 1, 2, 3});
+        auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), reshaped, extra);
+        m2.add_return({c});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_two_runs)
+{
+    // Two separate runs of four slice-of-gather inputs each, separated by an
+    // unrelated parameter. Each run is rewritten independently with its own
+    // perm literal and gather/transpose/reshape/gather/reshape chain. The
+    // final concat has three inputs: [run0, extra, run1]. Exercises the
+    // multi-iteration path of the new for-each-run loop.
+    migraphx::module m1;
+    {
+        auto in    = add_gather_inputs(m1, {3, 5, 7}, {4, 2}, 1);
+        auto extra = m1.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
+        auto run0  = add_unit_slices(m1, in.gather, 1, {0, 1, 2, 3});
+        auto run1  = add_unit_slices(m1, in.gather, 1, {3, 2, 1, 0});
+        std::vector<migraphx::instruction_ref> inputs;
+        inputs.insert(inputs.end(), run0.begin(), run0.end());
+        inputs.push_back(extra);
+        inputs.insert(inputs.end(), run1.begin(), run1.end());
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), inputs);
+        m1.add_return({c});
+    }
+    run_pass(m1, true);
+
+    migraphx::module m2;
+    {
+        auto p        = add_data_indices_params(m2, {3, 5, 7}, {4, 2});
+        auto extra    = m2.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
+        auto reshape0 = add_rewritten_run(m2, p.indices, p.data, 1, 2, {3, 1, 2, 28}, {0, 1, 2, 3});
+        auto reshape1 = add_rewritten_run(m2, p.indices, p.data, 1, 2, {3, 1, 2, 28}, {3, 2, 1, 0});
+        auto c        = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 3}}), reshape0, extra, reshape1);
+        m2.add_return({c});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_below_min_run_no_rewrite)
+{
+    // Only three slice-of-gather inputs - below the matcher's min_run of 4.
+    // The matcher still fires on the concat but apply() must early-return on
+    // total_slices < min_run and leave the IR untouched.
+    migraphx::module m1;
+    {
+        auto in     = add_gather_inputs(m1, {3, 5, 7}, {4, 2}, 1);
+        auto slices = add_unit_slices(m1, in.gather, 1, {0, 1, 2});
+        auto c      = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), slices);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1, true);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_slice_axis_mismatch_no_rewrite)
+{
+    // Slices are taken on a different axis than the gather axis. The
+    // representative-slice scan picks slice_axis = 1 from the first slice;
+    // gather_axis = 2 after tune_axis, so apply() bails on
+    // slice_axis != gather_axis.
+    migraphx::module m1;
+    {
+        // gather on axis 2: g has shape [3, 5, 4, 2]
+        auto in = add_gather_inputs(m1, {3, 5, 7}, {4, 2}, 2);
+        // slice on axis 1 (NOT the gather axis): each slice has shape [3, 1, 4, 2]
+        auto slices = add_unit_slices(m1, in.gather, 1, {0, 1, 2, 3});
+        auto c      = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), slices);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1, true);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_concat_axis_mismatch_no_rewrite)
+{
+    // slice_axis == gather_axis == 1, but the concat axis is 2 instead of the
+    // required gather_axis + indices_ndim = 3. apply() bails on the
+    // concat_axis check.
+    migraphx::module m1;
+    {
+        auto in     = add_gather_inputs(m1, {3, 5, 7}, {4, 2}, 1);
+        auto slices = add_unit_slices(m1, in.gather, 1, {0, 1, 2, 3});
+        // concat on axis 2 instead of 3
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), slices);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1, true);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_slice_width_gt_one_no_rewrite)
+{
+    // Every slice has width 2 (ends - starts != 1), so the representative-
+    // slice scan in apply() rejects every slice and slice_axis stays at -1,
+    // leading to an early return without any rewrite. Slice operators are
+    // kept distinct to avoid ECS merging them (which would itself change the
+    // module structure). Indices are sized so the gather output's axis-1 has
+    // 5 rows, giving us four distinct contiguous width-2 slices.
+    migraphx::module m1;
+    {
+        auto in = add_gather_inputs(m1, {3, 5, 7}, {5, 2}, 1);
+        // Distinct width-2 slices on axis 1 (gather output's axis-1 size is 5)
+        std::vector<migraphx::instruction_ref> slices;
+        for(auto [s, e] : std::vector<std::pair<int, int>>{{0, 2}, {1, 3}, {2, 4}, {3, 5}})
+        {
+            slices.push_back(m1.add_instruction(
+                migraphx::make_op("slice", {{"axes", {1}}, {"starts", {s}}, {"ends", {e}}}),
+                in.gather));
+        }
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), slices);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1, true);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_indices_1d_no_rewrite)
+{
+    // Gather is called with rank-1 indices. The matcher itself still matches
+    // (just looks at op names), and the gather/slice axes line up, but
+    // apply() bails on indices_ndim < 2.
+    migraphx::module m1;
+    {
+        // 1D indices: gather output is [3, 4, 7]
+        auto in     = add_gather_inputs(m1, {3, 5, 7}, {4}, 1);
+        auto slices = add_unit_slices(m1, in.gather, 1, {0, 1, 2, 3});
+        // concat axis = gather_axis + indices_ndim = 1 + 1 = 2
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), slices);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1, true);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

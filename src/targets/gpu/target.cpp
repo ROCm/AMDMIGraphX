@@ -161,6 +161,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         dead_code_elimination{},
         fuse_concat{},
         dead_code_elimination{},
+        simplify_reshapes{.enable_gather_rewrite = true, .enable_gather_slice_concat = true},
+        dead_code_elimination{},
         auto_contiguous{},
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},

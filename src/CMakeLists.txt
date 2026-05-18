@@ -98,7 +98,6 @@ add_library(migraphx
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
-    netron_output.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp
@@ -133,6 +132,7 @@ add_library(migraphx
     rewrite_pooling.cpp
     rewrite_quantization.cpp
     rewrite_rnn.cpp
+    reshape_dims.cpp
     rewrite_topk.cpp
     schedule.cpp
     serialize.cpp

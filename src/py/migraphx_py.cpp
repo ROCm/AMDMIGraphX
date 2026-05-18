@@ -542,6 +542,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             },
             py::keep_alive<0, 1>());
 
+    py::enum_<migraphx::compile_modes>(m, "compile_modes")
+        .value("eager", migraphx::compile_modes::eager)
+        .value("balanced", migraphx::compile_modes::balanced)
+        .value("max", migraphx::compile_modes::max);
+
     py::class_<migraphx::program>(m, "program")
         .def(py::init([]() { return migraphx::program(); }))
         .def("get_parameter_names", &migraphx::program::get_parameter_names)
@@ -637,11 +642,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .value("forward", migraphx::op::rnn_direction::forward)
         .value("reverse", migraphx::op::rnn_direction::reverse)
         .value("bidirectional", migraphx::op::rnn_direction::bidirectional);
-
-    py::enum_<migraphx::compile_modes>(m, "compile_modes")
-        .value("eager", migraphx::compile_modes::eager)
-        .value("balanced", migraphx::compile_modes::balanced)
-        .value("max", migraphx::compile_modes::max);
 
     py::class_<py_macro>(m, "macro")
         .def(py::init([](const std::string& name, py::kwargs kwargs) {

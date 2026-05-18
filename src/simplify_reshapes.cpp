@@ -1416,30 +1416,34 @@ struct find_gather_slice_concat
                             std::size_t{1}, std::multiplies<>{});
 
         const std::size_t not_slice = std::numeric_limits<std::size_t>::max();
-        std::vector<std::size_t> input_rows(all_inputs.size(), not_slice);
-        std::size_t total_slices = 0;
+        std::vector<std::size_t> input_rows(all_inputs.size());
 
-        for(std::size_t i = 0; i < all_inputs.size(); ++i)
-        {
-            auto inp = all_inputs[i];
-            if(inp->name() != "slice")
-                continue;
-            if(inp->inputs().at(0) != gather_ins)
-                continue;
-            auto sop        = inp->get_operator().to_value();
-            auto sop_axes   = sop.at("axes").to_vector<int64_t>();
-            auto sop_starts = sop.at("starts").to_vector<int64_t>();
-            auto sop_ends   = sop.at("ends").to_vector<int64_t>();
-            if(sop_axes.size() != 1 or sop_axes.front() != slice_axis)
-                continue;
-            if(sop_ends.front() - sop_starts.front() != 1)
-                continue;
-            auto row = sop_starts.front();
-            if(row >= num_rows)
-                continue;
-            input_rows[i] = row;
-            ++total_slices;
-        }
+        std::transform(
+            all_inputs.begin(),
+            all_inputs.end(),
+            input_rows.begin(),
+            [&](const instruction_ref& inp) -> std::size_t {
+                if(inp->name() != "slice")
+                    return not_slice;
+                if(inp->inputs().at(0) != gather_ins)
+                    return not_slice;
+                auto sop        = inp->get_operator().to_value();
+                auto sop_axes   = sop.at("axes").to_vector<int64_t>();
+                auto sop_starts = sop.at("starts").to_vector<int64_t>();
+                auto sop_ends   = sop.at("ends").to_vector<int64_t>();
+                if(sop_axes.size() != 1 or sop_axes.front() != slice_axis)
+                    return not_slice;
+                if(sop_ends.front() - sop_starts.front() != 1)
+                    return not_slice;
+                auto row = sop_starts.front();
+                if(row < 0 or static_cast<std::size_t>(row) >= num_rows)
+                    return not_slice;
+                return static_cast<std::size_t>(row);
+            });
+        std::size_t total_slices = std::count_if(
+            input_rows.begin(),
+            input_rows.end(),
+            [&](std::size_t r) { return r != not_slice; });
 
         if(total_slices < min_run)
             return;

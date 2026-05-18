@@ -26,7 +26,7 @@
 #include <migraphx/logger.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/file_buffer.hpp>
-#include <migraphx/make_shared_array.hpp>
+#include <migraphx/literal.hpp>
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
@@ -124,29 +124,33 @@ const std::vector<std::string>& get_onnx_operators()
     return result;
 }
 
-parameter_map load_external_weights(const program& prog, const std::string& base_dir)
+program create_program_with_weights(const program& prog, const std::string& base_dir)
 {
-    const auto& weight_map = prog.get_external_weight_map();
-    auto param_shapes      = prog.get_parameter_shapes();
-    parameter_map result;
+    program result(prog);
+    const auto& weight_map = result.get_external_weight_map();
+    if(weight_map.empty())
+        MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: program has no external weight map");
+
+    auto* mm = result.get_main_module();
 
     for(const auto& entry : weight_map)
     {
         const auto& name = entry.first;
         const auto& info = entry.second;
 
-        if(param_shapes.count(name) == 0)
-            MIGRAPHX_THROW("LOAD_EXTERNAL_WEIGHTS: parameter \"" + name +
+        auto param_ins = mm->get_parameter(name);
+        if(param_ins == mm->end())
+            MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: parameter \"" + name +
                            "\" not found in program");
 
-        const auto& s        = param_shapes.at(name);
-        auto raw             = read_buffer(fs::path{base_dir} / info.filename,
-                               info.offset,
-                               info.nbytes);
-        auto data            = make_shared_array<char>(raw.begin(), raw.end());
-        result[name]         = argument{s, data};
+        auto s   = param_ins->get_shape();
+        auto raw = read_buffer(fs::path{base_dir} / info.filename, info.offset, info.nbytes);
+
+        auto lit_ins = mm->add_literal(literal{s, raw.data()});
+        mm->replace_instruction(param_ins, lit_ins);
     }
 
+    result.set_external_weight_map({});
     return result;
 }
 

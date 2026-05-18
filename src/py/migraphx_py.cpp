@@ -757,12 +757,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("external_weights_as_parameters") = false);
 
     m.def(
-        "load_external_weights",
+        "create_program_with_weights",
         [](const migraphx::program& prog, const std::string& base_dir) {
-            return migraphx::load_external_weights(prog, base_dir);
+            return migraphx::create_program_with_weights(prog, base_dir);
         },
-        "Load external weight files from a directory for a program parsed with "
-        "external_weights_as_parameters=True",
+        "Copy the program and bake in weights from base_dir, returning a self-contained program",
         py::arg("program"),
         py::arg("base_dir"));
 

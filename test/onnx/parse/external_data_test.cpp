@@ -54,3 +54,35 @@ TEST_CASE(external_data_as_parameters_test)
 
     EXPECT(param_shapes.count("input") > 0);
 }
+
+TEST_CASE(create_program_with_weights_test)
+{
+    migraphx::onnx_options options;
+    options.skip_unknown_operators         = true;
+    options.external_weights_as_parameters = true;
+    auto template_prog = read_onnx("external_data_test.onnx", options);
+
+    const auto& weight_map = template_prog.get_external_weight_map();
+    EXPECT(not weight_map.empty());
+
+    // The weight files live in the external_data_path used by read_onnx
+    static auto files{::onnx_files()};
+    static std::string base_dir = read_weight_files(files);
+
+    auto baked = migraphx::create_program_with_weights(template_prog, base_dir);
+
+    // Baked program should have no external weight map
+    EXPECT(baked.get_external_weight_map().empty());
+
+    // Weight parameters should be gone -- only "input" remains
+    auto baked_params = baked.get_parameter_shapes();
+    for(const auto& entry : weight_map)
+    {
+        EXPECT(baked_params.count(entry.first) == 0);
+    }
+    EXPECT(baked_params.count("input") > 0);
+
+    // Baked program should match the standard (literal-based) parse
+    auto reference = create_external_data_prog();
+    EXPECT(baked == reference);
+}

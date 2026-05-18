@@ -2131,14 +2131,14 @@ extern "C" migraphx_status migraphx_onnx_options_set_external_weights_as_paramet
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_load_external_weights(
-    migraphx_program_parameters_t* out, const_migraphx_program_t prog, const char* base_dir)
+extern "C" migraphx_status migraphx_create_program_with_weights(
+    migraphx_program_t* out, const_migraphx_program_t prog, const char* base_dir)
 {
     auto api_error_result = migraphx::try_([&] {
         if(prog == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
-        *out = allocate<migraphx_program_parameters_t>(
-            migraphx::load_external_weights((prog->object), (base_dir)));
+        *out = allocate<migraphx_program_t>(
+            migraphx::create_program_with_weights((prog->object), (base_dir)));
     });
     return api_error_result;
 }

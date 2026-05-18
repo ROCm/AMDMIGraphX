@@ -83,9 +83,9 @@ MIGRAPHX_ONNX_EXPORT program parse_onnx_buffer(const void* data,
 
 MIGRAPHX_ONNX_EXPORT const std::vector<std::string>& get_onnx_operators();
 
-/// Load external weight files from base_dir and return a parameter_map
-/// keyed by the initializer names that were parsed as parameters
-MIGRAPHX_ONNX_EXPORT parameter_map load_external_weights(const program& prog,
+/// Copy the program and replace weight parameters with literals read from base_dir,
+/// producing a self-contained program suitable for saving as an MXR
+MIGRAPHX_ONNX_EXPORT program create_program_with_weights(const program& prog,
                                                          const std::string& base_dir);
 
 } // namespace MIGRAPHX_INLINE_NS

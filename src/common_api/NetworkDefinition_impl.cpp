@@ -7,6 +7,7 @@
 
 // layers
 #include "layers/ConstantLayer_impl.hpp"
+#include "layers/GatherLayer_impl.hpp"
 
 namespace nvinfer1
 {
@@ -157,8 +158,8 @@ ITopKLayer* NvNetworkDefinition_impl::addTopK(ITensor& input, TopKOperation op, 
 
 IGatherLayer* NvNetworkDefinition_impl::addGather(ITensor& data, ITensor& indices, int32_t axis) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	mLayers.push_back(std::make_unique<GatherLayer_impl>(data, indices, axis, mProgram));
+	return dynamic_cast<IGatherLayer*>(mLayers.back().get());
 }
 
 IRaggedSoftMaxLayer* NvNetworkDefinition_impl::addRaggedSoftMax(ITensor& input, ITensor& bounds) noexcept

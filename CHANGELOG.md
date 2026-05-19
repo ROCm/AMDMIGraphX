@@ -41,6 +41,7 @@ Full documentation for MIGraphX is available at
 * Allowing all grouped convolutions to go through rocMLIR. Previously only allowed 2D convolutions (#4815). 
 * Updated `bcast_qdq_instr` to accept an `axis` parameter for broadcasting 1-D scale/zero-point along the correct dimension.
 * Updated `QLinearConv` bias handling to dequantize bias using the product of input and weight scales before adding to the convolution output.
+* Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
 
 ### Resolved issues
 

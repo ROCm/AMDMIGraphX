@@ -220,6 +220,75 @@ TEST_CASE(argmax_dyn1)
                  input);
 }
 
+TEST_CASE(argmax_sym_axis0)
+{
+    // Symbol at axis 0; reduce the symbolic axis -> collapses to lit(1).
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("argmax", {{"axis", 0}});
+    expect_shape(migraphx::shape{migraphx::shape::int64_type,
+                                 {dd{lit(1)}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}},
+                 op,
+                 input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(argmax_sym_axis_middle)
+{
+    // Symbol in middle axis; reduce a different axis -> symbol preserved.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("argmax", {{"axis", 1}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{lit(2)}, dd{lit(1)}, dd{m}, dd{lit(5)}}},
+        op,
+        input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(argmax_sym_axis_neg)
+{
+    // Symbol at last axis; reduce via negative index -> collapses the symbolic axis.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("argmax", {{"axis", -1}});
+    expect_shape(migraphx::shape{migraphx::shape::int64_type,
+                                 {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{lit(1)}}},
+                 op,
+                 input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(argmax_sym_two_symbols)
+{
+    // Two distinct symbols (axes 0 and 2); reduce axis 0 -> first collapses, second preserved.
+    auto n = var("n", {1, 16});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{k}}};
+    auto op = migraphx::make_op("argmax", {{"axis", 0}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{lit(1)}, dd{lit(3)}, dd{k}}}, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 4}, {k, 11}}) ==
+           op.compute_shape({input.to_static({{n, 4}, {k, 11}})}));
+}
+
+TEST_CASE(argmax_sym_all)
+{
+    // Fully symbolic 3D input; reduce middle axis -> symbols on either side both survive.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("argmax", {{"axis", 1}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{n}, dd{lit(1)}, dd{k}}}, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
+}
+
 TEST_CASE(binary_dyn_static_error)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {1, 4, 4}};
@@ -3535,6 +3604,16 @@ TEST_CASE(prefix_scan_sum_dyn)
     }
 }
 
+TEST_CASE(prefix_scan_sum_sym)
+{
+    auto n = var("n", {5, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}}};
+    expect_shape(
+        s,
+        migraphx::make_op("prefix_scan_sum", {{"axis", 0}, {"exclusive", 0}, {"reverse", 0}}),
+        s);
+}
+
 TEST_CASE(prefix_scan_sum_dyn_2d)
 {
     {
@@ -3546,6 +3625,17 @@ TEST_CASE(prefix_scan_sum_dyn_2d)
             migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", 0}, {"reverse", 0}}),
             s);
     }
+}
+
+TEST_CASE(prefix_scan_sum_sym_2d)
+{
+    auto n = var("n", {5, 8});
+    auto m = var("m", {3, 7});
+    migraphx::shape s{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    expect_shape(
+        s,
+        migraphx::make_op("prefix_scan_sum", {{"axis", 1}, {"exclusive", 0}, {"reverse", 0}}),
+        s);
 }
 
 TEST_CASE(random_uniform)
@@ -3770,6 +3860,76 @@ static void test_reduce_ops(const std::string& name)
     }
 }
 
+// symbolic shape: reduced axes collapse to literal 1; non-reduced symbolic dims are preserved.
+// Cases vary which axis carries the symbol and which axes get reduced so that both "reduce
+// symbolic" and "preserve symbolic" paths are exercised. Each case also round-trips through
+// to_static(sym_map) to verify equivalence with the static-input compute_shape result.
+static void test_sym_reduce_ops(const std::string& name)
+{
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+
+    auto check = [&](const migraphx::shape& sym_input,
+                     const std::vector<int64_t>& red_axes,
+                     const std::unordered_map<se, std::size_t>& sym_map,
+                     const migraphx::shape& expected) {
+        auto op = migraphx::make_op(name, {{"axes", red_axes}});
+        expect_shape(expected, op, sym_input);
+        migraphx::shape static_input = sym_input.to_static(sym_map);
+        EXPECT(op.compute_shape({sym_input}).to_static(sym_map) ==
+               op.compute_shape({static_input}));
+    };
+
+    // Symbol at axis 0; reduce trailing fixed axes -> symbol preserved at axis 0.
+    check({migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}},
+          {2, 3},
+          {{n, 7}},
+          {migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(1)}, dd{lit(1)}}});
+
+    // Symbol in middle axis; reduce that symbolic axis -> collapses to lit(1).
+    check({migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}},
+          {1},
+          {{m, 5}},
+          {migraphx::shape::float_type, {dd{lit(2)}, dd{lit(1)}, dd{lit(4)}}});
+
+    // Symbol at last axis; reduce a non-symbolic axis via negative index -> symbol preserved.
+    check({migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{k}}},
+          {0},
+          {{k, 9}},
+          {migraphx::shape::float_type, {dd{lit(1)}, dd{lit(3)}, dd{k}}});
+
+    // Two symbols at axes 0 and 2; reduce the symbol at axis -1 -> first symbol preserved.
+    check({migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{k}}},
+          {-1},
+          {{n, 4}, {k, 11}},
+          {migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(1)}}});
+
+    // Fully symbolic 3D input; reduce all axes -> static-shaped lit(1) output.
+    check({migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}},
+          {0, 1, 2},
+          {{n, 7}, {m, 5}, {k, 9}},
+          {migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{lit(1)}}});
+
+    // Symbol at last axis of a 4D input; reduce only that axis -> all other dims unchanged.
+    check({migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{n}}},
+          {-1},
+          {{n, 6}},
+          {migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{lit(1)}}});
+
+    // 2D input with two distinct symbols; reduce one of them.
+    check({migraphx::shape::float_type, {dd{m}, dd{k}}},
+          {0},
+          {{m, 5}, {k, 9}},
+          {migraphx::shape::float_type, {dd{lit(1)}, dd{k}}});
+
+    // Fully symbolic 3D input; reduce a middle axis so symbols on either side both survive.
+    check({migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}},
+          {1},
+          {{n, 7}, {m, 5}, {k, 9}},
+          {migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{k}}});
+}
+
 // dynamic shape
 static void test_dyn_reduce_ops(const std::string& name)
 {
@@ -3820,23 +3980,79 @@ static void test_reduce_ops_variable_axes(const std::string& name)
     }
 }
 
+// Symbolic input + variable axes: each dim materializes to {1, upper_bound}; the upper bound
+// for a symbolic dim comes from its sym::expr eval_interval, for a fixed dim from its literal
+// value. Cases cover symbols at varied positions and a fully symbolic input.
+static void test_sym_reduce_ops_variable_axes(const std::string& name)
+{
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape axes_shape{migraphx::shape::int64_type, {1}};
+
+    // Symbol at axis 0.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 16}, {1, 3}, {1, 4}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+    // Symbol in middle axis.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{lit(2)}, dd{m}, dd{lit(4)}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 2}, {1, 8}, {1, 4}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+    // Symbol at last axis.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{k}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 2}, {1, 3}, {1, 64}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+    // Fully symbolic 3D input.
+    {
+        migraphx::shape sym_input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+        migraphx::shape expected{migraphx::shape::float_type, {{1, 16}, {1, 8}, {1, 64}}};
+        expect_shape(expected, migraphx::make_op(name), sym_input, axes_shape);
+    }
+}
+
 TEST_CASE(reduce_max) { test_reduce_ops("reduce_max"); }
+TEST_CASE(reduce_max_sym) { test_sym_reduce_ops("reduce_max"); }
 TEST_CASE(reduce_min) { test_reduce_ops("reduce_min"); }
+TEST_CASE(reduce_min_sym) { test_sym_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean) { test_reduce_ops("reduce_mean"); }
+TEST_CASE(reduce_mean_sym) { test_sym_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod) { test_reduce_ops("reduce_prod"); }
+TEST_CASE(reduce_prod_sym) { test_sym_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum) { test_reduce_ops("reduce_sum"); }
+TEST_CASE(reduce_sum_sym) { test_sym_reduce_ops("reduce_sum"); }
+TEST_CASE(reduce_any) { test_reduce_ops("reduce_any"); }
+TEST_CASE(reduce_any_sym) { test_sym_reduce_ops("reduce_any"); }
+TEST_CASE(reduce_all) { test_reduce_ops("reduce_all"); }
+TEST_CASE(reduce_all_sym) { test_sym_reduce_ops("reduce_all"); }
 
 TEST_CASE(reduce_max_dyn) { test_dyn_reduce_ops("reduce_max"); }
 TEST_CASE(reduce_min_dyn) { test_dyn_reduce_ops("reduce_min"); }
 TEST_CASE(reduce_mean_dyn) { test_dyn_reduce_ops("reduce_mean"); }
 TEST_CASE(reduce_prod_dyn) { test_dyn_reduce_ops("reduce_prod"); }
 TEST_CASE(reduce_sum_dyn) { test_dyn_reduce_ops("reduce_sum"); }
+TEST_CASE(reduce_any_dyn) { test_dyn_reduce_ops("reduce_any"); }
+TEST_CASE(reduce_all_dyn) { test_dyn_reduce_ops("reduce_all"); }
 
 TEST_CASE(reduce_max_variable_axes) { test_reduce_ops_variable_axes("reduce_max"); }
+TEST_CASE(reduce_max_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_max"); }
 TEST_CASE(reduce_min_variable_axes) { test_reduce_ops_variable_axes("reduce_min"); }
+TEST_CASE(reduce_min_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_min"); }
 TEST_CASE(reduce_mean_variable_axes) { test_reduce_ops_variable_axes("reduce_mean"); }
+TEST_CASE(reduce_mean_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_mean"); }
 TEST_CASE(reduce_prod_variable_axes) { test_reduce_ops_variable_axes("reduce_prod"); }
+TEST_CASE(reduce_prod_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_prod"); }
 TEST_CASE(reduce_sum_variable_axes) { test_reduce_ops_variable_axes("reduce_sum"); }
+TEST_CASE(reduce_sum_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_sum"); }
+TEST_CASE(reduce_any_variable_axes) { test_reduce_ops_variable_axes("reduce_any"); }
+TEST_CASE(reduce_any_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_any"); }
+TEST_CASE(reduce_all_variable_axes) { test_reduce_ops_variable_axes("reduce_all"); }
+TEST_CASE(reduce_all_sym_variable_axes) { test_sym_reduce_ops_variable_axes("reduce_all"); }
 
 TEST_CASE(reshape_shape)
 {
@@ -5220,6 +5436,129 @@ TEST_CASE(softmax_dyn1)
     expect_shape(input, migraphx::make_op("softmax", {{"axis", 0}}), input);
 }
 
+TEST_CASE(softmax_sym_axis0)
+{
+    // Symbol at axis 0; output shape == input shape (softmax is shape-preserving).
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("softmax", {{"axis", 0}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(softmax_sym_axis_middle)
+{
+    // Symbol in middle axis; softmax across a different axis -> shape unchanged, symbol intact.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("softmax", {{"axis", 1}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(softmax_sym_axis_neg)
+{
+    // Symbol at last axis; softmax across that symbolic axis -> shape unchanged.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("softmax", {{"axis", -1}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(softmax_sym_all)
+{
+    // Fully symbolic 3D input.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("softmax", {{"axis", 2}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
+}
+
+TEST_CASE(softmax_sym_unpacked)
+{
+    // Non-packed symbolic input should be rebuilt with default packed sym strides,
+    // mirroring the static non-packed -> packed behavior.
+    auto n = var("n", {1, 8});
+    migraphx::shape input{
+        migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}, {lit(12), lit(4), lit(1)}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    EXPECT(not input.packed());
+    EXPECT(expected.packed());
+    expect_shape(expected, migraphx::make_op("softmax", {{"axis", 1}}), input);
+}
+
+TEST_CASE(logsoftmax_dyn)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 6}, {4, 6}}};
+    expect_shape(input, migraphx::make_op("logsoftmax", {{"axis", 2}}), input);
+}
+
+TEST_CASE(logsoftmax_sym_axis0)
+{
+    // Symbol at axis 0; logsoftmax is shape-preserving.
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", 1}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(logsoftmax_sym_axis_middle)
+{
+    // Symbol in middle axis; logsoftmax across the symbolic axis -> shape unchanged.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", 2}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(logsoftmax_sym_axis_neg)
+{
+    // Symbol at last axis; logsoftmax across a non-symbolic axis -> shape unchanged.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", -2}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(logsoftmax_sym_all)
+{
+    // Fully symbolic 3D input.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("logsoftmax", {{"axis", 0}});
+    expect_shape(input, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
+}
+
+TEST_CASE(logsoftmax_sym_unpacked)
+{
+    // Non-packed symbolic input should be rebuilt with default packed sym strides.
+    auto n = var("n", {1, 8});
+    migraphx::shape input{
+        migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}, {lit(12), lit(4), lit(1)}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    EXPECT(not input.packed());
+    EXPECT(expected.packed());
+    expect_shape(expected, migraphx::make_op("logsoftmax", {{"axis", 2}}), input);
+}
+
 TEST_CASE(test_argmax)
 {
     {
@@ -5290,6 +5629,83 @@ TEST_CASE(test_argmin)
         migraphx::shape input{migraphx::shape::float_type, {2, 3, 4, 5}};
         throws_shape(migraphx::make_op("argmin", {{"axis", 4}}), input);
     }
+}
+
+TEST_CASE(argmin_dyn)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 6}, {4, 6}}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {{1, 4}, {3, 3}, {1, 1}, {4, 6}}},
+                 migraphx::make_op("argmin", {{"axis", 2}}),
+                 input);
+}
+
+TEST_CASE(argmin_sym_axis0)
+{
+    // Symbol at axis 0; reduce the symbolic axis -> collapses to lit(1).
+    auto n = var("n", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("argmin", {{"axis", 0}});
+    expect_shape(migraphx::shape{migraphx::shape::int64_type,
+                                 {dd{lit(1)}, dd{lit(3)}, dd{lit(4)}, dd{lit(5)}}},
+                 op,
+                 input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}}) ==
+           op.compute_shape({input.to_static({{n, 7}})}));
+}
+
+TEST_CASE(argmin_sym_axis_middle)
+{
+    // Symbol in middle axis; reduce a different axis -> symbol preserved.
+    auto m = var("m", {2, 6});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{m}, dd{lit(5)}}};
+    auto op = migraphx::make_op("argmin", {{"axis", 2}});
+    expect_shape(migraphx::shape{migraphx::shape::int64_type,
+                                 {dd{lit(2)}, dd{lit(3)}, dd{lit(1)}, dd{lit(5)}}},
+                 op,
+                 input);
+    EXPECT(op.compute_shape({input}).to_static({{m, 4}}) ==
+           op.compute_shape({input.to_static({{m, 4}})}));
+}
+
+TEST_CASE(argmin_sym_axis_neg)
+{
+    // Symbol at last axis; reduce a non-symbolic axis via negative index -> symbol preserved.
+    auto k = var("k", {1, 12});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(4)}, dd{k}}};
+    auto op = migraphx::make_op("argmin", {{"axis", -2}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{lit(2)}, dd{lit(3)}, dd{lit(1)}, dd{k}}},
+        op,
+        input);
+    EXPECT(op.compute_shape({input}).to_static({{k, 9}}) ==
+           op.compute_shape({input.to_static({{k, 9}})}));
+}
+
+TEST_CASE(argmin_sym_two_symbols)
+{
+    // Two distinct symbols (axes 0 and 2); reduce axis 2 -> first preserved, second collapses.
+    auto n = var("n", {1, 16});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{k}}};
+    auto op = migraphx::make_op("argmin", {{"axis", -1}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{n}, dd{lit(3)}, dd{lit(1)}}}, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 4}, {k, 11}}) ==
+           op.compute_shape({input.to_static({{n, 4}, {k, 11}})}));
+}
+
+TEST_CASE(argmin_sym_all)
+{
+    // Fully symbolic 3D input; reduce the first axis -> only that symbol collapses.
+    auto n = var("n", {1, 16});
+    auto m = var("m", {2, 8});
+    auto k = var("k", {1, 64});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    auto op = migraphx::make_op("argmin", {{"axis", 0}});
+    expect_shape(
+        migraphx::shape{migraphx::shape::int64_type, {dd{lit(1)}, dd{m}, dd{k}}}, op, input);
+    EXPECT(op.compute_shape({input}).to_static({{n, 7}, {m, 5}, {k, 9}}) ==
+           op.compute_shape({input.to_static({{n, 7}, {m, 5}, {k, 9}})}));
 }
 
 TEST_CASE(test_scalar)

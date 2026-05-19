@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
+#include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/ops.hpp>
 #include <migraphx/kernels/scatter_reduction_modes.hpp>
 #include <migraphx/kernels/tuple.hpp>
@@ -292,7 +293,10 @@ constexpr lazy_inner_storage<Size, F> make_lazy_inner_storage(Size, F f)
 template <class Size>
 constexpr auto make_indices(Size size)
 {
-    return make_lazy_inner_storage(size, [](auto j, auto) { return j; });
+    // lazy_inner_storage is decltype(f(0, _c<0>))
+    // 0 is an int, so need to return index_int explicitly so arg reads
+    // and inits agree on the index slot type
+    return make_lazy_inner_storage(size, [](auto j, auto) -> index_int { return j; });
 }
 
 template <class R, class F>
@@ -326,6 +330,18 @@ constexpr auto compute_reduce_axis()
             return x;
         });
     return make_shape(lens, get_shape_c<Input>{}.strides);
+}
+
+template <class... Rs, index_int N, class F>
+constexpr auto final_reduce(tuple<vec<Rs, N>...> x, F op)
+{
+    return sequence_c<sizeof...(Rs)>([&](auto... js) {
+        auto lane = [&](int i) { return make_tuple(x[js][i]...); };
+        auto acc  = lane(0);
+        for(int i = 1; i < N; ++i)
+            acc = op(acc, lane(i));
+        return acc;
+    });
 }
 
 template <class T, class F>
@@ -392,6 +408,26 @@ struct reducer_base
 
     template <class T>
     static __device__ typename T::type& decl_inner_storage(const T&);
+
+    // Lazy index stream for arg_reduce reads: inner length follows get_size; lane width follows
+    // one inner read (lazy/pooled inner) or one sliced element (tensor), matching value reads.
+    template <class Input>
+    __device__ constexpr auto make_indices_from(const Input& input) const
+    {
+        const auto n          = this->get_size(input);
+        using type            = typename Input::type;
+        constexpr auto nlanes = vec_size<type>();
+        if constexpr(nlanes < 2)
+        {
+            return make_lazy_inner_storage(n, [](auto j, auto) -> index_int { return j; });
+        }
+        else
+        {
+            return make_lazy_inner_storage(n, [=](auto j, auto) {
+                return generate_vec(nlanes, [=](auto i) -> index_int { return j * nlanes + i; });
+            });
+        }
+    }
 
     template <class F>
     __device__ auto inner(F f) const

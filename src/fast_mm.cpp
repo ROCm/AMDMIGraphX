@@ -70,7 +70,7 @@ void fast_mm::apply(module& m) const
             continue;
 
         // W = W_hi + W_lo where W_hi = fp16-rounded W and W_lo = fp16-rounded
-        // residual. All folds at compile time since W is constant.
+        // residual. All folds at compile time since W is constant. 
         auto w_hi_h =
             m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), w);
         auto w_hi_f = m.insert_instruction(

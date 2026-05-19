@@ -22,6 +22,7 @@ ConstantLayer_impl::ConstantLayer_impl(Dims const& dimensions, Weights weights, 
 {
     IConstantLayer::mLayer = static_cast<VLayer*>(static_cast<Layer_impl*>(this));
     IConstantLayer::mImpl = this;
+    mOutputs.emplace_back(std::make_unique<Tensor_impl>());
 }
 
 void ConstantLayer_impl::build() noexcept
@@ -30,7 +31,8 @@ void ConstantLayer_impl::build() noexcept
     migraphx::shape s{helper::fromDataType(getWeights().type), helper::dimsToVec(getDimensions())};
     auto buff = reinterpret_cast<const uint8_t*>(getWeights().values);
     mInstructions.push_back(mm->add_literal(s, buff));
-    mOutputs.emplace_back(std::make_unique<Tensor_impl>(mInstructions.back()));
+  
+    mOutputs[0]->setInstruction(mInstructions.back());
 }
 
 ConstantLayer_impl::~ConstantLayer_impl()

@@ -99,6 +99,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
+    auto gfx_name = ctx.get_current_device().get_gfx_name();
+    const bool missing_fp32_mma = starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
 
     // clang-format off
     return
@@ -134,7 +136,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         optimize_module{},
         layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
         dead_code_elimination{},
-        fast_mm{},
+        enable_pass(missing_fp32_mma and options.fast_math, fast_mm{}),
         dead_code_elimination{},
         fuse_horizontal{},
         dead_code_elimination{},

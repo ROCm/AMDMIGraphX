@@ -11,7 +11,8 @@
 #
 # Build:
 #   docker build --build-arg GPU_ARCH=gfx94x \
-#       --build-arg ROCM_VERSION=7.13.0a20260509 \
+#       --build-arg ROCM_VERSION=7.13.0 \
+#       --build-arg RELEASE_TYPE=prereleases \
 #       -f tools/docker/therock_rpm.docker -t migraphx-therock-rpm .
 #
 # Run:
@@ -28,8 +29,8 @@
 FROM quay.io/pypa/manylinux_2_28_x86_64
 
 ARG GPU_ARCH=gfx94x
-ARG ROCM_VERSION=7.13.0a20260509
-ARG RELEASE_TYPE=nightlies
+ARG ROCM_VERSION=7.13.0
+ARG RELEASE_TYPE=prereleases
 
 # Use Python 3.12 from the manylinux multi-python install
 ENV PATH="/opt/python/cp312-cp312/bin:${PATH}"

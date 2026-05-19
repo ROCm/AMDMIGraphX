@@ -99,7 +99,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
-    auto gfx_name = ctx.get_current_device().get_gfx_name();
+    auto gfx_name               = ctx.get_current_device().get_gfx_name();
     const bool missing_fp32_mma = starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
 
     // clang-format off

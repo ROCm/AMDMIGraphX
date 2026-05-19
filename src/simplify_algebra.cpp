@@ -1063,10 +1063,7 @@ MIGRAPHX_PRED_MATCHER(concat_with_same_inputs, instruction_ref ins)
 
 struct find_concat_same_input
 {
-    auto matcher() const
-    {
-        return concat_with_same_inputs();
-    }
+    auto matcher() const { return concat_with_same_inputs(); }
 
     void apply(module& m, const match::matcher_result& r) const
     {

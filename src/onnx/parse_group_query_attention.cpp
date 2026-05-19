@@ -160,19 +160,37 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto k   = args.at(3);
         auto v   = args.at(4);
         auto slk = args.at(5);
-        std::vector<instruction_ref> concat_k_inputs{cur_k, slk, k};
-        std::vector<instruction_ref> concat_v_inputs{cur_v, slk, v};
+        auto is_dyn_kv = k->get_shape().dynamic() and v->get_shape().dynamic();
+        instruction_ref k_out;
+        instruction_ref v_out;
+        if(is_dyn_kv)
+        {
+            
+            // cur_k->debug_print();
+            // k->debug_print();
+            k = info.add_instruction(make_op("concat", {{"axis", 2}}), k, cur_k);
+            v = info.add_instruction(make_op("concat", {{"axis", 2}}), v, cur_v);
+            k_out = k;
+            v_out = v;
+            k = info.add_instruction(make_op("fixed_pad"), k);
+            v = info.add_instruction(make_op("fixed_pad"), v);
+        }
+        else
+        {
+            std::vector<instruction_ref> concat_k_inputs{cur_k, slk, k};
+            std::vector<instruction_ref> concat_v_inputs{cur_v, slk, v};
 
-        k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-                                 concat_k_inputs);
-        v = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
-                                 concat_v_inputs);
+            k = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+                                    concat_k_inputs);
+            v = info.add_instruction(make_op("concat_past_present", {{"kv_num_heads", kv_num_heads}}),
+                                    concat_v_inputs);
+            k_out = k;
+            v_out = v;
+        }
 
-        auto k_out = k;
-        auto v_out = v;
+        auto max_seq_len = k->get_shape().lens()[2];
 
         auto kv_num_heads_factor = num_heads / kv_num_heads;
-        auto max_seq_len         = k->get_shape().lens()[2];
         auto past_sl             = info.add_instruction(
             make_op("multibroadcast", {{"out_lens", {batch_size, num_heads}}}), slk);
 
@@ -213,6 +231,9 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
         auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
         scale_ins =
             info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
+        // std::cout << "mul inputs" << std::endl;
+        // gemm1->debug_print();
+        // scale_ins->debug_print();
         auto mul = info.add_instruction(make_op("mul"), gemm1, scale_ins);
 
         instruction_ref seq_range;

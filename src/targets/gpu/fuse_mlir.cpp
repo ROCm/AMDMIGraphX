@@ -161,6 +161,16 @@ bool mlir_flash_decoding_enabled()
 #endif
 }
 
+// CMake may define MIGRAPHX_MLIR while mlir.cpp disables the real backend when the
+// rocMLIR C API dialect version does not match. In that case we must not emit
+// gpu::mlir_op from fusion (get_tuning_config_mlir returns an empty tuning_config).
+#ifdef MIGRAPHX_MLIR
+#include <mlir-c/Dialect/MIGraphX.h>
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 5
+#undef MIGRAPHX_MLIR
+#endif
+#endif
+
 #ifdef MIGRAPHX_MLIR
 
 struct mlir_op
@@ -631,7 +641,10 @@ std::vector<instruction_ref> mlir_contiguous(module_pass_manager& mpm,
     std::vector<instruction_ref> result;
     std::transform(
         inputs.begin(), inputs.end(), std::back_inserter(result), [&](instruction_ref input) {
-            if(input->get_shape().packed() or input->get_shape().broadcasted())
+            // Dense non-broadcast packed tensors are already suitable for MLIR. Broadcasted
+            // tensors use zero strides and must be materialized so rocMLIR tuning/lowering sees
+            // standard buffers (avoids empty tuning space / compile failure on dot).
+            if(input->get_shape().packed() and not input->get_shape().broadcasted())
                 return input;
             return mpm.get_module().insert_instruction(
                 std::next(input), make_op("contiguous"), input);
@@ -1393,7 +1406,10 @@ struct find_mlir_output_reshape_ops
         fused_module->add_return({fused_instructions.back()});
         auto inputs = find_inputs(map_ins, &mpm.get_module(), fused_module);
         mpm.get_module().replace_instruction(
-            last_reshape, mlir_op{last_reshape->get_operator()}, inputs, {fused_module});
+            last_reshape,
+            mlir_op{last_reshape->get_operator()},
+            mlir_contiguous(mpm, inputs),
+            {fused_module});
     }
 };
 

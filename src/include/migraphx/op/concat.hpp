@@ -125,8 +125,11 @@ struct concat
             {
                 if(index != axis_i)
                 {
+                    // std::cout << "index: " << index << std::endl;
                     if(not std::all_of(dyn_inputs.begin(), dyn_inputs.end(), [&](const shape& s) {
-                           return s.dyn_dims()[index] == ref_dims[index];
+                        //    std::cout << "s.dyn_dims()[index]: " << s.dyn_dims()[index] << std::endl;
+                        //    std::cout << "ref_dims[index]: " << ref_dims[index] << std::endl;
+                            return s.dyn_dims()[index] == ref_dims[index];
                        }))
                         MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
                                        std::to_string(index));

@@ -83,12 +83,12 @@ struct parse_shape : op_parser<parse_shape>
             std::transform(dyn_dims.begin(), dyn_dims.end(), vec_shape.begin(), [](const auto& dd) {
                 return dd.is_fixed() ? dd.get_interval().max : -1;
             });
-            std::cout << "vec_shape: " << std::endl;
-            for(auto v : vec_shape)
-            {
-                std::cout << v << " ";
-            }
-            std::cout << std::endl;
+            // std::cout << "vec_shape: " << std::endl;
+            // for(auto v : vec_shape)
+            // {
+            //     std::cout << v << " ";
+            // }
+            // std::cout << std::endl;
             return info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {output_ndim}}, vec_shape});
         }
         else

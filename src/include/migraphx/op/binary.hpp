@@ -108,6 +108,8 @@ struct binary : op_name<Derived>
 
             return {s0.type(), compute_broadcasted_dyn_dims(s0, s1)};
         }
+        // std::cout << "s0: " << s0 << std::endl;
+        // std::cout << "s1: " << s1 << std::endl;
         check_shapes{{s0, s1}, static_cast<const Derived&>(*this), true}.same_dims();
         if(s0 == s1 and s0.packed())
         {

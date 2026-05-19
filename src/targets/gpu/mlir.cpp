@@ -94,6 +94,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_TUNING_CFG);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_ENABLE_SPLITK);
 
 #ifdef MIGRAPHX_MLIR
+
 template <class T, class F, F f> // NOLINT
 struct mlir_handle
 {
@@ -1429,7 +1430,9 @@ insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<ins
 
 tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
 {
-    return {};
+    MIGRAPHX_THROW(
+        "GPU MLIR backend is disabled (e.g. rocMLIR C API MLIR_MIGRAPHX_DIALECT_API_VERSION != 5 "
+        "in mlir.cpp). gpu::mlir_op cannot be tuned or compiled.");
 }
 // NOLINTEND(performance-unnecessary-value-param)
 

@@ -1054,20 +1054,20 @@ struct find_concat_same_input
 {
     auto matcher() const
     {
-        return match::name("concat")(
-            match::make_basic_pred_matcher([](instruction_ref ins) {
-                const auto& xs = ins->inputs();
-                return xs.size() >= 2 and 
-                        std::all_of(std::next(xs.begin()), xs.end(),
-                                    [&](instruction_ref x) { return x == xs.front(); });
-            }));
+        return match::name("concat")(match::make_basic_pred_matcher([](instruction_ref ins) {
+            const auto& xs = ins->inputs();
+            return xs.size() >= 2 and
+                   std::all_of(std::next(xs.begin()), xs.end(), [&](instruction_ref x) {
+                       return x == xs.front();
+                   });
+        }));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins           = r.result;
         const auto& inputs = ins->inputs();
-        auto x = inputs.front();
+        auto x             = inputs.front();
         // op::concat normalizes the axis at parse time.
         auto axis        = ins->get_operator().to_value()["axis"].to<int64_t>();
         const auto& lens = x->get_shape().lens();

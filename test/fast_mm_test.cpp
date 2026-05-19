@@ -30,9 +30,9 @@
 
 #include <test.hpp>
 
-static void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m, migraphx::fast_mm fmm = {})
 {
-    migraphx::run_passes(m, {migraphx::fast_mm{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {fmm, migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(fp32_convolution_const_weights_rewritten)
@@ -48,7 +48,7 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
         auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
         m1.add_return({conv});
     }
-    run_pass(m1);
+    run_pass(m1, {.skip_small_k = 0});
 
     migraphx::module m2;
     {

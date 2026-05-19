@@ -63,14 +63,12 @@ void fast_mm::apply(module& m) const
         // Skip when conv is too small to benefit from fp16. These also tend
         // to be precision-sensitive (often follow upstream reductions whose
         // small magnitudes mean fp16 input rounding dominates absolute error).
-        std::size_t reduction = 1;
-        for(std::size_t i = 1; i < w_shape.ndim(); ++i)
-            reduction *= w_shape.lens()[i];
-        if(out_shape.elements() * reduction < 1024)
+        std::size_t reduction = std::accumulate(w_shape.lens().begin() + 1, w_shape.lens().end(), 1, std::multiplies<>());
+        if(reduction < skip_small_k)
             continue;
 
         // W = W_hi + W_lo where W_hi = fp16-rounded W and W_lo = fp16-rounded
-        // residual. All folds at compile time since W is constant.
+        // residual. All folds at compile time since W is constant. 
         auto w_hi_h =
             m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), w);
         auto w_hi_f = m.insert_instruction(

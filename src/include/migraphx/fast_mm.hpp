@@ -34,6 +34,7 @@ struct module;
 
 struct MIGRAPHX_EXPORT fast_mm
 {
+    std::size_t skip_small_k = 64;
     std::string name() const { return "fast_mm"; }
     void apply(module& m) const;
 };

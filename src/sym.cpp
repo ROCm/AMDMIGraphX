@@ -1671,7 +1671,5 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
 
 namespace std {
 std::size_t hash<migraphx::sym::expr>::operator()(const migraphx::sym::expr& e) const
-{
-    return e.hash();
-}
+{ return e.hash(); }
 } // namespace std

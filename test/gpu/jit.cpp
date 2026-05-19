@@ -25,9 +25,11 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -36,6 +38,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx_kernels.hpp>
+#include <string_view>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
@@ -227,6 +230,18 @@ TEST_CASE(compile_target)
 {
     EXPECT(not check_target("gfx900").empty());
     EXPECT(not check_target("gfx906").empty());
+}
+
+TEST_CASE(cross_compile_gpu_target_gfx1101)
+{
+    // Verify a cross-compile gpu::context produces a code object for the requested arch.
+    // ctx args: (arch: gfx1101, cu_count: 60, chiplets: 1).
+    migraphx::gpu::context ctx{"gfx1101", 60, 1};
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", add_2s_binary)}, {}, ctx.get_current_device().get_device_name());
+    EXPECT(binaries.size() == 1);
+    std::string_view bin{binaries.front().data(), binaries.front().size()};
+    EXPECT(bin.find("gfx1101") != std::string_view::npos);
 }
 
 TEST_CASE(compile_errors)

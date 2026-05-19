@@ -5381,18 +5381,9 @@ TEST_CASE(simplify_concat_same_input_negative_axis)
         auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", -2}}), x, x, x);
         m1.add_return({concat});
     }
-    migraphx::run_passes(m1,
-                         {migraphx::normalize_ops{},
-                          migraphx::simplify_algebra{},
-                          migraphx::dead_code_elimination{}});
+    auto m2 = m1;
+    run_pass(m1);
 
-    migraphx::module m2;
-    {
-        auto x = m2.add_parameter("x", s);
-        auto bcast =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), x);
-        m2.add_return({bcast});
-    }
     EXPECT(m1 == m2);
 }
 

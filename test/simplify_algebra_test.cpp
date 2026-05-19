@@ -5439,7 +5439,7 @@ TEST_CASE(simplify_concat_same_input_chained_multibroadcast)
     {
         auto x = m2.add_parameter("x", sx);
         auto mb =
-            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 3, 4}}}), x);
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 1, 4}}}), x);
         auto bcast =
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3, 4}}}), mb);
         m2.add_return({bcast});

@@ -1052,35 +1052,32 @@ struct find_concat_op
 // rewrite turns an O(output_size) memcpy into a strided view.
 struct find_concat_same_input
 {
-    auto matcher() const { return match::name("concat"); }
+    auto matcher() const
+    {
+        return match::name("concat")(
+            match::make_basic_pred_matcher([](instruction_ref ins) {
+                const auto& xs = ins->inputs();
+                return xs.size() >= 2 and 
+                        std::all_of(std::next(xs.begin()), xs.end(),
+                                    [&](instruction_ref x) { return x == xs.front(); });
+            }));
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins           = r.result;
         const auto& inputs = ins->inputs();
-
-        if(inputs.size() < 2)
-            return;
-
         auto x = inputs.front();
-        if(x->get_shape().dynamic())
-            return;
-
-        // All operands must be the *same* instruction (not just shape-equal).
-        if(not std::all_of(
-               std::next(inputs.begin()), inputs.end(), [&](instruction_ref i) { return i == x; }))
-            return;
-
         // op::concat normalizes the axis at parse time.
         auto axis        = ins->get_operator().to_value()["axis"].to<int64_t>();
         const auto& lens = x->get_shape().lens();
-        assert(axis > 0);
+        assert(axis >= 0);
         if(axis >= lens.size())
             return;
 
         // Safe (no data movement) case: the concat axis is size 1 in the
         // source, so it can be broadcast to N. The general lens[axis] > 1
-        // case requires unsqueeze + multibroadcast + reshape and is left
+        // case requires unsqueeze + multGibroadcast + reshape and is left
         // to a follow-up matcher.
         if(lens[axis] != 1)
             return;
@@ -2450,6 +2447,7 @@ void simplify_algebra::apply(module& m) const
                             find_log_exp{},
                             find_log_div{},
                             find_concat_conv{},
+                            find_concat_same_input{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},
@@ -2457,7 +2455,6 @@ void simplify_algebra::apply(module& m) const
                             find_split_transpose{},
                             find_pow2{});
 
-        match::find_matches(m, find_concat_same_input{});
         dead_code_elimination{}.apply(m);
     });
 }

@@ -1668,3 +1668,10 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+namespace std {
+std::size_t hash<migraphx::sym::expr>::operator()(const migraphx::sym::expr& e) const
+{
+    return e.hash();
+}
+} // namespace std

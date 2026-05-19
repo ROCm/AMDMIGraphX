@@ -47,6 +47,23 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct value;
 
 namespace sym {
+class expr;
+} // namespace sym
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+namespace std {
+template <>
+struct hash<migraphx::sym::expr>
+{
+    std::size_t operator()(const migraphx::sym::expr& e) const;
+};
+} // namespace std
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace sym {
 
 using scalar = std::variant<int64_t, double>;
 
@@ -148,7 +165,6 @@ struct op_def
     bool associative = false;
 };
 
-class expr;
 MIGRAPHX_EXPORT expr lit(scalar v);
 
 class MIGRAPHX_EXPORT expr
@@ -173,7 +189,7 @@ class MIGRAPHX_EXPORT expr
     const impl* get_pimpl() const;
     const std::vector<expr>& children() const;
     scalar eval(const std::unordered_map<expr, scalar>& vars) const;
-    interval eval_interval(const std::unordered_map<expr, interval>& vars) const;
+    interval eval_interval(const std::unordered_map<expr, interval>& vars = {}) const;
     std::string to_string() const;
     bool empty() const;
     std::size_t hash() const;
@@ -315,14 +331,5 @@ MIGRAPHX_EXPORT void migraphx_from_value(const value& v, sym::expr& e);
 } // namespace sym
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-namespace std {
-template <>
-struct hash<migraphx::sym::expr>
-{
-    std::size_t operator()(const migraphx::sym::expr& e) const { return e.hash(); }
-};
-
-} // namespace std
 
 #endif

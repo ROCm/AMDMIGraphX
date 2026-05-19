@@ -31,9 +31,7 @@
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m, migraphx::fast_mm fmm = {})
-{
-    migraphx::run_passes(m, {fmm, migraphx::dead_code_elimination{}});
-}
+{ migraphx::run_passes(m, {fmm, migraphx::dead_code_elimination{}}); }
 
 TEST_CASE(fp32_convolution_const_weights_rewritten)
 {

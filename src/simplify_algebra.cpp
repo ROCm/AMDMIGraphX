@@ -1050,28 +1050,21 @@ struct find_concat_op
 // tensor. This is the common shape that shows up in MoE / KV-cache / RoPE
 // expansion code where a tensor is replicated N times along an axis. The
 // rewrite turns an O(output_size) memcpy into a strided view.
-MIGRAPHX_PRED_MATCHER(concat_with_same_inputs, instruction_ref ins)
-{
-    if(ins->name() != "concat")
-        return false;
-
-    const auto& xs = ins->inputs();
-    return xs.size() >= 2 and std::all_of(std::next(xs.begin()), xs.end(), [&](instruction_ref x) {
-               return x == xs.front();
-           });
-}
-
 struct find_concat_same_input
 {
-    auto matcher() const { return concat_with_same_inputs(); }
+    auto matcher() const { return match::name("concat")(match::same_inputs()); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins           = r.result;
         const auto& inputs = ins->inputs();
         auto x             = inputs.front();
-        auto axis          = ins->get_operator().to_value()["axis"].to<int64_t>();
-        const auto& lens   = x->get_shape().lens();
+
+        if(inputs.size() < 2)
+            return;
+
+        auto axis        = ins->get_operator().to_value()["axis"].to<int64_t>();
+        const auto& lens = x->get_shape().lens();
 
         if(axis < 0 or axis >= lens.size())
             return;

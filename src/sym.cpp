@@ -1220,6 +1220,16 @@ std::set<scalar> expr::eval_optimals() const
     return result;
 }
 
+std::set<std::size_t> expr::eval_optimals_uint() const
+{
+    std::set<std::size_t> result;
+    auto r = eval_optimals();
+    std::transform(r.begin(), r.end(), std::inserter(result, result.end()), [](const scalar& v) {
+        return to<std::size_t>(v);
+    });
+    return result;
+}
+
 static std::string scalar_to_string(const scalar& v)
 {
     return std::visit(

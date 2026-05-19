@@ -196,6 +196,7 @@ class MIGRAPHX_EXPORT expr
     std::size_t eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const;
     expr subs(const std::unordered_map<expr, expr>& symbol_map) const;
     std::set<scalar> eval_optimals() const;
+    std::set<std::size_t> eval_optimals_uint() const;
 
     friend expr operator+(expr ex, expr ey);
     friend expr operator-(expr ex, expr ey);

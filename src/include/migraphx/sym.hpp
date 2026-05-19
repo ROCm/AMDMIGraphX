@@ -233,6 +233,8 @@ class MIGRAPHX_EXPORT expr
     MIGRAPHX_SYM_DEFINE_OP(%, %=)
 };
 
+MIGRAPHX_EXPORT bool strict_less_than(const expr& a, const expr& b);
+
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 expr lit(T v)
 {

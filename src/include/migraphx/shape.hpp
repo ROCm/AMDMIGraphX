@@ -161,7 +161,7 @@ struct MIGRAPHX_EXPORT shape
         std::set<std::size_t> get_optimals() const
         {
             if(is_symbolic())
-                return sym_expr.eval_optimals();
+                return sym_expr.eval_optimals_uint();
             if(optimals.has_value())
                 return *optimals;
             return {};

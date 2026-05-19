@@ -5073,4 +5073,24 @@ TEST_CASE(slice_reshape_multibroadcast_rebase_axis)
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
 }
 
+TEST_CASE(slice_multibroadcast_over_sliced_axis)
+{
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", {migraphx::shape::float_type, {2, 4, 6}});
+        auto rsp     = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 24}}}), x);
+        auto sl      = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), rsp);
+        auto rsp2    = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 6}}}), sl);
+        auto mb      = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {3, 4, 6}}}), rsp2);
+        auto bias    = m1.add_parameter("bias", {migraphx::shape::float_type, {3, 4, 6}});
+        auto sum     = m1.add_instruction(migraphx::make_op("add"), mb, bias);
+        m1.add_return({sum});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

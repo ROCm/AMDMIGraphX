@@ -570,6 +570,21 @@ struct find_slice_shape_transforms
             return;
         }
 
+        // Bail to the safe path if the rebase changed the output shape on a
+        // sliced axis (e.g. a broadcast over the sliced axis was absorbed)
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+               auto dst_axis = new_desc.get_dst_axes_from_src(axis).front();
+               return new_desc.lens()[dst_axis] * slice->get_shape().lens()[axis] !=
+                      ins->get_shape().lens()[dst_axis] *
+                          slice->inputs().front()->get_shape().lens()[axis];
+           }))
+        {
+            auto opt_ops = desc.generate();
+            auto y       = insert_ops(m, ins, opt_ops, slice);
+            m.replace_instruction(ins, y);
+            return;
+        }
+
         // Map slice axes using the rebased descriptor to correctly track
         // where dimensions end up after rebase reorders them
         std::vector<std::size_t> new_axes;

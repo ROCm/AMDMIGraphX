@@ -5077,9 +5077,9 @@ TEST_CASE(slice_multibroadcast_over_sliced_axis)
 {
     migraphx::module m1;
     {
-        auto x       = m1.add_parameter("x", {migraphx::shape::float_type, {2, 4, 6}});
-        auto rsp     = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 24}}}), x);
-        auto sl      = m1.add_instruction(
+        auto x   = m1.add_parameter("x", {migraphx::shape::float_type, {2, 4, 6}});
+        auto rsp = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 24}}}), x);
+        auto sl  = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), rsp);
         auto rsp2    = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4, 6}}}), sl);
         auto mb      = m1.add_instruction(

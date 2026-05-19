@@ -1056,10 +1056,9 @@ MIGRAPHX_PRED_MATCHER(concat_with_same_inputs, instruction_ref ins)
         return false;
 
     const auto& xs = ins->inputs();
-    return xs.size() >= 2 and
-            std::all_of(std::next(xs.begin()), xs.end(), [&](instruction_ref x) {
-                return x == xs.front();
-            });
+    return xs.size() >= 2 and std::all_of(std::next(xs.begin()), xs.end(), [&](instruction_ref x) {
+               return x == xs.front();
+           });
 }
 
 struct find_concat_same_input

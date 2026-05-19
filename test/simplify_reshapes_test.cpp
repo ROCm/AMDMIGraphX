@@ -5091,6 +5091,30 @@ TEST_CASE(slice_multibroadcast_over_sliced_axis)
     auto m2 = m1;
     run_pass(m1);
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
+TEST_CASE(broadcast_nop_reduce_mean)
+{
+    migraphx::module m1;
+    {
+        auto lit = m1.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {42}});
+        auto bcast = m1.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {1, 1, 8}}}), lit);
+        auto reduce_mean =
+            m1.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0}}}), bcast);
+        m1.add_return({reduce_mean});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto lit = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}}, {42}});
+        auto bcast = m2.add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", {1, 1, 8}}}), lit);
+        m2.add_return({bcast});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

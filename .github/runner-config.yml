@@ -1,0 +1,7 @@
+# Runner label → GPU hardware mapping
+# Used by frameworks-devops-dashboard to display GPU architecture
+# Update this when runners are added/changed in CI workflows
+runners:
+  ROCM-Ubuntu:
+    gpu_arch: "-"
+    gpu_count: 1

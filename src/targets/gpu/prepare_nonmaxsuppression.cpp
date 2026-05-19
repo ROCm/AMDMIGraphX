@@ -148,6 +148,7 @@ struct find_nonmaxsuppression
         const auto iou_packed = (num_boxes * (num_boxes - 1) / 2);
 
         // Fill in missing optional scalar inputs with default literals.
+        // TODO: this is the wrong way to handle this. Should be checking if the input is eval'able.
         const shape default_max_s{shape::int64_type, {1}};
         const shape default_iou_s{shape::float_type, {1}};
         const shape default_thr_s{shape::float_type, {1}};
@@ -183,13 +184,13 @@ struct find_nonmaxsuppression
             inputs[4],
             mask_alloc);
 
-        auto output =
+        auto raw_output =
             m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), filter);
         auto bc_counts =
             m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), filter);
 
         auto compact =
-            m.insert_instruction(ins, make_op("gpu::nms_compact"), output, bc_counts);
+            m.insert_instruction(ins, make_op("gpu::nms_compact"), bc_counts, raw_output);
 
         m.replace_instruction(ins, compact);
     }

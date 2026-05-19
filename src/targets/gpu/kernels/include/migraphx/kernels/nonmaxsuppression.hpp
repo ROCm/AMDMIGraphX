@@ -34,6 +34,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/types.hpp>
 #include <migraphx/kernels/slice.hpp>
+#include <migraphx/kernels/type_traits.hpp>
 
 namespace migraphx {
 
@@ -130,32 +131,29 @@ __device__ void nonmaxsuppression_sort(Boxes boxes_tv, Scores scores_tv, Output 
 
     auto idx = make_index();
     const index_int block_id = idx.group;
-    const int batch_idx      = static_cast<int>(block_id / NumClasses);
-    const int class_idx      = static_cast<int>(block_id % NumClasses);
+    const int batch_idx = block_id / NumClasses;
+    const int class_idx = block_id % NumClasses;
     
     constexpr auto block_out_shape = make_shape(index_ints<AlignedNumBoxes>{});
     auto* p = reinterpret_cast<nms_data*>(out_tv.data()) + block_id * AlignedNumBoxes;
     auto block_out_tv = make_tensor_view<nms_data>(p, block_out_shape);
 
-    //const auto* boxes_b   = boxes_tv.data() + batch_idx * NumBoxes * 4;
-    //const auto* scores_bc = scores_tv.data() + (batch_idx * NumClasses + class_idx) * NumBoxes;
-    // Get tensor_view slice of boxes. numpy slicing: boxes[batch_idx, :, :]
-    const auto my_boxes = slice_tensor(boxes_tv, batch_idx, slice_axes<1, 2>());
-    // Get tensor_view slice of scores. numpy slicing: scores[batch_idx, class_idx, :]
-    const auto my_scores = slice_tensor(scores_tv, block_id, slice_axes<2>());
+    // numpy indexing: scores[batch_idx, class_idx, :]
+    const auto my_scores = slice_tensor(scores_tv, array<index_int, 3>{batch_idx, class_idx, 0}, slice_axes<2>());
 
     nms_data tmp_data;
     idx.local_stride(AlignedNumBoxes, [&](auto i) {
         if(i < NumBoxes)
         {
             tmp_data.score     = my_scores[i];
-            tmp_data.box       = nms_normalize_box<CenterPointBox>(my_boxes + i * 4);
+            // numpy indexing: boxes[batch_idx, i, :]
+            tmp_data.box       = nms_normalize_box<CenterPointBox>(slice_tensor(boxes_tv, array<index_int, 3>{batch_idx, i, 0}, slice_axes<2>()));
             tmp_data.box_index = static_cast<int>(i);
         }
         else
         {
-            // Sentinel: score so it never beats any real entry
-            tmp_data.score     = numeric_limits<Boxes::value_type>::lowest();
+            // Sentinel score so it never beats any real entry
+            tmp_data.score     = numeric_lowest<typename Boxes::type>();
             tmp_data.box       = array<float, 4>{0.f, 0.f, 0.f, 0.f};
             tmp_data.box_index = -1;
         }
@@ -317,8 +315,8 @@ template <index_int NumBatchClass,
           class Out>
 __device__ void nonmaxsuppression_compact(const Counts bc_counts,
                                           const Idx indices,
-                                          Num num_selected,
-                                          Out output)
+                                          Out output,
+                                          Num num_selected)
 {
     static_assert(NumBatchClass > 0);
     static_assert(NumBoxes > 0);

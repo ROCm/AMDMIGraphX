@@ -5348,4 +5348,100 @@ TEST_CASE(debug_symbols_simplify_div_const)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// find_reduce_no_op: folds reduce_*[axes] when every reduced axis has length 1.
+static void check_reduce_folds(const std::string& op_name,
+                               const std::vector<std::size_t>& lens,
+                               const std::vector<std::int64_t>& axes)
+{
+    migraphx::shape s{migraphx::shape::float_type, lens};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto r = m1.add_instruction(migraphx::make_op(op_name, {{"axes", axes}}), x);
+        m1.add_instruction(pass_op{}, r);
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        m2.add_instruction(pass_op{}, x);
+    }
+    EXPECT(m1 == m2);
+}
+
+static void check_reduce_kept(const std::string& op_name,
+                              const std::vector<std::size_t>& lens,
+                              const std::vector<std::int64_t>& axes)
+{
+    migraphx::shape s{migraphx::shape::float_type, lens};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto r = m1.add_instruction(migraphx::make_op(op_name, {{"axes", axes}}), x);
+        m1.add_instruction(pass_op{}, r);
+    }
+    auto before = m1;
+    run_pass(m1);
+    EXPECT(m1 == before);
+}
+
+TEST_CASE(simplify_reduce_no_op_singleton_axis)
+{
+    check_reduce_folds("reduce_max", {1, 21, 1}, {2});
+}
+
+TEST_CASE(simplify_reduce_no_op_negative_axis)
+{
+    check_reduce_folds("reduce_sum", {1, 21, 1}, {-1});
+}
+
+TEST_CASE(simplify_reduce_no_op_multi_axes)
+{
+    check_reduce_folds("reduce_mean", {1, 1, 21, 1}, {0, 1, 3});
+}
+
+// yolo*-pose regression: without the fold, GPU lowering JIT-fails on this shape.
+TEST_CASE(simplify_reduce_no_op_yolo_pose_shape)
+{
+    check_reduce_folds("reduce_max", {1, 8400, 1}, {-1});
+}
+
+TEST_CASE(simplify_reduce_keeps_real_reduce) { check_reduce_kept("reduce_max", {1, 21, 5}, {2}); }
+
+TEST_CASE(simplify_reduce_keeps_partial_singleton)
+{
+    check_reduce_kept("reduce_sum", {1, 21, 1}, {1, 2});
+}
+
+TEST_CASE(simplify_reduce_skips_dynamic_input)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{1, 1}, {21, 21}, {1, 8}}};
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto r = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), x);
+        m1.add_instruction(pass_op{}, r);
+    }
+    auto before = m1;
+    run_pass(m1);
+    EXPECT(m1 == before);
+}
+
+TEST_CASE(simplify_reduce_skips_variable_axes)
+{
+    migraphx::shape data_s{migraphx::shape::float_type, {1, 21, 1}};
+    migraphx::shape axes_s{migraphx::shape::int64_type, {1}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", data_s);
+        auto axes = m1.add_parameter("axes", axes_s);
+        auto r    = m1.add_instruction(migraphx::make_op("reduce_max", {{"axes", {}}}), x, axes);
+        m1.add_instruction(pass_op{}, r);
+    }
+    auto before = m1;
+    run_pass(m1);
+    EXPECT(m1 == before);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

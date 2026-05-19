@@ -6043,6 +6043,135 @@ TEST_CASE(step_test)
     }
 }
 
+TEST_CASE(step_sym)
+{
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {1, 16});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 3}, {m, 5}, {k, 7}};
+
+    auto expect_matches_static = [&](const migraphx::operation& op,
+                                     const migraphx::shape& sin,
+                                     const migraphx::shape& sym_out) {
+        EXPECT(sym_out.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+    };
+
+    {
+        // Step axis 0 (first); sym at axis 1.
+        auto op = migraphx::make_op("step", {{"axes", {0}}, {"steps", {2}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(5)}, dd{n}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type,
+            {dd{lit(3)}, dd{n}, dd{lit(4)}},
+            {sin.dyn_strides()[0] * lit(2), sin.dyn_strides()[1], sin.dyn_strides()[2]}};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Step axis 1 (middle); syms at axes 0 and 2.
+        auto op = migraphx::make_op("step", {{"axes", {1}}, {"steps", {3}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{m}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type,
+            {dd{n}, dd{lit(3)}, dd{m}},
+            {sin.dyn_strides()[0], sin.dyn_strides()[1] * lit(3), sin.dyn_strides()[2]}};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Step axis 3 (last) on a 4D shape; syms at axes 0, 1, 2.
+        auto op = migraphx::make_op("step", {{"axes", {3}}, {"steps", {2}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(10)}}};
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{n}, dd{m}, dd{k}, dd{lit(5)}},
+                             {sin.dyn_strides()[0],
+                              sin.dyn_strides()[1],
+                              sin.dyn_strides()[2],
+                              sin.dyn_strides()[3] * lit(2)}};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+}
+
+TEST_CASE(step_sym_on_sym_axis)
+{
+    // Stepping a symbolic axis: output dim is (n+1)/2 symbolically.
+    auto n                                      = var("n", {2, 32});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 9}};
+
+    auto op = migraphx::make_op("step", {{"axes", {1}}, {"steps", {2}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{lit(2)}, dd{(n + lit(1)) / lit(2)}, dd{lit(4)}},
+        {sin.dyn_strides()[0], sin.dyn_strides()[1] * lit(2), sin.dyn_strides()[2]}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_sym_multiple_axes)
+{
+    // Step two axes at once; one literal, one symbolic; verify both dims and the
+    // stride scaling at each stepped axis.
+    auto m                                      = var("m", {1, 16});
+    std::unordered_map<se, std::size_t> sym_map = {{m, 7}};
+
+    auto op = migraphx::make_op("step", {{"axes", {0, 2}}, {"steps", {2, 3}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(6)}, dd{m}, dd{lit(9)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{lit(3)}, dd{m}, dd{lit(3)}},
+        {sin.dyn_strides()[0] * lit(2), sin.dyn_strides()[1], sin.dyn_strides()[2] * lit(3)}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_sym_fully_symbolic)
+{
+    // Every axis symbolic; step the middle axis. Output dim is (m+1)/2 symbolically.
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {2, 16});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}, {m, 11}, {k, 5}};
+
+    auto op = migraphx::make_op("step", {{"axes", {1}}, {"steps", {2}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{n}, dd{(m + lit(1)) / lit(2)}, dd{k}},
+        {sin.dyn_strides()[0], sin.dyn_strides()[1] * lit(2), sin.dyn_strides()[2]}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_sym_nonstandard_layout)
+{
+    // Non-standard symbolic input via from_permutation: step must preserve the
+    // permutation and scale only the stepped axis's stride.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
+
+    auto sin = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(8)}}, {0, 2, 3, 1});
+    auto op = migraphx::make_op("step", {{"axes", {3}}, {"steps", {2}}});
+    migraphx::shape sout{migraphx::shape::float_type,
+                         {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(4)}},
+                         {sin.dyn_strides()[0],
+                          sin.dyn_strides()[1],
+                          sin.dyn_strides()[2],
+                          sin.dyn_strides()[3] * lit(2)}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_dyn)
+{
+    // Range-dynamic input: ceil-divide bounds; fixed-step shifts the optimal.
+    migraphx::shape input{migraphx::shape::float_type, {dd{2, 2}, dd{2, 8, {4}}, dd{4, 4}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{2, 2}, dd{1, 4, {2}}, dd{4, 4}}};
+    expect_shape(expected, migraphx::make_op("step", {{"axes", {1}}, {"steps", {2}}}), input);
+}
+
 TEST_CASE(unary_scalar_input)
 {
     migraphx::shape ss{migraphx::shape::half_type};

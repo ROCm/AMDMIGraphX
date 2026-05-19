@@ -119,7 +119,7 @@ interval operator/(interval a, interval b)
             scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
 }
 
-interval operator%(interval a, interval b)
+interval operator%(interval, interval b)
 {
     // The 4-corner min/max formula is wrong for mod (e.g. [1,5] % [3,3] should
     // include {0,1,2}, not just the corner values). Use a loose but correct
@@ -907,96 +907,6 @@ expr operator%(expr ex, expr ey)
 
 expr operator-(expr e) { return lit(-1) * std::move(e); }
 
-bool operator==(const expr& a, const expr& b)
-{
-    if(a.pimpl == b.pimpl)
-        return true;
-    if(not a.pimpl or not b.pimpl)
-        return false;
-    if(a.pimpl->cached_hash != b.pimpl->cached_hash)
-        return false;
-    return get_node(a) == get_node(b) and a.children() == b.children();
-}
-
-bool operator!=(const expr& a, const expr& b) { return not(a == b); }
-
-std::ostream& operator<<(std::ostream& os, const expr& e) { return os << e.to_string(); }
-
-bool expr::empty() const { return not pimpl; }
-
-std::size_t expr::hash() const
-{
-    if(not pimpl)
-        return 0;
-    return pimpl->cached_hash;
-}
-
-static scalar generic_eval_auto_apply(const op_node& op, const std::vector<scalar>& args)
-{
-    return op.op->eval(args);
-}
-
-static interval generic_eval_auto_apply(const op_node& op, const std::vector<interval>& args)
-{
-    return op.op->eval_interval(args);
-}
-
-static expr generic_eval_auto_apply(const op_node& op, const std::vector<expr>& args)
-{
-    return call_op(op.op, args);
-}
-
-template <class R, class Replace, class Apply>
-static R generic_eval(const expr& e, const Replace& replace, const Apply& apply)
-{
-    auto r = replace(e);
-    if(r)
-        return *r;
-    const auto& children = e.children();
-    std::vector<R> args;
-    args.reserve(children.size());
-    std::transform(children.begin(),
-                   children.end(),
-                   std::back_inserter(args),
-                   [&](const expr& child) { return generic_eval<R>(child, replace, apply); });
-    return apply(std::get<op_node>(get_node(e)), std::move(args));
-}
-
-template <class R, class Replace>
-static R generic_eval(const expr& e, const Replace& replace)
-{
-    return generic_eval<R>(e, replace, MIGRAPHX_LIFT(generic_eval_auto_apply));
-}
-
-std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
-{
-    return to<std::size_t>(generic_eval<scalar>(*this, [&](const expr& e) -> std::optional<scalar> {
-        auto it = symbol_map.find(e);
-        if(it != symbol_map.end())
-            return make_scalar(it->second);
-        return std::visit(
-            overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
-                       [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
-            get_node(e));
-    }));
-}
-
-expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
-{
-    return generic_eval<expr>(*this, [&](const expr& e) -> std::optional<expr> {
-        auto it = symbol_map.find(e);
-        if(it != symbol_map.end())
-            return it->second;
-        if(e.empty())
-            return e;
-        return std::visit(
-            overloaded{[&](const literal_node&) -> std::optional<expr> { return e; },
-                       [&](const variable_node&) -> std::optional<expr> { return e; },
-                       [](const op_node&) -> std::optional<expr> { return std::nullopt; }},
-            get_node(e));
-    });
-}
-
 expr sin(expr e)
 {
     return call("sin", MIGRAPHX_LIFT(std::sin), [](interval x) { return sin(x); })(std::move(e));
@@ -1067,6 +977,30 @@ expr max(expr x, expr y)
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
 }
 
+bool operator==(const expr& a, const expr& b)
+{
+    if(a.pimpl == b.pimpl)
+        return true;
+    if(not a.pimpl or not b.pimpl)
+        return false;
+    if(a.pimpl->cached_hash != b.pimpl->cached_hash)
+        return false;
+    return get_node(a) == get_node(b) and a.children() == b.children();
+}
+
+bool operator!=(const expr& a, const expr& b) { return not(a == b); }
+
+std::ostream& operator<<(std::ostream& os, const expr& e) { return os << e.to_string(); }
+
+bool expr::empty() const { return not pimpl; }
+
+std::size_t expr::hash() const
+{
+    if(not pimpl)
+        return 0;
+    return pimpl->cached_hash;
+}
+
 std::string expr::name() const
 {
     if(empty())
@@ -1082,6 +1016,72 @@ const std::vector<expr>& expr::children() const
     if(empty())
         return empty_children;
     return pimpl->children;
+}
+
+static scalar generic_eval_auto_apply(const op_node& op, const std::vector<scalar>& args)
+{
+    return op.op->eval(args);
+}
+
+static interval generic_eval_auto_apply(const op_node& op, const std::vector<interval>& args)
+{
+    return op.op->eval_interval(args);
+}
+
+static expr generic_eval_auto_apply(const op_node& op, const std::vector<expr>& args)
+{
+    return call_op(op.op, args);
+}
+
+template <class R, class Replace, class Apply>
+static R generic_eval(const expr& e, const Replace& replace, const Apply& apply)
+{
+    auto r = replace(e);
+    if(r)
+        return *r;
+    const auto& children = e.children();
+    std::vector<R> args;
+    args.reserve(children.size());
+    std::transform(children.begin(),
+                   children.end(),
+                   std::back_inserter(args),
+                   [&](const expr& child) { return generic_eval<R>(child, replace, apply); });
+    return apply(std::get<op_node>(get_node(e)), std::move(args));
+}
+
+template <class R, class Replace>
+static R generic_eval(const expr& e, const Replace& replace)
+{
+    return generic_eval<R>(e, replace, MIGRAPHX_LIFT(generic_eval_auto_apply));
+}
+
+std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
+{
+    return to<std::size_t>(generic_eval<scalar>(*this, [&](const expr& e) -> std::optional<scalar> {
+        auto it = symbol_map.find(e);
+        if(it != symbol_map.end())
+            return make_scalar(it->second);
+        return std::visit(
+            overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
+                       [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
+            get_node(e));
+    }));
+}
+
+expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
+{
+    return generic_eval<expr>(*this, [&](const expr& e) -> std::optional<expr> {
+        auto it = symbol_map.find(e);
+        if(it != symbol_map.end())
+            return it->second;
+        if(e.empty())
+            return e;
+        return std::visit(
+            overloaded{[&](const literal_node&) -> std::optional<expr> { return e; },
+                       [&](const variable_node&) -> std::optional<expr> { return e; },
+                       [](const op_node&) -> std::optional<expr> { return std::nullopt; }},
+            get_node(e));
+    });
 }
 
 scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const

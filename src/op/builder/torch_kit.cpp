@@ -42,9 +42,8 @@ struct torch_lstm : op_builder<torch_lstm>
         }
         auto hidden_states =
             m.insert_instruction(ins, make_op("lstm", migraphx::to_value(self)), args);
-        auto last_hs = m.insert_instruction(ins, make_op("rnn_last_hs_output"), hidden_states);
-        auto last_cell =
-            m.insert_instruction(ins, make_op("rnn_last_cell_output"), hidden_states);
+        auto last_hs   = m.insert_instruction(ins, make_op("rnn_last_hs_output"), hidden_states);
+        auto last_cell = m.insert_instruction(ins, make_op("rnn_last_cell_output"), hidden_states);
         return {hidden_states, last_hs, last_cell};
     }
 };

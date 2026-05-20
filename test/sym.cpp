@@ -46,6 +46,7 @@ using migraphx::sym::scalar;
 using migraphx::sym::simplify;
 using migraphx::sym::sin;
 using migraphx::sym::sqrt;
+using migraphx::sym::strict_less;
 using migraphx::sym::tan;
 using migraphx::sym::to_string;
 using migraphx::sym::var;
@@ -3191,6 +3192,134 @@ TEST_CASE(ceildiv_to_string)
     auto s = e.to_string();
     // Just verify it produces something reasonable and roundtrips eval
     EXPECT(not s.empty());
+}
+
+// ---- strict_less tests ----
+
+TEST_CASE(strict_less_literals_true)
+{
+    auto r = strict_less(lit(2), lit(5));
+    EXPECT(r.has_value() and *r);
+}
+
+TEST_CASE(strict_less_literals_false_equal)
+{
+    auto r = strict_less(lit(5), lit(5));
+    EXPECT(r.has_value() and not *r);
+}
+
+TEST_CASE(strict_less_literals_false_greater)
+{
+    auto r = strict_less(lit(7), lit(2));
+    EXPECT(r.has_value() and not *r);
+}
+
+TEST_CASE(strict_less_literals_double)
+{
+    auto r = strict_less(lit(1.5), lit(2.5));
+    EXPECT(r.has_value() and *r);
+}
+
+TEST_CASE(strict_less_self)
+{
+    auto x = var("x");
+    auto r = strict_less(x, x);
+    EXPECT(r.has_value() and not *r);
+}
+
+TEST_CASE(strict_less_var_plus_one)
+{
+    // x < x + 1 is always true via algebraic simplification, no constraint needed
+    auto x = var("x");
+    auto r = strict_less(x, x + 1);
+    EXPECT(r.has_value() and *r);
+}
+
+TEST_CASE(strict_less_var_minus_one)
+{
+    // x + 1 < x is always false via algebraic simplification, no constraint needed
+    auto x = var("x");
+    auto r = strict_less(x + 1, x);
+    EXPECT(r.has_value() and not *r);
+}
+
+TEST_CASE(strict_less_var_equal_expr)
+{
+    // x + 1 < 1 + x : (1+x) - (x+1) = 0, so a >= b always => false
+    auto x = var("x");
+    auto r = strict_less(x + 1, 1 + x);
+    EXPECT(r.has_value() and not *r);
+}
+
+TEST_CASE(strict_less_disjoint_ranges_true)
+{
+    auto x = var("x", interval{int64_t{1}, int64_t{5}});
+    auto y = var("y", interval{int64_t{10}, int64_t{20}});
+    auto r = strict_less(x, y);
+    EXPECT(r.has_value() and *r);
+}
+
+TEST_CASE(strict_less_disjoint_ranges_false)
+{
+    auto x = var("x", interval{int64_t{10}, int64_t{20}});
+    auto y = var("y", interval{int64_t{1}, int64_t{5}});
+    auto r = strict_less(x, y);
+    EXPECT(r.has_value() and not *r);
+}
+
+TEST_CASE(strict_less_overlapping_ranges_indeterminate)
+{
+    auto x = var("x", interval{int64_t{1}, int64_t{10}});
+    auto y = var("y", interval{int64_t{5}, int64_t{15}});
+    auto r = strict_less(x, y);
+    EXPECT(not r.has_value());
+}
+
+TEST_CASE(strict_less_touching_ranges_indeterminate)
+{
+    // x in [1,5], y in [5,10]: at x=5,y=5 they're equal, so x<y not guaranteed
+    auto x = var("x", interval{int64_t{1}, int64_t{5}});
+    auto y = var("y", interval{int64_t{5}, int64_t{10}});
+    auto r = strict_less(x, y);
+    EXPECT(not r.has_value());
+}
+
+TEST_CASE(strict_less_var_lit_in_range)
+{
+    auto x = var("x", interval{int64_t{1}, int64_t{10}});
+    auto r = strict_less(x, lit(20));
+    EXPECT(r.has_value() and *r);
+}
+
+TEST_CASE(strict_less_var_lit_below_range)
+{
+    auto x = var("x", interval{int64_t{5}, int64_t{10}});
+    auto r = strict_less(x, lit(3));
+    EXPECT(r.has_value() and not *r);
+}
+
+TEST_CASE(strict_less_unconstrained_var_indeterminate)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto r = strict_less(x, y);
+    EXPECT(not r.has_value());
+}
+
+TEST_CASE(strict_less_with_vars_map)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto r = strict_less(
+        x, y, {{x, interval{int64_t{1}, int64_t{5}}}, {y, interval{int64_t{10}, int64_t{20}}}});
+    EXPECT(r.has_value() and *r);
+}
+
+TEST_CASE(strict_less_empty_indeterminate)
+{
+    expr e;
+    auto r = strict_less(e, lit(1));
+    EXPECT(not r.has_value());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

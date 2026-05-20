@@ -977,6 +977,29 @@ expr max(expr x, expr y)
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
 }
 
+std::optional<bool>
+strict_less(const expr& a, const expr& b, const std::unordered_map<expr, interval>& vars)
+{
+    if(a.empty() or b.empty())
+        return std::nullopt;
+    interval i;
+    try
+    {
+        i = (b - a).eval_interval(vars);
+    }
+    catch(const migraphx::exception&)
+    {
+        return std::nullopt;
+    }
+    // (b - a) > 0 always => a < b always
+    if(scalar_less(scalar{int64_t{0}}, i.min))
+        return true;
+    // (b - a) <= 0 always => a >= b always
+    if(not scalar_less(scalar{int64_t{0}}, i.max))
+        return false;
+    return std::nullopt;
+}
+
 bool operator==(const expr& a, const expr& b)
 {
     if(a.pimpl == b.pimpl)

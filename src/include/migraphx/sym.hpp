@@ -29,6 +29,7 @@
 #include <limits>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <set>
 #include <string>
@@ -303,6 +304,9 @@ MIGRAPHX_EXPORT expr ceil(expr e);
 MIGRAPHX_EXPORT expr pow(expr x, expr y);
 MIGRAPHX_EXPORT expr min(expr x, expr y);
 MIGRAPHX_EXPORT expr max(expr x, expr y);
+
+MIGRAPHX_EXPORT std::optional<bool>
+strict_less(const expr& a, const expr& b, const std::unordered_map<expr, interval>& vars = {});
 
 // Pattern matching rewrite DSL
 expr pvar(int id);

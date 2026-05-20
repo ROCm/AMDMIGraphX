@@ -164,20 +164,41 @@ struct hip_device
 
         bool has_external_stream() const { return external_stream != nullptr; }
 
+        // Bind a caller-provided stream for subsequent submissions and remember
+        // the prior binding so it can be put back by restore_queue().  We save
+        // unconditionally (even when `q` equals the current binding) so that
+        // nested or repeated set_queue() calls unwind in LIFO order.
+        // nullptr is a *valid* stream (the HIP default stream) and round-trips
+        // cleanly through this pair of methods.
+        void set_queue(hipStream_t q)
+        {
+            previous_stream = external_stream;
+            set_external_stream(q);
+        }
+
+        // Restore the binding captured by the most recent set_queue().  No-op
+        // if nothing is saved, which makes it safe to call from defensive
+        // cleanup paths (e.g. an async eval epilogue that may also be reached
+        // on an exception).
+        void restore_queue()
+        {
+            if(not previous_stream.has_value())
+                return;
+            auto prev = *previous_stream;
+            previous_stream.reset();
+            set_external_stream(prev);
+        }
+
         void wait() const
         {
-            if(external_stream != nullptr)
-            {
-                setup();
-                auto status = hipStreamSynchronize(external_stream);
-                if(status != hipSuccess)
-                    MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
-                return;
-            }
-            if(s == nullptr)
+            // Avoid lazily creating an internal stream just to sync it.
+            hipStream_t cur = external_stream;
+            if(cur == nullptr and s != nullptr)
+                cur = s.get();
+            if(cur == nullptr)
                 return;
             setup();
-            auto status = hipStreamSynchronize(s.get());
+            auto status = hipStreamSynchronize(cur);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
         }
@@ -199,9 +220,13 @@ struct hip_device
         }
 
         private:
-        std::size_t id           = 0;
-        shared<hip_stream_ptr> s = nullptr;
+        std::size_t id              = 0;
+        shared<hip_stream_ptr> s    = nullptr;
         hipStream_t external_stream = nullptr;
+        // Saved binding for restore_queue().  Empty == no prior queue saved;
+        // distinguishing "saved nullptr" from "no save" is required because
+        // nullptr is itself a legal stream value.
+        std::optional<hipStream_t> previous_stream{};
 #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
 #endif
@@ -393,6 +418,25 @@ struct context
     }
 
     any_ptr get_queue() { return get_stream().get(); }
+
+    // Bind a caller-provided queue for subsequent submissions.  The previous
+    // binding is remembered so a matching restore_queue() can put it back.
+    // Passing an empty / null any_ptr is equivalent to binding the HIP
+    // default stream (nullptr), which is a distinct, valid operation from
+    // restore_queue() -- the two must not be conflated.  We bypass the typed
+    // any_ptr accessor when the pointer is null because a default-constructed
+    // any_ptr carries no type name and would otherwise throw on get<>().
+    void set_queue(any_ptr queue)
+    {
+        hipStream_t s =
+            queue.unsafe_get() == nullptr ? nullptr : queue.get<hipStream_t>();
+        get_stream().set_queue(s);
+    }
+
+    // Pop the binding most recently established by set_queue().  No-op if
+    // nothing was saved, so it is safe to call defensively from cleanup
+    // paths (including exception-unwind scenarios).
+    void restore_queue() { get_stream().restore_queue(); }
 
     std::pair<hipEvent_t, hipEvent_t> get_perf_events() const
     {

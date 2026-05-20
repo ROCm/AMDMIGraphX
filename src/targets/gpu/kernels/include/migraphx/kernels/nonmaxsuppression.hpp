@@ -47,11 +47,11 @@ struct nms_data
     Index box_index;
 };
 
-// Comparator for sorting nms_data{}.
-template <class Score, class Box, class Index>
+// Comparator for sorting nms_data{} (or anything else with a `.score` field).
 struct nms_score_greater
 {
-    constexpr bool operator()(const nms_data<Score, Box, Index>& a, const nms_data<Score, Box, Index>& b) const
+    template <class T>
+    constexpr bool operator()(const T& a, const T& b) const
     {
         return a.score > b.score;
     }
@@ -114,9 +114,11 @@ __device__ inline index_int nms_packed_idx(index_int i, index_int j, index_int N
 // Load data into per-block buffer of nms_data.
 // Pads values after N with sentinel values.
 // Sorts the nms_data in descending order by score.
-// boxes_tv: dims([N, 4]) of float.
-// scores_tv: dims([N]) of float.
-// sorted_tv: dims([N]) of nms_data{}.
+// boxes_tv: dims([NumBatches, NumBoxes, 4])
+// scores_tv: dims([NumBatches, NumClasses, NumBoxes])
+// sorted_scores: output, dims([B, C, AlignedNumBoxes])
+// sorted_boxes: output, dims([B, C, AlignedNumBoxes, 4])
+// sorted_indices: output, dims([B, C, AlignedNumBoxes])
 template <bool CenterPointBox,
           index_int NumBatches,
           index_int NumClasses,
@@ -163,16 +165,14 @@ __device__ void nonmaxsuppression_sort(
         }
         else
         {
-            block_nms_data[i].score     = numeric_lowest<typename Boxes::type>();
-            block_nms_data[i].box       = array<float, 4>{0.f, 0.f, 0.f, 0.f};
+            block_nms_data[i].score     = numeric_lowest<scores_type>();
+            block_nms_data[i].box       = array<boxes_type, 4>{0.f, 0.f, 0.f, 0.f};
             block_nms_data[i].box_index = -1;
         }
     });
     __syncthreads();
 
-    bitonic_sort<nms_score_greater<scores_type, boxes_type, indices_type>>{nms_score_greater<scores_type, boxes_type, indices_type>{}}
-    .template block_sort<AlignedNumBoxes>(idx, block_nms_data);
-    __syncthreads();
+    bitonic_sort{nms_score_greater{}}.template block_sort<AlignedNumBoxes>(idx, block_nms_data);
 
     // Copy sorted result back to global memory.
     auto block_out_scores = slice_tensor(sorted_scores, array<index_int, 2>{block_id, 0}, slice_axes<1>());
@@ -201,7 +201,7 @@ __device__ void nms_make_iou_mask(const index idx, const NMSData nms_data, Mask 
         for(index_int j = i + 1; j < NumBoxes; ++j)
         {
             mask[nms_packed_idx(i, j, NumBoxes)] =
-                nms_iou_over_threshold(nms_data[i].box, nms_data[j].box, iou_threshold) ? 1 : 0;
+                nms_iou_over_threshold(nms_data[i].box, nms_data[j].box, iou_threshold);
         }
     };
 
@@ -316,14 +316,11 @@ __device__ void nonmaxsuppression_filter(const SortedScores sorted_scores,
     // TODO: can add a static_assert on needed LDS size
     __shared__ uninitialized_buffer<nms_data<scores_type, boxes_type, indices_type>, NumBoxes> block_nms_data;
 
-    idx.local_stride(AlignedNumBoxes, [&](auto i) {
-        if(i < NumBoxes)
-        {
-            block_nms_data[i].score = my_sorted_scores[i];
-            auto boxes_iter = my_sorted_boxes.begin_at(array<index_int, 3>{0, i, 0});
-            copy(boxes_iter, boxes_iter + 4, block_nms_data[i].box.begin());
-            block_nms_data[i].box_index = my_sorted_indices[i];
-        }
+    idx.local_stride(NumBoxes, [&](auto i) {
+        block_nms_data[i].score = my_sorted_scores[i];
+        auto boxes_iter = my_sorted_boxes.begin_at(array<index_int, 3>{0, i, 0});
+        copy(boxes_iter, boxes_iter + 4, block_nms_data[i].box.begin());
+        block_nms_data[i].box_index = my_sorted_indices[i];
     });
     auto my_mask = slice_tensor(mask, array<index_int, 2>{block_idx, 0}, slice_axes<1>());
     auto my_output = slice_tensor(output, array<index_int, 3>{block_idx, 0, 0}, slice_axes<1, 2>());
@@ -366,7 +363,8 @@ __device__ void nonmaxsuppression_compact(const Counts bc_counts,
 {
     static_assert(NumBatchClass > 0);
     static_assert(NumBoxes > 0);
-    static_assert(NumBatchClass <= 16000, "nms_compact: NumBatchClass exceeds the LDS budget for offsets[]");
+    // TODO: get a better bound on this
+    static_assert(NumBatchClass <= 8192, "nms_compact: NumBatchClass exceeds the LDS budget for offsets[]");
 
     auto idx = make_index();
     __shared__ index_int offsets[NumBatchClass];

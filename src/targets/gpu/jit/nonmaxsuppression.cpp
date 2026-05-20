@@ -195,8 +195,8 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
         const auto aligned_num_boxes =
             static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
         // TODO: tune for max block size?
-        // num_boxes/2 because of strided thread work distribution
-        const auto block_size = compute_block_size(ctx, num_boxes/2, 256);
+        // ceil_div(num_boxes, 2) because of strided thread work distribution
+        const auto block_size = compute_block_size(ctx, (num_boxes + 1)/2, 256);
 
         hip_compile_options options;
         options.inputs         = flatten_shapes(inputs);

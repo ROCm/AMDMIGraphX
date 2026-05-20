@@ -817,6 +817,7 @@ MIGRAPHX_PRED_MATCHER(not_standard_shape, instruction_ref ins)
 }
 MIGRAPHX_PRED_MATCHER(dynamic_shape, instruction_ref ins) { return ins->get_shape().dynamic(); }
 MIGRAPHX_PRED_MATCHER(static_shape, instruction_ref ins) { return not ins->get_shape().dynamic(); }
+MIGRAPHX_PRED_MATCHER(symbolic_shape, instruction_ref ins) { return ins->get_shape().symbolic(); }
 MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
 {
     return ins->get_shape().broadcasted();
@@ -1028,6 +1029,7 @@ auto args(Ms... ms)
 {
     return sequence_c<sizeof...(Ms)>([=](auto... is) {
         // It needs to be written as `decltype(is)::value` for gcc 5
+        // cppcheck-suppress migraphx-AvoidNestedValue
         return args_impl(args_impl_ints<decltype(is)::value...>{}, ms...);
     });
 }

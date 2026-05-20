@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -229,7 +229,21 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
 
         // Biases, if any.. : is an optional argument.
         if(args.size() > 8)
-            conv_x_w = add_bias_to_conv(args[8], conv_x_w, info);
+        {
+            const auto& in_b = args[8];
+
+            auto bcast_scale_x = info.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", in_scale_w->get_shape().lens()}}),
+                in_scale_x);
+
+            auto bias_scale =
+                info.add_instruction(migraphx::make_op("mul"), bcast_scale_x, in_scale_w);
+
+            auto dquant_bias =
+                info.add_instruction(migraphx::make_op("dequantizelinear"), in_b, bias_scale);
+
+            conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
+        }
 
         return bcast_qdq_instr("quantizelinear", conv_x_w, in_scale_y, in_zero_pt_y, info);
     }

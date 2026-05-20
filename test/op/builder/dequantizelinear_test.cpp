@@ -38,8 +38,8 @@ struct test_context
 
     test_context(const std::vector<size_t>& x_lens,
                  const std::vector<size_t>& s_lens,
-                 migraphx::shape::type_t x_type = migraphx::shape::get_type<x_typ>::value,
-                 migraphx::shape::type_t s_type = migraphx::shape::get_type<s_typ>::value)
+                 migraphx::shape::type_t x_type = migraphx::shape::get_type<x_typ>{},
+                 migraphx::shape::type_t s_type = migraphx::shape::get_type<s_typ>{})
         : x_shape{x_type, x_lens},
           s_shape{s_type, s_lens},
           zp_shape{x_type, s_lens},

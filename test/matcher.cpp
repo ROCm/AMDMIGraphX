@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1186,6 +1186,16 @@ TEST_CASE(match_finder)
     auto sum = mm.add_instruction(sum_op{}, one, two);
     mm.add_instruction(pass_op{}, sum);
     match::find_matches(mm, match_find_sum{sum}, match_find_literal{sum});
+}
+
+TEST_CASE(match_same_lens_inner_fails)
+{
+    migraphx::module mm;
+    auto one = mm.add_literal(1);
+    mm.add_instruction(pass_op{}, one);
+    auto m = match::same_lens(match::name("fake_op"));
+    auto r = find_match(mm, m);
+    EXPECT(r.result == mm.end());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

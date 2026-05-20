@@ -38,11 +38,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// nms_data is laid out as { float score; float box[4]; int box_index; } for a
-// total of 24 bytes per entry. The scratch workspace is allocated as raw uint8
-// and reinterpreted in the kernel.
-static constexpr std::size_t nms_bytes_per_data = 24;
-
 // Sort boxes per (batch, class) into nms_data{} tensor.
 struct nms_sort
 {
@@ -66,9 +61,11 @@ struct nms_sort
         const auto num_batches = boxes_s.lens()[0];
         const auto num_boxes  = boxes_s.lens()[1];
         const auto num_classes = scores_s.lens()[1];
-        const auto aligned_b =
-            static_cast<std::size_t>(bit_ceil(static_cast<std::uint32_t>(num_boxes)));
-        return shape{shape::uint8_type, {num_batches * num_classes * aligned_b * nms_bytes_per_data}};
+        const auto aligned_b = static_cast<std::size_t>(bit_ceil(static_cast<std::uint32_t>(num_boxes)));
+        shape out_scores_shape{shape::float_type, {num_batches * num_classes, aligned_b}};
+        shape out_boxes_shape{shape::float_type, {num_batches * num_classes, aligned_b, 4}};
+        shape out_box_index_shape{shape::int32_type, {num_batches * num_classes, aligned_b}};
+        return shape{{out_scores_shape, out_boxes_shape, out_box_index_shape}};
     }
 };
 MIGRAPHX_REGISTER_OP(nms_sort);

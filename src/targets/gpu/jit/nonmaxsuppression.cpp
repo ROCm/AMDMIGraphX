@@ -46,12 +46,21 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void nms_sort_kernel(${params})
 {
-    make_tensors()(${args})([](auto boxes, auto scores, auto sorted) {
+    make_tensors()(${args})([](auto boxes,
+                               auto scores,
+                               auto sorted_scores,
+                               auto sorted_boxes,
+                               auto sorted_box_indices) {
         nonmaxsuppression_sort<${center_point_box},
                                ${num_batches},
                                ${num_classes},
                                ${num_boxes},
-                               ${aligned_num_boxes}>(boxes, scores, sorted);
+                               ${aligned_num_boxes}>(
+           boxes,
+           scores,
+           sorted_scores,
+           sorted_boxes,
+           sorted_box_indices);
     });
 }
 
@@ -71,18 +80,28 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void nms_filter_kernel(${params})
 {
-    make_tensors()(${args})([](auto sorted,
-                                auto max_p,
-                                auto iou_p,
-                                auto thr_p,
-                                auto mask,
-                                auto output,
-                                auto counts) {
+    make_tensors()(${args})([](auto sorted_scores,
+                               auto sorted_boxes,
+                               auto sorted_box_indices,
+                               auto max_p,
+                               auto iou_p,
+                               auto thr_p,
+                               auto mask,
+                               auto output,
+                               auto counts) {
         nonmaxsuppression_filter<${num_batches},
                                  ${num_classes},
                                  ${num_boxes},
                                  ${aligned_num_boxes}>(
-            sorted, max_p, iou_p, thr_p, mask, output, counts);
+            sorted_scores,
+            sorted_boxes,
+            sorted_box_indices,
+            max_p,
+            iou_p,
+            thr_p,
+            mask,
+            output,
+            counts);
     });
 }
 

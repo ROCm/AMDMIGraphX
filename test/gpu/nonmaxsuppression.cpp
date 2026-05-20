@@ -66,7 +66,7 @@ static void add_nms_return(migraphx::module* mm, migraphx::instruction_ref nms)
     mm->add_return({idx, cnt});
 }
 
-TEST_CASE(nms_test)
+TEST_CASE(nms_default_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -362,6 +362,7 @@ TEST_CASE(nms_multi_class_test)
     EXPECT(num_selected == 4);
 }
 
+// Values generated from onnxruntime CPU EP
 TEST_CASE(nms_20boxes_test)
 {
     migraphx::program p;
@@ -407,6 +408,7 @@ TEST_CASE(nms_20boxes_test)
     EXPECT(num_selected == 10);
 }
 
+// Values generated from onnxruntime CPU EP
 TEST_CASE(nms_50boxes_center_test)
 {
     migraphx::program p;
@@ -465,6 +467,7 @@ TEST_CASE(nms_50boxes_center_test)
     EXPECT(num_selected == 20);
 }
 
+// Values generated from onnxruntime CPU EP
 TEST_CASE(nms_100boxes_2batch_test)
 {
     migraphx::program p;
@@ -585,6 +588,7 @@ TEST_CASE(nms_100boxes_2batch_test)
     EXPECT(num_selected == 30);
 }
 
+// Values generated from onnxruntime CPU EP
 TEST_CASE(nms_30boxes_3class_test)
 {
     migraphx::program p;
@@ -639,6 +643,7 @@ TEST_CASE(nms_30boxes_3class_test)
     EXPECT(num_selected == 15);
 }
 
+// Values generated from onnxruntime CPU EP
 TEST_CASE(nms_200boxes_2batch_2class_test)
 {
     migraphx::program p;
@@ -875,6 +880,5 @@ TEST_CASE(nms_200boxes_2batch_2class_test)
     EXPECT(migraphx::verify::verify_rms_range(indices, gold));
     EXPECT(num_selected == 100);
 }
-
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

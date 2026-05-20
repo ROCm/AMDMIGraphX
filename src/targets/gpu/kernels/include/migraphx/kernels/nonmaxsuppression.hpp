@@ -41,16 +41,26 @@ namespace migraphx {
 template <class Score, class Box, class Index>
 struct nms_data
 {
-    // should hold iterators
+    // holds a copy of data
     Score score;
-    Box box;
+    array<Box, 4> box;
     Index box_index;
+};
+
+// Comparator for sorting nms_data{}.
+template <class Score, class Box, class Index>
+struct nms_score_greater
+{
+    constexpr bool operator()(const nms_data<Score, Box, Index>& a, const nms_data<Score, Box, Index>& b) const
+    {
+        return a.score > b.score;
+    }
 };
 
 // Decode a single box into (xmin, ymin, xmax, ymax) corners.
 // Normalize such that [x1, y1] is the bottom left corner.
 template <bool CenterPointBox, class Box>
-__device__ inline array<typename Box::type, 4> nms_normalize_box(Box box)
+__device__ inline array<typename Box::type, 4> nms_normalize_box(const Box box)
 {
     if constexpr(CenterPointBox)
     {
@@ -77,7 +87,7 @@ __device__ inline array<typename Box::type, 4> nms_normalize_box(Box box)
 
 template <class Box, class Threshold>
 __device__ inline bool
-nms_iou_over_threshold(const Box a, Box b, Threshold threshold)
+nms_iou_over_threshold(const Box a, const Box b, const Threshold threshold)
 {
     const float left   = max(a[0], b[0]);
     const float right  = min(a[2], b[2]);
@@ -100,16 +110,6 @@ __device__ inline index_int nms_packed_idx(index_int i, index_int j, index_int N
     return (i * N - (i * (i + 1)) / 2) + j - (i + 1);
 }
 
-// Comparator for sorting nms_data{}.
-template <class Score, class Box, class Index>
-struct nms_score_greater
-{
-    constexpr bool operator()(const nms_data<Score, Box, Index>& a, const nms_data<Score, Box, Index>& b) const
-    {
-        return *(a.score) > *(b.score);
-    }
-};
-
 // One block per (batch_idx, class_idx).
 // Load data into per-block buffer of nms_data.
 // Pads values after N with sentinel values.
@@ -128,8 +128,8 @@ template <bool CenterPointBox,
           class SortedBoxes,
           class SortedIndices>
 __device__ void nonmaxsuppression_sort(
-    Boxes boxes_tv,
-    Scores scores_tv,
+    const Boxes boxes_tv,
+    const Scores scores_tv,
     SortedScores sorted_scores,
     SortedBoxes sorted_boxes,
     SortedIndices sorted_indices)
@@ -146,49 +146,44 @@ __device__ void nonmaxsuppression_sort(
     
     // numpy indexing: scores[batch_idx, class_idx, :]
     const auto my_scores = slice_tensor(scores_tv, array<index_int, 3>{batch_idx, class_idx, 0}, slice_axes<2>());
-    
-    auto block_out_scores = slice_tensor(sorted_scores, array<index_int, 2>{block_id, 0}, slice_axes<1>());
-    auto block_out_boxes = slice_tensor(sorted_boxes, array<index_int, 3>{block_id, 0, 0}, slice_axes<1, 2>());
-    auto block_out_indices = slice_tensor(sorted_indices, array<index_int, 2>{block_id, 0}, slice_axes<1>());
-
-    using scores_type = decltype(block_out_scores.begin());
-    using boxes_type = decltype(block_out_boxes.begin());
-    using indices_type = decltype(block_out_indices.begin());
+   
+    using scores_type = typename SortedScores::type;
+    using boxes_type = typename SortedBoxes::type;
+    using indices_type = typename SortedIndices::type;
+    // Use shared memory for sorting per-block nms_data. Assuming it fits in LDS.
+    // TODO: can add a static_assert on needed LDS size
     __shared__ uninitialized_buffer<nms_data<scores_type, boxes_type, indices_type>, AlignedNumBoxes> block_nms_data;
-
     idx.local_stride(AlignedNumBoxes, [&](auto i) {
         if(i < NumBoxes)
         {
-            block_out_scores[i] = my_scores[i];
-            // numpy indexing: boxes[batch_idx, i, :]
-            auto normed_box = nms_normalize_box<CenterPointBox>(
-                slice_tensor(boxes_tv, array<index_int, 3>{batch_idx, i, 0}, slice_axes<2>())
-            );
-            // numpy syntax: out_boxes[block_id, i, 0]
-            auto out_boxes_iter = block_out_boxes.begin_at(array<index_int, 3>{0, i, 0});
-            copy(normed_box.begin(), normed_box.end(), out_boxes_iter);
-            block_out_indices[i] = i;
+            block_nms_data[i].score     = my_scores[i];
+            block_nms_data[i].box       = nms_normalize_box<CenterPointBox>(
+                    slice_tensor(boxes_tv, array<index_int, 3>{batch_idx, i, 0}, slice_axes<2>()));
+            block_nms_data[i].box_index = static_cast<int32_t>(i);
         }
         else
         {
-            // Sentinel score so it never beats any real entry
-            block_out_scores[i] = numeric_lowest<typename Boxes::type>();
-            auto filler_box = array<float, 4>{0.f, 0.f, 0.f, 0.f};
-            auto out_boxes_iter = block_out_boxes.begin_at(array<index_int, 3>{0, i, 0});
-            copy(filler_box.begin(), filler_box.end(), out_boxes_iter);
-            block_out_indices[i] = -1;
+            block_nms_data[i].score     = numeric_lowest<typename Boxes::type>();
+            block_nms_data[i].box       = array<float, 4>{0.f, 0.f, 0.f, 0.f};
+            block_nms_data[i].box_index = -1;
         }
-        block_nms_data[i] = {
-            block_out_scores.begin_at(array<index_int, 2>{0, i}),
-            block_out_boxes.begin_at(array<index_int, 3>{0, i, 0}),
-            block_out_indices.begin_at(array<index_int, 2>{0, i})
-        };
     });
     __syncthreads();
-    bitonic_sort<nms_score_greater<scores_type, boxes_type, indices_type>>
-    {
-        nms_score_greater<scores_type, boxes_type, indices_type>{}
-    }.template block_sort<AlignedNumBoxes>(idx, block_nms_data);
+
+    bitonic_sort<nms_score_greater<scores_type, boxes_type, indices_type>>{nms_score_greater<scores_type, boxes_type, indices_type>{}}
+    .template block_sort<AlignedNumBoxes>(idx, block_nms_data);
+    __syncthreads();
+
+    // Copy sorted result back to global memory.
+    auto block_out_scores = slice_tensor(sorted_scores, array<index_int, 2>{block_id, 0}, slice_axes<1>());
+    auto block_out_boxes = slice_tensor(sorted_boxes, array<index_int, 3>{block_id, 0, 0}, slice_axes<1, 2>());
+    auto block_out_indices = slice_tensor(sorted_indices, array<index_int, 2>{block_id, 0}, slice_axes<1>());
+    idx.local_stride(AlignedNumBoxes, [&](auto i) {
+        block_out_scores[i]  = block_nms_data[i].score;
+        auto out_box_iter    = block_out_boxes.begin_at(array<index_int, 3>{0, i, 0});
+        copy(block_nms_data[i].box.begin(), block_nms_data[i].box.end(), out_box_iter);
+        block_out_indices[i] = block_nms_data[i].box_index;
+    });
 }
 
 // Build the packed upper-triangular IoU mask for the NumBoxes nms_data boxes.
@@ -197,7 +192,7 @@ __device__ void nonmaxsuppression_sort(
 // `nms_data`: nms_data nms_data{} tensor
 // `mask`: bool mask tensor
 template <index_int NumBoxes, class NMSData, class Mask, class IouThreshold>
-__device__ void nms_make_iou_mask(index idx, const NMSData nms_data, Mask mask, IouThreshold iou_threshold)
+__device__ void nms_make_iou_mask(const index idx, const NMSData nms_data, Mask mask, const IouThreshold iou_threshold)
 {
     static_assert(NumBoxes > 0);
     constexpr index_int half = NumBoxes / 2;
@@ -226,12 +221,12 @@ __device__ void nms_make_iou_mask(index idx, const NMSData nms_data, Mask mask, 
 // TODO: use template for types
 // Greedy filter that writes selections into a per-batch per-class region of output.
 template <index_int NumBoxes, index_int NumClasses, class NMSData, class Mask, class Output, class Counts>
-__device__ void nms_filter_per_block(index idx,
+__device__ void nms_filter_per_block(const index idx,
                                      const NMSData nms_data,
                                      const Mask mask,
-                                     int64_t max_output,
-                                     float score_thr,
-                                     Output output,
+                                     const int64_t max_output,
+                                     const float score_thr,
+                                     Output block_output,
                                      Counts bc_counts)
 {
     static_assert(NumBoxes > 0);
@@ -243,7 +238,7 @@ __device__ void nms_filter_per_block(index idx,
     // Match the ref op: only filter by score when score_threshold > 0.
     const bool do_filter = score_thr > 0.f;
     idx.local_stride(NumBoxes, [&](auto i) {
-        removed[i] = (do_filter and *(nms_data[i].score) < score_thr);
+        removed[i] = (do_filter and nms_data[i].score < score_thr);
     });
     __syncthreads();
 
@@ -259,8 +254,8 @@ __device__ void nms_filter_per_block(index idx,
         {
             if(idx.local == 0)
             {
-                array<typename Output::type, 3> tmp = {batch_idx, class_idx, *(nms_data[i].box_index)};
-                auto output_iter = output.begin_at(array<index_int, 3>{block_id, output_idx, 0});
+                array<typename Output::type, 3> tmp = {batch_idx, class_idx, nms_data[i].box_index};
+                auto output_iter = block_output.begin_at(array<index_int, 3>{0, output_idx, 0});
                 copy(tmp.begin(), tmp.end(), output_iter);
             }
             ++output_idx;
@@ -278,6 +273,8 @@ __device__ void nms_filter_per_block(index idx,
 
 // Per-block filter driver: one block per (batch_idx, class_idx).`.
 // Expecting box-coordinate convention has already been normalized into corner form.
+// TODO: Merge the nonmaxsuppression_sort and nonmaxsuppression_filter kernels by relaxing
+// the AlignedNumBoxes resitriction for the sort.
 template <index_int NumBatches,
           index_int NumClasses,
           index_int NumBoxes,
@@ -291,12 +288,12 @@ template <index_int NumBatches,
           class Mask,
           class Output,
           class Counts>
-__device__ void nonmaxsuppression_filter(SortedScores sorted_scores,
-                                         SortedBoxes sorted_boxes,
-                                         SortedIndices sorted_indices,
-                                         MaxOut max_out_p,
-                                         IouThr iou_thr_p,
-                                         ScoreThr score_thr_p,
+__device__ void nonmaxsuppression_filter(const SortedScores sorted_scores,
+                                         const SortedBoxes sorted_boxes,
+                                         const SortedIndices sorted_indices,
+                                         const MaxOut max_out_p,
+                                         const IouThr iou_thr_p,
+                                         const ScoreThr score_thr_p,
                                          Mask mask,
                                          Output output,
                                          Counts bc_counts)
@@ -305,30 +302,29 @@ __device__ void nonmaxsuppression_filter(SortedScores sorted_scores,
     static_assert(NumClasses > 0);
     static_assert(NumBoxes > 0);
 
-    auto idx                            = make_index();
-    const index_int block_idx            = idx.group;
+    auto idx = make_index();
+    const index_int block_idx = idx.group;
 
     auto my_sorted_scores = slice_tensor(sorted_scores, array<index_int, 2>{block_idx, 0}, slice_axes<1>());
     auto my_sorted_boxes = slice_tensor(sorted_boxes, array<index_int, 3>{block_idx, 0, 0}, slice_axes<1, 2>());
     auto my_sorted_indices = slice_tensor(sorted_indices, array<index_int, 2>{block_idx, 0}, slice_axes<1>());
 
-    using scores_type = decltype(my_sorted_scores.begin());
-    using boxes_type = decltype(my_sorted_boxes.begin());
-    using indices_type = decltype(my_sorted_indices.begin());
+    using scores_type = typename SortedScores::type;
+    using boxes_type = typename SortedBoxes::type;
+    using indices_type = typename SortedIndices::type;
+    // Use shared memory for sorting per-block nms_data. Assuming it fits in LDS.
+    // TODO: can add a static_assert on needed LDS size
     __shared__ uninitialized_buffer<nms_data<scores_type, boxes_type, indices_type>, NumBoxes> block_nms_data;
 
     idx.local_stride(AlignedNumBoxes, [&](auto i) {
         if(i < NumBoxes)
         {
-            block_nms_data[i] = {
-                my_sorted_scores.begin_at(array<index_int, 2>{0, i}),
-                my_sorted_boxes.begin_at(array<index_int, 3>{0, i, 0}),
-                my_sorted_indices.begin_at(array<index_int, 2>{0, i})
-            };
+            block_nms_data[i].score = my_sorted_scores[i];
+            auto boxes_iter = my_sorted_boxes.begin_at(array<index_int, 3>{0, i, 0});
+            copy(boxes_iter, boxes_iter + 4, block_nms_data[i].box.begin());
+            block_nms_data[i].box_index = my_sorted_indices[i];
         }
     });
-    __syncthreads();
-    
     auto my_mask = slice_tensor(mask, array<index_int, 2>{block_idx, 0}, slice_axes<1>());
     auto my_output = slice_tensor(output, array<index_int, 3>{block_idx, 0, 0}, slice_axes<1, 2>());
 
@@ -337,9 +333,10 @@ __device__ void nonmaxsuppression_filter(SortedScores sorted_scores,
     const float iou_thr_val   = iou_thr_p[0];
     const float score_thr_val = score_thr_p[0];
 
-    nms_make_iou_mask<NumBoxes>(idx, block_nms_data, my_mask, iou_thr_val);
     __syncthreads();
+    nms_make_iou_mask<NumBoxes>(idx, block_nms_data, my_mask, iou_thr_val);
 
+    __syncthreads();
     nms_filter_per_block<NumBoxes, NumClasses>(
         idx,
         block_nms_data,

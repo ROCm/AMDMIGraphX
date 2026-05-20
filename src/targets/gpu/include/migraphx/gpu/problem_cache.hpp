@@ -40,6 +40,7 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     void mark(const std::string& name, const value& problem);
     optional<value> get(const std::string& name, const value& problem) const;
     void load();
+    void load(const std::string& explicit_path, const std::string& explicit_backend);
     void save() const;
     std::unordered_map<value, value> cache;
 };

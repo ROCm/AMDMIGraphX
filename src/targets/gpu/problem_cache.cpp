@@ -23,7 +23,7 @@
  *
  */
 #include <migraphx/gpu/problem_cache.hpp>
-#include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/problem_cache_backend.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/env.hpp>
@@ -32,6 +32,8 @@
 #include <migraphx/logger.hpp>
 #include <migraphx/stringutils.hpp>
 #include <hip/hip_runtime_api.h>
+#include <iostream>
+#include <mutex>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -39,82 +41,204 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_PROBLEM_CACHE)
 
-static value create_key(const std::string& name, const value& problem)
+// Module-scoped backend storage.  Avoids adding any members to the
+// problem_cache struct (which would change its ABI / layout and break
+// compatibility with the stock migraphx_gpu.dll object files).
+// There is at most one active problem_cache per process (owned by
+// the gpu::context), so a simple static works.
+static problem_cache_backend& active_backend()
 {
-    return {{"name", name}, {"problem", problem}};
+    static problem_cache_backend backend;
+    return backend;
+}
+
+// The current device key string (derived from hw metadata on load).
+static std::string& active_device_key()
+{
+    static std::string dk;
+    return dk;
+}
+
+// Query current GPU hardware properties via HIP.
+// Returns empty metadata on failure (no device, HIP not initialized, etc.).
+static cache_hw_metadata query_current_gpu_metadata()
+{
+    cache_hw_metadata meta;
+    int device_id = 0;
+    if(hipGetDevice(&device_id) != hipSuccess)
+        return meta;
+
+    hipDeviceProp_t props{};
+    if(hipGetDeviceProperties(&props, device_id) != hipSuccess)
+        return meta;
+
+    meta.gpu_arch = props.gcnArchName;
+    // Trim target feature flags (e.g. "gfx1100:sramecc+:xnack-" → "gfx1100")
+    auto colon = meta.gpu_arch.find(':');
+    if(colon != std::string::npos)
+        meta.gpu_arch = meta.gpu_arch.substr(0, colon);
+
+    meta.cu_count            = props.multiProcessorCount;
+    meta.graphics_clock_mhz  = props.clockRate / 1000;       // kHz → MHz
+    meta.memory_clock_mhz    = props.memoryClockRate / 1000;  // kHz → MHz
+    meta.memory_bus_bits      = props.memoryBusWidth;
+    meta.vram_bytes           = static_cast<std::int64_t>(props.totalGlobalMem);
+    meta.wavefront_size       = props.warpSize;
+    meta.regs_per_block       = props.regsPerBlock;
+    meta.max_threads_per_cu   = props.maxThreadsPerMultiProcessor;
+
+    return meta;
 }
 
 void problem_cache::load()
 {
+    auto& backend = active_backend();
+    backend = make_default_cache_backend();
+
     auto pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});
     if(pc_path.empty())
         return;
-    if(not fs::exists(pc_path))
+
+    // Query live GPU hardware metadata to derive device key.
+    auto hw_meta = query_current_gpu_metadata();
+    auto dk = hw_meta.device_key();
+    active_device_key() = to_string(dk);
+
+    backend.open(pc_path, dk);
+
+    if(!hw_meta.empty())
+        backend.set_hw_metadata(hw_meta);
+
+    // For the JSON backend, populate the legacy in-memory cache for backward
+    // compatibility with any code that accesses problem_cache::cache directly.
+    if(backend.backend_name() == "json")
     {
-        log::info() << "Problem cache not found. Creating new file.";
-        save();
-        return;
-    }
-    // Deserialize into a temporary map, then project keys to {name, problem}
-    // so that extra metadata fields in the JSON don't break key matching.
-    std::unordered_map<value, value> raw;
-    from_value(from_json_string(read_string(pc_path)), raw);
-    for(auto& [k, v] : raw)
-    {
-        auto projected = create_key(k.at("name").to<std::string>(), k.at("problem"));
-        cache[projected] = v;
+        auto entries = backend.all_entries();
+        for(auto& e : entries)
+        {
+            value key = {{"name", e.name}, {"problem", e.problem}};
+            value sol = e.solution.empty() ? value{} : value(e.solution);
+            cache[key] = sol;
+        }
     }
 }
-void problem_cache::save() const
+
+void problem_cache::load(const std::string& explicit_path, const std::string& explicit_backend)
 {
-    auto pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});
+    auto& backend = active_backend();
+    backend = make_cache_backend_with_fallback(explicit_backend);
+
+    // Precedence: explicit path > env var > no cache
+    std::string pc_path = explicit_path;
+    if(pc_path.empty())
+        pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});
     if(pc_path.empty())
         return;
-    // Enrich keys with hardware provenance metadata on write.
-    // This runs once at session end — negligible cost.
-    hipDeviceProp_t props{};
-    auto status = hipGetDeviceProperties(&props, get_device_id());
 
-    std::unordered_map<value, value> enriched;
-    for(auto& [k, v] : cache)
+    // Query live GPU hardware metadata to derive device key.
+    auto hw_meta = query_current_gpu_metadata();
+    auto dk = hw_meta.device_key();
+    active_device_key() = to_string(dk);
+
+    backend.open(pc_path, dk);
+
+    if(!hw_meta.empty())
+        backend.set_hw_metadata(hw_meta);
+
+    // For the JSON backend, populate the legacy in-memory cache for backward
+    // compatibility with any code that accesses problem_cache::cache directly.
+    if(backend.backend_name() == "json")
     {
-        value rich_key = k;
-        if(status == hipSuccess)
+        auto entries = backend.all_entries();
+        for(auto& e : entries)
         {
-            rich_key["gpu_arch"]            = trim(split_string(std::string(props.gcnArchName), ':').front());
-            rich_key["cu_count"]            = static_cast<std::int64_t>(props.multiProcessorCount);
-            rich_key["graphics_clock_mhz"]  = static_cast<std::int64_t>(props.clockRate / 1000);
-            rich_key["memory_clock_mhz"]    = static_cast<std::int64_t>(props.memoryClockRate / 1000);
-            rich_key["memory_bus_bits"]      = static_cast<std::int64_t>(props.memoryBusWidth);
-            rich_key["vram_bytes"]           = static_cast<std::int64_t>(props.totalGlobalMem);
-            rich_key["wavefront_size"]       = static_cast<std::int64_t>(props.warpSize);
-            rich_key["regs_per_block"]       = static_cast<std::int64_t>(props.regsPerBlock);
-            rich_key["max_threads_per_cu"]   = static_cast<std::int64_t>(props.maxThreadsPerMultiProcessor);
+            value key = {{"name", e.name}, {"problem", e.problem}};
+            value sol = e.solution.empty() ? value{} : value(e.solution);
+            cache[key] = sol;
         }
-        enriched[rich_key] = v;
     }
-    write_string(pc_path, to_pretty_json_string(to_value(enriched)));
+}
+
+void problem_cache::save() const
+{
+    auto& backend = active_backend();
+    if(!backend)
+        return;
+
+    // For the JSON backend, sync the legacy in-memory cache → backend before
+    // persisting, since some code may write to the cache map directly.
+    if(backend.backend_name() == "json")
+    {
+        auto& dk = active_device_key();
+        std::vector<cache_entry> entries;
+        entries.reserve(cache.size());
+        for(auto& [k, v] : cache)
+        {
+            cache_entry e;
+            e.device_key = dk;
+            e.name     = k.at("name").to<std::string>();
+            e.problem  = k.at("problem").to<std::string>();
+            e.solution = v.is_null() ? std::string{} : v.to<std::string>();
+            entries.push_back(std::move(e));
+        }
+        backend.load_entries(entries);
+    }
+
+    backend.save();
 }
 
 bool problem_cache::has(const std::string& name, const value& problem) const
 {
-    return contains(cache, create_key(name, problem));
+    auto& backend = active_backend();
+    if(backend)
+        return backend.has(active_device_key(), name, problem.to<std::string>());
+    value key = {{"name", name}, {"problem", problem}};
+    return contains(cache, key);
 }
 
 void problem_cache::insert(const std::string& name, const value& problem, const value& solution)
 {
     assert(not solution.is_null());
-    cache[create_key(name, problem)] = solution;
+    auto& backend = active_backend();
+    if(backend)
+        backend.insert(active_device_key(), name, problem.to<std::string>(), solution.to<std::string>());
+
+    // Only update legacy cache map for JSON backend (backward compatibility)
+    if(!backend || backend.backend_name() == "json")
+    {
+        value key = {{"name", name}, {"problem", problem}};
+        cache[key] = solution;
+    }
 }
 
 void problem_cache::mark(const std::string& name, const value& problem)
 {
-    cache.insert(std::make_pair(create_key(name, problem), value{}));
+    auto& backend = active_backend();
+    if(backend)
+        backend.mark(active_device_key(), name, problem.to<std::string>());
+
+    // Only update legacy cache map for JSON backend (backward compatibility)
+    if(!backend || backend.backend_name() == "json")
+    {
+        value key = {{"name", name}, {"problem", problem}};
+        cache.insert(std::make_pair(key, value{}));
+    }
 }
 
 optional<value> problem_cache::get(const std::string& name, const value& problem) const
 {
-    auto it = cache.find(create_key(name, problem));
+    auto& backend = active_backend();
+    if(backend)
+    {
+        auto result = backend.get(active_device_key(), name, problem.to<std::string>());
+        if(!result)
+            return nullopt;
+        if(result->empty())
+            return value{};
+        return value(*result);
+    }
+    value key = {{"name", name}, {"problem", problem}};
+    auto it = cache.find(key);
     if(it == cache.end())
         return nullopt;
     return it->second;

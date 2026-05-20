@@ -397,18 +397,12 @@ struct find_mlss_conv
 
         // Set pad_h and pad_w from the convolution padding attribute.
         // MIGraphX padding layout: {pad_h_begin, pad_w_begin, pad_h_end, pad_w_end}
-        op.pad_h = static_cast<int32_t>(cur_padding[0]);
-        op.pad_w = static_cast<int32_t>(cur_padding[1]);
+        op.pad_h  = static_cast<int32_t>(cur_padding[0]);
+        op.pad_w  = static_cast<int32_t>(cur_padding[1]);
+        op.output = ins->get_shape();
 
         auto& m = mpm.get_module();
-
-        const auto out_shape  = ins->get_shape();
-
-        // Output buffer
-        auto output_alloc = m.insert_instruction(
-            ins, make_op("allocate", {{"shape", to_value(out_shape)}}));
-
-        m.replace_instruction(ins, op, {act_ins, wt_ins, output_alloc});
+        m.replace_instruction(ins, op, {act_ins, wt_ins});
     }
 };
 
@@ -522,16 +516,14 @@ struct find_mlss_conv_bias
         op.pad_w    = static_cast<int32_t>(cur_padding[1]);
         op.has_bias = true;
 
+        op.output = add_ins->get_shape();
+
         auto& m = mpm.get_module();
 
-        const auto out_shape = add_ins->get_shape();
-        auto output_alloc = m.insert_instruction(
-            add_ins, make_op("allocate", {{"shape", to_value(out_shape)}}));
-
-        // args: [input, weight, bias, output]
+        // args: [input, weight, bias]
         // replace_instruction rewrites add_ins in-place and detaches bcast_ins
         // and conv_ins from its input list, leaving them with no users.
-        m.replace_instruction(add_ins, op, {act_ins, wt_ins, bias_ins, output_alloc});
+        m.replace_instruction(add_ins, op, {act_ins, wt_ins, bias_ins});
 
         // Remove now-dead instructions (outputs().empty() guards against the
         // unlikely case another instruction also consumed them).
@@ -647,16 +639,12 @@ struct find_mlss_conv_bias_relu
         op.pad_w           = static_cast<int32_t>(cur_padding[1]);
         op.has_bias        = true;
         op.activation_mode = static_cast<uint8_t>(mlss_activation_mode::relu);
+        op.output          = relu_ins->get_shape();
 
         auto& m = mpm.get_module();
 
-        // Output shape matches the relu output (same as conv/add output).
-        const auto out_shape  = relu_ins->get_shape();
-        auto output_alloc = m.insert_instruction(
-            relu_ins, make_op("allocate", {{"shape", to_value(out_shape)}}));
-
         // Replace the relu instruction; conv, add, broadcast become dead.
-        m.replace_instruction(relu_ins, op, {act_ins, wt_ins, bias_ins, output_alloc});
+        m.replace_instruction(relu_ins, op, {act_ins, wt_ins, bias_ins});
 
         // Remove now-dead instructions inner-to-outer.
         if(add_ins->outputs().empty())
@@ -777,14 +765,10 @@ struct find_mlss_conv_bias_leaky_relu
         // Read the alpha attribute from the leaky_relu operator.
         const auto& lrelu_val  = lrelu_ins->get_operator().to_value();
         op.activation_alpha    = lrelu_val.get("alpha", 0.0f);
+        op.output              = lrelu_ins->get_shape();
 
         auto& m = mpm.get_module();
-
-        const auto out_shape = lrelu_ins->get_shape();
-        auto output_alloc = m.insert_instruction(
-            lrelu_ins, make_op("allocate", {{"shape", to_value(out_shape)}}));
-
-        m.replace_instruction(lrelu_ins, op, {act_ins, wt_ins, bias_ins, output_alloc});
+        m.replace_instruction(lrelu_ins, op, {act_ins, wt_ins, bias_ins});
 
         if(add_ins->outputs().empty())
             m.remove_instruction(add_ins);

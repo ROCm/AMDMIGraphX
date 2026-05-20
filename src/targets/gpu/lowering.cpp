@@ -117,6 +117,7 @@ struct miopen_apply
         add_scan_slice_op();
         add_fill_op();
         add_dyn_slice_op();
+        add_mlss_conv_op();
     }
 
     void copy_params() const
@@ -577,6 +578,19 @@ struct miopen_apply
                                                     {{"op", to_value(ins->get_operator())},
                                                      {"output_shape", to_value(ins->get_shape())}}),
                                             ins->inputs());
+        });
+    }
+
+    // gpu::mlss_conv is created by fuse_mlss (pre-lowering) without an
+    // output buffer.  Append the allocate here so it is created after
+    // optimize_module / CSE have already run.
+    void add_mlss_conv_op()
+    {
+        apply_map.emplace("gpu::mlss_conv", [=](instruction_ref ins) {
+            auto alloc                        = insert_allocation(ins, ins->get_shape());
+            std::vector<instruction_ref> refs = ins->inputs();
+            refs.push_back(alloc);
+            return mod->replace_instruction(ins, ins->get_operator(), refs);
         });
     }
 

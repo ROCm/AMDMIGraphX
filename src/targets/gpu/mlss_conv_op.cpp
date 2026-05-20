@@ -78,11 +78,14 @@ mlss_conv_op mlss_conv_op::make_navi48_fp16pk_f2x3_stride1()
     return op;
 }
 
-// Returns the shape of the last arg (the pre-allocated output buffer).
-// Layout: [input, weight, output] or [input, weight, bias, output].
+// Pre-lowering: returns the stored output shape (no output buffer arg yet).
+// Post-lowering: returns the shape of the last arg (the pre-allocated output buffer).
 shape mlss_conv_op::compute_shape(std::vector<shape> inputs) const
 {
-    return inputs.back();
+    std::size_t expected = has_bias ? 3 : 2;
+    if(inputs.size() > expected)
+        return inputs.back();
+    return output;
 }
 
 void mlss_conv_op::finalize(context&, const shape&, const std::vector<shape>&)
@@ -105,11 +108,11 @@ argument mlss_conv_op::compute(context& ctx,
 
     const auto& input  = args[0];
     const auto& weight = args[1];
-    const auto& output = args.back();
+    const auto& out_buf = args.back();
 
     const auto in_lens  = input.get_shape().lens();  // N, C, H, W
     const auto wt_lens  = weight.get_shape().lens(); // K, C, R, S
-    const auto out_lens = output.get_shape().lens(); // N, K, OH, OW
+    const auto out_lens = out_buf.get_shape().lens(); // N, K, OH, OW
 
     // -----------------------------------------------------------------------
     // Geometry — matches kernel_execution_conv_fp32_f2x3_stride1_cg64_kg128.cpp
@@ -167,7 +170,7 @@ argument mlss_conv_op::compute(context& ctx,
     // Device pointers as uint64_t (kernel ABI)
     uint64_t p_data   = reinterpret_cast<uint64_t>(input.data());
     uint64_t p_filter = reinterpret_cast<uint64_t>(weight.data());
-    uint64_t p_output = reinterpret_cast<uint64_t>(output.data());
+    uint64_t p_output = reinterpret_cast<uint64_t>(out_buf.data());
     uint64_t p_bias   = has_bias ? reinterpret_cast<uint64_t>(args[2].data()) : 0;
 
     float alpha = activation_alpha;

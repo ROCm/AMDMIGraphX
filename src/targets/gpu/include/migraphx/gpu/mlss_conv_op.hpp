@@ -64,6 +64,9 @@ struct mlss_conv_op
     // activation_alpha: parameter for parameterized activations (e.g. leaky_relu slope).
     // Passed to the kernel via the alpha field (offset 0x60 in the kernarg buffer).
     float activation_alpha = 0.0f;
+    // output: expected output shape, set during fusion.  Used by compute_shape
+    // before the lowering pass appends the pre-allocated output buffer.
+    shape output{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -76,7 +79,8 @@ struct mlss_conv_op
                     f(self.pad_w,             "pad_w"),
                     f(self.has_bias,          "has_bias"),
                     f(self.activation_mode,   "activation_mode"),
-                    f(self.activation_alpha,  "activation_alpha"));
+                    f(self.activation_alpha,  "activation_alpha"),
+                    f(self.output,            "output"));
     }
 
     // Non-reflected: rebuilt in finalize()
@@ -95,11 +99,15 @@ struct mlss_conv_op
     shape compute_shape(std::vector<shape> inputs) const;
     argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     void finalize(context&, const shape&, const std::vector<shape>&);
-    // args layout: [0]=input, [1]=weight, [2]=output  (no bias)
-    //              [0]=input, [1]=weight, [2]=bias, [3]=output  (has_bias)
+    // Pre-lowering:  [0]=input, [1]=weight              (no bias)
+    //                [0]=input, [1]=weight, [2]=bias    (has_bias)
+    // Post-lowering: output buffer appended as last arg
     std::vector<std::size_t> output_alias(const std::vector<shape>& inputs) const
     {
-        return {inputs.size() - 1};
+        std::size_t expected = has_bias ? 3 : 2;
+        if(inputs.size() > expected)
+            return {inputs.size() - 1};
+        return {};
     }
 };
 

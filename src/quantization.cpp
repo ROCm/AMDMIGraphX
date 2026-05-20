@@ -91,12 +91,25 @@ static void quantize_8bits(program& prog,
                            const target& t,
                            shape::type_t precision,
                            const std::vector<parameter_map>& calibration,
-                           const std::unordered_set<std::string>& ins_names,
-                           std::unordered_set<instruction_ref> skip_instructions = {})
+                           const std::unordered_set<std::string>& ins_names)
 {
     // Run optimize_module() before converting to int8/fp8 to const eval and fold in FP32 to
     // avoid loss of precision.
     run_passes(prog, {rewrite_rnn{}, normalize_ops{}, optimize_module{}}, quant_tracer());
+
+    // Skip Q/DQ insertion for instructions inside attention regions so the
+    // dot->softmax->dot pattern remains intact for fuse_attention
+    auto* mm = prog.get_main_module();
+    std::unordered_set<instruction_ref> skip_instructions;
+    for(auto ins : iterator_for(*mm))
+    {
+        auto r = match::match_instruction(*mm, ins, match::dot_softmax_dot());
+        if(r.result == mm->end())
+            continue;
+        auto region =
+            find_instructions_between(r.instructions["gemm1"], r.instructions["gemm2"], mm);
+        skip_instructions.insert(region.begin(), region.end());
+    }
 
     std::shared_ptr<std::vector<std::pair<float, float>>> quant_8bit_params =
         std::make_shared<std::vector<std::pair<float, float>>>();
@@ -200,17 +213,6 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
 {
     auto* mm = prog.get_main_module();
 
-    std::unordered_set<instruction_ref> attention_instructions;
-    for(auto ins : iterator_for(*mm))
-    {
-        auto r = match::match_instruction(*mm, ins, match::dot_softmax_dot());
-        if(r.result == mm->end())
-            continue;
-        auto region =
-            find_instructions_between(r.instructions["gemm1"], r.instructions["gemm2"], mm);
-        attention_instructions.insert(region.begin(), region.end());
-    }
-
     std::unordered_set<std::string> supported_ins_names;
     for(auto ins : iterator_for(*mm))
     {
@@ -224,12 +226,7 @@ void quantize_fp8(program& prog, const target& t, const std::vector<parameter_ma
         }
     }
 
-    quantize_8bits(prog,
-                   t,
-                   shape::fp8e4m3fn_type,
-                   calibration,
-                   supported_ins_names,
-                   std::move(attention_instructions));
+    quantize_8bits(prog, t, shape::fp8e4m3fn_type, calibration, supported_ins_names);
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -57,7 +57,7 @@ using dim_like = picked_variant<dim_like_picker, int64_t, shape::dynamic_dimensi
 // be probed during overload resolution for things like vector<dim_like>, which
 // would instantiate Picker::apply(vector<...>) and hard-fail.
 template <class T, MIGRAPHX_REQUIRES(std::is_same<T, dim_like>{})>
-inline std::ostream& operator<<(std::ostream& os, const T& d)
+inline std::ostream& operator<<(std::ostream & os, const T & d)
 {
     visit([&](const auto& x) { os << x; }, d);
     return os;

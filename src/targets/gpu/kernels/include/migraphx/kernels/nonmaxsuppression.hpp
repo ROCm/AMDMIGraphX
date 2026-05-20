@@ -191,8 +191,8 @@ __device__ void nonmaxsuppression_sort(
 // amount of work regardless of where it falls in the triangle.
 // `nms_data`: nms_data nms_data{} tensor
 // `mask`: bool mask tensor
-template <index_int NumBoxes, class NMSData, class Mask, class IouThreshold>
-__device__ void nms_make_iou_mask(const index idx, const NMSData nms_data, Mask mask, const IouThreshold iou_threshold)
+template <index_int NumBoxes, class NMSData, class Mask>
+__device__ void nms_make_iou_mask(const index idx, const NMSData nms_data, Mask mask, const float iou_threshold)
 {
     static_assert(NumBoxes > 0);
     constexpr index_int half = NumBoxes / 2;
@@ -224,7 +224,7 @@ template <index_int NumBoxes, index_int NumClasses, class NMSData, class Mask, c
 __device__ void nms_filter_per_block(const index idx,
                                      const NMSData nms_data,
                                      const Mask mask,
-                                     const int64_t max_output,
+                                     const int max_output,
                                      const float score_thr,
                                      Output block_output,
                                      Counts bc_counts)
@@ -326,7 +326,7 @@ __device__ void nonmaxsuppression_filter(const SortedScores sorted_scores,
     auto my_output = slice_tensor(output, array<index_int, 3>{block_idx, 0, 0}, slice_axes<1, 2>());
 
     // Read scalar tensor inputs
-    const int64_t max_output_boxes_per_class = max_out_p[0];
+    const int max_output_boxes_per_class = max_out_p[0];
     const float iou_thr_val   = iou_thr_p[0];
     const float score_thr_val = score_thr_p[0];
 

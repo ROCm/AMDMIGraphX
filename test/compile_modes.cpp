@@ -94,6 +94,18 @@ TEST_CASE(convert_string_integer_closest)
     EXPECT(migraphx::convert_to_compile_mode("30") == migraphx::compile_modes::balanced);
 }
 
+TEST_CASE(convert_uint8_out_of_range)
+{
+    EXPECT(migraphx::convert_to_compile_mode(uint8_t(200)) == migraphx::compile_modes::max);
+    EXPECT(migraphx::convert_to_compile_mode(uint8_t(101)) == migraphx::compile_modes::max);
+}
+
+TEST_CASE(convert_string_integer_out_of_range)
+{
+    EXPECT(migraphx::convert_to_compile_mode("-5") == migraphx::compile_modes::eager);
+    EXPECT(migraphx::convert_to_compile_mode("200") == migraphx::compile_modes::max);
+}
+
 TEST_CASE(convert_string_invalid)
 {
     EXPECT(test::throws([&] { migraphx::convert_to_compile_mode("invalid"); }));

@@ -43,6 +43,7 @@ compile_modes convert_to_compile_mode(uint8_t mode)
     static const std::array<compile_modes, 3> modes = {
         compile_modes::eager, compile_modes::balanced, compile_modes::max};
 
+    // NOLINTNEXTLINE(readability-qualified-auto)
     auto it = std::find_if(modes.begin(), modes.end(), [&](compile_modes m) {
         return static_cast<uint8_t>(m) == clamped;
     });

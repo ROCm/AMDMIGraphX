@@ -64,4 +64,9 @@ TEST_CASE(compile_options_set_compile_mode_max)
     CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::max);
 }
 
+TEST_CASE(compile_options_set_compile_mode_null_pointer)
+{
+    CHECK(migraphx_compile_options_set_compile_mode(nullptr, 50) == migraphx_status_bad_param);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

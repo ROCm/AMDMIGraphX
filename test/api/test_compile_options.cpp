@@ -37,4 +37,31 @@ TEST_CASE(compile_options_api_test)
     CHECK(s_options->offload_copy == false);
 }
 
+TEST_CASE(compile_options_set_compile_mode_eager)
+{
+    migraphx::api::compile_options options;
+    options.set_compile_mode(0);
+    const auto* s_options = reinterpret_cast<const migraphx::MIGRAPHX_INLINE_NS::compile_options*>(
+        options.get_handle_ptr());
+    CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::eager);
+}
+
+TEST_CASE(compile_options_set_compile_mode_balanced)
+{
+    migraphx::api::compile_options options;
+    options.set_compile_mode(50);
+    const auto* s_options = reinterpret_cast<const migraphx::MIGRAPHX_INLINE_NS::compile_options*>(
+        options.get_handle_ptr());
+    CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::balanced);
+}
+
+TEST_CASE(compile_options_set_compile_mode_max)
+{
+    migraphx::api::compile_options options;
+    options.set_compile_mode(100);
+    const auto* s_options = reinterpret_cast<const migraphx::MIGRAPHX_INLINE_NS::compile_options*>(
+        options.get_handle_ptr());
+    CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::max);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

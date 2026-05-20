@@ -106,6 +106,10 @@ void capture_arguments_pass::apply(module& m) const // NOLINT
         {
             continue;
         }
+        if(contains(skip_instructions, ins))
+        {
+            continue;
+        }
 
         auto inputs = ins->inputs();
         std::vector<instruction_ref> new_args;

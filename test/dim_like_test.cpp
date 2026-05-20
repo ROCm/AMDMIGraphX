@@ -50,86 +50,92 @@ static dim_like round_trip(const dim_like& d)
 TEST_CASE(construct_default)
 {
     dim_like d;
-    EXPECT(std::holds_alternative<int64_t>(d.value));
-    EXPECT(std::get<int64_t>(d.value) == 0);
+    EXPECT(std::holds_alternative<int64_t>(d));
+    EXPECT(std::get<int64_t>(d) == 0);
 }
 
 TEST_CASE(construct_int_marker_zero)
 {
     dim_like d = 0;
-    EXPECT(std::holds_alternative<int64_t>(d.value));
-    EXPECT(std::get<int64_t>(d.value) == 0);
+    EXPECT(std::holds_alternative<int64_t>(d));
+    EXPECT(std::get<int64_t>(d) == 0);
 }
 
 TEST_CASE(construct_int_marker_neg_one)
 {
     dim_like d = -1;
-    EXPECT(std::holds_alternative<int64_t>(d.value));
-    EXPECT(std::get<int64_t>(d.value) == -1);
+    EXPECT(std::holds_alternative<int64_t>(d));
+    EXPECT(std::get<int64_t>(d) == -1);
 }
 
 TEST_CASE(construct_int_value)
 {
     dim_like d = 42;
-    EXPECT(std::holds_alternative<int64_t>(d.value));
-    EXPECT(std::get<int64_t>(d.value) == 42);
+    EXPECT(std::holds_alternative<int64_t>(d));
+    EXPECT(std::get<int64_t>(d) == 42);
 }
 
 TEST_CASE(construct_from_size_t)
 {
     std::size_t n = 7;
     dim_like d    = n;
-    EXPECT(std::holds_alternative<int64_t>(d.value));
-    EXPECT(std::get<int64_t>(d.value) == 7);
+    EXPECT(std::holds_alternative<int64_t>(d));
+    EXPECT(std::get<int64_t>(d) == 7);
 }
 
 TEST_CASE(construct_from_dynamic_dimension_range)
 {
     dim_like d = dd{1, 4};
-    EXPECT(std::holds_alternative<dd>(d.value));
-    EXPECT(std::get<dd>(d.value) == dd{1, 4});
+    EXPECT(std::holds_alternative<dd>(d));
+    EXPECT(std::get<dd>(d) == dd{1, 4});
 }
 
 TEST_CASE(construct_from_dynamic_dimension_symbolic)
 {
     dim_like d = dd{migraphx::sym::var("n", {1, 8})};
-    EXPECT(std::holds_alternative<dd>(d.value));
-    EXPECT(std::get<dd>(d.value).is_symbolic());
+    EXPECT(std::holds_alternative<dd>(d));
+    EXPECT(std::get<dd>(d).is_symbolic());
+}
+
+TEST_CASE(get_throws_on_wrong_alternative)
+{
+    dim_like d = 42;
+    EXPECT(test::throws([&] { (void)std::get<dd>(d); }));
 }
 
 // ===================================================================
-// Equality / count semantics for legacy 0/-1 marker patterns
+// Equality and std::count on 0 / -1 markers
 // ===================================================================
 
 TEST_CASE(equality_int_marker_zero)
 {
     dim_like d = 0;
-    EXPECT(d == 0);
-    EXPECT(0 == d);
-    EXPECT(not(d == -1));
+    EXPECT(d == dim_like{0});
+    EXPECT(dim_like{0} == d);
+    EXPECT(not(d == dim_like{-1}));
 }
 
 TEST_CASE(equality_int_marker_neg_one)
 {
     dim_like d = -1;
-    EXPECT(d == -1);
-    EXPECT(-1 == d);
-    EXPECT(not(d == 0));
+    EXPECT(d == dim_like{-1});
+    EXPECT(dim_like{-1} == d);
+    EXPECT(not(d == dim_like{0}));
 }
 
 TEST_CASE(equality_int_value)
 {
     dim_like d = 5;
-    EXPECT(d == 5);
-    EXPECT(5 == d);
-    EXPECT(d != 4);
+    EXPECT(d == dim_like{5});
+    EXPECT(dim_like{5} == d);
+    EXPECT(d != dim_like{4});
 }
 
 TEST_CASE(equality_dd_alternative_never_matches_marker)
 {
     dim_like d = dd{0, 4};
-    EXPECT(d != 0);
-    EXPECT(d != -1);
+    EXPECT(d != dim_like{0});
+    EXPECT(d != dim_like{-1});
 }
 
 TEST_CASE(equality_between_alternatives)
@@ -139,27 +145,11 @@ TEST_CASE(equality_between_alternatives)
     EXPECT(a != b);
 }
 
-TEST_CASE(adl_get_and_holds_alternative)
-{
-    using migraphx::get;
-    using migraphx::holds_alternative;
-
-    dim_like d_int = 42;
-    EXPECT(holds_alternative<int64_t>(d_int));
-    EXPECT(get<int64_t>(d_int) == 42);
-
-    dim_like d_dd = dd{1, 4};
-    EXPECT(holds_alternative<dd>(d_dd));
-    EXPECT(get<dd>(d_dd) == dd{1, 4});
-
-    EXPECT(test::throws([&] { (void)get<dd>(d_int); }));
-}
-
 TEST_CASE(std_count_marker)
 {
     std::vector<dim_like> dims = {0, 0, 6, -1};
-    EXPECT(std::count(dims.begin(), dims.end(), -1) == 1);
-    EXPECT(std::count(dims.begin(), dims.end(), 0) == 2);
+    EXPECT(std::count(dims.begin(), dims.end(), dim_like{-1}) == 1);
+    EXPECT(std::count(dims.begin(), dims.end(), dim_like{0}) == 2);
 }
 
 // ===================================================================
@@ -208,7 +198,7 @@ TEST_CASE(serialize_int_zero)
     dim_like d = 0;
     auto rt    = round_trip(d);
     EXPECT(rt == d);
-    EXPECT(std::holds_alternative<int64_t>(rt.value));
+    EXPECT(std::holds_alternative<int64_t>(rt));
 }
 
 TEST_CASE(serialize_int_neg_one)
@@ -216,7 +206,7 @@ TEST_CASE(serialize_int_neg_one)
     dim_like d = -1;
     auto rt    = round_trip(d);
     EXPECT(rt == d);
-    EXPECT(std::holds_alternative<int64_t>(rt.value));
+    EXPECT(std::holds_alternative<int64_t>(rt));
 }
 
 TEST_CASE(serialize_int_value)
@@ -224,7 +214,7 @@ TEST_CASE(serialize_int_value)
     dim_like d = 42;
     auto rt    = round_trip(d);
     EXPECT(rt == d);
-    EXPECT(std::holds_alternative<int64_t>(rt.value));
+    EXPECT(std::holds_alternative<int64_t>(rt));
 }
 
 TEST_CASE(serialize_dd_range)
@@ -232,7 +222,7 @@ TEST_CASE(serialize_dd_range)
     dim_like d = dd{1, 4};
     auto rt    = round_trip(d);
     EXPECT(rt == d);
-    EXPECT(std::holds_alternative<dd>(rt.value));
+    EXPECT(std::holds_alternative<dd>(rt));
 }
 
 TEST_CASE(serialize_dd_symbolic)
@@ -240,13 +230,11 @@ TEST_CASE(serialize_dd_symbolic)
     dim_like d = dd{migraphx::sym::var("n", {1, 8})};
     auto rt    = round_trip(d);
     EXPECT(rt == d);
-    EXPECT(std::holds_alternative<dd>(rt.value));
+    EXPECT(std::holds_alternative<dd>(rt));
 }
 
 // ===================================================================
-// Backward-compat: legacy serialized models stored dims as a plain int64
-// array. Decoding such a value into vector<dim_like> must succeed and
-// produce the int alternative for every entry.
+// Backward-compat: load and save against legacy int / size_t arrays
 // ===================================================================
 
 TEST_CASE(from_value_legacy_int_array)
@@ -258,8 +246,6 @@ TEST_CASE(from_value_legacy_int_array)
 
 TEST_CASE(from_value_size_t_array)
 {
-    // Common path at op-construction sites: make_op("...", {{"dims", lens()}})
-    // where lens() is vector<size_t>. The value layer routes that through uint64.
     std::vector<std::size_t> lens = {4, 24, 1};
     auto loaded = migraphx::from_value<std::vector<dim_like>>(migraphx::to_value(lens));
     EXPECT(loaded == std::vector<dim_like>{4, 24, 1});
@@ -267,9 +253,6 @@ TEST_CASE(from_value_size_t_array)
 
 TEST_CASE(to_value_int_array_byte_compat)
 {
-    // A vector<dim_like> holding only int alternatives must serialize to the
-    // same value as the equivalent vector<int64_t>, so models with no symbolic
-    // dims save byte-identical to today.
     std::vector<dim_like> dims = {0, 0, 6, -1};
     std::vector<int64_t> legacy{0, 0, 6, -1};
     EXPECT(migraphx::to_value(dims) == migraphx::to_value(legacy));
@@ -286,6 +269,38 @@ TEST_CASE(round_trip_mixed_vector)
     auto v      = migraphx::to_value(dims);
     auto loaded = migraphx::from_value<std::vector<dim_like>>(v);
     EXPECT(loaded == dims);
+}
+
+// ===================================================================
+// ADL visit
+// ===================================================================
+
+TEST_CASE(visit_int)
+{
+    dim_like d = 42;
+    auto seen  = visit(
+        [](const auto& x) -> std::string {
+            if constexpr(std::is_same_v<std::decay_t<decltype(x)>, int64_t>)
+                return "int";
+            else
+                return "dd";
+        },
+        d);
+    EXPECT(seen == "int");
+}
+
+TEST_CASE(visit_dd)
+{
+    dim_like d = dd{1, 4};
+    auto seen  = visit(
+        [](const auto& x) -> std::string {
+            if constexpr(std::is_same_v<std::decay_t<decltype(x)>, int64_t>)
+                return "int";
+            else
+                return "dd";
+        },
+        d);
+    EXPECT(seen == "dd");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

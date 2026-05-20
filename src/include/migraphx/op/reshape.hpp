@@ -72,9 +72,9 @@ struct reshape
     // Makes no checks for the validity of the `dims` attribute for the given input shape.
     shape dyn_1arg_compute_shape(shape s0) const
     {
-        auto input_dyn_dims = s0.dyn_dims();
-        const auto neg_dim_num =
-            std::distance(this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), -1));
+        auto input_dyn_dims    = s0.dyn_dims();
+        const auto neg_dim_num = std::distance(
+            this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), dim_like{-1}));
         const bool has_negative_dim_attr = neg_dim_num < dims.size();
         // construct output dynamic shape from dims attribute
         std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
@@ -82,17 +82,17 @@ struct reshape
         for(std::size_t i = 0; i < dims.size(); ++i)
         {
             auto d = dims.at(i);
-            if(d == 0)
+            if(d == dim_like{0})
             {
                 output_dyn_dims.at(i) = input_dyn_dims.at(i);
             }
-            else if(d == -1)
+            else if(d == dim_like{-1})
             {
                 output_dyn_dims.at(i) = {1, 1};
             }
             else
             {
-                std::size_t u_dim     = get<int64_t>(d);
+                std::size_t u_dim     = std::get<int64_t>(d);
                 output_dyn_dims.at(i) = {u_dim, u_dim};
             }
         }
@@ -142,16 +142,16 @@ struct reshape
         auto&& idims = inputs.front().lens();
         std::vector<std::size_t> rdims(dims.size());
         std::transform(dims.begin(), dims.end(), rdims.begin(), [](const dim_like& d) {
-            return get<int64_t>(d);
+            return std::get<int64_t>(d);
         });
 
         for(std::size_t i = 0; i < dims.size(); i++)
         {
-            if(dims[i] == 0)
+            if(dims[i] == dim_like{0})
                 rdims[i] = idims[i];
 
             // convert -1 to 1 for rdims since rdims uses size_t (-1 is max_int for size_t)
-            if(dims[i] == -1)
+            if(dims[i] == dim_like{-1})
                 rdims[i] = 1;
         }
 
@@ -162,7 +162,7 @@ struct reshape
                 std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
             for(std::size_t i = 0; i < rdims.size(); i++)
             {
-                if(dims[i] == -1)
+                if(dims[i] == dim_like{-1})
                     rdims[i] = missing_dim;
             }
         }
@@ -186,7 +186,7 @@ struct reshape
     {
         check_shapes{inputs, *this, true}.has(1, 2);
 
-        auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
+        auto n_neg_dims = std::count(dims.begin(), dims.end(), dim_like{-1});
         if(n_neg_dims > 1)
             MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
 

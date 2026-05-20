@@ -27,10 +27,9 @@
 #include <cstdint>
 #include <ostream>
 #include <type_traits>
-#include <utility>
-#include <variant>
 
 #include <migraphx/config.hpp>
+#include <migraphx/picked_variant.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/shape.hpp>
 
@@ -39,51 +38,33 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 struct value;
 
-// A dim attribute entry that may be either a plain int64_t or a
-// dynamic_dimension. Used by ops whose dim-valued attributes need to carry
-// either static integers or dynamic/symbolic dimensions.
-struct MIGRAPHX_EXPORT dim_like
+// Routes any integral type through int64_t so call sites don't need casts.
+struct dim_like_picker
 {
-    std::variant<int64_t, shape::dynamic_dimension> value = int64_t{0};
-
-    constexpr dim_like() = default;
-
     template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
-    constexpr dim_like(T v) : value{static_cast<int64_t>(v)} // NOLINT(google-explicit-constructor)
+    static int64_t apply(T v)
     {
+        return static_cast<int64_t>(v);
     }
 
-    dim_like(shape::dynamic_dimension d) // NOLINT(google-explicit-constructor)
-        : value{std::move(d)}
-    {
-    }
-
-    friend bool operator==(const dim_like& a, const dim_like& b) { return a.value == b.value; }
-    friend bool operator!=(const dim_like& a, const dim_like& b) { return not(a == b); }
-
-    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const dim_like& d);
-
-    migraphx::value to_value() const;
-    void from_value(const migraphx::value& v);
+    static shape::dynamic_dimension apply(shape::dynamic_dimension d) { return d; }
 };
 
-template <class T>
-bool holds_alternative(const dim_like& d)
+// A dim attribute entry that may be either a plain int64_t or a dynamic_dimension.
+using dim_like = picked_variant<dim_like_picker, int64_t, shape::dynamic_dimension>;
+
+// Templated to hide from ADL on unrelated types: a non-template overload would
+// be probed during overload resolution for things like vector<dim_like>, which
+// would instantiate Picker::apply(vector<...>) and hard-fail.
+template <class T, MIGRAPHX_REQUIRES(std::is_same<T, dim_like>{})>
+inline std::ostream& operator<<(std::ostream& os, const T& d)
 {
-    return std::holds_alternative<T>(d.value);
+    visit([&](const auto& x) { os << x; }, d);
+    return os;
 }
 
-template <class T>
-const T& get(const dim_like& d)
-{
-    return std::get<T>(d.value);
-}
-
-template <class T>
-T& get(dim_like& d)
-{
-    return std::get<T>(d.value);
-}
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const dim_like& d);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, dim_like& d);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

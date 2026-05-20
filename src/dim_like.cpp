@@ -26,36 +26,24 @@
 #include <migraphx/serialize.hpp>
 #include <migraphx/value.hpp>
 
-#include <variant>
-
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-std::ostream& operator<<(std::ostream& os, const dim_like& d)
+void migraphx_to_value(value& v, const dim_like& d)
 {
-    std::visit([&](const auto& x) { os << x; }, d.value);
-    return os;
+    v = visit([](const auto& x) { return migraphx::to_value(x); }, d);
 }
 
-migraphx::value dim_like::to_value() const
+void migraphx_from_value(const value& v, dim_like& d)
 {
-    return std::visit([](const auto& x) { return migraphx::to_value(x); }, this->value);
-}
-
-void dim_like::from_value(const migraphx::value& v)
-{
-    // Backward-compatible path: integer-valued entries (signed or unsigned)
-    // route through the int alternative so old .mxr files and call sites that
-    // pass plain integer arrays both decode without going through the
-    // dynamic_dimension reflect path.
-    if(v.is_int64() or v.is_uint64())
+    if(v.is_object())
     {
-        this->value = v.to<int64_t>();
+        shape::dynamic_dimension dd;
+        migraphx::from_value(v, dd);
+        d = std::move(dd);
         return;
     }
-    shape::dynamic_dimension d;
-    migraphx::from_value(v, d);
-    this->value = std::move(d);
+    d = v.to<int64_t>();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

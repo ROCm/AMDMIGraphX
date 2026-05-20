@@ -42,6 +42,7 @@
 #include <migraphx/gpu/hsa_chiplet.hpp>
 #include <unordered_map>
 #include <memory>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -362,33 +363,27 @@ struct context
         this->current_device = std::make_shared<hip_device>(device, n_streams);
     }
 
+    // Pure event-based synchronization point.  Records an event on the
+    // caller's queue and makes the context's current stream wait on it.
+    // Intentionally does NOT mutate the active queue binding -- that is the
+    // job of set_queue()/restore_queue().  Safe to call whether or not a
+    // set_queue() is in effect: if the bound queue happens to equal the
+    // caller's queue the event round-trip is a cheap intra-stream no-op.
     void wait_for(any_ptr queue)
     {
-        if(get_stream().has_external_stream())
-            return;
         if(queue.unsafe_get() == nullptr)
             return;
-        auto* ext = queue.get<hipStream_t>();
-        if(ext == nullptr)
-        {
+        auto* ext   = queue.get<hipStream_t>();
             auto status = hipEventRecord(begin_event.get(), ext);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to record: " + hip_error(status));
             get_stream().wait(begin_event.get());
-        }
-        else
-        {
-            get_stream().set_external_stream(ext);
-        }
     }
 
+    // Symmetric counterpart of wait_for().  Records an event on the context's
+    // current stream and makes the caller's queue wait on it.
     void finish_on(any_ptr queue)
     {
-        if(get_stream().has_external_stream())
-        {
-            get_stream().set_external_stream(nullptr);
-            return;
-        }
         if(queue.unsafe_get() == nullptr)
             return;
         get_stream().record(finish_event.get());

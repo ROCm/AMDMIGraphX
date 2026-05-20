@@ -126,7 +126,10 @@ MIGRAPHX_GLOBAL void nms_compact_kernel(${params})
                                auto selected_indices,
                                auto num_selected) {
         nonmaxsuppression_compact<${num_batch_class}, ${num_boxes}>(
-            bc_counts, indices, selected_indices, num_selected);
+            bc_counts,
+            indices,
+            selected_indices,
+            num_selected);
     });
 }
 
@@ -153,16 +156,16 @@ struct nms_sort_compiler : compiler<nms_sort_compiler>
         auto block_size = compute_block_size(ctx, aligned_num_boxes, 1024);
 
         hip_compile_options options;
-        options.inputs         = inputs;
+        options.inputs         = flatten_shapes(inputs);
         options.output         = inputs.back();
         options.kernel_name    = "nms_sort_kernel";
-        options.virtual_inputs = inputs;
+        options.virtual_inputs = options.inputs;
         options.set_launch_params(v, num_batches * num_classes * block_size, block_size);
 
         auto src = interpolate_string(
             nms_sort_kernel_src,
-            {{"params", enum_params(inputs.size(), "void * private_p")},
-             {"args", enum_params(inputs.size(), "private_p")},
+            {{"params", enum_params(options.inputs.size(), "void * private_p")},
+             {"args", enum_params(options.inputs.size(), "private_p")},
              {"num_batches", std::to_string(num_batches)},
              {"num_classes", std::to_string(num_classes)},
              {"num_boxes", std::to_string(num_boxes)},

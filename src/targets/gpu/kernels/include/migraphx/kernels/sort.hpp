@@ -160,7 +160,14 @@ struct bitonic_sort
                     {
                         const bool reverse = (tid & k) != 0;
                         if(this->compare(buf[tid], buf[partner], reverse))
-                            swap(buf[tid], buf[partner]);
+                        {
+                            swap(*(buf[tid].score), *(buf[partner].score));
+                            swap(*(buf[tid].box), *(buf[partner].box));
+                            swap(*(buf[tid].box+1), *(buf[partner].box+1));
+                            swap(*(buf[tid].box+2), *(buf[partner].box+2));
+                            swap(*(buf[tid].box+3), *(buf[partner].box+3));
+                            swap(*(buf[tid].box_index), *(buf[partner].box_index));
+                        }
                     }
                 });
                 __syncthreads();

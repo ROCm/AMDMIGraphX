@@ -75,6 +75,7 @@ struct nonmaxsuppression
         // Per ONNX spec, output is [num_selected_indices, 3] where each row is
         // [batch_index, class_index, box_index]. The maximum possible
         // num_selected_indices = num_batches * num_classes * spatial_dimension.
+        // TODO: can also be limited by max_output_boxes_per_class
         const auto max_num_boxes = max_batches * max_classes * max_spatial_dimension;
 
         auto fixed_shape_error_check = [&]() {

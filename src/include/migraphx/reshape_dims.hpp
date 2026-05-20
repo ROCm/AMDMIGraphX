@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -20,58 +20,29 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
+ *
  */
-#ifndef MIGRAPHX_GUARD_OPERATORS_LOGSOFTMAX_HPP
-#define MIGRAPHX_GUARD_OPERATORS_LOGSOFTMAX_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_RESHAPE_DIMS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_RESHAPE_DIMS_HPP
 
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/optional.hpp>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace op {
 
-struct logsoftmax
+struct shape;
+
+struct reshape_dims_options
 {
-    int64_t axis = 1;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.axis, "axis"));
-    }
-
-    value attributes() const
-    {
-        value normalize;
-        normalize["axis"] = value::array{normalize_attribute::include_min};
-        return {{"normalize_axes", normalize}};
-    }
-
-    std::string name() const { return "logsoftmax"; }
-    shape normalize_compute_shape(std::vector<shape> inputs) const
-    {
-        check_shapes{inputs, *this, true}.has(1);
-        auto s0 = inputs[0];
-        if(s0.packed())
-            return s0;
-        if(s0.symbolic())
-            return s0.with_lens(s0.dyn_dims());
-        if(s0.dynamic())
-            return s0;
-        return s0.with_lens(s0.lens());
-    }
-
-    auto output() const
-    {
-        return [=](auto x, auto y) { return std::log(x / y); };
-    }
+    bool lazy = false;
 };
 
-} // namespace op
+MIGRAPHX_EXPORT optional<shape> reshape_dims(const shape& input,
+                                             const std::vector<std::size_t>& rdims,
+                                             reshape_dims_options options);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_RESHAPE_DIMS_HPP

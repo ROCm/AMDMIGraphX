@@ -66,6 +66,7 @@
 
 # Recommended location to install rbuild dependencies from README.md
 /depend*
+/.depend*
 
 # Python virtual envs
 venv_rbuild
@@ -92,3 +93,7 @@ docs/_toc.yml
 .env
 .env.*
 !.env.example
+
+# Ignore CMake user presets
+CMakeUserPresets.json
+

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,7 +39,7 @@ as_address(const std::list<instruction>::iterator& ins) noexcept;
 MIGRAPHX_EXPORT const migraphx::instruction*
 as_address(const std::list<instruction>::const_iterator& ins) noexcept;
 
-#if defined(CPPCHECK)
+#ifdef CPPCHECK
 using instruction_ref = std::list<instruction>::iterator;
 #else
 struct instruction_ref : std::list<instruction>::iterator

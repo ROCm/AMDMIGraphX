@@ -40,6 +40,7 @@ Full documentation for MIGraphX is available at
 * Allowing all grouped convolutions to go through rocMLIR. Previously only allowed 2D convolutions (#4815). 
 * Updated `bcast_qdq_instr` to accept an `axis` parameter for broadcasting 1-D scale/zero-point along the correct dimension.
 * Updated `QLinearConv` bias handling to dequantize bias using the product of input and weight scales before adding to the convolution output.
+* Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
 
 ### Resolved issues
 
@@ -60,6 +61,7 @@ Full documentation for MIGraphX is available at
 
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
+* Added early return to avoid unessicary fill operation if tile sizes out of range (#4514).
 * Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)

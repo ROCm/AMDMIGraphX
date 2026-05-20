@@ -372,6 +372,13 @@ struct shape_impl
         return compute_elements<std::size_t>(m_lens);
     }
 
+    sym::expr sym_elements() const
+    {
+        if(not m_dyn_dims.empty() and not all_dims_symbolic())
+            MIGRAPHX_THROW("SHAPE: sym_elements() called on a range-only dynamic shape");
+        return compute_elements<sym::expr>(sym_dims());
+    }
+
     std::size_t get_index(size_t i) const
     {
         std::size_t result = 0;
@@ -485,6 +492,10 @@ bool shape::is_integral(shape::type_t t)
     return result;
 }
 
+// Returns true if `actual` can stand in for `expected`: same type and dims,
+// with strides matching on every non-broadcast (dim != 1) axis. Symbolic
+// shapes are compared the same way; a range-based dynamic `expected` only
+// requires matching rank.
 bool shape::is_compatible(const shape& actual, const shape& expected)
 {
     // Check subshapes
@@ -494,23 +505,27 @@ bool shape::is_compatible(const shape& actual, const shape& expected)
         return true;
     if(actual.type() != expected.type())
         return false;
+    auto compatible =
+        [](const auto& a_dims, const auto& e_dims, const auto& a_strides, const auto& e_strides) {
+            return a_dims == e_dims and all_of(range(a_dims.size()), [&](auto i) {
+                       return a_dims[i] == 1 or a_strides[i] == e_strides[i];
+                   });
+        };
+    if(actual.symbolic() and expected.symbolic())
+        return compatible(
+            actual.dyn_dims(), expected.dyn_dims(), actual.dyn_strides(), expected.dyn_strides());
     // Only the expected can be dynamic
     if(expected.dynamic())
         return actual.ndim() == expected.ndim();
     if(actual.dynamic())
         return false;
-    if(actual.lens() != expected.lens())
-        return false;
-    // Check strides from dimensions that are not 1
-    return all_of(range(actual.lens().size()), [&](auto i) {
-        if(actual.lens()[i] == 1)
-            return true;
-        return actual.strides()[i] == expected.strides()[i];
-    });
+    return compatible(actual.lens(), expected.lens(), actual.strides(), expected.strides());
 }
 
 bool shape::is_compatible_lens(const shape& actual, const shape& expected)
 {
+    if(actual.symbolic() and expected.symbolic())
+        return actual.dyn_dims() == expected.dyn_dims();
     if(actual.dynamic())
         return expected.dynamic() and actual.dyn_dims() == expected.dyn_dims();
     if(expected.dynamic())
@@ -644,6 +659,8 @@ std::size_t shape::ndim() const
 }
 
 std::size_t shape::elements() const { return impl->elements(); }
+
+sym::expr shape::sym_elements() const { return impl->sym_elements(); }
 
 std::size_t shape::bytes() const
 {
@@ -978,13 +995,6 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
         return s.eval_uint(symbol_map);
     });
     return {type(), static_lens, static_strides};
-}
-
-shape shape::to_static() const
-{
-    if(not this->is_fixed())
-        MIGRAPHX_THROW("SHAPE: to_static() requires fully-fixed dimensions");
-    return this->to_static(std::unordered_map<sym::expr, std::size_t>{});
 }
 
 std::size_t shape::element_space() const { return impl->element_space(); }

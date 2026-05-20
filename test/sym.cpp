@@ -3310,10 +3310,8 @@ TEST_CASE(strict_less_with_vars_map)
 {
     auto x = var("x");
     auto y = var("y");
-    auto r = strict_less(x,
-                         y,
-                         {{x, interval{int64_t{1}, int64_t{5}}},
-                          {y, interval{int64_t{10}, int64_t{20}}}});
+    auto r = strict_less(
+        x, y, {{x, interval{int64_t{1}, int64_t{5}}}, {y, interval{int64_t{10}, int64_t{20}}}});
     EXPECT(r.has_value() and *r);
 }
 

@@ -813,6 +813,7 @@ void fuse_mlss::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlss_conv_bias_leaky_relu{ctx});
         match::find_matches(mpm, find_mlss_conv_bias{ctx});
         match::find_matches(mpm, find_mlss_conv{ctx});
+
     }
 #endif // MIGRAPHX_HAS_MLSS_HEADERS
 }

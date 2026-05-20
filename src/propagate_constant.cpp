@@ -38,6 +38,11 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_PROPAGATE_CONSTANT)
 
 static bool skip_propagate(instruction_ref ins)
 {
+    // allocate is context-free but represents a mutable output buffer —
+    // constant-folding it into a shared @literal causes two ops that need
+    // separate output buffers to write to the same memory.
+    if(ins->name() == "allocate")
+        return true;
     if(contains({"contiguous", "dequantizelinear", "reshape"}, ins->name()))
         return skip_propagate(ins->inputs().front());
     if(contains({"unpack_int4", "unpack_fp4"}, ins->name()))

@@ -44,6 +44,11 @@ static void cse_range(module& m, Range&& r)
         if(ins->outputs().empty())
             continue;
 
+        // Each allocate represents a distinct mutable buffer — merging two
+        // allocations causes independent ops to share the same output memory.
+        if(ins->name() == "allocate")
+            continue;
+
         // Find instruction with the same name
         auto found_instructions = range(instructions.equal_range(ins->name()));
         for(const auto& pp : found_instructions)

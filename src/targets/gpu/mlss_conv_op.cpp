@@ -293,8 +293,22 @@ argument mlss_conv_op::compute(context& ctx,
     kargs.emplace_back(d_G_stride);
     kargs.emplace_back(f_G_stride);
     kargs.emplace_back(o_G_stride);
-    uint8_t act_mode = static_cast<uint8_t>(activation_mode);
-    kargs.emplace_back(act_mode); // 0=identity, 4=ReLU
+    uint8_t act_mode      = static_cast<uint8_t>(activation_mode);
+    uint8_t sync_limit_v  = 255; // DEFAULT_SYNC_LIMIT (conv_base.hpp)
+    uint8_t sync_period_v = 0;
+    uint8_t reserved8_v   = 0;
+    uint64_t sync_addr_v  = 0;
+    uint64_t acc_addr_v   = 0;
+    uint64_t a_offset_v   = 0;
+
+    kargs.emplace_back(act_mode);      // 0xc8: activation_mode
+    kargs.emplace_back(sync_limit_v);  // 0xc9: sync_limit
+    kargs.emplace_back(sync_period_v); // 0xca: sync_period
+    kargs.emplace_back(reserved8_v);   // 0xcb: reserved8
+    kargs.emplace_back(zero32);        // 0xcc: reserved9
+    kargs.emplace_back(sync_addr_v);   // 0xd0: sync_addr
+    kargs.emplace_back(acc_addr_v);    // 0xd8: acc_addr
+    kargs.emplace_back(a_offset_v);    // 0xe0: a_offset
 
     hipStream_t stream = ctx.get_stream().get();
 

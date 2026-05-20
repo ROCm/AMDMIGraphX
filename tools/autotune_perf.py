@@ -25,8 +25,21 @@
 
 """Run migraphx-driver perf under curated MIGraphX environment-variable knobs.
 
-``MIGRAPHX_MLIR_USE_SPECIFIC_OPS`` values follow ``fuse_mlir.cpp`` (fused, convolution, dot, attention).
-There is no ``MIGRAPHX_DISABLE_MIOPEN_POOLING``; pooling is probed with ``MIGRAPHX_ENABLE_MIOPEN_POOLING=1``.
+Each knob is toggled in isolation against a clean baseline and the fastest
+configuration is written out as a sourceable ``export`` file. The probed
+knobs are:
+
+* ``MIGRAPHX_ENABLE_NHWC`` - prefer NHWC layout for convolutions.
+* ``MIGRAPHX_SET_GEMM_PROVIDER`` - select the GEMM backend (rocBLAS).
+* ``MIGRAPHX_ENABLE_CK`` - enable Composable Kernel GEMMs.
+* ``MIGRAPHX_DISABLE_MLIR`` - disable the MLIR code path.
+* ``MIGRAPHX_MLIR_USE_SPECIFIC_OPS`` - restrict MLIR to specific ops
+  (convolution, dot, fused, attention).
+* ``MIGRAPHX_ENABLE_MIOPEN_POOLING`` - use MIOpen for pooling.
+* ``MIGRAPHX_ENABLE_REWRITE_DOT`` - rewrite eligible convolutions to dot.
+
+See the MIGraphX documentation for the authoritative list of environment
+variables and their semantics.
 """
 
 from __future__ import annotations

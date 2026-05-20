@@ -135,8 +135,13 @@ bool mlir_attention_enabled(context* ctx)
         return false;
     if(specific_op<rejected>("attention"))
         return false;
-    // Enable attention by default for mi300
-    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
+    // Enable attention by default for mi300/350
+    const auto& supported_prefixes = {"gfx94", "gfx95"};
+    bool is_supported =
+        std::any_of(supported_prefixes.begin(), supported_prefixes.end(), [&](const auto& prefix) {
+            return starts_with(ctx->get_current_device().get_gfx_name(), prefix);
+        });
+    if(ctx != nullptr and is_supported)
         return true;
     return specific_op<requested>("attention");
 #else

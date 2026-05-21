@@ -31,14 +31,7 @@ using se       = migraphx::sym::expr;
 using interval = migraphx::sym::interval;
 using migraphx::sym::lit;
 using migraphx::sym::parse;
-
-// Local wrappers so sym-library arithmetic/canonicalization tests don't have
-// to spell out bounds they don't care about
-static se var(const std::string& name) { return migraphx::sym::var(name, {1, 1}); }
-static se var(const std::string& name, interval bounds, std::set<int64_t> optimals = {})
-{
-    return migraphx::sym::var(name, bounds, std::move(optimals));
-}
+using migraphx::sym::var;
 
 // ===================================================================
 // Tier 1: Expression construction and canonicalization

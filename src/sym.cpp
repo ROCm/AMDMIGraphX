@@ -150,9 +150,9 @@ bool operator!=(const interval& a, const interval& b) { return not(a == b); }
 std::ostream& operator<<(std::ostream& os, const interval& i)
 {
     os << "[";
-    std::visit([&](auto x) { os << x; }, i.min);
+    visit([&](auto x) { os << x; }, i.min);
     os << ", ";
-    std::visit([&](auto x) { os << x; }, i.max);
+    visit([&](auto x) { os << x; }, i.max);
     os << "]";
     return os;
 }
@@ -266,7 +266,7 @@ interval max(interval x, interval y)
 
 static std::size_t hash_scalar(scalar s)
 {
-    return std::visit(
+    return visit(
         [](auto x) -> std::size_t {
             using T = std::decay_t<decltype(x)>;
             if constexpr(std::is_floating_point<T>{})

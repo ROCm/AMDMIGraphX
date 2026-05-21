@@ -91,8 +91,8 @@ struct hip_device
 
         hipStream_t get()
         {
-            if(external_stream != nullptr)
-                return external_stream;
+            if(external_stream.has_value())
+                return external_stream.value();
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
             {
                 setup();
@@ -149,7 +149,7 @@ struct hip_device
 
         void set_external_stream(hipStream_t ext_stream)
         {
-            if(external_stream == ext_stream)
+            if(has_external_stream() and external_stream.value() == ext_stream)
                 return;
             external_stream = ext_stream;
 #if MIGRAPHX_USE_MIOPEN
@@ -162,7 +162,7 @@ struct hip_device
 #endif
         }
 
-        bool has_external_stream() const { return external_stream != nullptr; }
+        bool has_external_stream() const { return external_stream.has_value(); }
 
         // Bind a caller-provided stream for subsequent submissions and remember
         // the prior binding so it can be put back by restore_queue().  We save
@@ -192,8 +192,8 @@ struct hip_device
         void wait() const
         {
             // Avoid lazily creating an internal stream just to sync it.
-            hipStream_t cur = external_stream;
-            if(cur == nullptr and s != nullptr)
+            hipStream_t cur = external_stream.value();
+            if(not external_stream.has_value() and s != nullptr)
                 cur = s.get();
             if(cur == nullptr)
                 return;
@@ -222,7 +222,7 @@ struct hip_device
         private:
         std::size_t id              = 0;
         shared<hip_stream_ptr> s    = nullptr;
-        hipStream_t external_stream = nullptr;
+        std::optional<hipStream_t> external_stream{};
         // Saved binding for restore_queue().  Empty == no prior queue saved;
         // distinguishing "saved nullptr" from "no save" is required because
         // nullptr is itself a legal stream value.

@@ -396,10 +396,7 @@ struct context
     // caller's queue the event round-trip is a cheap intra-stream no-op.
     void wait_for(any_ptr queue)
     {
-        if(queue.unsafe_get() == nullptr)
-            return;
-        auto* ext   = queue.get<hipStream_t>();
-        auto status = hipEventRecord(begin_event.get(), ext);
+        auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>);
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed to record: " + hip_error(status));
         get_stream().wait(begin_event.get());
@@ -409,8 +406,6 @@ struct context
     // current stream and makes the caller's queue wait on it.
     void finish_on(any_ptr queue)
     {
-        if(queue.unsafe_get() == nullptr)
-            return;
         get_stream().record(finish_event.get());
         auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
         if(status != hipSuccess)

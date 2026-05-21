@@ -392,7 +392,7 @@ nonmaxsuppression_compact(const Counts bc_counts, const Idx indices, Out output,
         const index_int box_idx         = i % NumBoxes;
         if(box_idx < bc_counts[batch_class_idx])
         {
-            for(int k = 0; k < 3; ++k)
+            for(index_int k = 0; k < 3; ++k)
             {
                 output[(offsets[batch_class_idx] + box_idx) * index_size + k] =
                     indices[(batch_class_idx * NumBoxes + box_idx) * index_size + k];

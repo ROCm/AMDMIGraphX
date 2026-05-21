@@ -552,6 +552,7 @@ struct miopen_apply
                 ins, make_op("hip::copy_to_gpu"), cpu_sub, gpu_alloc));
         }
 
+        // TODO: this needs cleanup
         // Snapshot since we mutate the graph below.
         auto consumers = ins->outputs();
         for(auto consumer : consumers)

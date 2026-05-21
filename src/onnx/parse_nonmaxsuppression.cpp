@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,7 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
     {
         auto op = parser.load(opd.op_name, info);
         auto nms_ins = info.add_instruction(op, args);
-        // variable ends input slice to handle dynamic shape output
+        // slice with variable ends to handle dynamic shape output.
         auto indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
         if(enabled(MIGRAPHX_USE_DYNAMIC_NMS{}))
         {

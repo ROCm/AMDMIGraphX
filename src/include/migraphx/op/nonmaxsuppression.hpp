@@ -308,7 +308,7 @@ struct nonmaxsuppression
         argument result{max_output_shape};
         argument num_selected_result{output_shapes.at(1)};
 
-        std::size_t max_output_boxes_per_class =
+        int64_t max_output_boxes_per_class =
             (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
         if(max_output_boxes_per_class == 0)
         {

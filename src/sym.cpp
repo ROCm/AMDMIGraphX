@@ -1083,7 +1083,7 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
     return to<std::size_t>(generic_eval<scalar>(*this, [&](const expr& e) -> std::optional<scalar> {
         auto it = symbol_map.find(e);
         if(it != symbol_map.end())
-            return make_scalar(it->second);
+            return scalar(it->second);
         return std::visit(
             overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
                        [](const auto&) -> std::optional<scalar> { return std::nullopt; }},

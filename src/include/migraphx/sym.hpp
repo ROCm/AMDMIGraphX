@@ -83,17 +83,6 @@ struct pick_scalar
 
 using scalar = picked_variant<pick_scalar, int64_t, double>;
 
-template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
-scalar make_scalar(T v)
-{
-    if constexpr(std::is_unsigned<T>{} and sizeof(T) >= sizeof(int64_t))
-        return int64_t(std::min<T>(v, std::numeric_limits<int64_t>::max()));
-    else if constexpr(std::is_integral<T>{})
-        return int64_t(v);
-    else
-        return double(v);
-}
-
 template <class To>
 To to(const scalar& v)
 {
@@ -229,17 +218,17 @@ class MIGRAPHX_EXPORT expr
     template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
     expr& operator assign(T x)                                                    \
     {                                                                             \
-        return *this = *this binary lit(make_scalar(x));                          \
+        return *this = *this binary lit(x);                                       \
     }                                                                             \
     template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
     friend expr operator binary(expr ex, T y)                                     \
     {                                                                             \
-        return std::move(ex) binary lit(make_scalar(y));                          \
+        return std::move(ex) binary lit(y);                                       \
     }                                                                             \
     template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>                \
     friend expr operator binary(T x, expr ey)                                     \
     {                                                                             \
-        return lit(make_scalar(x)) binary std::move(ey);                          \
+        return lit(x) binary std::move(ey);                                       \
     }
 
     MIGRAPHX_SYM_DEFINE_OP(+, +=)
@@ -250,12 +239,6 @@ class MIGRAPHX_EXPORT expr
 };
 
 MIGRAPHX_EXPORT bool strict_less_than(const expr& a, const expr& b);
-
-template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
-expr lit(T v)
-{
-    return lit(make_scalar(v));
-}
 
 MIGRAPHX_EXPORT expr var(std::string name);
 MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});

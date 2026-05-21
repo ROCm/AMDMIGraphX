@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/dyn_output.hpp>
@@ -50,7 +51,7 @@ struct transpose
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto input = inputs.at(0);
+        const auto& input = inputs.at(0);
 
         if(dims.size() != input.ndim())
         {
@@ -63,28 +64,7 @@ struct transpose
             MIGRAPHX_THROW("TRANSPOSE: Invalid permutation");
         }
 
-        if(input.dynamic())
-        {
-            std::vector<shape::dynamic_dimension> output_dyn_dims(input.ndim());
-            std::transform(dims.cbegin(), dims.cend(), output_dyn_dims.begin(), [&](auto dim) {
-                return input.dyn_dims()[dim];
-            });
-            return {input.type(), output_dyn_dims};
-        }
-        else
-        {
-            const auto& input_lens    = input.lens();
-            const auto& input_strides = input.strides();
-
-            std::vector<size_t> output_lens(input.ndim());
-            std::vector<size_t> output_strides(input.ndim());
-            for(std::size_t i = 0; i < input.ndim(); i++)
-            {
-                output_lens[i]    = input_lens[dims[i]];
-                output_strides[i] = input_strides[dims[i]];
-            }
-            return {input.type(), output_lens, output_strides};
-        }
+        return reorder_shape(input, dims);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

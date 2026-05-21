@@ -98,7 +98,6 @@ add_library(migraphx
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
-    netron_output.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp

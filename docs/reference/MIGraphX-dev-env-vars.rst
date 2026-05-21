@@ -669,6 +669,19 @@ Advanced settings
 
       | Default: The hip-clang assembly output isn't written out.
 
+  * - | ``MIGRAPHX_GPU_DUMP_BENCHMARK_MXR``
+      | Sets the location to dump benchmark MXR files for benchmarking.
+
+    - | Takes the path to the directory where the files should be saved. The directory is created if it does not exist.
+
+      | After the files are dumped, compilation aborts with a message instructing the user to run the MXR files
+      | to generate a problem cache and then recompile with that cache.
+
+      | For example:
+      | ``MIGRAPHX_GPU_DUMP_BENCHMARK_MXR="/path/to/benchmark_mxr_dir/"``
+
+      | Default: Unset. Benchmark MXR files aren't dumped and compilation proceeds normally.
+
   * - | ``MIGRAPHX_GPU_HIP_FLAGS``
       | When set, the hip-clang compiler appends these extra flags for compilation.
 

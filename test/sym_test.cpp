@@ -24,12 +24,21 @@
 
 #include <migraphx/sym.hpp>
 #include <migraphx/serialize.hpp>
+#include <utility>
 #include "test.hpp"
 
-using se = migraphx::sym::expr;
+using se       = migraphx::sym::expr;
+using interval = migraphx::sym::interval;
 using migraphx::sym::lit;
 using migraphx::sym::parse;
-using migraphx::sym::var;
+
+// Local wrappers so sym-library arithmetic/canonicalization tests don't have
+// to spell out bounds they don't care about
+static se var(const std::string& name) { return migraphx::sym::var(name, {1, 1}); }
+static se var(const std::string& name, interval bounds, std::set<int64_t> optimals = {})
+{
+    return migraphx::sym::var(name, bounds, std::move(optimals));
+}
 
 // ===================================================================
 // Tier 1: Expression construction and canonicalization
@@ -490,10 +499,20 @@ TEST_CASE(eval_trunc_division)
 
 TEST_CASE(eval_unbound_throws)
 {
-    auto h = var("h");
-    auto w = var("w");
+    auto h = var("h", {1, 8});
+    auto w = var("w", {1, 8});
     EXPECT(test::throws([&] { h.eval_uint({}); }));
     EXPECT(test::throws([&] { (h + w).eval_uint({{h, 1}}); }));
+}
+
+TEST_CASE(eval_uint_falls_back_to_fixed_bounds)
+{
+    // Fixed-bound vars (min == max) are resolved from their own bounds.
+    auto n = var("n", {4, 4});
+    EXPECT(n.eval_uint({}) == 4);
+    EXPECT((n * 8).eval_uint({}) == 32);
+    auto h = var("h", {1, 8});
+    EXPECT((h + n).eval_uint({{h, 2}}) == 6);
 }
 
 TEST_CASE(eval_division_by_zero_throws)
@@ -977,6 +996,415 @@ TEST_CASE(serialize_compound)
     auto w = var("w");
     auto e = (n * h * w + 3) / 2 - 1;
     EXPECT(round_trip(e) == e);
+}
+
+// -------------------------------------------------------------------
+// Bounded vars: constructor / eq / hash
+// -------------------------------------------------------------------
+
+TEST_CASE(construct_var_min_greater_than_max_throws)
+{
+    EXPECT(test::throws([&] { var("n", {10, 5}); }));
+}
+
+TEST_CASE(construct_var_min_less_than_one_throws)
+{
+    EXPECT(test::throws([&] { var("n", {0, 5}); }));
+    EXPECT(test::throws([&] { var("n", {-1, 5}); }));
+}
+
+TEST_CASE(eq_same_name_different_intervals)
+{
+    auto h1 = var("h", {1, 128});
+    auto h2 = var("h", {1, 256});
+    auto h3 = var("h", {2, 128});
+    auto h4 = var("h", {1, 128});
+    EXPECT(h1 != h2);
+    EXPECT(h1 != h3);
+    EXPECT(h1 == h4);
+}
+
+TEST_CASE(hash_same_name_different_intervals)
+{
+    auto h1 = var("h", {1, 128});
+    auto h2 = var("h", {1, 256});
+    auto h3 = var("h", {1, 128});
+    EXPECT(h1.hash() != h2.hash());
+    EXPECT(h1.hash() == h3.hash());
+}
+
+// -------------------------------------------------------------------
+// Bounds: eval_interval()
+// -------------------------------------------------------------------
+
+TEST_CASE(eval_interval_single_var)
+{
+    auto n = var("n", {2, 16});
+    EXPECT(n.eval_interval() == interval{2, 16});
+}
+
+TEST_CASE(eval_interval_literal) { EXPECT(lit(42).eval_interval() == interval{42, 42}); }
+
+TEST_CASE(eval_interval_compound)
+{
+    auto n = var("n", {1, 8});
+    auto c = var("c", {1, 16});
+    auto e = n * c * 4;
+    EXPECT(e.eval_interval() == interval{4, 512});
+}
+
+TEST_CASE(eval_interval_stride_diff)
+{
+    auto n    = var("n", {1, 8});
+    auto c    = var("c", {1, 16});
+    auto diff = n * c - n;
+    EXPECT(diff.eval_interval() == interval{0, 120});
+}
+
+TEST_CASE(eval_interval_division)
+{
+    auto n = var("n", {2, 10});
+    auto d = var("d", {1, 5});
+    auto e = n / d;
+    EXPECT(e.eval_interval() == interval{0, 10});
+}
+
+TEST_CASE(eval_interval_div_literal_denom)
+{
+    auto n = var("n", {4, 16});
+    auto e = n / lit(4);
+    EXPECT(e.eval_interval() == interval{1, 4});
+}
+
+TEST_CASE(eval_interval_subtraction_independent)
+{
+    auto a = var("a", {1, 10});
+    auto b = var("b", {1, 5});
+    auto e = a - b;
+    EXPECT(e.eval_interval() == interval{-4, 9});
+}
+
+TEST_CASE(eval_interval_empty_throws)
+{
+    se empty;
+    EXPECT(test::throws([&] { (void)empty.eval_interval(); }));
+}
+
+TEST_CASE(eval_interval_uint)
+{
+    auto n = var("n", {2, 16});
+    auto e = 3 * n + 1;
+    EXPECT(e.eval_interval() == interval{7, 49});
+}
+
+// -------------------------------------------------------------------
+// Comparison operators
+// -------------------------------------------------------------------
+
+TEST_CASE(cmp_lit_constants)
+{
+    EXPECT(lit(1) < lit(2));
+    EXPECT(not(lit(2) < lit(1)));
+    EXPECT(not(lit(3) < lit(3)));
+    EXPECT(lit(2) > lit(1));
+    EXPECT(lit(3) <= lit(3));
+    EXPECT(lit(3) >= lit(3));
+    EXPECT(lit(1) <= lit(2));
+    EXPECT(lit(2) >= lit(1));
+}
+
+TEST_CASE(cmp_equal_expr_not_less)
+{
+    auto n = var("n");
+    EXPECT(not(n < n));
+    EXPECT(not(n > n));
+    EXPECT(n <= n);
+    EXPECT(n >= n);
+}
+
+TEST_CASE(cmp_empty_not_less)
+{
+    se a;
+    se b;
+    EXPECT(not(a < b));
+}
+
+TEST_CASE(cmp_empty_with_nonempty_throws)
+{
+    EXPECT(test::throws([&]() -> bool { return se{} < var("n"); }));
+    EXPECT(test::throws([&]() -> bool { return var("n") < se{}; }));
+}
+
+TEST_CASE(cmp_stride_ordering_4d)
+{
+    auto c  = var("c", {1, 512});
+    auto h  = var("h", {1, 256});
+    auto w  = var("w", {1, 256});
+    auto s0 = c * h * w;
+    auto s1 = h * w;
+    auto s2 = w;
+    auto s3 = lit(1);
+    EXPECT(s1 <= s0);
+    EXPECT(s2 <= s1);
+    EXPECT(s3 <= s2);
+    EXPECT(s3 <= s0);
+}
+
+TEST_CASE(cmp_scaled_symbol)
+{
+    auto n = var("n");
+    EXPECT(n < 2 * n);
+    EXPECT(n < 3 * n);
+    EXPECT(not(2 * n < n));
+}
+
+TEST_CASE(cmp_product_explicit_bounds)
+{
+    auto k = var("k", {1, 8});
+    auto m = var("m", {2, 4});
+    EXPECT(k < m * k);
+}
+
+TEST_CASE(cmp_conv_output_smaller_than_input)
+{
+    auto h   = var("h", {3, 256});
+    auto out = (h - 3) / 2 + 1;
+    EXPECT(out < h);
+    EXPECT(not(h < out));
+}
+
+TEST_CASE(cmp_repeated_pooling)
+{
+    auto h    = var("h", {7, 256});
+    auto out1 = (h - 3) / 2 + 1;
+    auto out2 = (out1 - 3) / 2 + 1;
+    EXPECT(out1 < h);
+    EXPECT(out2 < out1);
+    EXPECT(out2 < h);
+}
+
+TEST_CASE(cmp_strides_after_conv)
+{
+    auto h     = var("h", {7, 128});
+    auto w     = var("w", {2, 128});
+    auto new_h = (h - 3) / 2 + 1;
+    auto s0    = new_h * w;
+    auto s1    = w;
+    auto s2    = lit(1);
+    EXPECT(s1 < s0);
+    EXPECT(s2 < s1);
+}
+
+TEST_CASE(cmp_broadcast_stride_zero)
+{
+    auto w = var("w");
+    EXPECT(lit(0) < w);
+    EXPECT(not(w < lit(0)));
+}
+
+TEST_CASE(cmp_offset_expressions)
+{
+    auto h = var("h", {2, 256});
+    EXPECT(h - 1 < h);
+    EXPECT(h < h + 1);
+    EXPECT(not(h + 1 < h));
+}
+
+TEST_CASE(cmp_undetermined_throws)
+{
+    auto n = var("n", {2, 10});
+    EXPECT(test::throws([&]() -> bool { return n < lit(5); }));
+}
+
+TEST_CASE(cmp_element_count_slice)
+{
+    auto n = var("n", {1, 32});
+    auto c = var("c", {1, 512});
+    auto h = var("h", {1, 256});
+    auto w = var("w", {2, 256});
+    EXPECT(n * c * h < n * c * h * w);
+}
+
+TEST_CASE(cmp_deep_pooling_chain)
+{
+    auto h   = var("h", {31, 512});
+    se stage = h;
+    se prev;
+    for(int i = 0; i < 5; ++i)
+    {
+        prev  = stage;
+        stage = (stage - 1) / 2;
+    }
+    EXPECT(stage < prev);
+    EXPECT(stage < h);
+}
+
+TEST_CASE(cmp_commuted_product)
+{
+    auto a = var("a");
+    auto b = var("b");
+    EXPECT(not(a * b < b * a));
+    EXPECT(a * b <= b * a);
+    EXPECT(a * b >= b * a);
+}
+
+TEST_CASE(cmp_negative_literals)
+{
+    EXPECT(lit(-5) < lit(-1));
+    EXPECT(lit(-1) < lit(0));
+    EXPECT(lit(-10) < lit(10));
+    EXPECT(not(lit(0) < lit(-1)));
+}
+
+TEST_CASE(cmp_symmetry_lt_gt)
+{
+    auto h   = var("h", {3, 256});
+    auto out = (h - 3) / 2 + 1;
+    EXPECT(out < h);
+    EXPECT(h > out);
+    EXPECT(not(h < out));
+    EXPECT(not(out > h));
+}
+
+TEST_CASE(cmp_transitivity_strides)
+{
+    auto c  = var("c", {2, 512});
+    auto h  = var("h", {2, 256});
+    auto w  = var("w", {2, 256});
+    auto s0 = c * h * w;
+    auto s1 = h * w;
+    auto s2 = w;
+    auto s3 = lit(1);
+    EXPECT(s1 < s0);
+    EXPECT(s2 < s1);
+    EXPECT(s3 < s2);
+    EXPECT(s3 < s0);
+    EXPECT(s2 < s0);
+    EXPECT(s3 < s1);
+}
+
+TEST_CASE(cmp_division_ordering)
+{
+    auto h     = var("h", {5, 256});
+    auto pool2 = (h - 1) / 2;
+    auto pool4 = (h - 1) / 4;
+    EXPECT(pool4 < pool2);
+    EXPECT(pool2 < h);
+    EXPECT(pool4 < h);
+}
+
+TEST_CASE(cmp_sum_less_than_product)
+{
+    auto n = var("n", {2, 32});
+    auto c = var("c", {3, 512});
+    EXPECT(n + c < n * c);
+}
+
+TEST_CASE(cmp_algebraically_equal_expressions)
+{
+    auto h = var("h");
+    auto a = h + h;
+    auto b = 2 * h;
+    EXPECT(a == b);
+    EXPECT(not(a < b));
+    EXPECT(not(b < a));
+    EXPECT(a <= b);
+    EXPECT(a >= b);
+}
+
+TEST_CASE(cmp_zero_stride_less_than_symbolic_stride)
+{
+    auto h = var("h");
+    auto w = var("w");
+    EXPECT(lit(0) < h);
+    EXPECT(lit(0) < h * w);
+    EXPECT(lit(0) < h + w);
+}
+
+// -------------------------------------------------------------------
+// Optimals: eval_optimals()
+// -------------------------------------------------------------------
+
+TEST_CASE(eval_optimals_single_var)
+{
+    auto n = var("n", {1, 8}, {2, 4});
+    EXPECT(n.eval_optimals() == std::set<std::size_t>{2, 4});
+}
+
+TEST_CASE(eval_optimals_compound_expr)
+{
+    auto n = var("n", {1, 8}, {2, 4});
+    auto e = 2 * n + 1;
+    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 9});
+}
+
+TEST_CASE(eval_optimals_multi_var)
+{
+    auto n = var("n", {1, 8}, {2, 4});
+    auto m = var("m", {1, 8}, {3, 6});
+    auto e = n + m;
+    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 7, 8, 10});
+}
+
+TEST_CASE(eval_optimals_negative_throws)
+{
+    auto n = var("n", {1, 4}, {2});
+    auto m = var("m", {1, 8}, {5});
+    auto e = n - m;
+    EXPECT(test::throws([&] { (void)e.eval_optimals(); }));
+}
+
+TEST_CASE(eval_optimals_no_optimals)
+{
+    auto n = var("n", {1, 8});
+    EXPECT(n.eval_optimals().empty());
+}
+
+TEST_CASE(eval_optimals_empty_expr)
+{
+    se e;
+    EXPECT(e.eval_optimals().empty());
+}
+
+// -------------------------------------------------------------------
+// Serialization: bounded vars
+// -------------------------------------------------------------------
+
+TEST_CASE(serialize_bounded_var)
+{
+    auto h = var("h", {1, 128});
+    auto r = round_trip(h);
+    EXPECT(r == h);
+    EXPECT(r != var("h", {1, 256}));
+    EXPECT(r != var("h"));
+}
+
+TEST_CASE(serialize_bounded_var_in_expr)
+{
+    auto h = var("h", {1, 128});
+    auto w = var("w", {1, 256});
+    auto e = 2 * h + w - 3;
+    auto r = round_trip(e);
+    EXPECT(r == e);
+    EXPECT(r.eval_uint({{h, 64}, {w, 32}}) == 157);
+}
+
+TEST_CASE(serialize_conv_output_with_bounds)
+{
+    auto h   = var("h", {3, 256});
+    auto out = (h - 3) / 2 + 1;
+    auto r   = round_trip(out);
+    EXPECT(r == out);
+    EXPECT(r.eval_uint({{h, 255}}) == 127);
+}
+
+TEST_CASE(serialize_comparison_survives_round_trip)
+{
+    auto h    = var("h", {3, 256});
+    auto out  = (h - 3) / 2 + 1;
+    auto h2   = round_trip(h);
+    auto out2 = round_trip(out);
+    EXPECT(out2 < h2);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

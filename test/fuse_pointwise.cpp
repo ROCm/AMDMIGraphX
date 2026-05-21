@@ -1316,4 +1316,103 @@ TEST_CASE(if_cross_module_multi_out_find_input)
     EXPECT(p1.sort() == p2.sort());
 }
 
+// Two adds fused into a single pointwise op via fuse_pointwise.
+// Both symbols should appear on the fused pointwise instruction.
+//
+//  Before:                          After:
+//
+//   x   y                           x  y  z
+//    \ /                              \ | /
+//    add  {add1}                   pointwise  {add1, add2}
+//     |  z                             |
+//     | /                           @return
+//    add  {add2}
+//     |
+//   @return
+//
+TEST_CASE(debug_symbols_pw_double_add)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm                       = p1.get_main_module();
+        auto x                         = mm->add_parameter("x", s);
+        auto y                         = mm->add_parameter("y", s);
+        auto z                         = mm->add_parameter("z", s);
+        migraphx::instruction_ref add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_debug_symbols(add1, {"add1"});
+        migraphx::instruction_ref add2 = mm->add_instruction(migraphx::make_op("add"), add1, z);
+        mm->add_debug_symbols(add2, {"add2"});
+        mm->add_return({add2});
+    }
+    migraphx::run_passes(p1, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto z   = mm->add_parameter("z", s);
+        auto fadd =
+            add_pointwise(p2, "main:pointwise0", {x, y, z}, [=](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+            });
+        mm->add_debug_symbols(fadd, {"add1", "add2"});
+        mm->add_return({fadd});
+    }
+    EXPECT(p1 == p2);
+}
+
+//  Before:                       After:
+//
+//    x   y                        x   y
+//     \ /                          \ /
+//     add1 {add1}               pointwise  {add1, add2, add3, add4}
+//    / \                            |
+//   x   y                        @return
+//   |   |
+//  add2 add3 {add2} {add3}
+//    \  /
+//    add4 {add4}
+//      |
+//   @return
+//
+TEST_CASE(debug_symbols_pw_used_twice_fused)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, y);
+        mm->add_debug_symbols(add1, {"onnx:add1"});
+        auto add2 = mm->add_instruction(migraphx::make_op("add"), add1, x);
+        mm->add_debug_symbols(add2, {"onnx:add2"});
+        auto add3 = mm->add_instruction(migraphx::make_op("add"), add1, y);
+        mm->add_debug_symbols(add3, {"onnx:add3"});
+        auto add4 = mm->add_instruction(migraphx::make_op("add"), add2, add3);
+        mm->add_debug_symbols(add4, {"onnx:add4"});
+        mm->add_return({add4});
+    }
+    migraphx::run_passes(p1, {migraphx::fuse_pointwise{}, migraphx::dead_code_elimination{}});
+
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto y    = mm->add_parameter("y", s);
+        auto fadd = add_pointwise(p2, "main:pointwise0", {x, y}, [=](auto* pm, const auto& inputs) {
+            auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            auto add2 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[0]);
+            auto add3 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[1]);
+            return pm->add_instruction(migraphx::make_op("add"), add2, add3);
+        });
+        mm->add_debug_symbols(fadd, {"onnx:add1", "onnx:add2", "onnx:add3", "onnx:add4"});
+        mm->add_return({fadd});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

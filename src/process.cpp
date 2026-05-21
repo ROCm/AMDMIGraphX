@@ -31,7 +31,6 @@
 #include <numeric>
 #include <functional>
 #include <iostream>
-#include <migraphx/logger.hpp>
 
 #ifdef _WIN32
 // cppcheck-suppress definePrefix
@@ -59,7 +58,7 @@ static int exec(const std::string& cmd, const char* type, F f)
 {
     int ec = 0;
     if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
-        log::trace() << cmd;
+        std::cout << cmd << std::endl;
     auto closer = [&](FILE* stream) {
         auto status = pclose(stream);
         ec          = WIFEXITED(status) ? WEXITSTATUS(status) : 0; // NOLINT
@@ -200,8 +199,8 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
 {
     if(enabled(MIGRAPHX_TRACE_CMD_EXECUTE{}))
     {
-        log::trace() << "[cwd=" << cwd << "];  cmd='" << cmd << "'; args='" << args << "'; envs='"
-                     << envs << "'";
+        std::cout << "[cwd=" << cwd << "];  cmd='" << cmd << "\'; args='" << args << "'; envs='"
+                  << envs << "'\n";
     }
 
     // See CreateProcess() WIN32 documentation for details.
@@ -282,6 +281,35 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
         if(not input.close_write_handle())
             MIGRAPHX_THROW("Error closing STDIN handle for writing (" +
                            std::to_string(GetLastError()) + ")");
+
+        {
+            TCHAR buf[MIGRAPHX_PROCESS_BUFSIZE];
+            while(true)
+            {
+                DWORD available{};
+                BOOL result = PeekNamedPipe(
+                    output.get_read_handle(), nullptr, 0, nullptr, &available, nullptr);
+                if(result == FALSE)
+                    break;
+                if(available == 0)
+                {
+                    if(WaitForSingleObject(process_info.hProcess, 0) == WAIT_OBJECT_0)
+                        break;
+                    Sleep(0);
+                    continue;
+                }
+                while(available > 0)
+                {
+                    DWORD bytes_read{};
+                    DWORD to_read = (std::min)(available, static_cast<DWORD>(sizeof(buf)));
+                    result = ReadFile(output.get_read_handle(), buf, to_read, &bytes_read, nullptr);
+                    WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, bytes_read, nullptr, nullptr);
+                    available -= bytes_read;
+                    if(result == FALSE or bytes_read == 0)
+                        break;
+                }
+            }
+        }
 
         WaitForSingleObject(process_info.hProcess, INFINITE);
 

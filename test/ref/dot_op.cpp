@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1275,6 +1275,119 @@ TEST_CASE(dot_dyn_4_d_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
+TEST_CASE(dot_sym_2_d_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape a_shape{migraphx::shape::float_type, {dd{var("M", {1, 4})}, dd{lit(5)}}};
+    auto ap = mm->add_parameter("a", a_shape);
+    migraphx::shape b_shape{migraphx::shape::float_type, {5, 3}};
+    auto bp = mm->add_parameter("b", b_shape);
+    mm->add_instruction(migraphx::make_op("dot"), ap, bp);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> a = {-0.00925222, 0.56250403, 0.70107397,  0.75402161,  -0.505885,
+                            1.33628943,  -0.11413,   -0.31270559, 1.59336732,  -0.19361027,
+                            -0.91620867, 0.40108416, -0.06969921, 0.68483471,  -0.39906632,
+                            -1.66423624, 0.69040076, -1.31490171, -0.11282616, -0.79391814};
+    std::vector<float> b = {6.09568541e-01,
+                            -6.10527007e-01,
+                            3.66646462e-01,
+                            1.18951101e-01,
+                            5.58777432e-01,
+                            -3.21296298e-01,
+                            -5.95997198e-01,
+                            -5.01425721e-01,
+                            -2.84606807e-01,
+                            -5.73673557e-01,
+                            -8.99430260e-01,
+                            -4.25103093e-01,
+                            1.53027987e+00,
+                            -3.81407415e-04,
+                            -3.29650255e-01};
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {4, 5}};
+    migraphx::parameter_map params;
+    params["a"] = migraphx::argument(input_fixed_shape, a.data());
+    params["b"] = migraphx::argument(b_shape, b.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-1.56327541e+00,
+                               -7.09570140e-01,
+                               -5.37424982e-01,
+                               -2.22994831e-01,
+                               -2.15586437e+00,
+                               2.09177941e-03,
+                               -1.47279677e+00,
+                               2.02627040e-01,
+                               -6.04527691e-01,
+                               -1.29885596e+00,
+                               2.16294914e+00,
+                               -1.48101497e-01};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(dot_sym_2_d_both_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    using dd = migraphx::shape::dynamic_dimension;
+    auto m   = var("M", {1, 4});
+    auto k   = var("K", {5, 5});
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape a_shape{migraphx::shape::float_type, {dd{m}, dd{k}}};
+    auto ap = mm->add_parameter("a", a_shape);
+    migraphx::shape b_shape{migraphx::shape::float_type, {dd{k}, dd{lit(3)}}};
+    auto bp = mm->add_parameter("b", b_shape);
+    mm->add_instruction(migraphx::make_op("dot"), ap, bp);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> a = {-0.00925222, 0.56250403, 0.70107397,  0.75402161,  -0.505885,
+                            1.33628943,  -0.11413,   -0.31270559, 1.59336732,  -0.19361027,
+                            -0.91620867, 0.40108416, -0.06969921, 0.68483471,  -0.39906632,
+                            -1.66423624, 0.69040076, -1.31490171, -0.11282616, -0.79391814};
+    std::vector<float> b = {6.09568541e-01,
+                            -6.10527007e-01,
+                            3.66646462e-01,
+                            1.18951101e-01,
+                            5.58777432e-01,
+                            -3.21296298e-01,
+                            -5.95997198e-01,
+                            -5.01425721e-01,
+                            -2.84606807e-01,
+                            -5.73673557e-01,
+                            -8.99430260e-01,
+                            -4.25103093e-01,
+                            1.53027987e+00,
+                            -3.81407415e-04,
+                            -3.29650255e-01};
+    migraphx::shape input_fixed_a{migraphx::shape::float_type, {4, 5}};
+    migraphx::shape input_fixed_b{migraphx::shape::float_type, {5, 3}};
+    migraphx::parameter_map params;
+    params["a"] = migraphx::argument(input_fixed_a, a.data());
+    params["b"] = migraphx::argument(input_fixed_b, b.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {-1.56327541e+00,
+                               -7.09570140e-01,
+                               -5.37424982e-01,
+                               -2.22994831e-01,
+                               -2.15586437e+00,
+                               2.09177941e-03,
+                               -1.47279677e+00,
+                               2.02627040e-01,
+                               -6.04527691e-01,
+                               -1.29885596e+00,
+                               2.16294914e+00,
+                               -1.48101497e-01};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
 TEST_CASE(quant_dot_2args_multi4_1)
 {
     migraphx::program p;
@@ -1712,6 +1825,37 @@ TEST_CASE(quant_dot_3args_batch_2)
         11430, 12345, 13260, 14175, 15090, 16005, 11844, 12791, 13738, 14685, 15632, 16579,
         12258, 13237, 14216, 15195, 16174, 17153, 24012, 25311, 26610, 27909, 29208, 30507,
         24618, 25949, 27280, 28611, 29942, 31273, 25224, 26587, 27950, 29313, 30676, 32039};
+
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<float> m;
+    result.visit([&](auto output) { m.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(m, gold));
+}
+
+TEST_CASE(quant_dot_4args_scales)
+{
+    migraphx::program p;
+
+    auto* mm = p.get_main_module();
+    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {3, 2}};
+
+    std::vector<float> a_data       = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    std::vector<float> b_data       = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    std::vector<float> scale_a_data = {0.5f, 1.0f, 0.5f, 1.0f, 0.5f, 1.0f};
+    std::vector<float> scale_b_data = {1.0f, 0.5f, 1.0f, 0.5f, 1.0f, 0.5f};
+
+    auto l1 = mm->add_literal(migraphx::literal{a_shape, a_data});
+    auto l2 = mm->add_literal(migraphx::literal{b_shape, b_data});
+    auto l3 = mm->add_literal(migraphx::literal{a_shape, scale_a_data});
+    auto l4 = mm->add_literal(migraphx::literal{b_shape, scale_b_data});
+    mm->add_instruction(migraphx::make_op("quant_dot"), l1, l2, l3, l4);
+
+    // A_dq = A * scale_A = {0.5, 2.0, 1.5, 4.0, 2.5, 6.0}
+    // B_dq = B * scale_B = {1.0, 1.0, 3.0, 2.0, 5.0, 3.0}
+    // result = A_dq @ B_dq
+    std::vector<float> gold = {14.0f, 9.0f, 41.5f, 27.0f};
 
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();

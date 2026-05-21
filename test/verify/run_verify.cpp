@@ -75,7 +75,7 @@ inline static void compile_check(migraphx::program& p,
     auto shapes = p.get_output_shapes();
     std::stringstream ss;
     if(show_trace)
-        c_opts.trace = migraphx::tracer{true};
+        c_opts.trace = migraphx::tracer{std::cout};
     p.compile(t, c_opts);
     if(shapes.size() != p.get_output_shapes().size())
     {

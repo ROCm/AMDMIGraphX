@@ -203,7 +203,7 @@ struct hip_device
 
     std::string get_device_name() const { return device_props.gcnArchName; }
 
-    std::string get_gfx_name() const { return trim(split_string(get_device_name(), ':').front()); }
+    std::string get_gfx_name() const { return gpu::get_gfx_name(get_device_name()); }
 
     std::size_t get_device_major() const { return device_props.major; }
 

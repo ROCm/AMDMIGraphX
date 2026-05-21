@@ -27,7 +27,6 @@
 #include <migraphx/msgpack.hpp>
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/logger.hpp>
 #include <array>
 #include <iostream>
 #include <cstring>
@@ -67,9 +66,10 @@ int main(int argc, char const* argv[])
 {
     if(argc < 2 or migraphx::contains({"-h", "--help", "-v", "--version"}, std::string(argv[1])))
     {
-        migraphx::log::info()
-            << "USAGE:\n    "
-            << "Used internally by migraphx to compile hip programs out-of-process.";
+        std::cout << "USAGE:" << std::endl;
+        std::cout << "    ";
+        std::cout << "Used internally by migraphx to compile hip programs out-of-process."
+                  << std::endl;
         std::exit(0);
     }
     bool quiet              = false;
@@ -90,6 +90,6 @@ int main(int argc, char const* argv[])
     catch(const std::exception& err)
     {
         if(not quiet)
-            migraphx::log::error() << err.what();
+            std::cerr << err.what() << std::endl;
     }
 }

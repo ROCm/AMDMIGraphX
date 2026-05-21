@@ -268,6 +268,27 @@ def module(h):
 
 
 @auto_handle()
+def trace_info(h):
+    h.constructor('create')
+    h.method('get_index',
+             invoke='${trace_info}.index',
+             returns='size_t',
+             const=True)
+    h.method('get_name',
+             invoke='${trace_info}.name',
+             returns='const std::string&',
+             const=True)
+    h.method('get_result',
+             invoke='${trace_info}.result',
+             returns='const migraphx::argument&',
+             const=True)
+
+
+api.add_callback('migraphx_trace_callback_t',
+                 api.params(info='migraphx::trace_info', data='void*'))
+
+
+@auto_handle()
 def program(h):
     h.constructor('create')
     h.method('get_main_module', returns='migraphx::module*')
@@ -296,6 +317,19 @@ def program(h):
                  s='void*',
                  name='const char *'),
              invoke='migraphx::run_async($@)',
+             returns='std::vector<migraphx::argument>')
+    h.method('run_trace',
+             api.params(
+                 params='std::unordered_map<std::string, migraphx::argument>',
+                 callback='migraphx_trace_callback_t',
+                 data='void*'),
+             invoke='''migraphx::run_trace((${program}), (${params}),
+                 [callback, data](const migraphx::trace_info& info) {
+                     migraphx_trace_info handle{info};
+                     auto status = callback(&handle, data);
+                     if(status != migraphx_status_success)
+                         MIGRAPHX_THROW(status, "Trace callback returned an error");
+                 })''',
              returns='std::vector<migraphx::argument>')
     h.method('equal',
              api.params(x='const migraphx::program&'),
@@ -369,6 +403,11 @@ def onnx_options(h):
         'set_external_data_path',
         api.params(external_data_path='const char*'),
         invoke='migraphx::set_external_data_path($@)',
+    )
+    h.method(
+        'set_use_debug_symbols',
+        api.params(value='bool'),
+        invoke='migraphx::set_use_debug_symbols($@)',
     )
 
 
@@ -519,9 +558,7 @@ api.add_function('migraphx_get_onnx_operators_size',
                  fname='migraphx::get_onnx_operators_size',
                  returns='size_t')
 
-api.add_function('migraphx_set_log_header',
-                 api.params(show='bool'),
-                 fname='migraphx::set_log_header')
+
 
 @auto_handle(ref=True)
 def context(h):

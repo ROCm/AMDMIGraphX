@@ -485,8 +485,7 @@ struct miopen_apply
         if(inputs.size() < 5)
             inputs.push_back(mod->insert_literal(ins, literal{default_thr_s, {0.0f}}));
 
-        bool center_point_box =
-            ins->get_operator().to_value().at("center_point_box").to<bool>();
+        bool center_point_box = ins->get_operator().to_value().at("center_point_box").to<bool>();
 
         // Scratch mask; replace_allocate later turns it into hip::allocate.
         shape mask_shape{shape::uint8_type, {num_batches * num_classes, iou_packed}};
@@ -531,12 +530,10 @@ struct miopen_apply
         auto inputs = ins->inputs();
         std::vector<instruction_ref> cpu_inputs;
         cpu_inputs.reserve(inputs.size());
-        std::transform(
-            inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
-            });
-        cpu_inputs.front() =
-            mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+            return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+        });
+        cpu_inputs.front() = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
 
         auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
 
@@ -545,11 +542,11 @@ struct miopen_apply
         gpu_subs.reserve(sub_shapes.size());
         for(std::size_t i = 0; i < sub_shapes.size(); ++i)
         {
-            auto cpu_sub = mod->insert_instruction(
-                ins, make_op("get_tuple_elem", {{"index", i}}), cpu_out);
+            auto cpu_sub =
+                mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", i}}), cpu_out);
             auto gpu_alloc = insert_allocation(ins, sub_shapes[i]);
-            gpu_subs.push_back(mod->insert_instruction(
-                ins, make_op("hip::copy_to_gpu"), cpu_sub, gpu_alloc));
+            gpu_subs.push_back(
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_sub, gpu_alloc));
         }
 
         // TODO: this needs cleanup
@@ -561,8 +558,7 @@ struct miopen_apply
                 MIGRAPHX_THROW("gpu::add_nms_op: dynamic NMS fallback expects only "
                                "get_tuple_elem consumers of nonmaxsuppression; got: " +
                                consumer->name());
-            auto idx =
-                consumer->get_operator().to_value().at("index").to<std::size_t>();
+            auto idx = consumer->get_operator().to_value().at("index").to<std::size_t>();
             assert(idx < gpu_subs.size());
             mod->replace_instruction(consumer, gpu_subs[idx]);
         }

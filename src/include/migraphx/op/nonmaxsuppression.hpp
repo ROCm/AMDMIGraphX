@@ -93,7 +93,7 @@ struct nonmaxsuppression
             }
         };
 
-        if(not (inputs.at(0).dynamic() or inputs.at(1).dynamic()))
+        if(not(inputs.at(0).dynamic() or inputs.at(1).dynamic()))
         {
             fixed_shape_error_check();
         }
@@ -308,8 +308,7 @@ struct nonmaxsuppression
         argument result{max_output_shape};
         argument num_selected_result{output_shapes.at(1)};
 
-        int64_t max_output_boxes_per_class =
-            (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
+        int64_t max_output_boxes_per_class = (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
         if(max_output_boxes_per_class == 0)
         {
             num_selected_result.visit([&](auto output) { output[0] = 0; });

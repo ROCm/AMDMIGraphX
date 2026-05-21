@@ -198,10 +198,8 @@ TEST_CASE(nms_dynamic_fallback_test)
     using dd = migraphx::shape::dynamic_dimension;
     migraphx::program p;
     auto* mm = p.get_main_module();
-    migraphx::shape boxes_dyn_s{migraphx::shape::float_type,
-                                {dd{1, 1}, dd{4, 10}, dd{4, 4}}};
-    migraphx::shape scores_dyn_s{migraphx::shape::float_type,
-                                 {dd{1, 1}, dd{1, 1}, dd{4, 8}}};
+    migraphx::shape boxes_dyn_s{migraphx::shape::float_type, {dd{1, 1}, dd{4, 10}, dd{4, 4}}};
+    migraphx::shape scores_dyn_s{migraphx::shape::float_type, {dd{1, 1}, dd{1, 1}, dd{4, 8}}};
 
     auto boxes_p         = mm->add_parameter("boxes", boxes_dyn_s);
     auto scores_p        = mm->add_parameter("scores", scores_dyn_s);

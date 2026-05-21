@@ -57,10 +57,9 @@ struct nms_sort
         const auto num_batches = boxes_s.lens()[0];
         const auto num_boxes   = boxes_s.lens()[1];
         const auto num_classes = scores_s.lens()[1];
-        const auto aligned_b =
-            static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
+        const auto aligned_b = bit_ceil(static_cast<std::uint64_t>(num_boxes));
         shape out_scores_shape{scores_s.type(), {num_batches * num_classes, aligned_b}};
-        shape out_boxes_shape{boxes.type(), {num_batches * num_classes, aligned_b, 4}};
+        shape out_boxes_shape{boxes_s.type(), {num_batches * num_classes, aligned_b, 4}};
         shape out_box_index_shape{shape::int32_type, {num_batches * num_classes, aligned_b}};
         return shape{{out_scores_shape, out_boxes_shape, out_box_index_shape}};
     }
@@ -69,8 +68,8 @@ MIGRAPHX_REGISTER_OP(nms_sort);
 
 // Build the IoU mask and run the greedy filter.
 // Produces a tuple of (raw_output, bc_counts).
-// num_batches/num_classes/num_boxes are kept as op attributes because the filter inputs
-// is a scratch buffer from which these can't be recovered.
+// num_batches/num_classes/num_boxes are kept as op attributes because these can't be recovered
+// from the inputs.
 // inputs = {sorted_boxes, sorted_scores, sorted_box_indices, output_indices, output_bc_counts}
 struct nms_filter
 {

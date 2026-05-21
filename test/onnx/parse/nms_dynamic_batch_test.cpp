@@ -39,12 +39,7 @@ TEST_CASE(nms_dynamic_batch_test)
     migraphx::shape sst{migraphx::shape::float_type, {1}};
     auto st  = mm->add_parameter("score_threshold", sst);
     auto nms = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
-        b,
-        s,
-        mo,
-        iou,
-        st);
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}), b, s, mo, iou, st);
     auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
     mm->add_return({ret});
 

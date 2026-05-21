@@ -25,6 +25,8 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_DYNAMIC_NMS);
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
@@ -42,9 +44,16 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         auto nms_ins = info.add_instruction(op, args);
         // variable ends input slice to handle dynamic shape output
         auto indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
-        auto num_selected = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
-        auto slice_ins = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
-        return slice_ins;
+        if(enabled(MIGRAPHX_USE_DYNAMIC_NMS{}))
+        {
+            return indices;
+        }
+        else
+        {
+            auto num_selected = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
+            auto slice_ins = info.add_instruction(make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
+            return slice_ins;
+        }
     }
 };
 

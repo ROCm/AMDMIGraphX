@@ -192,7 +192,9 @@ struct hip_device
         void wait() const
         {
             // Avoid lazily creating an internal stream just to sync it.
-            hipStream_t cur = external_stream.value();
+            // Calling external_stream.value() unconditionally would throw
+            // std::bad_optional_access whenever no external stream is bound
+            // (the common case), so we must guard the access.
             if(not external_stream.has_value() and s != nullptr)
                 cur = s.get();
             if(cur == nullptr)

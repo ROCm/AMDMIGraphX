@@ -642,7 +642,16 @@ std::vector<argument> program::eval(const parameter_map& params,
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
+        // Order matters:
+        //   1) wait_for() makes our stream observe any prior work on the caller's
+        //      queue (event-based, never rebinds).
+        //   2) set_queue() then redirects subsequent submissions onto the caller's
+        //      queue so kernels are dispatched without an extra internal stream.
+        // The reverse order (set then wait) would synchronize the caller's stream
+        // against itself, which is a no-op and loses the cross-stream guarantee
+        // when the caller did not provide a stream we were already bound to.
         contexts.front().wait_for(exec_env.queue);
+        contexts.front().set_queue(exec_env.queue);
     }
 
     // When MIGRAPHX_TRACE_EVAL is set, overwrite any user-provided trace callback with our trace
@@ -695,6 +704,15 @@ std::vector<argument> program::eval(const parameter_map& params,
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
+        // Mirror the prologue in reverse:
+        //   1) restore_queue() un-binds the caller's queue first so finish_on()
+        //      records its event on the *internal* stream.  If any work was
+        //      issued on the internal stream during eval (e.g. on streams other
+        //      than stream 0) the caller's queue will wait for it.
+        //   2) finish_on() then makes the caller's queue observe that event.
+        // restore_queue() is idempotent / no-op when nothing was saved, so this
+        // sequence remains correct even if set_queue() was not previously called.
+        contexts.front().restore_queue();
         contexts.front().finish_on(exec_env.queue);
     }
 

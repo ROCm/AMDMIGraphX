@@ -40,6 +40,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/functional.hpp>
+#include <migraphx/picked_variant.hpp>
 #include <migraphx/requires.hpp>
 
 namespace migraphx {
@@ -66,7 +67,21 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace sym {
 
-using scalar = std::variant<int64_t, double>;
+struct pick_scalar
+{
+    template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
+    static auto apply(T v)
+    {
+        if constexpr(std::is_unsigned<T>{} and sizeof(T) >= sizeof(int64_t))
+            return int64_t(std::min<T>(v, std::numeric_limits<int64_t>::max()));
+        else if constexpr(std::is_integral<T>{})
+            return int64_t(v);
+        else
+            return double(v);
+    }
+};
+
+using scalar = picked_variant<pick_scalar, int64_t, double>;
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>
 scalar make_scalar(T v)

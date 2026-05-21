@@ -224,12 +224,17 @@ struct marker
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
+        {
+            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
+        }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         void mark_start(instruction_ref ins_ref) override
-        { private_detail_te_value.mark_start(ins_ref); }
+        {
+
+            private_detail_te_value.mark_start(ins_ref);
+        }
 
         void mark_start(const program& prog) override { private_detail_te_value.mark_start(prog); }
 
@@ -251,7 +256,9 @@ struct marker
     };
 
     bool private_detail_te_handle_empty() const
-    { return private_detail_te_handle_mem_var == nullptr; }
+    {
+        return private_detail_te_handle_mem_var == nullptr;
+    }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -272,11 +279,15 @@ struct marker
 
 template <typename ValueType>
 inline const ValueType* any_cast(const marker* x)
-{ return x->any_cast<ValueType>(); }
+{
+    return x->any_cast<ValueType>();
+}
 
 template <typename ValueType>
 inline ValueType* any_cast(marker* x)
-{ return x->any_cast<ValueType>(); }
+{
+    return x->any_cast<ValueType>();
+}
 
 template <typename ValueType>
 inline ValueType& any_cast(marker& x)

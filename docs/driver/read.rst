@@ -80,7 +80,7 @@ Print out program as json.
 
 .. option::  --netron
 
-Print out program as a Netron viewable json file.
+Print out program as ONNX protobuf binary viewable in Netron.
 
 .. option::  --text
 

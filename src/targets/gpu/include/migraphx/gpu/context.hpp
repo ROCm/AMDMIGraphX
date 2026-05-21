@@ -162,6 +162,26 @@ struct hip_device
 #endif
         }
 
+        // Drop any external binding and re-route library handles back to the
+        // internal stream.  set_external_stream(nullptr) is NOT equivalent
+        // under std::optional semantics: nullptr is itself a legal value
+        // (the HIP default stream), distinct from "no binding".
+        void clear_external_stream()
+        {
+            if(not has_external_stream())
+                return;
+            external_stream.reset();
+            hipStream_t internal = (s == nullptr) ? nullptr : s.get();
+#if MIGRAPHX_USE_MIOPEN
+            if(mihandle != nullptr)
+                miopenSetStream(mihandle.get(), internal);
+#endif
+#if MIGRAPHX_USE_ROCBLAS
+            if(rbhandle != nullptr)
+                rocblas_set_stream(rbhandle.get(), internal);
+#endif
+        }
+
         bool has_external_stream() const { return external_stream.has_value(); }
 
         // Bind a caller-provided stream for subsequent submissions and remember
@@ -172,6 +192,8 @@ struct hip_device
         // cleanly through this pair of methods.
         void set_queue(hipStream_t q)
         {
+            // Wrap in an outer optional so "saved (nothing bound)" survives
+            // the round-trip even when `external_stream` itself is empty.
             previous_stream = external_stream;
             set_external_stream(q);
         }
@@ -184,9 +206,12 @@ struct hip_device
         {
             if(not previous_stream.has_value())
                 return;
-            auto* prev = *previous_stream;
+            auto prev = *previous_stream;
             previous_stream.reset();
-            set_external_stream(prev);
+            if(prev.has_value())
+                set_external_stream(*prev);
+            else
+                clear_external_stream();
         }
 
         void wait() const
@@ -195,6 +220,7 @@ struct hip_device
             // Calling external_stream.value() unconditionally would throw
             // std::bad_optional_access whenever no external stream is bound
             // (the common case), so we must guard the access.
+            hipStream_t cur = external_stream.value_or(nullptr);
             if(not external_stream.has_value() and s != nullptr)
                 cur = s.get();
             if(cur == nullptr)
@@ -225,10 +251,12 @@ struct hip_device
         std::size_t id              = 0;
         shared<hip_stream_ptr> s    = nullptr;
         std::optional<hipStream_t> external_stream{};
-        // Saved binding for restore_queue().  Empty == no prior queue saved;
-        // distinguishing "saved nullptr" from "no save" is required because
-        // nullptr is itself a legal stream value.
-        std::optional<hipStream_t> previous_stream{};
+        // Saved binding for restore_queue().  The outer optional answers
+        // "was a prior queue saved?"; the inner answers "what was bound at
+        // save time?" (which may itself be empty, meaning no binding).  A
+        // single-level optional cannot distinguish "no save" from "saved
+        // empty binding" now that external_stream is itself an optional.
+        std::optional<std::optional<hipStream_t>> previous_stream{};
 #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
 #endif

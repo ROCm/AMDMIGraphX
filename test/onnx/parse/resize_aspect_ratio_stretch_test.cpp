@@ -21,20 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_NETRON_OUTPUT_HPP
-#define MIGRAPHX_GUARD_RTGLIB_NETRON_OUTPUT_HPP
 
-#include <ostream>
-#include <migraphx/config.hpp>
-#include <migraphx/program.hpp>
-#include <migraphx/onnx/export.h>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+TEST_CASE(resize_aspect_ratio_stretch_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
 
-MIGRAPHX_ONNX_EXPORT void write_netron_output(const program& prog, std::ostream& os);
+    // These are from the ONNX file but not used by the 1-input resize
+    std::vector<int64_t> out_len = {1, 1, 4, 8};
+    migraphx::shape so{migraphx::shape::int64_type, {4}};
+    mm->add_literal(migraphx::literal(so, out_len));
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+    migraphx::shape sx{migraphx::shape::float_type, {1, 1, 2, 4}};
+    auto inx = mm->add_parameter("X", sx);
 
-#endif
+    mm->add_instruction(migraphx::make_op("undefined"));
+
+    // keep_aspect_ratio_policy="stretch" is accepted as a no-op: it is the
+    // Resize-18 default and matches the existing per-axis semantics.
+    auto r =
+        mm->add_instruction(migraphx::make_op("resize",
+                                              {{"sizes", {1, 1, 4, 8}},
+                                               {"nearest_mode", "floor"},
+                                               {"coordinate_transformation_mode", "asymmetric"}}),
+                            inx);
+    mm->add_return({r});
+
+    auto prog = read_onnx("resize_aspect_ratio_stretch_test.onnx");
+
+    EXPECT(p == prog);
+}

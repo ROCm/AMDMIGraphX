@@ -38,6 +38,8 @@ shape reorder_shape(const shape& s, const std::vector<int64_t>& permutation)
         return {s.type(),
                 reorder_dims(s.dyn_dims(), permutation),
                 reorder_dims(s.dyn_strides(), permutation)};
+    if(s.dynamic())
+        return {s.type(), reorder_dims(s.dyn_dims(), permutation)};
     return {s.type(), reorder_dims(s.lens(), permutation), reorder_dims(s.strides(), permutation)};
 }
 

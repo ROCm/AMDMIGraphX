@@ -100,20 +100,13 @@ struct pipeline_factory
     migraphx::context* gctx_ptr = nullptr;
     compile_options options;
 
-    migraphx::context* get_generic_context()
-    {
-        return gctx_ptr;
-    }
+    migraphx::context* get_generic_context() { return gctx_ptr; }
 
-    context* get_context()
-    {
-        return any_cast<context>(gctx_ptr);
-    }
+    context* get_context() { return any_cast<context>(gctx_ptr); }
 
     std::vector<pass> dynamic_shapes_pipeline()
     {
-        return
-        {
+        return {
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
             dead_code_elimination{},
             simplify_dyn_ops{},
@@ -123,15 +116,16 @@ struct pipeline_factory
 
     std::vector<pass> required_pipeline()
     {
-        return
-        {
+        return {
             normalize_ops{},
             dead_code_elimination{},
             eliminate_identity{},
             dead_code_elimination{},
-            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), fp8_ocp_to_fnuz{}),
-            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(), dead_code_elimination{}),
-            simplify_qdq{.use_mx_quant=gpu::gfx_has_mx_intrinsics()},
+            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(),
+                        fp8_ocp_to_fnuz{}),
+            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(),
+                        dead_code_elimination{}),
+            simplify_qdq{.use_mx_quant = gpu::gfx_has_mx_intrinsics()},
             enable_pass(not mlir_enabled(), rewrite_quantization{}),
             dead_code_elimination{},
             rewrite_rnn{},
@@ -146,15 +140,16 @@ struct pipeline_factory
             insert_pad{{"convolution"}},
             dead_code_elimination{},
             inline_module{},
-            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or enabled(MIGRAPHX_REWRITE_LRN{}))}),
+            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                        rewrite_pooling{.rewrite_lrn = (not MIGRAPHX_USE_MIOPEN or
+                                                        enabled(MIGRAPHX_REWRITE_LRN{}))}),
             dead_code_elimination{},
         };
     }
 
     std::vector<pass> optimize_rewrite_pipeline()
     {
-        return
-        {
+        return {
             rewrite_gelu{options.fast_math},
             optimize_module{},
             layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
@@ -171,17 +166,17 @@ struct pipeline_factory
             dead_code_elimination{},
             propagate_precision{},
             dead_code_elimination{},
-            simplify_reshapes{.enable_op_shape_transform_op=true},
+            simplify_reshapes{.enable_op_shape_transform_op = true},
             dead_code_elimination{},
         };
     }
-    
+
     std::vector<pass> fusion_pipeline()
     {
-        return
-        {
-            enable_pass(mlir_enabled(), fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
-                                                   .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+        return {
+            enable_pass(mlir_enabled(),
+                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
+                                       .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
             fuse_pointwise_reduce{},
@@ -199,8 +194,7 @@ struct pipeline_factory
 
     std::vector<pass> backend_pipeline()
     {
-        return
-        {
+        return {
             auto_contiguous{},
             dead_code_elimination{},
             lowering{get_context(), options.offload_copy},
@@ -229,7 +223,8 @@ struct pipeline_factory
             promote_literals{},
             dead_code_elimination{},
             write_literals{get_context()},
-            schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()}, not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
+            schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
+                     not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},
             sync_device{},
             preallocate_param{"scratch", gpu_allocation_model{}},
@@ -242,7 +237,7 @@ struct pipeline_factory
         };
     }
 };
-}
+} // namespace
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -252,8 +247,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     pipeline_factory p{&gctx, options};
 
-    std::vector<std::vector<pass>> pipelines = 
-    {
+    std::vector<std::vector<pass>> pipelines = {
         p.dynamic_shapes_pipeline(),
         p.required_pipeline(),
         p.optimize_rewrite_pipeline(),

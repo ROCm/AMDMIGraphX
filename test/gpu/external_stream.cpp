@@ -61,6 +61,8 @@ TEST_CASE(test_stream_override_get)
 
     hipStream_t internal = stream.get();
     EXPECT(internal != nullptr);
+    // A freshly-constructed context has no external binding.
+    EXPECT(not stream.has_external_stream());
 
     auto ext = create_external_stream();
     stream.set_external_stream(ext.get());
@@ -69,10 +71,15 @@ TEST_CASE(test_stream_override_get)
     EXPECT(stream.get() != internal);
     EXPECT(stream.has_external_stream());
 
+    // Under std::optional semantics, set_external_stream(nullptr) does NOT
+    // clear the binding: it rebinds to the HIP default stream (which is a
+    // legal stream value).  has_external_stream() therefore stays true, and
+    // get() now returns nullptr (= the default stream).
     stream.set_external_stream(nullptr);
 
-    EXPECT(stream.get() == internal);
-    EXPECT(not stream.has_external_stream());
+    EXPECT(stream.get() == nullptr);
+    EXPECT(stream.get() != internal);
+    EXPECT(stream.has_external_stream());
 }
 
 TEST_CASE(test_stream_override_get_queue)
@@ -86,9 +93,14 @@ TEST_CASE(test_stream_override_get_queue)
     ctx.get_stream().set_external_stream(ext.get());
     EXPECT(ctx.get_queue().get<hipStream_t>() == ext.get());
 
+    // Rebinding to nullptr means "the HIP default stream", not "no binding".
+    // The active queue therefore changes value, but the external binding
+    // remains in effect.
     ctx.get_stream().set_external_stream(nullptr);
 
-    EXPECT(ctx.get_queue().get<hipStream_t>() == original_queue);
+    EXPECT(ctx.get_queue().get<hipStream_t>() == nullptr);
+    EXPECT(ctx.get_queue().get<hipStream_t>() != original_queue);
+    EXPECT(ctx.get_stream().has_external_stream());
 }
 
 TEST_CASE(test_context_set_and_restore_queue)
@@ -155,11 +167,14 @@ TEST_CASE(test_context_set_queue_with_null_round_trips)
     ctx.get_stream().set_external_stream(ext.get());
     EXPECT(ctx.get_queue().get<hipStream_t>() == ext.get());
 
-    // nullptr is a *valid* queue value (the HIP default stream).
+    // nullptr is a *valid* queue value -- it binds the HIP default stream.
+    // Under std::optional<hipStream_t> semantics the binding is still
+    // active (has_external_stream() == true); the value is just nullptr.
     // set_queue(null) must NOT be conflated with restore.
     ctx.set_queue(migraphx::any_ptr{});
+    EXPECT(ctx.get_queue().get<hipStream_t>() == nullptr);
     EXPECT(ctx.get_queue().get<hipStream_t>() != ext.get());
-    EXPECT(not ctx.get_stream().has_external_stream());
+    EXPECT(ctx.get_stream().has_external_stream());
 
     // restore_queue() now puts the external stream back -- proving the
     // prior binding was saved across a set_queue(nullptr) call.
@@ -277,6 +292,11 @@ TEST_CASE(test_multiple_async_evals_same_stream)
 
 TEST_CASE(test_external_stream_cleared_after_eval)
 {
+    // When the context had NO external binding prior to async eval, the
+    // epilogue's restore_queue() must put the context back into the
+    // "no binding" state -- the caller's transient stream must not leak.
+    // This requires previous_stream to distinguish "no save" from
+    // "saved (nothing bound)".
     const unsigned int n = 64;
 
     migraphx::program p;
@@ -305,36 +325,120 @@ TEST_CASE(test_external_stream_cleared_after_eval)
     migraphx::context& ctx_ref = p.get_context();
     auto* gpu_ctx              = ctx_ref.any_cast<migraphx::gpu::context>();
     EXPECT(gpu_ctx != nullptr);
+    EXPECT(not gpu_ctx->get_stream().has_external_stream());
 
     hipStream_t internal_stream = gpu_ctx->get_queue().get<hipStream_t>();
 
     p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {ext.get(), true});
 
-    EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == internal_stream);
+    EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
+
     EXPECT(not gpu_ctx->get_stream().has_external_stream());
+    EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == internal_stream);
 }
 
-TEST_CASE(test_wait_for_null_stream_uses_event_fallback)
+TEST_CASE(test_external_stream_eval_restores_prior_binding)
 {
-    migraphx::gpu::context ctx{};
+    // program::eval's async epilogue calls restore_queue(), which puts back
+    // whatever binding set_queue() captured at the start of eval.  When the
+    // context already had an external binding before eval, that binding must
+    // be re-established after eval -- the caller's transient stream must not
+    // be left behind.
+    const unsigned int n = 64;
 
-    migraphx::any_ptr queue{};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+
+    auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {n}});
+    auto y = mm->add_parameter("y", migraphx::shape{migraphx::shape::float_type, {n}});
+    mm->add_instruction(migraphx::make_op("add"), x, y);
+
+    p.compile(migraphx::make_target("gpu"));
+
+    std::vector<float> xdata(n, 1.0f);
+    std::vector<float> ydata(n, 2.0f);
+    auto xarg = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {n}}, xdata.data()};
+    auto yarg = migraphx::argument{migraphx::shape{migraphx::shape::float_type, {n}}, ydata.data()};
+
+    auto gx = migraphx::gpu::to_gpu(xarg);
+    auto gy = migraphx::gpu::to_gpu(yarg);
+
+    migraphx::shape out_shape{migraphx::shape::float_type, {n}};
+    auto out  = migraphx::fill_argument(out_shape, 0);
+    auto gout = migraphx::gpu::to_gpu(out);
+
+    auto prior = create_external_stream();
+    auto ext   = create_external_stream();
+
+    migraphx::context& ctx_ref = p.get_context();
+    auto* gpu_ctx              = ctx_ref.any_cast<migraphx::gpu::context>();
+    EXPECT(gpu_ctx != nullptr);
+
+    // Establish a prior external binding so restore_queue() has something
+    // non-trivial to put back.  (The "no prior binding" case is covered
+    // separately by test_external_stream_cleared_after_eval.)
+    gpu_ctx->get_stream().set_external_stream(prior.get());
+    EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == prior.get());
+
+    p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {ext.get(), true});
+
+    EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
+
+    // After async eval the prior external binding is restored.
+    EXPECT(gpu_ctx->get_stream().has_external_stream());
+    EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == prior.get());
+    EXPECT(gpu_ctx->get_queue().get<hipStream_t>() != ext.get());
+}
+
+TEST_CASE(test_wait_for_finish_on_require_typed_queue)
+{
+    // The earlier "null-stream event fallback" was intentionally removed:
+    // wait_for()/finish_on() are now pure event-sync primitives that assume
+    // the caller has provided a typed (hipStream_t) any_ptr.  Passing a
+    // default-constructed any_ptr is a programmer error and surfaces as a
+    // type-mismatch exception, rather than silently no-op'ing.
+    //
+    // The async eval path in program::eval no longer calls wait_for() /
+    // finish_on() at all -- it relies on set_queue()/restore_queue() for
+    // queue rebinding -- so this is purely a direct-API contract test.
+    migraphx::gpu::context ctx{};
 
     hipStream_t internal_before = ctx.get_queue().get<hipStream_t>();
 
-    ctx.wait_for(queue);
+    bool threw_on_wait_for = false;
+    try
+    {
+        ctx.wait_for(migraphx::any_ptr{});
+    }
+    catch(const migraphx::exception&)
+    {
+        threw_on_wait_for = true;
+    }
+    EXPECT(threw_on_wait_for);
 
-    EXPECT(not ctx.get_stream().has_external_stream());
-    EXPECT(ctx.get_queue().get<hipStream_t>() == internal_before);
+    bool threw_on_finish_on = false;
+    try
+    {
+        ctx.finish_on(migraphx::any_ptr{});
+    }
+    catch(const migraphx::exception&)
+    {
+        threw_on_finish_on = true;
+    }
+    EXPECT(threw_on_finish_on);
 
-    ctx.finish_on(queue);
-
+    // The active binding is untouched on the error path.
     EXPECT(not ctx.get_stream().has_external_stream());
     EXPECT(ctx.get_queue().get<hipStream_t>() == internal_before);
 }
 
-TEST_CASE(test_fallback_event_path_produces_correct_results)
+TEST_CASE(test_async_eval_with_null_queue_uses_default_stream)
 {
+    // A default-constructed any_ptr is treated as "bind the HIP default
+    // stream (nullptr)" by context::set_queue() -- not as a request for an
+    // event fallback (there isn't one anymore).  The eval must dispatch on
+    // the default stream and produce correct results once that stream is
+    // synchronized.
     const unsigned int n = 128;
 
     migraphx::program p;
@@ -409,6 +513,10 @@ TEST_CASE(test_non_async_eval_uses_internal_stream)
 
 TEST_CASE(test_mixed_async_and_sync_evals)
 {
+    // Interleave async (caller-supplied stream) and sync (default) evals on
+    // the same program and verify each produces correct results AND that the
+    // pre-existing external binding survives every async eval intact.  This
+    // exercises the save/restore round-trip from a non-empty prior state.
     const unsigned int n = 128;
 
     migraphx::program p;
@@ -436,30 +544,39 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     auto* gpu_ctx              = ctx_ref.any_cast<migraphx::gpu::context>();
     EXPECT(gpu_ctx != nullptr);
 
-    auto ext = create_external_stream();
+    auto prior = create_external_stream();
+    auto ext   = create_external_stream();
 
-    // Async eval with external stream
+    gpu_ctx->get_stream().set_external_stream(prior.get());
+    EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == prior.get());
+
+    // Async eval with caller-supplied stream
     p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {ext.get(), true});
-    EXPECT(not gpu_ctx->get_stream().has_external_stream());
     EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
+    // Prior binding is restored: the caller's stream is *not* left bound.
+    EXPECT(gpu_ctx->get_stream().has_external_stream());
+    EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == prior.get());
 
     auto host_result = migraphx::gpu::from_gpu(gout);
     verify_data(host_result, out_shape, 3.0f);
 
-    // Sync eval with internal stream
+    // Sync eval runs on whatever stream is currently bound (the prior
+    // external one here); p.finish() syncs that same stream.
     auto gout2 = migraphx::gpu::to_gpu(out);
     p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout2}});
-    EXPECT(not gpu_ctx->get_stream().has_external_stream());
+    EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == prior.get());
     p.finish();
 
     auto host_result2 = migraphx::gpu::from_gpu(gout2);
     verify_data(host_result2, out_shape, 3.0f);
 
-    // Async eval again to confirm no stale state
+    // Async eval again -- the prior binding must again be restored
+    // afterwards, confirming the save/restore is repeatable.
     auto gout3 = migraphx::gpu::to_gpu(out);
     p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout3}}, {ext.get(), true});
-    EXPECT(not gpu_ctx->get_stream().has_external_stream());
     EXPECT(hipStreamSynchronize(ext.get()) == hipSuccess);
+    EXPECT(gpu_ctx->get_stream().has_external_stream());
+    EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == prior.get());
 
     auto host_result3 = migraphx::gpu::from_gpu(gout3);
     verify_data(host_result3, out_shape, 3.0f);

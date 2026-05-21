@@ -33,6 +33,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 // Sort boxes per (batch, class) into nms_data{} tensor.
+// inputs = {boxes, scores}
 struct nms_sort
 {
     bool center_point_box = false;
@@ -69,6 +70,7 @@ MIGRAPHX_REGISTER_OP(nms_sort);
 // Produces a tuple of (raw_output, bc_counts).
 // num_batches/num_classes/num_boxes are kept as op attributes because the filter inputs
 // is a scratch buffer from which these can't be recovered.
+// inputs = {sorted_boxes, sorted_scores, sorted_box_indices, output_indices, output_bc_counts}
 struct nms_filter
 {
     std::size_t num_batches = 0;
@@ -99,6 +101,7 @@ MIGRAPHX_REGISTER_OP(nms_filter);
 //  Needs a make_tuple type of operator that reuses the indicies input.
 // Prefix-scan the per-block counts and compact the selections into
 // the final selected_indices. Output as selected_indices and num_selected tuple.
+// inputs = {output_bc_counts, output_indices}
 struct nms_compact
 {
     std::string name() const { return "gpu::nms_compact"; }

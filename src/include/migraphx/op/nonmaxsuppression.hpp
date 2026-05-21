@@ -189,7 +189,8 @@ struct nonmaxsuppression
         return intersection_over_union > iou_threshold;
     }
 
-    // filter boxes below score_threshold
+    // Filter boxes below score_threshold.
+    // Don't filter for score if score_threshold == 0.f
     template <class T>
     std::vector<std::pair<double, int64_t>>
     filter_boxes_by_score(T scores_start, std::size_t num_boxes, double score_threshold) const

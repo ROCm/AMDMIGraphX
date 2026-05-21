@@ -64,23 +64,23 @@ __device__ inline array<typename Box::type, 4> nms_normalize_box(const Box box)
 {
     if constexpr(CenterPointBox)
     {
-        const float xc = box[0];
-        const float yc = box[1];
-        const float hw = box[2] * 0.5f;
-        const float hh = box[3] * 0.5f;
+        const auto xc = box[0];
+        const auto yc = box[1];
+        const auto hw = box[2] * 0.5f;
+        const auto hh = box[3] * 0.5f;
         return {xc - hw, yc - hh, xc + hw, yc + hh};
     }
     else
     {
         // ONNX layout: [y1, x1, y2, x2]; corners may be in either order.
-        const float y1   = box[0];
-        const float x1   = box[1];
-        const float y2   = box[2];
-        const float x2   = box[3];
-        const float xmin = min(x1, x2);
-        const float xmax = max(x1, x2);
-        const float ymin = min(y1, y2);
-        const float ymax = max(y1, y2);
+        const auto y1   = box[0];
+        const auto x1   = box[1];
+        const auto y2   = box[2];
+        const auto x2   = box[3];
+        const auto xmin = min(x1, x2);
+        const auto xmax = max(x1, x2);
+        const auto ymin = min(y1, y2);
+        const auto ymax = max(y1, y2);
         return {xmin, ymin, xmax, ymax};
     }
 }
@@ -88,16 +88,16 @@ __device__ inline array<typename Box::type, 4> nms_normalize_box(const Box box)
 template <class Box, class Threshold>
 __device__ inline bool nms_iou_over_threshold(const Box a, const Box b, const Threshold threshold)
 {
-    const float left   = max(a[0], b[0]);
-    const float right  = min(a[2], b[2]);
-    const float top    = max(a[1], b[1]);
-    const float bottom = min(a[3], b[3]);
-    const float w      = max(right - left, 0.f);
-    const float h      = max(bottom - top, 0.f);
-    const float inter  = w * h;
-    const float area_a = max(a[2] - a[0], 0.f) * max(a[3] - a[1], 0.f);
-    const float area_b = max(b[2] - b[0], 0.f) * max(b[3] - b[1], 0.f);
-    const float un     = area_a + area_b - inter;
+    const auto left   = max(a[0], b[0]);
+    const auto right  = min(a[2], b[2]);
+    const auto top    = max(a[1], b[1]);
+    const auto bottom = min(a[3], b[3]);
+    const auto w      = max(right - left, 0.f);
+    const auto h      = max(bottom - top, 0.f);
+    const auto inter  = w * h;
+    const auto area_a = max(a[2] - a[0], 0.f) * max(a[3] - a[1], 0.f);
+    const auto area_b = max(b[2] - b[0], 0.f) * max(b[3] - b[1], 0.f);
+    const auto un     = area_a + area_b - inter;
     if(area_a <= 0.f or area_b <= 0.f or un <= 0.f)
         return false;
     return (inter / un) > threshold;

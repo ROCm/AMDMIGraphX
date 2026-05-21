@@ -187,6 +187,55 @@ TEST_CASE(nms_not_center_test)
     EXPECT(num_selected == 3);
 }
 
+// Exercises the CPU fallback in src/targets/gpu/lowering.cpp::lower_nms_to_ref
+// by declaring dynamic-shape parameters for boxes/scores. Uses different
+// dynamic-dim ranges between boxes and scores so split_single_dyn_dim bails
+// out (its has_one_unique_dyn_dim check requires identical ranges) and the
+// dynamic shape survives until lowering. Same data and gold as
+// nms_not_center_test.
+TEST_CASE(nms_dynamic_fallback_test)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_dyn_s{migraphx::shape::float_type,
+                                {dd{1, 1}, dd{4, 10}, dd{4, 4}}};
+    migraphx::shape scores_dyn_s{migraphx::shape::float_type,
+                                 {dd{1, 1}, dd{1, 1}, dd{4, 8}}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_dyn_s);
+    auto scores_p        = mm->add_parameter("scores", scores_dyn_s);
+    auto max_out_l       = mm->add_literal(int64_t{4});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_p,
+                                   scores_p,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    add_nms_return(mm, nms);
+
+    std::vector<float> boxes_vec  = {1.0, 1.0,  0.0, 0.0,  0.0, 0.1,   1.0, 1.1,
+                                     0.0, 0.9,  1.0, -0.1, 0.0, 10.0,  1.0, 11.0,
+                                     1.0, 10.1, 0.0, 11.1, 1.0, 101.0, 0.0, 100.0};
+    std::vector<float> scores_vec = {0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
+
+    migraphx::shape boxes_runtime_s{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape scores_runtime_s{migraphx::shape::float_type, {1, 1, 6}};
+
+    migraphx::parameter_map host_params;
+    host_params["boxes"]  = migraphx::argument(boxes_runtime_s, boxes_vec.data());
+    host_params["scores"] = migraphx::argument(scores_runtime_s, scores_vec.data());
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
+    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(num_selected == 3);
+}
+
 TEST_CASE(nms_transpose1_test)
 {
     migraphx::program p;

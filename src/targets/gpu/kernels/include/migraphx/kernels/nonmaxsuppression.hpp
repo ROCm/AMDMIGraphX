@@ -85,9 +85,9 @@ __device__ inline bool nms_iou_over_threshold(const Box a, const Box b, const Th
 }
 
 // Packed upper-triangular index for j > i within an N x N matrix.
-__device__ inline index_int nms_packed_idx(index_int i, index_int j, index_int N)
+__device__ inline index_int nms_packed_idx(index_int i, index_int j, index_int size)
 {
-    return (i * N - (i * (i + 1)) / 2) + j - (i + 1);
+    return (i * size - (i * (i + 1)) / 2) + j - (i + 1);
 }
 
 // One block per (batch_idx, class_idx). Initializes the per-block slice of

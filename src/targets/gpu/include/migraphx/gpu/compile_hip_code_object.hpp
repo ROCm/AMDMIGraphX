@@ -36,7 +36,7 @@ namespace gpu {
 struct context;
 
 struct hip_compile_options
-{   
+{
     // Total number of threads
     std::size_t global;
     // Threads per block

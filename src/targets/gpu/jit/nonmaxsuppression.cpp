@@ -145,10 +145,10 @@ struct nms_sort_compiler : compiler<nms_sort_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        const auto& boxes_s  = inputs[0];
-        const auto& scores_s = inputs[1];
+        const auto& boxes_s    = inputs[0];
+        const auto& scores_s   = inputs[1];
         const auto num_batches = boxes_s.lens()[0];
-        const auto num_boxes = boxes_s.lens()[1];
+        const auto num_boxes   = boxes_s.lens()[1];
         const auto num_classes = scores_s.lens()[1];
         const auto aligned_num_boxes =
             static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
@@ -191,12 +191,12 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
     {
         const auto num_batches = v.at("num_batches").to<std::size_t>();
         const auto num_classes = v.at("num_classes").to<std::size_t>();
-        const auto num_boxes  = v.at("num_boxes").to<std::size_t>();
+        const auto num_boxes   = v.at("num_boxes").to<std::size_t>();
         const auto aligned_num_boxes =
             static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
         // TODO: tune for max block size?
         // ceil_div(num_boxes, 2) because of strided thread work distribution
-        const auto block_size = compute_block_size(ctx, (num_boxes + 1)/2, 256);
+        const auto block_size = compute_block_size(ctx, (num_boxes + 1) / 2, 256);
 
         hip_compile_options options;
         options.inputs         = flatten_shapes(inputs);
@@ -205,14 +205,14 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
         options.virtual_inputs = options.inputs;
         options.set_launch_params(v, num_batches * num_classes * block_size, block_size);
 
-        auto src = interpolate_string(
-            nms_filter_kernel_src,
-            {{"params", enum_params(options.inputs.size(), "void * private_p")},
-             {"args", enum_params(options.inputs.size(), "private_p")},
-             {"num_batches", std::to_string(num_batches)},
-             {"num_classes", std::to_string(num_classes)},
-             {"num_boxes", std::to_string(num_boxes)},
-             {"aligned_num_boxes", std::to_string(aligned_num_boxes)}});
+        auto src =
+            interpolate_string(nms_filter_kernel_src,
+                               {{"params", enum_params(options.inputs.size(), "void * private_p")},
+                                {"args", enum_params(options.inputs.size(), "private_p")},
+                                {"num_batches", std::to_string(num_batches)},
+                                {"num_classes", std::to_string(num_classes)},
+                                {"num_boxes", std::to_string(num_boxes)},
+                                {"aligned_num_boxes", std::to_string(aligned_num_boxes)}});
         return compile_hip_code_object(ctx, src, options);
     }
 
@@ -231,10 +231,10 @@ struct nms_compact_compiler : compiler<nms_compact_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        const auto& cnt_s = inputs[0];
-        const auto& indices_s = inputs[1];
+        const auto& cnt_s          = inputs[0];
+        const auto& indices_s      = inputs[1];
         const auto num_batch_class = cnt_s.elements();
-        const auto num_boxes = indices_s.elements() / (num_batch_class * std::size_t{3});
+        const auto num_boxes       = indices_s.elements() / (num_batch_class * std::size_t{3});
         // TODO: tune for block size?
         // num_boxes block size could also work?
         const auto block_size = compute_block_size(ctx, num_batch_class * num_boxes, 256);
@@ -246,12 +246,12 @@ struct nms_compact_compiler : compiler<nms_compact_compiler>
         options.virtual_inputs = options.inputs;
         options.set_launch_params(v, block_size, block_size);
 
-        auto src = interpolate_string(
-            nms_compact_kernel_src,
-            {{"params", enum_params(options.inputs.size(), "void * private_p")},
-             {"args", enum_params(options.inputs.size(), "private_p")},
-             {"num_batch_class", std::to_string(num_batch_class)},
-             {"num_boxes", std::to_string(num_boxes)}});
+        auto src =
+            interpolate_string(nms_compact_kernel_src,
+                               {{"params", enum_params(options.inputs.size(), "void * private_p")},
+                                {"args", enum_params(options.inputs.size(), "private_p")},
+                                {"num_batch_class", std::to_string(num_batch_class)},
+                                {"num_boxes", std::to_string(num_boxes)}});
         return compile_hip_code_object(ctx, src, options);
     }
 

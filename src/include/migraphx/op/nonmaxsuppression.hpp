@@ -47,7 +47,8 @@
  *                    optional(max_output_boxes_per_class),
  *                    optional(iou_threshold),
  *                    optional(score_threshold));
- *  Outputs tuple of {tensor with dims[max_num_boxes, 3]: selected_box_indices, scalar int64_t: num_selected_indices} 
+ *  Outputs tuple of {tensor with dims[max_num_boxes, 3]: selected_box_indices, scalar int64_t:
+ * num_selected_indices}
  */
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -298,7 +299,7 @@ struct nonmaxsuppression
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         // make buffer of maximum size
-        auto output_shapes = flatten_shapes({output_shape});
+        auto output_shapes     = flatten_shapes({output_shape});
         shape max_output_shape = {output_shapes.at(0).type(), output_shapes.at(0).max_lens()};
         argument result{max_output_shape};
         argument num_selected_result{output_shapes.at(1)};
@@ -307,9 +308,7 @@ struct nonmaxsuppression
             (args.size() > 2) ? (args.at(2).at<std::size_t>()) : 0;
         if(max_output_boxes_per_class == 0)
         {
-            num_selected_result.visit([&](auto output){
-                output[0] = 0;
-            });
+            num_selected_result.visit([&](auto output) { output[0] = 0; });
             return {{result, num_selected_result}};
         }
         double iou_threshold     = (args.size() > 3) ? (args.at(3).at<double>()) : 0.0f;
@@ -326,9 +325,7 @@ struct nonmaxsuppression
                                            score_threshold);
             });
         });
-        num_selected_result.visit([&](auto output){
-            output[0] = num_selected;
-        });
+        num_selected_result.visit([&](auto output) { output[0] = num_selected; });
         return {{result, num_selected_result}};
     }
 };

@@ -458,8 +458,8 @@ struct miopen_apply
     {
         apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
             auto inputs = ins->inputs();
-            const auto& boxes_s  = inputs[0]->get_shape();
-            const auto& scores_s = inputs[1]->get_shape();
+            const auto& boxes_s    = inputs[0]->get_shape();
+            const auto& scores_s   = inputs[1]->get_shape();
             const auto num_batches = boxes_s.lens()[0];
             const auto num_boxes   = boxes_s.lens()[1];
             const auto num_classes = scores_s.lens()[1];
@@ -492,26 +492,25 @@ struct miopen_apply
                 inputs[1]);
             sorted = insert_precompile_op(sorted);
 
-            auto filter = mod->insert_instruction(
-                ins,
-                make_op("gpu::nms_filter",
-                        {{"num_batches", num_batches},
-                         {"num_classes", num_classes},
-                         {"num_boxes", num_boxes}}),
-                sorted,
-                inputs[2],
-                inputs[3],
-                inputs[4],
-                mask_alloc);
-            filter = insert_precompile_op(filter);
+            auto filter = mod->insert_instruction(ins,
+                                                  make_op("gpu::nms_filter",
+                                                          {{"num_batches", num_batches},
+                                                           {"num_classes", num_classes},
+                                                           {"num_boxes", num_boxes}}),
+                                                  sorted,
+                                                  inputs[2],
+                                                  inputs[3],
+                                                  inputs[4],
+                                                  mask_alloc);
+            filter      = insert_precompile_op(filter);
 
             auto raw_output =
                 mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), filter);
             auto bc_counts =
                 mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), filter);
 
-            auto compact = mod->insert_instruction(
-                ins, make_op("gpu::nms_compact"), bc_counts, raw_output);
+            auto compact =
+                mod->insert_instruction(ins, make_op("gpu::nms_compact"), bc_counts, raw_output);
             compact = insert_precompile_op(compact);
 
             return mod->replace_instruction(ins, compact);

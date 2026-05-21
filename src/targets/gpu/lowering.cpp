@@ -448,16 +448,9 @@ struct miopen_apply
         });
     }
 
-    // Rewrites onnx `nonmaxsuppression` into the GPU op pipeline:
-    //   gpu::nms_sort -> gpu::nms_filter -> gpu::nms_compact
-    // Each gpu::nms_* op is wrapped in gpu::precompile_op inline so the JIT
-    // compile pass can pick them up later. We can't rely on the main lowering
-    // loop to wrap them: it walks forward, and the new instructions land
-    // before `ins` so they would never be revisited.
-    //
-    // The kernels are JIT'd against compile-time sizes baked from the input
-    // shapes, so when either of `boxes` / `scores` is dynamic we fall back to
-    // executing the ref op on the host.
+    // Lowers `nonmaxsuppression` to the gpu::nms_sort -> nms_filter ->
+    // nms_compact pipeline, or to a host ref-op fallback when either input
+    // shape is dynamic (the kernels bake compile-time sizes).
     void add_nms_op()
     {
         apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
@@ -469,7 +462,8 @@ struct miopen_apply
         });
     }
 
-    // Static GPU pipeline: gpu::nms_sort -> gpu::nms_filter -> gpu::nms_compact.
+    // Static GPU pipeline. Each gpu::nms_* is wrapped in precompile_op inline
+    // because the main lowering loop walks forward and would skip them.
     instruction_ref lower_nms_to_gpu_pipeline(instruction_ref ins) const
     {
         auto inputs            = ins->inputs();
@@ -494,8 +488,7 @@ struct miopen_apply
         bool center_point_box =
             ins->get_operator().to_value().at("center_point_box").to<bool>();
 
-        // Mask is scratch only; allocate up-front so the standard
-        // replace_allocate pass can later turn it into hip::allocate.
+        // Scratch mask; replace_allocate later turns it into hip::allocate.
         shape mask_shape{shape::uint8_type, {num_batches * num_classes, iou_packed}};
         auto mask_alloc = insert_allocation(ins, mask_shape);
 
@@ -530,17 +523,11 @@ struct miopen_apply
         return mod->replace_instruction(ins, compact);
     }
 
-    // Dynamic-shape fallback: run the ref `nonmaxsuppression` op on the host
-    // and copy each tuple element back to its own GPU allocation. Downstream
-    // `get_tuple_elem` consumers of `ins` are rewritten in place to point at
-    // the per-element GPU copies; `ins` itself is left for DCE to remove.
-    //
-    // The ref op produces a tuple {indices, num_selected}, and `hip::copy_to_gpu`
-    // is not tuple-aware (calls `argument::data()` which asserts non-tuple), so
-    // we have to split the tuple on the host side before copying back.
+    // Dynamic-shape fallback: run the ref op on the host. The tuple has to be
+    // split host-side before copy_to_gpu (which is not tuple-aware), and the
+    // downstream get_tuple_elem consumers are rewritten in place.
     instruction_ref lower_nms_to_ref(instruction_ref ins) const
     {
-        // Copy each input from GPU to host, then sync before running the ref op.
         auto inputs = ins->inputs();
         std::vector<instruction_ref> cpu_inputs;
         cpu_inputs.reserve(inputs.size());
@@ -551,11 +538,8 @@ struct miopen_apply
         cpu_inputs.front() =
             mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
 
-        // Ref op produces a tuple {indices [max_num_boxes, 3], num_selected [1]}.
         auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
 
-        // For each sub-shape, extract on the host side and copy back to its
-        // own GPU allocation.
         const auto& sub_shapes = ins->get_shape().sub_shapes();
         std::vector<instruction_ref> gpu_subs;
         gpu_subs.reserve(sub_shapes.size());
@@ -568,7 +552,7 @@ struct miopen_apply
                 ins, make_op("hip::copy_to_gpu"), cpu_sub, gpu_alloc));
         }
 
-        // Snapshot outputs since we mutate the graph below.
+        // Snapshot since we mutate the graph below.
         auto consumers = ins->outputs();
         for(auto consumer : consumers)
         {
@@ -582,9 +566,8 @@ struct miopen_apply
             mod->replace_instruction(consumer, gpu_subs[idx]);
         }
 
-        // `ins` is now dead; leave it for dead_code_elimination. Return it so
-        // the apply-loop shape check (which compares against the original
-        // tuple shape) succeeds.
+        // Leave `ins` for dead_code_elimination; return it so the apply-loop
+        // tuple-shape check passes.
         return ins;
     }
 

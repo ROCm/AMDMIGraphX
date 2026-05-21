@@ -32,7 +32,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// Sort boxes per (batch, class) into nms_data{} tensor.
+// Sort boxes per (batch, class) into per-class sorted_scores / sorted_boxes /
+// sorted_indices tensors.
 // inputs = {boxes, scores}
 struct nms_sort
 {

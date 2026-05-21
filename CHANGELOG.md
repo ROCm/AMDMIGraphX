@@ -25,7 +25,7 @@ Full documentation for MIGraphX is available at
 * Added per-channel scale/zero-point support for `QLinearConv` operator.
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
-
+* Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
 ### Changed
 
 * Converted `nonzero` operator from device implementation to JIT compilation (#4720).
@@ -40,6 +40,7 @@ Full documentation for MIGraphX is available at
 * Allowing all grouped convolutions to go through rocMLIR. Previously only allowed 2D convolutions (#4815). 
 * Updated `bcast_qdq_instr` to accept an `axis` parameter for broadcasting 1-D scale/zero-point along the correct dimension.
 * Updated `QLinearConv` bias handling to dequantize bias using the product of input and weight scales before adding to the convolution output.
+* Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
 
 ### Resolved issues
 

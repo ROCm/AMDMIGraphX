@@ -100,11 +100,11 @@ struct pipeline_factory
     migraphx::context* gctx_ptr = nullptr;
     compile_options options;
 
-    migraphx::context* get_generic_context() { return gctx_ptr; }
+    migraphx::context* get_generic_context() const { return gctx_ptr; }
 
-    context* get_context() { return any_cast<context>(gctx_ptr); }
+    context* get_context() const { return any_cast<context>(gctx_ptr); }
 
-    std::vector<pass> dynamic_shapes_pipeline()
+    std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
@@ -114,7 +114,7 @@ struct pipeline_factory
         };
     }
 
-    std::vector<pass> required_pipeline()
+    std::vector<pass> required_pipeline() const
     {
         return {
             normalize_ops{},
@@ -147,7 +147,7 @@ struct pipeline_factory
         };
     }
 
-    std::vector<pass> optimize_rewrite_pipeline()
+    std::vector<pass> optimize_rewrite_pipeline() const
     {
         return {
             rewrite_gelu{options.fast_math},
@@ -171,7 +171,7 @@ struct pipeline_factory
         };
     }
 
-    std::vector<pass> fusion_pipeline()
+    std::vector<pass> fusion_pipeline() const
     {
         return {
             enable_pass(mlir_enabled(),
@@ -192,7 +192,7 @@ struct pipeline_factory
         };
     }
 
-    std::vector<pass> backend_pipeline()
+    std::vector<pass> backend_pipeline() const
     {
         return {
             auto_contiguous{},

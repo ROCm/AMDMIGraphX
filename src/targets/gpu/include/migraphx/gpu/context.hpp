@@ -399,10 +399,10 @@ struct context
         if(queue.unsafe_get() == nullptr)
             return;
         auto* ext   = queue.get<hipStream_t>();
-            auto status = hipEventRecord(begin_event.get(), ext);
-            if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to record: " + hip_error(status));
-            get_stream().wait(begin_event.get());
+        auto status = hipEventRecord(begin_event.get(), ext);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("Failed to record: " + hip_error(status));
+        get_stream().wait(begin_event.get());
     }
 
     // Symmetric counterpart of wait_for().  Records an event on the context's
@@ -428,8 +428,7 @@ struct context
     // any_ptr carries no type name and would otherwise throw on get<>().
     void set_queue(any_ptr queue)
     {
-        hipStream_t s =
-            queue.unsafe_get() == nullptr ? nullptr : queue.get<hipStream_t>();
+        hipStream_t s = queue.unsafe_get() == nullptr ? nullptr : queue.get<hipStream_t>();
         get_stream().set_queue(s);
     }
 

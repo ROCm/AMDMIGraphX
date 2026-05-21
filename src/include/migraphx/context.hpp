@@ -159,21 +159,29 @@ struct context
     template <class T>
     static auto private_detail_te_default_set_queue(char, T&& private_detail_te_self, any_ptr queue)
         -> decltype(private_detail_te_self.set_queue(queue))
-    { private_detail_te_self.set_queue(queue); }
+    {
+        private_detail_te_self.set_queue(queue);
+    }
 
     template <class T>
     static void
     private_detail_te_default_set_queue(float, T&& private_detail_te_self, any_ptr queue)
-    { set_queue_context(private_detail_te_self, queue); }
+    {
+        set_queue_context(private_detail_te_self, queue);
+    }
 
     template <class T>
     static auto private_detail_te_default_restore_queue(char, T&& private_detail_te_self)
         -> decltype(private_detail_te_self.restore_queue())
-    { private_detail_te_self.restore_queue(); }
+    {
+        private_detail_te_self.restore_queue();
+    }
 
     template <class T>
     static void private_detail_te_default_restore_queue(float, T&& private_detail_te_self)
-    { restore_queue_context(private_detail_te_self); }
+    {
+        restore_queue_context(private_detail_te_self);
+    }
 
     template <class T>
     static auto private_detail_te_default_wait_for(char, T&& private_detail_te_self, any_ptr queue)
@@ -425,10 +433,16 @@ struct context
         }
 
         void set_queue(any_ptr queue) override
-        { private_detail_te_default_set_queue(char(0), private_detail_te_value, queue); }
+        {
+
+            private_detail_te_default_set_queue(char(0), private_detail_te_value, queue);
+        }
 
         void restore_queue() override
-        { private_detail_te_default_restore_queue(char(0), private_detail_te_value); }
+        {
+
+            private_detail_te_default_restore_queue(char(0), private_detail_te_value);
+        }
 
         void wait_for(any_ptr queue) override
         {

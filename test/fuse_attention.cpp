@@ -1513,13 +1513,11 @@ TEST_CASE(kv_cache_attention_with_fp32_softmax_upcast)
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 6, 2}}}), query);
         auto tsp_q = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), rsp_q);
-        auto rope = mm->add_instruction(
-            migraphx::make_op("gqa_rotary_embedding",
-                              {{"num_heads", 2}, {"kv_num_heads", 2}, {"interleaved", 0}}),
-            tsp_q,
-            slk,
-            cos_cache,
-            sin_cache);
+        auto rope = migraphx::op::builder::add("rotary_embedding",
+                                               *mm,
+                                               {tsp_q, slk, cos_cache, sin_cache},
+                                               {{"interleaved", false}})
+                        .at(0);
         auto slc_k = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), rope);
         auto slc_v = mm->add_instruction(

@@ -73,7 +73,6 @@
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
-#include <migraphx/gpu/prepare_nonmaxsuppression.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
 #include <migraphx/gpu/sync_device.hpp>
@@ -163,8 +162,6 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         fuse_concat{},
         dead_code_elimination{},
         auto_contiguous{},
-        dead_code_elimination{},
-        prepare_nonmaxsuppression{},
         dead_code_elimination{},
         lowering{&ctx, options.offload_copy},
         eliminate_contiguous{"gpu::contiguous"},

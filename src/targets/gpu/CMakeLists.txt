@@ -179,11 +179,11 @@ add_library(migraphx_gpu
     loop.cpp
     lrn.cpp
     mlir.cpp
+    nms_ops.cpp
     no_device.cpp
     pack_args.cpp
     prefuse_ops.cpp
     prepare_mlir.cpp
-    prepare_nonmaxsuppression.cpp
     prepare_reduce.cpp
     perfdb.cpp
     pooling.cpp

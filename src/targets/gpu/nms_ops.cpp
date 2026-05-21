@@ -22,14 +22,8 @@
  * THE SOFTWARE.
  *
  */
-#include <migraphx/gpu/prepare_nonmaxsuppression.hpp>
 #include <migraphx/bit.hpp>
 #include <migraphx/check_shapes.hpp>
-#include <migraphx/instruction.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/make_op.hpp>
-#include <migraphx/matcher.hpp>
-#include <migraphx/module.hpp>
 #include <migraphx/register_op.hpp>
 
 #include <cstdint>
@@ -59,9 +53,10 @@ struct nms_sort
         if(boxes_s.lens().size() != 3 or scores_s.lens().size() != 3)
             MIGRAPHX_THROW("gpu::nms_sort: boxes and scores must be 3-D");
         const auto num_batches = boxes_s.lens()[0];
-        const auto num_boxes  = boxes_s.lens()[1];
+        const auto num_boxes   = boxes_s.lens()[1];
         const auto num_classes = scores_s.lens()[1];
-        const auto aligned_b = static_cast<std::size_t>(bit_ceil(static_cast<std::uint32_t>(num_boxes)));
+        const auto aligned_b =
+            static_cast<std::size_t>(bit_ceil(static_cast<std::uint32_t>(num_boxes)));
         shape out_scores_shape{shape::float_type, {num_batches * num_classes, aligned_b}};
         shape out_boxes_shape{shape::float_type, {num_batches * num_classes, aligned_b, 4}};
         shape out_box_index_shape{shape::int32_type, {num_batches * num_classes, aligned_b}};
@@ -119,86 +114,6 @@ struct nms_compact
     }
 };
 MIGRAPHX_REGISTER_OP(nms_compact);
-
-namespace {
-
-struct find_nonmaxsuppression
-{
-    auto matcher() const { return match::name("nonmaxsuppression"); }
-
-    void apply(module& m, const match::matcher_result& r) const
-    {
-        auto ins    = r.result;
-        auto inputs = ins->inputs();
-        if(inputs.size() < 2 or inputs.size() > 5)
-            MIGRAPHX_THROW("prepare_nonmaxsuppression: unexpected input count " +
-                           std::to_string(inputs.size()));
-
-        const auto& boxes_s  = inputs[0]->get_shape();
-        const auto& scores_s = inputs[1]->get_shape();
-        if(boxes_s.ndim() != 3 or scores_s.ndim() != 3)
-            MIGRAPHX_THROW("prepare_nonmaxsuppression: boxes and scores must be 3-D");
-
-        const auto num_batches = boxes_s.lens()[0];
-        const auto num_boxes = boxes_s.lens()[1];
-        const auto num_classes = scores_s.lens()[1];
-        const auto iou_packed = (num_boxes * (num_boxes - 1) / 2);
-
-        // Fill in missing optional scalar inputs with default literals.
-        // TODO: this is the wrong way to handle this. Should be checking if the input is eval'able.
-        const shape default_max_s{shape::int64_type, {1}};
-        const shape default_iou_s{shape::float_type, {1}};
-        const shape default_thr_s{shape::float_type, {1}};
-        if(inputs.size() < 3)
-            inputs.push_back(m.insert_literal(ins, literal{default_max_s, {std::int64_t{0}}}));
-        if(inputs.size() < 4)
-            inputs.push_back(m.insert_literal(ins, literal{default_iou_s, {0.0f}}));
-        if(inputs.size() < 5)
-            inputs.push_back(m.insert_literal(ins, literal{default_thr_s, {0.0f}}));
-
-        auto op_val           = ins->get_operator().to_value();
-        bool center_point_box = op_val.at("center_point_box").to<bool>();
-
-        // Mask is scratch only; allocate up-front so the standard
-        // replace_allocate pass can later turn it into hip::allocate.
-        shape mask_shape{shape::uint8_type, {num_batches * num_classes, iou_packed}};
-        auto mask_alloc =
-            m.insert_instruction(ins, make_op("allocate", {{"shape", to_value(mask_shape)}}));
-
-        auto sorted = m.insert_instruction(
-            ins,
-            make_op("gpu::nms_sort", {{"center_point_box", center_point_box}}),
-            inputs[0],
-            inputs[1]);
-
-        auto filter = m.insert_instruction(
-            ins,
-            make_op("gpu::nms_filter",
-                    {{"num_batches", num_batches}, {"num_classes", num_classes}, {"num_boxes", num_boxes}}),
-            sorted,
-            inputs[2],
-            inputs[3],
-            inputs[4],
-            mask_alloc);
-
-        auto raw_output =
-            m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), filter);
-        auto bc_counts =
-            m.insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), filter);
-
-        auto compact =
-            m.insert_instruction(ins, make_op("gpu::nms_compact"), bc_counts, raw_output);
-
-        m.replace_instruction(ins, compact);
-    }
-};
-
-} // namespace
-
-void prepare_nonmaxsuppression::apply(module& m) const
-{
-    match::find_matches(m, find_nonmaxsuppression{});
-}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

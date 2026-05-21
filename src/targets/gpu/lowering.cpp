@@ -27,6 +27,7 @@
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/stringutils.hpp>
@@ -447,23 +448,73 @@ struct miopen_apply
         });
     }
 
+    // Rewrites onnx `nonmaxsuppression` into the GPU op pipeline:
+    //   gpu::nms_sort -> gpu::nms_filter -> gpu::nms_compact
+    // Each gpu::nms_* op is wrapped in gpu::precompile_op inline so the JIT
+    // compile pass can pick them up later. We can't rely on the main lowering
+    // loop to wrap them: it walks forward, and the new instructions land
+    // before `ins` so they would never be revisited.
     void add_nms_op()
     {
         apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
-            auto s      = ins->get_shape();
-            auto output = insert_allocation(ins, s);
-            std::vector<instruction_ref> cpu_inputs;
             auto inputs = ins->inputs();
-            std::transform(
-                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
-                });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
-            auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
-            return mod->replace_instruction(ins, gpu_out);
+            const auto& boxes_s  = inputs[0]->get_shape();
+            const auto& scores_s = inputs[1]->get_shape();
+            const auto num_batches = boxes_s.lens()[0];
+            const auto num_boxes   = boxes_s.lens()[1];
+            const auto num_classes = scores_s.lens()[1];
+            const auto iou_packed  = num_boxes * (num_boxes - 1) / 2;
+
+            // Fill in missing optional scalar inputs with default literals.
+            const shape default_max_s{shape::int64_type, {1}};
+            const shape default_iou_s{shape::float_type, {1}};
+            const shape default_thr_s{shape::float_type, {1}};
+            if(inputs.size() < 3)
+                inputs.push_back(
+                    mod->insert_literal(ins, literal{default_max_s, {std::int64_t{0}}}));
+            if(inputs.size() < 4)
+                inputs.push_back(mod->insert_literal(ins, literal{default_iou_s, {0.0f}}));
+            if(inputs.size() < 5)
+                inputs.push_back(mod->insert_literal(ins, literal{default_thr_s, {0.0f}}));
+
+            bool center_point_box =
+                ins->get_operator().to_value().at("center_point_box").to<bool>();
+
+            // Mask is scratch only; allocate up-front so the standard
+            // replace_allocate pass can later turn it into hip::allocate.
+            shape mask_shape{shape::uint8_type, {num_batches * num_classes, iou_packed}};
+            auto mask_alloc = insert_allocation(ins, mask_shape);
+
+            auto sorted = mod->insert_instruction(
+                ins,
+                make_op("gpu::nms_sort", {{"center_point_box", center_point_box}}),
+                inputs[0],
+                inputs[1]);
+            sorted = insert_precompile_op(sorted);
+
+            auto filter = mod->insert_instruction(
+                ins,
+                make_op("gpu::nms_filter",
+                        {{"num_batches", num_batches},
+                         {"num_classes", num_classes},
+                         {"num_boxes", num_boxes}}),
+                sorted,
+                inputs[2],
+                inputs[3],
+                inputs[4],
+                mask_alloc);
+            filter = insert_precompile_op(filter);
+
+            auto raw_output =
+                mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), filter);
+            auto bc_counts =
+                mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), filter);
+
+            auto compact = mod->insert_instruction(
+                ins, make_op("gpu::nms_compact"), bc_counts, raw_output);
+            compact = insert_precompile_op(compact);
+
+            return mod->replace_instruction(ins, compact);
         });
     }
 

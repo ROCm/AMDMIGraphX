@@ -218,7 +218,6 @@ __device__ void nms_make_iou_mask(const index idx, const NMSData nms_data, Mask 
     }
 }
 
-// TODO: use template for types
 // Greedy filter that writes selections into a per-batch per-class region of output.
 template <index_int NumBoxes, index_int NumClasses, class NMSData, class Mask, class Output, class Counts>
 __device__ void nms_filter_per_block(const index idx,

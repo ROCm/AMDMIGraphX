@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/mlss_conv_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/register_op.hpp>
 #ifdef MIGRAPHX_HAS_MLSS_HEADERS
 
@@ -82,6 +83,7 @@ mlss_conv_op mlss_conv_op::make_navi48_fp16pk_f2x3_stride1()
 // Post-lowering: returns the shape of the last arg (the pre-allocated output buffer).
 shape mlss_conv_op::compute_shape(std::vector<shape> inputs) const
 {
+    check_shapes{inputs, *this}.standard();
     std::size_t expected = has_bias ? 3 : 2;
     if(inputs.size() > expected)
         return inputs.back();

@@ -332,11 +332,6 @@ struct find_mlss_conv
         const auto wt_lens  = wt_ins->get_shape().lens();
         const auto out_lens = ins->get_shape().lens();
 
-        // Reject non-contiguous activation input (e.g. channel slice of a wider tensor).
-        // A slice on axis=1 keeps the parent's stride so the layout is non-contiguous;
-        // the MLSS kernel assumes contiguous input and produces wrong values in that case.
-        if(act_ins->get_shape() != act_ins->get_shape().as_standard())
-            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
@@ -456,13 +451,6 @@ struct find_mlss_conv_bias
         const auto wt_lens  = wt_ins->get_shape().lens();
         const auto out_lens = conv_ins->get_shape().lens(); // same as add output
 
-        // Reject non-contiguous activation input (e.g. a channel slice of a wider tensor).
-        // shape::standard() is insufficient: a slice on axis=1 of {1,512,8,8} produces
-        // {1,256,8,8} with strides {32768,64,8,1} which still passes standard() because
-        // elements()==element_space() and strides are sorted.  Compare against as_standard()
-        // which rebuilds canonical row-major strides purely from the lens.
-        if(act_ins->get_shape() != act_ins->get_shape().as_standard())
-            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
@@ -582,13 +570,6 @@ struct find_mlss_conv_bias_relu
         const auto wt_lens  = wt_ins->get_shape().lens();
         const auto out_lens = conv_ins->get_shape().lens();
 
-        // Reject non-contiguous activation input (e.g. a channel slice of a wider tensor).
-        // shape::standard() is insufficient: a slice on axis=1 of {1,512,8,8} produces
-        // {1,256,8,8} with strides {32768,64,8,1} which still passes standard() because
-        // elements()==element_space() and strides are sorted.  Compare against as_standard()
-        // which rebuilds canonical row-major strides purely from the lens.
-        if(act_ins->get_shape() != act_ins->get_shape().as_standard())
-            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
@@ -704,13 +685,6 @@ struct find_mlss_conv_bias_leaky_relu
         const auto wt_lens  = wt_ins->get_shape().lens();
         const auto out_lens = conv_ins->get_shape().lens();
 
-        // Reject non-contiguous activation input (e.g. a channel slice of a wider tensor).
-        // shape::standard() is insufficient: a slice on axis=1 of {1,512,8,8} produces
-        // {1,256,8,8} with strides {32768,64,8,1} which still passes standard() because
-        // elements()==element_space() and strides are sorted.  Compare against as_standard()
-        // which rebuilds canonical row-major strides purely from the lens.
-        if(act_ins->get_shape() != act_ins->get_shape().as_standard())
-            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)

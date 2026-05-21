@@ -86,13 +86,13 @@ using scalar = picked_variant<pick_scalar, int64_t, double>;
 template <class To>
 To to(const scalar& v)
 {
-    return std::visit([](auto x) -> To { return x; }, v);
+    return visit([](auto x) -> To { return x; }, v);
 }
 
 template <class F, class... Ts>
 scalar scalar_invoke(F f, const Ts&... vs)
 {
-    return std::visit([&](auto... xs) -> scalar { return f(xs...); }, vs...);
+    return visit([&](auto... xs) -> scalar { return f(xs...); }, vs...);
 }
 
 template <class F, class... Ts>

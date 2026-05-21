@@ -24,6 +24,7 @@
 
 #include <onnx_test.hpp>
 #include <onnx_test_utils.hpp>
+#include <migraphx/register_target.hpp>
 
 TEST_CASE(external_data_test)
 {
@@ -69,7 +70,8 @@ TEST_CASE(create_program_with_weights_test)
     static auto files{::onnx_files()};
     static std::string base_dir = read_weight_files(files);
 
-    auto baked = migraphx::create_program_with_weights(template_prog, base_dir);
+    auto baked =
+        migraphx::create_program_with_weights(template_prog, base_dir, migraphx::make_target("ref"));
 
     // Baked program should have no external weight map
     EXPECT(baked.get_external_weight_map().empty());

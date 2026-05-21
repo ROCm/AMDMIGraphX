@@ -81,7 +81,7 @@ def main():
     outputs = []
     for i, weight_dir in enumerate(weight_dirs):
         print(f"--- Baking weights from: {weight_dir} ---")
-        baked = migraphx.create_program_with_weights(template, weight_dir)
+        baked = migraphx.create_program_with_weights(template, weight_dir, migraphx.get_target("ref"))
 
         baked_params = baked.get_parameter_shapes()
         print(f"  Baked program has {len(baked_params)} parameters (weights gone):")

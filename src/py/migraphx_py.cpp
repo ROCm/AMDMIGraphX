@@ -758,12 +758,15 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
 
     m.def(
         "create_program_with_weights",
-        [](const migraphx::program& prog, const std::string& base_dir) {
-            return migraphx::create_program_with_weights(prog, base_dir);
+        [](const migraphx::program& prog,
+           const std::string& base_dir,
+           const migraphx::target& t) {
+            return migraphx::create_program_with_weights(prog, base_dir, t);
         },
         "Copy the program and bake in weights from base_dir, returning a self-contained program",
         py::arg("program"),
-        py::arg("base_dir"));
+        py::arg("base_dir"),
+        py::arg("target"));
 
     m.def(
         "load",

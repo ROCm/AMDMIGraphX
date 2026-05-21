@@ -371,6 +371,53 @@ void program::finalize()
     mm->finalize(this->impl->contexts);
 }
 
+void program::lower_literals_and_finalize(const target& t)
+{
+    if(not this->is_compiled())
+        return;
+
+    auto* mm = this->get_main_module();
+
+    std::vector<instruction_ref> literal_refs;
+    for(auto ins : iterator_for(*mm))
+    {
+        if(ins->name() == "@literal")
+            literal_refs.push_back(ins);
+    }
+    if(literal_refs.empty())
+        return;
+
+    // Determine the write_literals pass name for this target
+    auto& ctx   = this->impl->contexts.front();
+    auto passes = t.get_passes(ctx, compile_options{});
+    bool has_write_literals =
+        std::any_of(passes.begin(), passes.end(), [](const pass& p) {
+            return contains(p.name(), "write_literals");
+        });
+    if(not has_write_literals)
+        return;
+
+    // Count existing hip_copy_literal instructions to avoid ID collisions
+    std::size_t n = 0;
+    for(auto ins : iterator_for(*mm))
+    {
+        if(ins->name() == "hip::hip_copy_literal")
+            n++;
+    }
+
+    // Replace each @literal with hip_copy_literal using unique IDs
+    for(auto ins : literal_refs)
+    {
+        std::string id = mm->name() + ":@literal:" + std::to_string(n);
+        value v;
+        v["literal"] = migraphx::to_value(ins->get_literal());
+        v["id"]      = id;
+        mm->replace_instruction(ins, make_op("hip::hip_copy_literal", v));
+        ins->finalize(this->impl->contexts[ins->get_target_id()]);
+        n++;
+    }
+}
+
 template <class T>
 static std::string classify(T x)
 {

@@ -120,6 +120,8 @@ struct MIGRAPHX_EXPORT program
 
     void finalize();
 
+    void lower_literals_and_finalize(const target& t);
+
     void perf_report(std::ostream& os,
                      std::size_t n,
                      parameter_map params,

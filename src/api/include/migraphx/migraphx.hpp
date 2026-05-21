@@ -1438,12 +1438,14 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
 };
 
 /// Copy the program and bake in weights from base_dir, returning a self-contained program
-inline program create_program_with_weights(const program& prog, const std::string& base_dir)
+inline program
+create_program_with_weights(const program& prog, const std::string& base_dir, const target& t)
 {
-    return program(
-        make<migraphx_program>(
-            &migraphx_create_program_with_weights, prog.get_handle_ptr(), base_dir.c_str()),
-        own{});
+    return program(make<migraphx_program>(&migraphx_create_program_with_weights,
+                                          prog.get_handle_ptr(),
+                                          base_dir.c_str(),
+                                          t.get_handle_ptr()),
+                   own{});
 }
 
 /// Parse an onnx file into a migraphx program

@@ -15,7 +15,7 @@ parameters. You can then:
 1. **Parse once** -- no weight file I/O at parse time
 2. **Compile once** -- shapes are known, values don't matter yet
 3. **Save the template** -- reuse without re-parse/re-compile
-4. **Bake weights** -- `create_program_with_weights(prog, dir)` produces a new self-contained program
+4. **Bake weights** -- `create_program_with_weights(prog, dir, target)` produces a new self-contained program
 5. **Save baked MXR** -- deploy the result with weights built in
 
 ## Quick start
@@ -37,6 +37,22 @@ The example script will:
 - Bake weights from each directory into separate programs
 - Save each as an MXR
 - Verify that different weights produce different outputs
+
+## ResNet50 example
+
+For a real-world model, use the ResNet50 external-weights variant:
+
+```bash
+# 1. Get resnet50_v1.onnx from the ONNX model zoo
+# 2. Convert to external weights format
+python3 ../../convert_to_external_weights.py
+
+# 3. Run the baking example (creates original + perturbed MXRs)
+python3 resnet50_weight_baking.py resnet50_v1_external.onnx .
+```
+
+This parses + compiles ResNet50 once, then stamps out two MXRs with different
+weight sets (original and noise-perturbed) without any recompilation.
 
 ## CLI equivalent
 

@@ -84,9 +84,11 @@ MIGRAPHX_ONNX_EXPORT program parse_onnx_buffer(const void* data,
 MIGRAPHX_ONNX_EXPORT const std::vector<std::string>& get_onnx_operators();
 
 /// Copy the program and replace weight parameters with literals read from base_dir,
-/// producing a self-contained program suitable for saving as an MXR
+/// producing a self-contained program suitable for saving as an MXR.
+/// The target is used to lower the baked literals for the device (e.g. write_literals + finalize).
 MIGRAPHX_ONNX_EXPORT program create_program_with_weights(const program& prog,
-                                                         const std::string& base_dir);
+                                                         const std::string& base_dir,
+                                                         const target& t);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

@@ -93,7 +93,10 @@ struct nonmaxsuppression
             }
         };
 
-        fixed_shape_error_check();
+        if(not (inputs.at(0).dynamic() or inputs.at(1).dynamic()))
+        {
+            fixed_shape_error_check();
+        }
         std::vector<std::size_t> out_lens = {max_num_boxes, 3};
         shape s_ind{shape::int64_type, out_lens};
         shape s_num_selected{shape::int64_type, {1}};

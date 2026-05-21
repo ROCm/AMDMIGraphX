@@ -184,7 +184,7 @@ struct hip_device
         {
             if(not previous_stream.has_value())
                 return;
-            auto prev = *previous_stream;
+            auto* prev = *previous_stream;
             previous_stream.reset();
             set_external_stream(prev);
         }

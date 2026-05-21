@@ -38,13 +38,13 @@ TEST_CASE(nms_dynamic_classes_test)
     auto iou = mm->add_parameter("iou_threshold", siou);
     migraphx::shape sst{migraphx::shape::float_type, {1}};
     auto st  = mm->add_parameter("score_threshold", sst);
-    auto ret = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}), b, s, mo, iou, st);
+    auto nms = mm->add_instruction(
+        migraphx::make_op("nonmaxsuppression"), b, s, mo, iou, st);
+    auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
     mm->add_return({ret});
 
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 10};
-    options.use_dyn_output        = true;
 
     auto prog = read_onnx("nms_dynamic_classes_test.onnx", options);
     EXPECT(p == prog);

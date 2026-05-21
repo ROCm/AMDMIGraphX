@@ -216,14 +216,17 @@ TEST_CASE(single_target_multi_compile)
     auto max_out_l                = gpu_mod->add_literal(int64_t{4});
     auto iou_threshold            = gpu_mod->add_literal(0.5f);
     auto score_threshold          = gpu_mod->add_literal(0.0f);
-    auto r                        = gpu_mod->add_instruction(
-        migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
+    auto nms = gpu_mod->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
         boxes_param_gpu,
         scores_l,
         max_out_l,
         iou_threshold,
         score_threshold);
+    auto idx = gpu_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto cnt = gpu_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    auto r   = gpu_mod->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), idx, cnt);
     gpu_mod->add_return({r});
 
     auto run_on_gpu = mm->add_instruction(

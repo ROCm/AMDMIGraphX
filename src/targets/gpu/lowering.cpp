@@ -59,6 +59,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MIOPEN_POOLING)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_DYNAMIC_NMS)
 
 struct miopen_apply
 {
@@ -484,7 +485,7 @@ struct miopen_apply
             // replace_allocate pass can later turn it into hip::allocate.
             shape mask_shape{shape::uint8_type, {num_batches * num_classes, iou_packed}};
             auto mask_alloc = insert_allocation(ins, mask_shape);
-
+            
             auto sorted = mod->insert_instruction(
                 ins,
                 make_op("gpu::nms_sort", {{"center_point_box", center_point_box}}),

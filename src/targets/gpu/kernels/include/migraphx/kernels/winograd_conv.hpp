@@ -362,7 +362,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 const bool active          = nt_active and (c < C);
                 const int32_t base_off = n_off + static_cast<int32_t>(c * x_sh[1]) * sizeof(half);
                 const int32_t tile_off = base_off + hw_off;
-                const int32_t off      = active ? tile_off : static_cast<int32_t>(x_byte_count);
+                const int32_t off          = active ? tile_off : static_cast<int32_t>(x_byte_count);
 
                 array<half, 16> d;
                 if(sw_b == 2)

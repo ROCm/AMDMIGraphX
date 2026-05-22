@@ -329,7 +329,7 @@ struct winograd_conv
         const auto& u_shape = inputs[1];
         auto x_lens         = x_shape.lens();
         // U has shape [16, K, C]
-        auto K              = u_shape.lens()[1];
+        auto K                            = u_shape.lens()[1];
         std::vector<std::size_t> out_lens = {x_lens[0], K, x_lens[2], x_lens[3]};
         return shape{x_shape.type(), out_lens};
     }
@@ -341,10 +341,10 @@ MIGRAPHX_REGISTER_OP(winograd_conv);
 // loading consecutive C indices read contiguous global memory (coalesced).
 static literal compute_winograd_weights_f23(const literal& w_lit)
 {
-    auto sh        = w_lit.get_shape();
-    auto K         = sh.lens()[0];
-    auto C         = sh.lens()[1];
-    auto out_type  = sh.type();
+    auto sh       = w_lit.get_shape();
+    auto K        = sh.lens()[0];
+    auto C        = sh.lens()[1];
+    auto out_type = sh.type();
     shape u_shape{out_type, {16, K, C}};
 
     std::vector<float> data(16ULL * K * C, 0.0f);
@@ -383,8 +383,8 @@ static literal compute_winograd_weights_f23(const literal& w_lit)
                 {
                     for(int j = 0; j < 4; ++j)
                     {
-                        std::size_t wp                       = i * 4 + j;
-                        data[wp * K * C + k * C + c]         = u_kc[i][j];
+                        std::size_t wp               = i * 4 + j;
+                        data[wp * K * C + k * C + c] = u_kc[i][j];
                     }
                 }
             }
@@ -394,9 +394,7 @@ static literal compute_winograd_weights_f23(const literal& w_lit)
     if(out_type == shape::half_type)
     {
         std::vector<half> hdata(data.size());
-        std::transform(data.begin(), data.end(), hdata.begin(), [](float x) {
-            return half(x);
-        });
+        std::transform(data.begin(), data.end(), hdata.begin(), [](float x) { return half(x); });
         return literal{u_shape, hdata};
     }
     return literal{u_shape, data};
@@ -426,8 +424,7 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     auto x_type = ins->inputs().front()->get_shape().type();
     if(x_type != shape::half_type and x_type != shape::float_type)
         return false;
-    if(ins->inputs().front()->get_shape().dynamic() or
-       ins->inputs().back()->get_shape().dynamic())
+    if(ins->inputs().front()->get_shape().dynamic() or ins->inputs().back()->get_shape().dynamic())
         return false;
     // Only support literal weights -- we precompute the Winograd filter
     // transform U at compile time.
@@ -451,8 +448,8 @@ struct find_winograd_f23
             return;
 
         literal w_lit{w_arg.get_shape(), w_arg.data()};
-        auto u_lit  = compute_winograd_weights_f23(w_lit);
-        auto u_ins  = m.add_literal(u_lit);
+        auto u_lit = compute_winograd_weights_f23(w_lit);
+        auto u_ins = m.add_literal(u_lit);
 
         m.replace_instruction(ins, winograd_conv{}, input, u_ins);
     }

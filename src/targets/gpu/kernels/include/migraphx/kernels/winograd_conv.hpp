@@ -42,27 +42,26 @@ namespace migraphx {
 
 // Pure inline-asm WMMA. Helps the compiler not reorder this across other
 // VALU ops, keeping the dependency chain tight.
-__device__ inline vec<float, 8> wmma_asm(vec<half, 8> a, vec<half, 8> b,
-                                         vec<float, 8> c)
+__device__ inline vec<float, 8> wmma_asm(vec<half, 8> a, vec<half, 8> b, vec<float, 8> c)
 {
-    asm volatile("v_wmma_f32_16x16x16_f16 %0, %1, %2, %0"
-                 : "+v"(c)
-                 : "v"(a), "v"(b));
+    asm volatile("v_wmma_f32_16x16x16_f16 %0, %1, %2, %0" : "+v"(c) : "v"(a), "v"(b));
     return c;
 }
 
 // Inline-asm WMMA pair: issue both loads first, then both WMMAs back-to-back.
 // The asm block forces the compiler to keep this sequence atomic, preventing
 // it from sinking the WMMAs further apart from their loads.
-__device__ inline void wmma_pair_asm(vec<half, 8> a0, vec<half, 8> b0,
-                                     vec<half, 8> a1, vec<half, 8> b1,
-                                     vec<float, 8>& m0, vec<float, 8>& m1)
+__device__ inline void wmma_pair_asm(vec<half, 8> a0,
+                                     vec<half, 8> b0,
+                                     vec<half, 8> a1,
+                                     vec<half, 8> b1,
+                                     vec<float, 8>& m0,
+                                     vec<float, 8>& m1)
 {
-    asm volatile(
-        "v_wmma_f32_16x16x16_f16 %0, %2, %3, %0\n\t"
-        "v_wmma_f32_16x16x16_f16 %1, %4, %5, %1"
-        : "+v"(m0), "+v"(m1)
-        : "v"(a0), "v"(b0), "v"(a1), "v"(b1));
+    asm volatile("v_wmma_f32_16x16x16_f16 %0, %2, %3, %0\n\t"
+                 "v_wmma_f32_16x16x16_f16 %1, %4, %5, %1"
+                 : "+v"(m0), "+v"(m1)
+                 : "v"(a0), "v"(b0), "v"(a1), "v"(b1));
 }
 
 // Quad of WMMAs in a single inline-asm block. Forces the compiler to issue
@@ -71,65 +70,89 @@ __device__ inline void wmma_pair_asm(vec<half, 8> a0, vec<half, 8> b0,
 // free to schedule the alpha-fold v_add_f32 ops *outside* this block, which
 // gives them a continuous block of VALU cycles to fill while the matrix pipe
 // processes the WMMAs.
-__device__ inline void wmma_quad_asm(vec<half, 8> a0, vec<half, 8> b0,
-                                     vec<half, 8> a1, vec<half, 8> b1,
-                                     vec<half, 8> a2, vec<half, 8> b2,
-                                     vec<half, 8> a3, vec<half, 8> b3,
-                                     vec<float, 8>& m0, vec<float, 8>& m1,
-                                     vec<float, 8>& m2, vec<float, 8>& m3)
+__device__ inline void wmma_quad_asm(vec<half, 8> a0,
+                                     vec<half, 8> b0,
+                                     vec<half, 8> a1,
+                                     vec<half, 8> b1,
+                                     vec<half, 8> a2,
+                                     vec<half, 8> b2,
+                                     vec<half, 8> a3,
+                                     vec<half, 8> b3,
+                                     vec<float, 8>& m0,
+                                     vec<float, 8>& m1,
+                                     vec<float, 8>& m2,
+                                     vec<float, 8>& m3)
 {
-    asm volatile(
-        "v_wmma_f32_16x16x16_f16 %0, %4, %5, %0\n\t"
-        "v_wmma_f32_16x16x16_f16 %1, %6, %7, %1\n\t"
-        "v_wmma_f32_16x16x16_f16 %2, %8, %9, %2\n\t"
-        "v_wmma_f32_16x16x16_f16 %3, %10, %11, %3"
-        : "+v"(m0), "+v"(m1), "+v"(m2), "+v"(m3)
-        : "v"(a0), "v"(b0), "v"(a1), "v"(b1),
-          "v"(a2), "v"(b2), "v"(a3), "v"(b3));
+    asm volatile("v_wmma_f32_16x16x16_f16 %0, %4, %5, %0\n\t"
+                 "v_wmma_f32_16x16x16_f16 %1, %6, %7, %1\n\t"
+                 "v_wmma_f32_16x16x16_f16 %2, %8, %9, %2\n\t"
+                 "v_wmma_f32_16x16x16_f16 %3, %10, %11, %3"
+                 : "+v"(m0), "+v"(m1), "+v"(m2), "+v"(m3)
+                 : "v"(a0), "v"(b0), "v"(a1), "v"(b1), "v"(a2), "v"(b2), "v"(a3), "v"(b3));
 }
 
 // Octet of WMMAs in a single inline-asm block. Costs 8 live fp32 vec<8>
 // accumulators (64 VGPRs) but gives the matrix pipe a continuous run.
-__device__ inline void wmma_octet_asm(vec<half, 8> a0, vec<half, 8> b0,
-                                      vec<half, 8> a1, vec<half, 8> b1,
-                                      vec<half, 8> a2, vec<half, 8> b2,
-                                      vec<half, 8> a3, vec<half, 8> b3,
-                                      vec<half, 8> a4, vec<half, 8> b4,
-                                      vec<half, 8> a5, vec<half, 8> b5,
-                                      vec<half, 8> a6, vec<half, 8> b6,
-                                      vec<half, 8> a7, vec<half, 8> b7,
-                                      vec<float, 8>& m0, vec<float, 8>& m1,
-                                      vec<float, 8>& m2, vec<float, 8>& m3,
-                                      vec<float, 8>& m4, vec<float, 8>& m5,
-                                      vec<float, 8>& m6, vec<float, 8>& m7)
+__device__ inline void wmma_octet_asm(vec<half, 8> a0,
+                                      vec<half, 8> b0,
+                                      vec<half, 8> a1,
+                                      vec<half, 8> b1,
+                                      vec<half, 8> a2,
+                                      vec<half, 8> b2,
+                                      vec<half, 8> a3,
+                                      vec<half, 8> b3,
+                                      vec<half, 8> a4,
+                                      vec<half, 8> b4,
+                                      vec<half, 8> a5,
+                                      vec<half, 8> b5,
+                                      vec<half, 8> a6,
+                                      vec<half, 8> b6,
+                                      vec<half, 8> a7,
+                                      vec<half, 8> b7,
+                                      vec<float, 8>& m0,
+                                      vec<float, 8>& m1,
+                                      vec<float, 8>& m2,
+                                      vec<float, 8>& m3,
+                                      vec<float, 8>& m4,
+                                      vec<float, 8>& m5,
+                                      vec<float, 8>& m6,
+                                      vec<float, 8>& m7)
 {
-    asm volatile(
-        "v_wmma_f32_16x16x16_f16 %0, %8, %9, %0\n\t"
-        "v_wmma_f32_16x16x16_f16 %1, %10, %11, %1\n\t"
-        "v_wmma_f32_16x16x16_f16 %2, %12, %13, %2\n\t"
-        "v_wmma_f32_16x16x16_f16 %3, %14, %15, %3\n\t"
-        "v_wmma_f32_16x16x16_f16 %4, %16, %17, %4\n\t"
-        "v_wmma_f32_16x16x16_f16 %5, %18, %19, %5\n\t"
-        "v_wmma_f32_16x16x16_f16 %6, %20, %21, %6\n\t"
-        "v_wmma_f32_16x16x16_f16 %7, %22, %23, %7"
-        : "+v"(m0), "+v"(m1), "+v"(m2), "+v"(m3),
-          "+v"(m4), "+v"(m5), "+v"(m6), "+v"(m7)
-        : "v"(a0), "v"(b0), "v"(a1), "v"(b1),
-          "v"(a2), "v"(b2), "v"(a3), "v"(b3),
-          "v"(a4), "v"(b4), "v"(a5), "v"(b5),
-          "v"(a6), "v"(b6), "v"(a7), "v"(b7));
+    asm volatile("v_wmma_f32_16x16x16_f16 %0, %8, %9, %0\n\t"
+                 "v_wmma_f32_16x16x16_f16 %1, %10, %11, %1\n\t"
+                 "v_wmma_f32_16x16x16_f16 %2, %12, %13, %2\n\t"
+                 "v_wmma_f32_16x16x16_f16 %3, %14, %15, %3\n\t"
+                 "v_wmma_f32_16x16x16_f16 %4, %16, %17, %4\n\t"
+                 "v_wmma_f32_16x16x16_f16 %5, %18, %19, %5\n\t"
+                 "v_wmma_f32_16x16x16_f16 %6, %20, %21, %6\n\t"
+                 "v_wmma_f32_16x16x16_f16 %7, %22, %23, %7"
+                 : "+v"(m0), "+v"(m1), "+v"(m2), "+v"(m3), "+v"(m4), "+v"(m5), "+v"(m6), "+v"(m7)
+                 : "v"(a0),
+                   "v"(b0),
+                   "v"(a1),
+                   "v"(b1),
+                   "v"(a2),
+                   "v"(b2),
+                   "v"(a3),
+                   "v"(b3),
+                   "v"(a4),
+                   "v"(b4),
+                   "v"(a5),
+                   "v"(b5),
+                   "v"(a6),
+                   "v"(b6),
+                   "v"(a7),
+                   "v"(b7));
 }
 
-__device__ inline auto make_input_buffer_rsrc(const half* p,
-                                              uint32_t byte_count)
+__device__ inline auto make_input_buffer_rsrc(const half* p, uint32_t byte_count)
 {
     return __builtin_amdgcn_make_buffer_rsrc(
         const_cast<half*>(p), 0, byte_count, MIGRAPHX_BUFFER_RSRC_3RD_DWORD_GFX12);
 }
 
 // Lane-indexed raw buffer load of a single fp16. OOB returns 0.
-__device__ inline half buffer_load_half(__amdgpu_buffer_rsrc_t rsrc,
-                                        int byte_offset)
+__device__ inline half buffer_load_half(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
 {
     uint16_t v = __builtin_amdgcn_raw_buffer_load_b16(rsrc, byte_offset, 0, 0);
     half h;
@@ -140,8 +163,7 @@ __device__ inline half buffer_load_half(__amdgpu_buffer_rsrc_t rsrc,
 // Lane-indexed raw buffer load of 4 fp16 = 8 bytes. OOB bytes return 0.
 // Caller is responsible for alignment (byte_offset divisible by 4 to avoid
 // faulting; gfx12 buffer loads tolerate 4-byte alignment for b64).
-__device__ inline vec<half, 4> buffer_load_half4(__amdgpu_buffer_rsrc_t rsrc,
-                                                 int byte_offset)
+__device__ inline vec<half, 4> buffer_load_half4(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
 {
     auto v = __builtin_amdgcn_raw_buffer_load_b64(rsrc, byte_offset, 0, 0);
     vec<half, 4> result;
@@ -161,7 +183,7 @@ __device__ inline array<half, 16> winograd_input_transform_f23(const array<half,
     // First pass B^T d: per-row sub/add of 4 columns. All 4 columns are
     // independent so we express each row as TWO packed half2 ops --
     // generates v_pk_add_f16 / v_pk_sub_f16.
-    const h2* dp = reinterpret_cast<const h2*>(d_arr.data());
+    const h2* dp   = reinterpret_cast<const h2*>(d_arr.data());
     const h2 d0_lo = dp[0]; // d[0,0..1]
     const h2 d0_hi = dp[1]; // d[0,2..3]
     const h2 d1_lo = dp[2];
@@ -235,11 +257,7 @@ __device__ inline array<T, 16> winograd_input_transform_f23_scalar(const array<T
 //     accumulators alive simultaneously (which would force register spill).
 //   - CB must be a multiple of 16 (WMMA K dim).
 
-template <index_int NW,
-          index_int CB,
-          class Output,
-          class Input,
-          class Weights>
+template <index_int NW, index_int CB, class Output, class Input, class Weights>
 __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
 {
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
@@ -298,11 +316,10 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
 
     // Buffer descriptors for X (input) and U (weights). raw_buffer_load
     // returns 0 for OOB byte offsets so we don't need explicit bounds checks.
-    const auto x_sh    = x_shape.strides;
-    const auto* x_data = x.data();
-    const uint32_t x_byte_count =
-        static_cast<uint32_t>(x_shape.element_space()) * sizeof(half);
-    auto x_rsrc = make_input_buffer_rsrc(x_data, x_byte_count);
+    const auto x_sh             = x_shape.strides;
+    const auto* x_data          = x.data();
+    const uint32_t x_byte_count = static_cast<uint32_t>(x_shape.element_space()) * sizeof(half);
+    auto x_rsrc                 = make_input_buffer_rsrc(x_data, x_byte_count);
 
     const auto* u_data = u.data();
     const uint32_t u_byte_count =
@@ -334,11 +351,10 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
 
             const int32_t base_off =
                 static_cast<int32_t>((n * x_sh[0] + c * x_sh[1]) * sizeof(half));
-            const int32_t sh_b = static_cast<int32_t>(x_sh[2] * sizeof(half));
-            const int32_t sw_b = static_cast<int32_t>(x_sh[3] * sizeof(half));
+            const int32_t sh_b     = static_cast<int32_t>(x_sh[2] * sizeof(half));
+            const int32_t sw_b     = static_cast<int32_t>(x_sh[3] * sizeof(half));
             const int32_t tile_off = base_off + h0 * sh_b + w0 * sw_b;
-            const int32_t off =
-                active ? tile_off : static_cast<int32_t>(x_byte_count);
+            const int32_t off      = active ? tile_off : static_cast<int32_t>(x_byte_count);
 
             array<half, 16> d;
             if(sw_b == 2)
@@ -356,17 +372,15 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
             {
                 repeat_c<4>([&](auto i) {
                     repeat_c<4>([&](auto j) {
-                        const int32_t e_off = off + static_cast<int>(i) * sh_b +
-                                              static_cast<int>(j) * sw_b;
+                        const int32_t e_off =
+                            off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b;
                         d[i * 4 + j] = buffer_load_half(x_rsrc, e_off);
                     });
                 });
             }
 
             auto V = winograd_input_transform_f23(d);
-            repeat_c<16>([&](auto wp) {
-                v_smem[v_cache_idx(wp, t_slot, c_in_block)] = V[wp];
-            });
+            repeat_c<16>([&](auto wp) { v_smem[v_cache_idx(wp, t_slot, c_in_block)] = V[wp]; });
         });
 
         // ---- Cooperative U load: one b128 per task (8 fp16) ----
@@ -380,8 +394,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
             const index_int c_in_block = c_half * 8;
             const index_int k          = k_base + k_in_block;
             const int32_t off          = static_cast<int32_t>(
-                (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) *
-                sizeof(half));
+                (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) * sizeof(half));
             vec<half, 8> v8;
             if(k < K)
             {
@@ -392,7 +405,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
             {
                 v8 = vec<half, 8>{0};
             }
-            half* dst = &u_smem[u_cache_idx(wp, k_in_block, c_in_block)];
+            half* dst       = &u_smem[u_cache_idx(wp, k_in_block, c_in_block)];
             *as_vec<8>(dst) = v8;
         });
 
@@ -420,14 +433,46 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 {
                     repeat_c<8>([&](auto ki) {
                         float v0, v1;
-                        if constexpr(ki == 0) { v0 = s0.s0; v1 = s1.s0; }
-                        else if constexpr(ki == 1) { v0 = s0.s1; v1 = s1.s1; }
-                        else if constexpr(ki == 2) { v0 = s0.s2; v1 = s1.s2; }
-                        else if constexpr(ki == 3) { v0 = s0.s3; v1 = s1.s3; }
-                        else if constexpr(ki == 4) { v0 = s0.s4; v1 = s1.s4; }
-                        else if constexpr(ki == 5) { v0 = s0.s5; v1 = s1.s5; }
-                        else if constexpr(ki == 6) { v0 = s0.s6; v1 = s1.s6; }
-                        else { v0 = s0.s7; v1 = s1.s7; }
+                        if constexpr(ki == 0)
+                        {
+                            v0 = s0.s0;
+                            v1 = s1.s0;
+                        }
+                        else if constexpr(ki == 1)
+                        {
+                            v0 = s0.s1;
+                            v1 = s1.s1;
+                        }
+                        else if constexpr(ki == 2)
+                        {
+                            v0 = s0.s2;
+                            v1 = s1.s2;
+                        }
+                        else if constexpr(ki == 3)
+                        {
+                            v0 = s0.s3;
+                            v1 = s1.s3;
+                        }
+                        else if constexpr(ki == 4)
+                        {
+                            v0 = s0.s4;
+                            v1 = s1.s4;
+                        }
+                        else if constexpr(ki == 5)
+                        {
+                            v0 = s0.s5;
+                            v1 = s1.s5;
+                        }
+                        else if constexpr(ki == 6)
+                        {
+                            v0 = s0.s6;
+                            v1 = s1.s6;
+                        }
+                        else
+                        {
+                            v0 = s0.s7;
+                            v1 = s1.s7;
+                        }
                         y[r * 2 + 0][ki] = y[r * 2 + 0][ki] + coef_r * v0;
                         y[r * 2 + 1][ki] = y[r * 2 + 1][ki] + coef_r * v1;
                     });
@@ -436,12 +481,10 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
         };
         // Helper: load 8 fp16 from V_lds for wp at (nt_slot, c_offset + c_off).
         auto load_v = [&](index_int wp, index_int c_offset) {
-            return *as_vec<8>(
-                &v_smem[v_cache_idx(wp, nt_slot, c_offset + c_off)]);
+            return *as_vec<8>(&v_smem[v_cache_idx(wp, nt_slot, c_offset + c_off)]);
         };
         auto load_u = [&](index_int wp, index_int c_offset) {
-            return *as_vec<8>(
-                &u_smem[u_cache_idx(wp, m_in_wave, c_offset + c_off)]);
+            return *as_vec<8>(&u_smem[u_cache_idx(wp, m_in_wave, c_offset + c_off)]);
         };
 
         repeat_c<4>([&](auto wp_i_val) {
@@ -470,9 +513,30 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 auto a7 = load_u(wp_i * 4 + 3, 16);
                 auto b7 = load_v(wp_i * 4 + 3, 16);
                 vec<float, 8> m4{}, m5{}, m6{}, m7{};
-                wmma_octet_asm(a0, b0, a1, b1, a2, b2, a3, b3,
-                               a4, b4, a5, b5, a6, b6, a7, b7,
-                               m0, m1, m2, m3, m4, m5, m6, m7);
+                wmma_octet_asm(a0,
+                               b0,
+                               a1,
+                               b1,
+                               a2,
+                               b2,
+                               a3,
+                               b3,
+                               a4,
+                               b4,
+                               a5,
+                               b5,
+                               a6,
+                               b6,
+                               a7,
+                               b7,
+                               m0,
+                               m1,
+                               m2,
+                               m3,
+                               m4,
+                               m5,
+                               m6,
+                               m7);
                 m0 = m0 + m4;
                 m1 = m1 + m5;
                 m2 = m2 + m6;
@@ -483,16 +547,15 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 for(index_int ck = 0; ck < wmma_chunks; ++ck)
                 {
                     const index_int c_offset = ck * 16;
-                    auto a0 = load_u(wp_i * 4 + 0, c_offset);
-                    auto b0 = load_v(wp_i * 4 + 0, c_offset);
-                    auto a1 = load_u(wp_i * 4 + 1, c_offset);
-                    auto b1 = load_v(wp_i * 4 + 1, c_offset);
-                    auto a2 = load_u(wp_i * 4 + 2, c_offset);
-                    auto b2 = load_v(wp_i * 4 + 2, c_offset);
-                    auto a3 = load_u(wp_i * 4 + 3, c_offset);
-                    auto b3 = load_v(wp_i * 4 + 3, c_offset);
-                    wmma_quad_asm(a0, b0, a1, b1, a2, b2, a3, b3,
-                                  m0, m1, m2, m3);
+                    auto a0                  = load_u(wp_i * 4 + 0, c_offset);
+                    auto b0                  = load_v(wp_i * 4 + 0, c_offset);
+                    auto a1                  = load_u(wp_i * 4 + 1, c_offset);
+                    auto b1                  = load_v(wp_i * 4 + 1, c_offset);
+                    auto a2                  = load_u(wp_i * 4 + 2, c_offset);
+                    auto b2                  = load_v(wp_i * 4 + 2, c_offset);
+                    auto a3                  = load_u(wp_i * 4 + 3, c_offset);
+                    auto b3                  = load_v(wp_i * 4 + 3, c_offset);
+                    wmma_quad_asm(a0, b0, a1, b1, a2, b2, a3, b3, m0, m1, m2, m3);
                 }
             }
             fold_row(_c<wp_i>, m0, m1, m2, m3);
@@ -514,10 +577,10 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     const index_int th = rem / tiles_w;
     const index_int tw = rem - th * tiles_w;
 
-    const auto sn = out_shape.strides[0];
-    const auto sk = out_shape.strides[1];
-    const auto sh = out_shape.strides[2];
-    const auto sw = out_shape.strides[3];
+    const auto sn  = out_shape.strides[0];
+    const auto sk  = out_shape.strides[1];
+    const auto sh  = out_shape.strides[2];
+    const auto sw  = out_shape.strides[3];
     auto* out_data = output.data();
     const index_int base_offset =
         n * sn + (k_base + k_row_offset) * sk + (2 * th) * sh + (2 * tw) * sw;
@@ -533,12 +596,10 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 {
                     const index_int hbase = kbase + i * sh;
                     repeat_c<2>([&](auto j) {
-                        const int w_out =
-                            static_cast<int>(2 * tw) + static_cast<int>(j);
+                        const int w_out = static_cast<int>(2 * tw) + static_cast<int>(j);
                         if(static_cast<unsigned>(w_out) < W_out)
                         {
-                            out_data[hbase + j * sw] =
-                                static_cast<out_type>(y[i * 2 + j][ki]);
+                            out_data[hbase + j * sw] = static_cast<out_type>(y[i * 2 + j][ki]);
                         }
                     });
                 }

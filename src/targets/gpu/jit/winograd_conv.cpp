@@ -61,8 +61,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
 {
     std::vector<std::string> names() const { return {"gpu::winograd_conv", "winograd_conv"}; }
 
-    operation
-    compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
         const auto& out_s      = inputs.back();
@@ -71,10 +70,10 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         options.virtual_inputs = inputs;
         options.kernel_name    = v.get("kernel", std::string{"winograd_conv_kernel"});
 
-        const auto nw         = v.get("nw", std::size_t{4});
-        const auto cb         = v.get("cb", std::size_t{16});
-        const std::size_t bk  = 16;
-        const std::size_t bt  = 16 * nw;
+        const auto nw                = v.get("nw", std::size_t{4});
+        const auto cb                = v.get("cb", std::size_t{16});
+        const std::size_t bk         = 16;
+        const std::size_t bt         = 16 * nw;
         const std::size_t block_size = nw * 32;
 
         const auto& out_lens = out_s.lens();
@@ -111,10 +110,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 
-    optional<tuning_config> get_tuning_config(const context&,
-                                              instruction_ref ins,
-                                              const operation&,
-                                              bool) const
+    optional<tuning_config>
+    get_tuning_config(const context&, instruction_ref ins, const operation&, bool) const
     {
         tuning_config tc;
         auto shapes = to_shapes(ins->inputs());

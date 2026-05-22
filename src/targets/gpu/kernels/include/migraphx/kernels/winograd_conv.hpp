@@ -236,15 +236,30 @@ __device__ inline array<half, 16> winograd_input_transform_f23(const array<half,
 //     accumulators alive simultaneously (which would force register spill).
 //   - CB must be a multiple of 16 (WMMA K dim).
 
-template <index_int NW, index_int CB, index_int KW, class Output, class Input, class Weights>
+template <index_int NW,
+          index_int CB,
+          index_int KW,
+          index_int SK,
+          class Output,
+          class Input,
+          class Weights>
 __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
 {
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
     static_assert(KW >= 1, "KW must be >= 1");
-    constexpr index_int BK          = 16;
-    constexpr index_int BT_per_wave = 16;
-    constexpr index_int BT          = BT_per_wave * NW;
-    constexpr index_int BK_WG       = BK * KW; // K outputs processed per workgroup
+    static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0,
+                  "SK must divide NW evenly");
+    // SK = within-WG c-axis split factor. SK waves cooperate to reduce the
+    // C contraction; NW/SK independent NT-groups exist per workgroup so
+    // BT = BT_per_wave * (NW/SK). SK=1 is the original (no split) path.
+    // For SK>1, KW must be 1 (LDS budget would otherwise overflow with the
+    // per-wave U_lds slots).
+    static_assert(SK == 1 or KW == 1, "SK>1 currently requires KW==1");
+    constexpr index_int BK           = 16;
+    constexpr index_int BT_per_wave  = 16;
+    constexpr index_int NT_GROUPS    = NW / SK;
+    constexpr index_int BT           = BT_per_wave * NT_GROUPS;
+    constexpr index_int BK_WG        = BK * KW;
 
     auto idx = make_index();
 
@@ -274,27 +289,35 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     const auto lane    = idx.local % 32;
     const auto wave_id = idx.local / 32;
 
+    // ---- Split-c: wave_id is split into NT-group + sk-part ----
+    // For SK=1: NT_GROUPS=NW, wave_sk_part is always 0, wave_nt_idx == wave_id.
+    // For SK>1: NW/SK NT-groups; SK waves per group cooperate on c contraction.
+    const index_int wave_nt_idx   = wave_id / SK;
+    const index_int wave_sk_part  = wave_id % SK;
+
     // ---- V layout (REGISTER-RESIDENT) ----
     // V values are kept in per-lane registers instead of LDS. The lane
     // assignment is chosen so that each lane already holds the exact 8 fp16
-    // values that the WMMA B operand expects for its (wp, nt_lane, c_off..c_off+7)
-    // slice — no cross-lane permute needed. Each lane handles:
-    //   nt_lane = wave_base + lane%16              (1 nt per lane)
+    // values that the WMMA B operand expects.
+    //   nt_lane = (wave_nt_idx*BT_per_wave) + lane%16  (1 nt per lane)
     //   c_lane in c_off + 0..7  with c_off = (lane/16)*8   (8 c per lane)
-    // Per lane: 8 c values × 16 wp = 128 fp16 V values (64 VGPRs).
-    //
-    // This frees 16*BT*(CB+2)*sizeof(half) of LDS — for NW=4 CB=16 that's
-    // 36KB, letting many more workgroups fit per CU LDS-wise.
-    //
-    // U is still LDS-resident — its layout already matches the WMMA A operand
-    // and a register-based U would 36× balloon VGPR pressure for KW=2.
     static_assert(CB == 16 or CB == 32, "DPP V path supports CB=16 or CB=32");
-    constexpr index_int v_chunks = CB / 16; // number of 8-c register banks per lane
+    constexpr index_int v_chunks = CB / 16;
     constexpr index_int wp_count = 16;
-    __shared__ uninitialized_buffer<half, KW * 16 * BK * CB> u_smem;
+    // U_lds slots: KW for SK=1 (one per k_block), NW for SK>1 (one per wave so
+    // each wave can hold its own c-block's worth of U while waves work on
+    // different c-blocks concurrently).
+    constexpr index_int u_slots    = (SK > 1) ? NW : KW;
+    constexpr index_int u_slot_len = 16 * BK * CB;
+    __shared__ uninitialized_buffer<half, u_slots * u_slot_len> u_smem;
+    // y_reduce_lds: holds per-wave y_partial during the SK>1 cross-wave
+    // reduce. NT_GROUPS groups × SK waves × 32 lanes × 32 fp32 (KW=1 only).
+    // Sized to 1 element for SK=1 to keep the LDS allocation valid but tiny.
+    constexpr index_int y_red_len  = (SK > 1) ? (NT_GROUPS * SK * 32 * 32) : 1;
+    __shared__ uninitialized_buffer<float, y_red_len> y_reduce_lds;
 
-    auto u_cache_idx = [&](index_int k_idx, index_int wp, index_int k, index_int c) {
-        return k_idx * (16 * BK * CB) + wp * BK * CB + k * CB + c;
+    auto u_cache_idx = [&](index_int slot, index_int wp, index_int k, index_int c) {
+        return slot * u_slot_len + wp * BK * CB + k * CB + c;
     };
 
     // alpha[wp,r,c] = A^T[r, wp/4] * A[wp%4, c]
@@ -324,8 +347,10 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     // For CB=32: v_chunks=2 (two c-chunks; one b128 read per chunk for WMMA).
     array<array<array<half, wp_count>, 8>, v_chunks> v_lane;
 
-    // Cached per-wave / per-lane geometry.
-    const index_int wave_nt_base_in_block = wave_id * BT_per_wave;
+    // Cached per-wave / per-lane geometry. With SK>1 each NT-group occupies
+    // SK consecutive waves that all map to the SAME nt range, so we use
+    // wave_nt_idx (not raw wave_id) to compute the NT base.
+    const index_int wave_nt_base_in_block = wave_nt_idx * BT_per_wave;
     const index_int m_in_wave             = lane % 16;
     const index_int c_off                 = (lane / 16) * 8;
     const index_int nt_slot               = wave_nt_base_in_block + m_in_wave;
@@ -344,7 +369,14 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     const int32_t sw_b     = static_cast<int32_t>(x_sh[3] * sizeof(half));
     const int32_t hw_off   = h0 * sh_b + w0 * sw_b;
 
-    for(index_int cb = 0; cb < cblocks; ++cb)
+    // c-block range for this wave (= [0, cblocks) when SK=1; partitioned
+    // round-robin across the SK waves of an NT-group when SK>1).
+    const index_int cb_per_part = (cblocks + SK - 1) / SK;
+    const index_int cb_start    = (SK == 1) ? index_int{0} : wave_sk_part * cb_per_part;
+    const index_int cb_end_raw  = (SK == 1) ? cblocks : (cb_start + cb_per_part);
+    const index_int cb_end      = (cb_end_raw < cblocks) ? cb_end_raw : cblocks;
+
+    for(index_int cb = cb_start; cb < cb_end; ++cb)
     {
         const index_int c_base = cb * CB;
 
@@ -391,33 +423,73 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
             });
         });
 
-        // ---- Cooperative U load: one b128 per task (8 fp16), for all KW k_blocks ----
+        // ---- Cooperative U load: one b128 per task (8 fp16) ----
+        // For SK=1 the WG cooperates across all NW waves on one (k_block,
+        // c_block); slot = k_idx. For SK>1 each wave loads U into its OWN
+        // u_smem slot (slot = wave_id) so concurrent waves can work on
+        // different c-blocks without trampling each other's U.
         static_assert(CB % 8 == 0, "CB must be a multiple of 8 for b128 U loads");
-        constexpr index_int U_TASKS = KW * 16 * BK * (CB / 8);
-        idx.local_stride(_c<U_TASKS>, [&](auto task) {
-            const index_int c_half     = task % (CB / 8);
-            const index_int rest       = task / (CB / 8);
-            const index_int k_in_block = rest % BK;
-            const index_int rest2      = rest / BK;
-            const index_int wp         = rest2 % 16;
-            const index_int k_idx      = rest2 / 16;
-            const index_int c_in_block = c_half * 8;
-            const index_int k          = k_base + k_idx * BK + k_in_block;
-            const int32_t off          = static_cast<int32_t>(
-                (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) * sizeof(half));
-            vec<half, 8> v8;
-            if(k < K)
+        if constexpr(SK == 1)
+        {
+            constexpr index_int U_TASKS = KW * 16 * BK * (CB / 8);
+            idx.local_stride(_c<U_TASKS>, [&](auto task) {
+                const index_int c_half     = task % (CB / 8);
+                const index_int rest       = task / (CB / 8);
+                const index_int k_in_block = rest % BK;
+                const index_int rest2      = rest / BK;
+                const index_int wp         = rest2 % 16;
+                const index_int k_idx      = rest2 / 16;
+                const index_int c_in_block = c_half * 8;
+                const index_int k          = k_base + k_idx * BK + k_in_block;
+                const int32_t off          = static_cast<int32_t>(
+                    (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) *
+                    sizeof(half));
+                vec<half, 8> v8;
+                if(k < K)
+                {
+                    auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
+                    __builtin_memcpy(&v8, &raw, sizeof(v8));
+                }
+                else
+                {
+                    v8 = vec<half, 8>{0};
+                }
+                half* dst = &u_smem[u_cache_idx(k_idx, wp, k_in_block, c_in_block)];
+                *as_vec<8>(dst) = v8;
+            });
+        }
+        else
+        {
+            // SK>1: each wave loads U for its own c-block into its own slot.
+            // KW is forced to 1 by static_assert above.
+            constexpr index_int U_TASKS_PER_WAVE = 16 * BK * (CB / 8);
+            constexpr index_int per_lane         = U_TASKS_PER_WAVE / 32;
+            for(index_int t = 0; t < per_lane; ++t)
             {
-                auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
-                __builtin_memcpy(&v8, &raw, sizeof(v8));
+                const index_int task       = t * 32 + lane;
+                const index_int c_half     = task % (CB / 8);
+                const index_int rest       = task / (CB / 8);
+                const index_int k_in_block = rest % BK;
+                const index_int wp         = rest / BK;
+                const index_int c_in_block = c_half * 8;
+                const index_int k          = k_base + k_in_block;
+                const int32_t off          = static_cast<int32_t>(
+                    (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) *
+                    sizeof(half));
+                vec<half, 8> v8;
+                if(k < K)
+                {
+                    auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
+                    __builtin_memcpy(&v8, &raw, sizeof(v8));
+                }
+                else
+                {
+                    v8 = vec<half, 8>{0};
+                }
+                half* dst = &u_smem[u_cache_idx(wave_id, wp, k_in_block, c_in_block)];
+                *as_vec<8>(dst) = v8;
             }
-            else
-            {
-                v8 = vec<half, 8>{0};
-            }
-            half* dst       = &u_smem[u_cache_idx(k_idx, wp, k_in_block, c_in_block)];
-            *as_vec<8>(dst) = v8;
-        });
+        }
 
         __syncthreads();
 
@@ -502,8 +574,12 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
             b.s7 = v_lane[vc][7][wp];
             return b;
         };
+        // load_u takes a k_idx (used as slot for SK=1) or, when SK>1, the
+        // wave's own U slot (= wave_id). For SK>1, k_idx is always 0 because
+        // KW is forced to 1.
         auto load_u = [&](index_int k_idx, index_int wp, index_int c_offset) {
-            return *as_vec<8>(&u_smem[u_cache_idx(k_idx, wp, m_in_wave, c_offset + c_off)]);
+            const index_int slot = (SK == 1) ? k_idx : wave_id;
+            return *as_vec<8>(&u_smem[u_cache_idx(slot, wp, m_in_wave, c_offset + c_off)]);
         };
 
         repeat_c<KW>([&](auto k_idx_val) {
@@ -582,12 +658,55 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
         __syncthreads();
     }
 
+    // ---- Split-c cross-wave reduce (SK>1 only) ----
+    // After the per-wave c-block loop each wave holds a y_partial that covers
+    // only its assigned 1/SK of the c contraction. Sum across the SK waves of
+    // an NT-group via LDS so the wave_sk_part==0 wave ends up with the full
+    // y, then have that wave do the writeback. SK=1 skips this entirely.
+    if constexpr(SK > 1)
+    {
+        // Layout: y_reduce_lds[wave_nt_idx][wave_sk_part][lane][output(0..3)][ki(0..7)]
+        // KW=1 enforced by static_assert when SK>1.
+        constexpr index_int per_lane_floats = 32; // 4 outputs * 8 ki
+        const index_int wave_red_off =
+            (wave_nt_idx * SK + wave_sk_part) * 32 * per_lane_floats;
+        const index_int lane_off = wave_red_off + lane * per_lane_floats;
+        repeat_c<4>([&](auto out_i) {
+            repeat_c<8>([&](auto ki) {
+                y_reduce_lds[lane_off + out_i * 8 + ki] = y[0][out_i][ki];
+            });
+        });
+        __syncthreads();
+        // wave_sk_part == 0 waves sum partials from waves 1..SK-1 of their
+        // NT-group into their own y; other waves are now idle for writeback.
+        if(wave_sk_part == 0)
+        {
+            const index_int group_base = wave_nt_idx * SK * 32 * per_lane_floats;
+            for(index_int s = 1; s < SK; ++s)
+            {
+                const index_int s_off =
+                    group_base + s * 32 * per_lane_floats + lane * per_lane_floats;
+                repeat_c<4>([&](auto out_i) {
+                    repeat_c<8>([&](auto ki) {
+                        y[0][out_i][ki] = y[0][out_i][ki] + y_reduce_lds[s_off + out_i * 8 + ki];
+                    });
+                });
+            }
+        }
+    }
+
     // ---- Output writeback for each k_block this workgroup covered ----
     // Reuse the per-lane (n_idx, th_idx, tw_idx) computed up at V-load setup.
+    // For SK>1 only the wave_sk_part==0 wave of each NT-group has the summed y.
     using out_type               = typename Output::type;
     const index_int k_row_offset = c_off; // (lane / 16) * 8, same lane mapping
     if(not nt_active)
         return;
+    if constexpr(SK > 1)
+    {
+        if(wave_sk_part != 0)
+            return;
+    }
 
     const auto sn  = out_shape.strides[0];
     const auto sk  = out_shape.strides[1];

@@ -47,7 +47,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto output, auto x, auto u) {
-        winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}>(output, x, u);
+        winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}>(output, x, u);
     });
 }
 
@@ -73,9 +73,19 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const auto nw                = v.get("nw", std::size_t{4});
         const auto cb                = v.get("cb", std::size_t{16});
         const auto kw                = v.get("kw", std::size_t{1});
+        // sk = within-WG c-axis split factor. sk=1 is the original behavior;
+        // sk>1 has nw/sk NT-groups per workgroup with sk waves cooperating on
+        // the c contraction (cross-wave LDS reduce at the end). When sk>1, kw
+        // is forced to 1 (LDS budget for per-wave U slots would otherwise
+        // overflow).
+        const auto sk                = v.get("sk", std::size_t{1});
         const std::size_t bk         = 16;
         const std::size_t bk_wg      = bk * kw;
-        const std::size_t bt         = 16 * nw;
+        // BT = BT_per_wave * (NW/SK). SK splits waves within a workgroup
+        // across the c contraction, so each WG covers fewer NT tiles per round
+        // when SK>1, increasing total WG count.
+        const std::size_t nt_groups  = nw / sk;
+        const std::size_t bt         = 16 * nt_groups;
         const std::size_t block_size = nw * 32;
 
         const auto& out_lens = out_s.lens();
@@ -99,7 +109,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"nw", std::to_string(nw)},
                                        {"cb", std::to_string(cb)},
-                                       {"kw", std::to_string(kw)}});
+                                       {"kw", std::to_string(kw)},
+                                       {"sk", std::to_string(sk)}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -126,18 +137,28 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         // is just U_lds = KW * 16 * 16 * CB * 2 bytes (8KB per KW=1).
         // KW=1 is usually optimal because V is already free per-lane; KW>1
         // only helps to share U across more K outputs (rarely a win).
-        tc.solutions.push_back({{"nw", 1}, {"cb", 16}, {"kw", 1}});
-        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 1}});
-        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}});
-        tc.solutions.push_back({{"nw", 6}, {"cb", 16}, {"kw", 1}});
-        tc.solutions.push_back({{"nw", 8}, {"cb", 16}, {"kw", 1}});
-        tc.solutions.push_back({{"nw", 2}, {"cb", 32}, {"kw", 1}});
-        tc.solutions.push_back({{"nw", 1}, {"cb", 16}, {"kw", 2}});
-        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 2}});
-        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 2}});
-        tc.solutions.push_back({{"nw", 6}, {"cb", 16}, {"kw", 2}});
-        tc.solutions.push_back({{"nw", 1}, {"cb", 16}, {"kw", 4}});
-        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 3}});
+        // sk=1: original (no c-split) configs.
+        tc.solutions.push_back({{"nw", 1}, {"cb", 16}, {"kw", 1}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 1}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 6}, {"cb", 16}, {"kw", 1}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 8}, {"cb", 16}, {"kw", 1}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 2}, {"cb", 32}, {"kw", 1}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 1}, {"cb", 16}, {"kw", 2}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 2}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 2}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 6}, {"cb", 16}, {"kw", 2}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 1}, {"cb", 16}, {"kw", 4}, {"sk", 1}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 3}, {"sk", 1}});
+        // sk>1: within-WG c-axis split. KW must be 1. Helpful for shapes
+        // where total WG count is limited (small NT or single K_block) — sk>1
+        // increases NT-groups-per-WG counts and partitions the c contraction
+        // across cooperating waves with an LDS cross-wave reduce.
+        // LDS budget caps NW*SK to ~NW=4 SK=4 (48KB) — NW>=6 + SK>=2 overflows
+        // due to per-wave U slots (NW*8KB) + y_reduce (NW*4KB).
+        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 1}, {"sk", 2}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}, {"sk", 2}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}, {"sk", 4}});
         return tc;
     }
 };

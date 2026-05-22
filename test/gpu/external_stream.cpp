@@ -65,17 +65,17 @@ TEST_CASE(test_stream_override_get)
     EXPECT(not stream.has_external_stream());
 
     auto ext = create_external_stream();
-    stream.set_external_stream(ext.get());
+    stream.set_queue(ext.get());
 
     EXPECT(stream.get() == ext.get());
     EXPECT(stream.get() != internal);
     EXPECT(stream.has_external_stream());
 
-    // Under std::optional semantics, set_external_stream(nullptr) does NOT
+    // Under std::optional semantics, set_queue(nullptr) does NOT
     // clear the binding: it rebinds to the HIP default stream (which is a
     // legal stream value).  has_external_stream() therefore stays true, and
     // get() now returns nullptr (= the default stream).
-    stream.set_external_stream(nullptr);
+    stream.set_queue(nullptr);
 
     EXPECT(stream.get() == nullptr);
     EXPECT(stream.get() != internal);
@@ -90,7 +90,7 @@ TEST_CASE(test_stream_override_get_queue)
     hipStream_t original_queue = ctx.get_queue().get<hipStream_t>();
     EXPECT(original_queue != nullptr);
 
-    ctx.get_stream().set_external_stream(ext.get());
+    ctx.get_stream().set_queue(ext.get());
     EXPECT(ctx.get_queue().get<hipStream_t>() == ext.get());
 
     // Rebinding to nullptr means "the HIP default stream", not "no binding".
@@ -99,7 +99,7 @@ TEST_CASE(test_stream_override_get_queue)
     // context::get_queue() returns a default-constructed (untyped) any_ptr
     // when the bound stream is nullptr, so get<hipStream_t>() would throw a
     // type-mismatch exception on the empty name string.
-    ctx.get_stream().set_external_stream(nullptr);
+    ctx.get_stream().set_queue(nullptr);
 
     EXPECT(ctx.get_queue().unsafe_get() == nullptr);
     EXPECT(ctx.get_queue().unsafe_get() != original_queue);
@@ -167,7 +167,7 @@ TEST_CASE(test_context_set_queue_with_null_then_restore)
 
     // Pre-bind an external stream so the "original" binding under test is
     // not the internal stream.
-    ctx.get_stream().set_external_stream(ext.get());
+    ctx.get_stream().set_queue(ext.get());
     EXPECT(ctx.get_queue().get<hipStream_t>() == ext.get());
 
     // nullptr is a *valid* queue value -- it binds the HIP default stream.
@@ -184,7 +184,7 @@ TEST_CASE(test_context_set_queue_with_null_then_restore)
     // restore_queue() unconditionally unbinds the external stream and routes
     // submissions back to the internal stream -- it does NOT replay the
     // previously-bound `ext` value.  Callers that need to re-establish a
-    // prior external binding must call set_external_stream() themselves.
+    // prior external binding must call set_queue() themselves.
     ctx.restore_queue();
     EXPECT(not ctx.get_stream().has_external_stream());
     EXPECT(ctx.get_queue().get<hipStream_t>() != ext.get());
@@ -382,7 +382,7 @@ TEST_CASE(test_external_stream_eval_unbinds_prior_binding)
     auto* gpu_ctx              = ctx_ref.any_cast<migraphx::gpu::context>();
     EXPECT(gpu_ctx != nullptr);
 
-    gpu_ctx->get_stream().set_external_stream(prior.get());
+    gpu_ctx->get_stream().set_queue(prior.get());
     EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == prior.get());
 
     p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout}}, {ext.get(), true});
@@ -557,7 +557,7 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     auto prior = create_external_stream();
     auto ext   = create_external_stream();
 
-    gpu_ctx->get_stream().set_external_stream(prior.get());
+    gpu_ctx->get_stream().set_queue(prior.get());
     EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == prior.get());
 
     // Async eval with caller-supplied stream.  The async epilogue unbinds
@@ -572,7 +572,7 @@ TEST_CASE(test_mixed_async_and_sync_evals)
     // Re-bind `prior` so the sync eval below runs on it.  Sync eval does
     // not touch the queue binding, so kernels submit to `prior` and
     // p.finish() syncs `prior` (via wait()'s external_stream preference).
-    gpu_ctx->get_stream().set_external_stream(prior.get());
+    gpu_ctx->get_stream().set_queue(prior.get());
     auto gout2 = migraphx::gpu::to_gpu(out);
     p.eval({{"x", gx}, {"y", gy}, {"main:#output_0", gout2}});
     EXPECT(gpu_ctx->get_queue().get<hipStream_t>() == prior.get());

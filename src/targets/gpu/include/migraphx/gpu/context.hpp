@@ -147,8 +147,6 @@ struct hip_device
         }
 #endif
 
-#if MIGRAPHX_USE_MIOPEN || MIGRAPHX_USE_ROCBLAS
-
         void set_raw_stream(hipStream_t raw_stream)
         {
 #if MIGRAPHX_USE_MIOPEN
@@ -161,38 +159,11 @@ struct hip_device
 #endif
         }
 
-#else
-        void set_raw_stream(hipStream_t /*raw_stream*/)
-        {
-        }
-#endif
-
-        void set_external_stream(hipStream_t ext_stream)
-        {
-            if(has_external_stream() and external_stream.value() == ext_stream)
-                return;
-            external_stream = ext_stream;
-            set_raw_stream(external_stream.value());
-        }
-
-        // Drop any external binding and re-route library handles back to the
-        // internal stream.  set_external_stream(nullptr) is NOT equivalent
-        // under std::optional semantics: nullptr is itself a legal value
-        // (the HIP default stream), distinct from "no binding".
-        void clear_external_stream()
-        {
-            if(not has_external_stream())
-                return;
-            external_stream.reset();
-            hipStream_t internal = (s == nullptr) ? nullptr : s.get();
-            set_raw_stream(internal);
-        }
-
         bool has_external_stream() const { return external_stream.has_value(); }
 
-       void set_queue(hipStream_t q)
+        void set_queue(hipStream_t q)
         {
-            set_external_stream(q);
+            external_stream = q;
             set_raw_stream(q);
         }
 
@@ -204,11 +175,6 @@ struct hip_device
 
         void wait() const
         {
-            // Prefer the caller-bound external stream if one is set, so that
-            // p.finish() syncs the stream kernels were actually submitted to.
-            // For the async eval path this is a no-op because restore_queue()
-            // unbinds before wait() is reachable; it only matters for the
-            // (uncommon) sync-eval-with-pre-bound-external-stream case.
             hipStream_t cur = external_stream.value_or(s.get());
             if(cur == nullptr)
                 return;
@@ -426,8 +392,7 @@ struct context
         return s == nullptr ? any_ptr{} : any_ptr{s};
     }
 
-    // Bind a caller-provided queue for subsequent submissions.  The previous
-    // binding is remembered so a matching restore_queue() can put it back.
+    // Bind a caller-provided queue for subsequent submissions.  
     // Passing an empty / null any_ptr is equivalent to binding the HIP
     // default stream (nullptr), which is a distinct, valid operation from
     // restore_queue() -- the two must not be conflated.  We bypass the typed
@@ -439,9 +404,6 @@ struct context
         get_stream().set_queue(s);
     }
 
-    // Pop the binding most recently established by set_queue().  No-op if
-    // nothing was saved, so it is safe to call defensively from cleanup
-    // paths (including exception-unwind scenarios).
     void restore_queue() { get_stream().restore_queue(); }
 
     std::pair<hipEvent_t, hipEvent_t> get_perf_events() const

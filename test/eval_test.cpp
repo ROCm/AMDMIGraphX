@@ -702,7 +702,7 @@ TEST_CASE(async_eval_on_cpu_target_invokes_set_and_restore_queue)
 TEST_CASE(context_facade_dispatches_to_member_set_and_restore_queue)
 {
     // Sister test of the one above: tracked_ctx *does* implement set_queue and
-    // restore_queue.   
+    // restore_queue.
     migraphx::context ctx{tracked_ctx{}};
 
     int dummy = 0;

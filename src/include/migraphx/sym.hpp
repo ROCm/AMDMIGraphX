@@ -126,8 +126,8 @@ auto unpack_container(F f)
 
 struct MIGRAPHX_EXPORT interval
 {
-    scalar min = int64_t{0};
-    scalar max = int64_t{0};
+    scalar min = std::numeric_limits<std::int64_t>::min();
+    scalar max = std::numeric_limits<int64_t>::max();
 
     interval& operator+=(interval b) { return *this = *this + b; }
     interval& operator-=(interval b) { return *this = *this - b; }

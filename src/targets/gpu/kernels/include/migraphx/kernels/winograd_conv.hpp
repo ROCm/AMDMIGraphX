@@ -289,8 +289,8 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     // U is still LDS-resident — its layout already matches the WMMA A operand
     // and a register-based U would 36× balloon VGPR pressure for KW=2.
     static_assert(CB == 16 or CB == 32, "DPP V path supports CB=16 or CB=32");
-    constexpr index_int v_chunks      = CB / 16; // number of 8-c register banks per lane
-    constexpr index_int wp_count      = 16;
+    constexpr index_int v_chunks = CB / 16; // number of 8-c register banks per lane
+    constexpr index_int wp_count = 16;
     __shared__ uninitialized_buffer<half, KW * 16 * BK * CB> u_smem;
 
     auto u_cache_idx = [&](index_int k_idx, index_int wp, index_int k, index_int c) {
@@ -356,14 +356,13 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
         repeat_c<v_chunks>([&](auto vc_val) {
             constexpr index_int vc = vc_val;
             repeat_c<8>([&](auto ci_val) {
-                constexpr index_int ci = ci_val;
+                constexpr index_int ci     = ci_val;
                 const index_int c_in_block = vc * 16 + c_off + ci;
                 const index_int c          = c_base + c_in_block;
                 const bool active          = nt_active and (c < C);
                 const int32_t base_off = n_off + static_cast<int32_t>(c * x_sh[1]) * sizeof(half);
                 const int32_t tile_off = base_off + hw_off;
-                const int32_t off =
-                    active ? tile_off : static_cast<int32_t>(x_byte_count);
+                const int32_t off      = active ? tile_off : static_cast<int32_t>(x_byte_count);
 
                 array<half, 16> d;
                 if(sw_b == 2)
@@ -381,8 +380,8 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 {
                     repeat_c<4>([&](auto i) {
                         repeat_c<4>([&](auto j) {
-                            const int32_t e_off = off + static_cast<int>(i) * sh_b +
-                                                  static_cast<int>(j) * sw_b;
+                            const int32_t e_off =
+                                off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b;
                             d[i * 4 + j] = buffer_load_half(x_rsrc, e_off);
                         });
                     });
@@ -598,8 +597,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
 
     repeat_c<KW>([&](auto k_idx_val) {
         constexpr int k_idx = k_idx_val;
-        const index_int base_offset = n_idx * sn +
-                                      (k_base + k_idx * BK + k_row_offset) * sk +
+        const index_int base_offset = n_idx * sn + (k_base + k_idx * BK + k_row_offset) * sk +
                                       (2 * th_idx) * sh + (2 * tw_idx) * sw;
         repeat_c<8>([&](auto ki) {
             const index_int k = k_base + k_idx * BK + k_row_offset + ki;

@@ -146,9 +146,13 @@ struct hip_device
 
         void wait() const
         {
+            // For a multi-GPU setup, and if using their Default stream,
+            // allow a device setup call, to account for an async usage.
+            // No device setup should be required for a (non-default) stream.
+            // as confirmed with the HIP team, for synchronization.
             if(s == nullptr)
-                return;
-            setup();
+                setup();
+
             auto status = hipStreamSynchronize(s.get());
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to wait: " + hip_error(status));

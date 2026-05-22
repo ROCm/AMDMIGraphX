@@ -95,11 +95,14 @@ TEST_CASE(test_stream_override_get_queue)
 
     // Rebinding to nullptr means "the HIP default stream", not "no binding".
     // The active queue therefore changes value, but the external binding
-    // remains in effect.
+    // remains in effect.  Use unsafe_get() to compare against nullptr:
+    // context::get_queue() returns a default-constructed (untyped) any_ptr
+    // when the bound stream is nullptr, so get<hipStream_t>() would throw a
+    // type-mismatch exception on the empty name string.
     ctx.get_stream().set_external_stream(nullptr);
 
-    EXPECT(ctx.get_queue().get<hipStream_t>() == nullptr);
-    EXPECT(ctx.get_queue().get<hipStream_t>() != original_queue);
+    EXPECT(ctx.get_queue().unsafe_get() == nullptr);
+    EXPECT(ctx.get_queue().unsafe_get() != original_queue);
     EXPECT(ctx.get_stream().has_external_stream());
 }
 
@@ -170,10 +173,12 @@ TEST_CASE(test_context_set_queue_with_null_round_trips)
     // nullptr is a *valid* queue value -- it binds the HIP default stream.
     // Under std::optional<hipStream_t> semantics the binding is still
     // active (has_external_stream() == true); the value is just nullptr.
-    // set_queue(null) must NOT be conflated with restore.
+    // set_queue(null) must NOT be conflated with restore.  Read back via
+    // unsafe_get() because context::get_queue() returns an untyped any_ptr
+    // when the bound stream is nullptr.
     ctx.set_queue(migraphx::any_ptr{});
-    EXPECT(ctx.get_queue().get<hipStream_t>() == nullptr);
-    EXPECT(ctx.get_queue().get<hipStream_t>() != ext.get());
+    EXPECT(ctx.get_queue().unsafe_get() == nullptr);
+    EXPECT(ctx.get_queue().unsafe_get() != ext.get());
     EXPECT(ctx.get_stream().has_external_stream());
 
     // restore_queue() now puts the external stream back -- proving the

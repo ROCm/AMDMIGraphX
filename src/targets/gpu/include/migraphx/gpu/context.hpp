@@ -147,19 +147,32 @@ struct hip_device
         }
 #endif
 
+#if MIGRAPHX_USE_MIOPEN || MIGRAPHX_USE_ROCBLAS
+
+        void set_raw_stream(hipStream_t raw_stream)
+        {
+#if MIGRAPHX_USE_MIOPEN
+            if(mihandle != nullptr)
+                miopenSetStream(mihandle.get(), raw_stream);
+#endif
+#if MIGRAPHX_USE_ROCBLAS
+            if(rbhandle != nullptr)
+                rocblas_set_stream(rbhandle.get(), raw_stream);
+#endif
+        }
+
+#else
+        void set_raw_stream(hipStream_t /*raw_stream*/)
+        {
+        }
+#endif
+
         void set_external_stream(hipStream_t ext_stream)
         {
             if(has_external_stream() and external_stream.value() == ext_stream)
                 return;
             external_stream = ext_stream;
-#if MIGRAPHX_USE_MIOPEN
-            if(mihandle != nullptr)
-                miopenSetStream(mihandle.get(), ext_stream);
-#endif
-#if MIGRAPHX_USE_ROCBLAS
-            if(rbhandle != nullptr)
-                rocblas_set_stream(rbhandle.get(), ext_stream);
-#endif
+            set_raw_stream(external_stream.value());
         }
 
         // Drop any external binding and re-route library handles back to the
@@ -172,14 +185,7 @@ struct hip_device
                 return;
             external_stream.reset();
             hipStream_t internal = (s == nullptr) ? nullptr : s.get();
-#if MIGRAPHX_USE_MIOPEN
-            if(mihandle != nullptr)
-                miopenSetStream(mihandle.get(), internal);
-#endif
-#if MIGRAPHX_USE_ROCBLAS
-            if(rbhandle != nullptr)
-                rocblas_set_stream(rbhandle.get(), internal);
-#endif
+            set_raw_stream(internal);
         }
 
         bool has_external_stream() const { return external_stream.has_value(); }

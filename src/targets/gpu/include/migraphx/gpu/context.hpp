@@ -248,8 +248,8 @@ struct hip_device
         }
 
         private:
-        std::size_t id              = 0;
-        shared<hip_stream_ptr> s    = nullptr;
+        std::size_t id           = 0;
+        shared<hip_stream_ptr> s = nullptr;
         std::optional<hipStream_t> external_stream{};
         // Saved binding for restore_queue().  The outer optional answers
         // "was a prior queue saved?"; the inner answers "what was bound at
@@ -442,9 +442,9 @@ struct context
             MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
     }
 
-    any_ptr get_queue() 
-    { 
-        auto* s =get_stream().get(); 
+    any_ptr get_queue()
+    {
+        auto* s = get_stream().get();
         return s == nullptr ? any_ptr{} : any_ptr{s};
     }
 

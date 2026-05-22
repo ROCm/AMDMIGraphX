@@ -159,8 +159,8 @@ struct double_invert_target
 // Each call bumps a counter so a test can verify the dispatch routed through.
 struct tracked_ctx
 {
-    int set_calls           = 0;
-    int restore_calls       = 0;
+    int set_calls     = 0;
+    int restore_calls = 0;
     migraphx::any_ptr last_queue{};
 
     void finish() const {}

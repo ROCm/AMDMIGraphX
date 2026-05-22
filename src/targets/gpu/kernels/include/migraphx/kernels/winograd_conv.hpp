@@ -257,13 +257,15 @@ __device__ inline array<T, 16> winograd_input_transform_f23_scalar(const array<T
 //     accumulators alive simultaneously (which would force register spill).
 //   - CB must be a multiple of 16 (WMMA K dim).
 
-template <index_int NW, index_int CB, class Output, class Input, class Weights>
+template <index_int NW, index_int CB, index_int KW, class Output, class Input, class Weights>
 __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
 {
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
+    static_assert(KW >= 1, "KW must be >= 1");
     constexpr index_int BK          = 16;
     constexpr index_int BT_per_wave = 16;
     constexpr index_int BT          = BT_per_wave * NW;
+    constexpr index_int BK_WG       = BK * KW;  // K outputs processed per workgroup
 
     auto idx = make_index();
 
@@ -275,34 +277,34 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     const auto H_out = out_shape.lens[2];
     const auto W_out = out_shape.lens[3];
     const auto C     = x_shape.lens[1];
-    // H_in, W_in are no longer needed for bounds checks; the buffer descriptor
-    // handles OOB transparently.
 
     const auto tiles_w       = (W_out + 1) / 2;
     const auto tiles_h       = (H_out + 1) / 2;
     const auto tiles_per_img = tiles_h * tiles_w;
     const auto NT_total      = N * tiles_per_img;
 
-    const auto k_blocks = (K + BK - 1) / BK;
-    const auto k_block  = idx.group % k_blocks;
-    const auto t_block  = idx.group / k_blocks;
-    const auto k_base   = k_block * BK;
-    const auto t_base   = t_block * BT;
+    // Each workgroup covers KW consecutive K_blocks for one t_block. The V
+    // transform is shared across all KW k_blocks, so we only pay the
+    // V-transform cost once per (t_block, c_block) instead of KW times.
+    const auto k_wg_blocks = (K + BK_WG - 1) / BK_WG;
+    const auto k_wg_block  = idx.group % k_wg_blocks;
+    const auto t_block     = idx.group / k_wg_blocks;
+    const auto k_base      = k_wg_block * BK_WG;
+    const auto t_base      = t_block * BT;
 
     const auto lane    = idx.local % 32;
     const auto wave_id = idx.local / 32;
 
-    // LDS: U_lds[wp][k][c] and V_lds[wp][nt][c] (c innermost so WMMA operand
-    // load is one ds_load_b128 of 8 contiguous fp16 per lane).
-    // Pad the V c stride by 2 fp16 (4 bytes) so that 32 lanes writing
-    // consecutive t_slots at stride (CB+2)*2 = 36 bytes hit 32 distinct LDS
-    // banks (gcd(36, 128) = 4 = bank width), avoiding a 4-way conflict.
+    // LDS: V_lds[wp][nt][c] (shared across all KW k_blocks)
+    //      U_lds[k_idx][wp][k][c] (one set per k_block inside the workgroup)
+    // c innermost so WMMA operand load is one ds_load_b128 per lane.
+    // Pad V c stride by 2 fp16 to break 4-way bank conflict (gcd(36,128)=4).
     constexpr index_int V_CB_PAD = CB + 2;
-    __shared__ uninitialized_buffer<half, 16 * BK * CB> u_smem;
+    __shared__ uninitialized_buffer<half, KW * 16 * BK * CB> u_smem;
     __shared__ uninitialized_buffer<half, 16 * BT * V_CB_PAD> v_smem;
 
-    auto u_cache_idx = [&](index_int wp, index_int k, index_int c) {
-        return wp * BK * CB + k * CB + c;
+    auto u_cache_idx = [&](index_int k_idx, index_int wp, index_int k, index_int c) {
+        return k_idx * (16 * BK * CB) + wp * BK * CB + k * CB + c;
     };
     auto v_cache_idx = [&](index_int wp, index_int t, index_int c) {
         return wp * BT * V_CB_PAD + t * V_CB_PAD + c;
@@ -311,8 +313,8 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     // alpha[wp,r,c] = A^T[r, wp/4] * A[wp%4, c]
     constexpr float at[2][4] = {{1.f, 1.f, 1.f, 0.f}, {0.f, 1.f, -1.f, -1.f}};
 
-    // Y[r*2+c][k_offset] running accumulator. 4 Y outputs * 8 K rows per lane.
-    array<array<float, 8>, 4> y{};
+    // Y[k_idx][r*2+c][k_offset] running accumulator. KW * 4 outputs * 8 K rows per lane.
+    array<array<array<float, 8>, 4>, KW> y{};
 
     // Buffer descriptors for X (input) and U (weights). raw_buffer_load
     // returns 0 for OOB byte offsets so we don't need explicit bounds checks.
@@ -383,16 +385,18 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
             repeat_c<16>([&](auto wp) { v_smem[v_cache_idx(wp, t_slot, c_in_block)] = V[wp]; });
         });
 
-        // ---- Cooperative U load: one b128 per task (8 fp16) ----
+        // ---- Cooperative U load: one b128 per task (8 fp16), for all KW k_blocks ----
         static_assert(CB % 8 == 0, "CB must be a multiple of 8 for b128 U loads");
-        constexpr index_int U_TASKS = 16 * BK * (CB / 8);
+        constexpr index_int U_TASKS = KW * 16 * BK * (CB / 8);
         idx.local_stride(_c<U_TASKS>, [&](auto task) {
             const index_int c_half     = task % (CB / 8);
             const index_int rest       = task / (CB / 8);
             const index_int k_in_block = rest % BK;
-            const index_int wp         = rest / BK;
+            const index_int rest2      = rest / BK;
+            const index_int wp         = rest2 % 16;
+            const index_int k_idx      = rest2 / 16;
             const index_int c_in_block = c_half * 8;
-            const index_int k          = k_base + k_in_block;
+            const index_int k          = k_base + k_idx * BK + k_in_block;
             const int32_t off          = static_cast<int32_t>(
                 (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) * sizeof(half));
             vec<half, 8> v8;
@@ -405,7 +409,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
             {
                 v8 = vec<half, 8>{0};
             }
-            half* dst       = &u_smem[u_cache_idx(wp, k_in_block, c_in_block)];
+            half* dst       = &u_smem[u_cache_idx(k_idx, wp, k_in_block, c_in_block)];
             *as_vec<8>(dst) = v8;
         });
 
@@ -419,8 +423,9 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
         const index_int nt_slot               = wave_nt_base_in_block + m_in_wave;
 
         // Row-sum alpha fold: compute 4 wp (one full wp_i row of M) and apply
-        // the A^T M A output transform via S0/S1 row sums.
-        auto fold_row = [&](auto wp_i_val,
+        // the A^T M A output transform via S0/S1 row sums into y[k_idx].
+        auto fold_row = [&](auto k_idx_val,
+                            auto wp_i_val,
                             const vec<float, 8>& m0,
                             const vec<float, 8>& m1,
                             const vec<float, 8>& m2,
@@ -433,138 +438,87 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 {
                     repeat_c<8>([&](auto ki) {
                         float v0, v1;
-                        if constexpr(ki == 0)
-                        {
-                            v0 = s0.s0;
-                            v1 = s1.s0;
-                        }
-                        else if constexpr(ki == 1)
-                        {
-                            v0 = s0.s1;
-                            v1 = s1.s1;
-                        }
-                        else if constexpr(ki == 2)
-                        {
-                            v0 = s0.s2;
-                            v1 = s1.s2;
-                        }
-                        else if constexpr(ki == 3)
-                        {
-                            v0 = s0.s3;
-                            v1 = s1.s3;
-                        }
-                        else if constexpr(ki == 4)
-                        {
-                            v0 = s0.s4;
-                            v1 = s1.s4;
-                        }
-                        else if constexpr(ki == 5)
-                        {
-                            v0 = s0.s5;
-                            v1 = s1.s5;
-                        }
-                        else if constexpr(ki == 6)
-                        {
-                            v0 = s0.s6;
-                            v1 = s1.s6;
-                        }
-                        else
-                        {
-                            v0 = s0.s7;
-                            v1 = s1.s7;
-                        }
-                        y[r * 2 + 0][ki] = y[r * 2 + 0][ki] + coef_r * v0;
-                        y[r * 2 + 1][ki] = y[r * 2 + 1][ki] + coef_r * v1;
+                        if constexpr(ki == 0)        { v0 = s0.s0; v1 = s1.s0; }
+                        else if constexpr(ki == 1)   { v0 = s0.s1; v1 = s1.s1; }
+                        else if constexpr(ki == 2)   { v0 = s0.s2; v1 = s1.s2; }
+                        else if constexpr(ki == 3)   { v0 = s0.s3; v1 = s1.s3; }
+                        else if constexpr(ki == 4)   { v0 = s0.s4; v1 = s1.s4; }
+                        else if constexpr(ki == 5)   { v0 = s0.s5; v1 = s1.s5; }
+                        else if constexpr(ki == 6)   { v0 = s0.s6; v1 = s1.s6; }
+                        else                         { v0 = s0.s7; v1 = s1.s7; }
+                        y[k_idx_val][r * 2 + 0][ki] =
+                            y[k_idx_val][r * 2 + 0][ki] + coef_r * v0;
+                        y[k_idx_val][r * 2 + 1][ki] =
+                            y[k_idx_val][r * 2 + 1][ki] + coef_r * v1;
                     });
                 }
             });
         };
-        // Helper: load 8 fp16 from V_lds for wp at (nt_slot, c_offset + c_off).
         auto load_v = [&](index_int wp, index_int c_offset) {
             return *as_vec<8>(&v_smem[v_cache_idx(wp, nt_slot, c_offset + c_off)]);
         };
-        auto load_u = [&](index_int wp, index_int c_offset) {
-            return *as_vec<8>(&u_smem[u_cache_idx(wp, m_in_wave, c_offset + c_off)]);
+        auto load_u = [&](index_int k_idx, index_int wp, index_int c_offset) {
+            return *as_vec<8>(
+                &u_smem[u_cache_idx(k_idx, wp, m_in_wave, c_offset + c_off)]);
         };
 
-        repeat_c<4>([&](auto wp_i_val) {
-            constexpr int wp_i = wp_i_val;
-            vec<float, 8> m0{}, m1{}, m2{}, m3{};
-            if constexpr(wmma_chunks == 2)
-            {
-                // CB=32: issue both c-chunks' 8 WMMAs as one octet block to
-                // give the matrix pipe a longer continuous run. The extra 4
-                // accumulators only live across the octet; the compiler fuses
-                // the post-octet add(mN, mN+4) into the fold.
-                auto a0 = load_u(wp_i * 4 + 0, 0);
-                auto b0 = load_v(wp_i * 4 + 0, 0);
-                auto a1 = load_u(wp_i * 4 + 1, 0);
-                auto b1 = load_v(wp_i * 4 + 1, 0);
-                auto a2 = load_u(wp_i * 4 + 2, 0);
-                auto b2 = load_v(wp_i * 4 + 2, 0);
-                auto a3 = load_u(wp_i * 4 + 3, 0);
-                auto b3 = load_v(wp_i * 4 + 3, 0);
-                auto a4 = load_u(wp_i * 4 + 0, 16);
-                auto b4 = load_v(wp_i * 4 + 0, 16);
-                auto a5 = load_u(wp_i * 4 + 1, 16);
-                auto b5 = load_v(wp_i * 4 + 1, 16);
-                auto a6 = load_u(wp_i * 4 + 2, 16);
-                auto b6 = load_v(wp_i * 4 + 2, 16);
-                auto a7 = load_u(wp_i * 4 + 3, 16);
-                auto b7 = load_v(wp_i * 4 + 3, 16);
-                vec<float, 8> m4{}, m5{}, m6{}, m7{};
-                wmma_octet_asm(a0,
-                               b0,
-                               a1,
-                               b1,
-                               a2,
-                               b2,
-                               a3,
-                               b3,
-                               a4,
-                               b4,
-                               a5,
-                               b5,
-                               a6,
-                               b6,
-                               a7,
-                               b7,
-                               m0,
-                               m1,
-                               m2,
-                               m3,
-                               m4,
-                               m5,
-                               m6,
-                               m7);
-                m0 = m0 + m4;
-                m1 = m1 + m5;
-                m2 = m2 + m6;
-                m3 = m3 + m7;
-            }
-            else
-            {
-                for(index_int ck = 0; ck < wmma_chunks; ++ck)
+        repeat_c<KW>([&](auto k_idx_val) {
+            constexpr int k_idx = k_idx_val;
+            repeat_c<4>([&](auto wp_i_val) {
+                constexpr int wp_i = wp_i_val;
+                vec<float, 8> m0{}, m1{}, m2{}, m3{};
+                if constexpr(wmma_chunks == 2)
                 {
-                    const index_int c_offset = ck * 16;
-                    auto a0                  = load_u(wp_i * 4 + 0, c_offset);
-                    auto b0                  = load_v(wp_i * 4 + 0, c_offset);
-                    auto a1                  = load_u(wp_i * 4 + 1, c_offset);
-                    auto b1                  = load_v(wp_i * 4 + 1, c_offset);
-                    auto a2                  = load_u(wp_i * 4 + 2, c_offset);
-                    auto b2                  = load_v(wp_i * 4 + 2, c_offset);
-                    auto a3                  = load_u(wp_i * 4 + 3, c_offset);
-                    auto b3                  = load_v(wp_i * 4 + 3, c_offset);
-                    wmma_quad_asm(a0, b0, a1, b1, a2, b2, a3, b3, m0, m1, m2, m3);
+                    auto a0 = load_u(k_idx, wp_i * 4 + 0, 0);
+                    auto b0 = load_v(wp_i * 4 + 0, 0);
+                    auto a1 = load_u(k_idx, wp_i * 4 + 1, 0);
+                    auto b1 = load_v(wp_i * 4 + 1, 0);
+                    auto a2 = load_u(k_idx, wp_i * 4 + 2, 0);
+                    auto b2 = load_v(wp_i * 4 + 2, 0);
+                    auto a3 = load_u(k_idx, wp_i * 4 + 3, 0);
+                    auto b3 = load_v(wp_i * 4 + 3, 0);
+                    auto a4 = load_u(k_idx, wp_i * 4 + 0, 16);
+                    auto b4 = load_v(wp_i * 4 + 0, 16);
+                    auto a5 = load_u(k_idx, wp_i * 4 + 1, 16);
+                    auto b5 = load_v(wp_i * 4 + 1, 16);
+                    auto a6 = load_u(k_idx, wp_i * 4 + 2, 16);
+                    auto b6 = load_v(wp_i * 4 + 2, 16);
+                    auto a7 = load_u(k_idx, wp_i * 4 + 3, 16);
+                    auto b7 = load_v(wp_i * 4 + 3, 16);
+                    vec<float, 8> m4{}, m5{}, m6{}, m7{};
+                    wmma_octet_asm(a0, b0, a1, b1, a2, b2, a3, b3,
+                                   a4, b4, a5, b5, a6, b6, a7, b7,
+                                   m0, m1, m2, m3, m4, m5, m6, m7);
+                    m0 = m0 + m4;
+                    m1 = m1 + m5;
+                    m2 = m2 + m6;
+                    m3 = m3 + m7;
                 }
-            }
-            fold_row(_c<wp_i>, m0, m1, m2, m3);
+                else
+                {
+                    for(index_int ck = 0; ck < wmma_chunks; ++ck)
+                    {
+                        const index_int c_offset = ck * 16;
+                        auto a0 = load_u(k_idx, wp_i * 4 + 0, c_offset);
+                        auto b0 = load_v(wp_i * 4 + 0, c_offset);
+                        auto a1 = load_u(k_idx, wp_i * 4 + 1, c_offset);
+                        auto b1 = load_v(wp_i * 4 + 1, c_offset);
+                        auto a2 = load_u(k_idx, wp_i * 4 + 2, c_offset);
+                        auto b2 = load_v(wp_i * 4 + 2, c_offset);
+                        auto a3 = load_u(k_idx, wp_i * 4 + 3, c_offset);
+                        auto b3 = load_v(wp_i * 4 + 3, c_offset);
+                        wmma_quad_asm(a0, b0, a1, b1, a2, b2, a3, b3,
+                                      m0, m1, m2, m3);
+                    }
+                }
+                fold_row(_c<k_idx>, _c<wp_i>, m0, m1, m2, m3);
+            });
         });
 
         __syncthreads();
     }
 
-    // ---- Output writeback ----
+    // ---- Output writeback for each k_block this workgroup covered ----
     using out_type               = typename Output::type;
     const index_int nt_in_wave   = lane % 16;
     const index_int k_row_offset = (lane / 16) * 8;
@@ -582,29 +536,34 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     const auto sh  = out_shape.strides[2];
     const auto sw  = out_shape.strides[3];
     auto* out_data = output.data();
-    const index_int base_offset =
-        n * sn + (k_base + k_row_offset) * sk + (2 * th) * sh + (2 * tw) * sw;
 
-    repeat_c<8>([&](auto ki) {
-        const index_int k = k_base + k_row_offset + ki;
-        if(k < K)
-        {
-            const index_int kbase = base_offset + ki * sk;
-            repeat_c<2>([&](auto i) {
-                const int h_out = static_cast<int>(2 * th) + static_cast<int>(i);
-                if(static_cast<unsigned>(h_out) < H_out)
-                {
-                    const index_int hbase = kbase + i * sh;
-                    repeat_c<2>([&](auto j) {
-                        const int w_out = static_cast<int>(2 * tw) + static_cast<int>(j);
-                        if(static_cast<unsigned>(w_out) < W_out)
-                        {
-                            out_data[hbase + j * sw] = static_cast<out_type>(y[i * 2 + j][ki]);
-                        }
-                    });
-                }
-            });
-        }
+    repeat_c<KW>([&](auto k_idx_val) {
+        constexpr int k_idx = k_idx_val;
+        const index_int base_offset =
+            n * sn + (k_base + k_idx * BK + k_row_offset) * sk + (2 * th) * sh + (2 * tw) * sw;
+        repeat_c<8>([&](auto ki) {
+            const index_int k = k_base + k_idx * BK + k_row_offset + ki;
+            if(k < K)
+            {
+                const index_int kbase = base_offset + ki * sk;
+                repeat_c<2>([&](auto i) {
+                    const int h_out = static_cast<int>(2 * th) + static_cast<int>(i);
+                    if(static_cast<unsigned>(h_out) < H_out)
+                    {
+                        const index_int hbase = kbase + i * sh;
+                        repeat_c<2>([&](auto j) {
+                            const int w_out =
+                                static_cast<int>(2 * tw) + static_cast<int>(j);
+                            if(static_cast<unsigned>(w_out) < W_out)
+                            {
+                                out_data[hbase + j * sw] =
+                                    static_cast<out_type>(y[k_idx][i * 2 + j][ki]);
+                            }
+                        });
+                    }
+                });
+            }
+        });
     });
 }
 

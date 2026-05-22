@@ -47,7 +47,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})([](auto output, auto x, auto u) {
-        winograd_conv_f23_wmma<${nw}, ${cb}>(output, x, u);
+        winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}>(output, x, u);
     });
 }
 
@@ -72,7 +72,9 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
 
         const auto nw                = v.get("nw", std::size_t{4});
         const auto cb                = v.get("cb", std::size_t{16});
+        const auto kw                = v.get("kw", std::size_t{1});
         const std::size_t bk         = 16;
+        const std::size_t bk_wg      = bk * kw;
         const std::size_t bt         = 16 * nw;
         const std::size_t block_size = nw * 32;
 
@@ -85,9 +87,9 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const auto tiles_w   = (W_out + 1) / 2;
         const auto NT_total  = N * tiles_h * tiles_w;
 
-        const auto k_blocks   = (K + bk - 1) / bk;
-        const auto t_blocks   = (NT_total + bt - 1) / bt;
-        const auto num_blocks = k_blocks * t_blocks;
+        const auto k_wg_blocks = (K + bk_wg - 1) / bk_wg;
+        const auto t_blocks    = (NT_total + bt - 1) / bt;
+        const auto num_blocks  = k_wg_blocks * t_blocks;
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
 
@@ -96,7 +98,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"params", enum_params(inputs.size(), "void * private_p")},
                                        {"args", enum_params(inputs.size(), "private_p")},
                                        {"nw", std::to_string(nw)},
-                                       {"cb", std::to_string(cb)}});
+                                       {"cb", std::to_string(cb)},
+                                       {"kw", std::to_string(kw)}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -117,15 +120,24 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         auto shapes = to_shapes(ins->inputs());
         tc.problem  = to_value(shapes);
 
-        // Wave32 WMMA configs. CB must be a multiple of WMMA K (16).
-        // Configurations are constrained by LDS budget (64KB):
+        // Wave32 WMMA configs. CB must be a multiple of WMMA K (16). KW is
+        // the number of K_blocks (BK=16 each) processed per workgroup;
+        // KW>1 amortizes the V transform across K outputs.
+        // LDS budget (64KB):
         //   V_lds = 16 * (BT_per_wave*NW) * (CB+2) * 2 bytes
-        //   U_lds = 16 * 16 * CB * 2 bytes
-        tc.solutions.push_back({{"nw", 2}, {"cb", 16}});
-        tc.solutions.push_back({{"nw", 4}, {"cb", 16}});
-        tc.solutions.push_back({{"nw", 6}, {"cb", 16}});
-        tc.solutions.push_back({{"nw", 8}, {"cb", 16}});
-        tc.solutions.push_back({{"nw", 2}, {"cb", 32}});
+        //   U_lds = KW * 16 * 16 * CB * 2 bytes
+        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 1}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}});
+        tc.solutions.push_back({{"nw", 6}, {"cb", 16}, {"kw", 1}});
+        tc.solutions.push_back({{"nw", 8}, {"cb", 16}, {"kw", 1}});
+        tc.solutions.push_back({{"nw", 2}, {"cb", 32}, {"kw", 1}});
+        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 2}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 2}});
+        tc.solutions.push_back({{"nw", 6}, {"cb", 16}, {"kw", 2}});
+        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 3}});
+        tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 3}});
+        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 4}});
+        tc.solutions.push_back({{"nw", 2}, {"cb", 32}, {"kw", 2}});
         return tc;
     }
 };

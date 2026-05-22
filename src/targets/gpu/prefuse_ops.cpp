@@ -41,6 +41,7 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WINOGRAD);
 
 namespace {
 
@@ -317,6 +318,146 @@ struct find_channelwise_convolution
     }
 };
 
+struct winograd_conv
+{
+    std::string name() const { return "gpu::winograd_conv"; }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(2);
+        const auto& x_shape = inputs[0];
+        const auto& u_shape = inputs[1];
+        auto x_lens         = x_shape.lens();
+        // U has shape [16, K, C]
+        auto K              = u_shape.lens()[1];
+        std::vector<std::size_t> out_lens = {x_lens[0], K, x_lens[2], x_lens[3]};
+        return shape{x_shape.type(), out_lens};
+    }
+};
+MIGRAPHX_REGISTER_OP(winograd_conv);
+
+// Apply F(2x2, 3x3) Winograd filter transform U = G * g * G^T per (k, c).
+// Output U has shape [16, K, C] with C innermost so that consecutive lanes
+// loading consecutive C indices read contiguous global memory (coalesced).
+static literal compute_winograd_weights_f23(const literal& w_lit)
+{
+    auto sh        = w_lit.get_shape();
+    auto K         = sh.lens()[0];
+    auto C         = sh.lens()[1];
+    auto out_type  = sh.type();
+    shape u_shape{out_type, {16, K, C}};
+
+    std::vector<float> data(16ULL * K * C, 0.0f);
+
+    w_lit.visit([&](auto w_view) {
+        for(std::size_t k = 0; k < K; ++k)
+        {
+            for(std::size_t c = 0; c < C; ++c)
+            {
+                float g[3][3];
+                for(std::size_t i = 0; i < 3; ++i)
+                    for(std::size_t j = 0; j < 3; ++j)
+                        g[i][j] = static_cast<float>(w_view(k, c, i, j));
+
+                // T = G * g  (4x3)
+                float t[4][3];
+                for(int j = 0; j < 3; ++j)
+                {
+                    t[0][j] = g[0][j];
+                    t[1][j] = 0.5f * (g[0][j] + g[1][j] + g[2][j]);
+                    t[2][j] = 0.5f * (g[0][j] - g[1][j] + g[2][j]);
+                    t[3][j] = g[2][j];
+                }
+
+                // U_kc = T * G^T (4x4)
+                float u_kc[4][4];
+                for(int i = 0; i < 4; ++i)
+                {
+                    u_kc[i][0] = t[i][0];
+                    u_kc[i][1] = 0.5f * (t[i][0] + t[i][1] + t[i][2]);
+                    u_kc[i][2] = 0.5f * (t[i][0] - t[i][1] + t[i][2]);
+                    u_kc[i][3] = t[i][2];
+                }
+
+                for(int i = 0; i < 4; ++i)
+                {
+                    for(int j = 0; j < 4; ++j)
+                    {
+                        std::size_t wp                       = i * 4 + j;
+                        data[wp * K * C + k * C + c]         = u_kc[i][j];
+                    }
+                }
+            }
+        }
+    });
+
+    if(out_type == shape::half_type)
+    {
+        std::vector<half> hdata(data.size());
+        std::transform(data.begin(), data.end(), hdata.begin(), [](float x) {
+            return half(x);
+        });
+        return literal{u_shape, hdata};
+    }
+    return literal{u_shape, data};
+}
+
+MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
+{
+    if(ins->name() != "convolution")
+        return false;
+    auto v = ins->get_operator().to_value();
+    if(v.at("group").to<std::size_t>() != 1)
+        return false;
+    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    if(not all_of(v.at("padding"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    auto w_lens = ins->inputs().back()->get_shape().lens();
+    if(w_lens.size() != 4)
+        return false;
+    if(w_lens[2] != 3 or w_lens[3] != 3)
+        return false;
+    auto x_lens = ins->inputs().front()->get_shape().lens();
+    if(x_lens.size() != 4)
+        return false;
+    auto x_type = ins->inputs().front()->get_shape().type();
+    if(x_type != shape::half_type and x_type != shape::float_type)
+        return false;
+    if(ins->inputs().front()->get_shape().dynamic() or
+       ins->inputs().back()->get_shape().dynamic())
+        return false;
+    // Only support literal weights -- we precompute the Winograd filter
+    // transform U at compile time.
+    if(not ins->inputs().back()->can_eval())
+        return false;
+    return true;
+}
+
+struct find_winograd_f23
+{
+    auto matcher() const { return conv_winograd_f23(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins     = r.result;
+        auto input   = ins->inputs().front();
+        auto weights = ins->inputs().back();
+
+        auto w_arg = weights->eval();
+        if(w_arg.empty())
+            return;
+
+        literal w_lit{w_arg.get_shape(), w_arg.data()};
+        auto u_lit  = compute_winograd_weights_f23(w_lit);
+        auto u_ins  = m.add_literal(u_lit);
+
+        m.replace_instruction(ins, winograd_conv{}, input, u_ins);
+    }
+};
+
 void inline_group_sub_module(module_pass_manager& mpm)
 {
     auto& m = mpm.get_module();
@@ -346,6 +487,11 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     if(is_navi)
         match::find_matches(mpm.get_module(), find_channelwise_convolution{});
+    if(enabled(MIGRAPHX_ENABLE_WINOGRAD{}))
+    {
+        match::find_matches(mpm.get_module(), find_winograd_f23{});
+        mpm.run_pass(dead_code_elimination{});
+    }
     if(enabled(MIGRAPHX_DISABLE_MLIR{}))
     {
         inline_group_sub_module(mpm);

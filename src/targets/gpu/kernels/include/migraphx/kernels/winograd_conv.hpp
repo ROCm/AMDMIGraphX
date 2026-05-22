@@ -247,19 +247,18 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
 {
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
     static_assert(KW >= 1, "KW must be >= 1");
-    static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0,
-                  "SK must divide NW evenly");
+    static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0, "SK must divide NW evenly");
     // SK = within-WG c-axis split factor. SK waves cooperate to reduce the
     // C contraction; NW/SK independent NT-groups exist per workgroup so
     // BT = BT_per_wave * (NW/SK). SK=1 is the original (no split) path.
     // For SK>1, KW must be 1 (LDS budget would otherwise overflow with the
     // per-wave U_lds slots).
     static_assert(SK == 1 or KW == 1, "SK>1 currently requires KW==1");
-    constexpr index_int BK           = 16;
-    constexpr index_int BT_per_wave  = 16;
-    constexpr index_int NT_GROUPS    = NW / SK;
-    constexpr index_int BT           = BT_per_wave * NT_GROUPS;
-    constexpr index_int BK_WG        = BK * KW;
+    constexpr index_int BK          = 16;
+    constexpr index_int BT_per_wave = 16;
+    constexpr index_int NT_GROUPS   = NW / SK;
+    constexpr index_int BT          = BT_per_wave * NT_GROUPS;
+    constexpr index_int BK_WG       = BK * KW;
 
     auto idx = make_index();
 
@@ -292,8 +291,8 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     // ---- Split-c: wave_id is split into NT-group + sk-part ----
     // For SK=1: NT_GROUPS=NW, wave_sk_part is always 0, wave_nt_idx == wave_id.
     // For SK>1: NW/SK NT-groups; SK waves per group cooperate on c contraction.
-    const index_int wave_nt_idx   = wave_id / SK;
-    const index_int wave_sk_part  = wave_id % SK;
+    const index_int wave_nt_idx  = wave_id / SK;
+    const index_int wave_sk_part = wave_id % SK;
 
     // ---- V layout (REGISTER-RESIDENT) ----
     // V values are kept in per-lane registers instead of LDS. The lane
@@ -313,7 +312,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     // y_reduce_lds: holds per-wave y_partial during the SK>1 cross-wave
     // reduce. NT_GROUPS groups × SK waves × 32 lanes × 32 fp32 (KW=1 only).
     // Sized to 1 element for SK=1 to keep the LDS allocation valid but tiny.
-    constexpr index_int y_red_len  = (SK > 1) ? (NT_GROUPS * SK * 32 * 32) : 1;
+    constexpr index_int y_red_len = (SK > 1) ? (NT_GROUPS * SK * 32 * 32) : 1;
     __shared__ uninitialized_buffer<float, y_red_len> y_reduce_lds;
 
     auto u_cache_idx = [&](index_int slot, index_int wp, index_int k, index_int c) {
@@ -442,8 +441,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 const index_int c_in_block = c_half * 8;
                 const index_int k          = k_base + k_idx * BK + k_in_block;
                 const int32_t off          = static_cast<int32_t>(
-                    (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) *
-                    sizeof(half));
+                    (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) * sizeof(half));
                 vec<half, 8> v8;
                 if(k < K)
                 {
@@ -454,7 +452,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 {
                     v8 = vec<half, 8>{0};
                 }
-                half* dst = &u_smem[u_cache_idx(k_idx, wp, k_in_block, c_in_block)];
+                half* dst       = &u_smem[u_cache_idx(k_idx, wp, k_in_block, c_in_block)];
                 *as_vec<8>(dst) = v8;
             });
         }
@@ -474,8 +472,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 const index_int c_in_block = c_half * 8;
                 const index_int k          = k_base + k_in_block;
                 const int32_t off          = static_cast<int32_t>(
-                    (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) *
-                    sizeof(half));
+                    (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) * sizeof(half));
                 vec<half, 8> v8;
                 if(k < K)
                 {
@@ -486,7 +483,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 {
                     v8 = vec<half, 8>{0};
                 }
-                half* dst = &u_smem[u_cache_idx(wave_id, wp, k_in_block, c_in_block)];
+                half* dst       = &u_smem[u_cache_idx(wave_id, wp, k_in_block, c_in_block)];
                 *as_vec<8>(dst) = v8;
             }
         }
@@ -668,13 +665,11 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
         // Layout: y_reduce_lds[wave_nt_idx][wave_sk_part][lane][output(0..3)][ki(0..7)]
         // KW=1 enforced by static_assert when SK>1.
         constexpr index_int per_lane_floats = 32; // 4 outputs * 8 ki
-        const index_int wave_red_off =
-            (wave_nt_idx * SK + wave_sk_part) * 32 * per_lane_floats;
-        const index_int lane_off = wave_red_off + lane * per_lane_floats;
+        const index_int wave_red_off = (wave_nt_idx * SK + wave_sk_part) * 32 * per_lane_floats;
+        const index_int lane_off     = wave_red_off + lane * per_lane_floats;
         repeat_c<4>([&](auto out_i) {
-            repeat_c<8>([&](auto ki) {
-                y_reduce_lds[lane_off + out_i * 8 + ki] = y[0][out_i][ki];
-            });
+            repeat_c<8>(
+                [&](auto ki) { y_reduce_lds[lane_off + out_i * 8 + ki] = y[0][out_i][ki]; });
         });
         __syncthreads();
         // wave_sk_part == 0 waves sum partials from waves 1..SK-1 of their

@@ -190,13 +190,7 @@ struct hip_device
 
         bool has_external_stream() const { return external_stream.has_value(); }
 
-        // Bind a caller-provided stream for subsequent submissions and remember
-        // the prior binding so it can be put back by restore_queue().  We save
-        // unconditionally (even when `q` equals the current binding) so that
-        // nested or repeated set_queue() calls unwind in LIFO order.
-        // nullptr is a *valid* stream (the HIP default stream) and round-trips
-        // cleanly through this pair of methods.
-        void set_queue(hipStream_t q)
+       void set_queue(hipStream_t q)
         {
             set_external_stream(q);
             set_raw_stream(q);

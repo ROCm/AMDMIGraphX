@@ -150,6 +150,8 @@ add_library(migraphx
     verify_args.cpp
 )
 
+enable_static_init(migraphx)
+
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 

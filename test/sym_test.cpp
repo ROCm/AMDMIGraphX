@@ -31,6 +31,7 @@ using se       = migraphx::sym::expr;
 using interval = migraphx::sym::interval;
 using migraphx::sym::lit;
 using migraphx::sym::parse;
+using migraphx::sym::strict_less;
 using migraphx::sym::var;
 
 // ===================================================================
@@ -1097,36 +1098,28 @@ TEST_CASE(eval_interval_uint)
 
 TEST_CASE(cmp_lit_constants)
 {
-    EXPECT(lit(1) < lit(2));
-    EXPECT(not(lit(2) < lit(1)));
-    EXPECT(not(lit(3) < lit(3)));
-    EXPECT(lit(2) > lit(1));
-    EXPECT(lit(3) <= lit(3));
-    EXPECT(lit(3) >= lit(3));
-    EXPECT(lit(1) <= lit(2));
-    EXPECT(lit(2) >= lit(1));
+    EXPECT(strict_less(lit(1), lit(2)) == std::optional<bool>{true});
+    EXPECT(strict_less(lit(2), lit(1)) == std::optional<bool>{false});
+    EXPECT(strict_less(lit(3), lit(3)) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_equal_expr_not_less)
 {
     auto n = var("n");
-    EXPECT(not(n < n));
-    EXPECT(not(n > n));
-    EXPECT(n <= n);
-    EXPECT(n >= n);
+    EXPECT(strict_less(n, n) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_empty_not_less)
 {
     se a;
     se b;
-    EXPECT(not(a < b));
+    EXPECT(strict_less(a, b) == std::nullopt);
 }
 
 TEST_CASE(cmp_empty_with_nonempty_throws)
 {
-    EXPECT(test::throws([&]() -> bool { return se{} < var("n"); }));
-    EXPECT(test::throws([&]() -> bool { return var("n") < se{}; }));
+    EXPECT(strict_less(se{}, var("n")) == std::nullopt);
+    EXPECT(strict_less(var("n"), se{}) == std::nullopt);
 }
 
 TEST_CASE(cmp_stride_ordering_4d)
@@ -1138,33 +1131,33 @@ TEST_CASE(cmp_stride_ordering_4d)
     auto s1 = h * w;
     auto s2 = w;
     auto s3 = lit(1);
-    EXPECT(s1 <= s0);
-    EXPECT(s2 <= s1);
-    EXPECT(s3 <= s2);
-    EXPECT(s3 <= s0);
+    EXPECT(strict_less(s0, s1) == std::optional<bool>{false});
+    EXPECT(strict_less(s1, s2) == std::optional<bool>{false});
+    EXPECT(strict_less(s2, s3) == std::optional<bool>{false});
+    EXPECT(strict_less(s0, s3) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_scaled_symbol)
 {
     auto n = var("n");
-    EXPECT(n < 2 * n);
-    EXPECT(n < 3 * n);
-    EXPECT(not(2 * n < n));
+    EXPECT(strict_less(n, 2 * n) == std::optional<bool>{true});
+    EXPECT(strict_less(n, 3 * n) == std::optional<bool>{true});
+    EXPECT(strict_less(2 * n, n) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_product_explicit_bounds)
 {
     auto k = var("k", {1, 8});
     auto m = var("m", {2, 4});
-    EXPECT(k < m * k);
+    EXPECT(strict_less(k, m * k) == std::optional<bool>{true});
 }
 
 TEST_CASE(cmp_conv_output_smaller_than_input)
 {
     auto h   = var("h", {3, 256});
     auto out = (h - 3) / 2 + 1;
-    EXPECT(out < h);
-    EXPECT(not(h < out));
+    EXPECT(strict_less(out, h) == std::optional<bool>{true});
+    EXPECT(strict_less(h, out) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_repeated_pooling)
@@ -1172,9 +1165,9 @@ TEST_CASE(cmp_repeated_pooling)
     auto h    = var("h", {7, 256});
     auto out1 = (h - 3) / 2 + 1;
     auto out2 = (out1 - 3) / 2 + 1;
-    EXPECT(out1 < h);
-    EXPECT(out2 < out1);
-    EXPECT(out2 < h);
+    EXPECT(strict_less(out1, h) == std::optional<bool>{true});
+    EXPECT(strict_less(out2, out1) == std::optional<bool>{true});
+    EXPECT(strict_less(out2, h) == std::optional<bool>{true});
 }
 
 TEST_CASE(cmp_strides_after_conv)
@@ -1185,29 +1178,29 @@ TEST_CASE(cmp_strides_after_conv)
     auto s0    = new_h * w;
     auto s1    = w;
     auto s2    = lit(1);
-    EXPECT(s1 < s0);
-    EXPECT(s2 < s1);
+    EXPECT(strict_less(s1, s0) == std::optional<bool>{true});
+    EXPECT(strict_less(s2, s1) == std::optional<bool>{true});
 }
 
 TEST_CASE(cmp_broadcast_stride_zero)
 {
     auto w = var("w");
-    EXPECT(lit(0) < w);
-    EXPECT(not(w < lit(0)));
+    EXPECT(strict_less(lit(0), w) == std::optional<bool>{true});
+    EXPECT(strict_less(w, lit(0)) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_offset_expressions)
 {
     auto h = var("h", {2, 256});
-    EXPECT(h - 1 < h);
-    EXPECT(h < h + 1);
-    EXPECT(not(h + 1 < h));
+    EXPECT(strict_less(h - 1, h) == std::optional<bool>{true});
+    EXPECT(strict_less(h, h + 1) == std::optional<bool>{true});
+    EXPECT(strict_less(h + 1, h) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_undetermined_throws)
 {
     auto n = var("n", {2, 10});
-    EXPECT(test::throws([&]() -> bool { return n < lit(5); }));
+    EXPECT(strict_less(n, lit(5)) == std::nullopt);
 }
 
 TEST_CASE(cmp_element_count_slice)
@@ -1216,7 +1209,7 @@ TEST_CASE(cmp_element_count_slice)
     auto c = var("c", {1, 512});
     auto h = var("h", {1, 256});
     auto w = var("w", {2, 256});
-    EXPECT(n * c * h < n * c * h * w);
+    EXPECT(strict_less(n * c * h, n * c * h * w) == std::optional<bool>{true});
 }
 
 TEST_CASE(cmp_deep_pooling_chain)
@@ -1229,35 +1222,32 @@ TEST_CASE(cmp_deep_pooling_chain)
         prev  = stage;
         stage = (stage - 1) / 2;
     }
-    EXPECT(stage < prev);
-    EXPECT(stage < h);
+    EXPECT(strict_less(stage, prev) == std::optional<bool>{true});
+    EXPECT(strict_less(stage, h) == std::optional<bool>{true});
 }
 
 TEST_CASE(cmp_commuted_product)
 {
     auto a = var("a");
     auto b = var("b");
-    EXPECT(not(a * b < b * a));
-    EXPECT(a * b <= b * a);
-    EXPECT(a * b >= b * a);
+    EXPECT(strict_less(a * b, b * a) == std::optional<bool>{false});
+    EXPECT(strict_less(b * a, a * b) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_negative_literals)
 {
-    EXPECT(lit(-5) < lit(-1));
-    EXPECT(lit(-1) < lit(0));
-    EXPECT(lit(-10) < lit(10));
-    EXPECT(not(lit(0) < lit(-1)));
+    EXPECT(strict_less(lit(-5), lit(-1)) == std::optional<bool>{true});
+    EXPECT(strict_less(lit(-1), lit(0)) == std::optional<bool>{true});
+    EXPECT(strict_less(lit(-10), lit(10)) == std::optional<bool>{true});
+    EXPECT(strict_less(lit(0), lit(-1)) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_symmetry_lt_gt)
 {
     auto h   = var("h", {3, 256});
     auto out = (h - 3) / 2 + 1;
-    EXPECT(out < h);
-    EXPECT(h > out);
-    EXPECT(not(h < out));
-    EXPECT(not(out > h));
+    EXPECT(strict_less(out, h) == std::optional<bool>{true});
+    EXPECT(strict_less(h, out) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_transitivity_strides)
@@ -1269,12 +1259,12 @@ TEST_CASE(cmp_transitivity_strides)
     auto s1 = h * w;
     auto s2 = w;
     auto s3 = lit(1);
-    EXPECT(s1 < s0);
-    EXPECT(s2 < s1);
-    EXPECT(s3 < s2);
-    EXPECT(s3 < s0);
-    EXPECT(s2 < s0);
-    EXPECT(s3 < s1);
+    EXPECT(strict_less(s1, s0) == std::optional<bool>{true});
+    EXPECT(strict_less(s2, s1) == std::optional<bool>{true});
+    EXPECT(strict_less(s3, s2) == std::optional<bool>{true});
+    EXPECT(strict_less(s3, s0) == std::optional<bool>{true});
+    EXPECT(strict_less(s2, s0) == std::optional<bool>{true});
+    EXPECT(strict_less(s3, s1) == std::optional<bool>{true});
 }
 
 TEST_CASE(cmp_division_ordering)
@@ -1282,16 +1272,16 @@ TEST_CASE(cmp_division_ordering)
     auto h     = var("h", {5, 256});
     auto pool2 = (h - 1) / 2;
     auto pool4 = (h - 1) / 4;
-    EXPECT(pool4 < pool2);
-    EXPECT(pool2 < h);
-    EXPECT(pool4 < h);
+    EXPECT(strict_less(pool4, pool2) == std::optional<bool>{true});
+    EXPECT(strict_less(pool2, h) == std::optional<bool>{true});
+    EXPECT(strict_less(pool4, h) == std::optional<bool>{true});
 }
 
 TEST_CASE(cmp_sum_less_than_product)
 {
     auto n = var("n", {2, 32});
     auto c = var("c", {3, 512});
-    EXPECT(n + c < n * c);
+    EXPECT(strict_less(n + c, n * c) == std::optional<bool>{true});
 }
 
 TEST_CASE(cmp_algebraically_equal_expressions)
@@ -1300,19 +1290,17 @@ TEST_CASE(cmp_algebraically_equal_expressions)
     auto a = h + h;
     auto b = 2 * h;
     EXPECT(a == b);
-    EXPECT(not(a < b));
-    EXPECT(not(b < a));
-    EXPECT(a <= b);
-    EXPECT(a >= b);
+    EXPECT(strict_less(a, b) == std::optional<bool>{false});
+    EXPECT(strict_less(b, a) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_zero_stride_less_than_symbolic_stride)
 {
     auto h = var("h");
     auto w = var("w");
-    EXPECT(lit(0) < h);
-    EXPECT(lit(0) < h * w);
-    EXPECT(lit(0) < h + w);
+    EXPECT(strict_less(lit(0), h) == std::optional<bool>{true});
+    EXPECT(strict_less(lit(0), h * w) == std::optional<bool>{true});
+    EXPECT(strict_less(lit(0), h + w) == std::optional<bool>{true});
 }
 
 // -------------------------------------------------------------------
@@ -1322,14 +1310,14 @@ TEST_CASE(cmp_zero_stride_less_than_symbolic_stride)
 TEST_CASE(eval_optimals_single_var)
 {
     auto n = var("n", {1, 8}, {2, 4});
-    EXPECT(n.eval_optimals() == std::set<std::size_t>{2, 4});
+    EXPECT(n.eval_optimals_uint() == std::set<std::size_t>{2, 4});
 }
 
 TEST_CASE(eval_optimals_compound_expr)
 {
     auto n = var("n", {1, 8}, {2, 4});
     auto e = 2 * n + 1;
-    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 9});
+    EXPECT(e.eval_optimals_uint() == std::set<std::size_t>{5, 9});
 }
 
 TEST_CASE(eval_optimals_multi_var)
@@ -1337,7 +1325,7 @@ TEST_CASE(eval_optimals_multi_var)
     auto n = var("n", {1, 8}, {2, 4});
     auto m = var("m", {1, 8}, {3, 6});
     auto e = n + m;
-    EXPECT(e.eval_optimals() == std::set<std::size_t>{5, 7, 8, 10});
+    EXPECT(e.eval_optimals_uint() == std::set<std::size_t>{5, 7, 8, 10});
 }
 
 TEST_CASE(eval_optimals_negative_throws)
@@ -1398,7 +1386,7 @@ TEST_CASE(serialize_comparison_survives_round_trip)
     auto out  = (h - 3) / 2 + 1;
     auto h2   = round_trip(h);
     auto out2 = round_trip(out);
-    EXPECT(out2 < h2);
+    EXPECT(strict_less(out2, h2) == std::optional<bool>{true});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

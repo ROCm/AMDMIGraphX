@@ -238,8 +238,6 @@ class MIGRAPHX_EXPORT expr
     MIGRAPHX_SYM_DEFINE_OP(%, %=)
 };
 
-MIGRAPHX_EXPORT bool strict_less_than(const expr& a, const expr& b);
-
 MIGRAPHX_EXPORT expr var(std::string name);
 MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
 

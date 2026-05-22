@@ -392,7 +392,7 @@ struct context
         return s == nullptr ? any_ptr{} : any_ptr{s};
     }
 
-    // Bind a caller-provided queue for subsequent submissions.  
+    // Bind a caller-provided queue for subsequent submissions.
     // Passing an empty / null any_ptr is equivalent to binding the HIP
     // default stream (nullptr), which is a distinct, valid operation from
     // restore_queue() -- the two must not be conflated.  We bypass the typed

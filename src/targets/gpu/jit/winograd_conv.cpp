@@ -121,23 +121,23 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         tc.problem  = to_value(shapes);
 
         // Wave32 WMMA configs. CB must be a multiple of WMMA K (16). KW is
-        // the number of K_blocks (BK=16 each) processed per workgroup;
-        // KW>1 amortizes the V transform across K outputs.
-        // LDS budget (64KB):
-        //   V_lds = 16 * (BT_per_wave*NW) * (CB+2) * 2 bytes
-        //   U_lds = KW * 16 * 16 * CB * 2 bytes
+        // the number of K_blocks (BK=16 each) processed per workgroup.
+        // V values now live in per-lane registers (no V_lds), so LDS budget
+        // is just U_lds = KW * 16 * 16 * CB * 2 bytes (8KB per KW=1).
+        // KW=1 is usually optimal because V is already free per-lane; KW>1
+        // only helps to share U across more K outputs (rarely a win).
+        tc.solutions.push_back({{"nw", 1}, {"cb", 16}, {"kw", 1}});
         tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 1}});
         tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 1}});
         tc.solutions.push_back({{"nw", 6}, {"cb", 16}, {"kw", 1}});
         tc.solutions.push_back({{"nw", 8}, {"cb", 16}, {"kw", 1}});
         tc.solutions.push_back({{"nw", 2}, {"cb", 32}, {"kw", 1}});
+        tc.solutions.push_back({{"nw", 1}, {"cb", 16}, {"kw", 2}});
         tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 2}});
         tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 2}});
         tc.solutions.push_back({{"nw", 6}, {"cb", 16}, {"kw", 2}});
-        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 3}});
+        tc.solutions.push_back({{"nw", 1}, {"cb", 16}, {"kw", 4}});
         tc.solutions.push_back({{"nw", 4}, {"cb", 16}, {"kw", 3}});
-        tc.solutions.push_back({{"nw", 2}, {"cb", 16}, {"kw", 4}});
-        tc.solutions.push_back({{"nw", 2}, {"cb", 32}, {"kw", 2}});
         return tc;
     }
 };

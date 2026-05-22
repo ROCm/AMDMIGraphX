@@ -328,7 +328,7 @@ struct winograd_conv
         const auto& x_shape = inputs[0];
         const auto& u_shape = inputs[1];
         auto x_lens         = x_shape.lens();
-        // U has shape [16, K, C]
+        // U has shape [16, K, C] (F(2,3) winograd has 16 wp).
         auto K                            = u_shape.lens()[1];
         std::vector<std::size_t> out_lens = {x_lens[0], K, x_lens[2], x_lens[3]};
         return shape{x_shape.type(), out_lens};
@@ -422,7 +422,9 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     if(x_lens.size() != 4)
         return false;
     auto x_type = ins->inputs().front()->get_shape().type();
-    if(x_type != shape::half_type and x_type != shape::float_type)
+    // Kernel currently only supports half_type (fp16). The fp32 path was
+    // never wired through the buffer-resource-based loads.
+    if(x_type != shape::half_type)
         return false;
     if(ins->inputs().front()->get_shape().dynamic() or ins->inputs().back()->get_shape().dynamic())
         return false;

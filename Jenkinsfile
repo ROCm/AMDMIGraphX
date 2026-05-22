@@ -124,6 +124,54 @@ def setCommitStatus(String sha, String state, String context, String description
     }
 }
 
+@NonCPS
+def shaFromSCMRevisionAction() {
+    def action = currentBuild.rawBuild.getAction(jenkins.scm.api.SCMRevisionAction.class)
+    if (action == null) return null
+    def rev = action.revision
+
+    // GitSCMSource branch builds:
+    //   jenkins.plugins.git.AbstractGitSCMSource$SCMRevisionImpl  -> .hash
+    // GitHub Branch Source PR builds (merge strategy):
+    //   org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision -> .pullHash / .mergeHash
+    if (rev.hasProperty('pullHash')) return rev.pullHash   // PR head — what you want for status
+    if (rev.hasProperty('hash'))     return rev.hash       // plain branch
+    return rev.toString()
+}
+
+def resolveSha() {
+    if (env.GIT_COMMIT) return env.GIT_COMMIT
+
+    if (env.CHANGE_ID) {
+        try { return pullRequest.head } catch (ignored) { /* plugin missing */ }
+    }
+
+    def sha = shaFromSCMRevisionAction()
+    if (sha) return sha
+
+    if (fileExists('.git')) {
+        return sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+    }
+    return null
+}
+
+def autoSetGitStatus = { Map conf = [:], Closure body ->
+    def statusContext = conf.get("gitHubContext", "Unknown")
+    def description = conf.get("description", "Building")
+    def failureDescription = conf.get("failureDescription", "Failed")
+    def successDescription = conf.get("successDescription", "Succeeded")
+    def commitSha = resolveSha()
+    try {
+        setCommitStatus(commitSha, 'pending', statusContext, description)
+        body()
+    }
+    catch (Exception ex) {
+        setCommitStatus(commitSha, 'failure', statusContext, failureDescription)
+        throw ex
+    }
+    setCommitStatus(commitSha, 'success', statusContext, successDescription)
+}
+
 def rocmtest = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
@@ -136,17 +184,11 @@ def rocmtest = { Map conf = [:], Closure body ->
     env.CCACHE_DIR = ccache
     env.HSA_ENABLE_SDMA = 0
 
-    def commitSha
-    def statusContext = "Jenkins - ${variant}"
-    def buildResult = 'failure'
-
-    try {
+    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
         def docker_opts
         stage("setup ${variant}") {
             sh 'printenv'
             checkout scm
-            commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
-            setCommitStatus(commitSha, 'pending', statusContext, 'Building')
             setup()
 
             def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
@@ -167,15 +209,6 @@ def rocmtest = { Map conf = [:], Closure body ->
                     body()
                 }
             }
-        }
-        buildResult = 'success'
-    } catch (Exception e) {
-        buildResult = 'failure'
-        throw e
-    } finally {
-        if (commitSha) {
-            def description = (buildResult == 'success') ? 'Build succeeded' : 'Build failed'
-            setCommitStatus(commitSha, buildResult, statusContext, description)
         }
     }
 }
@@ -202,7 +235,7 @@ pipeline {
         stage('Check image') {
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking image', failureDescription: 'Failed to check image', successDescription: 'Image check succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking image', failureDescription: 'Failed to check image', successDescription: 'Image check succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             sh 'printenv'
@@ -226,14 +259,7 @@ pipeline {
             }
             steps {
                 script {
-                    def commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
-                    def statusContext = "Jenkins - Build image"
-                    def buildImageResult = 'failure'
-
-                    // Post pending status with a fresh token before the long build starts
-                    try { setCommitStatus(commitSha, 'pending', statusContext, 'Building image') } catch(Exception ignored) {}
-
-                    try {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building image', failureDescription: 'Failed to build image', successDescription: 'Image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             checkout scm
@@ -248,14 +274,6 @@ pipeline {
                             builtImage.push("${IMAGE_TAG}")
                             builtImage.push("latest")
                         }
-                        buildImageResult = 'success'
-                    } catch(Exception e) {
-                        buildImageResult = 'failure'
-                        throw e
-                    } finally {
-                        // Re-fetch credentials at post-build time so the token is always fresh
-                        def description = (buildImageResult == 'success') ? 'Image build succeeded' : 'Failed to build image'
-                        try { setCommitStatus(commitSha, buildImageResult, statusContext, description) } catch(Exception ignored) {}
                     }
                 }
             }
@@ -411,7 +429,7 @@ pipeline {
         stage('Check ORT image') {
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking ORT image', failureDescription: 'Failed to check ORT image', successDescription: 'ORT image check succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking ORT image', failureDescription: 'Failed to check ORT image', successDescription: 'ORT image check succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             sh 'printenv'
@@ -433,7 +451,7 @@ pipeline {
             }
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             checkout scm

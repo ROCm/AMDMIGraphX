@@ -51,6 +51,9 @@ endif()
 file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 list(REMOVE_ITEM TESTS ${CMAKE_CURRENT_SOURCE_DIR}/register_target.cpp)
 
+# TODO: Theses tests cause duplicate symbols(caught by the odr checker in clang ASAN) since it uses onnx-proto directly.
+list(REMOVE_ITEM TESTS ${CMAKE_CURRENT_SOURCE_DIR}/netron_output_test.cpp)
+
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
     rocm_add_test_executable(test_${BASE_NAME} ${TEST})

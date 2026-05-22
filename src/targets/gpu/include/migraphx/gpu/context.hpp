@@ -442,7 +442,11 @@ struct context
             MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
     }
 
-    any_ptr get_queue() { return get_stream().get(); }
+    any_ptr get_queue() 
+    { 
+        auto* s =get_stream().get(); 
+        return s == nullptr ? any_ptr{} : any_ptr{s};
+    }
 
     // Bind a caller-provided queue for subsequent submissions.  The previous
     // binding is remembered so a matching restore_queue() can put it back.

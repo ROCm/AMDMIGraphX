@@ -154,8 +154,7 @@ struct double_invert_target
 };
 
 // Minimal context that implements the optional set_queue/restore_queue members
-// of the context concept so the type-erased facade picks the "has member"
-// dispatcher branch (the char(0)-overload of private_detail_te_default_*).
+// of the context concept
 // Each call bumps a counter so a test can verify the dispatch routed through.
 struct tracked_ctx
 {
@@ -703,9 +702,7 @@ TEST_CASE(async_eval_on_cpu_target_invokes_set_and_restore_queue)
 TEST_CASE(context_facade_dispatches_to_member_set_and_restore_queue)
 {
     // Sister test of the one above: tracked_ctx *does* implement set_queue and
-    // restore_queue, so the type-erased facade must pick the char(0)-overload
-    // of the dispatcher templates and call straight through to the member
-    // functions on the held value.
+    // restore_queue.   
     migraphx::context ctx{tracked_ctx{}};
 
     int dummy = 0;

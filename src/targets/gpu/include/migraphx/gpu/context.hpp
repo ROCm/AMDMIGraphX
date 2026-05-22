@@ -198,37 +198,19 @@ struct hip_device
         // cleanly through this pair of methods.
         void set_queue(hipStream_t q)
         {
-            // Wrap in an outer optional so "saved (nothing bound)" survives
-            // the round-trip even when `external_stream` itself is empty.
-            previous_stream = external_stream;
             set_external_stream(q);
+            set_raw_stream(q);
         }
 
-        // Restore the binding captured by the most recent set_queue().  No-op
-        // if nothing is saved, which makes it safe to call from defensive
-        // cleanup paths (e.g. an async eval epilogue that may also be reached
-        // on an exception).
         void restore_queue()
         {
-            if(not previous_stream.has_value())
-                return;
-            auto prev = *previous_stream;
-            previous_stream.reset();
-            if(prev.has_value())
-                set_external_stream(*prev);
-            else
-                clear_external_stream();
+            external_stream.reset();
+            set_raw_stream(s.get());
         }
 
         void wait() const
         {
-            // Avoid lazily creating an internal stream just to sync it.
-            // Calling external_stream.value() unconditionally would throw
-            // std::bad_optional_access whenever no external stream is bound
-            // (the common case), so we must guard the access.
-            hipStream_t cur = external_stream.value_or(nullptr);
-            if(not external_stream.has_value() and s != nullptr)
-                cur = s.get();
+            hipStream_t cur = s.get();
             if(cur == nullptr)
                 return;
             setup();
@@ -257,12 +239,7 @@ struct hip_device
         std::size_t id           = 0;
         shared<hip_stream_ptr> s = nullptr;
         std::optional<hipStream_t> external_stream{};
-        // Saved binding for restore_queue().  The outer optional answers
-        // "was a prior queue saved?"; the inner answers "what was bound at
-        // save time?" (which may itself be empty, meaning no binding).  A
-        // single-level optional cannot distinguish "no save" from "saved
-        // empty binding" now that external_stream is itself an optional.
-        std::optional<std::optional<hipStream_t>> previous_stream{};
+
 #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
 #endif
@@ -426,10 +403,6 @@ struct context
 
     // Pure event-based synchronization point.  Records an event on the
     // caller's queue and makes the context's current stream wait on it.
-    // Intentionally does NOT mutate the active queue binding -- that is the
-    // job of set_queue()/restore_queue().  Safe to call whether or not a
-    // set_queue() is in effect: if the bound queue happens to equal the
-    // caller's queue the event round-trip is a cheap intra-stream no-op.
     void wait_for(any_ptr queue)
     {
         auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());

@@ -265,7 +265,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     constexpr index_int BK          = 16;
     constexpr index_int BT_per_wave = 16;
     constexpr index_int BT          = BT_per_wave * NW;
-    constexpr index_int BK_WG       = BK * KW;  // K outputs processed per workgroup
+    constexpr index_int BK_WG       = BK * KW; // K outputs processed per workgroup
 
     auto idx = make_index();
 
@@ -438,18 +438,48 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                 {
                     repeat_c<8>([&](auto ki) {
                         float v0, v1;
-                        if constexpr(ki == 0)        { v0 = s0.s0; v1 = s1.s0; }
-                        else if constexpr(ki == 1)   { v0 = s0.s1; v1 = s1.s1; }
-                        else if constexpr(ki == 2)   { v0 = s0.s2; v1 = s1.s2; }
-                        else if constexpr(ki == 3)   { v0 = s0.s3; v1 = s1.s3; }
-                        else if constexpr(ki == 4)   { v0 = s0.s4; v1 = s1.s4; }
-                        else if constexpr(ki == 5)   { v0 = s0.s5; v1 = s1.s5; }
-                        else if constexpr(ki == 6)   { v0 = s0.s6; v1 = s1.s6; }
-                        else                         { v0 = s0.s7; v1 = s1.s7; }
-                        y[k_idx_val][r * 2 + 0][ki] =
-                            y[k_idx_val][r * 2 + 0][ki] + coef_r * v0;
-                        y[k_idx_val][r * 2 + 1][ki] =
-                            y[k_idx_val][r * 2 + 1][ki] + coef_r * v1;
+                        if constexpr(ki == 0)
+                        {
+                            v0 = s0.s0;
+                            v1 = s1.s0;
+                        }
+                        else if constexpr(ki == 1)
+                        {
+                            v0 = s0.s1;
+                            v1 = s1.s1;
+                        }
+                        else if constexpr(ki == 2)
+                        {
+                            v0 = s0.s2;
+                            v1 = s1.s2;
+                        }
+                        else if constexpr(ki == 3)
+                        {
+                            v0 = s0.s3;
+                            v1 = s1.s3;
+                        }
+                        else if constexpr(ki == 4)
+                        {
+                            v0 = s0.s4;
+                            v1 = s1.s4;
+                        }
+                        else if constexpr(ki == 5)
+                        {
+                            v0 = s0.s5;
+                            v1 = s1.s5;
+                        }
+                        else if constexpr(ki == 6)
+                        {
+                            v0 = s0.s6;
+                            v1 = s1.s6;
+                        }
+                        else
+                        {
+                            v0 = s0.s7;
+                            v1 = s1.s7;
+                        }
+                        y[k_idx_val][r * 2 + 0][ki] = y[k_idx_val][r * 2 + 0][ki] + coef_r * v0;
+                        y[k_idx_val][r * 2 + 1][ki] = y[k_idx_val][r * 2 + 1][ki] + coef_r * v1;
                     });
                 }
             });
@@ -458,8 +488,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
             return *as_vec<8>(&v_smem[v_cache_idx(wp, nt_slot, c_offset + c_off)]);
         };
         auto load_u = [&](index_int k_idx, index_int wp, index_int c_offset) {
-            return *as_vec<8>(
-                &u_smem[u_cache_idx(k_idx, wp, m_in_wave, c_offset + c_off)]);
+            return *as_vec<8>(&u_smem[u_cache_idx(k_idx, wp, m_in_wave, c_offset + c_off)]);
         };
 
         repeat_c<KW>([&](auto k_idx_val) {
@@ -486,9 +515,30 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                     auto a7 = load_u(k_idx, wp_i * 4 + 3, 16);
                     auto b7 = load_v(wp_i * 4 + 3, 16);
                     vec<float, 8> m4{}, m5{}, m6{}, m7{};
-                    wmma_octet_asm(a0, b0, a1, b1, a2, b2, a3, b3,
-                                   a4, b4, a5, b5, a6, b6, a7, b7,
-                                   m0, m1, m2, m3, m4, m5, m6, m7);
+                    wmma_octet_asm(a0,
+                                   b0,
+                                   a1,
+                                   b1,
+                                   a2,
+                                   b2,
+                                   a3,
+                                   b3,
+                                   a4,
+                                   b4,
+                                   a5,
+                                   b5,
+                                   a6,
+                                   b6,
+                                   a7,
+                                   b7,
+                                   m0,
+                                   m1,
+                                   m2,
+                                   m3,
+                                   m4,
+                                   m5,
+                                   m6,
+                                   m7);
                     m0 = m0 + m4;
                     m1 = m1 + m5;
                     m2 = m2 + m6;
@@ -499,16 +549,15 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                     for(index_int ck = 0; ck < wmma_chunks; ++ck)
                     {
                         const index_int c_offset = ck * 16;
-                        auto a0 = load_u(k_idx, wp_i * 4 + 0, c_offset);
-                        auto b0 = load_v(wp_i * 4 + 0, c_offset);
-                        auto a1 = load_u(k_idx, wp_i * 4 + 1, c_offset);
-                        auto b1 = load_v(wp_i * 4 + 1, c_offset);
-                        auto a2 = load_u(k_idx, wp_i * 4 + 2, c_offset);
-                        auto b2 = load_v(wp_i * 4 + 2, c_offset);
-                        auto a3 = load_u(k_idx, wp_i * 4 + 3, c_offset);
-                        auto b3 = load_v(wp_i * 4 + 3, c_offset);
-                        wmma_quad_asm(a0, b0, a1, b1, a2, b2, a3, b3,
-                                      m0, m1, m2, m3);
+                        auto a0                  = load_u(k_idx, wp_i * 4 + 0, c_offset);
+                        auto b0                  = load_v(wp_i * 4 + 0, c_offset);
+                        auto a1                  = load_u(k_idx, wp_i * 4 + 1, c_offset);
+                        auto b1                  = load_v(wp_i * 4 + 1, c_offset);
+                        auto a2                  = load_u(k_idx, wp_i * 4 + 2, c_offset);
+                        auto b2                  = load_v(wp_i * 4 + 2, c_offset);
+                        auto a3                  = load_u(k_idx, wp_i * 4 + 3, c_offset);
+                        auto b3                  = load_v(wp_i * 4 + 3, c_offset);
+                        wmma_quad_asm(a0, b0, a1, b1, a2, b2, a3, b3, m0, m1, m2, m3);
                     }
                 }
                 fold_row(_c<k_idx>, _c<wp_i>, m0, m1, m2, m3);
@@ -552,8 +601,7 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                     {
                         const index_int hbase = kbase + i * sh;
                         repeat_c<2>([&](auto j) {
-                            const int w_out =
-                                static_cast<int>(2 * tw) + static_cast<int>(j);
+                            const int w_out = static_cast<int>(2 * tw) + static_cast<int>(j);
                             if(static_cast<unsigned>(w_out) < W_out)
                             {
                                 out_data[hbase + j * sw] =

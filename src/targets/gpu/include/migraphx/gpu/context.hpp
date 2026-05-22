@@ -210,7 +210,12 @@ struct hip_device
 
         void wait() const
         {
-            hipStream_t cur = s.get();
+            // Prefer the caller-bound external stream if one is set, so that
+            // p.finish() syncs the stream kernels were actually submitted to.
+            // For the async eval path this is a no-op because restore_queue()
+            // unbinds before wait() is reachable; it only matters for the
+            // (uncommon) sync-eval-with-pre-bound-external-stream case.
+            hipStream_t cur = external_stream.value_or(s.get());
             if(cur == nullptr)
                 return;
             setup();

@@ -78,6 +78,7 @@
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/gpu/fuse_mlss.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -151,6 +152,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
                                                    .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
         dead_code_elimination{},
         optimize_module{},
+        fuse_mlss{&ctx},
         fuse_pointwise_reduce{},
         dead_code_elimination{},
 #ifndef _WIN32

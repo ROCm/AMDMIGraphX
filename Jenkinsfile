@@ -183,17 +183,18 @@ def isStageCompleted(String stageName) {
     def context = "Jenkins - ${stageName}"
     def result = false
     withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
-        result = sh(
+        def response = sh(
             script: """
                 curl -s -L \
                     -H "Accept: application/vnd.github+json" \
                     -H "Authorization: Bearer \$TOKEN" \
                     -H "X-GitHub-Api-Version: 2022-11-28" \
-                    "https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/commits/${commitSha}/status" \
-                | jq -e '.statuses[] | select(.context == "${context}" and .state == "success")' > /dev/null
+                    "https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/commits/${commitSha}/status"
             """,
-            returnStatus: true
-        ) == 0
+            returnStdout: true
+        ).trim()
+        def json = new groovy.json.JsonSlurper().parseText(response)
+        result = json.statuses?.any { it.context == context && it.state == "success" } ?: false
     }
     if (result) {
         echo "Stage '${stageName}' already succeeded for commit ${commitSha}. Skipping."

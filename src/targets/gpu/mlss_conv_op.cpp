@@ -27,15 +27,13 @@
 #include <migraphx/register_op.hpp>
 #ifdef MIGRAPHX_HAS_MLSS_HEADERS
 
-namespace mlss_fp32 {
-#include <archive/conv/mxn/Winograd/Base/gfx1201/fp32/ShaderTypes_GFX12_fp32_f2x3_stride1.llvm.cpp>
-} // namespace mlss_fp32
-namespace mlss_fp32_ostride2 {
-#include <archive/conv/mxn/Winograd/Base/gfx1201/fp32/ShaderTypes_GFX12_fp32_f3x2_ostride2.llvm.cpp>
-} // namespace mlss_fp32_ostride2
-namespace mlss_fp16pk {
-#include <archive/conv/mxn/Winograd/Rage/gfx1201/fp16/ShaderTypes_NAVI48_fp16pk_f2x3_stride1.llvm.cpp>
-} // namespace mlss_fp16pk
+#include "modules/shaders/src/operators/impl/conv/mxn/Winograd/Base/gfx1201/fp32/shadersBinNonReloc.hpp"
+// namespace mlss_fp32_ostride2 {
+// #include <archive/conv/mxn/Winograd/Base/gfx1201/fp32/ShaderTypes_GFX12_fp32_f3x2_ostride2.llvm.cpp>
+// } // namespace mlss_fp32_ostride2
+// namespace mlss_fp16pk {
+// #include <archive/conv/mxn/Winograd/Rage/gfx1201/fp16/ShaderTypes_NAVI48_fp16pk_f2x3_stride1.llvm.cpp>
+// } // namespace mlss_fp16pk
 
 #include <hip/hip_runtime_api.h>
 
@@ -47,7 +45,7 @@ MIGRAPHX_REGISTER_OP(mlss_conv_op);
 
 mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1()
 {
-    const auto& shader = mlss_fp32::GFX12_fp32_f2x3_stride1;
+    const auto& shader = mlss::conv::mxn::winograd::base::fp32::gfx1201::ConvWinogradElf_Gfx12_F2x3_Fp32Stride1_NonReloc;
     mlss_conv_op op;
     op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
     op.symbol_name = "main";
@@ -57,27 +55,27 @@ mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1()
     return op;
 }
 
-mlss_conv_op mlss_conv_op::make_gfx12_fp32_f3x2_ostride2()
-{
-    const auto& shader = mlss_fp32_ostride2::GFX12_fp32_f3x2_ostride2;
-    mlss_conv_op op;
-    op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
-    op.symbol_name = "main";
-    op.n_groups    = 64;
-    op.block_size  = 256;
-    return op;
-}
+// mlss_conv_op mlss_conv_op::make_gfx12_fp32_f3x2_ostride2()
+// {
+//     const auto& shader = mlss_fp32_ostride2::GFX12_fp32_f3x2_ostride2;
+//     mlss_conv_op op;
+//     op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
+//     op.symbol_name = "main";
+//     op.n_groups    = 64;
+//     op.block_size  = 256;
+//     return op;
+// }
 
-mlss_conv_op mlss_conv_op::make_navi48_fp16pk_f2x3_stride1()
-{
-    const auto& shader = mlss_fp16pk::NAVI48_fp16pk_f2x3_stride1;
-    mlss_conv_op op;
-    op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
-    op.symbol_name = "main";
-    op.n_groups    = 64;
-    op.block_size  = 384;
-    return op;
-}
+// mlss_conv_op mlss_conv_op::make_navi48_fp16pk_f2x3_stride1()
+// {
+//     const auto& shader = mlss_fp16pk::NAVI48_fp16pk_f2x3_stride1;
+//     mlss_conv_op op;
+//     op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
+//     op.symbol_name = "main";
+//     op.n_groups    = 64;
+//     op.block_size  = 384;
+//     return op;
+// }
 
 // Pre-lowering: returns the stored output shape (no output buffer arg yet).
 // Post-lowering: returns the shape of the last arg (the pre-allocated output buffer).

@@ -378,17 +378,17 @@ struct find_mlss_conv
         {
             if(shape_match(conv_mxn_shapes))
                 op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1();
-            else if(shape_match(fp32_ostride2_shapes))
-                op = mlss_conv_op::make_gfx12_fp32_f3x2_ostride2();
+            // else if(shape_match(fp32_ostride2_shapes))
+            //     op = mlss_conv_op::make_gfx12_fp32_f3x2_ostride2();
             else
                 return;
         }
-        else // half_type
-        {
-            if(not shape_match(conv_mxn_shapes))
-                return;
-            op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
-        }
+        // else // half_type
+        // {
+        //     if(not shape_match(conv_mxn_shapes))
+        //         return;
+        //     op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
+        // }
 
         // Set pad_h and pad_w from the convolution padding attribute.
         // MIGraphX padding layout: {pad_h_begin, pad_w_begin, pad_h_end, pad_w_end}
@@ -493,12 +493,12 @@ struct find_mlss_conv_bias
             else
                 return;
         }
-        else // half_type
-        {
-            if(not shape_match(conv_mxn_shapes))
-                return;
-            op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
-        }
+        // else // half_type
+        // {
+        //     if(not shape_match(conv_mxn_shapes))
+        //         return;
+        //     op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
+        // }
 
         op.pad_h    = static_cast<int32_t>(cur_padding[0]);
         op.pad_w    = static_cast<int32_t>(cur_padding[1]);
@@ -609,12 +609,12 @@ struct find_mlss_conv_bias_relu
             else
                 return;
         }
-        else
-        {
-            if(not shape_match(conv_mxn_shapes))
-                return;
-            op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
-        }
+        // else
+        // {
+        //     if(not shape_match(conv_mxn_shapes))
+        //         return;
+        //     op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
+        // }
 
         op.pad_h           = static_cast<int32_t>(cur_padding[0]);
         op.pad_w           = static_cast<int32_t>(cur_padding[1]);
@@ -724,12 +724,12 @@ struct find_mlss_conv_bias_leaky_relu
             else
                 return;
         }
-        else
-        {
-            if(not shape_match(conv_mxn_shapes))
-                return;
-            op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
-        }
+        // else
+        // {
+        //     if(not shape_match(conv_mxn_shapes))
+        //         return;
+        //     op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
+        // }
 
         op.pad_h           = static_cast<int32_t>(cur_padding[0]);
         op.pad_w           = static_cast<int32_t>(cur_padding[1]);

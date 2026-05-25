@@ -25,9 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
 #ifdef MIGRAPHX_HAS_MLSS_HEADERS
-namespace mlss_mha {
-#include <archive/mha/wmma/gfx1201/fp16/gfx1201_mha_64x64x48_64x48x64.hpp>
-} // namespace mlss_mha
+#include "modules/shaders/src/operators/impl/mha/ck/wmma/gfx1201/fp16/shadersBin.hpp"
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,10 +35,10 @@ MIGRAPHX_REGISTER_OP(mlss_mha_op);
 
 mlss_mha_op mlss_mha_op::make_gfx1201_fp16_packed_qkv(float scale, std::size_t global, std::size_t local)
 {
-    const auto& shader = mlss_mha::multi_head_attention_void_single_pointer_packed_qkv_128_64x64x48_64x48x64_forward_with_strides_fp16_gfx1201;
+    const auto& shader = mlss::mha::ck::wmma::fp16::gfx1201::cross_attention_128_64x64x48_64x48x64_forward_gfx1201;
     mlss_mha_op op;
     op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
-    op.symbol_name = std::string(shader.m_kernelName);
+    op.symbol_name = "main";
     op.global      = global;
     op.local       = local;
     op.scale       = scale;

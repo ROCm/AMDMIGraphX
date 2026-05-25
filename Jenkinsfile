@@ -189,12 +189,8 @@ def isStageCompleted(String stageName) {
                     -H "Accept: application/vnd.github+json" \
                     -H "Authorization: Bearer \$TOKEN" \
                     -H "X-GitHub-Api-Version: 2022-11-28" \
-                    "https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/statuses/${commitSha}" \
-                    -o /tmp/gh_statuses_\$\$.json
-                jq -e '[.[] | select(.context == "${context}" and .state == "success")] | length > 0' /tmp/gh_statuses_\$\$.json
-                EXIT_CODE=\$?
-                rm -f /tmp/gh_statuses_\$\$.json
-                exit \$EXIT_CODE
+                    "https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/commits/${commitSha}/status" \
+                | jq -e '.statuses[] | select(.context == "${context}" and .state == "success")' > /dev/null
             """,
             returnStatus: true
         ) == 0
@@ -208,6 +204,11 @@ def isStageCompleted(String stageName) {
 def rocmtest = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
+    def skip_also_requires = conf.get("skip_also_requires", [])
+
+    if (isStageCompleted(variant) && skip_also_requires.every { isStageCompleted(it) }) {
+        return
+    }
 
     def docker_args = conf.get("docker_args", "")
     def image = conf.get("image", DOCKER_IMAGE)
@@ -322,10 +323,8 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('All Targets Release')) {
-                                rocmtest([:]) {
-                                    cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${getgputargets()}'")
-                                }
+                            rocmtest([:]) {
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DMIGRAPHX_ENABLE_GPU=On -DMIGRAPHX_ENABLE_CPU=On -DMIGRAPHX_ENABLE_FPGA=On -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }
@@ -337,12 +336,10 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('Clang ASAN')) {
-                                rocmtest([:]) {
-                                    def sanitizers = "undefined,address"
-                                    def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
-                                    cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
-                                }
+                            rocmtest([:]) {
+                                def sanitizers = "undefined,address"
+                                def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers}"
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
                             }
                         }
                     }
@@ -354,12 +351,10 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('Clang libstdc++ Debug')) {
-                                rocmtest([:]) {
-                                    def sanitizers = "undefined"
-                                    def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
-                                    cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
-                                }
+                            rocmtest([:]) {
+                                def sanitizers = "undefined"
+                                def debug_flags = "-g -O2 -fno-omit-frame-pointer -fsanitize=${sanitizers} -fno-sanitize-recover=${sanitizers} -D_GLIBCXX_DEBUG"
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_C_API_TEST=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_GPU=Off -DMIGRAPHX_ENABLE_CPU=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'", compiler: '/usr/bin/clang++-17')
                             }
                         }
                     }
@@ -371,11 +366,9 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('HIP Clang Release') || !isStageCompleted('ONNX Runtime Tests')) {
-                                rocmtest([:]) {
-                                    cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
-                                    stash includes: 'build/*.deb', name: 'migraphx-package'
-                                }
+                            rocmtest(skip_also_requires: ['ONNX Runtime Tests']) {
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
+                                stash includes: 'build/*.deb', name: 'migraphx-package'
                             }
                         }
                     }
@@ -387,10 +380,8 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('HIP Clang Static')) {
-                                rocmtest([:]) {
-                                    cmake_build(skip_package: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
-                                }
+                            rocmtest([:]) {
+                                cmake_build(skip_package: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }
@@ -402,10 +393,8 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('HIP Clang Release Navi32')) {
-                                rocmtest([:]) {
-                                    cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
-                                }
+                            rocmtest([:]) {
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi3xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
                             }
                         }
                     }
@@ -417,10 +406,8 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('HIP Clang Release Navi4x')) {
-                                rocmtest([:]) {
-                                    cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
-                                }
+                            rocmtest([:]) {
+                                cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getnavi4xtargets()}' -DMIGRAPHX_DISABLE_ONNX_TESTS=On")
                             }
                         }
                     }
@@ -436,12 +423,10 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('HIP RTC Debug')) {
-                                rocmtest([:]) {
-                                    def sanitizers = "undefined"
-                                    def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
-                                    cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", gpu_debug: '1')
-                                }
+                            rocmtest([:]) {
+                                def sanitizers = "undefined"
+                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", gpu_debug: '1')
                             }
                         }
                     }
@@ -465,13 +450,11 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('MLIR Debug')) {
-                                rocmtest([:]) {
-                                    // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
-                                    def sanitizers = "undefined"
-                                    def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
-                                    cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'")
-                                }
+                            rocmtest([:]) {
+                                // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
+                                def sanitizers = "undefined"
+                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }
@@ -531,17 +514,15 @@ pipeline {
                     }
                     steps {
                         script {
-                            if (!isStageCompleted('ONNX Runtime Tests')) {
-                                rocmtest(setup: setuppackage, docker_args: '-u root', image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
-                                    sh '''
-                                        apt install half
-                                        #ls -lR
-                                        md5sum ./build/*.deb
-                                        apt install -y --allow-unauthenticated ./build/*.deb
-                                        env
-                                        cd /onnxruntime && ./build_and_test_onnxrt.sh
-                                    '''
-                                }
+                            rocmtest(setup: setuppackage, docker_args: '-u root', image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
+                                sh '''
+                                    apt install half
+                                    #ls -lR
+                                    md5sum ./build/*.deb
+                                    apt install -y --allow-unauthenticated ./build/*.deb
+                                    env
+                                    cd /onnxruntime && ./build_and_test_onnxrt.sh
+                                '''
                             }
                         }
                     }

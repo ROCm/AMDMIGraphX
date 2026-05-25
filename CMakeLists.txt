@@ -416,10 +416,6 @@ foreach(py_file ${backend_files})
 endforeach(py_file)
 
 if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
-    if(NOT MIGRAPHX_THEROCK_GPU_ARCH)
-        message(FATAL_ERROR "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH (e.g. -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x).")
-    endif()
-
     # TheRock versioned packaging (RFC0009-OS-Packaging-Requirements):
     #   Versioned (installed by meta-package): amdrocm-{component}{MAJOR.MINOR}[-{gpu_arch}]
     #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
@@ -427,12 +423,29 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
     set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
+    set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
+        "TheRock GPU arch(es) for per-GPU package dependencies. \
+Semicolon-separated list (e.g. gfx942;gfx950) for per-GPU deps, \
+or empty for device-all meta-package deps.")
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
-    if(MIGRAPHX_USE_MIOPEN)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
-    endif()
-    if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
+    if(MIGRAPHX_THEROCK_GPU_ARCH)
+        # Per-GPU dependencies: one amdrocm-dnn/blas per arch
+        foreach(mgx_gpu_arch IN LISTS MIGRAPHX_THEROCK_GPU_ARCH)
+            if(MIGRAPHX_USE_MIOPEN)
+                list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
+            endif()
+            if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+                list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
+            endif()
+        endforeach()
+    else()
+        # Device-all: depend on arch-independent meta packages
+        if(MIGRAPHX_USE_MIOPEN)
+            list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}")
+        endif()
+        if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+            list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}")
+        endif()
     endif()
     rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${MIGRAPHX_THEROCK_ROCM_VERSION}")
     rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${MIGRAPHX_THEROCK_ROCM_VERSION}")

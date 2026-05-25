@@ -1092,8 +1092,7 @@ generic_eval_auto_apply(const expr&, const op_node& op, const std::vector<interv
     return op.op->eval_interval(args);
 }
 
-static expr
-generic_eval_auto_apply(const expr&, const op_node& op, const std::vector<expr>& args)
+static expr generic_eval_auto_apply(const expr&, const op_node& op, const std::vector<expr>& args)
 {
     return call_op(op.op, args);
 }
@@ -1187,24 +1186,22 @@ static expr diff(const expr& e, const expr& v)
 // Structural (no monotone tightening) interval eval. Used to evaluate the
 // derivative expression inside try_monotone_interval without recursing back
 // into the tightener.
-static interval raw_eval_interval(const expr& e,
-                                  const std::unordered_map<expr, interval>& vars)
+static interval raw_eval_interval(const expr& e, const std::unordered_map<expr, interval>& vars)
 {
     return generic_eval<interval>(e, [&](const expr& x) -> std::optional<interval> {
         auto it = vars.find(x);
         if(it != vars.end())
             return it->second;
         return std::visit(
-            overloaded{
-                [](const literal_node& n) -> std::optional<interval> {
-                    return interval{n.val, n.val};
-                },
-                [](const variable_node& n) -> std::optional<interval> {
-                    if(not n.constraints.empty())
-                        return n.constraints.front();
-                    MIGRAPHX_THROW("Variable '" + n.name + "' not found in interval map");
-                },
-                [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
+            overloaded{[](const literal_node& n) -> std::optional<interval> {
+                           return interval{n.val, n.val};
+                       },
+                       [](const variable_node& n) -> std::optional<interval> {
+                           if(not n.constraints.empty())
+                               return n.constraints.front();
+                           MIGRAPHX_THROW("Variable '" + n.name + "' not found in interval map");
+                       },
+                       [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
             get_node(x));
     });
 }
@@ -1244,8 +1241,8 @@ collect_free_vars(const expr& e, const std::unordered_map<expr, interval>& vars)
 // For each free variable v, compute d(e)/dv, check its sign over v's range;
 // if every variable has a definite direction the expression is monotone in
 // each one and the extrema are at corners, so two evals give the exact range.
-static std::optional<interval>
-try_monotone_interval(const expr& e, const std::unordered_map<expr, interval>& vars)
+static std::optional<interval> try_monotone_interval(const expr& e,
+                                                     const std::unordered_map<expr, interval>& vars)
 {
     if(e.empty())
         return std::nullopt;
@@ -1291,7 +1288,7 @@ try_monotone_interval(const expr& e, const std::unordered_map<expr, interval>& v
             std::unordered_map<expr, scalar> point;
             for(const auto& m : infos)
             {
-                bool hi  = (m.dir >= 0) == maxify;
+                bool hi      = (m.dir >= 0) == maxify;
                 point[m.var] = hi ? m.iv.max : m.iv.min;
             }
             return e.eval(point);
@@ -1355,16 +1352,16 @@ interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) con
             if(it != vars.end())
                 return it->second;
             return std::visit(
-                overloaded{
-                    [](const literal_node& n) -> std::optional<interval> {
-                        return interval{n.val, n.val};
-                    },
-                    [](const variable_node& n) -> std::optional<interval> {
-                        if(not n.constraints.empty())
-                            return n.constraints.front();
-                        MIGRAPHX_THROW("Variable '" + n.name + "' not found in interval map");
-                    },
-                    [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
+                overloaded{[](const literal_node& n) -> std::optional<interval> {
+                               return interval{n.val, n.val};
+                           },
+                           [](const variable_node& n) -> std::optional<interval> {
+                               if(not n.constraints.empty())
+                                   return n.constraints.front();
+                               MIGRAPHX_THROW("Variable '" + n.name +
+                                              "' not found in interval map");
+                           },
+                           [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
                 get_node(e));
         },
         // Custom apply: the structural interval is always sound; intersect
@@ -1376,14 +1373,9 @@ interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) con
             auto mono       = try_monotone_interval(e, vars);
             if(not mono)
                 return structural;
-            auto tighter_min = [](scalar s, scalar t) {
-                return scalar_less(s, t) ? t : s;
-            };
-            auto tighter_max = [](scalar s, scalar t) {
-                return scalar_less(t, s) ? t : s;
-            };
-            return {tighter_min(structural.min, mono->min),
-                    tighter_max(structural.max, mono->max)};
+            auto tighter_min = [](scalar s, scalar t) { return scalar_less(s, t) ? t : s; };
+            auto tighter_max = [](scalar s, scalar t) { return scalar_less(t, s) ? t : s; };
+            return {tighter_min(structural.min, mono->min), tighter_max(structural.max, mono->max)};
         });
 }
 

@@ -1064,8 +1064,8 @@ struct find_winograd_conv_pointwise
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto pw_ins        = r.result;
-        auto winograd_ins  = r.instructions["winograd_conv"];
+        auto pw_ins       = r.result;
+        auto winograd_ins = r.instructions["winograd_conv"];
         if(not winograd_ins->module_inputs().empty())
             return;
         auto* pm       = pw_ins->module_inputs().front();

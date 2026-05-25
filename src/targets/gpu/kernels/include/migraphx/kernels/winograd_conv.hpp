@@ -245,8 +245,7 @@ template <index_int NW,
           class Input,
           class Weights,
           class... Inputs>
-__device__ void
-winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, Inputs... inputs)
+__device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, Inputs... inputs)
 {
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
     static_assert(KW >= 1, "KW must be >= 1");
@@ -736,11 +735,10 @@ winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, Inputs... inputs)
                             const int w_out = static_cast<int>(2 * tw_idx) + static_cast<int>(j);
                             if(static_cast<unsigned>(w_out) < W_out)
                             {
-                                const array<index_int, 4> out_idx{
-                                    n_idx,
-                                    static_cast<index_int>(k),
-                                    static_cast<index_int>(h_out),
-                                    static_cast<index_int>(w_out)};
+                                const array<index_int, 4> out_idx{n_idx,
+                                                                  static_cast<index_int>(k),
+                                                                  static_cast<index_int>(h_out),
+                                                                  static_cast<index_int>(w_out)};
                                 xs_pack([&](auto... xs) {
                                     out_data[hbase + j * sw] = static_cast<out_type>(
                                         f(static_cast<out_type>(y[k_idx][i * 2 + j][ki]),

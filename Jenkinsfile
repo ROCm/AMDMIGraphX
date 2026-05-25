@@ -172,6 +172,12 @@ def autoSetGitStatus = { Map conf = [:], Closure body ->
     setCommitStatus(commitSha, 'success', statusContext, successDescription)
 }
 
+@NonCPS
+def parseStageSuccess(String jsonText, String context) {
+    def json = new groovy.json.JsonSlurper().parseText(jsonText)
+    return json.statuses?.any { it.context == context && it.state == "success" } ?: false
+}
+
 def isStageCompleted(String stageName) {
     if (params.FORCE_REBUILD) {
         return false
@@ -193,8 +199,7 @@ def isStageCompleted(String stageName) {
             """,
             returnStdout: true
         ).trim()
-        def json = new groovy.json.JsonSlurper().parseText(response)
-        result = json.statuses?.any { it.context == context && it.state == "success" } ?: false
+        result = parseStageSuccess(response, context)
     }
     if (result) {
         echo "Stage '${stageName}' already succeeded for commit ${commitSha}. Skipping."

@@ -100,9 +100,9 @@ struct pipeline_factory
     migraphx::context* gctx_ptr = nullptr;
     compile_options options;
 
-    // cppcheck-suppress CastIntegerToAddressAtReturn
     migraphx::context* get_generic_context() const { return gctx_ptr; }
 
+    // cppcheck-suppress CastIntegerToAddressAtReturn
     context* get_context() const { return any_cast<context>(gctx_ptr); }
 
     std::vector<pass> dynamic_shapes_pipeline() const

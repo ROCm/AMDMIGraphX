@@ -1048,6 +1048,45 @@ struct find_channelwise_conv_pointwise
     }
 };
 
+// Fuse a pointwise op that consumes a winograd_conv output. Replaces
+// `pointwise(winograd_conv(...), extras...)` with a single winograd_conv
+// instance whose precompile_op has the pointwise module attached. The kernel
+// then applies the pointwise function inline during writeback at no extra
+// memory traffic.
+struct find_winograd_conv_pointwise
+{
+    auto matcher() const
+    {
+        return precompile_name("pointwise")(
+            match::not_tuple(),
+            match::arg(0)(precompile_name("gpu::winograd_conv").bind("winograd_conv")));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto pw_ins        = r.result;
+        auto winograd_ins  = r.instructions["winograd_conv"];
+        if(not winograd_ins->module_inputs().empty())
+            return;
+        auto* pm       = pw_ins->module_inputs().front();
+        auto pw_inputs = pw_ins->inputs();
+        auto wn_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), winograd_ins);
+        assert(wn_pos != pw_inputs.end());
+        pw_inputs.erase(wn_pos);
+        // Winograd's inputs are (x, u, output_alloc). Drop the alloc, append
+        // the remaining pointwise inputs (bias, etc.), then re-append the new
+        // output alloc that the precompile_op layer expects last.
+        auto inputs = winograd_ins->inputs();
+        inputs.pop_back();
+        inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
+
+        auto wn_op_val            = winograd_ins->get_operator().to_value();
+        wn_op_val["output_shape"] = to_value(pw_ins->get_shape());
+
+        m.replace_instruction(pw_ins, make_op(winograd_ins->name(), wn_op_val), inputs, {pm});
+    }
+};
+
 struct find_concat_pointwise
 {
     auto matcher() const
@@ -1101,6 +1140,7 @@ void fuse_ops::apply(module& m) const
     match::find_matches(m,
                         find_layernorm_pointwise{},
                         find_channelwise_conv_pointwise{},
+                        find_winograd_conv_pointwise{},
                         find_concat_pointwise{},
                         find_contiguous_transpose_rocblas_gemm{},
 #if MIGRAPHX_USE_HIPBLASLT

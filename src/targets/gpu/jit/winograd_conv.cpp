@@ -38,17 +38,23 @@ using namespace migraphx::gpu::gen; // NOLINT
 static const char* const winograd_conv_kernel = R"__migraphx__(
 #include <migraphx/kernels/winograd_conv.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/generic_constant.hpp>
+#include <migraphx/kernels/ops.hpp>
 #include <args.hpp>
 
 namespace migraphx {
+
+${preamble}
 
 extern "C" {
 
 MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
-    transform_args(make_tensors(), rotate_last())(${args})([](auto output, auto x, auto u) {
-        winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}>(output, x, u);
-    });
+    transform_args(make_tensors(), rotate_last())(${args})(
+        [](auto output, auto x, auto u, auto... inputs) {
+            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}>(
+                ${post}, output, x, u, inputs...);
+        });
 }
 
 }
@@ -110,7 +116,9 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"nw", std::to_string(nw)},
                                        {"cb", std::to_string(cb)},
                                        {"kw", std::to_string(kw)},
-                                       {"sk", std::to_string(sk)}});
+                                       {"sk", std::to_string(sk)},
+                                       {"post", v.get("post", std::string{"op::id{}"})},
+                                       {"preamble", v.get("preamble", std::string{})}});
 
         return compile_hip_code_object(ctx, src, options);
     }
@@ -121,6 +129,13 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         auto v = op.to_value();
         for(const auto& s : solution)
             v.insert(s);
+        if(not ins->module_inputs().empty())
+        {
+            auto* pm      = ins->module_inputs().front();
+            v["preamble"] = generate_pointwise(*pm, "post_winograd_conv");
+            v["post"]     = "MIGRAPHX_LIFT(post_winograd_conv)";
+            v["kernel"]   = "winograd_conv_" + generate_name_from_ops(*pm) + "_kernel";
+        }
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }
 

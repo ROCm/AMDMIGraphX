@@ -240,10 +240,13 @@ template <index_int NW,
           index_int CB,
           index_int KW,
           index_int SK,
+          class F,
           class Output,
           class Input,
-          class Weights>
-__device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
+          class Weights,
+          class... Inputs>
+__device__ void
+winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, Inputs... inputs)
 {
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
     static_assert(KW >= 1, "KW must be >= 1");
@@ -709,6 +712,12 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
     const auto sw  = out_shape.strides[3];
     auto* out_data = output.data();
 
+    // Fused post-op: apply f(y_val, xs[multi_idx]...) at each output position.
+    // For the non-fused case, F = op::id{} and Inputs... is empty so the call
+    // collapses to `static_cast<out_type>(y_val)`. For fused pointwise, F is
+    // the generated post_winograd_conv function and the extra inputs are
+    // indexed at the same (n, k, h_out, w_out) position as the output.
+    auto xs_pack = pack(inputs...);
     repeat_c<KW>([&](auto k_idx_val) {
         constexpr int k_idx = k_idx_val;
         const index_int base_offset = n_idx * sn + (k_base + k_idx * BK + k_row_offset) * sk +
@@ -727,8 +736,16 @@ __device__ void winograd_conv_f23_wmma(Output output, Input x, Weights u)
                             const int w_out = static_cast<int>(2 * tw_idx) + static_cast<int>(j);
                             if(static_cast<unsigned>(w_out) < W_out)
                             {
-                                out_data[hbase + j * sw] =
-                                    static_cast<out_type>(y[k_idx][i * 2 + j][ki]);
+                                const array<index_int, 4> out_idx{
+                                    n_idx,
+                                    static_cast<index_int>(k),
+                                    static_cast<index_int>(h_out),
+                                    static_cast<index_int>(w_out)};
+                                xs_pack([&](auto... xs) {
+                                    out_data[hbase + j * sw] = static_cast<out_type>(
+                                        f(static_cast<out_type>(y[k_idx][i * 2 + j][ki]),
+                                          xs[out_idx]...));
+                                });
                             }
                         });
                     }

@@ -1226,10 +1226,9 @@ static interval eval_interval_impl(const expr& e,
 // if every variable has a definite direction the expression is monotone in
 // each one and the extrema are at corners, so two evals give the exact range.
 // Derivative intervals go through eval_interval_impl so they hit the cache too.
-static std::optional<interval>
-try_monotone_interval(const expr& e,
-                      const std::unordered_map<expr, interval>& vars,
-                      std::unordered_map<expr, interval>& cache)
+static std::optional<interval> try_monotone_interval(const expr& e,
+                                                     const std::unordered_map<expr, interval>& vars,
+                                                     std::unordered_map<expr, interval>& cache)
 {
     if(e.empty())
         return std::nullopt;
@@ -1307,21 +1306,20 @@ static interval eval_interval_impl(const expr& e,
                 return it->second;
             }
             return std::visit(
-                overloaded{
-                    [&](const literal_node& n) -> std::optional<interval> {
-                        interval r{n.val, n.val};
-                        cache.emplace(sub, r);
-                        return r;
-                    },
-                    [&](const variable_node& n) -> std::optional<interval> {
-                        if(n.constraints.empty())
-                            MIGRAPHX_THROW("Variable '" + n.name +
-                                           "' not found in interval map");
-                        interval r = n.constraints.front();
-                        cache.emplace(sub, r);
-                        return r;
-                    },
-                    [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
+                overloaded{[&](const literal_node& n) -> std::optional<interval> {
+                               interval r{n.val, n.val};
+                               cache.emplace(sub, r);
+                               return r;
+                           },
+                           [&](const variable_node& n) -> std::optional<interval> {
+                               if(n.constraints.empty())
+                                   MIGRAPHX_THROW("Variable '" + n.name +
+                                                  "' not found in interval map");
+                               interval r = n.constraints.front();
+                               cache.emplace(sub, r);
+                               return r;
+                           },
+                           [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
                 get_node(sub));
         },
         // Structural interval, intersected with the monotone-corner evaluation
@@ -1336,14 +1334,10 @@ static interval eval_interval_impl(const expr& e,
             }
             else
             {
-                auto tighter_min = [](scalar s, scalar t) {
-                    return scalar_less(s, t) ? t : s;
-                };
-                auto tighter_max = [](scalar s, scalar t) {
-                    return scalar_less(t, s) ? t : s;
-                };
-                result = {tighter_min(structural.min, mono->min),
-                          tighter_max(structural.max, mono->max)};
+                auto tighter_min = [](scalar s, scalar t) { return scalar_less(s, t) ? t : s; };
+                auto tighter_max = [](scalar s, scalar t) { return scalar_less(t, s) ? t : s; };
+                result           = {tighter_min(structural.min, mono->min),
+                                    tighter_max(structural.max, mono->max)};
             }
             cache.emplace(sub, result);
             return result;

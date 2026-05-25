@@ -31,12 +31,15 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/hash.hpp>
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
 #include <functional>
 #include <limits>
+#include <map>
 #include <numeric>
 #include <optional>
 #include <sstream>
+#include <unordered_set>
 #include <utility>
 
 namespace migraphx {
@@ -982,21 +985,52 @@ strict_less(const expr& a, const expr& b, const std::unordered_map<expr, interva
 {
     if(a.empty() or b.empty())
         return std::nullopt;
-    interval i;
+
+    // 1. Interval of b - a. eval_interval is already Taylor-tightened, so the
+    //    cross-term correlations between b and a get picked up automatically.
     try
     {
-        i = (b - a).eval_interval(vars);
+        auto i = (b - a).eval_interval(vars);
+        if(scalar_less(scalar{int64_t{0}}, i.min))
+            return true;
+        if(not scalar_less(scalar{int64_t{0}}, i.max))
+            return false;
     }
     catch(const migraphx::exception&)
     {
-        return std::nullopt;
     }
-    // (b - a) > 0 always => a < b always
-    if(scalar_less(scalar{int64_t{0}}, i.min))
-        return true;
-    // (b - a) <= 0 always => a >= b always
-    if(not scalar_less(scalar{int64_t{0}}, i.max))
-        return false;
+
+    // 2. b / a vs 1, when a's interval doesn't include zero.
+    try
+    {
+        auto a_int = a.eval_interval(vars);
+        bool a_pos = scalar_less(scalar{int64_t{0}}, a_int.min);
+        bool a_neg = scalar_less(a_int.max, scalar{int64_t{0}});
+        if(a_pos or a_neg)
+        {
+            auto q_int = (b / a).eval_interval(vars);
+            if(a_pos)
+            {
+                // a > 0: a < b iff b/a > 1
+                if(scalar_less(scalar{int64_t{1}}, q_int.min))
+                    return true;
+                if(not scalar_less(scalar{int64_t{1}}, q_int.max))
+                    return false;
+            }
+            else
+            {
+                // a < 0: a < b iff b/a < 1 (dividing by negative flips)
+                if(scalar_less(q_int.max, scalar{int64_t{1}}))
+                    return true;
+                if(not scalar_less(q_int.min, scalar{int64_t{1}}))
+                    return false;
+            }
+        }
+    }
+    catch(const migraphx::exception&)
+    {
+    }
+
     return std::nullopt;
 }
 
@@ -1041,17 +1075,25 @@ const std::vector<expr>& expr::children() const
     return pimpl->children;
 }
 
-static scalar generic_eval_auto_apply(const op_node& op, const std::vector<scalar>& args)
+// apply signature is (const expr& e, const op_node& op, std::vector<R> args).
+// The expr is passed so a custom apply can re-examine the subtree shape (e.g.
+// for symbolic tightening via Taylor expansion). The default _auto_apply
+// overloads ignore it.
+
+static scalar
+generic_eval_auto_apply(const expr&, const op_node& op, const std::vector<scalar>& args)
 {
     return op.op->eval(args);
 }
 
-static interval generic_eval_auto_apply(const op_node& op, const std::vector<interval>& args)
+static interval
+generic_eval_auto_apply(const expr&, const op_node& op, const std::vector<interval>& args)
 {
     return op.op->eval_interval(args);
 }
 
-static expr generic_eval_auto_apply(const op_node& op, const std::vector<expr>& args)
+static expr
+generic_eval_auto_apply(const expr&, const op_node& op, const std::vector<expr>& args)
 {
     return call_op(op.op, args);
 }
@@ -1069,13 +1111,197 @@ static R generic_eval(const expr& e, const Replace& replace, const Apply& apply)
                    children.end(),
                    std::back_inserter(args),
                    [&](const expr& child) { return generic_eval<R>(child, replace, apply); });
-    return apply(std::get<op_node>(get_node(e)), std::move(args));
+    return apply(e, std::get<op_node>(get_node(e)), std::move(args));
 }
 
 template <class R, class Replace>
 static R generic_eval(const expr& e, const Replace& replace)
 {
     return generic_eval<R>(e, replace, MIGRAPHX_LIFT(generic_eval_auto_apply));
+}
+
+// ---------------------------------------------------------------------------
+// Monotonicity-aware interval evaluation.
+//
+// Plain interval arithmetic loses precision whenever the same variable appears
+// in multiple sub-expressions (`h*w - c*h*w`, `(h-1)/2 - (h-1)/4`, ...). For
+// the expressions shape analysis throws at us, almost every node is monotone
+// in each free variable, and for monotone functions the extrema over a box
+// lie exactly at the corners — so two `eval`s at the right corners give the
+// *exact* range.
+//
+// Monotonicity is detected by symbolic differentiation w.r.t. each free var
+// and checking the derivative's sign over the variable bounds. The derivative
+// is built using doubles (so `d/dh((h-1)/2) = 0.5`, not `0` from integer
+// truncation) and evaluated structurally.
+// ---------------------------------------------------------------------------
+
+// Symbolic differentiation of `e` w.r.t. `v`. Result expressions use double
+// literals so derivatives like `d/dh((h-1)/2)` come out as `0.5` rather than
+// `0` from integer truncation. Supports +, *, and / by a literal divisor only;
+// throws on other ops, which causes try_monotone_interval to bail.
+static expr diff(const expr& e, const expr& v)
+{
+    if(e.empty() or e.name() == "literal")
+        return lit(0.0);
+    if(e.name() == "variable")
+        return e == v ? lit(1.0) : lit(0.0);
+    if(e.name() == "+")
+    {
+        const auto& cs = e.children();
+        return std::accumulate(
+            cs.begin() + 1, cs.end(), diff(cs.front(), v), [&](expr acc, const expr& c) {
+                return std::move(acc) + diff(c, v);
+            });
+    }
+    if(e.name() == "*")
+    {
+        const auto& cs = e.children();
+        expr sum       = lit(0.0);
+        for(std::size_t i = 0; i < cs.size(); ++i)
+        {
+            expr term = diff(cs[i], v);
+            for(std::size_t j = 0; j < cs.size(); ++j)
+                if(j != i)
+                    term = std::move(term) * cs[j];
+            sum = std::move(sum) + std::move(term);
+        }
+        return sum;
+    }
+    if(e.name() == "/")
+    {
+        const auto& cs = e.children();
+        if(cs.size() != 2)
+            MIGRAPHX_THROW("diff: / arity");
+        if(cs[1].name() != "literal")
+            MIGRAPHX_THROW("diff: non-literal divisor");
+        const auto& n = std::get<literal_node>(get_node(cs[1]));
+        double c      = to<double>(n.val);
+        if(c == 0.0)
+            MIGRAPHX_THROW("diff: / by zero");
+        return diff(cs[0], v) * lit(1.0 / c);
+    }
+    MIGRAPHX_THROW("diff: unsupported op " + e.name());
+}
+
+// Structural (no monotone tightening) interval eval. Used to evaluate the
+// derivative expression inside try_monotone_interval without recursing back
+// into the tightener.
+static interval raw_eval_interval(const expr& e,
+                                  const std::unordered_map<expr, interval>& vars)
+{
+    return generic_eval<interval>(e, [&](const expr& x) -> std::optional<interval> {
+        auto it = vars.find(x);
+        if(it != vars.end())
+            return it->second;
+        return std::visit(
+            overloaded{
+                [](const literal_node& n) -> std::optional<interval> {
+                    return interval{n.val, n.val};
+                },
+                [](const variable_node& n) -> std::optional<interval> {
+                    if(not n.constraints.empty())
+                        return n.constraints.front();
+                    MIGRAPHX_THROW("Variable '" + n.name + "' not found in interval map");
+                },
+                [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
+            get_node(x));
+    });
+}
+
+// Collect every free variable appearing in `e`, with its effective interval
+// (from `vars` if present, otherwise the variable_node's own constraint).
+// Throws on any unconstrained variable; that aborts the monotone path.
+static std::vector<std::pair<expr, interval>>
+collect_free_vars(const expr& e, const std::unordered_map<expr, interval>& vars)
+{
+    std::vector<std::pair<expr, interval>> result;
+    std::unordered_set<expr> seen;
+    std::function<void(const expr&)> walk = [&](const expr& x) {
+        if(x.empty() or not seen.insert(x).second)
+            return;
+        auto it = vars.find(x);
+        if(it != vars.end())
+        {
+            result.emplace_back(x, it->second);
+            return;
+        }
+        if(x.name() == "variable")
+        {
+            const auto& n = std::get<variable_node>(get_node(x));
+            if(n.constraints.empty())
+                MIGRAPHX_THROW("monotone: unbound var " + n.name);
+            result.emplace_back(x, n.constraints.front());
+            return;
+        }
+        for(const auto& c : x.children())
+            walk(c);
+    };
+    walk(e);
+    return result;
+}
+
+// For each free variable v, compute d(e)/dv, check its sign over v's range;
+// if every variable has a definite direction the expression is monotone in
+// each one and the extrema are at corners, so two evals give the exact range.
+static std::optional<interval>
+try_monotone_interval(const expr& e, const std::unordered_map<expr, interval>& vars)
+{
+    if(e.empty())
+        return std::nullopt;
+    try
+    {
+        auto fvs = collect_free_vars(e, vars);
+        if(fvs.empty())
+        {
+            auto v = e.eval({});
+            return interval{v, v};
+        }
+        constexpr std::size_t max_vars = 16;
+        if(fvs.size() > max_vars)
+            return std::nullopt;
+
+        struct mono_info
+        {
+            expr var;
+            interval iv;
+            int dir;
+        };
+        std::vector<mono_info> infos;
+        infos.reserve(fvs.size());
+        for(const auto& fv : fvs)
+        {
+            auto deriv = diff(e, fv.first);
+            auto di    = raw_eval_interval(deriv, vars);
+            // 0 <= min => non-negative derivative => non-decreasing in this var
+            bool nonneg = not scalar_less(di.min, scalar{int64_t{0}});
+            // max <= 0 => non-positive derivative => non-increasing
+            bool nonpos = not scalar_less(scalar{int64_t{0}}, di.max);
+            int dir;
+            if(nonneg)
+                dir = +1;
+            else if(nonpos)
+                dir = -1;
+            else
+                return std::nullopt;
+            infos.push_back({fv.first, fv.second, dir});
+        }
+
+        auto eval_at = [&](bool maxify) {
+            std::unordered_map<expr, scalar> point;
+            for(const auto& m : infos)
+            {
+                bool hi  = (m.dir >= 0) == maxify;
+                point[m.var] = hi ? m.iv.max : m.iv.min;
+            }
+            return e.eval(point);
+        };
+        return interval{eval_at(false), eval_at(true)};
+    }
+    catch(const migraphx::exception&)
+    {
+        return std::nullopt;
+    }
 }
 
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
@@ -1122,22 +1348,43 @@ scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 
 interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const
 {
-    return generic_eval<interval>(*this, [&](const expr& e) -> std::optional<interval> {
-        auto it = vars.find(e);
-        if(it != vars.end())
-            return it->second;
-        return std::visit(
-            overloaded{[](const literal_node& n) -> std::optional<interval> {
-                           return interval{n.val, n.val};
-                       },
-                       [](const variable_node& n) -> std::optional<interval> {
-                           if(not n.constraints.empty())
-                               return n.constraints.front();
-                           MIGRAPHX_THROW("Variable '" + n.name + "' not found in interval map");
-                       },
-                       [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
-            get_node(e));
-    });
+    return generic_eval<interval>(
+        *this,
+        [&](const expr& e) -> std::optional<interval> {
+            auto it = vars.find(e);
+            if(it != vars.end())
+                return it->second;
+            return std::visit(
+                overloaded{
+                    [](const literal_node& n) -> std::optional<interval> {
+                        return interval{n.val, n.val};
+                    },
+                    [](const variable_node& n) -> std::optional<interval> {
+                        if(not n.constraints.empty())
+                            return n.constraints.front();
+                        MIGRAPHX_THROW("Variable '" + n.name + "' not found in interval map");
+                    },
+                    [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
+                get_node(e));
+        },
+        // Custom apply: the structural interval is always sound; intersect
+        // with the monotone-corner evaluation of the subtree, which is exact
+        // for monotone-in-each-variable expressions (and gives nullopt when
+        // monotonicity can't be established).
+        [&](const expr& e, const op_node& op, std::vector<interval> args) -> interval {
+            auto structural = generic_eval_auto_apply(e, op, args);
+            auto mono       = try_monotone_interval(e, vars);
+            if(not mono)
+                return structural;
+            auto tighter_min = [](scalar s, scalar t) {
+                return scalar_less(s, t) ? t : s;
+            };
+            auto tighter_max = [](scalar s, scalar t) {
+                return scalar_less(t, s) ? t : s;
+            };
+            return {tighter_min(structural.min, mono->min),
+                    tighter_max(structural.max, mono->max)};
+        });
 }
 
 struct optimal_sample
@@ -1232,7 +1479,7 @@ std::set<scalar> expr::eval_optimals() const
                     }},
                 get_node(e));
         },
-        [](const op_node& op, std::vector<std::vector<optimal_sample>> args) {
+        [](const expr&, const op_node& op, std::vector<std::vector<optimal_sample>> args) {
             return combine_optimals(op, std::move(args));
         });
     std::set<scalar> result;
@@ -1307,7 +1554,7 @@ std::string expr::to_string() const
                                   }},
                        get_node(e));
                },
-               [](const op_node& op, std::vector<string_prec> args) -> string_prec {
+               [](const expr&, const op_node& op, std::vector<string_prec> args) -> string_prec {
                    int prec = op_precedence(op.op->name);
                    if(is_infix_op(op.op->name) and args.size() >= 2)
                    {

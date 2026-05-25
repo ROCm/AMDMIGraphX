@@ -1183,29 +1183,6 @@ static expr diff(const expr& e, const expr& v)
     MIGRAPHX_THROW("diff: unsupported op " + e.name());
 }
 
-// Structural (no monotone tightening) interval eval. Used to evaluate the
-// derivative expression inside try_monotone_interval without recursing back
-// into the tightener.
-static interval raw_eval_interval(const expr& e, const std::unordered_map<expr, interval>& vars)
-{
-    return generic_eval<interval>(e, [&](const expr& x) -> std::optional<interval> {
-        auto it = vars.find(x);
-        if(it != vars.end())
-            return it->second;
-        return std::visit(
-            overloaded{[](const literal_node& n) -> std::optional<interval> {
-                           return interval{n.val, n.val};
-                       },
-                       [](const variable_node& n) -> std::optional<interval> {
-                           if(not n.constraints.empty())
-                               return n.constraints.front();
-                           MIGRAPHX_THROW("Variable '" + n.name + "' not found in interval map");
-                       },
-                       [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
-            get_node(x));
-    });
-}
-
 // Collect every free variable appearing in `e`, with its effective interval
 // (from `vars` if present, otherwise the variable_node's own constraint).
 // Throws on any unconstrained variable; that aborts the monotone path.
@@ -1238,11 +1215,21 @@ collect_free_vars(const expr& e, const std::unordered_map<expr, interval>& vars)
     return result;
 }
 
-// For each free variable v, compute d(e)/dv, check its sign over v's range;
+// The cache passed below is a per-call memo of eval_interval results, so a
+// subexpression reached through multiple parents is only computed once and
+// a loop of eval_interval calls on overlapping expressions can amortize cost.
+static interval eval_interval_impl(const expr& e,
+                                   const std::unordered_map<expr, interval>& vars,
+                                   std::unordered_map<expr, interval>& cache);
+
+// For each free variable v, compute d(e)/dv and check its sign over v's range;
 // if every variable has a definite direction the expression is monotone in
 // each one and the extrema are at corners, so two evals give the exact range.
-static std::optional<interval> try_monotone_interval(const expr& e,
-                                                     const std::unordered_map<expr, interval>& vars)
+// Derivative intervals go through eval_interval_impl so they hit the cache too.
+static std::optional<interval>
+try_monotone_interval(const expr& e,
+                      const std::unordered_map<expr, interval>& vars,
+                      std::unordered_map<expr, interval>& cache)
 {
     if(e.empty())
         return std::nullopt;
@@ -1269,7 +1256,7 @@ static std::optional<interval> try_monotone_interval(const expr& e,
         for(const auto& fv : fvs)
         {
             auto deriv = diff(e, fv.first);
-            auto di    = raw_eval_interval(deriv, vars);
+            auto di    = eval_interval_impl(deriv, vars, cache);
             // 0 <= min => non-negative derivative => non-decreasing in this var
             bool nonneg = not scalar_less(di.min, scalar{int64_t{0}});
             // max <= 0 => non-positive derivative => non-increasing
@@ -1299,6 +1286,68 @@ static std::optional<interval> try_monotone_interval(const expr& e,
     {
         return std::nullopt;
     }
+}
+
+// The actual cached evaluator. Cache is keyed on the full subexpression and
+// stores the tightened (structural ∩ monotone) interval; the lookup in the
+// replace lambda short-circuits the whole subtree walk for nodes already seen.
+static interval eval_interval_impl(const expr& e,
+                                   const std::unordered_map<expr, interval>& vars,
+                                   std::unordered_map<expr, interval>& cache)
+{
+    return generic_eval<interval>(
+        e,
+        [&](const expr& sub) -> std::optional<interval> {
+            if(auto cit = cache.find(sub); cit != cache.end())
+                return cit->second;
+            auto it = vars.find(sub);
+            if(it != vars.end())
+            {
+                cache.emplace(sub, it->second);
+                return it->second;
+            }
+            return std::visit(
+                overloaded{
+                    [&](const literal_node& n) -> std::optional<interval> {
+                        interval r{n.val, n.val};
+                        cache.emplace(sub, r);
+                        return r;
+                    },
+                    [&](const variable_node& n) -> std::optional<interval> {
+                        if(n.constraints.empty())
+                            MIGRAPHX_THROW("Variable '" + n.name +
+                                           "' not found in interval map");
+                        interval r = n.constraints.front();
+                        cache.emplace(sub, r);
+                        return r;
+                    },
+                    [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
+                get_node(sub));
+        },
+        // Structural interval, intersected with the monotone-corner evaluation
+        // when the subtree is monotone in each free variable.
+        [&](const expr& sub, const op_node& op, std::vector<interval> args) -> interval {
+            auto structural = generic_eval_auto_apply(sub, op, args);
+            auto mono       = try_monotone_interval(sub, vars, cache);
+            interval result;
+            if(not mono)
+            {
+                result = structural;
+            }
+            else
+            {
+                auto tighter_min = [](scalar s, scalar t) {
+                    return scalar_less(s, t) ? t : s;
+                };
+                auto tighter_max = [](scalar s, scalar t) {
+                    return scalar_less(t, s) ? t : s;
+                };
+                result = {tighter_min(structural.min, mono->min),
+                          tighter_max(structural.max, mono->max)};
+            }
+            cache.emplace(sub, result);
+            return result;
+        });
 }
 
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
@@ -1345,38 +1394,8 @@ scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 
 interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const
 {
-    return generic_eval<interval>(
-        *this,
-        [&](const expr& e) -> std::optional<interval> {
-            auto it = vars.find(e);
-            if(it != vars.end())
-                return it->second;
-            return std::visit(
-                overloaded{[](const literal_node& n) -> std::optional<interval> {
-                               return interval{n.val, n.val};
-                           },
-                           [](const variable_node& n) -> std::optional<interval> {
-                               if(not n.constraints.empty())
-                                   return n.constraints.front();
-                               MIGRAPHX_THROW("Variable '" + n.name +
-                                              "' not found in interval map");
-                           },
-                           [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
-                get_node(e));
-        },
-        // Custom apply: the structural interval is always sound; intersect
-        // with the monotone-corner evaluation of the subtree, which is exact
-        // for monotone-in-each-variable expressions (and gives nullopt when
-        // monotonicity can't be established).
-        [&](const expr& e, const op_node& op, std::vector<interval> args) -> interval {
-            auto structural = generic_eval_auto_apply(e, op, args);
-            auto mono       = try_monotone_interval(e, vars);
-            if(not mono)
-                return structural;
-            auto tighter_min = [](scalar s, scalar t) { return scalar_less(s, t) ? t : s; };
-            auto tighter_max = [](scalar s, scalar t) { return scalar_less(t, s) ? t : s; };
-            return {tighter_min(structural.min, mono->min), tighter_max(structural.max, mono->max)};
-        });
+    std::unordered_map<expr, interval> cache;
+    return eval_interval_impl(*this, vars, cache);
 }
 
 struct optimal_sample

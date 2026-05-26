@@ -536,20 +536,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("macro"),
             py::arg("args"),
             py::arg("mod_args") = std::vector<migraphx::module*>{})
-        .def("has_debug_symbols", &migraphx::module::has_debug_symbols)
-        .def(
-            "add_debug_symbols",
-            [](migraphx::module& mm,
-               migraphx::instruction_ref ins,
-               const std::set<std::string>& symbols) { mm.add_debug_symbols(ins, symbols); },
-            py::arg("ins"),
-            py::arg("symbols"))
-        .def(
-            "remove_debug_symbols",
-            [](migraphx::module& mm, migraphx::instruction_ref ins) {
-                mm.remove_debug_symbols(ins);
-            },
-            py::arg("ins"))
         .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })
         .def(
             "__iter__",
@@ -623,16 +609,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  return ss.str();
              })
         .def("sort", &migraphx::program::sort)
-        .def(
-            "write_netron_output",
-            [](const migraphx::program& p, const std::string& filename) {
-                std::ofstream os(filename, std::ios::binary);
-                if(not os.is_open())
-                    throw std::runtime_error("Failed to open file for writing: " + filename);
-                migraphx::write_netron_output(p, os);
-            },
-            "Write program as ONNX protobuf binary viewable in Netron",
-            py::arg("filename"))
         .def("print", [](const migraphx::program& p) { std::cout << p << std::endl; })
         .def("__eq__", std::equal_to<migraphx::program>{})
         .def("__ne__", std::not_equal_to<migraphx::program>{})

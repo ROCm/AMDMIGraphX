@@ -87,8 +87,22 @@ struct mlss_conv_op
     kernel k{};
 
 #ifdef MIGRAPHX_HAS_MLSS_HEADERS
-    // Factory: constructs an op pre-loaded with the GFX12 fp32 conv shader.
-    static mlss_conv_op make_gfx12_fp32_f2x3_stride1();
+    // Factory: constructs an op pre-loaded with a conv shader binary.
+    // When MIGRAPHX_USE_AMDMLSS is defined, obtains the binary via the
+    // AMDMLSS C API (mlssGetBinaries, non-relocatable).  Otherwise falls
+    // back to the static shadersBinNonReloc.hpp header.
+    static mlss_conv_op make_gfx12_fp32_f2x3_stride1(
+        const context& ctx,
+        const std::vector<std::size_t>& act_lens,
+        const std::vector<std::size_t>& wt_lens,
+        const std::vector<std::size_t>& out_lens,
+        const std::vector<std::size_t>& padding,
+        const std::vector<std::size_t>& stride,
+        const std::vector<std::size_t>& dilation,
+        std::size_t group,
+        bool has_bias_flag,
+        uint8_t act_mode,
+        shape::type_t dtype);
     // Factory: constructs an op pre-loaded with the GFX12 fp32 f3x2 ostride2 conv shader.
     static mlss_conv_op make_gfx12_fp32_f3x2_ostride2();
     // Factory: constructs an op pre-loaded with the NAVI48 fp16pk conv shader.

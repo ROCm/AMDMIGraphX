@@ -24,16 +24,16 @@
 #include <migraphx/gpu/mlss_conv_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/register_op.hpp>
 #ifdef MIGRAPHX_HAS_MLSS_HEADERS
 
+#ifdef MIGRAPHX_USE_AMDMLSS
+#include <amdmlss/amdmlss_api.h>
+#include <iostream>
+#else
 #include "modules/shaders/src/operators/impl/conv/mxn/Winograd/Base/gfx1201/fp32/shadersBinNonReloc.hpp"
-// namespace mlss_fp32_ostride2 {
-// #include <archive/conv/mxn/Winograd/Base/gfx1201/fp32/ShaderTypes_GFX12_fp32_f3x2_ostride2.llvm.cpp>
-// } // namespace mlss_fp32_ostride2
-// namespace mlss_fp16pk {
-// #include <archive/conv/mxn/Winograd/Rage/gfx1201/fp16/ShaderTypes_NAVI48_fp16pk_f2x3_stride1.llvm.cpp>
-// } // namespace mlss_fp16pk
+#endif
 
 #include <hip/hip_runtime_api.h>
 
@@ -43,15 +43,211 @@ namespace gpu {
 
 MIGRAPHX_REGISTER_OP(mlss_conv_op);
 
-mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1()
+mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
+    const context& ctx,
+    const std::vector<std::size_t>& act_lens,
+    const std::vector<std::size_t>& wt_lens,
+    const std::vector<std::size_t>& out_lens,
+    const std::vector<std::size_t>& padding,
+    const std::vector<std::size_t>& stride,
+    const std::vector<std::size_t>& dilation,
+    std::size_t group,
+    bool has_bias_flag,
+    uint8_t act_mode,
+    shape::type_t dtype)
 {
-    const auto& shader = mlss::conv::mxn::winograd::base::fp32::gfx1201::ConvWinogradElf_Gfx12_F2x3_Fp32Stride1_NonReloc;
     mlss_conv_op op;
+    op.block_size = 256;
+
+#ifdef MIGRAPHX_USE_AMDMLSS
+    const std::string gfx_name = ctx.get_current_device().get_gfx_name();
+    MLSScontext mlss_ctx        = 0;
+    MLSSstring op_name          = const_cast<MLSSstring>(MLSS_CONV);
+    if(mlssCreateContext(&mlss_ctx, const_cast<MLSSstring>(gfx_name.c_str()), op_name) !=
+       MLSS_SUCCESS)
+    {
+        MIGRAPHX_THROW("mlss_conv_op: mlssCreateContext failed for " + gfx_name);
+    }
+
+    // Dimensions: act=[N,C,H,W], wt=[K,C/g,R,S], out=[N,K,outH,outW]
+    std::uint32_t n    = static_cast<std::uint32_t>(act_lens[0]);
+    std::uint32_t c    = static_cast<std::uint32_t>(act_lens[1]);
+    std::uint32_t h    = static_cast<std::uint32_t>(act_lens[2]);
+    std::uint32_t w    = static_cast<std::uint32_t>(act_lens[3]);
+    std::uint32_t k    = static_cast<std::uint32_t>(wt_lens[0]);
+    std::uint32_t r    = static_cast<std::uint32_t>(wt_lens[2]);
+    std::uint32_t s    = static_cast<std::uint32_t>(wt_lens[3]);
+    std::uint32_t outH = static_cast<std::uint32_t>(out_lens[2]);
+    std::uint32_t outW = static_cast<std::uint32_t>(out_lens[3]);
+
+    std::uint32_t dilationX = dilation.size() > 1 ? static_cast<std::uint32_t>(dilation[1]) : 1;
+    std::uint32_t dilationY = dilation.size() > 0 ? static_cast<std::uint32_t>(dilation[0]) : 1;
+
+    std::uint32_t startPadY = padding.size() > 0 ? static_cast<std::uint32_t>(padding[0]) : 0;
+    std::uint32_t startPadX = padding.size() > 1 ? static_cast<std::uint32_t>(padding[1]) : 0;
+    std::uint32_t endPadY   = padding.size() > 2 ? static_cast<std::uint32_t>(padding[2]) : 0;
+    std::uint32_t endPadX   = padding.size() > 3 ? static_cast<std::uint32_t>(padding[3]) : 0;
+    std::uint32_t outPadX   = 0;
+    std::uint32_t outPadY   = 0;
+
+    std::uint32_t convStrideY   = stride.size() > 0 ? static_cast<std::uint32_t>(stride[0]) : 1;
+    std::uint32_t convStrideX   = stride.size() > 1 ? static_cast<std::uint32_t>(stride[1]) : 1;
+    std::uint32_t inputStrideX  = 1;
+    std::uint32_t inputStrideY  = 1;
+    std::uint32_t filterStrideX = 1;
+    std::uint32_t filterStrideY = 1;
+
+    std::uint32_t groups           = static_cast<std::uint32_t>(group);
+    MLSSbool      mlss_has_bias    = has_bias_flag ? true : false;
+    MLSSbool      crossCorrelation = false;
+    MLSSbool      backward         = false;
+
+    // Tensor strides (NCHW, groups=1)
+    std::uint32_t dNStride = c * h * w;
+    std::uint32_t dHStride = w;
+    std::uint32_t dCStride = h * w;
+    std::uint32_t fKStride = c * r * s;
+    std::uint32_t fCStride = r * s;
+    std::uint32_t fRStride = s;
+    std::uint32_t fSStride = 1;
+    std::uint32_t oNStride = k * outH * outW;
+    std::uint32_t oHStride = outW;
+    std::uint32_t oKStride = outH * outW;
+    std::uint32_t dOffset  = 0;
+    std::uint32_t oOffset  = 0;
+    std::uint32_t fOffset  = 0;
+    std::uint32_t bOffset  = 0;
+
+    MLSSenum dataType  = (dtype == shape::half_type) ? MLSS_FLOAT16 : MLSS_FLOAT32;
+    MLSSenum precision = static_cast<MLSSenum>(MLSS_PRECISION_FLOAT16_ADD_FLOAT32);
+
+    // Map MIGraphX mlss_activation_mode (identity=0, leaky_relu=1, relu=4)
+    // to AMDMLSS MLSSActivationFunctionFlag (identity=3, leaky_relu=4, relu=9)
+    MLSSenum activation;
+    switch(static_cast<mlss_activation_mode>(act_mode))
+    {
+    case mlss_activation_mode::identity:   activation = MLSS_ACTIVATION_IDENTITY;   break;
+    case mlss_activation_mode::leaky_relu: activation = MLSS_ACTIVATION_LEAKY_RELU; break;
+    case mlss_activation_mode::sigmoid:    activation = MLSS_ACTIVATION_SIGMOID;    break;
+    case mlss_activation_mode::scaled_tanh:activation = MLSS_ACTIVATION_SCALED_TANH;break;
+    case mlss_activation_mode::relu:       activation = MLSS_ACTIVATION_RELU;       break;
+    }
+
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_W, &w);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_H, &h);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_C, &c);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_N, &n);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_K, &k);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_S, &s);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_R, &r);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTW, &outW);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTH, &outH);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DILATIONX, &dilationX);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DILATIONY, &dilationY);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_STARTPADX, &startPadX);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_STARTPADY, &startPadY);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ENDPADX, &endPadX);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ENDPADY, &endPadY);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTPADX, &outPadX);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTPADY, &outPadY);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_CONVSTRIDEX, &convStrideX);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_CONVSTRIDEY, &convStrideY);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_INPUTSTRIDEX, &inputStrideX);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_INPUTSTRIDEY, &inputStrideY);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FILTERSTRIDEX, &filterStrideX);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FILTERSTRIDEY, &filterStrideY);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_GROUPS, &groups);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_HASBIAS, &mlss_has_bias);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_CROSSCORRELATION, &crossCorrelation);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_BACKWARD, &backward);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DNSTRIDE, &dNStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DHSTRIDE, &dHStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DCSTRIDE, &dCStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FKSTRIDE, &fKStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FCSTRIDE, &fCStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FRSTRIDE, &fRStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FSSTRIDE, &fSStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ONSTRIDE, &oNStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OHSTRIDE, &oHStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OKSTRIDE, &oKStride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DOFFSET, &dOffset);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OOFFSET, &oOffset);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FOFFSET, &fOffset);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_BOFFSET, &bOffset);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DATATYPE, &dataType);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_PRECISION, &precision);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ACTIVATION, &activation);
+
+    MLSSstatus* p_statuses = nullptr;
+    MLSSsize n_statuses    = 0;
+    MLSSstatus caps_status = mlssGetCaps(mlss_ctx, &p_statuses, &n_statuses);
+    if(caps_status != MLSS_SUCCESS)
+    {
+        std::cout << "[mlss_conv_op] getCaps failed (status=" << caps_status << ") for "
+                  << gfx_name << " ["
+                  << n << "x" << c << "x" << h << "x" << w
+                  << " * " << k << "x" << (c / groups) << "x" << r << "x" << s
+                  << " -> " << n << "x" << k << "x" << outH << "x" << outW
+                  << "]  groups=" << groups
+                  << " dil=" << dilationX << "x" << dilationY
+                  << " stride=" << convStrideX << "x" << convStrideY
+                  << " pad=" << startPadX << "," << startPadY << "," << endPadX << "," << endPadY
+                  << " bias=" << mlss_has_bias
+                  << " act=" << activation
+                  << " dtype=" << dataType
+                  << " prec=" << precision << "\n";
+        mlssPrintParameters(mlss_ctx, op_name);
+        return op;
+    }
+
+    MLSSbinary* binaries  = nullptr;
+    MLSSsize num_binaries = 0;
+    if(mlssGetBinaries(mlss_ctx, &binaries, &num_binaries) != MLSS_SUCCESS || num_binaries == 0)
+        return op; // no binaries available — return empty op
+
+    // Find first non-relocatable binary
+    const MLSSbinary* bin = nullptr;
+    for(MLSSsize i = 0; i < num_binaries; ++i)
+    {
+        if(not binaries[i].m_isRelocatable)
+        {
+            bin = &binaries[i];
+            break;
+        }
+    }
+    if(bin == nullptr)
+        return op; // no non-relocatable binary — return empty op
+
+    const auto* raw = static_cast<const char*>(bin->m_binaries);
+    op.code_object  = value::binary(raw, bin->m_binarySize);
+    op.symbol_name  = (bin->m_pKernelName != nullptr) ? bin->m_pKernelName : "main";
+
+    // Use the producer-chosen grid to derive n_groups.
+    // Grid = N * G * n_groups, with N and G from the shape.
+    std::size_t grid_x = bin->m_grid.m_x;
+    op.n_groups = grid_x / (static_cast<std::size_t>(n) * static_cast<std::size_t>(groups));
+    if(op.n_groups == 0)
+        op.n_groups = 64;
+
+    std::cout << "[mlss_conv_op] API binary: size=" << bin->m_binarySize
+              << "  kernel=" << op.symbol_name << " ["
+                << n << "x" << c << "x" << h << "x" << w
+                << " * " << k << "x" << (c / groups) << "x" << r << "x" << s
+                << " -> " << n << "x" << k << "x" << outH << "x" << outW
+                << "]  groups=" << groups
+              << "  grid={" << bin->m_grid.m_x << "," << bin->m_grid.m_y << "," << bin->m_grid.m_z
+              << "}  n_groups=" << op.n_groups << "\n";
+
+#else
+    (void)ctx; (void)act_lens; (void)wt_lens; (void)out_lens;
+    (void)padding; (void)stride; (void)dilation; (void)group;
+    (void)has_bias_flag; (void)act_mode; (void)dtype;
+    const auto& shader = mlss::conv::mxn::winograd::base::fp32::gfx1201::ConvWinogradElf_Gfx12_F2x3_Fp32Stride1_NonReloc;
     op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
     op.symbol_name = "main";
-    // 56 seems to give the best minimum latency on gfx1201
     op.n_groups    = 64;
-    op.block_size  = 256;
+#endif // MIGRAPHX_USE_AMDMLSS
+
     return op;
 }
 

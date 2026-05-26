@@ -34,7 +34,6 @@
 #include <migraphx/gpu/fuse_mlss.hpp>
 #include <migraphx/gpu/mlss_mha_op.hpp>
 #include <migraphx/gpu/mlss_conv_op.hpp>
-#include <array>
 #ifdef MIGRAPHX_USE_AMDMLSS
 #include <amdmlss/amdmlss_api.h>
 #include <iostream>
@@ -218,91 +217,9 @@ struct find_mlss_attention
 };
 
 // ---------------------------------------------------------------------------
-// Shared shape tables used by all three find_mlss_conv* matchers.
-// ---------------------------------------------------------------------------
-struct conv_shape_entry
-{
-    std::array<std::size_t, 4> act;
-    std::array<std::size_t, 4> wt;
-    std::array<std::size_t, 4> out;
-    std::array<std::size_t, 4> padding;
-    std::array<std::size_t, 2> stride;
-};
-
-// Supported shapes for both fp32 and fp16pk stride-1 kernels (ResNet-50 + VGG-19)
-static constexpr conv_shape_entry conv_mxn_shapes[] = {
-    // ResNet-50 3x3 stride-1
-    {{1, 64, 56, 56},    {64, 64, 3, 3},    {1, 64, 56, 56},    {1, 1, 1, 1}, {1, 1}},
-    {{1, 128, 28, 28},   {128, 128, 3, 3},  {1, 128, 28, 28},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 256, 14, 14},   {256, 256, 3, 3},  {1, 256, 14, 14},   {1, 1, 1, 1}, {1, 1}},
-    // vgg19 (224x224)
-    {{1, 3, 224, 224},   {64, 3, 3, 3},     {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
-    {{1, 64, 224, 224},  {64, 64, 3, 3},    {1, 64, 224, 224},  {1, 1, 1, 1}, {1, 1}},
-    // vgg19 (112x112)
-    {{1, 64, 112, 112},  {128, 64, 3, 3},   {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 128, 112, 112}, {128, 128, 3, 3},  {1, 128, 112, 112}, {1, 1, 1, 1}, {1, 1}},
-    // vgg19 (56x56)
-    {{1, 128, 56, 56},   {256, 128, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 256, 56, 56},   {256, 256, 3, 3},  {1, 256, 56, 56},   {1, 1, 1, 1}, {1, 1}},
-    // vgg19 (28x28)
-    {{1, 256, 28, 28},   {512, 256, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 512, 28, 28},   {512, 512, 3, 3},  {1, 512, 28, 28},   {1, 1, 1, 1}, {1, 1}},
-    // vgg19 (14x14)
-    {{1, 512, 14, 14},   {512, 512, 3, 3},  {1, 512, 14, 14},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 512, 7, 7},     {512, 512, 3, 3},  {1, 512, 7, 7},     {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 512x512 
-    {{1, 32,  512, 512}, {32,  32,  3, 3},  {1, 32,  512, 512}, {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 256x256 
-    {{1, 32,  256, 256}, {64,  32,  3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 64,  256, 256}, {64,  64,  3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 128x128
-    {{1, 64,  128, 128}, {128, 64,  3, 3},  {1, 128, 128, 128}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 128, 128, 128}, {128, 128, 3, 3},  {1, 128, 128, 128}, {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 64x64
-    {{1, 128, 64,  64},  {256, 128, 3, 3},  {1, 256, 64,  64},  {1, 1, 1, 1}, {1, 1}},
-    {{1, 256, 64,  64},  {256, 256, 3, 3},  {1, 256, 64,  64},  {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 32x32
-    {{1, 256, 32,  32},  {256, 256, 3, 3},  {1, 256, 32,  32},  {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 16x16
-    {{1, 256, 16,  16},  {256, 256, 3, 3},  {1, 256, 16,  16},  {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 8x8 -- re-enabled after n_groups capping fix in mlss_conv_op.cpp.
-    // Root cause of prior failures: n_groups=64 dispatched far more workgroups
-    // than spatial tiles (16 tiles for 8x8), violating Winograd spec 9.1.1.3.
-    // ng is now capped to ceil(OH/2)*ceil(OW/2) before dispatch.
-    {{1, 256, 8,   8},   {256, 256, 3, 3},  {1, 256, 8,   8},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 512, 8,   8},   {512, 512, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 256, 8,   8},   {512, 256, 3, 3},  {1, 512, 8,   8},   {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 4x4 -- re-enabled (same fix; capped to 4 workgroups for 4x4 output)
-    {{1, 256, 4,   4},   {256, 256, 3, 3},  {1, 256, 4,   4},   {1, 1, 1, 1}, {1, 1}},
-    {{1, 512, 4,   4},   {512, 512, 3, 3},  {1, 512, 4,   4},   {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 decoder 16x16
-    {{1, 256, 16,  16},  {512, 256, 3, 3},  {1, 512, 16,  16},  {1, 1, 1, 1}, {1, 1}},
-    {{1, 512, 16,  16},  {512, 512, 3, 3},  {1, 512, 16,  16},  {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 decoder 32x32
-    {{1, 256, 32,  32},  {512, 256, 3, 3},  {1, 512, 32,  32},  {1, 1, 1, 1}, {1, 1}},
-    {{1, 512, 32,  32},  {512, 512, 3, 3},  {1, 512, 32,  32},  {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 decoder 64x64
-    {{1, 256, 64,  64},  {512, 256, 3, 3},  {1, 512, 64,  64},  {1, 1, 1, 1}, {1, 1}},
-    {{1, 512, 64,  64},  {512, 512, 3, 3},  {1, 512, 64,  64},  {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 decoder 128x128
-    {{1, 512, 128, 128}, {256, 512, 3, 3},  {1, 256, 128, 128}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 256, 128, 128}, {128, 256, 3, 3},  {1, 128, 128, 128}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 128, 128, 128}, {256, 128, 3, 3},  {1, 256, 128, 128}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 256, 128, 128}, {256, 256, 3, 3},  {1, 256, 128, 128}, {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 decoder 256x256
-    {{1, 128, 256, 256}, {64,  128, 3, 3},  {1, 64,  256, 256}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 64,  256, 256}, {128, 64,  3, 3},  {1, 128, 256, 256}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 128, 256, 256}, {128, 128, 3, 3},  {1, 128, 256, 256}, {1, 1, 1, 1}, {1, 1}},
-    // gfrf-v2 decoder 512x512
-    {{1, 128, 512, 512}, {64,  128, 3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 64,  512, 512}, {32,  64,  3, 3},  {1, 32,  512, 512}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 32,  512, 512}, {64,  32,  3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
-    {{1, 64,  512, 512}, {64,  64,  3, 3},  {1, 64,  512, 512}, {1, 1, 1, 1}, {1, 1}},
-};
-
-// ---------------------------------------------------------------------------
-// Matcher for convolution instructions matching ResNet-50 fp32 shapes.
-// The matcher checks the op name and then validates shapes/attributes in apply().
+// Matcher for convolution instructions.
+// The matcher checks the op name and then validates attributes in apply().
+// Shape support is determined by the AMDMLSS API (mlssGetBinaries).
 // ---------------------------------------------------------------------------
 struct find_mlss_conv
 {
@@ -330,6 +247,8 @@ struct find_mlss_conv
         // ---- shape checks ----
         const auto act_lens = act_ins->get_shape().lens();
         const auto wt_lens  = wt_ins->get_shape().lens();
+        if(wt_lens[2] == 1 and wt_lens[3] == 1)
+            return; // skip 1x1 convolutions
         const auto out_lens = ins->get_shape().lens();
 
 
@@ -347,51 +266,19 @@ struct find_mlss_conv
             return op_val.get(key, std::vector<std::size_t>{});
         };
 
-        if(op_val.get("group", std::size_t{1}) != 1)
-            return;
-        if(get_vec("dilation") != std::vector<std::size_t>{1, 1})
-            return;
+        const auto cur_padding  = get_vec("padding");
+        const auto cur_stride   = get_vec("stride");
+        const auto cur_dilation = get_vec("dilation");
+        const auto cur_group    = op_val.get("group", std::size_t{1});
 
-        // fp32 stride-2 supported shapes (GFX12_fp32_f3x2_ostride2):
-        // stride=2; R, S, pad passed as runtime args so any filter size is supported
-        static const std::vector<conv_shape_entry> fp32_ostride2_shapes = {
-            // ResNet-50 stem: 7x7 stride-2
-            {{1, 3, 224, 224},   {64, 3, 7, 7},     {1, 64, 112, 112},  {3, 3, 3, 3}, {2, 2}},
-        };
+        // ---- build the mlss_conv_op via AMDMLSS API ----
+        auto op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
+            *ctx, act_lens, wt_lens, out_lens, cur_padding, cur_stride,
+            cur_dilation, cur_group,
+            false, static_cast<uint8_t>(mlss_activation_mode::identity), dtype);
+        if(op.code_object.empty())
+            return; // AMDMLSS has no kernel for this configuration
 
-        const auto cur_padding = get_vec("padding");
-        const auto cur_stride  = get_vec("stride");
-
-        auto veq = [](const std::vector<std::size_t>& v, const auto& a) {
-            return v.size() == a.size() and std::equal(v.begin(), v.end(), a.begin());
-        };
-        auto shape_match = [&](const auto& table) {
-            return std::any_of(std::begin(table), std::end(table), [&](const conv_shape_entry& e) {
-                return veq(act_lens, e.act) and veq(wt_lens, e.wt) and veq(out_lens, e.out) and
-                       veq(cur_padding, e.padding) and veq(cur_stride, e.stride);
-            });
-        };
-
-        // ---- build the mlss_conv_op ----
-        mlss_conv_op op;
-        if(dtype == shape::float_type)
-        {
-            if(shape_match(conv_mxn_shapes))
-                op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1();
-            // else if(shape_match(fp32_ostride2_shapes))
-            //     op = mlss_conv_op::make_gfx12_fp32_f3x2_ostride2();
-            else
-                return;
-        }
-        // else // half_type
-        // {
-        //     if(not shape_match(conv_mxn_shapes))
-        //         return;
-        //     op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
-        // }
-
-        // Set pad_h and pad_w from the convolution padding attribute.
-        // MIGraphX padding layout: {pad_h_begin, pad_w_begin, pad_h_end, pad_w_end}
         op.pad_h  = static_cast<int32_t>(cur_padding[0]);
         op.pad_w  = static_cast<int32_t>(cur_padding[1]);
         op.output = ins->get_shape();
@@ -449,6 +336,8 @@ struct find_mlss_conv_bias
         // ---- shape checks (same as find_mlss_conv) ----
         const auto act_lens = act_ins->get_shape().lens();
         const auto wt_lens  = wt_ins->get_shape().lens();
+        if(wt_lens[2] == 1 and wt_lens[3] == 1)
+            return; // skip 1x1 convolutions
         const auto out_lens = conv_ins->get_shape().lens(); // same as add output
 
 
@@ -466,39 +355,18 @@ struct find_mlss_conv_bias
             return op_val.get(key, std::vector<std::size_t>{});
         };
 
-        if(op_val.get("group", std::size_t{1}) != 1)
+        const auto cur_padding  = get_vec("padding");
+        const auto cur_stride   = get_vec("stride");
+        const auto cur_dilation = get_vec("dilation");
+        const auto cur_group    = op_val.get("group", std::size_t{1});
+
+        // ---- build the mlss_conv_op via AMDMLSS API ----
+        auto op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
+            *ctx, act_lens, wt_lens, out_lens, cur_padding, cur_stride,
+            cur_dilation, cur_group,
+            true, static_cast<uint8_t>(mlss_activation_mode::identity), dtype);
+        if(op.code_object.empty())
             return;
-        if(get_vec("dilation") != std::vector<std::size_t>{1, 1})
-            return;
-
-        const auto cur_padding = get_vec("padding");
-        const auto cur_stride  = get_vec("stride");
-
-        auto veq = [](const std::vector<std::size_t>& v, const auto& a) {
-            return v.size() == a.size() and std::equal(v.begin(), v.end(), a.begin());
-        };
-        auto shape_match = [&](const auto& table) {
-            return std::any_of(std::begin(table), std::end(table), [&](const conv_shape_entry& e) {
-                return veq(act_lens, e.act) and veq(wt_lens, e.wt) and veq(out_lens, e.out) and
-                       veq(cur_padding, e.padding) and veq(cur_stride, e.stride);
-            });
-        };
-
-        // ---- build the mlss_conv_op ----
-        mlss_conv_op op;
-        if(dtype == shape::float_type)
-        {
-            if(shape_match(conv_mxn_shapes))
-                op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1();
-            else
-                return;
-        }
-        // else // half_type
-        // {
-        //     if(not shape_match(conv_mxn_shapes))
-        //         return;
-        //     op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
-        // }
 
         op.pad_h    = static_cast<int32_t>(cur_padding[0]);
         op.pad_w    = static_cast<int32_t>(cur_padding[1]);
@@ -568,6 +436,8 @@ struct find_mlss_conv_bias_relu
         // ---- shape / attribute checks (same as find_mlss_conv_bias) ----
         const auto act_lens = act_ins->get_shape().lens();
         const auto wt_lens  = wt_ins->get_shape().lens();
+        if(wt_lens[2] == 1 and wt_lens[3] == 1)
+            return; // skip 1x1 convolutions
         const auto out_lens = conv_ins->get_shape().lens();
 
 
@@ -583,38 +453,17 @@ struct find_mlss_conv_bias_relu
         auto get_vec = [&](const std::string& key) -> std::vector<std::size_t> {
             return op_val.get(key, std::vector<std::size_t>{});
         };
-        if(op_val.get("group", std::size_t{1}) != 1)
+        const auto cur_padding  = get_vec("padding");
+        const auto cur_stride   = get_vec("stride");
+        const auto cur_dilation = get_vec("dilation");
+        const auto cur_group    = op_val.get("group", std::size_t{1});
+
+        auto op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
+            *ctx, act_lens, wt_lens, out_lens, cur_padding, cur_stride,
+            cur_dilation, cur_group,
+            true, static_cast<uint8_t>(mlss_activation_mode::relu), dtype);
+        if(op.code_object.empty())
             return;
-        if(get_vec("dilation") != std::vector<std::size_t>{1, 1})
-            return;
-
-        const auto cur_padding = get_vec("padding");
-        const auto cur_stride  = get_vec("stride");
-
-        auto veq = [](const std::vector<std::size_t>& v, const auto& a) {
-            return v.size() == a.size() and std::equal(v.begin(), v.end(), a.begin());
-        };
-        auto shape_match = [&](const auto& table) {
-            return std::any_of(std::begin(table), std::end(table), [&](const conv_shape_entry& e) {
-                return veq(act_lens, e.act) and veq(wt_lens, e.wt) and veq(out_lens, e.out) and
-                       veq(cur_padding, e.padding) and veq(cur_stride, e.stride);
-            });
-        };
-
-        mlss_conv_op op;
-        if(dtype == shape::float_type)
-        {
-            if(shape_match(conv_mxn_shapes))
-                op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1();
-            else
-                return;
-        }
-        // else
-        // {
-        //     if(not shape_match(conv_mxn_shapes))
-        //         return;
-        //     op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
-        // }
 
         op.pad_h           = static_cast<int32_t>(cur_padding[0]);
         op.pad_w           = static_cast<int32_t>(cur_padding[1]);
@@ -683,6 +532,8 @@ struct find_mlss_conv_bias_leaky_relu
         // ---- shape / attribute checks (same as find_mlss_conv_bias) ----
         const auto act_lens = act_ins->get_shape().lens();
         const auto wt_lens  = wt_ins->get_shape().lens();
+        if(wt_lens[2] == 1 and wt_lens[3] == 1)
+            return; // skip 1x1 convolutions
         const auto out_lens = conv_ins->get_shape().lens();
 
 
@@ -698,38 +549,17 @@ struct find_mlss_conv_bias_leaky_relu
         auto get_vec = [&](const std::string& key) -> std::vector<std::size_t> {
             return op_val.get(key, std::vector<std::size_t>{});
         };
-        if(op_val.get("group", std::size_t{1}) != 1)
+        const auto cur_padding  = get_vec("padding");
+        const auto cur_stride   = get_vec("stride");
+        const auto cur_dilation = get_vec("dilation");
+        const auto cur_group    = op_val.get("group", std::size_t{1});
+
+        auto op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
+            *ctx, act_lens, wt_lens, out_lens, cur_padding, cur_stride,
+            cur_dilation, cur_group,
+            true, static_cast<uint8_t>(mlss_activation_mode::leaky_relu), dtype);
+        if(op.code_object.empty())
             return;
-        if(get_vec("dilation") != std::vector<std::size_t>{1, 1})
-            return;
-
-        const auto cur_padding = get_vec("padding");
-        const auto cur_stride  = get_vec("stride");
-
-        auto veq = [](const std::vector<std::size_t>& v, const auto& a) {
-            return v.size() == a.size() and std::equal(v.begin(), v.end(), a.begin());
-        };
-        auto shape_match = [&](const auto& table) {
-            return std::any_of(std::begin(table), std::end(table), [&](const conv_shape_entry& e) {
-                return veq(act_lens, e.act) and veq(wt_lens, e.wt) and veq(out_lens, e.out) and
-                       veq(cur_padding, e.padding) and veq(cur_stride, e.stride);
-            });
-        };
-
-        mlss_conv_op op;
-        if(dtype == shape::float_type)
-        {
-            if(shape_match(conv_mxn_shapes))
-                op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1();
-            else
-                return;
-        }
-        // else
-        // {
-        //     if(not shape_match(conv_mxn_shapes))
-        //         return;
-        //     op = mlss_conv_op::make_navi48_fp16pk_f2x3_stride1();
-        // }
 
         op.pad_h           = static_cast<int32_t>(cur_padding[0]);
         op.pad_w           = static_cast<int32_t>(cur_padding[1]);

@@ -477,10 +477,13 @@ struct compile_plan
         cr.replace.replace(m, cr.ins);
     }
 
-    void save_binaries(const fs::path& mxr_dir) const
+    void save_binaries(const fs::path& mxr_dir, const std::string& model_name) const
     {
         if(not config.has_value())
             return;
+        // Prepend "<model_name>-" so benchmark MXR files from different models
+        // dumped into the same directory can be identified by the model name.
+        const std::string prefix = model_name.empty() ? "" : model_name + "-";
         for(auto i : range(results.size()))
         {
             if(not results[i].has_value())
@@ -492,7 +495,7 @@ struct compile_plan
                                        " solution=" + to_string(solution);
             mm->add_instruction(builtin::comment{comment_text}, {});
             auto problem_hash = std::hash<std::string>{}(to_string(config->problem));
-            auto mxr_file     = mxr_dir / (preop.name() + "_" + std::to_string(i) + "_" +
+            auto mxr_file     = mxr_dir / (prefix + preop.name() + "_" + std::to_string(i) + "_" +
                                        std::to_string(problem_hash) + ".mxr");
             log::info() << "Saving benchmark binary: " << mxr_file;
             save(bench_prog, mxr_file.string());
@@ -515,6 +518,7 @@ struct compile_manager
 {
     std::vector<compile_plan> cps;
     bool exhaustive = false;
+    std::string model_name;
 
     template <class... Ts>
     void add_plan(Ts&&... xs)
@@ -550,7 +554,7 @@ struct compile_manager
                 continue;
             if(dump_mxr and cp.results.size() > 1)
             {
-                cp.save_binaries(fs::path(mxr_path));
+                cp.save_binaries(fs::path(mxr_path), model_name);
             }
             else
             {
@@ -583,6 +587,7 @@ void compile_ops::apply(module_pass_manager& mpm) const
     auto& m      = mpm.get_module();
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
+    cm.model_name = model_name;
     // Find all precompile ops
     for(auto ins : iterator_for(m))
     {

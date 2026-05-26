@@ -40,6 +40,7 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
 {
     context* ctx         = nullptr;
     bool exhaustive_tune = false;
+    std::string model_name;
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module_pass_manager& mpm) const;
 };

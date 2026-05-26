@@ -26,6 +26,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/tracer.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,6 +41,13 @@ struct compile_options
 
     bool fast_math       = true;
     bool exhaustive_tune = false;
+
+    /**
+     * Identifier for the model being compiled.
+     * One use is to prepend model name to MXR file names that are
+     * dumped via MIGRAPHX_GPU_DUMP_BENCHMARK_MXR). Empty by default.
+     */
+    std::string model_name;
 
     tracer trace{};
 };

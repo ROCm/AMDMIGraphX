@@ -46,6 +46,7 @@
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 #include <migraphx/env.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/logger.hpp>
 
 #include <migraphx/dead_code_elimination.hpp>
@@ -760,6 +761,10 @@ struct compiler
             quantize_int4_weights(p);
         }
         log::info() << "Compiling ...";
+        // Derive name of the model so that it can be prepended
+        // to benchmark MXR files dumped by MIGRAPHX_GPU_DUMP_BENCHMARK_MXR.
+        if(co.model_name.empty() and not l.file.empty())
+            co.model_name = migraphx::fs::path(l.file).stem().string();
         p.compile(t, co);
         l.save(p);
         return p;

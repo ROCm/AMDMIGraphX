@@ -35,6 +35,7 @@
 #include <test.hpp>
 
 #include <cmath>
+#include <fstream>
 #include <iostream>
 #include <limits>
 
@@ -279,6 +280,7 @@ TEST_CASE(bla3)
         migraphx::make_op("multibroadcast", {{"out_lens", exp->get_shape().lens()}}), rsum);
     auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
     auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
+    gemm2 = mm->add_instruction(migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), gemm2);
     mm->add_return({gemm2});
 
     std::mt19937 rng(42);
@@ -367,7 +369,7 @@ TEST_CASE(combine_test)
 TEST_CASE(make_combinations)
 {
     setenv("MIGRAPHX_FLASH_DECODING_ENABLED", "1", 1);
-    std::string backend = "ck";
+    std::string backend = "mlir";
     if(backend == "ck")
     {
         setenv("MIGRAPHX_ENABLE_CK", "1", 1);
@@ -438,6 +440,7 @@ TEST_CASE(make_combinations)
 
                     migraphx::compile_options options;
                     options.exhaustive_tune = backend == "mlir" ? false : true;
+                    options.exhaustive_tune = false;
 
                     std::cout << "Iteration " << iteration++ << "/" << num_combinations
                               << std::endl;
@@ -445,14 +448,14 @@ TEST_CASE(make_combinations)
                     std::stringstream ss;
                     ss << backend << "_" << "full_" << num_split << "_" << batch << "_" << nhead << "_" << M
                        << "_" << N << "_" << K << "_" << O << ".mxr";
-                    std::string check_filename = "saved_models/" + backend + "_full_models/" + ss.str();
+                    std::string check_filename = "saved_models/mlir_ck_combine_models/" + ss.str();
                     if(std::filesystem::exists(check_filename))
                     {
                         std::cout << "Skipping, file already exists: " << check_filename
                                   << std::endl;
                         continue;
                     }
-                    std::string output_filename = "saved_models/" + backend + "_full_models/" + ss.str();
+                    std::string output_filename = "saved_models/mlir_ck_combine_models/" + ss.str();
                     std::cout << "Compiling " << output_filename << std::endl;
                     auto start_time = std::chrono::high_resolution_clock::now();
                     p.compile(migraphx::make_target("gpu"), options);
@@ -461,7 +464,7 @@ TEST_CASE(make_combinations)
                     std::cout << p << std::endl;
                     std::cout << "Finished compiling " << output_filename << " in "
                               << elapsed.count() << " seconds" << std::endl;
-                    migraphx::save(p, output_filename);
+                    // migraphx::save(p, output_filename);
                 }
             }
         }
@@ -470,6 +473,7 @@ TEST_CASE(make_combinations)
 
 TEST_CASE(test_combinations)
 {
+    std::ofstream fail_log("test_combinations_failures.log", std::ios::app);
     std::mt19937 rng(42);
     std::uniform_real_distribution<float> dist(-0.5f, 0.5f);
 
@@ -515,7 +519,7 @@ TEST_CASE(test_combinations)
 
             auto gpu_p = p;
             migraphx::compile_options options;
-            options.exhaustive_tune = false;
+            options.exhaustive_tune = true;
             options.offload_copy    = true;
             gpu_p.compile(migraphx::make_target("gpu"), options);
             std::cout << gpu_p << std::endl;
@@ -554,18 +558,24 @@ TEST_CASE(test_combinations)
             bool passed = migraphx::verify::verify_rms_range(gpu_out_data, ref_out_data);
             if(!passed)
             {
-                std::cout << "Failed for seqlen_q: " << seqlen_q << ", seqlen_k: " << seqlen_k
-                          << ", hdim_q: " << hdim_q << ", hdim_v: " << hdim_v << std::endl;
                 auto ref_stats = compute_half_vector_stats(ref_out_data);
                 auto gpu_stats = compute_half_vector_stats(gpu_out_data);
-                std::cout << "Ref stats: "
-                          << "min_val: " << ref_stats.min_val << ", max_val: " << ref_stats.max_val
-                          << ", avg: " << ref_stats.avg << ", variance: " << ref_stats.variance
-                          << ", stddev: " << ref_stats.stddev << std::endl;
-                std::cout << "Gpu stats: "
-                          << "min_val: " << gpu_stats.min_val << ", max_val: " << gpu_stats.max_val
-                          << ", avg: " << gpu_stats.avg << ", variance: " << gpu_stats.variance
-                          << ", stddev: " << gpu_stats.stddev << std::endl;
+                auto write_failure = [&](std::ostream& os) {
+                    os << "Failed for seqlen_q: " << seqlen_q << ", seqlen_k: " << seqlen_k
+                       << ", hdim_q: " << hdim_q << ", hdim_v: " << hdim_v << "\n";
+                    os << "Ref stats: "
+                       << "min_val: " << ref_stats.min_val << ", max_val: " << ref_stats.max_val
+                       << ", avg: " << ref_stats.avg << ", variance: " << ref_stats.variance
+                       << ", stddev: " << ref_stats.stddev << "\n";
+                    os << "Gpu stats: "
+                       << "min_val: " << gpu_stats.min_val << ", max_val: " << gpu_stats.max_val
+                       << ", avg: " << gpu_stats.avg << ", variance: " << gpu_stats.variance
+                       << ", stddev: " << gpu_stats.stddev << "\n";
+                };
+                write_failure(std::cout);
+                write_failure(fail_log);
+            } else {
+                std::cout << "Passed\n";
             }
             CHECK(passed);
         }

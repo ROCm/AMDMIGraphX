@@ -590,6 +590,10 @@ struct find_flash_decoding
         auto log_sum_exp = target_mod.add_instruction(make_op("log"), softmax_parts["sum_exp"]);
         auto lse = target_mod.add_instruction(make_op("add"), softmax_parts["max"], log_sum_exp);
 
+        // convert O' to float for CK combine kernel compatibility
+        // auto o_prime_float = target_mod.add_instruction(
+        //     make_op("convert", {{"target_type", shape::float_type}}), partial_output_o_prime);
+
         // return a tuple of {O', LSE}
         target_mod.add_return({partial_output_o_prime, lse});
     }
@@ -761,10 +765,11 @@ struct find_flash_decoding
 
         module_ref mpm_flash_mod = mpm.create_module(new_mod_name, std::move(m_flash_decode));
         mpm_flash_mod->set_bypass();
+        std::cout << "mpm_flash_mod: " << *mpm_flash_mod << std::endl;
 
         // insert the new group op, which returns a tuple of O' and LSE
         instruction_ref new_group_ins;
-        if(not enabled(MIGRAPHX_ENABLE_CK{}))
+        if(true)
         {
             new_group_ins = mm.insert_instruction(attn_group_ins,
                                                   make_op("group", {{"tag", "attention"}}),
@@ -785,10 +790,10 @@ struct find_flash_decoding
             attn_group_ins, make_op("get_tuple_elem", {{"index", 0}}), new_group_ins);
         if(enabled(MIGRAPHX_ENABLE_CK{}))
         {
-            // partial_output_o_prime = mm.insert_instruction(
-            //     attn_group_ins,
-            //     make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            //     partial_output_o_prime);
+            partial_output_o_prime = mm.insert_instruction(
+                attn_group_ins,
+                make_op("convert", {{"target_type", migraphx::shape::float_type}}),
+                partial_output_o_prime);
         }
         auto lse = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
@@ -875,16 +880,35 @@ struct find_flash_decoding
                 attn_group_ins,
                 make_op("gpu::ck_tile_splitkv_combine", {{"num_splits", actual_groups}}),
                 {partial_output_o_prime, lse});
+
+            if(padding_needed > 0)
+            {
+                // need to slice the sequence dimension to remove padding
+                // final_squeezed_o has shape like [B, M_padded, D], need to slice M back to
+                // original
+                auto output_shape       = final_result->get_shape();
+                const auto& output_lens = output_shape.lens();
+                std::size_t seq_dim_idx = output_lens.size() - 2; // sequence dim is second to last
+                std::size_t original_seq_len = output_lens[seq_dim_idx] - padding_needed;
+
+                final_result = mm.insert_instruction(
+                    attn_group_ins,
+                    make_op(
+                        "slice",
+                        {{"axes", {seq_dim_idx}}, {"starts", {0}}, {"ends", {original_seq_len}}}),
+                    final_result);
+            }
         }
 
         // replace the original group instruction with the final result
         mm.replace_instruction(attn_group_ins, final_result);
-        // std::cout << mm << std::endl;
+        std::cout << mm << std::endl;
         // std::cout << "===============" << std::endl;
         // if(new_group_ins->module_inputs().size() > 0) {
         // std::cout << new_group_ins->module_inputs().front()->name() << std::endl;
         // std::cout << *new_group_ins->module_inputs().front() << std::endl;
         // }
+        std::cout << "DONE" << std::endl;
     }
 };
 

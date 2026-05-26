@@ -2,17 +2,33 @@
 """
 Analyze CK vs MLIR split-KV benchmark CSVs: M,N,K,O patterns vs verdict.
 
-Expects CSV columns: num_splits, batch, nhead, M, N, K, O, ck_time_ms,
-mlir_time_ms, faster, delta_ms, speedup_pct, (optional extra run columns).
+Supports two benchmark CSV shapes:
 
-Verdict bands (default neutral window):
+1. **Legacy (e.g. ck vs MLIR):** ``ck_time_ms``, ``mlir_time_ms``, ``faster`` in
+   ``ck`` \| ``mlir``, ``speedup_pct`` positive when ``faster==ck``.
+
+2. **ck_mlir vs ck_ck:** ``ck_mlir_time_ms``, ``ck_ck_time_ms``, ``faster`` in
+   ``ck_ck`` \| ``ck_mlir``; ``speedup_pct`` is **negative** when ``ck_ck`` wins
+   and **positive** when ``ck_mlir`` wins. The script negates ``speedup_pct``
+   internally so verdicts match (``ck_win`` = ``ck_ck`` faster, ``mlir_win`` =
+   ``ck_mlir`` faster). When all loaded rows are this format, printed verdicts
+   and CSV rollups use ``ck_ck_*`` / ``ck_mlir_*`` column names (not ``ck`` /
+   ``mlir``). Legacy-only runs still use ``ck`` / ``mlir`` labels.
+
+Common: num_splits, batch, nhead, M, N, K, O, delta_ms, speedup_pct, optional run
+columns.
+
+Verdict bands (default neutral window; internal keys ``ck_win`` / ``mlir_win`` are
+printed as ``ck_ck_win`` / ``ck_mlir_win`` when all rows are ck_mlir_vs_ck_ck):
   neutral:    speedup_pct in [-neutral_pct, +neutral_pct]
-  ck_win:     speedup_pct > +neutral_pct   (CK materially faster)
-  mlir_win:   speedup_pct < -neutral_pct  (MLIR materially faster)
+  ck_win:     speedup_pct > +neutral_pct   (ck_ck side materially faster when using that label pair)
+  mlir_win:   speedup_pct < -neutral_pct  (ck_mlir side materially faster when using that label pair)
 
 Marginal BY M/N/K/O, BY (K,O) pairs, and BY O/K ratio bucket are emitted as CSV
-tables with the same columns. CK speedup columns use raw speedup_pct for ck_win
-rows; MLIR columns use abs(speedup_pct) for mlir_win rows.
+tables with the same columns. The faster-side prefix in column names matches the
+output label pair (``ck_ck`` / ``ck_mlir`` or ``ck`` / ``mlir``). Speedup columns
+use raw ``speedup_pct`` for ``ck_win`` rows and ``abs(speedup_pct)`` for
+``mlir_win`` rows.
 
 O/K ratio CSV lists fine bands in fixed order (mirrored K/O and O/K ranges plus
 ``O=K``). Two additional tables cross each of those buckets with ``M`` and with
@@ -33,6 +49,19 @@ from typing import Any
 REQUIRED_COLUMNS = frozenset(
     {"M", "N", "K", "O", "faster", "speedup_pct", "num_splits"}
 )
+
+# If both present, treat as ck_mlir vs ck_ck timing columns (see module docstring).
+CK_MLIR_VS_CK_CK_MARKERS = frozenset({"ck_mlir_time_ms", "ck_ck_time_ms"})
+
+
+def sniff_csv_format(fieldnames: list[str] | None) -> str:
+    """Return ``ck_mlir_vs_ck_ck`` or ``legacy``."""
+    if not fieldnames:
+        return "legacy"
+    names = set(fieldnames)
+    if CK_MLIR_VS_CK_CK_MARKERS <= names:
+        return "ck_mlir_vs_ck_ck"
+    return "legacy"
 
 
 def verdict(speedup_pct: float, neutral_pct: float) -> str:
@@ -67,17 +96,30 @@ def load_csv(path: Path) -> list[dict[str, Any]]:
         missing = REQUIRED_COLUMNS - set(reader.fieldnames)
         if missing:
             raise ValueError(f"{path}: missing columns {sorted(missing)}")
+        fmt = sniff_csv_format(list(reader.fieldnames))
         for lineno, row in enumerate(reader, start=2):
             try:
                 m = int(row["M"])
                 n = int(row["N"])
                 k = int(row["K"])
                 o = int(row["O"])
-                sp = float(row["speedup_pct"])
-                faster = row["faster"].strip()
+                sp_orig = float(row["speedup_pct"])
+                raw_faster = row["faster"].strip()
                 num_splits = int(row["num_splits"])
             except (KeyError, ValueError, TypeError) as e:
                 raise ValueError(f"{path}:{lineno}: bad row: {e}") from e
+            if fmt == "ck_mlir_vs_ck_ck":
+                # Canonical: positive speedup => ck_win (ck_ck), negative => mlir_win (ck_mlir).
+                sp = -sp_orig
+                if raw_faster == "ck_ck":
+                    faster = "ck"
+                elif raw_faster == "ck_mlir":
+                    faster = "mlir"
+                else:
+                    faster = raw_faster
+            else:
+                sp = sp_orig
+                faster = raw_faster
             rows.append(
                 {
                     "path": path.name,
@@ -89,6 +131,7 @@ def load_csv(path: Path) -> list[dict[str, Any]]:
                     "faster": faster,
                     "speedup_pct": sp,
                     "line": lineno,
+                    "csv_format": fmt,
                 }
             )
     return rows
@@ -132,20 +175,52 @@ def ratio_bucket(k: int, o: int) -> str | None:
     return "O/K>4"
 
 
-MARGINAL_CSV_FIELDS = (
-    "criteria",
-    "neutral",
-    "ck_faster",
-    "mlir_faster",
-    "ck_min_speedup",
-    "ck_max_speedup",
-    "ck_median_speedup",
-    "ck_average_speedup",
-    "mlir_min_speedup",
-    "mlir_max_speedup",
-    "mlir_median_speedup",
-    "mlir_average_speedup",
-)
+def marginal_csv_fieldnames(side_ck: str, side_mlir: str) -> tuple[str, ...]:
+    """CSV columns for verdict rollups; ``side_*`` are output labels (e.g. ck_ck, ck_mlir)."""
+    return (
+        "criteria",
+        "neutral",
+        f"{side_ck}_faster",
+        f"{side_mlir}_faster",
+        f"{side_ck}_min_speedup",
+        f"{side_ck}_max_speedup",
+        f"{side_ck}_median_speedup",
+        f"{side_ck}_average_speedup",
+        f"{side_mlir}_min_speedup",
+        f"{side_mlir}_max_speedup",
+        f"{side_mlir}_median_speedup",
+        f"{side_mlir}_average_speedup",
+    )
+
+
+def resolve_output_labels(rows: list[dict[str, Any]]) -> tuple[str, str]:
+    """
+    Return (label_for_ck_win_side, label_for_mlir_win_side) for prints and CSV.
+
+    All rows from ck_mlir_vs_ck_ck → (\"ck_ck\", \"ck_mlir\"). Legacy-only →
+    (\"ck\", \"mlir\"). Mixed formats fall back to ck/mlir with a stderr warning.
+    """
+    if not rows:
+        return "ck", "mlir"
+    fmts = {x.get("csv_format", "legacy") for x in rows}
+    if fmts == {"ck_mlir_vs_ck_ck"}:
+        return "ck_ck", "ck_mlir"
+    if fmts == {"legacy"}:
+        return "ck", "mlir"
+    print(
+        "Warning: mixed legacy and ck_mlir_vs_ck_ck CSVs; "
+        "output labels use ck/mlir for both sides.",
+        file=sys.stderr,
+    )
+    return "ck", "mlir"
+
+
+def verdict_display_key(verdict: str, side_ck: str, side_mlir: str) -> str:
+    if verdict == "ck_win":
+        return f"{side_ck}_win"
+    if verdict == "mlir_win":
+        return f"{side_mlir}_win"
+    return verdict
 
 
 def _speedup_stats_fields(
@@ -175,15 +250,18 @@ def _speedup_stats_fields(
 def write_verdict_rollup_csv(
     section_title: str,
     buckets: list[tuple[str, list[dict[str, Any]]]],
+    side_ck: str,
+    side_mlir: str,
 ) -> None:
     """
-    One CSV table: criteria, verdict counts, CK/MLIR speedup stats per bucket.
-    MLIR speedup columns use abs(speedup_pct).
+    One CSV table: criteria, verdict counts, and per-side speedup stats per bucket.
+    The mlir_win side uses abs(speedup_pct) in its speedup columns.
     """
     print(f"\n=== {section_title} ===")
+    fieldnames = marginal_csv_fieldnames(side_ck, side_mlir)
     writer = csv.DictWriter(
         sys.stdout,
-        fieldnames=list(MARGINAL_CSV_FIELDS),
+        fieldnames=list(fieldnames),
         lineterminator="\n",
     )
     writer.writeheader()
@@ -199,17 +277,19 @@ def write_verdict_rollup_csv(
         row: dict[str, Any] = {
             "criteria": criteria,
             "neutral": n0,
-            "ck_faster": n1,
-            "mlir_faster": n2,
+            f"{side_ck}_faster": n1,
+            f"{side_mlir}_faster": n2,
         }
-        row.update(_speedup_stats_fields(ck_sp, "ck"))
-        row.update(_speedup_stats_fields(ml_sp, "mlir"))
+        row.update(_speedup_stats_fields(ck_sp, side_ck))
+        row.update(_speedup_stats_fields(ml_sp, side_mlir))
         writer.writerow(row)
 
 
 def write_o_k_bucket_cross_dim_csv(
     dim: str,
     bucket_series: list[tuple[str, list[dict[str, Any]]]],
+    side_ck: str,
+    side_mlir: str,
 ) -> None:
     """
     For each O/K bucket (same order as the main O/K table), emit one CSV row per
@@ -225,10 +305,14 @@ def write_o_k_bucket_cross_dim_csv(
             by_dim[x[dim]].append(x)
         for key in sorted(by_dim.keys()):
             cross_buckets.append((f"{bucket_name},{dim}={key}", by_dim[key]))
-    write_verdict_rollup_csv(f"BY O/K bucket × {dim} (CSV)", cross_buckets)
+    write_verdict_rollup_csv(
+        f"BY O/K bucket × {dim} (CSV)", cross_buckets, side_ck, side_mlir
+    )
 
 
 def run_report(rows: list[dict[str, Any]], neutral_pct: float) -> None:
+    side_ck, side_mlir = resolve_output_labels(rows)
+
     for x in rows:
         x["verdict"] = verdict(x["speedup_pct"], neutral_pct)
 
@@ -260,7 +344,8 @@ def run_report(rows: list[dict[str, Any]], neutral_pct: float) -> None:
     for k in ("neutral", "ck_win", "mlir_win"):
         n = vc[k]
         pct = 100.0 * n / len(rows) if rows else 0.0
-        print(f"  {k}: {n} ({pct:.1f}%)")
+        dk = verdict_display_key(k, side_ck, side_mlir)
+        print(f"  {dk}: {n} ({pct:.1f}%)")
 
     non_neu = [x for x in rows if x["verdict"] != "neutral"]
     nn = len(non_neu)
@@ -269,10 +354,10 @@ def run_report(rows: list[dict[str, Any]], neutral_pct: float) -> None:
         ml_nn = sum(1 for x in non_neu if x["verdict"] == "mlir_win")
         print(f"\n=== EXCLUDING NEUTRAL ({nn} rows) ===")
         print(
-            f"  CK material win: {ck_nn} ({100.0 * ck_nn / nn:.1f}% of non-neutral)"
+            f"  {side_ck} material win: {ck_nn} ({100.0 * ck_nn / nn:.1f}% of non-neutral)"
         )
         print(
-            f"  MLIR material win: {ml_nn} ({100.0 * ml_nn / nn:.1f}% of non-neutral)"
+            f"  {side_mlir} material win: {ml_nn} ({100.0 * ml_nn / nn:.1f}% of non-neutral)"
         )
 
     # print("\n=== MAGNITUDE |speedup_pct| (material wins only) ===")
@@ -300,7 +385,7 @@ def run_report(rows: list[dict[str, Any]], neutral_pct: float) -> None:
         for x in rows:
             by[x[dim]].append(x)
         buckets = [(f"{dim}={key}", by[key]) for key in sorted(by.keys())]
-        write_verdict_rollup_csv(f"BY {dim} (CSV)", buckets)
+        write_verdict_rollup_csv(f"BY {dim} (CSV)", buckets, side_ck, side_mlir)
 
     for d in ("M", "N", "K", "O"):
         marginal_csv(d)
@@ -312,7 +397,7 @@ def run_report(rows: list[dict[str, Any]], neutral_pct: float) -> None:
         (f"K={k} O={o}", cells[(k, o)])
         for k, o in sorted(cells.keys())
     ]
-    write_verdict_rollup_csv("(K,O) (CSV)", ko_buckets)
+    write_verdict_rollup_csv("(K,O) (CSV)", ko_buckets, side_ck, side_mlir)
 
     # print("\n=== BY num_splits ===")
     # for ns in sorted({x["num_splits"] for x in rows}):
@@ -340,9 +425,11 @@ def run_report(rows: list[dict[str, Any]], neutral_pct: float) -> None:
         "O/K>4",
     ]
     ok_bucket_series = [(b, rb[b]) for b in order if b in rb]
-    write_verdict_rollup_csv("BY O/K ratio bucket (CSV)", ok_bucket_series)
-    write_o_k_bucket_cross_dim_csv("M", ok_bucket_series)
-    write_o_k_bucket_cross_dim_csv("N", ok_bucket_series)
+    write_verdict_rollup_csv(
+        "BY O/K ratio bucket (CSV)", ok_bucket_series, side_ck, side_mlir
+    )
+    write_o_k_bucket_cross_dim_csv("M", ok_bucket_series, side_ck, side_mlir)
+    write_o_k_bucket_cross_dim_csv("N", ok_bucket_series, side_ck, side_mlir)
 
 
 def main() -> int:

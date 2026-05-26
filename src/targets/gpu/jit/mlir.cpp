@@ -211,20 +211,36 @@ struct mlir_compiler : compiler<mlir_compiler>
             return i.get_operator().attributes().get("pointwise", false) == true;
         });
 
+        std::cout << "[mlir_compiler::compile] smod='" << smod->name()
+                  << "' has_gemm=" << (gemm_like_ins != smod->end())
+                  << " has_pw=" << (pointwise_ins != smod->end()) << std::endl;
+        if(gemm_like_ins != smod->end())
+            std::cout << "[mlir_compiler::compile] first gemm: " << gemm_like_ins->name() << std::endl;
+        if(pointwise_ins != smod->end())
+            std::cout << "[mlir_compiler::compile] first pw after gemm: " << pointwise_ins->name() << std::endl;
+        std::cout.flush();
+
         // check if (a) module is fused (b) contains a "gemm/conv" instruction and (c)
         // perfConfig can not allow fused module
         if(gemm_like_ins != smod->end() and pointwise_ins != smod->end() and
            not is_module_fusible(*smod, ctx, solution))
         {
+            std::cout << "[mlir_compiler::compile] NOT fusible, splitting at first gemm" << std::endl;
             auto input_args = ins->inputs();
             // remove alloc buffer
             input_args.pop_back();
             auto split_ins                               = find_final_split(gemm_like_ins);
+            std::cout << "[mlir_compiler::compile] split_ins: " << split_ins->name() << std::endl;
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
+            std::cout << "[mlir_compiler::compile] split done, mod0 outputs="
+                      << mod_splits[0].mod.get_output_shapes().size()
+                      << " mod1 outputs=" << mod_splits[1].mod.get_output_shapes().size() << std::endl;
             auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
             // add alloc for the gemm output
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
+            std::cout << "[mlir_compiler::compile] compiling split[0] (dot)..." << std::endl;
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
+            std::cout << "[mlir_compiler::compile] split[0] done, compiling split[1] (pw)..." << std::endl;
             auto pw_shapes        = to_shapes(mod_splits[1].inputs);
             if(mod_splits[1].mod.get_output_shapes().size() == 1)
             {
@@ -236,10 +252,13 @@ struct mlir_compiler : compiler<mlir_compiler>
             }
             assert(pw_shapes.back() == ins->get_shape());
             auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
+            std::cout << "[mlir_compiler::compile] split[1] done" << std::endl;
             std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
             return insert(cops, mod_splits, ins, split_ins);
         }
+        std::cout << "[mlir_compiler::compile] fusible (or no split needed), compiling whole module..." << std::endl;
         auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        std::cout << "[mlir_compiler::compile] whole module compile done" << std::endl;
         set_fill_map(cr, *smod);
         return cr;
     }

@@ -242,6 +242,7 @@ struct ck_tile_splitkv_combine_compiler : compiler<ck_tile_splitkv_combine_compi
     optional<tuning_config>
     get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
     {
+        exhaustive = true;
         if(not exhaustive and not enabled(MIGRAPHX_TUNE_CK{}))
             return nullopt;
         tuning_config tc;

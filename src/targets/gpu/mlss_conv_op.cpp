@@ -57,7 +57,6 @@ mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
     shape::type_t dtype)
 {
     mlss_conv_op op;
-    op.block_size = 256;
 
 #ifdef MIGRAPHX_USE_AMDMLSS
     const std::string gfx_name = ctx.get_current_device().get_gfx_name();
@@ -183,20 +182,20 @@ mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
     MLSSstatus caps_status = mlssGetCaps(mlss_ctx, &p_statuses, &n_statuses);
     if(caps_status != MLSS_SUCCESS)
     {
-        std::cout << "[mlss_conv_op] getCaps failed (status=" << caps_status << ") for "
-                  << gfx_name << " ["
-                  << n << "x" << c << "x" << h << "x" << w
-                  << " * " << k << "x" << (c / groups) << "x" << r << "x" << s
-                  << " -> " << n << "x" << k << "x" << outH << "x" << outW
-                  << "]  groups=" << groups
-                  << " dil=" << dilationX << "x" << dilationY
-                  << " stride=" << convStrideX << "x" << convStrideY
-                  << " pad=" << startPadX << "," << startPadY << "," << endPadX << "," << endPadY
-                  << " bias=" << mlss_has_bias
-                  << " act=" << activation
-                  << " dtype=" << dataType
-                  << " prec=" << precision << "\n";
-        mlssPrintParameters(mlss_ctx, op_name);
+        // std::cout << "[mlss_conv_op] getCaps failed (status=" << caps_status << ") for "
+        //           << gfx_name << " ["
+        //           << n << "x" << c << "x" << h << "x" << w
+        //           << " * " << k << "x" << (c / groups) << "x" << r << "x" << s
+        //           << " -> " << n << "x" << k << "x" << outH << "x" << outW
+        //           << "]  groups=" << groups
+        //           << " dil=" << dilationX << "x" << dilationY
+        //           << " stride=" << convStrideX << "x" << convStrideY
+        //           << " pad=" << startPadX << "," << startPadY << "," << endPadX << "," << endPadY
+        //           << " bias=" << mlss_has_bias
+        //           << " act=" << activation
+        //           << " dtype=" << dataType
+        //           << " prec=" << precision << "\n";
+        // mlssPrintParameters(mlss_ctx, op_name);
         return op;
     }
 
@@ -223,20 +222,42 @@ mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
     op.symbol_name  = (bin->m_pKernelName != nullptr) ? bin->m_pKernelName : "main";
 
     // Use the producer-chosen grid to derive n_groups.
-    // Grid = N * G * n_groups, with N and G from the shape.
     std::size_t grid_x = bin->m_grid.m_x;
     op.n_groups = grid_x / (static_cast<std::size_t>(n) * static_cast<std::size_t>(groups));
     if(op.n_groups == 0)
         op.n_groups = 64;
 
-    std::cout << "[mlss_conv_op] API binary: size=" << bin->m_binarySize
-              << "  kernel=" << op.symbol_name << " ["
-                << n << "x" << c << "x" << h << "x" << w
-                << " * " << k << "x" << (c / groups) << "x" << r << "x" << s
-                << " -> " << n << "x" << k << "x" << outH << "x" << outW
-                << "]  groups=" << groups
-              << "  grid={" << bin->m_grid.m_x << "," << bin->m_grid.m_y << "," << bin->m_grid.m_z
-              << "}  n_groups=" << op.n_groups << "\n";
+    // Use block size from the binary if available, otherwise fall back by dtype.
+    op.block_size = (bin->m_blocks.m_x > 1) ? bin->m_blocks.m_x
+                  : (dtype == shape::half_type) ? 384 : 256;
+
+    // Dump m_constants to see if it carries workgroup size
+    // {
+    //     MLSSvoid* const_data = nullptr;
+    //     MLSSsize const_count = 0;
+    //     MLSSenum const_type  = 0;
+    //     mlssVectorRetrieveData(bin->m_constants, &const_data, &const_count, &const_type);
+    //     std::cout << "[mlss_conv_op] API binary: size=" << bin->m_binarySize
+    //               << "  kernel=" << op.symbol_name << " ["
+    //               << n << "x" << c << "x" << h << "x" << w
+    //               << " * " << k << "x" << (c / groups) << "x" << r << "x" << s
+    //               << " -> " << n << "x" << k << "x" << outH << "x" << outW
+    //               << "]  groups=" << groups
+    //               << "  grid={" << bin->m_grid.m_x << "," << bin->m_grid.m_y << "," << bin->m_grid.m_z
+    //               << "}  blocks={" << bin->m_blocks.m_x << "," << bin->m_blocks.m_y << "," << bin->m_blocks.m_z
+    //               << "}  sharedMem=" << bin->m_sharedMemInBytes
+    //               << "  constants={count=" << const_count << ",type=" << const_type << "}";
+    //     if(const_data != nullptr && const_count > 0)
+    //     {
+    //         const auto* bytes = static_cast<const std::uint8_t*>(const_data);
+    //         std::cout << "  data=[";
+    //         for(MLSSsize j = 0; j < std::min(const_count * 4, static_cast<MLSSsize>(64)); ++j)
+    //             std::cout << static_cast<int>(bytes[j]) << ",";
+    //         std::cout << "]";
+    //     }
+    //     std::cout << "  block_size=" << op.block_size
+    //               << "  n_groups=" << op.n_groups << "\n";
+    // }
 
 #else
     (void)ctx; (void)act_lens; (void)wt_lens; (void)out_lens;
@@ -246,6 +267,7 @@ mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
     op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
     op.symbol_name = "main";
     op.n_groups    = 64;
+    op.block_size  = 256;
 #endif // MIGRAPHX_USE_AMDMLSS
 
     return op;

@@ -21,40 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <iostream>
-#include <vector>
-#include <migraphx/verify.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/context.hpp>
-#include "test.hpp"
 
-TEST_CASE(gpu_context_serialize)
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
+
+template <migraphx::shape::type_t DType>
+struct test_channelwise_conv_padding_non_divisible
+    : verify_program<test_channelwise_conv_padding_non_divisible<DType>>
 {
-    migraphx::context ctx = migraphx::gpu::context{0, 3};
-
-    auto v = ctx.to_value();
-    EXPECT(v.size() == 2);
-
-    EXPECT(v.contains("events"));
-    EXPECT(v.at("events").without_key().to<std::size_t>() == 0);
-
-    EXPECT(v.contains("streams"));
-    EXPECT(v.at("streams").without_key().to<std::size_t>() == 3);
-
-    migraphx::gpu::context g_ctx;
-    g_ctx.from_value(v);
-
-    auto v1 = g_ctx.to_value();
-    EXPECT(v == v1);
-}
-
-TEST_CASE(context_queue)
-{
-    migraphx::context ctx = migraphx::gpu::context{0, 3};
-    // unsafe_get() avoids a type-mismatch throw if MIGRAPHX_ENABLE_NULL_STREAM
-    // is set: context::get_queue() returns an untyped any_ptr when the bound
-    // stream is nullptr, so get<hipStream_t>() would not yield "false".
-    EXPECT(ctx.get_queue().unsafe_get() != nullptr);
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 8, 30, 30}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {8, 1, 3, 3}});
+        mm->add_instruction(
+            migraphx::make_op("convolution", {{"group", 8}, {"padding", {1, 1}}}), input, weights);
+        return p;
+    }
+    std::string section() const { return "conv"; }
+};
+template struct test_channelwise_conv_padding_non_divisible<migraphx::shape::float_type>;
+template struct test_channelwise_conv_padding_non_divisible<migraphx::shape::half_type>;

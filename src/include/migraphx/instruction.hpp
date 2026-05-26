@@ -58,10 +58,11 @@ MIGRAPHX_EXPORT std::unordered_set<instruction_ref>
 find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m);
 
 /**
- * Return instructions reachable starting from inputs of `ends` to `starts`; exluding `starts` themselves.
- * Used to collect instructions added by a parser.
- * `starts`: inputs to parser.
- * `ends`: instructions returned by parser.
+ * Return instructions reachable from `ends` by traversing their inputs until reaching any
+ * of `starts` (which are excluded).
+ * Used to collect instructions added between known inputs (`starts`) and outputs (`ends`).
+ * `starts`: inputs to parser/builder.
+ * `ends`: instructions returned by parser/builder.
  */
 MIGRAPHX_EXPORT std::vector<instruction_ref>
 get_added_instructions(const std::vector<instruction_ref>& starts,

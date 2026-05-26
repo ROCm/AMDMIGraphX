@@ -26,6 +26,10 @@ Full documentation for MIGraphX is available at
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
+* Added environment variable `MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS`. When set, `split_single_dyn_dim` honours `dynamic_dimension::optimals` and creates one submodule per optimal value (plus the min/max endpoints) instead of enumerating every integer in `[min, max]`, and `select_module` falls back to smallest-bucket-greater-or-equal dispatch (zero-padding the input on the reference backend). Collapses compile time and engine size from O(max-min) to O(|optimals|) for wide dynamic ranges. See `docs/reference/MIGraphX-dev-env-vars.rst` for usage notes and the GPU caller-pad limitation.
+* Added environment variable `MIGRAPHX_DYN_DIM_FREEZE_TO=<N>` and the `freeze_dyn_dim` pass. When set, every non-fixed dynamic-shape parameter is rewritten to a static shape at size `N` at compile time, eliminating `select_module` from the IR entirely and matching the inference latency of a hand-written static engine. Designed for production deployments that compile one engine per representative input size (TensorRT optimisation-profile style); see `docs/reference/MIGraphX-dev-env-vars.rst` for the recommended caller-side dispatch pattern.
+* Added a per-instance dispatch cache to `select_module::compute()`. Hot inference loops that keep feeding the same input-shape signature now skip the submodule scan and the per-call parameter-name / parameter-shape allocations. Activates when `select_module` has 4+ submodules (where it measurably helps; below that the hash+populate overhead would dominate). Can be disabled at runtime via `MIGRAPHX_DISABLE_SELECT_MODULE_CACHE=1` for A/B comparison.
+
 ### Changed
 
 * Converted `nonzero` operator from device implementation to JIT compilation (#4720).

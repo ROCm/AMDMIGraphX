@@ -63,6 +63,81 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Layernorm fusion is not used.
 
+  * - | ``MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS``
+      | Controls how the ``split_single_dyn_dim`` pass specialises a dynamic
+      | dimension. When set, only the values listed in
+      | ``dynamic_dimension::optimals`` (plus the ``min`` and ``max``
+      | endpoints) get a static submodule, and ``select_module`` dispatches a
+      | runtime input shape to the smallest compatible bucket. This caps
+      | compile time and binary size at O(|optimals|) instead of
+      | O(max - min) and is the recommended setting for wide dynamic ranges
+      | (e.g. ``{min:1, max:5000000, optimals:[400000]}``). On the reference
+      | backend, ``select_module`` zero-pads the input to the bucket size
+      | when shapes differ. On the GPU backend the caller must pre-pad its
+      | input buffer so that an exact-shape match still occurs; automatic
+      | GPU-side padding is tracked as a follow-up.
+      |
+      | ``select_module::compute()`` also memoises its dispatch decision
+      | per-instance: a hot inference loop that keeps feeding the same
+      | input-shape signature skips the linear submodule scan and the
+      | per-call parameter-name / parameter-shape allocations. The cache
+      | only activates when ``select_module`` has 4 or more submodules
+      | (the benefit is below the noise floor below that count and the
+      | hash+populate overhead would dominate). The cache can be
+      | disabled at runtime via ``MIGRAPHX_DISABLE_SELECT_MODULE_CACHE=1``
+      | for A/B comparison or emergency rollback.
+
+    - | ``1``: ``split_single_dyn_dim`` produces one submodule per optimal
+      | (plus min/max), and ``select_module`` falls back to smallest
+      | compatible bucket when no exact match is found.
+      | ``0``: Returns to default behavior.
+
+      | Default: ``split_single_dyn_dim`` enumerates every integer in
+      | [min, max] and ``select_module`` requires an exact shape match.
+
+  * - | ``MIGRAPHX_DISABLE_SELECT_MODULE_CACHE``
+      | When set, bypasses the ``select_module::compute()`` dispatch
+      | cache entirely (no read, no populate, no hash) and forces the
+      | pre-cache code path.  Intended for A/B benchmarks and for
+      | emergency rollback if the cache is ever found to cause an issue.
+
+    - | ``1``: bypass the cache.
+      | ``0`` or unset: use the cache (default).
+
+  * - | ``MIGRAPHX_DYN_DIM_FREEZE_TO``
+      | Compile-time freeze of a dynamic dimension to a single static
+      | size. When set to a non-zero ``N``, the ``freeze_dyn_dim`` pass
+      | (which runs before ``split_single_dyn_dim`` on both the GPU and
+      | reference targets) rewrites every non-fixed dynamic-shape
+      | parameter to a static shape at size ``N``. Downstream passes then
+      | see a fully-static program: no submodules, no ``select_module``,
+      | no per-inference dispatch. Result: 100% static-shape inference
+      | latency, at the cost of being committed to a single representative
+      | input size per compiled engine.
+      |
+      | Recommended pattern for multi-bucket production deployments (e.g.
+      | ad serving): compile one engine per bucket and dispatch
+      | caller-side based on the actual input length, analogous to
+      | TensorRT optimisation profiles. Example::
+      |
+      |   for N in 1000 10000 100000 400000 1000000; do
+      |       MIGRAPHX_DYN_DIM_FREEZE_TO=$N \\
+      |           migraphx-driver compile --onnx model.onnx --gpu \\
+      |               --output "model.N${N}.mxr"
+      |   done
+      |
+      | If ``N`` falls outside any parameter's ``[min, max]`` dynamic
+      | range, the pass throws at compile time rather than silently
+      | producing a shape the caller cannot feed at runtime.
+
+    - | ``N`` (positive integer): freeze every non-fixed dynamic dim to
+      | this static size.
+      | ``0`` or unset: pass is a no-op; the program stays dynamic and
+      | the rest of the pipeline (e.g. ``MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS``)
+      | handles it as before.
+
+      | Default: ``0`` (unset).
+
   * - | ``MIGRAPHX_ENABLE_MIOPEN_POOLING``
       | When set, MIOpen pooling is used instead of MIGraphX pooling.
       

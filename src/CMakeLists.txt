@@ -143,6 +143,7 @@ add_library(migraphx
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    freeze_dyn_dim.cpp
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp

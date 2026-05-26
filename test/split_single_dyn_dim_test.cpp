@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,59 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/builtin.hpp>
+#include <cstdlib>
+#include <set>
 #include <test.hpp>
+#include <algorithm>
+
+// Cross-platform env helpers (Windows has _putenv_s instead of setenv).
+namespace {
+inline int set_env(const char* name, const char* value)
+{
+#ifdef _WIN32
+    return _putenv_s(name, value);
+#else
+    return ::setenv(name, value, /*overwrite=*/1);
+#endif
+}
+inline int unset_env(const char* name)
+{
+#ifdef _WIN32
+    return _putenv_s(name, "");
+#else
+    return ::unsetenv(name);
+#endif
+}
+} // namespace
+
+namespace {
+// RAII guard that turns MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS on for the
+// lifetime of the guard and restores the prior value on destruction.  Lets a
+// single test binary mix bucket-mode and default-mode test cases without
+// polluting the environment across tests.
+struct bucket_env_guard
+{
+    static constexpr const char* name = "MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS";
+    std::string prev;
+    bool had_prev = false;
+    explicit bucket_env_guard(const char* value)
+    {
+        if(auto* p = std::getenv(name))
+        {
+            prev     = p;
+            had_prev = true;
+        }
+        set_env(name, value);
+    }
+    ~bucket_env_guard()
+    {
+        if(had_prev)
+            set_env(name, prev.c_str());
+        else
+            unset_env(name);
+    }
+};
+} // namespace
 
 static void run_pass(migraphx::program& p)
 {
@@ -52,7 +104,7 @@ TEST_CASE(dynamic_batch)
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6.0f}});
             auto broadcast_lit =
                 submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
             auto add_ins =
@@ -72,7 +124,7 @@ TEST_CASE(dynamic_batch)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm0->add_instruction(
             migraphx::make_op("select_module",
-                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret =
@@ -86,7 +138,7 @@ TEST_CASE(dynamic_batch)
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
         auto input1 = mm1->add_parameter("data", s);
         migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-        auto literal_ins = mm1->add_literal(migraphx::literal{lit_s, {6}});
+        auto literal_ins = mm1->add_literal(migraphx::literal{lit_s, {6.0f}});
         auto broadcast_lit =
             mm1->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input1);
         auto add_ins = mm1->add_instruction(migraphx::make_op("add"), input1, broadcast_lit);
@@ -111,7 +163,7 @@ TEST_CASE(dynamic_batch_multiple_input)
             auto sm_input1 = submod->add_parameter("data1", sm_shape);
             auto sm_input2 = submod->add_parameter("data2", sm_shape);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6.0f}});
             auto broadcast_lit = submod->add_instruction(
                 migraphx::make_op("multibroadcast"), literal_ins, sm_input0);
             auto add_ins0 =
@@ -151,7 +203,7 @@ TEST_CASE(dynamic_batch_multiple_input)
         auto input1 = mm1->add_parameter("data1", s);
         auto input2 = mm1->add_parameter("data2", s);
         migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-        auto literal_ins = mm1->add_literal(migraphx::literal{lit_s, {6}});
+        auto literal_ins = mm1->add_literal(migraphx::literal{lit_s, {6.0f}});
         auto broadcast_lit =
             mm1->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input0);
         auto add_ins0 = mm1->add_instruction(migraphx::make_op("add"), input0, broadcast_lit);
@@ -176,7 +228,7 @@ TEST_CASE(multiple_outputs)
             migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
             auto sm_input = submod->add_parameter("data", sm_shape);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-            auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
+            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6.0f}});
             auto broadcast_lit =
                 submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
             auto add0_ins =
@@ -199,7 +251,7 @@ TEST_CASE(multiple_outputs)
         migraphx::shape out_attr = migraphx::shape{sub_shapes};
         auto sm_ins              = mm0->add_instruction(
             migraphx::make_op("select_module",
-                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
             {dim1, dim2, dim3, dim4});
         auto ret0 =
@@ -215,7 +267,7 @@ TEST_CASE(multiple_outputs)
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
         auto input1 = mm1->add_parameter("data", s);
         migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-        auto literal_ins = mm1->add_literal(migraphx::literal{lit_s, {6}});
+        auto literal_ins = mm1->add_literal(migraphx::literal{lit_s, {6.0f}});
         auto broadcast_lit =
             mm1->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input1);
         auto add0_ins = mm1->add_instruction(migraphx::make_op("add"), input1, broadcast_lit);
@@ -236,7 +288,7 @@ TEST_CASE(empty_param_shapes)
         migraphx::shape s{migraphx::shape::float_type, {1, 4}};
         auto input0 = mm0->add_literal(migraphx::literal{s, {0, 1, 2, 3}});
         migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-        auto literal_ins = mm0->add_literal(migraphx::literal{lit_s, {6}});
+        auto literal_ins = mm0->add_literal(migraphx::literal{lit_s, {6.0f}});
         auto broadcast_lit =
             mm0->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input0);
         auto add0_ins = mm0->add_instruction(migraphx::make_op("add"), input0, broadcast_lit);
@@ -256,7 +308,7 @@ TEST_CASE(multiple_non_fixed_dd_in_a_param)
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 20}}};
         auto input0 = mm0->add_parameter("data", s);
         migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-        auto literal_ins = mm0->add_literal(migraphx::literal{lit_s, {6}});
+        auto literal_ins = mm0->add_literal(migraphx::literal{lit_s, {6.0f}});
         auto broadcast_lit =
             mm0->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input0);
         auto add0_ins = mm0->add_instruction(migraphx::make_op("add"), input0, broadcast_lit);
@@ -300,7 +352,7 @@ TEST_CASE(ordered_inputs_to_select_module)
     auto input1 = mm->add_parameter("Apricot", s);
     auto input2 = mm->add_parameter("pineapple", s);
     migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
-    auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6}});
+    auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6.0f}});
     auto broadcast_lit =
         mm->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input0);
     auto add_ins0 = mm->add_instruction(migraphx::make_op("add"), input0, broadcast_lit);
@@ -321,6 +373,137 @@ TEST_CASE(ordered_inputs_to_select_module)
         }
     }
     EXPECT(std::is_sorted(sm_param_names.begin(), sm_param_names.end()));
+}
+
+// Helper: builds the post-pass "golden" program for a 1-D dynamic Add model
+// given an explicit list of bucket dim sizes. Each submodule adds a literal
+// to the input parameter; the main module dispatches via select_module.
+static migraphx::program build_bucket_add_golden(const std::vector<std::size_t>& bucket_sizes,
+                                                 std::size_t min,
+                                                 std::size_t max)
+{
+    migraphx::program p;
+    auto* mm              = p.get_main_module();
+    auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
+        auto* submod = p.create_module(module_name);
+        migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
+        auto sm_input = submod->add_parameter("data", sm_shape);
+        migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+        auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6.0f}});
+        auto broadcast_lit =
+            submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
+        auto add_ins = submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
+        submod->add_return({add_ins});
+        return submod;
+    };
+    std::vector<migraphx::module_ref> submods;
+    submods.reserve(bucket_sizes.size());
+    std::transform(bucket_sizes.begin(),
+                   bucket_sizes.end(),
+                   std::back_inserter(submods),
+                   [&](auto n) { return create_submodule(n, "dim_" + std::to_string(n)); });
+
+    migraphx::shape s{
+        migraphx::shape::float_type,
+        {migraphx::shape::dynamic_dimension{min, max}, migraphx::shape::dynamic_dimension{4, 4}}};
+    auto input0                             = mm->add_parameter("data", s);
+    std::vector<migraphx::shape> sub_shapes = {};
+    sub_shapes.push_back(migraphx::shape{
+        migraphx::shape::float_type,
+        {migraphx::shape::dynamic_dimension{min, max}, migraphx::shape::dynamic_dimension{4, 4}}});
+    migraphx::shape out_attr = migraphx::shape{sub_shapes};
+    auto sm_ins              = mm->add_instruction(
+        migraphx::make_op("select_module", {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+        {input0},
+        submods);
+    auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
+    mm->add_return({ret});
+    return p;
+}
+
+// Helper: builds the pre-pass dynamic program with the given dyn_dim.
+static migraphx::program build_bucket_add_input(const migraphx::shape::dynamic_dimension& dd)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {dd, migraphx::shape::dynamic_dimension{4, 4}}};
+    auto input = mm->add_parameter("data", s);
+    migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+    auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6.0f}});
+    auto broadcast_lit =
+        mm->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, input);
+    auto add_ins = mm->add_instruction(migraphx::make_op("add"), input, broadcast_lit);
+    mm->add_return({add_ins});
+    return p;
+}
+
+// With MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS=1 and optimals provided, the pass
+// must create one submodule per optimal value plus the min and max endpoints
+// instead of enumerating every integer in [min, max].
+TEST_CASE(dynamic_batch_bucket_only_optimals)
+{
+    bucket_env_guard guard{"1"};
+
+    // Expected: submodules at min=1, optimals={10,50,90}, max=100 -> 5 buckets.
+    auto p_expected = build_bucket_add_golden({1, 10, 50, 90, 100}, 1, 100);
+
+    // Input: same model but with optimals annotated.
+    migraphx::shape::dynamic_dimension dd{1, 100, std::set<std::size_t>{10, 50, 90}};
+    auto p_actual = build_bucket_add_input(dd);
+    run_pass(p_actual);
+
+    EXPECT(p_expected == p_actual);
+}
+
+// With MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS=1 BUT no optimals supplied, the
+// pass falls back to the default enumeration behaviour (one submodule per
+// integer in [min, max]) so it remains correct even if the user opts in
+// without specifying optimals.
+TEST_CASE(dynamic_batch_bucket_env_on_no_optimals_keeps_enumeration)
+{
+    bucket_env_guard guard{"1"};
+
+    auto p_expected = build_bucket_add_golden({1, 2, 3, 4}, 1, 4);
+
+    migraphx::shape::dynamic_dimension dd{1, 4};
+    auto p_actual = build_bucket_add_input(dd);
+    run_pass(p_actual);
+
+    EXPECT(p_expected == p_actual);
+}
+
+// With optimals supplied but the env var unset, the pre-existing enumeration
+// behaviour must be preserved (i.e. no silent semantic change for users
+// already passing optimals while running on older builds' default).
+TEST_CASE(dynamic_batch_bucket_env_off_keeps_enumeration)
+{
+    // Note: explicitly clear the env var to defend against test ordering.
+    unset_env("MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS");
+
+    auto p_expected = build_bucket_add_golden({1, 2, 3, 4}, 1, 4);
+
+    migraphx::shape::dynamic_dimension dd{1, 4, std::set<std::size_t>{2, 3}};
+    auto p_actual = build_bucket_add_input(dd);
+    run_pass(p_actual);
+
+    EXPECT(p_expected == p_actual);
+}
+
+// Optimals that fall outside [min, max] must be silently filtered so we
+// never create unreachable submodules.
+TEST_CASE(dynamic_batch_bucket_filters_out_of_range_optimals)
+{
+    bucket_env_guard guard{"1"};
+
+    // 999 is out of range -> dropped; in-range optimals 5 and 7 are kept
+    // along with min=2 and max=10 -> 4 submodules total.
+    auto p_expected = build_bucket_add_golden({2, 5, 7, 10}, 2, 10);
+
+    migraphx::shape::dynamic_dimension dd{2, 10, std::set<std::size_t>{5, 7, 999}};
+    auto p_actual = build_bucket_add_input(dd);
+    run_pass(p_actual);
+
+    EXPECT(p_expected == p_actual);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

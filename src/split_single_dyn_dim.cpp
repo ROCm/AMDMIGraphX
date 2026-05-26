@@ -23,16 +23,20 @@
  */
 
 #include <migraphx/split_single_dyn_dim.hpp>
+#include <migraphx/env.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <set>
 #include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS)
 
 struct dynamic_dimensions_check
 {
@@ -129,7 +133,46 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         // create submodules for each dimension size
         std::vector<module_ref> submodules;
         auto dim_interval = dyn_dim.get_interval();
-        for(size_t dim_size : migraphx::range(dim_interval.min, dim_interval.max + 1))
+
+        // Decide which dim_size values to specialise for.  By default (env var
+        // unset, or no optimals supplied) every integer in [min, max] is
+        // enumerated, which is correct but O(max - min) in compile time and
+        // binary size.  When the user supplies `optimals` AND opts in via
+        // MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS=1, only the supplied optimals
+        // (plus the min/max endpoints) get a submodule, collapsing the cost to
+        // O(|optimals|).  At runtime `select_module` dispatches any compatible
+        // input shape to the smallest compatible bucket; see select_module.hpp.
+        std::set<std::size_t> dim_sizes;
+        auto dim_optimals = dyn_dim.get_optimals();
+        // Honour the user opt-in via MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS.
+        // cppcheck-suppress migraphx-UseCachedEnvVar
+        // Intentionally uncached: the bucket-vs-enumerate decision
+        // must respond to env toggles within a single test binary.
+        const bool use_buckets =
+            enabled("MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS") and not dim_optimals.empty();
+        if(use_buckets)
+        {
+            // Include the min/max endpoints so any in-range input shape can
+            // still be served, even if the user-supplied optimals do not
+            // cover the endpoints.
+            dim_sizes.insert(dim_interval.min);
+            dim_sizes.insert(dim_interval.max);
+            // Keep only optimals that fall inside [min, max]; out-of-range
+            // values are silently ignored rather than creating unreachable
+            // submodules.
+            for(std::size_t opt : dim_optimals)
+            {
+                if(opt >= dim_interval.min and opt <= dim_interval.max)
+                    dim_sizes.insert(opt);
+            }
+        }
+        else
+        {
+            for(std::size_t n : migraphx::range(dim_interval.min, dim_interval.max + 1))
+                dim_sizes.insert(n);
+        }
+
+        for(std::size_t dim_size : dim_sizes)
         {
             auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
             // instruction map for new static shaped submodule parameters

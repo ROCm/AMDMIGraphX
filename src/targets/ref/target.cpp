@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/eliminate_pad.hpp>
+#include <migraphx/freeze_dyn_dim.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
@@ -44,7 +45,14 @@ std::string target::name() const { return "ref"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
-    return {normalize_ops{},
+    // freeze_dyn_dim runs first; with MIGRAPHX_DYN_DIM_FREEZE_TO=<N> it
+    // rewrites any non-fixed dynamic parameter into a static {N, ...}
+    // shape so the rest of the ref pipeline sees a fully-static program.
+    // With the env var unset the pass is a no-op and ref handles dynamic
+    // shapes natively as before.
+    return {freeze_dyn_dim{},
+            dead_code_elimination{},
+            normalize_ops{},
             eliminate_pad{},
             dead_code_elimination{},
             insert_pad{},

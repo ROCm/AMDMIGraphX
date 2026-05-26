@@ -25,9 +25,14 @@
 
 """Run migraphx-driver perf under curated MIGraphX environment-variable knobs.
 
-Each knob is toggled in isolation against a clean baseline and the fastest
-configuration is written out as a sourceable ``export`` file. The probed
-knobs are:
+Each knob is toggled in isolation against a clean baseline, and a small set
+of curated multi-knob combinations is also tried (these reflect coupling in
+the GPU target pipeline -- e.g. ``MIGRAPHX_ENABLE_CK`` only pins GEMMs onto
+CK when paired with ``MIGRAPHX_DISABLE_MLIR``, since ``fuse_ck`` runs before
+``fuse_mlir`` in ``target::get_passes``). The fastest configuration is
+written out as a sourceable ``export`` file with one ``export`` line per
+env var in the winning row. Pass ``--no-combos`` to skip the multi-knob
+combinations (faster, but cannot find coupled wins). The probed knobs are:
 
 * ``MIGRAPHX_ENABLE_NHWC`` - prefer NHWC layout for convolutions.
 * ``MIGRAPHX_SET_GEMM_PROVIDER`` - select the GEMM backend (rocBLAS).
@@ -51,14 +56,14 @@ Autotune ResNet50 v2 from the public ONNX model zoo (the same model used by
 
     python3 tools/autotune_perf.py \\
         --driver ./build/bin/migraphx-driver \\
-        perf --onnx resnet50-v2-7.onnx --gpu --iterations 50
+        perf --onnx resnet50-v2-7.onnx --gpu
 
 The script prints a per-knob ranking, marks the winner with ``<-- best``, and
 writes the winning ``export`` line to ``resnet50-v2-7.onnx.tune`` which can be
 sourced before subsequent driver / application runs::
 
     source resnet50-v2-7.onnx.tune
-    ./build/bin/migraphx-driver perf --onnx resnet50-v2-7.onnx --gpu --iterations 50
+    ./build/bin/migraphx-driver perf --onnx resnet50-v2-7.onnx --gpu
 """
 
 from __future__ import annotations
@@ -76,15 +81,53 @@ TOTAL_TIME_MS = re.compile(r"Total time:\s*([0-9]+\.?[0-9]*)\s*ms")
 
 _MLIR_OPS_WHITELIST = "convolution,dot,fused,attention"
 
-KNOBS: tuple[tuple[str, str, str], ...] = (
-    ("NHWC layout", "MIGRAPHX_ENABLE_NHWC", "1"),
-    ("GEMM provider rocBLAS", "MIGRAPHX_SET_GEMM_PROVIDER", "rocblas"),
-    ("Enable CK GEMM", "MIGRAPHX_ENABLE_CK", "1"),
-    ("Disable MLIR", "MIGRAPHX_DISABLE_MLIR", "1"),
-    ("MLIR use specific ops", "MIGRAPHX_MLIR_USE_SPECIFIC_OPS", _MLIR_OPS_WHITELIST),
-    ("Enable MIOpen pooling", "MIGRAPHX_ENABLE_MIOPEN_POOLING", "1"),
-    ("Conv->dot rewrite", "MIGRAPHX_ENABLE_REWRITE_DOT", "1"),
+Setting = tuple[str, str]
+Settings = tuple[Setting, ...]
+
+KNOBS: tuple[tuple[str, Setting], ...] = (
+    ("NHWC layout", ("MIGRAPHX_ENABLE_NHWC", "1")),
+    ("GEMM provider rocBLAS", ("MIGRAPHX_SET_GEMM_PROVIDER", "rocblas")),
+    ("Enable CK GEMM", ("MIGRAPHX_ENABLE_CK", "1")),
+    ("Disable MLIR", ("MIGRAPHX_DISABLE_MLIR", "1")),
+    ("MLIR use specific ops", ("MIGRAPHX_MLIR_USE_SPECIFIC_OPS", _MLIR_OPS_WHITELIST)),
+    ("Enable MIOpen pooling", ("MIGRAPHX_ENABLE_MIOPEN_POOLING", "1")),
+    ("Conv->dot rewrite", ("MIGRAPHX_ENABLE_REWRITE_DOT", "1")),
 )
+
+# Curated combinations that reflect coupling in the GPU target pipeline.
+# fuse_ck runs before fuse_mlir in target::get_passes, so pinning GEMMs onto CK
+# requires disabling MLIR; MIGRAPHX_SET_GEMM_PROVIDER only acts on dots not
+# already absorbed by CK/MLIR; MLIR_USE_SPECIFIC_OPS is dead when MLIR is off.
+COMBOS: tuple[tuple[str, Settings], ...] = (
+    ("CK + Disable MLIR", (
+        ("MIGRAPHX_ENABLE_CK", "1"),
+        ("MIGRAPHX_DISABLE_MLIR", "1"),
+    )),
+    ("rocBLAS + Disable MLIR", (
+        ("MIGRAPHX_SET_GEMM_PROVIDER", "rocblas"),
+        ("MIGRAPHX_DISABLE_MLIR", "1"),
+    )),
+    ("CK + MLIR specific ops", (
+        ("MIGRAPHX_ENABLE_CK", "1"),
+        ("MIGRAPHX_MLIR_USE_SPECIFIC_OPS", _MLIR_OPS_WHITELIST),
+    )),
+    ("NHWC + MIOpen pooling", (
+        ("MIGRAPHX_ENABLE_NHWC", "1"),
+        ("MIGRAPHX_ENABLE_MIOPEN_POOLING", "1"),
+    )),
+    ("NHWC + Conv->dot + rocBLAS", (
+        ("MIGRAPHX_ENABLE_NHWC", "1"),
+        ("MIGRAPHX_ENABLE_REWRITE_DOT", "1"),
+        ("MIGRAPHX_SET_GEMM_PROVIDER", "rocblas"),
+    )),
+)
+
+
+def all_knob_names() -> tuple[str, ...]:
+    names: list[str] = [name for _, (name, _) in KNOBS]
+    for _, settings in COMBOS:
+        names.extend(name for name, _ in settings if name not in names)
+    return tuple(names)
 
 
 def parse_total_time_ms(output: str) -> float | None:
@@ -114,8 +157,8 @@ def resolve_driver(explicit: str | None) -> str:
     sys.exit(1)
 
 
-def note_cleared_parent_knobs(knobs: Iterable[tuple[str, str, str]]) -> None:
-    for _, name, _ in knobs:
+def note_cleared_parent_knobs(names: Iterable[str]) -> None:
+    for name in names:
         if name in os.environ:
             print(
                 f"note: {name} is set in the environment; "
@@ -124,8 +167,8 @@ def note_cleared_parent_knobs(knobs: Iterable[tuple[str, str, str]]) -> None:
             )
 
 
-def scrub_knob_vars(env: dict[str, str], knobs: Iterable[tuple[str, str, str]]) -> None:
-    for _, name, _ in knobs:
+def scrub_knob_vars(env: dict[str, str], names: Iterable[str]) -> None:
+    for name in names:
         env.pop(name, None)
 
 
@@ -144,14 +187,13 @@ def log_failed_driver_run(label: str, returncode: int, text: str) -> None:
 def run_perf(
     driver: str,
     perf_argv: list[str],
-    env_name: str | None,
-    env_value: str | None,
+    settings: Settings,
     label: str,
 ) -> float | None:
     env = os.environ.copy()
-    scrub_knob_vars(env, KNOBS)
-    if env_name is not None and env_value is not None:
-        env[env_name] = env_value
+    scrub_knob_vars(env, all_knob_names())
+    for name, value in settings:
+        env[name] = value
     proc = subprocess.run(
         [driver, *perf_argv],
         env=env,
@@ -194,8 +236,7 @@ def write_config(
     path: str,
     model_file: str,
     baseline_ms: float,
-    env_name: str,
-    env_value: str,
+    settings: Settings,
     winner_ms: float,
 ) -> None:
     if baseline_ms > 0:
@@ -204,15 +245,16 @@ def write_config(
         winner_comment = f"# Winner:   {winner_ms} ms ({pct_prefix}{pct}%)"
     else:
         winner_comment = f"# Winner:   {winner_ms} ms (no % delta; baseline was 0 ms)"
-    lines = (
+    exports = [f"export {name}={value}" for name, value in settings]
+    lines = [
         f"# Autotune config for {model_file}",
         f"# Baseline: {baseline_ms} ms",
         winner_comment,
         "#",
         "# Source this file before running migraphx-driver / your application.",
-        f"export {env_name}={env_value}",
+        *exports,
         "",
-    )
+    ]
     with open(path, "w", encoding="utf-8") as out_f:
         out_f.write("\n".join(lines))
 
@@ -234,7 +276,7 @@ def main() -> None:
         ),
         epilog=(
             "Example: %(prog)s --driver ./build/bin/migraphx-driver "
-            "perf --onnx resnet50-v2-7.onnx --gpu --iterations 50\n"
+            "perf --onnx resnet50-v2-7.onnx --gpu\n"
             "(resnet50-v2-7.onnx is the public ONNX-model-zoo model used by "
             "examples/vision/python_resnet50)"
         ),
@@ -254,6 +296,14 @@ def main() -> None:
         metavar="PATH",
         help="Write winning exports here (default: <model>.tune)",
     )
+    parser.add_argument(
+        "--no-combos",
+        action="store_true",
+        help=(
+            "Only sweep one knob at a time; skip the curated multi-knob "
+            "combinations (faster, but cannot find coupled wins)."
+        ),
+    )
     args, perf_argv = parser.parse_known_args()
     if not perf_argv:
         parser.error(
@@ -266,19 +316,21 @@ def main() -> None:
         perf_argv.insert(0, "perf")
 
     driver = resolve_driver(args.driver)
-    note_cleared_parent_knobs(KNOBS)
+    note_cleared_parent_knobs(all_knob_names())
 
-    rows: list[tuple[str, str | None, str | None]] = [("baseline", None, None)]
-    rows.extend((lab, nam, val) for lab, nam, val in KNOBS)
+    rows: list[tuple[str, Settings]] = [("baseline", ())]
+    rows.extend((label, (setting,)) for label, setting in KNOBS)
+    if not args.no_combos:
+        rows.extend(COMBOS)
 
     model_display = infer_model_argument(perf_argv) or "(unknown)"
     print(f"Autotune: {len(rows)} configurations on {model_display}")
 
-    label_width = max(len(r[0]) for r in rows) + 2
+    label_width = max(len(label) for label, _ in rows) + 2
     times: list[float | None] = []
-    for index, (label, env_name, env_value) in enumerate(rows, start=1):
+    for index, (label, settings) in enumerate(rows, start=1):
         print(f"[{index}/{len(rows)}] {label} ... ", end="", flush=True)
-        t_ms = run_perf(driver, perf_argv, env_name, env_value, label)
+        t_ms = run_perf(driver, perf_argv, settings, label)
         times.append(t_ms)
         if t_ms is None:
             print("failed")
@@ -296,7 +348,7 @@ def main() -> None:
     )
 
     print("\nResults:")
-    for i, ((label, env_name, env_value), t_ms) in enumerate(zip(rows, times)):
+    for i, ((label, settings), t_ms) in enumerate(zip(rows, times)):
         gap = label_width - len(label)
         gap = max(gap, 1)
         line = f"  {label}{' ' * gap}"
@@ -304,25 +356,25 @@ def main() -> None:
             print(f"{line}failed")
             continue
         line += f"{t_ms} ms"
-        if env_name is not None:
+        if settings:
             if baseline > 0:
                 pct = (t_ms - baseline) / baseline * 100.0
                 pct_prefix = "+" if pct >= 0 else ""
                 line += f"  {pct_prefix}{pct}%"
             else:
                 line += "  n/a"
-        if i == win_index and env_name is not None:
+        if i == win_index and settings:
             line += "  <-- best"
         print(line)
 
-    _, win_env, win_val = rows[win_index]
+    _, win_settings = rows[win_index]
     win_t = times[win_index]
-    if win_env is None or win_val is None or win_t is None:
+    if not win_settings or win_t is None:
         print("\nBaseline is best; no config written.")
         return
 
     out_path = default_config_path(perf_argv, args.output)
-    write_config(out_path, model_display, baseline, win_env, win_val, win_t)
+    write_config(out_path, model_display, baseline, win_settings, win_t)
     print(f"\nConfig written: {out_path}")
 
 

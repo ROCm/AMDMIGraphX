@@ -40,6 +40,25 @@ knobs are:
 
 See the MIGraphX documentation for the authoritative list of environment
 variables and their semantics.
+
+Example
+-------
+
+Autotune ResNet50 v2 from the public ONNX model zoo (the same model used by
+``examples/vision/python_resnet50``)::
+
+    wget https://github.com/onnx/models/raw/main/validated/vision/classification/resnet/model/resnet50-v2-7.onnx
+
+    python3 tools/autotune_perf.py \\
+        --driver ./build/bin/migraphx-driver \\
+        perf --onnx resnet50-v2-7.onnx --gpu --iterations 50
+
+The script prints a per-knob ranking, marks the winner with ``<-- best``, and
+writes the winning ``export`` line to ``resnet50-v2-7.onnx.tune`` which can be
+sourced before subsequent driver / application runs::
+
+    source resnet50-v2-7.onnx.tune
+    ./build/bin/migraphx-driver perf --onnx resnet50-v2-7.onnx --gpu --iterations 50
 """
 
 from __future__ import annotations
@@ -214,8 +233,10 @@ def main() -> None:
             "run migraphx-driver perf for each, and report the fastest configuration."
         ),
         epilog=(
-            "Example: %(prog)s --driver ./build/bin/migraphx-driver perf model.onnx "
-            "--iterations 50 --cpu --log-level error"
+            "Example: %(prog)s --driver ./build/bin/migraphx-driver "
+            "perf --onnx resnet50-v2-7.onnx --gpu --iterations 50\n"
+            "(resnet50-v2-7.onnx is the public ONNX-model-zoo model used by "
+            "examples/vision/python_resnet50)"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )

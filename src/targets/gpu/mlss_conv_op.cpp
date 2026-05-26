@@ -26,15 +26,9 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/register_op.hpp>
-#ifdef MIGRAPHX_HAS_MLSS_HEADERS
-
 #ifdef MIGRAPHX_USE_AMDMLSS
 #include <amdmlss/amdmlss_api.h>
 #include <iostream>
-#else
-#include "modules/shaders/src/operators/impl/conv/mxn/Winograd/Base/gfx1201/fp32/shadersBinNonReloc.hpp"
-#endif
-
 #include <hip/hip_runtime_api.h>
 
 namespace migraphx {
@@ -58,7 +52,6 @@ mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
 {
     mlss_conv_op op;
 
-#ifdef MIGRAPHX_USE_AMDMLSS
     const std::string gfx_name = ctx.get_current_device().get_gfx_name();
     MLSScontext mlss_ctx        = 0;
     MLSSstring op_name          = const_cast<MLSSstring>(MLSS_CONV);
@@ -258,17 +251,6 @@ mlss_conv_op mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
     //     std::cout << "  block_size=" << op.block_size
     //               << "  n_groups=" << op.n_groups << "\n";
     // }
-
-#else
-    (void)ctx; (void)act_lens; (void)wt_lens; (void)out_lens;
-    (void)padding; (void)stride; (void)dilation; (void)group;
-    (void)has_bias_flag; (void)act_mode; (void)dtype;
-    const auto& shader = mlss::conv::mxn::winograd::base::fp32::gfx1201::ConvWinogradElf_Gfx12_F2x3_Fp32Stride1_NonReloc;
-    op.code_object = value::binary(shader.m_binary.data(), shader.m_binary.size());
-    op.symbol_name = "main";
-    op.n_groups    = 64;
-    op.block_size  = 256;
-#endif // MIGRAPHX_USE_AMDMLSS
 
     return op;
 }
@@ -554,4 +536,4 @@ argument mlss_conv_op::compute(context& ctx,
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_HAS_MLSS_HEADERS
+#endif // MIGRAPHX_USE_AMDMLSS

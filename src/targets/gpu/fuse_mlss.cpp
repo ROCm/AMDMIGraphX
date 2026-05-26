@@ -54,7 +54,7 @@ bool mlss_enabled()
     return not string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS{}, "").empty();
 }
 
-#ifdef MIGRAPHX_HAS_MLSS_HEADERS
+#ifdef MIGRAPHX_USE_AMDMLSS
 
 static bool mlss_op_enabled(std::string_view op_name)
 {
@@ -113,83 +113,6 @@ struct find_mlss_attention
         if(not shape_supported)
             return;
 
-#ifdef MIGRAPHX_USE_AMDMLSS
-        {
-            const std::string gfx_name = ctx->get_current_device().get_gfx_name();
-            MLSScontext mlss_ctx       = 0;
-            MLSSstring op_name         = const_cast<MLSSstring>(MLSS_MHA);
-            if(mlssCreateContext(&mlss_ctx, const_cast<MLSSstring>(gfx_name.c_str()), op_name) ==
-               MLSS_SUCCESS)
-            {
-                std::uint32_t batch   = static_cast<std::uint32_t>(query_lens[0]);
-                std::uint32_t heads   = static_cast<std::uint32_t>(query_lens[1]);
-                std::uint32_t q_seq   = static_cast<std::uint32_t>(query_lens[2]);
-                std::uint32_t kv_seq  = q_seq;
-                std::uint32_t h_dim   = static_cast<std::uint32_t>(query_lens[3]);
-                std::uint32_t kv_dim  = 0;
-                std::uint32_t packing = MLSS_ATTR_CONFIG_MHA_PACKING_PACKED_QKV;
-                float scale_val =
-                    1.0f / std::sqrt(static_cast<float>(h_dim)); // placeholder; real scale set below
-                MLSSenum dtype = MLSS_FLOAT16;
-
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_BATCH, &batch);
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_QSEQ, &q_seq);
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_KVSEQ, &kv_seq);
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_KDIM, &kv_dim);
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_VDIM, &kv_dim);
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_SIZEHEADS, &h_dim);
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_PACKING, &packing);
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_HEADCOUNT, &heads);
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_SCALE, &scale_val);
-                mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_MHA_DATATYPE, &dtype);
-
-                MLSSstatus* p_statuses = nullptr;
-                MLSSsize n_statuses    = 0;
-                mlssGetCaps(mlss_ctx, &p_statuses, &n_statuses);
-
-                MLSSbinary* binaries     = nullptr;
-                MLSSsize num_binaries    = 0;
-                MLSSstatus bin_status    = mlssGetBinaries(mlss_ctx, &binaries, &num_binaries);
-                if(bin_status == MLSS_SUCCESS)
-                {
-                    std::cout << "[fuse_mlss] mlssGetBinaries returned " << num_binaries
-                              << " binary variant(s) for " << gfx_name << "\n";
-                    for(MLSSsize i = 0; i < num_binaries; ++i)
-                    {
-                        MLSSvoid* raw_args  = nullptr;
-                        MLSSsize arg_count  = 0;
-                        MLSSenum arg_type   = 0;
-                        mlssVectorRetrieveData(binaries[i].m_argList, &raw_args, &arg_count, &arg_type);
-
-                        std::uint32_t max_indir = 0;
-                        if(raw_args != nullptr)
-                        {
-                            const auto* args = static_cast<const MLSSarg*>(raw_args);
-                            for(MLSSsize j = 0; j < arg_count; ++j)
-                            {
-                                if(args[j].m_isPointer &&
-                                   args[j].m_indirectionLevel > max_indir)
-                                    max_indir = args[j].m_indirectionLevel;
-                            }
-                        }
-                        std::cout << "  [" << i << "] reloc=" << binaries[i].m_isRelocatable
-                                  << "  args=" << arg_count << "  ptr_indir=" << max_indir
-                                  << "  size=" << binaries[i].m_binarySize
-                                  << "  kernel=" << (binaries[i].m_pKernelName != nullptr
-                                                         ? binaries[i].m_pKernelName
-                                                         : "<null>")
-                                  << "\n";
-                    }
-                }
-                else
-                {
-                    std::cout << "[fuse_mlss] mlssGetBinaries failed with status " << bin_status
-                              << "\n";
-                }
-            }
-        }
-#endif
-
         const auto* scale_hp =
             reinterpret_cast<const half*>(scale_literal_ins->get_literal().data());
         float scale = static_cast<float>(*scale_hp);
@@ -201,9 +124,13 @@ struct find_mlss_attention
         int sequence_length = static_cast<int>(query_lens[2]);
 
         auto op = mlss_mha_op::make_gfx1201_fp16_packed_qkv(
+            *ctx,
+            query_lens,
             scale,
             static_cast<std::size_t>(batch_size * head_num * sequence_length * grids_per_head),
             mha_block_size);
+        if(op.code_object.empty())
+            return;
 
         auto& m = mpm.get_module();
 
@@ -582,11 +509,11 @@ struct find_mlss_conv_bias_leaky_relu
             m.remove_instruction(conv_ins);
     }
 };
-#endif // MIGRAPHX_HAS_MLSS_HEADERS
+#endif // MIGRAPHX_USE_AMDMLSS
 
 void fuse_mlss::apply(module_pass_manager& mpm) const
 {
-#ifdef MIGRAPHX_HAS_MLSS_HEADERS
+#ifdef MIGRAPHX_USE_AMDMLSS
     const auto& gfx_name = ctx->get_current_device().get_gfx_name();
     if(not starts_with(gfx_name, "gfx1201"))
         return;
@@ -603,7 +530,7 @@ void fuse_mlss::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlss_conv{ctx});
 
     }
-#endif // MIGRAPHX_HAS_MLSS_HEADERS
+#endif // MIGRAPHX_USE_AMDMLSS
 }
 
 } // namespace gpu

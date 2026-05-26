@@ -86,11 +86,8 @@ struct mlss_conv_op
     // Non-reflected: rebuilt in finalize()
     kernel k{};
 
-#ifdef MIGRAPHX_HAS_MLSS_HEADERS
-    // Factory: constructs an op pre-loaded with a conv shader binary.
-    // When MIGRAPHX_USE_AMDMLSS is defined, obtains the binary via the
-    // AMDMLSS C API (mlssGetBinaries, non-relocatable).  Otherwise falls
-    // back to the static shadersBinNonReloc.hpp header.
+#ifdef MIGRAPHX_USE_AMDMLSS
+    // Factory: obtains a conv shader binary via the AMDMLSS C API (mlssGetBinaries).
     static mlss_conv_op make_gfx12_fp32_f2x3_stride1(
         const context& ctx,
         const std::vector<std::size_t>& act_lens,
@@ -103,10 +100,6 @@ struct mlss_conv_op
         bool has_bias_flag,
         uint8_t act_mode,
         shape::type_t dtype);
-    // Factory: constructs an op pre-loaded with the GFX12 fp32 f3x2 ostride2 conv shader.
-    static mlss_conv_op make_gfx12_fp32_f3x2_ostride2();
-    // Factory: constructs an op pre-loaded with the NAVI48 fp16pk conv shader.
-    static mlss_conv_op make_navi48_fp16pk_f2x3_stride1();
 #endif
 
     std::string name() const { return "gpu::mlss_conv"; }

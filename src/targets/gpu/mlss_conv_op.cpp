@@ -395,22 +395,28 @@ argument mlss_conv_op::compute(context& ctx,
     float beta  = 0.0f;
 
     // -----------------------------------------------------------------------
-    // Strides (int32_t, NCHW)
+    // Strides — use actual buffer strides (NCHW layout) rather than computing
+    // from dimensions. This handles non-contiguous output buffers (e.g. from
+    // slice views where the N-stride doesn't match K * OH * OW).
     // -----------------------------------------------------------------------
-    int32_t d_N_stride = G * Cg * H * W;
-    int32_t d_C_stride = H * W;
-    int32_t d_H_stride = W;
-    int32_t d_G_stride = Cg * H * W;
+    const auto in_strides  = input.get_shape().strides();
+    const auto wt_strides  = weight.get_shape().strides();
+    const auto out_strides = out_buf.get_shape().strides();
 
-    int32_t f_K_stride = Cg * R * S;
-    int32_t f_C_stride = R * S;
-    int32_t f_R_stride = S;
-    int32_t f_G_stride = Kg * Cg * R * S;
+    int32_t d_N_stride = static_cast<int32_t>(in_strides[0]);
+    int32_t d_C_stride = static_cast<int32_t>(in_strides[1]);
+    int32_t d_H_stride = static_cast<int32_t>(in_strides[2]);
+    int32_t d_G_stride = d_N_stride; // groups=1: G stride == N stride
 
-    int32_t o_N_stride = G * Kg * out_h * out_w;
-    int32_t o_K_stride = out_h * out_w;
-    int32_t o_H_stride = out_w;
-    int32_t o_G_stride = Kg * out_h * out_w;
+    int32_t f_K_stride = static_cast<int32_t>(wt_strides[0]);
+    int32_t f_C_stride = static_cast<int32_t>(wt_strides[1]);
+    int32_t f_R_stride = static_cast<int32_t>(wt_strides[2]);
+    int32_t f_G_stride = Kg * f_K_stride; // groups=1: full filter span
+
+    int32_t o_N_stride = static_cast<int32_t>(out_strides[0]);
+    int32_t o_K_stride = static_cast<int32_t>(out_strides[1]);
+    int32_t o_H_stride = static_cast<int32_t>(out_strides[2]);
+    int32_t o_G_stride = o_N_stride; // groups=1: G stride == N stride
 
     // Explicit zeros for padding/reserved slots in the kernarg buffer.
     uint32_t zero32 = 0;

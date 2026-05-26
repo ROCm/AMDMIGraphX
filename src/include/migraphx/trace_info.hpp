@@ -21,59 +21,24 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_PREFIX_SCAN_SUM_HPP
-#define MIGRAPHX_GUARD_GPU_PREFIX_SCAN_SUM_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_TRACE_INFO_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_TRACE_INFO_HPP
 
-#include <migraphx/gpu/name.hpp>
-#include <migraphx/gpu/hip.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/device/prefix_scan_sum.hpp>
-#include <migraphx/op/prefix_scan_sum.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
-#include <utility>
-#include <iostream>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct context;
-
-struct hip_prefix_scan_sum : oper<hip_prefix_scan_sum>
+struct trace_info
 {
-    op::prefix_scan_sum op;
-
-    template <class Self, class T>
-    static auto reflect(Self& self, T f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        std::vector<shape> in_shapes{inputs};
-        in_shapes.pop_back();
-        check_shapes{in_shapes, *this}.standard();
-        return op.normalize_compute_shape(in_shapes);
-    }
-
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
-    {
-        device::prefix_scan_sum(
-            ctx.get_stream().get(), args[1], args[0], op.axis, op.exclusive, op.reverse);
-        return args[1];
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
+    std::size_t index;
+    std::string name;
+    argument result;
 };
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_PREFIX_SCAN_SUM_HPP
+
+#endif // MIGRAPHX_GUARD_MIGRAPHLIB_TRACE_INFO_HPP

@@ -42,6 +42,7 @@
 #include <migraphx/gpu/hsa_chiplet.hpp>
 #include <unordered_map>
 #include <memory>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -90,6 +91,8 @@ struct hip_device
 
         hipStream_t get()
         {
+            if(external_stream.has_value())
+                return external_stream.value();
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
             {
                 setup();
@@ -144,12 +147,39 @@ struct hip_device
         }
 #endif
 
+        void set_raw_stream(hipStream_t raw_stream)
+        {
+#if MIGRAPHX_USE_MIOPEN
+            if(mihandle != nullptr)
+                miopenSetStream(mihandle.get(), raw_stream);
+#endif
+#if MIGRAPHX_USE_ROCBLAS
+            if(rbhandle != nullptr)
+                rocblas_set_stream(rbhandle.get(), raw_stream);
+#endif
+        }
+
+        bool has_external_stream() const { return external_stream.has_value(); }
+
+        void set_queue(hipStream_t q)
+        {
+            external_stream = q;
+            set_raw_stream(q);
+        }
+
+        void restore_queue()
+        {
+            external_stream.reset();
+            set_raw_stream(s.get());
+        }
+
         void wait() const
         {
-            if(s == nullptr)
+            hipStream_t cur = external_stream.value_or(s.get());
+            if(cur == nullptr)
                 return;
             setup();
-            auto status = hipStreamSynchronize(s.get());
+            auto status = hipStreamSynchronize(cur);
             if(status != hipSuccess)
                 MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
         }
@@ -173,6 +203,8 @@ struct hip_device
         private:
         std::size_t id           = 0;
         shared<hip_stream_ptr> s = nullptr;
+        std::optional<hipStream_t> external_stream{};
+
 #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
 #endif
@@ -203,7 +235,7 @@ struct hip_device
 
     std::string get_device_name() const { return device_props.gcnArchName; }
 
-    std::string get_gfx_name() const { return trim(split_string(get_device_name(), ':').front()); }
+    std::string get_gfx_name() const { return gpu::get_gfx_name(get_device_name()); }
 
     std::size_t get_device_major() const { return device_props.major; }
 
@@ -334,25 +366,45 @@ struct context
         this->current_device = std::make_shared<hip_device>(device, n_streams);
     }
 
+    // Pure event-based synchronization point.  Records an event on the
+    // caller's queue and makes the context's current stream wait on it.
     void wait_for(any_ptr queue)
     {
         auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed to record: " + hip_error(status));
-
         get_stream().wait(begin_event.get());
     }
 
+    // Symmetric counterpart of wait_for().  Records an event on the context's
+    // current stream and makes the caller's queue wait on it.
     void finish_on(any_ptr queue)
     {
         get_stream().record(finish_event.get());
-
         auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
         if(status != hipSuccess)
             MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
     }
 
-    any_ptr get_queue() { return get_stream().get(); }
+    any_ptr get_queue()
+    {
+        auto* s = get_stream().get();
+        return s == nullptr ? any_ptr{} : any_ptr{s};
+    }
+
+    // Bind a caller-provided queue for subsequent submissions.
+    // Passing an empty / null any_ptr is equivalent to binding the HIP
+    // default stream (nullptr), which is a distinct, valid operation from
+    // restore_queue() -- the two must not be conflated.  We bypass the typed
+    // any_ptr accessor when the pointer is null because a default-constructed
+    // any_ptr carries no type name and would otherwise throw on get<>().
+    void set_queue(any_ptr queue)
+    {
+        hipStream_t s = queue.unsafe_get() == nullptr ? nullptr : queue.get<hipStream_t>();
+        get_stream().set_queue(s);
+    }
+
+    void restore_queue() { get_stream().restore_queue(); }
 
     std::pair<hipEvent_t, hipEvent_t> get_perf_events() const
     {

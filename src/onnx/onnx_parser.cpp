@@ -38,6 +38,8 @@
 #include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
 #include <onnx.pb.h>
+#include <iomanip>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -54,7 +56,7 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
         std::transform(dyn_dims.cbegin(),
                        dyn_dims.cend(),
                        std::back_inserter(dims),
-                       [](const auto& d) { return d.max; });
+                       [](const auto& d) { return d.get_interval().max; });
         return {shape_type, dims};
     }
     return {shape_type, dyn_dims};
@@ -545,6 +547,23 @@ static bool check_sorted(const onnx::GraphProto& graph,
     return true;
 }
 
+static void set_return_ins_debug_symbols(module* mod,
+                                         const std::vector<std::string>& prog_output_names,
+                                         instruction_ref ret_ins)
+{
+    int num_width = std::to_string(prog_output_names.size() - 1).size();
+    std::set<std::string> output_symbols;
+    for(auto i : range(prog_output_names.size()))
+    {
+        std::ostringstream oss;
+        oss << "@output_";
+        oss << std::setw(num_width) << std::setfill('0') << i;
+        oss << ":" << prog_output_names[i];
+        output_symbols.insert(oss.str());
+    }
+    mod->add_debug_symbols(ret_ins, output_symbols);
+}
+
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
@@ -659,8 +678,11 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     if(not inlining)
     {
         // add the return instuction
-        mod->add_return(output_ins);
-
+        auto ret_ins = mod->add_return(output_ins);
+        if(use_debug_symbols)
+        {
+            set_return_ins_debug_symbols(mod, prog_output_names, ret_ins);
+        }
         // Remove instructions added in module (this is turned off for subgraph inlining)
         erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
     }
@@ -771,9 +793,10 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     switch(t.data_type())
     {
-    case onnx::TensorProto::BOOL: return create_literal(shape::bool_type, dims, t.int32_data());
+    case onnx::TensorProto::BOOL:
+        return create_literal(shape::bool_type, dims, t.int32_data());
 
-    // INT4 or UINT4 operate as 8-bit buffers:
+        // INT4 or UINT4 operate as 8-bit buffers:
     case onnx::TensorProto::INT4: return create_literal(shape::int8_type, dims, t.int32_data());
     case onnx::TensorProto::UINT4: return create_literal(shape::uint8_type, dims, t.int32_data());
 

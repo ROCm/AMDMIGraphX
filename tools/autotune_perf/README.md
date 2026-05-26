@@ -1,16 +1,10 @@
 # AMD MIGraphX Autotune Perf
 ## Instructions
 First ensure MIGraphX is built so that `migraphx-driver` is available (e.g. `./build/bin/migraphx-driver`). Refer to MIGraphX instructions at the root directory for build steps.
-The autotune script sweeps a curated set of MIGraphX environment-variable knobs on top of `migraphx-driver perf` and reports the fastest configuration for a given model. Therefore, an onnx file is required argument.
+The autotune script sweeps a curated set of MIGraphX environment-variable knobs on top of `migraphx-driver perf` and reports the fastest configuration for a given model. Therefore, a model file is required argument.
 Example usage is below:
 ```
 python autotune_perf.py --driver ./build/bin/migraphx-driver perf --onnx [path to onnx_file] --gpu
-```
-
-The same model used by `examples/vision/python_resnet50` can be fetched directly from the ONNX model zoo:
-```
-wget https://github.com/onnx/models/raw/main/validated/vision/classification/resnet/model/resnet50-v2-7.onnx
-python autotune_perf.py --driver ./build/bin/migraphx-driver perf --onnx resnet50-v2-7.onnx --gpu
 ```
 
 The output of the script is a ranked table of configurations with the fastest row marked `<-- best`, and a sourceable `<model>.tune` file containing one `export` line per env var in the winning row.

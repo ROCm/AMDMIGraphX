@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -130,6 +130,9 @@ struct is_integral_constant<integral_constant<T, V>> : true_type
 
 template <index_int N>
 using index_constant = integral_constant<index_int, N>;
+
+template <index_int N>
+static constexpr auto index_c = index_constant<N>{};
 
 template <auto V>
 static constexpr auto _c = integral_constant<decltype(V), V>{}; // NOLINT

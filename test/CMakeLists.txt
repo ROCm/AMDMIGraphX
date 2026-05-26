@@ -33,15 +33,32 @@ if(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
     add_compile_definitions(MIGRAPHX_DISABLE_LARGE_BUFFER_TESTS)
 endif()
 
-add_library(register_targets STATIC register_target.cpp)
-target_link_libraries(register_targets PRIVATE migraphx migraphx_all_targets)
+if(WIN32)
+    add_library(register_targets STATIC register_target.cpp)
+    target_link_libraries(register_targets PRIVATE migraphx migraphx_all_targets)
+    enable_static_init(register_targets)
+else()
+    add_library(register_targets INTERFACE)
+endif()
+
+add_library(migraphx_lazy_ref INTERFACE)
+if(BUILD_SHARED_LIBS)
+    add_dependencies(migraphx_lazy_ref migraphx_ref)
+else()
+    target_link_libraries(migraphx_lazy_ref INTERFACE migraphx_ref register_targets)
+endif()
 
 file(GLOB TESTS CONFIGURE_DEPENDS *.cpp)
 list(REMOVE_ITEM TESTS ${CMAKE_CURRENT_SOURCE_DIR}/register_target.cpp)
 
+# TODO: Theses tests cause duplicate symbols(caught by the odr checker in clang ASAN) since it uses onnx-proto directly.
+list(REMOVE_ITEM TESTS ${CMAKE_CURRENT_SOURCE_DIR}/netron_output_test.cpp)
+
 foreach(TEST ${TESTS})
     get_filename_component(BASE_NAME ${TEST} NAME_WE)
     rocm_add_test_executable(test_${BASE_NAME} ${TEST})
+    # Some unit tests need the ref target
+    target_link_libraries(test_${BASE_NAME} migraphx_lazy_ref)
     rocm_clang_tidy_check(test_${BASE_NAME})
 endforeach()
 
@@ -62,7 +79,7 @@ if(MIGRAPHX_ENABLE_GPU)
         if(MIGRAPHX_USE_HIPRTC)
         target_compile_definitions(test_gpu_${BASE_NAME} PUBLIC -DMIGRAPHX_USE_HIPRTC)
         endif()
-        target_link_libraries(test_gpu_${BASE_NAME} migraphx_gpu migraphx_kernels register_targets)
+        target_link_libraries(test_gpu_${BASE_NAME} migraphx_lazy_ref migraphx_gpu register_targets)
     endforeach()
     add_subdirectory(gpu/kernels)
 endif()
@@ -79,7 +96,7 @@ if(MIGRAPHX_ENABLE_FPGA)
             COST 10
             RESOURCE_LOCK fpga
         )
-        target_link_libraries(test_fpga_${BASE_NAME} migraphx_fpga)
+        target_link_libraries(test_fpga_${BASE_NAME} migraphx_lazy_ref migraphx_fpga)
     endforeach()
 endif()
 

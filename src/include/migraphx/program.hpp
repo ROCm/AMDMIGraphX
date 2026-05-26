@@ -98,6 +98,8 @@ struct MIGRAPHX_EXPORT program
 
     context& get_context() const;
 
+    void clear_context();
+
     instruction_ref validate() const;
 
     target_assignments get_target_assignments(const std::vector<target>& targets,
@@ -168,8 +170,8 @@ struct MIGRAPHX_EXPORT program
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
-    // program file version is for the data structure or format of the MXR file. Version should be bumped
-    // if any changes occur to the format of the MXR file.
+    // program file version is for the data structure or format of the MXR file. Version should be
+    // bumped if any changes occur to the format of the MXR file.
     static constexpr int program_file_version = 8;
 };
 } // namespace MIGRAPHX_INLINE_NS

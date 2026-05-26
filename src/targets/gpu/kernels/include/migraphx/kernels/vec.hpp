@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <migraphx/kernels/integral_constant.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/type_traits.hpp>
+#include <migraphx/kernels/tuple.hpp>
 #include <migraphx/kernels/debug.hpp>
 
 namespace migraphx {
@@ -59,6 +60,12 @@ constexpr auto is_any_vec()
         return bool_constant<((vec_size<Ts>() + ...) > 0)>{};
 }
 
+template <class... Ts>
+constexpr auto is_any_vec(Ts...)
+{
+    return is_any_vec<Ts...>();
+}
+
 template <class T, class I>
 constexpr auto vec_at(T x, I i)
 {
@@ -85,6 +92,12 @@ constexpr auto common_vec_size()
     })(vec_size<Ts>()...);
 }
 
+template <class... Ts>
+constexpr auto common_vec_size(Ts...)
+{
+    return common_vec_size<Ts...>();
+}
+
 // Bools can not be used as a vector type so convert it to uint8
 template <class T>
 __device__ __host__ T* remove_bool(T* x)
@@ -106,6 +119,51 @@ __device__ __host__ auto as_vec(T* x)
 template <class T, index_int N>
 using safe_vec = vec<conditional_t<is_same<T, bool>{}, uint8_t, T>, N>;
 
+// Build a vector with one element per index: the callback runs for each index implied
+// by the length n, and n is fixed at compile time
+template <class N, class F>
+constexpr auto generate_vec(N n, F f)
+{
+    return sequence(n, [&](auto... is) {
+        constexpr index_int sz = n;
+        using elem             = decltype(f(_c<0>));
+        return safe_vec<elem, sz>{f(is)...};
+    });
+}
+
+namespace vec_detail {
+
+// Repack lane-wise tuples so each tuple field becomes one vector of length Size across lanes
+template <index_int Size, class GetLane>
+constexpr auto vec_transform_tuple_transpose(GetLane get_lane)
+{
+    using lane0 = remove_reference_t<decltype(declval<GetLane>()(_c<0>))>;
+    return generate_tuple(decltype(declval<lane0>().size()){}, [&](auto j) {
+        return generate_vec(index_constant<Size>{}, [&](auto i) { return get_lane(i)[j]; });
+    });
+}
+
+template <index_int Size, class F, class... Ts>
+constexpr auto vec_transform_tuple_vec_lanes_impl(F f, Ts... xs)
+{
+    auto at       = [](auto i) { return [=](auto x) { return vec_at(x, i); }; };
+    auto get_lane = [&](auto i) { return f(at(i)(xs)...); };
+    using lane0   = remove_reference_t<decltype(get_lane(_c<0>))>;
+    if constexpr(is_tuple<lane0>{})
+        return vec_transform_tuple_transpose<Size>(get_lane);
+    else
+        return generate_vec(index_constant<Size>{}, [&](auto i) { return get_lane(i); });
+}
+
+template <class F, class... Ts>
+constexpr auto vec_transform_tuple_vec_lanes(F f, Ts... xs)
+{
+    constexpr index_int sz = common_vec_size<Ts...>();
+    return vec_transform_tuple_vec_lanes_impl<sz>(f, xs...);
+}
+
+} // namespace vec_detail
+
 template <class... Ts>
 constexpr auto vec_transform(Ts... xs)
 {
@@ -123,6 +181,18 @@ constexpr auto vec_transform(Ts... xs)
         {
             return f(xs...);
         }
+    };
+}
+
+template <class... Ts>
+constexpr auto vec_transform_tuple(Ts... xs)
+{
+    return [=](auto f) {
+        // join + lift pattern can fail to instantiate when xs are scalars
+        if constexpr(is_any_vec<Ts...>())
+            return vec_detail::vec_transform_tuple_vec_lanes(f, xs...);
+        else
+            return f(xs...);
     };
 }
 

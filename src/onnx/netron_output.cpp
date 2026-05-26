@@ -62,7 +62,7 @@ int get_onnx_type(shape::type_t s_type)
     case shape::fp8e5m2_type: return onnx::TensorProto::FLOAT8E5M2;
     case shape::fp8e5m2fnuz_type: return onnx::TensorProto::FLOAT8E5M2FNUZ;
     case shape::tuple_type: return onnx::TensorProto::UNDEFINED;
-    case shape::fp4x2_type: return onnx::TensorProto::UINT4;
+    case shape::fp4x2_type: return onnx::TensorProto::FLOAT4E2M1;
     }
     MIGRAPHX_THROW("MIGraphX type " + std::to_string(s_type) + " not supported");
 }
@@ -240,7 +240,6 @@ void write_netron_output(const program& prog, std::ostream& os)
     model.set_ir_version(prog.get_program_file_version());
     model.set_producer_name("AMDMIGraphX");
     model.set_producer_version(prog_value.at("migraphx_version").to<std::string>());
-    
     // only exporting the main module
     // TODO handle submodules as ONNX subgraphs
     build_graph(model.mutable_graph(), prog.get_main_module());

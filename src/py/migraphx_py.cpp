@@ -38,9 +38,7 @@
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/load_save.hpp>
-#include <migraphx/netron_output.hpp>
 #include <migraphx/register_target.hpp>
-#include <fstream>
 #include <migraphx/json.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>

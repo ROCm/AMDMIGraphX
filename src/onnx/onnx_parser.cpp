@@ -319,33 +319,6 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-/**
- * Get the instructions added by the parser not in `args`.
- * Does a DFS through inputs of result up to the instructions `args`.
- */
-static std::vector<instruction_ref>
-get_added_instructions(const std::vector<instruction_ref>& args,
-                       const std::vector<instruction_ref>& result)
-{
-    // Print instructions added by the parser not in args
-    std::vector<instruction_ref> added_instructions;
-    // Set for checking added_instructions faster
-    std::unordered_set<instruction_ref> visit_set;
-    fix([&](auto self, const auto& r) {
-        for(auto ins : r)
-        {
-            if(contains(args, ins))
-                continue;
-            if(contains(visit_set, ins))
-                continue;
-            self(ins->inputs());
-            added_instructions.push_back(ins);
-            visit_set.insert(ins);
-        }
-    })(result);
-    return added_instructions;
-}
-
 static bool is_type_packed_int4(const onnx::TensorProto& t)
 {
     return t.data_type() == onnx::TensorProto::INT4 or t.data_type() == onnx::TensorProto::UINT4;

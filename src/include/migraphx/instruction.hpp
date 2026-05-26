@@ -57,6 +57,16 @@ MIGRAPHX_EXPORT bool is_interdependent(const std::vector<instruction_ref>& instr
 MIGRAPHX_EXPORT std::unordered_set<instruction_ref>
 find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m);
 
+/**
+ * Return instructions reachable starting from inputs of `ends` to `starts`; exluding `starts` themselves.
+ * Used to collect instructions added by a parser.
+ * `starts`: inputs to parser.
+ * `ends`: instructions returned by parser.
+ */
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+get_added_instructions(const std::vector<instruction_ref>& starts,
+                       const std::vector<instruction_ref>& ends);
+
 struct MIGRAPHX_EXPORT instruction
 {
     instruction() {}

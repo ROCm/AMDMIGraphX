@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,8 @@
 #include <migraphx/op/argmax.hpp>
 #include <migraphx/op/argmin.hpp>
 
+// NonStdShape: 0=transpose+1025, 4=same transpose but inner length 1024 (even reduce for GPU
+// vectorize::elements), 1=broadcast, 2=slice, 3=plain {2,1,4,1025}
 template <class T, migraphx::shape::type_t DType, int Axis, bool LastIndex, int NonStdShape>
 struct test_arg_ops : verify_program<test_arg_ops<T, DType, Axis, LastIndex, NonStdShape>>
 {
@@ -36,11 +38,12 @@ struct test_arg_ops : verify_program<test_arg_ops<T, DType, Axis, LastIndex, Non
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        migraphx::shape s{DType, {2, 1, 4, 1025}};
+        migraphx::shape s{DType, {2, 1, 4, (NonStdShape == 4 ? 1024 : 1025)}};
         auto param = mm->add_parameter("data", s);
         switch(NonStdShape)
         {
         case 0:
+        case 4:
             param = mm->add_instruction(
                 migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), param);
             break;
@@ -86,6 +89,11 @@ template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, 
 template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, -3, false, 0>;
 template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, -4, true, 0>;
 template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, -4, false, 0>;
+// transpose + length 1024 (standalone arg; enables width-4 vectorization on reduce axis)
+template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::float_type, 2, true, 4>;
+template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::float_type, 2, false, 4>;
+template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, 2, true, 4>;
+template struct test_arg_ops<migraphx::op::argmin, migraphx::shape::float_type, 2, false, 4>;
 // broadcast argmax tests
 template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::float_type, 0, true, 1>;
 template struct test_arg_ops<migraphx::op::argmax, migraphx::shape::float_type, 0, false, 1>;

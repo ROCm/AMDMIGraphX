@@ -181,7 +181,7 @@ struct pipeline_factory
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
-            enable_pass(mlss_enabled(), fuse_mlss{&ctx}),
+            enable_pass(mlss_enabled(), fuse_mlss{get_context()}),
             fuse_pointwise_reduce{},
             dead_code_elimination{},
 #ifndef _WIN32

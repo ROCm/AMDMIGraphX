@@ -273,9 +273,7 @@ static void warn_unresolved_dim_params(const onnx_parser& parser, const onnx::Gr
             continue;
         for(const auto& d : input.type().tensor_type().shape().dim())
         {
-            // Skip batch dims and dims that are already set
-            if(d.has_dim_param() and not contains(parser.dim_params, d.dim_param()) and
-               to_lower(d.dim_param()).find("batch") == std::string::npos)
+            if(d.has_dim_param() and not contains(parser.dim_params, d.dim_param()))
                 unresolved.insert(d.dim_param());
         }
     }

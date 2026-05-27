@@ -90,56 +90,29 @@ struct gathernd
                            std::to_string(k));
         }
 
-        if(migraphx::none_of(inputs, [](auto v) { return v.dynamic(); }))
+        const bool any_dyn = data_shape.dynamic() or i_shape.dynamic();
+        if(output_ndim == 0)
         {
-            auto indices_lens_iter = i_shape.lens().begin();
-
-            // A rank 0 output is a scalar
-            if(output_ndim == 0)
-                return shape{data_shape.type(), {1}};
-
-            // Part of the output shape comes from indices tensor, part from data tensor
-            std::vector<std::size_t> output_lens(output_ndim);
-            std::copy(indices_lens_iter, indices_lens_iter + (q - 1), output_lens.begin());
-            // fill the rest of output shape from data tensor
-            if(k + batch_dims < r)
-            {
-                auto data_lens = data_shape.lens();
-                std::copy(data_lens.begin() + batch_dims + k,
-                          data_lens.end(),
-                          output_lens.begin() + q - 1);
-            }
-            shape output_shape{data_shape.type(), output_lens};
-            return output_shape;
-        }
-        else
-        {
-            // If one or both inputs are dynamic shapes, the output is dynamic.
-            // Make both inputs dynamic to simplify computations.
-            data_shape = data_shape.to_dynamic();
-            i_shape    = i_shape.to_dynamic();
-
-            // A rank 0 output is a scalar
-            if(output_ndim == 0)
+            if(any_dyn)
                 return shape(data_shape.type(), {shape::dynamic_dimension({1, 1})});
-
-            // Part of the output shape comes from indices tensor, part from data tensor
-            std::vector<shape::dynamic_dimension> output_dims(output_ndim);
-            std::copy(i_shape.dyn_dims().begin(),
-                      i_shape.dyn_dims().begin() + q - 1,
-                      output_dims.begin());
-
-            // fill the rest of output shape from data tensor
-            if(k + batch_dims < r)
-            {
-                auto data_dims = data_shape.dyn_dims();
-                std::copy(data_dims.begin() + batch_dims + k,
-                          data_dims.begin() + r,
-                          output_dims.begin() + q - 1);
-            }
-            shape output_shape(data_shape.type(), output_dims);
-            return output_shape;
+            return shape{data_shape.type(), {1}};
         }
+
+        auto unified   = shape::to_dynamic(inputs);
+        auto i_dims    = unified[1].dyn_dims();
+        auto data_dims = unified[0].dyn_dims();
+        std::vector<shape::dynamic_dimension> output_dims(output_ndim);
+        std::copy(i_dims.begin(), i_dims.begin() + (q - 1), output_dims.begin());
+        // fill the rest of output shape from data tensor
+        if(k + batch_dims < r)
+            std::copy(data_dims.begin() + batch_dims + k,
+                      data_dims.begin() + r,
+                      output_dims.begin() + q - 1);
+
+        shape output_shape(data_shape.type(), output_dims);
+        if(any_dyn)
+            return output_shape;
+        return output_shape.to_static();
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

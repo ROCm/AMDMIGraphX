@@ -60,6 +60,7 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
 
+#include <migraphx/time.hpp>
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
@@ -284,7 +285,7 @@ struct loader
            ap.set_value("binary"));
         ap(output_type,
            {"--netron"},
-           ap.help("Print out program as Netron readable json."),
+           ap.help("Print out program as ONNX protobuf binary viewable in Netron."),
            ap.set_value("netron"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
     }
@@ -550,7 +551,7 @@ struct loader
         else if(type == "binary")
             write(*os, save_buffer(p));
         else if(type == "netron")
-            *os << make_netron_output(p) << std::endl;
+            write_netron_output(p, *os);
     }
 };
 
@@ -760,7 +761,10 @@ struct compiler
             quantize_int4_weights(p);
         }
         log::info() << "Compiling ...";
+        timer c{};
         p.compile(t, co);
+        auto r = c.record<std::chrono::milliseconds>();
+        log::info() << "Compilation time: " << r << "ms";
         l.save(p);
         return p;
     }

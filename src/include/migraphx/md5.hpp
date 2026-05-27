@@ -21,40 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <iostream>
-#include <vector>
-#include <migraphx/verify.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/context.hpp>
-#include "test.hpp"
+#ifndef MIGRAPHX_GUARD_RTGLIB_MD5_HPP
+#define MIGRAPHX_GUARD_RTGLIB_MD5_HPP
 
-TEST_CASE(gpu_context_serialize)
-{
-    migraphx::context ctx = migraphx::gpu::context{0, 3};
+#include <string>
+#include <string_view>
+#include <migraphx/config.hpp>
 
-    auto v = ctx.to_value();
-    EXPECT(v.size() == 2);
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-    EXPECT(v.contains("events"));
-    EXPECT(v.at("events").without_key().to<std::size_t>() == 0);
+/// Compute the MD5 digest of a string and return it as a lowercase hex string.
+std::string MIGRAPHX_EXPORT md5(const std::string_view& str);
 
-    EXPECT(v.contains("streams"));
-    EXPECT(v.at("streams").without_key().to<std::size_t>() == 3);
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
-    migraphx::gpu::context g_ctx;
-    g_ctx.from_value(v);
-
-    auto v1 = g_ctx.to_value();
-    EXPECT(v == v1);
-}
-
-TEST_CASE(context_queue)
-{
-    migraphx::context ctx = migraphx::gpu::context{0, 3};
-    // unsafe_get() avoids a type-mismatch throw if MIGRAPHX_ENABLE_NULL_STREAM
-    // is set: context::get_queue() returns an untyped any_ptr when the bound
-    // stream is nullptr, so get<hipStream_t>() would not yield "false".
-    EXPECT(ctx.get_queue().unsafe_get() != nullptr);
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+#endif

@@ -116,10 +116,8 @@ struct gather
         // max dimension in axis
 
         auto check_index_range = [](auto in_index, auto axis_dim_size) {
-            if(in_index < 0 or in_index >= axis_dim_size)
-            {
-                MIGRAPHX_THROW("Gather: Out of bounds index detected");
-            }
+            MIGRAPHX_EXPECT(in_index >= 0 and in_index < axis_dim_size,
+                            "Gather: Out of bounds index detected");
         };
 
         visit_all(result, args[0])([&](auto output, auto data) {
@@ -129,7 +127,7 @@ struct gather
                     auto in_index = indices.front();
                     in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
                     check_index_range(in_index, axis_dim_size);
-                    output[0]     = data[in_index];
+                    output[0] = data[in_index];
                 }
                 else
                 {
@@ -137,12 +135,12 @@ struct gather
                     out_lens[axis] = indices.get_shape().elements();
                     migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
                     shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
-                        auto data_idx   = out_idx_v;
-                        auto in_index   = indices[data_idx[axis]];
-                        in_index        = (in_index < 0) ? in_index + axis_dim_size : in_index;
+                        auto data_idx = out_idx_v;
+                        auto in_index = indices[data_idx[axis]];
+                        in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
                         // don't go out of bounds: https://github.com/ROCm/AMDMIGraphX/issues/2838
                         assert(in_index >= 0 and in_index < axis_dim_size);
-                        data_idx[axis]  = in_index;
+                        data_idx[axis] = in_index;
                         check_index_range(data_idx[axis], axis_dim_size);
                         output[out_idx] = data(data_idx.begin(), data_idx.end());
                     });

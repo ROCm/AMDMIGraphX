@@ -183,8 +183,8 @@ struct reshape
         check_shapes{inputs, *this, true}.has(1, 2);
 
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
-        if(n_neg_dims > 1)
-            MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
+        MIGRAPHX_EXPECT(n_neg_dims <= 1,
+                        "Reshape: Dimensions for reshape can only have one -1 dim");
 
         const auto& s0 = inputs.front();
         if(inputs.size() == 1)

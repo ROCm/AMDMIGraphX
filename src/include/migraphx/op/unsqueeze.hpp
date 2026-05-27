@@ -70,10 +70,7 @@ struct unsqueeze
 
         if(input_shape.dynamic())
         {
-            if(not steps.empty())
-            {
-                MIGRAPHX_THROW("UNSQUEEZE_dyn: nonempty steps attribute");
-            }
+            MIGRAPHX_EXPECT(steps.empty(), "UNSQUEEZE_dyn: nonempty steps attribute");
             std::vector<shape::dynamic_dimension> dyn_dims = {};
             auto new_ndim                                  = input_shape.ndim() + axes.size();
             std::size_t k                                  = 0;
@@ -92,16 +89,15 @@ struct unsqueeze
         }
         else
         {
-            auto type        = input_shape.type();
-            auto old_lens    = input_shape.lens();
+            auto type               = input_shape.type();
+            auto old_lens           = input_shape.lens();
             const auto& old_strides = input_shape.strides();
-            auto is_scalar   = input_shape.scalar();
+            auto is_scalar          = input_shape.scalar();
 
             if(is_scalar and old_lens.size() == 1 and old_lens.front() == 1)
                 return shape{type, old_lens};
 
-            if(steps.size() > axes.size())
-                MIGRAPHX_THROW("UNSQUEEZE: Steps provided with no axis");
+            MIGRAPHX_EXPECT(steps.size() <= axes.size(), "UNSQUEEZE: Steps provided with no axis");
 
             std::size_t new_size = old_lens.size() + axes.size();
 
@@ -116,22 +112,20 @@ struct unsqueeze
                     std::int64_t step = 1;
                     if(axis_idx < steps.size())
                         step = steps[axis_idx];
-                    if(step == 0)
-                        MIGRAPHX_THROW("UNSQUEEZE: step must be non-zero");
-                    if(is_scalar and step != 1)
-                        MIGRAPHX_THROW("UNSQUEEZE: step must be 1 when input is scalar");
+                    MIGRAPHX_EXPECT(step != 0, "UNSQUEEZE: step must be non-zero");
+                    MIGRAPHX_EXPECT(not is_scalar or step == 1,
+                                    "UNSQUEEZE: step must be 1 when input is scalar");
                     new_lens[i] = step;
                     if(p < old_strides.size())
                     {
-                        if((old_lens[p] % step) != 0)
-                            MIGRAPHX_THROW("UNSQUEEZE: Axis dimension is not divisible by step");
+                        MIGRAPHX_EXPECT((old_lens[p] % step) == 0,
+                                        "UNSQUEEZE: Axis dimension is not divisible by step");
                         old_lens[p] /= step;
                         new_strides[i] = is_scalar ? 1 : old_strides[p] * old_lens[p];
                     }
                     else
                     {
-                        if(step != 1)
-                            MIGRAPHX_THROW("UNSQUEEZE: Step must be 1 for extra axes");
+                        MIGRAPHX_EXPECT(step == 1, "UNSQUEEZE: Step must be 1 for extra axes");
                         new_strides[i] = 1;
                     }
                 }

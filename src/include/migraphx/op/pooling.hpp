@@ -110,12 +110,10 @@ struct pooling
     {
         if(dyn_global)
             return;
-        if((padding_mode != default_ and padding.size() != stride.size() and
-            (padding.size()) != stride.size() * 2) or
-           stride.size() != lengths.size() or dilations.size() != lengths.size())
-        {
-            MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
-        }
+        MIGRAPHX_EXPECT((padding_mode == default_ or padding.size() == stride.size() or
+                         padding.size() == stride.size() * 2) and
+                            stride.size() == lengths.size() and dilations.size() == lengths.size(),
+                        "POOLING: inconsistent attribute sizes");
 
         const auto is_zero = [](auto el) { return el == 0; };
         if(std::any_of(lengths.begin(), lengths.end(), is_zero) or
@@ -193,10 +191,8 @@ struct pooling
 
         const shape& input = inputs.at(0);
         auto stride_size   = stride.size();
-        if(input.ndim() != stride_size + 2)
-        {
-            MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
-        }
+        MIGRAPHX_EXPECT(input.ndim() == stride_size + 2,
+                        "POOLING: input and attribute size mismatch!");
 
         // Range-based dynamic uses the dedicated path (auto-pad-aware). Static and symbolic
         // share the same path: static inputs get promoted to symbolic literals via the
@@ -347,11 +343,8 @@ struct pooling
                     end = std::min(start + dilated_kernel_dim, in_lens[dim]);
                 }
                 win_start.push_back(start);
-                if(end < start)
-                {
-                    // This error can be caused by misc. bad input combinations
-                    MIGRAPHX_THROW("POOLING: invalid attributes");
-                }
+                // This error can be caused by misc. bad input combinations
+                MIGRAPHX_EXPECT(end >= start, "POOLING: invalid attributes");
                 win_size.push_back(end - start);
             }
 

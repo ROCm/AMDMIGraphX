@@ -161,10 +161,8 @@ struct slice
             if(set_attributes == ends_axes)
             {
                 // attr ends and axes set; inputs are (data, input_starts)
-                if(inputs[1].lens().at(0) != axes.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
-                }
+                MIGRAPHX_EXPECT(inputs[1].lens().at(0) == axes.size(),
+                                "SLICE: 2 input and attributes mismatch");
                 std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
                     dds.at(axis) = {0, dds.at(axis).get_interval().max};
                 });
@@ -172,10 +170,8 @@ struct slice
             else if(set_attributes == starts_axes)
             {
                 // attr starts and axes set; inputs are (data, input_ends)
-                if(inputs[1].lens().at(0) != axes.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
-                }
+                MIGRAPHX_EXPECT(inputs[1].lens().at(0) == axes.size(),
+                                "SLICE: 2 input and attributes mismatch");
                 std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
                     dds.at(axis) = {0, dds.at(axis).get_interval().max};
                 });
@@ -183,10 +179,8 @@ struct slice
             else if(set_attributes == starts_ends)
             {
                 // attr starts and ends set; inputs are (data, input_axes)
-                if(inputs[1].lens().at(0) != starts.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch");
-                }
+                MIGRAPHX_EXPECT(inputs[1].lens().at(0) == starts.size(),
+                                "SLICE: 2 input and attributes mismatch");
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
                     return shape::dynamic_dimension{0, dd.get_interval().max};
                 });
@@ -201,10 +195,8 @@ struct slice
             if(set_attributes == axes_only)
             {
                 // attr axes set; inputs are (data, input_starts, input_ends)
-                if(inputs[1].lens().at(0) != axes.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
-                }
+                MIGRAPHX_EXPECT(inputs[1].lens().at(0) == axes.size(),
+                                "SLICE: 3 input and attributes mismatch");
                 std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
                     dds.at(axis) = {0, dds.at(axis).get_interval().max};
                 });
@@ -212,10 +204,8 @@ struct slice
             else if(set_attributes == ends_only)
             {
                 // attr ends set; inputs are (data, input_starts, input_axes)
-                if(inputs[1].lens().at(0) != ends.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
-                }
+                MIGRAPHX_EXPECT(inputs[1].lens().at(0) == ends.size(),
+                                "SLICE: 3 input and attributes mismatch");
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
                     return shape::dynamic_dimension{0, dd.get_interval().max};
                 });
@@ -224,10 +214,8 @@ struct slice
 
             {
                 // attr starts set; inputs are (data, input_ends, input_axes)
-                if(inputs[1].lens().at(0) != starts.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch");
-                }
+                MIGRAPHX_EXPECT(inputs[1].lens().at(0) == starts.size(),
+                                "SLICE: 3 input and attributes mismatch");
                 std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
                     return shape::dynamic_dimension{0, dd.get_interval().max};
                 });

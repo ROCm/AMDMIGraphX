@@ -64,11 +64,9 @@ struct convolution
 
     void check_attribute_size() const
     {
-        if((padding.size() != stride.size() and (padding.size() / 2) != stride.size()) or
-           stride.size() != dilation.size())
-        {
-            MIGRAPHX_THROW("CONVOLUTION: inconsistent attribute sizes");
-        }
+        MIGRAPHX_EXPECT((padding.size() == stride.size() or padding.size() / 2 == stride.size()) and
+                            stride.size() == dilation.size(),
+                        "CONVOLUTION: inconsistent attribute sizes");
     }
 
     value attributes() const
@@ -84,22 +82,18 @@ struct convolution
         const auto input_ndim   = inputs[0].ndim();
         const auto padding_size = padding.size();
 
-        if(input_ndim != padding_size / 2 + 2 and input_ndim != padding_size + 2)
-        {
-            MIGRAPHX_THROW("CONVOLUTION: input and attribute size mismatch!");
-        }
+        MIGRAPHX_EXPECT(input_ndim == padding_size / 2 + 2 or input_ndim == padding_size + 2,
+                        "CONVOLUTION: input and attribute size mismatch!");
 
         const shape& x_shape          = inputs.at(0);
         const shape& w_shape          = inputs.at(1);
         const size_t num_spatial_dims = input_ndim - 2;
-        if(num_spatial_dims != this->kdims())
-        {
-            MIGRAPHX_THROW("CONVOLUTION: input k-dims does not match attribute size");
-        }
+        MIGRAPHX_EXPECT(num_spatial_dims == this->kdims(),
+                        "CONVOLUTION: input k-dims does not match attribute size");
 
-        if(not x_shape.dynamic() and not w_shape.dynamic() and
-           x_shape.lens().at(1) != (w_shape.lens().at(1) * group))
-            MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers");
+        if(not x_shape.dynamic() and not w_shape.dynamic())
+            MIGRAPHX_EXPECT(x_shape.lens().at(1) == (w_shape.lens().at(1) * group),
+                            "CONVOLUTION: mismatched channel numbers");
 
         // Range-based dynamic uses the dedicated path (auto-pad-aware). Static and symbolic
         // (incl. sym x static) share the same path: static inputs get promoted to symbolic

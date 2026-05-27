@@ -488,8 +488,7 @@ value to_value_op(const T& x)
 template <class T>
 void from_value_op(T& x, const value& v)
 {
-    if(not(v.is_object() or (v.empty() and v.is_array())))
-        MIGRAPHX_THROW("Value is not an object");
+    MIGRAPHX_EXPECT(v.is_object() or (v.empty() and v.is_array()), "Value is not an object");
     return migraphx::from_value(v, x);
 }
 
@@ -952,7 +951,7 @@ struct operation
               typename = private_te_constraints<PrivateDetailTypeErasedT>,
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, operation>{}>::type>
-    operation& operator=(PrivateDetailTypeErasedT && value)
+    operation& operator=(PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();

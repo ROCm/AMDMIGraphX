@@ -58,11 +58,8 @@ struct gathernd
         if(i_shape.dynamic())
         {
             // the rank of the output is a function of k, so it must be fixed.
-            if(not i_shape.dyn_dims().back().is_fixed())
-            {
-                MIGRAPHX_THROW(
-                    "GATHERND: last dimension of indices tensor must be fixed (min=max)");
-            }
+            MIGRAPHX_EXPECT(i_shape.dyn_dims().back().is_fixed(),
+                            "GATHERND: last dimension of indices tensor must be fixed (min=max)");
             k = i_shape.dyn_dims().back().get_interval().min;
         }
         else

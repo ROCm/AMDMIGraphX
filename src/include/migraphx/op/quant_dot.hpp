@@ -64,14 +64,11 @@ struct quant_dot
         supported_types.insert(shape::uint8_type);
         // for how mxfp4 is handled with pack/unpack
         supported_types.insert(shape::float_type);
-        if(not contains(supported_types, t))
-        {
-            MIGRAPHX_THROW("QUANT_DOT: only supports int8_t, uint8_t, float, and fp8");
-        }
-        if(not std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.ndim() >= 2; }))
-        {
-            MIGRAPHX_THROW("QUANT_DOT: dot only accepts >= 2D operands");
-        }
+        MIGRAPHX_EXPECT(contains(supported_types, t),
+                        "QUANT_DOT: only supports int8_t, uint8_t, float, and fp8");
+        MIGRAPHX_EXPECT(
+            std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.ndim() >= 2; }),
+            "QUANT_DOT: dot only accepts >= 2D operands");
 
         auto out_type = (inputs.size() == 4 or contains(fp8_types{}.get(), t)) ? shape::float_type
                                                                                : shape::int32_type;

@@ -53,9 +53,8 @@ struct where
         auto s2 = inputs.at(2);
         if(s1.dynamic() or s2.dynamic())
         {
-            if(s1 == s2)
-                return s1;
-            MIGRAPHX_THROW("WHERE: dynamic input shapes must be the same");
+            MIGRAPHX_EXPECT(s1 == s2, "WHERE: dynamic input shapes must be the same");
+            return s1;
         }
 
         // Compare two static shapes, returning a standard shape

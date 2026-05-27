@@ -63,10 +63,7 @@ struct multibroadcast
         auto t         = inputs.at(0).type();
         const auto& s0 = inputs.at(0);
 
-        if(s0.ndim() < 1)
-        {
-            MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should be > 0");
-        }
+        MIGRAPHX_EXPECT(s0.ndim() >= 1, "MULTIBROADCAST: input dimensions should be > 0");
 
         if(inputs.size() == 1)
         {
@@ -86,8 +83,8 @@ struct multibroadcast
 
             // Shared validation: input dims must align with target dims, with axis-1 broadcast.
             auto validate = [](const auto& in_dims, const auto& out_dims) {
-                if(in_dims.size() > out_dims.size())
-                    MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should <= output size");
+                MIGRAPHX_EXPECT(in_dims.size() <= out_dims.size(),
+                                "MULTIBROADCAST: input dimensions should <= output size");
                 auto offset = out_dims.size() - in_dims.size();
                 for(std::ptrdiff_t i = in_dims.size() - 1; i >= 0; --i)
                 {

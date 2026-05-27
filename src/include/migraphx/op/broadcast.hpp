@@ -82,12 +82,12 @@ struct broadcast
     {
         if(axis >= target.size())
             MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) + " is out of range");
-        if(target.size() - axis < in_dims.size())
-            MIGRAPHX_THROW("BROADCAST: (broadcast ndims - axis) is less than s0 ndims");
+        MIGRAPHX_EXPECT(target.size() - axis >= in_dims.size(),
+                        "BROADCAST: (broadcast ndims - axis) is less than s0 ndims");
         for(std::size_t i = 0; i < in_dims.size(); ++i)
         {
-            if(target[axis + i] != in_dims[i])
-                MIGRAPHX_THROW("BROADCAST: when broadcasting, succeeding sizes must match");
+            MIGRAPHX_EXPECT(target[axis + i] == in_dims[i],
+                            "BROADCAST: when broadcasting, succeeding sizes must match");
         }
         std::vector<Zero> bcast_strides(target.size(), zero);
         std::copy(in_strides.begin(), in_strides.end(), bcast_strides.begin() + axis);
@@ -117,21 +117,17 @@ struct broadcast
 
         auto output =
             build_output(s0.type(), broadcast_lens, s0.lens(), s0.strides(), std::size_t{0});
-        if(output.elements() < s0.elements())
-        {
-            // don't think this can occur?
-            MIGRAPHX_THROW("BROADCAST: output size must be greater than or equal to s0 size");
-        }
+        // don't think this can occur?
+        MIGRAPHX_EXPECT(output.elements() >= s0.elements(),
+                        "BROADCAST: output size must be greater than or equal to s0 size");
         return output;
     }
 
     shape compute_shape_2in(shape s0, shape s1) const
     {
-        if(s0.ndim() != 1)
-        {
-            MIGRAPHX_THROW("BROADCAST_2in: s0 has ndim " + migraphx::to_string(s0.ndim()) +
-                           ", only handle ndim = 1");
-        }
+        MIGRAPHX_EXPECT(s0.ndim() == 1,
+                        "BROADCAST_2in: s0 has ndim " + migraphx::to_string(s0.ndim()) +
+                            ", only handle ndim = 1");
 
         if(s0.symbolic() or s1.symbolic())
         {

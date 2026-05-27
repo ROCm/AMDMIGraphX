@@ -24,15 +24,19 @@
 
 include_guard(GLOBAL)
 
+if(NOT BUILD_SHARED_LIBS)
+    set(EMBED_USE_DEFAULT CArrays)
+elseif(WIN32)
+    set(EMBED_USE_DEFAULT RC)
+else()
+    set(EMBED_USE_DEFAULT LD)
+endif()
+
 if(WIN32)
-    set(EMBED_USE RC CACHE STRING "Use RC or CArrays to embed data files")
+    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use RC or CArrays to embed data files")
     set_property(CACHE EMBED_USE PROPERTY STRINGS "RC;CArrays")
 else()
-    if(BUILD_SHARED_LIBS)
-        set(EMBED_USE LD CACHE STRING "Use LD or CArrays to embed data files")
-    else()
-        set(EMBED_USE CArrays CACHE STRING "Use LD or CArrays to embed data files")
-    endif()
+    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use LD or CArrays to embed data files")
     set_property(CACHE EMBED_USE PROPERTY STRINGS "LD;CArrays")
 endif()
 
@@ -216,7 +220,7 @@ function(embed_file FILE BASE_DIRECTORY)
         # wraps the hex string into multiple lines
         embed_wrap_string(VARIABLE HEX_STRING AT_COLUMN 80)
         # adds '0x' prefix and comma suffix before and after every byte respectively
-        string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1, " ARRAY_VALUES ${HEX_STRING})
+        string(REGEX REPLACE "([0-9a-f][0-9a-f])" "static_cast<char>(0x\\1), " ARRAY_VALUES ${HEX_STRING})
         # removes trailing comma
         string(REGEX REPLACE ", $" "" ARRAY_VALUES ${ARRAY_VALUES})
         file(WRITE "${OUTPUT_FILE}" "
@@ -258,7 +262,14 @@ function(add_embed_library EMBED_NAME)
         target_sources(${INTERNAL_EMBED_LIB} PRIVATE ${OUTPUT_FILES})
     endif()
     target_include_directories(${INTERNAL_EMBED_LIB} PRIVATE "${EMBED_DIR}/include")
-    target_compile_options(${INTERNAL_EMBED_LIB} PRIVATE -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
+    # Disable extra warnings
+    foreach(COMPILER_WARNING -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
+        string(MAKE_C_IDENTIFIER "HAS_CXX_FLAG${COMPILER_WARNING}" HAS_COMPILER_WARNING)
+        check_cxx_compiler_flag(${COMPILER_WARNING} ${HAS_COMPILER_WARNING})
+        if(${HAS_COMPILER_WARNING})
+            target_compile_options(${INTERNAL_EMBED_LIB} PRIVATE ${COMPILER_WARNING})
+        endif()
+    endforeach()
     set_target_properties(${INTERNAL_EMBED_LIB} PROPERTIES POSITION_INDEPENDENT_CODE On)
     add_library(${EMBED_NAME} INTERFACE)
     if(EMBED_USE STREQUAL "RC")
@@ -268,6 +279,6 @@ function(add_embed_library EMBED_NAME)
     else()
         target_sources(${EMBED_NAME} INTERFACE $<TARGET_OBJECTS:${INTERNAL_EMBED_LIB}>)
     endif()
-    target_include_directories(${EMBED_NAME} INTERFACE "${EMBED_DIR}/include")
+    target_include_directories(${EMBED_NAME} INTERFACE "$<BUILD_INTERFACE:${EMBED_DIR}/include>")
 endfunction()
 

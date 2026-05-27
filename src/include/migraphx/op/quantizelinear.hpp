@@ -104,8 +104,7 @@ struct quantizelinear
                         fesetround(FE_TONEAREST);
                         auto rounded = std::nearbyint(input[i] / scales[i]);
                         fesetround(rounding_mode);
-                        quantized = static_cast<double>(rounded) +
-                                    static_cast<double>(zero_pts[i]);
+                        quantized = static_cast<double>(rounded) + static_cast<double>(zero_pts[i]);
                     }
                     else
                     {

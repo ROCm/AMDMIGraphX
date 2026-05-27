@@ -314,8 +314,8 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // LDS slots are per-wave and there is no cross-wave sharing — in that
     // case we skip LDS entirely and stream U directly from global into the
     // WMMA A operand (the buffer cache handles reuse within the wave).
-    constexpr bool u_via_lds      = (SK == 1);
-    constexpr index_int u_slots   = u_via_lds ? KW : 1;
+    constexpr bool u_via_lds       = (SK == 1);
+    constexpr index_int u_slots    = u_via_lds ? KW : 1;
     constexpr index_int u_slot_len = 16 * BK * CB;
     constexpr index_int u_smem_len = u_via_lds ? u_slots * u_slot_len : 1;
     __shared__ uninitialized_buffer<half, u_smem_len> u_smem;
@@ -386,14 +386,14 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const int v_j0       = -w0;
     const int v_j1       = static_cast<int>(W_in) - w0;
     const int32_t hw_off = h0 * sh_b + w0 * sw_b;
-    const bool v_hok0 = (0 >= v_i0 and 0 < v_i1);
-    const bool v_hok1 = (1 >= v_i0 and 1 < v_i1);
-    const bool v_hok2 = (2 >= v_i0 and 2 < v_i1);
-    const bool v_hok3 = (3 >= v_i0 and 3 < v_i1);
-    const bool v_wok0 = (0 >= v_j0 and 0 < v_j1);
-    const bool v_wok1 = (1 >= v_j0 and 1 < v_j1);
-    const bool v_wok2 = (2 >= v_j0 and 2 < v_j1);
-    const bool v_wok3 = (3 >= v_j0 and 3 < v_j1);
+    const bool v_hok0    = (0 >= v_i0 and 0 < v_i1);
+    const bool v_hok1    = (1 >= v_i0 and 1 < v_i1);
+    const bool v_hok2    = (2 >= v_i0 and 2 < v_i1);
+    const bool v_hok3    = (3 >= v_i0 and 3 < v_i1);
+    const bool v_wok0    = (0 >= v_j0 and 0 < v_j1);
+    const bool v_wok1    = (1 >= v_j0 and 1 < v_j1);
+    const bool v_wok2    = (2 >= v_j0 and 2 < v_j1);
+    const bool v_wok3    = (3 >= v_j0 and 3 < v_j1);
 
     // c-block range for this wave (= [0, cblocks) when SK=1; partitioned
     // round-robin across the SK waves of an NT-group when SK>1).
@@ -437,13 +437,12 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 if(sw_b == 2)
                 {
                     repeat_c<4>([&](auto i) {
-                        const int32_t row_off =
-                            hi[i] ? off + static_cast<int>(i) * sh_b : oob_byte;
-                        auto row     = buffer_load_half4(x_rsrc, row_off);
-                        d[i * 4 + 0] = wj[0] ? row.x : hzero;
-                        d[i * 4 + 1] = wj[1] ? row.y : hzero;
-                        d[i * 4 + 2] = wj[2] ? row.z : hzero;
-                        d[i * 4 + 3] = wj[3] ? row.w : hzero;
+                        const int32_t row_off = hi[i] ? off + static_cast<int>(i) * sh_b : oob_byte;
+                        auto row              = buffer_load_half4(x_rsrc, row_off);
+                        d[i * 4 + 0]          = wj[0] ? row.x : hzero;
+                        d[i * 4 + 1]          = wj[1] ? row.y : hzero;
+                        d[i * 4 + 2]          = wj[2] ? row.z : hzero;
+                        d[i * 4 + 3]          = wj[3] ? row.w : hzero;
                     });
                 }
                 else
@@ -707,8 +706,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         auto b1                  = load_v(wp_i * 4 + 1, c_offset);
                         auto b2                  = load_v(wp_i * 4 + 2, c_offset);
                         auto b3                  = load_v(wp_i * 4 + 3, c_offset);
-                        wmma_quad_asm(
-                            ur.u0, b0, ur.u1, b1, ur.u2, b2, ur.u3, b3, m0, m1, m2, m3);
+                        wmma_quad_asm(ur.u0, b0, ur.u1, b1, ur.u2, b2, ur.u3, b3, m0, m1, m2, m3);
                     }
                 }
                 fold_row(_c<k_idx>, _c<wp_i>, m0, m1, m2, m3);

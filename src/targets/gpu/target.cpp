@@ -255,8 +255,8 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     pipeline_factory p{&gctx, options};
 
     std::vector<std::vector<pass>> pipelines;
-    
-    if (options.compile_mode == compile_modes::eager)
+
+    if(options.compile_mode == compile_modes::eager)
     {
         pipelines = {
             p.dynamic_shapes_pipeline(),

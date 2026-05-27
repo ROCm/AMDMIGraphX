@@ -31,63 +31,20 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/builtin.hpp>
-#include <cstdlib>
 #include <set>
 #include <test.hpp>
 #include <algorithm>
 
-// Cross-platform env helpers (Windows has _putenv_s instead of setenv).
-namespace {
-inline int set_env(const char* name, const char* value)
-{
-#ifdef _WIN32
-    return _putenv_s(name, value);
-#else
-    return ::setenv(name, value, /*overwrite=*/1);
-#endif
-}
-inline int unset_env(const char* name)
-{
-#ifdef _WIN32
-    return _putenv_s(name, "");
-#else
-    return ::unsetenv(name);
-#endif
-}
-} // namespace
-
-namespace {
-// RAII guard that turns MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS on for the
-// lifetime of the guard and restores the prior value on destruction.  Lets a
-// single test binary mix bucket-mode and default-mode test cases without
-// polluting the environment across tests.
-struct bucket_env_guard
-{
-    static constexpr const char* name = "MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS";
-    std::string prev;
-    bool had_prev = false;
-    explicit bucket_env_guard(const char* value)
-    {
-        if(auto* p = std::getenv(name))
-        {
-            prev     = p;
-            had_prev = true;
-        }
-        set_env(name, value);
-    }
-    ~bucket_env_guard()
-    {
-        if(had_prev)
-            set_env(name, prev.c_str());
-        else
-            unset_env(name);
-    }
-};
-} // namespace
-
 static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(p, {migraphx::split_single_dyn_dim{}, migraphx::dead_code_elimination{}});
+}
+
+static void run_pass_bucket(migraphx::program& p)
+{
+    migraphx::run_passes(p,
+                         {migraphx::split_single_dyn_dim{.bucket_by_optimals = true},
+                          migraphx::dead_code_elimination{}});
 }
 
 TEST_CASE(dynamic_batch)
@@ -437,54 +394,48 @@ static migraphx::program build_bucket_add_input(const migraphx::shape::dynamic_d
     return p;
 }
 
-// With MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS=1 and optimals provided, the pass
-// must create one submodule per optimal value plus the min and max endpoints
-// instead of enumerating every integer in [min, max].
+// With `split_single_dyn_dim{.bucket_by_optimals=true}` and optimals
+// provided, the pass must create one submodule per optimal value plus
+// the min and max endpoints instead of enumerating every integer in
+// [min, max].
 TEST_CASE(dynamic_batch_bucket_only_optimals)
 {
-    bucket_env_guard guard{"1"};
-
     // Expected: submodules at min=1, optimals={10,50,90}, max=100 -> 5 buckets.
     auto p_expected = build_bucket_add_golden({1, 10, 50, 90, 100}, 1, 100);
 
     // Input: same model but with optimals annotated.
     migraphx::shape::dynamic_dimension dd{1, 100, std::set<std::size_t>{10, 50, 90}};
     auto p_actual = build_bucket_add_input(dd);
-    run_pass(p_actual);
+    run_pass_bucket(p_actual);
 
     EXPECT(p_expected == p_actual);
 }
 
-// With MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS=1 BUT no optimals supplied, the
-// pass falls back to the default enumeration behaviour (one submodule per
-// integer in [min, max]) so it remains correct even if the user opts in
-// without specifying optimals.
+// `bucket_by_optimals=true` BUT no optimals supplied: the pass falls back
+// to the default enumeration behaviour (one submodule per integer in
+// [min, max]) so it remains correct even if the user opts in without
+// specifying optimals.
 TEST_CASE(dynamic_batch_bucket_env_on_no_optimals_keeps_enumeration)
 {
-    bucket_env_guard guard{"1"};
-
     auto p_expected = build_bucket_add_golden({1, 2, 3, 4}, 1, 4);
 
     migraphx::shape::dynamic_dimension dd{1, 4};
     auto p_actual = build_bucket_add_input(dd);
-    run_pass(p_actual);
+    run_pass_bucket(p_actual);
 
     EXPECT(p_expected == p_actual);
 }
 
-// With optimals supplied but the env var unset, the pre-existing enumeration
-// behaviour must be preserved (i.e. no silent semantic change for users
-// already passing optimals while running on older builds' default).
+// With optimals supplied but `bucket_by_optimals=false`, the pre-existing
+// enumeration behaviour must be preserved (i.e. no silent semantic change
+// for users already passing optimals).
 TEST_CASE(dynamic_batch_bucket_env_off_keeps_enumeration)
 {
-    // Note: explicitly clear the env var to defend against test ordering.
-    unset_env("MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS");
-
     auto p_expected = build_bucket_add_golden({1, 2, 3, 4}, 1, 4);
 
     migraphx::shape::dynamic_dimension dd{1, 4, std::set<std::size_t>{2, 3}};
     auto p_actual = build_bucket_add_input(dd);
-    run_pass(p_actual);
+    run_pass(p_actual); // default: bucket_by_optimals=false
 
     EXPECT(p_expected == p_actual);
 }
@@ -493,15 +444,13 @@ TEST_CASE(dynamic_batch_bucket_env_off_keeps_enumeration)
 // never create unreachable submodules.
 TEST_CASE(dynamic_batch_bucket_filters_out_of_range_optimals)
 {
-    bucket_env_guard guard{"1"};
-
     // 999 is out of range -> dropped; in-range optimals 5 and 7 are kept
     // along with min=2 and max=10 -> 4 submodules total.
     auto p_expected = build_bucket_add_golden({2, 5, 7, 10}, 2, 10);
 
     migraphx::shape::dynamic_dimension dd{2, 10, std::set<std::size_t>{5, 7, 999}};
     auto p_actual = build_bucket_add_input(dd);
-    run_pass(p_actual);
+    run_pass_bucket(p_actual);
 
     EXPECT(p_expected == p_actual);
 }

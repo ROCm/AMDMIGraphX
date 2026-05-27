@@ -28,58 +28,9 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
 
-#include <cstdlib>
 #include <test.hpp>
 #include <algorithm>
 #include <cmath>
-
-// Cross-platform env helpers (Windows has _putenv_s instead of setenv).
-namespace {
-inline int set_env(const char* name, const char* value)
-{
-#ifdef _WIN32
-    return _putenv_s(name, value);
-#else
-    return ::setenv(name, value, /*overwrite=*/1);
-#endif
-}
-inline int unset_env(const char* name)
-{
-#ifdef _WIN32
-    return _putenv_s(name, "");
-#else
-    return ::unsetenv(name);
-#endif
-}
-} // namespace
-
-namespace {
-// RAII guard for MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS; mirrors the one used in
-// split_single_dyn_dim_test.cpp. Kept local so the existing
-// (non-bucket-mode) tests in this file are unaffected.
-struct bucket_env_guard
-{
-    static constexpr const char* name = "MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS";
-    std::string prev;
-    bool had_prev = false;
-    explicit bucket_env_guard(const char* value)
-    {
-        if(auto* p = std::getenv(name))
-        {
-            prev     = p;
-            had_prev = true;
-        }
-        set_env(name, value);
-    }
-    ~bucket_env_guard()
-    {
-        if(had_prev)
-            set_env(name, prev.c_str());
-        else
-            unset_env(name);
-    }
-};
-} // namespace
 
 TEST_CASE(select_module_add_test)
 {
@@ -311,8 +262,6 @@ static migraphx::program make_select_module_add_program(
 // path only kicks in when exact match fails).
 TEST_CASE(select_module_bucket_dispatch_exact_match)
 {
-    bucket_env_guard guard{"1"};
-
     // Buckets: 1, 10, 50, 100. Run with N=10 (exact match for bucket_10).
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
     p.compile(migraphx::make_target("ref"));
@@ -340,8 +289,6 @@ TEST_CASE(select_module_bucket_dispatch_exact_match)
 // so output is 0 + 6 = 6.
 TEST_CASE(select_module_bucket_dispatch_round_up_with_pad)
 {
-    bucket_env_guard guard{"1"};
-
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
     p.compile(migraphx::make_target("ref"));
 
@@ -368,32 +315,12 @@ TEST_CASE(select_module_bucket_dispatch_round_up_with_pad)
 // throw and not corrupt memory.
 TEST_CASE(select_module_bucket_dispatch_too_big_throws)
 {
-    bucket_env_guard guard{"1"};
-
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 1000);
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> input_data(200 * 4, 2.0f);
     migraphx::parameter_map params;
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {200, 4}};
-    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
-    EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
-}
-
-// When the env var is unset, bucket dispatch is disabled and a non-matching
-// input shape must throw the legacy "no compatible submodules" error rather
-// than silently doing the round-up.
-TEST_CASE(select_module_bucket_dispatch_env_off_keeps_strict_dispatch)
-{
-    // Explicitly clear in case a prior test left the var set.
-    unset_env("MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS");
-
-    auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<float> input_data(20 * 4, 2.0f);
-    migraphx::parameter_map params;
-    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {20, 4}};
     params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
@@ -406,8 +333,6 @@ TEST_CASE(select_module_bucket_dispatch_env_off_keeps_strict_dispatch)
 // bug.
 TEST_CASE(select_module_bucket_dispatch_cache_hot_loop)
 {
-    bucket_env_guard guard{"1"};
-
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
     p.compile(migraphx::make_target("ref"));
 
@@ -444,8 +369,6 @@ TEST_CASE(select_module_bucket_dispatch_cache_hot_loop)
 // This catches a cache that returns stale data after a shape change.
 TEST_CASE(select_module_bucket_dispatch_cache_alternating_shapes)
 {
-    bucket_env_guard guard{"1"};
-
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
     p.compile(migraphx::make_target("ref"));
 
@@ -480,109 +403,4 @@ TEST_CASE(select_module_bucket_dispatch_cache_alternating_shapes)
         EXPECT(std::all_of(
             v_b.begin(), v_b.end(), [](float x) { return std::fabs(x - 9.0f) < 1e-6f; }));
     }
-}
-
-// ---- compute_legacy coverage tests --------------------------------------
-//
-// The dispatch cache is bypassed via MIGRAPHX_DISABLE_SELECT_MODULE_CACHE=1.
-// Three small tests below exercise the pre-cache code path
-// (`compute_legacy`) so the codecov build reports its coverage too.
-
-namespace {
-struct kill_switch_env_guard
-{
-    static constexpr const char* name = "MIGRAPHX_DISABLE_SELECT_MODULE_CACHE";
-    std::string prev;
-    bool had_prev = false;
-    explicit kill_switch_env_guard(const char* value)
-    {
-        if(auto* p = std::getenv(name))
-        {
-            prev     = p;
-            had_prev = true;
-        }
-        set_env(name, value);
-    }
-    ~kill_switch_env_guard()
-    {
-        if(had_prev)
-            set_env(name, prev.c_str());
-        else
-            unset_env(name);
-    }
-};
-} // namespace
-
-// compute_legacy exact-match path: bucket env on, cache off, input matches a
-// bucket exactly so no fallback is needed.
-TEST_CASE(select_module_kill_switch_exact_match)
-{
-    bucket_env_guard bucket_guard{"1"};
-    kill_switch_env_guard kill_guard{"1"};
-
-    auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<float> input_data(50 * 4, 2.0f);
-    migraphx::parameter_map params;
-    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {50, 4}};
-    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
-
-    auto result = p.eval(params).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    EXPECT(results_vector.size() == std::size_t{50 * 4});
-    // NOLINTNEXTLINE(clang-diagnostic-float-equal)
-    EXPECT(std::all_of(results_vector.begin(), results_vector.end(), [](float v) {
-        return std::fabs(v - 8.0f) < 1e-6f;
-    }));
-}
-
-// compute_legacy bucket fallback path: bucket env on, cache off, input shape
-// requires round-up to a larger bucket.
-TEST_CASE(select_module_kill_switch_bucket_fallback)
-{
-    bucket_env_guard bucket_guard{"1"};
-    kill_switch_env_guard kill_guard{"1"};
-
-    auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<float> input_data(20 * 4, 2.0f);
-    migraphx::parameter_map params;
-    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {20, 4}};
-    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
-
-    auto result = p.eval(params).back();
-    std::vector<float> results_vector;
-    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
-    // Should have dispatched to dim_50 and zero-padded the remainder.
-    EXPECT(results_vector.size() == std::size_t{50 * 4});
-    for(std::size_t i = 0; i < 20 * 4; ++i)
-    {
-        // NOLINTNEXTLINE(clang-diagnostic-float-equal)
-        EXPECT(std::fabs(results_vector[i] - 8.0f) < 1e-6f);
-    }
-    for(std::size_t i = 20 * 4; i < 50 * 4; ++i)
-    {
-        // NOLINTNEXTLINE(clang-diagnostic-float-equal)
-        EXPECT(std::fabs(results_vector[i] - 6.0f) < 1e-6f);
-    }
-}
-
-// compute_legacy throw path: bucket env on, cache off, input shape exceeds
-// every bucket so dispatch must throw.
-TEST_CASE(select_module_kill_switch_too_big_throws)
-{
-    bucket_env_guard bucket_guard{"1"};
-    kill_switch_env_guard kill_guard{"1"};
-
-    auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 1000);
-    p.compile(migraphx::make_target("ref"));
-
-    std::vector<float> input_data(200 * 4, 2.0f);
-    migraphx::parameter_map params;
-    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {200, 4}};
-    params["data"] = migraphx::argument(input_fixed_shape, input_data.data());
-    EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }

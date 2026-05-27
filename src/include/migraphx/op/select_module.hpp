@@ -37,9 +37,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_SELECT_MODULE_CACHE)
-
 // Hash a sequence of argument shapes into a single 64-bit token. We hash
 // type + lens (strides intentionally excluded so callers can pass strided
 // views and still hit the cache). This is the dispatch-cache key.
@@ -190,33 +187,6 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        // Runtime kill-switch for the cache (mainly for A/B benchmarks
-        // and emergency rollback).  Defaults to OFF (cache enabled).
-        // Cached statically on first call to avoid the env lookup cost
-        // on the hot path.  When set, the entire cache infrastructure
-        // is bypassed -- no read, no populate -- so the measured cost
-        // matches the pre-cache implementation.
-        // cppcheck-suppress migraphx-UseCachedEnvVar
-        // Uncached so tests in the same binary that toggle this env
-        // var (kill-switch coverage tests) can actually flip the path.
-        const bool cache_disabled = enabled("MIGRAPHX_DISABLE_SELECT_MODULE_CACHE");
-        if(cache_disabled)
-            return compute_legacy(args, submodule_list, run);
-
-        // When there are very few submodules to scan, the slow path's
-        // find_if + a handful of get_parameter_names/get_parameter_shapes
-        // allocations cost less than the cache's hash + populate +
-        // managed-vector lookups on every call. Empirically (MI308X
-        // 10000-iter median of 5) the cache fast-path starts paying off
-        // around 4+ submodules.  Below that threshold the cache is
-        // either neutral (lost in noise) or slightly worse, so we just
-        // use the legacy code path.  The freeze path has 0 submodules
-        // and bypasses select_module entirely, so this threshold only
-        // affects bucket-dispatch users with a small number of optimals.
-        static constexpr std::size_t cache_min_submodules = 4;
-        if(submodule_list.size() < cache_min_submodules)
-            return compute_legacy(args, submodule_list, run);
-
         // ---- Fast path: dispatch cache hit ----
         // If we already chose a submodule for this exact input-shape
         // signature on a previous call, skip the entire find_if scan,
@@ -244,13 +214,14 @@ struct select_module
                                   });
             });
 
-        // 2) Smallest-bucket fallback if bucket dispatch is enabled.
+        // 2) Smallest-bucket fallback: always available, since the submodule
+        //    list is fixed at compile time -- whether buckets are present is
+        //    decided by split_single_dyn_dim{.bucket_by_optimals=...}.  At
+        //    runtime, if no exact match is found and a larger-or-equal
+        //    bucket exists, dispatch there (input is host-padded to the
+        //    bucket shape on the ref backend; GPU callers pre-pad).
         bool bucket_dispatch = false;
-        // cppcheck-suppress migraphx-UseCachedEnvVar
-        // Uncached so the bucket-dispatch behaviour responds to env
-        // toggles between tests within the same binary.  The compute()
-        // hot path is gated on first-hit anyway.
-        if(module_iter == submodule_list.end() and enabled("MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS"))
+        if(module_iter == submodule_list.end())
         {
             module_iter =
                 find_smallest_compatible_submodule(submodule_list, args, [this](module_ref mr) {
@@ -286,104 +257,6 @@ struct select_module
         dispatch_cache.valid            = true;
 
         return compute_with_cache(args, submodule_list, run);
-    }
-
-    // Pre-cache implementation kept verbatim so MIGRAPHX_DISABLE_SELECT_MODULE_CACHE
-    // measures a true A/B baseline.  Identical to compute() at HEAD~ before
-    // the dispatch cache was introduced -- linear find_if over submodules,
-    // fresh get_input/output_parameter_names allocations per call, fresh
-    // get_parameter_shapes map per call.
-    argument
-    compute_legacy(const std::vector<argument>& args,
-                   const std::vector<module_ref>& submodule_list,
-                   const std::function<std::vector<argument>(
-                       module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
-    {
-        auto module_iter =
-            std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
-                auto in_param_names = get_input_parameter_names(mr);
-                auto param_shapes   = mr->get_parameter_shapes();
-                assert(in_param_names.size() <= args.size());
-                return std::equal(in_param_names.cbegin(),
-                                  in_param_names.cend(),
-                                  args.cbegin(),
-                                  [&](const auto& p_name, const auto& a) {
-                                      return a.get_shape() == param_shapes[p_name];
-                                  });
-            });
-
-        bool bucket_dispatch = false;
-        // cppcheck-suppress migraphx-UseCachedEnvVar
-        // Uncached so the bucket-dispatch behaviour responds to env
-        // toggles between tests within the same binary.  The compute()
-        // hot path is gated on first-hit anyway.
-        if(module_iter == submodule_list.end() and enabled("MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS"))
-        {
-            module_iter =
-                find_smallest_compatible_submodule(submodule_list, args, [this](module_ref mr) {
-                    return this->get_input_parameter_names(mr);
-                });
-            bucket_dispatch = (module_iter != submodule_list.end());
-        }
-
-        if(module_iter == submodule_list.end())
-        {
-            MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
-        }
-
-        auto* module_to_run = *module_iter;
-        std::unordered_map<std::string, argument> p_map;
-        auto in_param_names = get_input_parameter_names(module_to_run);
-        assert(in_param_names.size() <= args.size());
-        if(bucket_dispatch)
-        {
-            auto param_shapes = module_to_run->get_parameter_shapes();
-            for(std::size_t i = 0; i < in_param_names.size(); ++i)
-            {
-                const auto& name = in_param_names[i];
-                const auto& a    = args[i];
-                const auto& ps   = param_shapes.at(name);
-                if(a.get_shape() == ps)
-                {
-                    p_map.emplace(name, a);
-                }
-                else
-                {
-                    argument padded{ps};
-                    std::memset(padded.data(), 0, ps.bytes());
-                    std::memcpy(padded.data(), a.data(), a.get_shape().bytes());
-                    p_map.emplace(name, std::move(padded));
-                }
-            }
-        }
-        else
-        {
-            std::transform(in_param_names.begin(),
-                           in_param_names.end(),
-                           args.begin(),
-                           std::inserter(p_map, p_map.end()),
-                           [&](auto&& name, auto&& a) { return std::make_pair(name, a); });
-        }
-
-        auto out_param_names    = get_output_parameter_names(module_to_run);
-        auto param_shapes       = module_to_run->get_parameter_shapes();
-        auto output_sub_objects = args.back().get_sub_objects();
-        assert(out_param_names.size() == output_sub_objects.size());
-        std::transform(out_param_names.begin(),
-                       out_param_names.end(),
-                       output_sub_objects.begin(),
-                       std::inserter(p_map, p_map.end()),
-                       [&](auto&& name, auto&& a) {
-                           auto ps = param_shapes.at(name);
-                           if(a.get_shape() != ps)
-                           {
-                               assert(ps.bytes() <= a.get_shape().bytes());
-                               return std::make_pair(name, a.reshape(ps));
-                           }
-                           return std::make_pair(name, a);
-                       });
-        auto results = run(module_to_run, p_map);
-        return argument{results};
     }
 
     // Run the cached dispatch decision. Pulled out of compute() so both

@@ -28,6 +28,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/functional.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,6 +39,20 @@ inline namespace MIGRAPHX_INLINE_NS {
  */
 struct MIGRAPHX_EXPORT split_single_dyn_dim
 {
+    /// When true, honour dynamic_dimension::optimals: emit one submodule
+    /// per optimal value (plus the min/max endpoints) instead of one per
+    /// integer in [min, max].  Combined with select_module's
+    /// smallest-compatible-bucket fallback at runtime, this collapses
+    /// compile time and engine size from O(max-min) to O(|optimals|)
+    /// for wide dynamic ranges.  Off by default for backward compatibility.
+    bool bucket_by_optimals = false;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.bucket_by_optimals, "bucket_by_optimals"));
+    }
+
     std::string name() const { return "split_single_dyn_dim"; }
     void apply(module_pass_manager&) const;
 };

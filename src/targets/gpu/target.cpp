@@ -61,7 +61,6 @@
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_reduce.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
-#include <migraphx/freeze_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
 #include <migraphx/gpu/compile_miopen.hpp>
@@ -93,6 +92,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS)
 
 std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_options& options) const
 {
@@ -103,13 +103,16 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     // clang-format off
     return
     {
-        // freeze_dyn_dim runs first: when MIGRAPHX_DYN_DIM_FREEZE_TO=<N> is
-        // set, it rewrites every non-fixed dynamic parameter to a static
-        // shape at size N.  After that split_single_dyn_dim sees a static
-        // program and becomes a no-op.  When the env var is unset, this
-        // pass is also a no-op and split_single_dyn_dim runs as before.
-        freeze_dyn_dim{},
-        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+        // split_single_dyn_dim's bucket_by_optimals field collapses the
+        // O(max-min) submodule explosion to O(|optimals|) when the user
+        // populated dynamic_dimension::optimals.  The env var is read
+        // once here (cached form) and passed as a pass field so the
+        // pass itself stays parameter-driven and the unit tests can
+        // exercise it without env-var side effects.
+        enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                    split_single_dyn_dim{
+                        .bucket_by_optimals =
+                            enabled(MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS{})}),
         dead_code_elimination{},
         simplify_dyn_ops{},
         dead_code_elimination{},

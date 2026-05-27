@@ -30,7 +30,6 @@
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/eliminate_convert.hpp>
 #include <migraphx/eliminate_pad.hpp>
-#include <migraphx/freeze_dyn_dim.hpp>
 #include <migraphx/insert_pad.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/generate.hpp>
@@ -45,14 +44,7 @@ std::string target::name() const { return "ref"; }
 
 std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
 {
-    // freeze_dyn_dim runs first; with MIGRAPHX_DYN_DIM_FREEZE_TO=<N> it
-    // rewrites any non-fixed dynamic parameter into a static {N, ...}
-    // shape so the rest of the ref pipeline sees a fully-static program.
-    // With the env var unset the pass is a no-op and ref handles dynamic
-    // shapes natively as before.
-    return {freeze_dyn_dim{},
-            dead_code_elimination{},
-            normalize_ops{},
+    return {normalize_ops{},
             eliminate_pad{},
             dead_code_elimination{},
             insert_pad{},

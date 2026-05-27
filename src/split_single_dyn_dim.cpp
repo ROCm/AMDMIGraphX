@@ -36,8 +36,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS)
-
 struct dynamic_dimensions_check
 {
     std::string dyn_param_str;
@@ -143,13 +141,8 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         // O(|optimals|).  At runtime `select_module` dispatches any compatible
         // input shape to the smallest compatible bucket; see select_module.hpp.
         std::set<std::size_t> dim_sizes;
-        auto dim_optimals = dyn_dim.get_optimals();
-        // Honour the user opt-in via MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS.
-        // cppcheck-suppress migraphx-UseCachedEnvVar
-        // Intentionally uncached: the bucket-vs-enumerate decision
-        // must respond to env toggles within a single test binary.
-        const bool use_buckets =
-            enabled("MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS") and not dim_optimals.empty();
+        auto dim_optimals      = dyn_dim.get_optimals();
+        const bool use_buckets = this->bucket_by_optimals and not dim_optimals.empty();
         if(use_buckets)
         {
             // Include the min/max endpoints so any in-range input shape can

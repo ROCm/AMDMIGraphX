@@ -25,60 +25,20 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/mlss_conv_op.hpp>
+#include <cstring>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// Helper to insert a value into kernel_args + kernel_arg_sizes at a given index.
-// int32_t values are stored as int64_t in migraphx::value (4-byte ABI size).
-// uint32_t values are stored as uint64_t in migraphx::value (4-byte ABI size, unsigned tag).
-// uint64_t values are stored as uint64_t (8-byte ABI size).
-// float values are stored as double (4-byte ABI size).
-// uint8_t values are stored as uint64_t (1-byte ABI size).
-static void set_i32(std::map<std::size_t, value>& ka,
-                    std::map<std::size_t, std::size_t>& ks,
-                    std::size_t idx,
-                    int32_t v)
+// Store a scalar kernel argument as a value::binary blob preserving the exact byte width.
+// binary.size() encodes sizeof(T), so no parallel size map is needed.
+template <class T>
+static void set_karg(std::map<std::size_t, value>& ka, std::size_t idx, T v)
 {
-    ka[idx] = value(static_cast<int64_t>(v));
-    ks[idx] = 4;
-}
-
-static void set_u32(std::map<std::size_t, value>& ka,
-                    std::map<std::size_t, std::size_t>& ks,
-                    std::size_t idx,
-                    uint32_t v)
-{
-    ka[idx] = value(static_cast<uint64_t>(v));
-    ks[idx] = 4;
-}
-
-static void set_u64(std::map<std::size_t, value>& ka,
-                    std::map<std::size_t, std::size_t>& ks,
-                    std::size_t idx,
-                    uint64_t v)
-{
-    ka[idx] = value(v);
-    ks[idx] = 8;
-}
-
-static void set_f32(std::map<std::size_t, value>& ka,
-                    std::map<std::size_t, std::size_t>& ks,
-                    std::size_t idx,
-                    float v)
-{
-    ka[idx] = value(static_cast<double>(v));
-    ks[idx] = 4;
-}
-
-static void set_u8(std::map<std::size_t, value>& ka,
-                   std::map<std::size_t, std::size_t>& ks,
-                   std::size_t idx,
-                   uint8_t v)
-{
-    ka[idx] = value(static_cast<uint64_t>(v));
-    ks[idx] = 1;
+    value::binary b(sizeof(T));
+    std::memcpy(b.data(), &v, sizeof(T));
+    ka[idx] = value(std::move(b));
 }
 
 struct mlss_conv_compiler : compiler<mlss_conv_compiler>
@@ -121,7 +81,6 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         // kernel_execution_conv_fp32_f2x3_stride1_cg64_kg128.cpp
         // -----------------------------------------------------------------------
         std::map<std::size_t, value> kernel_args;
-        std::map<std::size_t, std::size_t> kernel_arg_sizes;
         std::map<std::size_t, std::size_t> runtime_arg_indices;
 
         int32_t N     = static_cast<int32_t>(in_lens[0]);
@@ -176,74 +135,74 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         int32_t o_G_stride = o_N_stride;
 
         // 0x00-0x14: N, Cg, H, W, Kg, ng
-        set_i32(kernel_args, kernel_arg_sizes, 0, N);
-        set_i32(kernel_args, kernel_arg_sizes, 1, Cg);
-        set_i32(kernel_args, kernel_arg_sizes, 2, H);
-        set_i32(kernel_args, kernel_arg_sizes, 3, W);
-        set_i32(kernel_args, kernel_arg_sizes, 4, Kg);
-        set_i32(kernel_args, kernel_arg_sizes, 5, ng);
+        set_karg(kernel_args, 0, N);
+        set_karg(kernel_args, 1, Cg);
+        set_karg(kernel_args, 2, H);
+        set_karg(kernel_args, 3, W);
+        set_karg(kernel_args, 4, Kg);
+        set_karg(kernel_args, 5, ng);
         // 0x18: flags64
-        set_u64(kernel_args, kernel_arg_sizes, 6, flags64);
+        set_karg(kernel_args, 6, flags64);
         // 0x20: p_data (runtime arg 0)
-        set_u64(kernel_args, kernel_arg_sizes, 7, uint64_t{0});
+        set_karg(kernel_args, 7, uint64_t{0});
         runtime_arg_indices[7] = 0;
         // 0x28: p_filter (runtime arg 1)
-        set_u64(kernel_args, kernel_arg_sizes, 8, uint64_t{0});
+        set_karg(kernel_args, 8, uint64_t{0});
         runtime_arg_indices[8] = 1;
         // 0x30: p_output (runtime arg: last)
-        set_u64(kernel_args, kernel_arg_sizes, 9, uint64_t{0});
+        set_karg(kernel_args, 9, uint64_t{0});
         runtime_arg_indices[9] = inputs.size() - 1;
         // 0x38: reserved3
-        set_u64(kernel_args, kernel_arg_sizes, 10, uint64_t{0});
+        set_karg(kernel_args, 10, uint64_t{0});
         int32_t pad_h = cur_padding.size() > 0 ? static_cast<int32_t>(cur_padding[0]) : 0;
         int32_t pad_w = cur_padding.size() > 1 ? static_cast<int32_t>(cur_padding[1]) : 0;
 
         // 0x40-0x54: R, S, pad_h, pad_w, out_h, out_w
-        set_i32(kernel_args, kernel_arg_sizes, 11, R);
-        set_i32(kernel_args, kernel_arg_sizes, 12, S);
-        set_i32(kernel_args, kernel_arg_sizes, 13, pad_h);
-        set_i32(kernel_args, kernel_arg_sizes, 14, pad_w);
-        set_i32(kernel_args, kernel_arg_sizes, 15, out_h);
-        set_i32(kernel_args, kernel_arg_sizes, 16, out_w);
+        set_karg(kernel_args, 11, R);
+        set_karg(kernel_args, 12, S);
+        set_karg(kernel_args, 13, pad_h);
+        set_karg(kernel_args, 14, pad_w);
+        set_karg(kernel_args, 15, out_h);
+        set_karg(kernel_args, 16, out_w);
         // 0x58: p_bias (runtime arg 2 if has_bias, else 0)
-        set_u64(kernel_args, kernel_arg_sizes, 17, uint64_t{0});
+        set_karg(kernel_args, 17, uint64_t{0});
         if(has_bias)
             runtime_arg_indices[17] = 2;
         // 0x60: alpha, beta
-        set_f32(kernel_args, kernel_arg_sizes, 18, alpha);
-        set_f32(kernel_args, kernel_arg_sizes, 19, beta);
+        set_karg(kernel_args, 18, alpha);
+        set_karg(kernel_args, 19, beta);
         // 0x68-0x87: 8 x zero32 (d/f/o/b offsets, unused)
         for(std::size_t i = 20; i < 28; ++i)
-            set_u32(kernel_args, kernel_arg_sizes, i, 0);
+            set_karg(kernel_args, i, uint32_t{0});
         // 0x88-0x94: d_N, d_C, d_H strides + reserved4
-        set_i32(kernel_args, kernel_arg_sizes, 28, d_N_stride);
-        set_i32(kernel_args, kernel_arg_sizes, 29, d_C_stride);
-        set_i32(kernel_args, kernel_arg_sizes, 30, d_H_stride);
-        set_u32(kernel_args, kernel_arg_sizes, 31, 0); // reserved4
+        set_karg(kernel_args, 28, d_N_stride);
+        set_karg(kernel_args, 29, d_C_stride);
+        set_karg(kernel_args, 30, d_H_stride);
+        set_karg(kernel_args, 31, uint32_t{0}); // reserved4
         // 0x98-0xa4: f_K, f_C, f_R strides + reserved5
-        set_i32(kernel_args, kernel_arg_sizes, 32, f_K_stride);
-        set_i32(kernel_args, kernel_arg_sizes, 33, f_C_stride);
-        set_i32(kernel_args, kernel_arg_sizes, 34, f_R_stride);
-        set_u32(kernel_args, kernel_arg_sizes, 35, 0); // reserved5
+        set_karg(kernel_args, 32, f_K_stride);
+        set_karg(kernel_args, 33, f_C_stride);
+        set_karg(kernel_args, 34, f_R_stride);
+        set_karg(kernel_args, 35, uint32_t{0}); // reserved5
         // 0xa8-0xb4: o_N, o_K, o_H strides + reserved6
-        set_i32(kernel_args, kernel_arg_sizes, 36, o_N_stride);
-        set_i32(kernel_args, kernel_arg_sizes, 37, o_K_stride);
-        set_i32(kernel_args, kernel_arg_sizes, 38, o_H_stride);
-        set_u32(kernel_args, kernel_arg_sizes, 39, 0); // reserved6
+        set_karg(kernel_args, 36, o_N_stride);
+        set_karg(kernel_args, 37, o_K_stride);
+        set_karg(kernel_args, 38, o_H_stride);
+        set_karg(kernel_args, 39, uint32_t{0}); // reserved6
         // 0xb8-0xc4: G, d_G, f_G, o_G strides
-        set_i32(kernel_args, kernel_arg_sizes, 40, G);
-        set_i32(kernel_args, kernel_arg_sizes, 41, d_G_stride);
-        set_i32(kernel_args, kernel_arg_sizes, 42, f_G_stride);
-        set_i32(kernel_args, kernel_arg_sizes, 43, o_G_stride);
+        set_karg(kernel_args, 40, G);
+        set_karg(kernel_args, 41, d_G_stride);
+        set_karg(kernel_args, 42, f_G_stride);
+        set_karg(kernel_args, 43, o_G_stride);
         // 0xc8-0xe7: activation + sync fields (always present for bias path)
-        set_u8(kernel_args, kernel_arg_sizes, 44, activation_mode);
-        set_u8(kernel_args, kernel_arg_sizes, 45, 255); // sync_limit
-        set_u8(kernel_args, kernel_arg_sizes, 46, 0);   // sync_period
-        set_u8(kernel_args, kernel_arg_sizes, 47, 0);   // reserved8
-        set_u32(kernel_args, kernel_arg_sizes, 48, 0);  // reserved9
-        set_u64(kernel_args, kernel_arg_sizes, 49, 0);  // sync_addr
-        set_u64(kernel_args, kernel_arg_sizes, 50, 0);  // acc_addr
-        set_u64(kernel_args, kernel_arg_sizes, 51, 0);  // a_offset
+        set_karg(kernel_args, 44, activation_mode);
+        set_karg(kernel_args, 45, uint8_t{255}); // sync_limit
+        set_karg(kernel_args, 46, uint8_t{0});   // sync_period
+        set_karg(kernel_args, 47, uint8_t{0});   // reserved8
+        set_karg(kernel_args, 48, uint32_t{0});  // reserved9
+        set_karg(kernel_args, 49, uint64_t{0});  // sync_addr
+        set_karg(kernel_args, 50, uint64_t{0});  // acc_addr
+        set_karg(kernel_args, 51, uint64_t{0});  // a_offset
 
         // Compute grid dimensions
         std::size_t grid_blocks = static_cast<std::size_t>(N) * G * ng;
@@ -258,8 +217,7 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         cop.expected_inputs   = inputs;
         cop.output            = out_shape;
         cop.output_arg        = static_cast<std::int64_t>(inputs.size() - 1);
-        cop.kernel_args       = std::move(kernel_args);
-        cop.kernel_arg_sizes  = std::move(kernel_arg_sizes);
+        cop.kernel_args         = std::move(kernel_args);
         cop.runtime_arg_indices = std::move(runtime_arg_indices);
 
         return cop;

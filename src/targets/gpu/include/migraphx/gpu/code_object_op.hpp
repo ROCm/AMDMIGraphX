@@ -48,12 +48,11 @@ struct code_object_op
     std::int64_t output_arg = -1;
 
     // Pre-computed scalar kernel arguments, keyed by position in the kernarg buffer.
-    // Values are stored via migraphx::value (int32->int64, float->double, uint8->uint64).
-    // kernel_arg_sizes maps each index to the exact byte size (1, 4, or 8) for pack_args.
+    // Each value is a value::binary blob containing the raw bytes of the scalar
+    // (binary.size() == 1, 4, or 8 encodes the exact byte width).
     // runtime_arg_indices maps kernarg indices to runtime args[] positions for buffer pointers
     // that are only known at compute() time (stored as uint64_t{0} placeholders at fusion time).
     std::map<std::size_t, value> kernel_args{};
-    std::map<std::size_t, std::size_t> kernel_arg_sizes{};
     std::map<std::size_t, std::size_t> runtime_arg_indices{};
 
     kernel k{};
@@ -69,7 +68,6 @@ struct code_object_op
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"),
                     f(self.kernel_args, "kernel_args"),
-                    f(self.kernel_arg_sizes, "kernel_arg_sizes"),
                     f(self.runtime_arg_indices, "runtime_arg_indices"));
     }
 

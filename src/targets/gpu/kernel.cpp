@@ -156,6 +156,18 @@ void kernel::launch(hipStream_t stream,
     launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, start, stop);
 }
 
+void kernel::launch(hipStream_t stream,
+                    std::size_t global,
+                    std::size_t local,
+                    void* kernargs,
+                    std::size_t kernargs_size,
+                    hipEvent_t start,
+                    hipEvent_t stop) const
+{
+    assert(impl != nullptr);
+    launch_kernel(impl->fun, stream, global, local, kernargs, kernargs_size, start, stop);
+}
+
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

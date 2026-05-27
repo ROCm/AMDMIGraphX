@@ -83,6 +83,14 @@ struct MIGRAPHX_GPU_EXPORT kernel
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
 
+    void launch(hipStream_t stream,
+                std::size_t global,
+                std::size_t local,
+                void* kernargs,
+                std::size_t kernargs_size,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const;
+
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {

@@ -25,7 +25,6 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pmr/vector.hpp>
-#include <any>
 #include <cstring>
 
 namespace migraphx {
@@ -70,72 +69,26 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
         f(args);
 }
 
-// Convert a value::binary kernel arg into a kernel_argument.
-// The binary blob's size (1, 4, or 8) determines the ABI type.
-// We memcpy into a std::any-held scalar so the pointer stays valid for pack_args.
-static void push_karg(std::vector<kernel_argument>& kargs,
-                      std::vector<std::any>& storage,
-                      const value& v)
-{
-    const auto& bin = v.get_binary();
-    auto sz         = bin.size();
-    switch(sz)
-    {
-    case 1:
-    {
-        auto& ref = storage.emplace_back(bin[0]);
-        kargs.emplace_back(*std::any_cast<uint8_t>(&ref));
-        break;
-    }
-    case 4:
-    {
-        uint32_t tmp;
-        std::memcpy(&tmp, bin.data(), 4);
-        auto& ref = storage.emplace_back(tmp);
-        kargs.emplace_back(*std::any_cast<uint32_t>(&ref));
-        break;
-    }
-    case 8:
-    {
-        uint64_t tmp;
-        std::memcpy(&tmp, bin.data(), 8);
-        auto& ref = storage.emplace_back(tmp);
-        kargs.emplace_back(*std::any_cast<uint64_t>(&ref));
-        break;
-    }
-    default: MIGRAPHX_THROW("push_karg: unsupported size " + std::to_string(sz));
-    }
-}
 
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    if(not kernel_args.empty())
+    if(not packed_kernargs.empty())
     {
-        // Patch buffer pointers into a mutable copy of kernel_args
-        auto local_args = kernel_args;
-        for(const auto& [karg_idx, arg_idx] : runtime_arg_indices)
+        // Fast path: stack-copy pre-packed buffer, patch pointer slots, launch.
+        alignas(8) char buf[512];
+        auto sz = packed_kernargs.size();
+        assert(sz <= sizeof(buf));
+        std::memcpy(buf, packed_kernargs.data(), sz);
+
+        for(const auto& [arg_idx, byte_offset] : runtime_arg_offsets)
         {
             auto ptr = reinterpret_cast<uint64_t>(args[arg_idx].data());
-            value::binary b(sizeof(uint64_t));
-            std::memcpy(b.data(), &ptr, sizeof(uint64_t));
-            local_args[karg_idx] = value(std::move(b));
-        }
-
-        // Build kernel_argument vector in index order.
-        // std::any storage keeps cast-back values alive for pack_args.
-        std::vector<kernel_argument> kargs;
-        std::vector<std::any> storage;
-        kargs.reserve(local_args.size());
-        storage.reserve(local_args.size());
-
-        for(auto& [idx, v] : local_args)
-        {
-            push_karg(kargs, storage, v);
+            std::memcpy(buf + byte_offset, &ptr, sizeof(uint64_t));
         }
 
         auto [start, stop] = ctx.get_perf_events();
-        k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+        k.launch(ctx.get_stream().get(), global, local, buf, sz, start, stop);
     }
     else
     {
@@ -162,6 +115,36 @@ void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
 {
     assert(not code_object.empty());
     k = kernel(code_object, symbol_name);
+
+    if(kernel_args.empty())
+        return;
+
+    // Pre-pack kernel_args into a flat aligned buffer.
+    packed_kernargs.clear();
+    packed_kernargs.reserve(512);
+    runtime_arg_offsets.clear();
+
+    for(const auto& [idx, v] : kernel_args)
+    {
+        const auto& bin = v.get_binary();
+        auto sz         = bin.size();
+        auto align      = sz; // align == size for 1/4/8
+
+        // Insert alignment padding
+        std::size_t padding = (align - (packed_kernargs.size() % align)) % align;
+        packed_kernargs.insert(packed_kernargs.end(), padding, 0);
+
+        // Record offset for runtime pointer slots
+        if(runtime_arg_indices.count(idx))
+        {
+            runtime_arg_offsets.emplace_back(runtime_arg_indices.at(idx),
+                                             packed_kernargs.size());
+        }
+
+        // Append raw bytes
+        packed_kernargs.insert(
+            packed_kernargs.end(), bin.data(), bin.data() + sz);
+    }
 }
 
 } // namespace gpu

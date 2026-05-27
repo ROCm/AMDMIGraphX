@@ -55,6 +55,11 @@ struct code_object_op
     std::map<std::size_t, value> kernel_args{};
     std::map<std::size_t, std::size_t> runtime_arg_indices{};
 
+    // Pre-packed kernarg buffer built in finalize(); not reflected.
+    std::vector<char> packed_kernargs{};
+    // (runtime arg index, byte offset) pairs for pointer patching in compute().
+    std::vector<std::pair<std::size_t, std::size_t>> runtime_arg_offsets{};
+
     kernel k{};
 
     template <class Self, class F>

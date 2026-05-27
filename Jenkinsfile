@@ -175,7 +175,9 @@ def autoSetGitStatus = { Map conf = [:], Closure body ->
 @NonCPS
 def parseStageSuccess(String jsonText, String context) {
     def json = new groovy.json.JsonSlurper().parseText(jsonText)
-    return json.statuses?.any { it.context == context && it.state == "success" } ?: false
+    // Statuses are returned newest-first; only the latest for this context is authoritative.
+    def latest = json.statuses?.find { it.context == context }
+    return latest?.state == "success"
 }
 
 def isStageCompleted(String stageName) {
@@ -188,18 +190,23 @@ def isStageCompleted(String stageName) {
     }
     def context = "Jenkins - ${stageName}"
     def result = false
-    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
-        def response = sh(
-            script: """
-                curl -s -L \
-                    -H "Accept: application/vnd.github+json" \
-                    -H "Authorization: Bearer \$TOKEN" \
-                    -H "X-GitHub-Api-Version: 2022-11-28" \
-                    "https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/commits/${commitSha}/status"
-            """,
-            returnStdout: true
-        ).trim()
-        result = parseStageSuccess(response, context)
+    try {
+        withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+            def response = sh(
+                script: """
+                    curl -s -L \
+                        -H "Accept: application/vnd.github+json" \
+                        -H "Authorization: Bearer \$TOKEN" \
+                        -H "X-GitHub-Api-Version: 2022-11-28" \
+                        "https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/commits/${commitSha}/status"
+                """,
+                returnStdout: true
+            ).trim()
+            result = parseStageSuccess(response, context)
+        }
+    } catch (Exception e) {
+        echo "Warning: could not query GitHub status for '${stageName}': ${e.message}"
+        return false
     }
     if (result) {
         echo "Stage '${stageName}' already succeeded for commit ${commitSha}. Skipping."

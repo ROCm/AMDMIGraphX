@@ -169,9 +169,6 @@ TEST_CASE_REGISTER(quantizelinear_fp8e5m2<migraphx::fp8::fp8e5m2>);
 
 TEST_CASE(quantizelinear_nan_int8)
 {
-    // NaN inputs must saturate to the integer minimum (matches ONNX Runtime
-    // CPUExecutionProvider). Without explicit handling NaN would propagate
-    // through std::min/std::max and silently saturate to the integer maximum.
     migraphx::shape xs{migraphx::shape::float_type, {6}};
     const float nan       = std::numeric_limits<float>::quiet_NaN();
     std::vector<float> xv = {nan, 1.0f, -1.0f, 127.0f, -200.0f, nan};

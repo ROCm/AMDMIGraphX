@@ -88,18 +88,11 @@ struct quantizelinear
                     double quantized;
                     if constexpr(std::is_integral<quant_type>{})
                     {
-                        // NaN inputs saturate to the integer minimum to match the de facto
-                        // ONNX reference behavior (ONNX Runtime's CPU EP). Without this
-                        // explicit handling, NaN would propagate through std::min/std::max
-                        // and silently saturate to max_value.
                         if(std::isnan(static_cast<double>(input[i])))
                         {
                             output[i] = min_value;
                             return;
                         }
-                        // The rounding mode is thread-local, so set/restore it on the
-                        // worker thread that actually executes the nearbyint call
-                        // (par_for may dispatch work across multiple threads).
                         auto rounding_mode = fegetround();
                         fesetround(FE_TONEAREST);
                         auto rounded = std::nearbyint(input[i] / scales[i]);

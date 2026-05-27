@@ -307,12 +307,18 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     static_assert(CB == 16 or CB == 32, "DPP V path supports CB=16 or CB=32");
     constexpr index_int v_chunks = CB / 16;
     constexpr index_int wp_count = 16;
-    // U_lds slots: KW for SK=1 (one per k_block), NW for SK>1 (one per wave so
-    // each wave can hold its own c-block's worth of U while waves work on
-    // different c-blocks concurrently).
-    constexpr index_int u_slots    = (SK > 1) ? NW : KW;
+    // U weight staging: for SK==1 every wave of the WG reads the SAME U
+    // (same K block) at every cb iter, so the cooperative-into-LDS pattern
+    // pays for itself (one shared load served by NW lanes' worth of read
+    // bandwidth from LDS). For SK>1 each wave reads its OWN c slice, so the
+    // LDS slots are per-wave and there is no cross-wave sharing — in that
+    // case we skip LDS entirely and stream U directly from global into the
+    // WMMA A operand (the buffer cache handles reuse within the wave).
+    constexpr bool u_via_lds      = (SK == 1);
+    constexpr index_int u_slots   = u_via_lds ? KW : 1;
     constexpr index_int u_slot_len = 16 * BK * CB;
-    __shared__ uninitialized_buffer<half, u_slots * u_slot_len> u_smem;
+    constexpr index_int u_smem_len = u_via_lds ? u_slots * u_slot_len : 1;
+    __shared__ uninitialized_buffer<half, u_smem_len> u_smem;
     // y_reduce_lds: holds per-wave y_partial during the SK>1 cross-wave
     // reduce. NT_GROUPS groups × SK waves × 32 lanes × 32 fp32 (KW=1 only).
     // Sized to 1 element for SK=1 to keep the LDS allocation valid but tiny.
@@ -373,12 +379,21 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // Per-lane H/W bounds for the V load. The X buffer descriptor only
     // checks [0, byte_count), so without these the boundary tiles silently
     // wrap into adjacent rows/channels. Precomputed once per lane (h0/w0 are
-    // tile-fixed) so the cb loop's per-(i, j) check is just two compares.
-    const int v_i0         = -h0;
-    const int v_i1         = static_cast<int>(H_in) - h0;
-    const int v_j0         = -w0;
-    const int v_j1         = static_cast<int>(W_in) - w0;
-    const int32_t hw_off   = h0 * sh_b + w0 * sw_b;
+    // tile-fixed); also pre-evaluate the 4 per-i and 4 per-j masks so the cb
+    // loop's per-(i, j) check is a single AND instead of two compares.
+    const int v_i0       = -h0;
+    const int v_i1       = static_cast<int>(H_in) - h0;
+    const int v_j0       = -w0;
+    const int v_j1       = static_cast<int>(W_in) - w0;
+    const int32_t hw_off = h0 * sh_b + w0 * sw_b;
+    const bool v_hok0 = (0 >= v_i0 and 0 < v_i1);
+    const bool v_hok1 = (1 >= v_i0 and 1 < v_i1);
+    const bool v_hok2 = (2 >= v_i0 and 2 < v_i1);
+    const bool v_hok3 = (3 >= v_i0 and 3 < v_i1);
+    const bool v_wok0 = (0 >= v_j0 and 0 < v_j1);
+    const bool v_wok1 = (1 >= v_j0 and 1 < v_j1);
+    const bool v_wok2 = (2 >= v_j0 and 2 < v_j1);
+    const bool v_wok3 = (3 >= v_j0 and 3 < v_j1);
 
     // c-block range for this wave (= [0, cblocks) when SK=1; partitioned
     // round-robin across the SK waves of an NT-group when SK>1).
@@ -409,37 +424,34 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
 
                 // The X buffer descriptor only enforces a single [0,
                 // byte_count) extent — h-OOB silently wraps into the next
-                // channel, w-OOB into the next row. Push h-OOB rows to an
-                // OOB byte offset (buffer hardware returns 0) and mask w-OOB
-                // columns to 0 explicitly. Whole-lane-inactive tiles
-                // (handled upstream via `off = x_byte_count`) still take the
-                // 0 path naturally.
+                // channel, w-OOB into the next row. For sw_b == 2 we keep
+                // the fast b64 load and post-mask the w-OOB columns; the
+                // per-element fallback handles other strides. Inactive
+                // lanes have `off == x_byte_count`, so every load returns 0
+                // naturally.
                 const int32_t oob_byte = static_cast<int32_t>(x_byte_count);
+                const half hzero       = half(0.0f);
+                const bool hi[4]       = {v_hok0, v_hok1, v_hok2, v_hok3};
+                const bool wj[4]       = {v_wok0, v_wok1, v_wok2, v_wok3};
                 array<half, 16> d;
                 if(sw_b == 2)
                 {
                     repeat_c<4>([&](auto i) {
-                        const bool h_ok =
-                            (static_cast<int>(i) >= v_i0 and static_cast<int>(i) < v_i1);
-                        const int32_t row_off = h_ok ? off + static_cast<int>(i) * sh_b : oob_byte;
-                        auto row              = buffer_load_half4(x_rsrc, row_off);
-                        const half hzero      = half(0.0f);
-                        d[i * 4 + 0]          = (0 >= v_j0 and 0 < v_j1) ? row.x : hzero;
-                        d[i * 4 + 1]          = (1 >= v_j0 and 1 < v_j1) ? row.y : hzero;
-                        d[i * 4 + 2]          = (2 >= v_j0 and 2 < v_j1) ? row.z : hzero;
-                        d[i * 4 + 3]          = (3 >= v_j0 and 3 < v_j1) ? row.w : hzero;
+                        const int32_t row_off =
+                            hi[i] ? off + static_cast<int>(i) * sh_b : oob_byte;
+                        auto row     = buffer_load_half4(x_rsrc, row_off);
+                        d[i * 4 + 0] = wj[0] ? row.x : hzero;
+                        d[i * 4 + 1] = wj[1] ? row.y : hzero;
+                        d[i * 4 + 2] = wj[2] ? row.z : hzero;
+                        d[i * 4 + 3] = wj[3] ? row.w : hzero;
                     });
                 }
                 else
                 {
                     repeat_c<4>([&](auto i) {
-                        const bool h_ok =
-                            (static_cast<int>(i) >= v_i0 and static_cast<int>(i) < v_i1);
                         repeat_c<4>([&](auto j) {
-                            const bool w_ok =
-                                (static_cast<int>(j) >= v_j0 and static_cast<int>(j) < v_j1);
                             const int32_t e_off =
-                                (h_ok and w_ok)
+                                (hi[i] and wj[j])
                                     ? off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b
                                     : oob_byte;
                             d[i * 4 + j] = buffer_load_half(x_rsrc, e_off);
@@ -451,23 +463,19 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             });
         });
 
-        // ---- Cooperative U load: one b128 per task (8 fp16) ----
-        // For SK=1 the WG cooperates across all NW waves on one (k_block,
-        // c_block); slot = k_idx. For SK>1 each wave loads U into its OWN
-        // u_smem slot (slot = wave_id) so concurrent waves can work on
-        // different c-blocks without trampling each other's U.
-        static_assert(CB % 8 == 0, "CB must be a multiple of 8 for b128 U loads");
+        // ---- T (weights) loader ----
         // U is stored in global as T = G*g with shape [4, 3, K, C] — 12
         // halves per (k, c) instead of 16. The kernel applies the remaining
-        // G^T transform inline during the cooperative load:
+        // G^T transform inline at the WMMA dispatch site (see load_u_row
+        // below) and lets buffer caching handle reuse across waves of a WG:
         //   U[i,0] = T[i,0]
         //   U[i,1] = 0.5 * ((T[i,0] + T[i,2]) + T[i,1])
         //   U[i,2] = 0.5 * ((T[i,0] + T[i,2]) - T[i,1])
         //   U[i,3] = T[i,2]
-        // Each task loads 3 T b128s (one per j) for a single (i, k, c8-group)
-        // and writes 4 U b128s. Net: 25% fewer global loads, same LDS stores.
         // u_sh layout: [4, 3, K, C] → u_sh[0]=3*K*C, u_sh[1]=K*C, u_sh[2]=C,
-        // u_sh[3]=1 (typically).
+        // u_sh[3]=1 (typically). t_off computes a byte offset, load_t does
+        // one b128 (8 fp16) load.
+        static_assert(CB % 8 == 0, "CB must be a multiple of 8 for b128 U loads");
         auto t_off = [&](index_int i_t, index_int j_t, index_int k, index_int c_abs) {
             return static_cast<int32_t>(
                 (i_t * u_sh[0] + j_t * u_sh[1] + k * u_sh[2] + c_abs * u_sh[3]) * sizeof(half));
@@ -488,7 +496,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             vec<half, 8> s = t0 + t2;
             return u_row{t0, (s + t1) * half_c, (s - t1) * half_c, t2};
         };
-        if constexpr(SK == 1)
+        // Cooperative U → LDS load for SK==1 (every wave reads the same U).
+        // For SK>1 there is no cross-wave U sharing, so we skip this and
+        // stream U directly from global into the WMMA A operand below.
+        if constexpr(u_via_lds)
         {
             constexpr index_int U_TASKS = KW * 4 * BK * (CB / 8);
             idx.local_stride(_c<U_TASKS>, [&](auto task) {
@@ -523,55 +534,12 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) =
                     ur.u3;
             });
+            // Workgroup barrier so every wave sees the cooperative writes
+            // before reading them for WMMA. NW==1 has only one wave so the
+            // s_wait_dscnt the compiler inserts before the LDS read suffices.
+            if constexpr(NW > 1)
+                __syncthreads();
         }
-        else
-        {
-            // SK>1: each wave loads U for its own c-block into its own slot.
-            // KW is forced to 1 by static_assert above.
-            constexpr index_int U_TASKS_PER_WAVE = 4 * BK * (CB / 8);
-            constexpr index_int per_lane         = U_TASKS_PER_WAVE / 32;
-            for(index_int t = 0; t < per_lane; ++t)
-            {
-                const index_int task       = t * 32 + lane;
-                const index_int c_half     = task % (CB / 8);
-                const index_int rest       = task / (CB / 8);
-                const index_int k_in_block = rest % BK;
-                const index_int i_t        = rest / BK;
-                const index_int c_in_block = c_half * 8;
-                const index_int k          = k_base + k_in_block;
-                vec<half, 8> t0, t1, t2;
-                if(k < K)
-                {
-                    t0 = load_t(t_off(i_t, 0, k, c_base + c_in_block));
-                    t1 = load_t(t_off(i_t, 1, k, c_base + c_in_block));
-                    t2 = load_t(t_off(i_t, 2, k, c_base + c_in_block));
-                }
-                else
-                {
-                    t0 = vec<half, 8>{0};
-                    t1 = vec<half, 8>{0};
-                    t2 = vec<half, 8>{0};
-                }
-                auto ur = apply_gt(t0, t1, t2);
-                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 0, k_in_block, c_in_block)]) =
-                    ur.u0;
-                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 1, k_in_block, c_in_block)]) =
-                    ur.u1;
-                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 2, k_in_block, c_in_block)]) =
-                    ur.u2;
-                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 3, k_in_block, c_in_block)]) =
-                    ur.u3;
-            }
-        }
-
-        // For SK=1 the WG cooperatively loads all KW U slots and every wave
-        // reads from any of them, so we need a workgroup barrier. For SK>1
-        // each wave has its own slot (slot=wave_id) and reads only from that
-        // slot, so a wave-local wait on the LDS write is sufficient — the
-        // s_wait_dscnt the compiler inserts before the LDS read does that.
-        // NW=1 has only one wave per WG, so no inter-wave sync is ever needed.
-        if constexpr(SK == 1 and NW > 1)
-            __syncthreads();
 
         // ---- WMMA with fused incremental output transform ----
         constexpr index_int wmma_chunks = CB / 16;
@@ -654,12 +622,32 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             b.s7 = v_lane[vc][7][wp];
             return b;
         };
-        // load_u takes a k_idx (used as slot for SK=1) or, when SK>1, the
-        // wave's own U slot (= wave_id). For SK>1, k_idx is always 0 because
-        // KW is forced to 1.
-        auto load_u = [&](index_int k_idx, index_int wp, index_int c_offset) {
-            const index_int slot = (SK == 1) ? k_idx : wave_id;
-            return *as_vec<8>(&u_smem[u_cache_idx(slot, wp, m_in_wave, c_offset + c_off)]);
+        // A-operand source: either LDS (cooperative SK==1 path) or directly
+        // from global with G^T applied on the fly (SK>1 path).
+        const int32_t u_oob_byte = static_cast<int32_t>(u_byte_count);
+        auto load_u_row          = [&](index_int k_idx, index_int wp_i, index_int c_offset) {
+            if constexpr(u_via_lds)
+            {
+                u_row r;
+                r.u0 = *as_vec<8>(
+                    &u_smem[u_cache_idx(k_idx, wp_i * 4 + 0, m_in_wave, c_offset + c_off)]);
+                r.u1 = *as_vec<8>(
+                    &u_smem[u_cache_idx(k_idx, wp_i * 4 + 1, m_in_wave, c_offset + c_off)]);
+                r.u2 = *as_vec<8>(
+                    &u_smem[u_cache_idx(k_idx, wp_i * 4 + 2, m_in_wave, c_offset + c_off)]);
+                r.u3 = *as_vec<8>(
+                    &u_smem[u_cache_idx(k_idx, wp_i * 4 + 3, m_in_wave, c_offset + c_off)]);
+                return r;
+            }
+            else
+            {
+                const index_int k     = k_base + k_idx * BK + m_in_wave;
+                const index_int c_abs = c_base + c_offset + c_off;
+                const int32_t off0    = (k < K) ? t_off(wp_i, 0, k, c_abs) : u_oob_byte;
+                const int32_t off1    = (k < K) ? t_off(wp_i, 1, k, c_abs) : u_oob_byte;
+                const int32_t off2    = (k < K) ? t_off(wp_i, 2, k, c_abs) : u_oob_byte;
+                return apply_gt(load_t(off0), load_t(off1), load_t(off2));
+            }
         };
 
         repeat_c<KW>([&](auto k_idx_val) {
@@ -669,38 +657,32 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 vec<float, 8> m0{}, m1{}, m2{}, m3{};
                 if constexpr(wmma_chunks == 2)
                 {
-                    auto a0 = load_u(k_idx, wp_i * 4 + 0, 0);
-                    auto b0 = load_v(wp_i * 4 + 0, 0);
-                    auto a1 = load_u(k_idx, wp_i * 4 + 1, 0);
-                    auto b1 = load_v(wp_i * 4 + 1, 0);
-                    auto a2 = load_u(k_idx, wp_i * 4 + 2, 0);
-                    auto b2 = load_v(wp_i * 4 + 2, 0);
-                    auto a3 = load_u(k_idx, wp_i * 4 + 3, 0);
-                    auto b3 = load_v(wp_i * 4 + 3, 0);
-                    auto a4 = load_u(k_idx, wp_i * 4 + 0, 16);
-                    auto b4 = load_v(wp_i * 4 + 0, 16);
-                    auto a5 = load_u(k_idx, wp_i * 4 + 1, 16);
-                    auto b5 = load_v(wp_i * 4 + 1, 16);
-                    auto a6 = load_u(k_idx, wp_i * 4 + 2, 16);
-                    auto b6 = load_v(wp_i * 4 + 2, 16);
-                    auto a7 = load_u(k_idx, wp_i * 4 + 3, 16);
-                    auto b7 = load_v(wp_i * 4 + 3, 16);
+                    auto u_lo = load_u_row(k_idx, wp_i, 0);
+                    auto b0   = load_v(wp_i * 4 + 0, 0);
+                    auto b1   = load_v(wp_i * 4 + 1, 0);
+                    auto b2   = load_v(wp_i * 4 + 2, 0);
+                    auto b3   = load_v(wp_i * 4 + 3, 0);
+                    auto u_hi = load_u_row(k_idx, wp_i, 16);
+                    auto b4   = load_v(wp_i * 4 + 0, 16);
+                    auto b5   = load_v(wp_i * 4 + 1, 16);
+                    auto b6   = load_v(wp_i * 4 + 2, 16);
+                    auto b7   = load_v(wp_i * 4 + 3, 16);
                     vec<float, 8> m4{}, m5{}, m6{}, m7{};
-                    wmma_octet_asm(a0,
+                    wmma_octet_asm(u_lo.u0,
                                    b0,
-                                   a1,
+                                   u_lo.u1,
                                    b1,
-                                   a2,
+                                   u_lo.u2,
                                    b2,
-                                   a3,
+                                   u_lo.u3,
                                    b3,
-                                   a4,
+                                   u_hi.u0,
                                    b4,
-                                   a5,
+                                   u_hi.u1,
                                    b5,
-                                   a6,
+                                   u_hi.u2,
                                    b6,
-                                   a7,
+                                   u_hi.u3,
                                    b7,
                                    m0,
                                    m1,
@@ -720,27 +702,24 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     for(index_int ck = 0; ck < wmma_chunks; ++ck)
                     {
                         const index_int c_offset = ck * 16;
-                        auto a0                  = load_u(k_idx, wp_i * 4 + 0, c_offset);
+                        auto ur                  = load_u_row(k_idx, wp_i, c_offset);
                         auto b0                  = load_v(wp_i * 4 + 0, c_offset);
-                        auto a1                  = load_u(k_idx, wp_i * 4 + 1, c_offset);
                         auto b1                  = load_v(wp_i * 4 + 1, c_offset);
-                        auto a2                  = load_u(k_idx, wp_i * 4 + 2, c_offset);
                         auto b2                  = load_v(wp_i * 4 + 2, c_offset);
-                        auto a3                  = load_u(k_idx, wp_i * 4 + 3, c_offset);
                         auto b3                  = load_v(wp_i * 4 + 3, c_offset);
-                        wmma_quad_asm(a0, b0, a1, b1, a2, b2, a3, b3, m0, m1, m2, m3);
+                        wmma_quad_asm(
+                            ur.u0, b0, ur.u1, b1, ur.u2, b2, ur.u3, b3, m0, m1, m2, m3);
                     }
                 }
                 fold_row(_c<k_idx>, _c<wp_i>, m0, m1, m2, m3);
             });
         });
 
-        // End-of-cb barrier: needed for SK=1 with NW>1 so the WG-shared U
-        // slots aren't overwritten before any wave has finished WMMA-reading
-        // them. For SK>1, U slots are per-wave so each wave can re-use its
-        // slot on the next cb iter without waiting on other waves. For NW=1
-        // there is no other wave, so no barrier is needed either.
-        if constexpr(SK == 1 and NW > 1)
+        // End-of-cb barrier for the SK==1 cooperative path: the next iter
+        // overwrites the WG-shared U slots, so all waves must finish their
+        // WMMA reads first. NW==1 has only one wave; SK>1 streams U direct
+        // and doesn't touch the LDS slots, so neither needs the sync.
+        if constexpr(u_via_lds and NW > 1)
             __syncthreads();
     }
 

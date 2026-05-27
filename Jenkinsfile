@@ -71,6 +71,10 @@ def cmake_build = { bconf ->
     def compiler = bconf.get("compiler", "/opt/rocm/llvm/bin/clang++")
     def flags = bconf.get("flags", "")
     def gpu_debug = bconf.get("gpu_debug", "0")
+    def skip_package = bconf.get("skip_package", false)
+    def targets =  "all package check"
+    if(skip_package)
+        targets = "all check"
     def cmd = """
         ulimit -c unlimited
         echo "leak:dnnl::impl::malloc" > suppressions.txt
@@ -92,13 +96,13 @@ def cmake_build = { bconf ->
         make -j\$(nproc) generate VERBOSE=1
         git diff
         git diff-index --quiet HEAD || (echo "Generated files are different. Please run make generate and commit the changes." && exit 1)
-        make -j\$(nproc) all package check VERBOSE=1
-        md5sum ./*.deb
+        make -j\$(nproc) ${targets} VERBOSE=1
+        if [ -n "\$(ls ./*.deb 2>/dev/null)" ]; then md5sum ./*.deb; fi
     """
     echo cmd
     sh cmd
     // Only archive from master or develop
-    if (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master") {
+    if (!skip_package && (env.BRANCH_NAME == "develop" || env.BRANCH_NAME == "master")) {
         archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
     }
 }
@@ -120,9 +124,97 @@ def setCommitStatus(String sha, String state, String context, String description
     }
 }
 
+@NonCPS
+def shaFromSCMRevisionAction() {
+    def action = currentBuild.rawBuild.getAction(jenkins.scm.api.SCMRevisionAction.class)
+    if (action == null) return null
+    def rev = action.revision
+
+    // GitSCMSource branch builds:
+    //   jenkins.plugins.git.AbstractGitSCMSource$SCMRevisionImpl  -> .hash
+    // GitHub Branch Source PR builds (merge strategy):
+    //   org.jenkinsci.plugins.github_branch_source.PullRequestSCMRevision -> .pullHash / .mergeHash
+    if (rev.hasProperty('pullHash')) return rev.pullHash   // PR head — what you want for status
+    if (rev.hasProperty('hash'))     return rev.hash       // plain branch
+    return rev.toString()
+}
+
+def resolveSha() {
+    if (env.GIT_COMMIT) return env.GIT_COMMIT
+
+    if (env.CHANGE_ID) {
+        try { return pullRequest.head } catch (ignored) { /* plugin missing */ }
+    }
+
+    def sha = shaFromSCMRevisionAction()
+    if (sha) return sha
+
+    if (fileExists('.git')) {
+        return sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
+    }
+    return null
+}
+
+def autoSetGitStatus = { Map conf = [:], Closure body ->
+    def statusContext = conf.get("gitHubContext", "Unknown")
+    def description = conf.get("description", "Building")
+    def failureDescription = conf.get("failureDescription", "Failed")
+    def successDescription = conf.get("successDescription", "Succeeded")
+    def commitSha = resolveSha()
+    try {
+        setCommitStatus(commitSha, 'pending', statusContext, description)
+        body()
+    }
+    catch (Exception ex) {
+        setCommitStatus(commitSha, 'failure', statusContext, failureDescription)
+        throw ex
+    }
+    setCommitStatus(commitSha, 'success', statusContext, successDescription)
+}
+
+@NonCPS
+def parseStageSuccess(String jsonText, String context) {
+    def json = new groovy.json.JsonSlurper().parseText(jsonText)
+    return json.statuses?.any { it.context == context && it.state == "success" } ?: false
+}
+
+def isStageCompleted(String stageName) {
+    if (params.FORCE_REBUILD) {
+        return false
+    }
+    def commitSha = resolveSha()
+    if (!commitSha) {
+        return false
+    }
+    def context = "Jenkins - ${stageName}"
+    def result = false
+    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+        def response = sh(
+            script: """
+                curl -s -L \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer \$TOKEN" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    "https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/commits/${commitSha}/status"
+            """,
+            returnStdout: true
+        ).trim()
+        result = parseStageSuccess(response, context)
+    }
+    if (result) {
+        echo "Stage '${stageName}' already succeeded for commit ${commitSha}. Skipping."
+    }
+    return result
+}
+
 def rocmtest = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
+    def skip_also_requires = conf.get("skip_also_requires", [])
+
+    if (isStageCompleted(variant) && skip_also_requires.every { isStageCompleted(it) }) {
+        return
+    }
 
     def docker_args = conf.get("docker_args", "")
     def image = conf.get("image", DOCKER_IMAGE)
@@ -132,17 +224,11 @@ def rocmtest = { Map conf = [:], Closure body ->
     env.CCACHE_DIR = ccache
     env.HSA_ENABLE_SDMA = 0
 
-    def commitSha
-    def statusContext = "Jenkins - ${variant}"
-    def buildResult = 'failure'
-
-    try {
+    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX') {
         def docker_opts
         stage("setup ${variant}") {
             sh 'printenv'
             checkout scm
-            commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
-            setCommitStatus(commitSha, 'pending', statusContext, 'Building')
             setup()
 
             def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3').trim()
@@ -164,15 +250,6 @@ def rocmtest = { Map conf = [:], Closure body ->
                 }
             }
         }
-        buildResult = 'success'
-    } catch (Exception e) {
-        buildResult = 'failure'
-        throw e
-    } finally {
-        if (commitSha) {
-            def description = (buildResult == 'success') ? 'Build succeeded' : 'Build failed'
-            setCommitStatus(commitSha, buildResult, statusContext, description)
-        }
     }
 }
 
@@ -192,13 +269,14 @@ pipeline {
 
     parameters {
         booleanParam(name: 'FORCE_DOCKER_IMAGE_BUILD', defaultValue: false)
+        booleanParam(name: 'FORCE_REBUILD', defaultValue: false)
     }
 
     stages {
         stage('Check image') {
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking image', failureDescription: 'Failed to check image', successDescription: 'Image check succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking image', failureDescription: 'Failed to check image', successDescription: 'Image check succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             sh 'printenv'
@@ -222,14 +300,7 @@ pipeline {
             }
             steps {
                 script {
-                    def commitSha = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
-                    def statusContext = "Jenkins - Build image"
-                    def buildImageResult = 'failure'
-
-                    // Post pending status with a fresh token before the long build starts
-                    try { setCommitStatus(commitSha, 'pending', statusContext, 'Building image') } catch(Exception ignored) {}
-
-                    try {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building image', failureDescription: 'Failed to build image', successDescription: 'Image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             checkout scm
@@ -244,14 +315,6 @@ pipeline {
                             builtImage.push("${IMAGE_TAG}")
                             builtImage.push("latest")
                         }
-                        buildImageResult = 'success'
-                    } catch(Exception e) {
-                        buildImageResult = 'failure'
-                        throw e
-                    } finally {
-                        // Re-fetch credentials at post-build time so the token is always fresh
-                        def description = (buildImageResult == 'success') ? 'Image build succeeded' : 'Failed to build image'
-                        try { setCommitStatus(commitSha, buildImageResult, statusContext, description) } catch(Exception ignored) {}
                     }
                 }
             }
@@ -309,9 +372,22 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(skip_also_requires: ['ONNX Runtime Tests']) {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
                                 stash includes: 'build/*.deb', name: 'migraphx-package'
+                            }
+                        }
+                    }
+                }
+
+                stage('HIP Clang Static') {
+                    agent {
+                        label rocmnodename('mi100+')
+                    }
+                    steps {
+                        script {
+                            rocmtest([:]) {
+                                cmake_build(skip_package: true, flags: "-DBUILD_SHARED_LIBS=Off -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }
                     }
@@ -394,7 +470,7 @@ pipeline {
         stage('Check ORT image') {
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking ORT image', failureDescription: 'Failed to check ORT image', successDescription: 'ORT image check succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Check ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Checking ORT image', failureDescription: 'Failed to check ORT image', successDescription: 'ORT image check succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             sh 'printenv'
@@ -416,7 +492,7 @@ pipeline {
             }
             steps {
                 script {
-                    gitStatusWrapper(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
+                    autoSetGitStatus(credentialsId: "${env.migraphx_ci_creds}", gitHubContext: "Jenkins - Build ORT image", account: 'ROCmSoftwarePlatform', repo: 'AMDMIGraphX', description: 'Building ORT image', failureDescription: 'Failed to build ORT image', successDescription: 'ORT image build succeeded') {
                         withCredentials([usernamePassword(credentialsId: 'docker_test_cred', passwordVariable: 'DOCKERHUB_PASS', usernameVariable: 'DOCKERHUB_USER')]) {
                             sh "echo $DOCKERHUB_PASS | docker login --username $DOCKERHUB_USER --password-stdin"
                             checkout scm

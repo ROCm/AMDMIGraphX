@@ -87,8 +87,4 @@ struct hash<migraphx::instruction_ref>
 
 } // namespace std
 
-#ifdef _MSC_VER
-#include <migraphx/instruction.hpp>
-#endif
-
 #endif

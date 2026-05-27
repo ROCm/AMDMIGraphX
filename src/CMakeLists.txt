@@ -94,6 +94,7 @@ add_library(migraphx
     load_save.cpp
     logger.cpp
     make_op.cpp
+    md5.cpp
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
@@ -148,6 +149,8 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
+
+enable_static_init(migraphx)
 
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})

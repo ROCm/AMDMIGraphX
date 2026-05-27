@@ -73,6 +73,29 @@ namespace helper
         std::copy(dims.d, dims.d + dims.nbDims, std::back_inserter(ret));
         return ret;
     }
+
+    inline std::string toPointwiseOpName(nvinfer1::ElementWiseOperation op)
+    {
+        switch(op)
+        {
+        case nvinfer1::ElementWiseOperation::kSUM: return "add";
+        case nvinfer1::ElementWiseOperation::kDIV: return "div";
+        case nvinfer1::ElementWiseOperation::kAND: return "logical_and";
+        case nvinfer1::ElementWiseOperation::kOR: return "logical_or";
+        case nvinfer1::ElementWiseOperation::kXOR: return "logical_xor";
+        case nvinfer1::ElementWiseOperation::kPROD: return "mul";
+        case nvinfer1::ElementWiseOperation::kPOW: return "pow";
+        case nvinfer1::ElementWiseOperation::kSUB: return "sub";
+    
+        case nvinfer1::ElementWiseOperation::kMAX:
+        case nvinfer1::ElementWiseOperation::kMIN:
+        case nvinfer1::ElementWiseOperation::kFLOOR_DIV:
+        case nvinfer1::ElementWiseOperation::kEQUAL:
+        case nvinfer1::ElementWiseOperation::kGREATER:
+        case nvinfer1::ElementWiseOperation::kLESS:
+            MIGRAPHX_THROW("Operation not yet supported");
+        }
+    }
 }
 
 }

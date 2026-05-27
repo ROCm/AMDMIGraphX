@@ -8,6 +8,7 @@
 // layers
 #include "layers/ConstantLayer_impl.hpp"
 #include "layers/GatherLayer_impl.hpp"
+#include "layers/ElementWiseLayer_impl.hpp"
 
 namespace nvinfer1
 {
@@ -94,8 +95,8 @@ IConcatenationLayer* NvNetworkDefinition_impl::addConcatenation(ITensor* const* 
 
 IElementWiseLayer* NvNetworkDefinition_impl::addElementWise(ITensor& input1, ITensor& input2, ElementWiseOperation op) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	mLayers.push_back(std::make_unique<ElementWiseLayer_impl>(input1, input2, op, mProgram));
+	return dynamic_cast<IElementWiseLayer*>(mLayers.back().get());
 }
 
 IUnaryLayer* NvNetworkDefinition_impl::addUnary(ITensor& input, UnaryOperation operation) noexcept

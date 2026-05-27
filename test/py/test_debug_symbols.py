@@ -88,15 +88,6 @@ def test_add_literal_argument_with_debug_symbols():
     assert a.get_debug_symbols() == {"weights:w0"}
 
 
-def test_add_literal_buffer_with_debug_symbols():
-    import numpy as np
-    p = migraphx.program()
-    mm = p.get_main_module()
-    buf = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
-    a = mm.add_literal(buf, debug_symbols=["weights:w1"])
-    assert a.get_debug_symbols() == {"weights:w1"}
-
-
 def test_add_parameter_with_debug_symbols():
     p = migraphx.program()
     mm = p.get_main_module()

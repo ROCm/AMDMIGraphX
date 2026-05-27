@@ -467,10 +467,6 @@ struct find_mlss_conv_bias_leaky_relu
 void fuse_mlss::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_USE_AMDMLSS
-    const auto& gfx_name = ctx->get_current_device().get_gfx_name();
-    if(not starts_with(gfx_name, "gfx1201"))
-        return;
-
     if(mlss_op_enabled("mha"))
         match::find_matches(mpm, find_mlss_attention{ctx});
 

@@ -40,14 +40,8 @@ static migraphx::gpu::context& get_context()
     return ctx;
 }
 
-static void skip_if_not_gfx1201()
-{
-    const auto& gfx = get_context().get_current_device().get_gfx_name();
-    if(not migraphx::starts_with(gfx, "gfx1201"))
-        test::skip("test requires gfx1201, got: " + gfx);
-}
 
-#ifdef MIGRAPHX_HAS_MLSS_HEADERS
+#ifdef MIGRAPHX_USE_AMDMLSS
 
 static void run_pass(migraphx::program& p)
 {
@@ -102,7 +96,7 @@ static migraphx::program make_attention_program(const migraphx::shape& qkv_shape
 // 4 inputs (Q, K, V, scale_literal) and the correct output shape.
 TEST_CASE(mlss_mha_attention_1x8x4096x40)
 {
-    skip_if_not_gfx1201();
+
     const migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 8, 4096, 40}};
     const float scale_val = 1.0f / std::sqrt(40.0f);
 
@@ -149,7 +143,6 @@ TEST_CASE(mlss_mha_attention_1x8x4096x40)
 // the guarded shape {1, 8, 4096, 40}.
 TEST_CASE(mlss_mha_attention_wrong_shape_not_fused)
 {
-    skip_if_not_gfx1201();
     // {1, 8, 512, 64} is not the supported shape
     const migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 8, 512, 64}};
     const float scale_val = 1.0f / std::sqrt(64.0f);
@@ -211,7 +204,7 @@ static migraphx::program make_conv_bias_relu_program()
 // with has_bias=true and activation_mode=relu (uint8 value 4).
 TEST_CASE(mlss_conv_bias_relu_vgg19_first_layer)
 {
-    skip_if_not_gfx1201();
+
 
     migraphx::program p = make_conv_bias_relu_program();
     run_pass(p);
@@ -344,8 +337,6 @@ static migraphx::program make_slice_conv_bias_program()
 // as_standard() rebuilds canonical row-major strides from lens alone.
 TEST_CASE(mlss_conv_slice_noncontiguous_input_not_fused)
 {
-    skip_if_not_gfx1201();
-
     migraphx::program p = make_slice_conv_bias_program();
     run_pass(p);
 
@@ -364,8 +355,6 @@ TEST_CASE(mlss_conv_slice_noncontiguous_input_not_fused)
 // Verify that an unsupported conv shape (not in conv_mxn_shapes) is NOT fused.
 TEST_CASE(mlss_conv_bias_relu_unsupported_shape_not_fused)
 {
-    skip_if_not_gfx1201();
-
     migraphx::program p;
     auto* mm = p.get_main_module();
 
@@ -405,6 +394,6 @@ TEST_CASE(mlss_conv_bias_relu_unsupported_shape_not_fused)
 
     EXPECT(not found_mlss_conv);
 }
-#endif // MIGRAPHX_HAS_MLSS_HEADERS
+#endif // MIGRAPHX_USE_AMDMLSS
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

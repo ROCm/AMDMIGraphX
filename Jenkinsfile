@@ -172,9 +172,49 @@ def autoSetGitStatus = { Map conf = [:], Closure body ->
     setCommitStatus(commitSha, 'success', statusContext, successDescription)
 }
 
+@NonCPS
+def parseStageSuccess(String jsonText, String context) {
+    def json = new groovy.json.JsonSlurper().parseText(jsonText)
+    return json.statuses?.any { it.context == context && it.state == "success" } ?: false
+}
+
+def isStageCompleted(String stageName) {
+    if (params.FORCE_REBUILD) {
+        return false
+    }
+    def commitSha = resolveSha()
+    if (!commitSha) {
+        return false
+    }
+    def context = "Jenkins - ${stageName}"
+    def result = false
+    withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
+        def response = sh(
+            script: """
+                curl -s -L \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer \$TOKEN" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    "https://api.github.com/repos/ROCmSoftwarePlatform/AMDMIGraphX/commits/${commitSha}/status"
+            """,
+            returnStdout: true
+        ).trim()
+        result = parseStageSuccess(response, context)
+    }
+    if (result) {
+        echo "Stage '${stageName}' already succeeded for commit ${commitSha}. Skipping."
+    }
+    return result
+}
+
 def rocmtest = { Map conf = [:], Closure body ->
     def variant = conf.get("variant", env.STAGE_NAME)
     def setup = conf.get("setup", {})
+    def skip_also_requires = conf.get("skip_also_requires", [])
+
+    if (isStageCompleted(variant) && skip_also_requires.every { isStageCompleted(it) }) {
+        return
+    }
 
     def docker_args = conf.get("docker_args", "")
     def image = conf.get("image", DOCKER_IMAGE)
@@ -229,6 +269,7 @@ pipeline {
 
     parameters {
         booleanParam(name: 'FORCE_DOCKER_IMAGE_BUILD', defaultValue: false)
+        booleanParam(name: 'FORCE_REBUILD', defaultValue: false)
     }
 
     stages {
@@ -331,7 +372,7 @@ pipeline {
                     }
                     steps {
                         script {
-                            rocmtest([:]) {
+                            rocmtest(skip_also_requires: ['ONNX Runtime Tests']) {
                                 cmake_build(flags: "-DCMAKE_BUILD_TYPE=release -DGPU_TARGETS='${getgputargets()}'")
                                 stash includes: 'build/*.deb', name: 'migraphx-package'
                             }

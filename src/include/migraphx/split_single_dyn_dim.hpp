@@ -39,12 +39,10 @@ inline namespace MIGRAPHX_INLINE_NS {
  */
 struct MIGRAPHX_EXPORT split_single_dyn_dim
 {
-    /// When true, honour dynamic_dimension::optimals: emit one submodule
-    /// per optimal value (plus the min/max endpoints) instead of one per
-    /// integer in [min, max].  Combined with select_module's
-    /// smallest-compatible-bucket fallback at runtime, this collapses
-    /// compile time and engine size from O(max-min) to O(|optimals|)
-    /// for wide dynamic ranges.  Off by default for backward compatibility.
+    /// If true, emit one submodule per `dynamic_dimension::optimals`
+    /// value plus the min/max endpoints, instead of one per integer in
+    /// [min, max].  O(|optimals|) compile cost; runtime falls back to
+    /// smallest compatible bucket.  Off by default (backward compat).
     bool bucket_by_optimals = false;
 
     template <class Self, class F>

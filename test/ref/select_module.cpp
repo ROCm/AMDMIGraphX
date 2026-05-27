@@ -214,9 +214,8 @@ TEST_CASE(select_module_not_found_error)
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
 
-// Helper for the bucket-dispatch tests below. Builds a fresh program with
-// `bucket_sizes` static submodules each computing `data + 6` and a
-// select_module dispatch in the main module over the dynamic input shape.
+// Build a program: one static submodule (data+6) per `bucket_sizes`,
+// dispatched via select_module over the dynamic input shape.
 static migraphx::program make_select_module_add_program(
     const std::vector<std::size_t>& bucket_sizes, std::size_t dyn_min, std::size_t dyn_max)
 {
@@ -258,11 +257,10 @@ static migraphx::program make_select_module_add_program(
     return p;
 }
 
-// Exact-shape match still works when bucket dispatch is enabled (the bucket
-// path only kicks in when exact match fails).
+// Exact match wins over bucket fallback.
 TEST_CASE(select_module_bucket_dispatch_exact_match)
 {
-    // Buckets: 1, 10, 50, 100. Run with N=10 (exact match for bucket_10).
+    // N=10 matches bucket_10 exactly.
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
     p.compile(migraphx::make_target("ref"));
 
@@ -283,10 +281,8 @@ TEST_CASE(select_module_bucket_dispatch_exact_match)
         [](float v) { return std::fabs(v - 8.0f) < 1e-6f; }));
 }
 
-// Input N=20 with buckets {1, 10, 50, 100} should dispatch to the smallest
-// compatible bucket (50). The first 20*4 outputs must match the
-// reference; the padded tail (positions 20*4..50*4) sees zero-padded input,
-// so output is 0 + 6 = 6.
+// N=20 -> rounds up to bucket_50. First 20*4 outputs = 2+6=8 (real input);
+// tail 20*4..50*4 = 0+6=6 (zero-padded).
 TEST_CASE(select_module_bucket_dispatch_round_up_with_pad)
 {
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
@@ -311,8 +307,7 @@ TEST_CASE(select_module_bucket_dispatch_round_up_with_pad)
         EXPECT(std::fabs(results_vector[i] - 6.0f) < 1e-6f);
 }
 
-// Input N=200 has no compatible bucket in {1, 10, 50, 100}; dispatch must
-// throw and not corrupt memory.
+// N=200 exceeds every bucket -> must throw.
 TEST_CASE(select_module_bucket_dispatch_too_big_throws)
 {
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 1000);
@@ -325,12 +320,7 @@ TEST_CASE(select_module_bucket_dispatch_too_big_throws)
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
 
-// Hot-loop regression: drive the same dispatch 100 times in a row at the
-// same input shape and verify every call produces the same output. The
-// dispatch-cache hot path (introduced alongside this PR) lives in
-// select_module::compute() and skips name lookups / map rebuilds on
-// repeated hits; this test catches any cache-aliasing or stale-state
-// bug.
+// Cache hot-loop: 100 calls at the same shape must return identical results.
 TEST_CASE(select_module_bucket_dispatch_cache_hot_loop)
 {
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
@@ -364,9 +354,7 @@ TEST_CASE(select_module_bucket_dispatch_cache_hot_loop)
         }));
 }
 
-// Hot-loop regression across SHAPES: alternate between two different
-// runtime input shapes so the cache has to invalidate and re-populate.
-// This catches a cache that returns stale data after a shape change.
+// Alternating shapes: the cache must invalidate, not serve stale data.
 TEST_CASE(select_module_bucket_dispatch_cache_alternating_shapes)
 {
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);

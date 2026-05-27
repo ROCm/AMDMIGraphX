@@ -332,9 +332,8 @@ TEST_CASE(ordered_inputs_to_select_module)
     EXPECT(std::is_sorted(sm_param_names.begin(), sm_param_names.end()));
 }
 
-// Helper: builds the post-pass "golden" program for a 1-D dynamic Add model
-// given an explicit list of bucket dim sizes. Each submodule adds a literal
-// to the input parameter; the main module dispatches via select_module.
+// Golden post-pass program: one (data+6) submodule per bucket size,
+// dispatched via select_module.
 static migraphx::program build_bucket_add_golden(const std::vector<std::size_t>& bucket_sizes,
                                                  std::size_t min,
                                                  std::size_t max)
@@ -378,7 +377,7 @@ static migraphx::program build_bucket_add_golden(const std::vector<std::size_t>&
     return p;
 }
 
-// Helper: builds the pre-pass dynamic program with the given dyn_dim.
+// Pre-pass dynamic program with the given dyn_dim.
 static migraphx::program build_bucket_add_input(const migraphx::shape::dynamic_dimension& dd)
 {
     migraphx::program p;
@@ -394,58 +393,40 @@ static migraphx::program build_bucket_add_input(const migraphx::shape::dynamic_d
     return p;
 }
 
-// With `split_single_dyn_dim{.bucket_by_optimals=true}` and optimals
-// provided, the pass must create one submodule per optimal value plus
-// the min and max endpoints instead of enumerating every integer in
-// [min, max].
+// bucket_by_optimals=true + optimals -> 1 submodule per (min, optimals..., max).
 TEST_CASE(dynamic_batch_bucket_only_optimals)
 {
-    // Expected: submodules at min=1, optimals={10,50,90}, max=100 -> 5 buckets.
     auto p_expected = build_bucket_add_golden({1, 10, 50, 90, 100}, 1, 100);
-
-    // Input: same model but with optimals annotated.
     migraphx::shape::dynamic_dimension dd{1, 100, std::set<std::size_t>{10, 50, 90}};
     auto p_actual = build_bucket_add_input(dd);
     run_pass_bucket(p_actual);
-
     EXPECT(p_expected == p_actual);
 }
 
-// `bucket_by_optimals=true` BUT no optimals supplied: the pass falls back
-// to the default enumeration behaviour (one submodule per integer in
-// [min, max]) so it remains correct even if the user opts in without
-// specifying optimals.
+// bucket_by_optimals=true but no optimals -> still enumerate.
 TEST_CASE(dynamic_batch_bucket_env_on_no_optimals_keeps_enumeration)
 {
     auto p_expected = build_bucket_add_golden({1, 2, 3, 4}, 1, 4);
-
     migraphx::shape::dynamic_dimension dd{1, 4};
     auto p_actual = build_bucket_add_input(dd);
     run_pass_bucket(p_actual);
-
     EXPECT(p_expected == p_actual);
 }
 
-// With optimals supplied but `bucket_by_optimals=false`, the pre-existing
-// enumeration behaviour must be preserved (i.e. no silent semantic change
-// for users already passing optimals).
+// Default (bucket_by_optimals=false) preserves the legacy enumeration.
 TEST_CASE(dynamic_batch_bucket_env_off_keeps_enumeration)
 {
     auto p_expected = build_bucket_add_golden({1, 2, 3, 4}, 1, 4);
-
     migraphx::shape::dynamic_dimension dd{1, 4, std::set<std::size_t>{2, 3}};
     auto p_actual = build_bucket_add_input(dd);
-    run_pass(p_actual); // default: bucket_by_optimals=false
-
+    run_pass(p_actual);
     EXPECT(p_expected == p_actual);
 }
 
-// Optimals that fall outside [min, max] must be silently filtered so we
-// never create unreachable submodules.
+// Optimals outside [min, max] are dropped (would otherwise be unreachable).
 TEST_CASE(dynamic_batch_bucket_filters_out_of_range_optimals)
 {
-    // 999 is out of range -> dropped; in-range optimals 5 and 7 are kept
-    // along with min=2 and max=10 -> 4 submodules total.
+    // 999 dropped; 5, 7 kept; plus min=2, max=10 -> 4 buckets.
     auto p_expected = build_bucket_add_golden({2, 5, 7, 10}, 2, 10);
 
     migraphx::shape::dynamic_dimension dd{2, 10, std::set<std::size_t>{5, 7, 999}};

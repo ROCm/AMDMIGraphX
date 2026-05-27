@@ -64,42 +64,21 @@ Model performance tunable variables change the compilation behavior of a model. 
       | Default: Layernorm fusion is not used.
 
   * - | ``MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS``
-      | Controls how the ``split_single_dyn_dim`` pass specialises a dynamic
-      | dimension. When set, only the values listed in
-      | ``dynamic_dimension::optimals`` (plus the ``min`` and ``max``
-      | endpoints) get a static submodule, and ``select_module`` dispatches a
-      | runtime input shape to the smallest compatible bucket. This caps
-      | compile time and binary size at O(|optimals|) instead of
-      | O(max - min) and is the recommended setting for wide dynamic ranges
-      | (e.g. ``{min:1, max:5000000, optimals:[400000]}``). On the reference
-      | backend, ``select_module`` zero-pads the input to the bucket size
-      | when shapes differ. On the GPU backend the caller must pre-pad its
-      | input buffer so that an exact-shape match still occurs; automatic
-      | GPU-side padding is tracked as a follow-up.
-      |
-      | ``select_module::compute()`` also memoises its dispatch decision
-      | per-instance: a hot inference loop that keeps feeding the same
-      | input-shape signature skips the linear submodule scan and the
-      | per-call parameter-name / parameter-shape allocations. The cache
-      | is unconditionally active and has no runtime toggle (it is a
-      | pure caching optimisation -- on cache miss the result is
-      | identical to the uncached path).
-      |
-      | Internally this env var is read once per compile inside the
-      | GPU/Ref target's pass list and forwarded to
-      | ``split_single_dyn_dim`` as its ``bucket_by_optimals`` field.
-      | Tests construct the pass with the field directly and do not
-      | depend on the env var (see ``test/split_single_dyn_dim_test.cpp``).
+      | * Switches ``split_single_dyn_dim`` to bucket mode: emit
+      |   one submodule per ``dynamic_dimension::optimals`` value
+      |   (plus the ``min`` / ``max`` endpoints), instead of one
+      |   per integer in ``[min, max]``.  O(|optimals|) compile
+      |   cost.
+      | * Read once per compile in the GPU/Ref target and forwarded
+      |   as the ``split_single_dyn_dim::bucket_by_optimals``
+      |   pass field; tests use the field directly.
+      | * ``select_module::compute()`` always falls back to the
+      |   smallest compatible bucket when no exact submodule
+      |   matches the runtime shape, independent of this env var.
+      |   Ref pads on host; GPU callers pre-pad.
 
-    - | ``1``: ``split_single_dyn_dim`` produces one submodule per
-      | optimal (plus min/max).
-      | ``0``: Returns to default behavior.
-
-      | Default: ``split_single_dyn_dim`` enumerates every integer in
-      | [min, max]. ``select_module::compute()`` always falls back to
-      | the smallest-compatible bucket when no exact match is found,
-      | regardless of this env var; the env var only affects which
-      | submodules are produced at compile time.
+    - | ``1``: bucket mode.
+      | ``0`` or unset: legacy enumerate mode (default).
 
   * - | ``MIGRAPHX_ENABLE_MIOPEN_POOLING``
       | When set, MIOpen pooling is used instead of MIGraphX pooling.

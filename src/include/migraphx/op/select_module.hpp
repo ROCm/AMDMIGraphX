@@ -37,9 +37,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-// Hash a sequence of argument shapes into a single 64-bit token. We hash
-// type + lens (strides intentionally excluded so callers can pass strided
-// views and still hit the cache). This is the dispatch-cache key.
+// Dispatch-cache key: hash of (type, lens) for each arg shape.
+// Strides excluded so strided views still hit.
 inline std::size_t hash_arg_shapes(const std::vector<argument>& args)
 {
     // NOLINTBEGIN(hicpp-signed-bitwise)
@@ -59,15 +58,10 @@ inline std::size_t hash_arg_shapes(const std::vector<argument>& args)
     // NOLINTEND(hicpp-signed-bitwise)
 }
 
-// Smallest compatible bucket lookup used when bucket dispatch is enabled.
-// `get_input_parameter_names_fn` returns the submodule's input parameter
-// names in the same (sorted) order as the corresponding args.  A submodule
-// is "compatible" with the runtime args when every input parameter's static
-// shape has the same element type and rank as the corresponding arg and
-// each of its lens is >= the arg's lens componentwise.  Among compatible
-// submodules, the one with the smallest total static element count wins
-// (smallest bucket large enough to hold the input).  Returns end() if no
-// compatible submodule exists.
+// Smallest-bucket fallback for runtime dispatch.
+//   compatible: same type+rank, lens >= input lens (componentwise).
+//   winner:     compatible submodule with smallest total element count.
+// Returns end() if no compatible submodule exists.
 inline std::vector<module_ref>::const_iterator find_smallest_compatible_submodule(
     const std::vector<module_ref>& submodule_list,
     const std::vector<argument>& args,
@@ -117,18 +111,11 @@ struct select_module
 {
     shape output_dyn_shapes;
 
-    // Per-instance fast-path cache for compute().  Without this, every
-    // inference re-runs the full dispatch search and rebuilds the input
-    // parameter-name / parameter-shape lookup vectors -- pure host work
-    // before the kernel launches.  For a hot loop that keeps feeding the
-    // same input shape, we hash the input shapes once, cache the chosen
-    // submodule pointer + its sorted input/output names + their static
-    // shapes, and on a hit jump straight to running the submodule.
-    //
-    // The cache lives in `mutable` state because `compute()` is a const
-    // method on the operator.  This is single-threaded by design; the
-    // MIGraphX runtime currently never invokes `compute()` for the same
-    // operator instance concurrently, so no lock is needed.
+    // Per-instance dispatch cache (compute() hot-path fast lane).
+    // On a hit we skip the find_if scan and the name/shape lookup
+    // allocations.  `mutable` because compute() is const; not
+    // thread-safe -- the runtime does not call compute() on the same
+    // op instance concurrently.
     struct dispatch_cache_t
     {
         bool valid               = false;
@@ -187,11 +174,7 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        // ---- Fast path: dispatch cache hit ----
-        // If we already chose a submodule for this exact input-shape
-        // signature on a previous call, skip the entire find_if scan,
-        // the name-vector + param_shapes_map allocations, and reuse the
-        // cached lookup data to build p_map directly.
+        // Fast path: cached dispatch for the same input-shape signature.
         const auto h = hash_arg_shapes(args);
         if(dispatch_cache.valid and dispatch_cache.shape_hash == h and
            dispatch_cache.module_index < submodule_list.size())
@@ -199,8 +182,8 @@ struct select_module
             return compute_with_cache(args, submodule_list, run);
         }
 
-        // ---- Slow path: full dispatch + populate the cache ----
-        // 1) Try exact-shape match.
+        // Slow path: full dispatch then populate cache.
+        // 1) Exact-shape match.
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
                 auto in_param_names = get_input_parameter_names(mr);
@@ -214,12 +197,9 @@ struct select_module
                                   });
             });
 
-        // 2) Smallest-bucket fallback: always available, since the submodule
-        //    list is fixed at compile time -- whether buckets are present is
-        //    decided by split_single_dyn_dim{.bucket_by_optimals=...}.  At
-        //    runtime, if no exact match is found and a larger-or-equal
-        //    bucket exists, dispatch there (input is host-padded to the
-        //    bucket shape on the ref backend; GPU callers pre-pad).
+        // 2) Smallest-bucket fallback. Whether buckets exist is a
+        //    compile-time decision (split_single_dyn_dim{.bucket_by_optimals}).
+        //    Ref pads on the host; GPU callers pre-pad.
         bool bucket_dispatch = false;
         if(module_iter == submodule_list.end())
         {
@@ -240,9 +220,7 @@ struct select_module
         auto out_param_names  = get_output_parameter_names(module_to_run);
         auto param_shapes_map = module_to_run->get_parameter_shapes();
 
-        // Populate the dispatch cache so the next call with the same input
-        // shape hash hits the fast path. We only cache when the result is
-        // valid (not in the error path).
+        // Populate cache (success path only).
         dispatch_cache.shape_hash = h;
         dispatch_cache.module_index =
             static_cast<std::size_t>(std::distance(submodule_list.cbegin(), module_iter));
@@ -259,9 +237,7 @@ struct select_module
         return compute_with_cache(args, submodule_list, run);
     }
 
-    // Run the cached dispatch decision. Pulled out of compute() so both
-    // the hit-path and the miss-path-after-population go through the same
-    // code, which makes it easier to keep the two in sync.
+    // Shared body used by both the cache-hit and post-populate paths.
     argument compute_with_cache(
         const std::vector<argument>& args,
         const std::vector<module_ref>& submodule_list,
@@ -272,9 +248,7 @@ struct select_module
         std::unordered_map<std::string, argument> p_map;
         p_map.reserve(dispatch_cache.in_names.size() + dispatch_cache.out_names.size());
 
-        // Inputs. If bucket dispatch chose a larger bucket than the input,
-        // pad on the host (see comment above; GPU users pre-pad on the
-        // caller side).
+        // Inputs: pad on host when dispatching to a larger bucket.
         if(dispatch_cache.needs_input_pad)
         {
             for(std::size_t i = 0; i < dispatch_cache.in_names.size(); ++i)
@@ -301,10 +275,7 @@ struct select_module
                 p_map.emplace(dispatch_cache.in_names[i], args[i]);
         }
 
-        // Outputs: reshape the pre-allocated buffer (last arg, a tuple of
-        // sub-objects) to the submodule's static output shapes when sizes
-        // differ. This was already handled by the previous implementation;
-        // we replicate the same logic via the cached output names/shapes.
+        // Outputs: reshape the pre-allocated tuple buffer to submodule shapes.
         auto output_sub_objects = args.back().get_sub_objects();
         assert(dispatch_cache.out_names.size() == output_sub_objects.size());
         for(std::size_t i = 0; i < dispatch_cache.out_names.size(); ++i)

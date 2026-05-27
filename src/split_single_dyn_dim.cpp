@@ -132,27 +132,21 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         std::vector<module_ref> submodules;
         auto dim_interval = dyn_dim.get_interval();
 
-        // Decide which dim_size values to specialise for.  By default (env var
-        // unset, or no optimals supplied) every integer in [min, max] is
-        // enumerated, which is correct but O(max - min) in compile time and
-        // binary size.  When the user supplies `optimals` AND opts in via
-        // MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS=1, only the supplied optimals
-        // (plus the min/max endpoints) get a submodule, collapsing the cost to
-        // O(|optimals|).  At runtime `select_module` dispatches any compatible
-        // input shape to the smallest compatible bucket; see select_module.hpp.
+        // Pick the dim sizes to specialise for:
+        //   * default      -> every integer in [min, max]      (legacy)
+        //   * bucket mode  -> min, max, and user-supplied optimals
+        // Bucket mode requires both `bucket_by_optimals=true` and a
+        // non-empty `optimals` set; otherwise we fall back to legacy.
+        // See select_module.hpp for the runtime side.
         std::set<std::size_t> dim_sizes;
         auto dim_optimals      = dyn_dim.get_optimals();
         const bool use_buckets = this->bucket_by_optimals and not dim_optimals.empty();
         if(use_buckets)
         {
-            // Include the min/max endpoints so any in-range input shape can
-            // still be served, even if the user-supplied optimals do not
-            // cover the endpoints.
+            // Always include endpoints so every in-range input has a bucket.
             dim_sizes.insert(dim_interval.min);
             dim_sizes.insert(dim_interval.max);
-            // Keep only optimals that fall inside [min, max]; out-of-range
-            // values are silently ignored rather than creating unreachable
-            // submodules.
+            // Drop optimals outside [min, max] (would be unreachable).
             for(std::size_t opt : dim_optimals)
             {
                 if(opt >= dim_interval.min and opt <= dim_interval.max)

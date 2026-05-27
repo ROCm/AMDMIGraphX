@@ -47,6 +47,8 @@ mlss_mha_op mlss_mha_op::make_gfx1201_fp16_packed_qkv(
     op.local  = local;
     op.scale  = scale;
 
+    mlssSetVerboseLevel(MLSS_VERBOSE_NONE);
+
     const std::string gfx_name = ctx.get_current_device().get_gfx_name();
     MLSScontext mlss_ctx       = 0;
     MLSSstring op_name         = const_cast<MLSSstring>(MLSS_MHA);

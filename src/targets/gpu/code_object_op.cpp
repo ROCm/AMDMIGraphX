@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pmr/vector.hpp>
+#include <any>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -68,25 +69,113 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
         f(args);
 }
 
+// Convert a value + byte size into a kernel_argument pointing at the live storage
+// inside the values vector. The caller must keep `storage` alive until kernel launch.
+static void push_karg(std::vector<kernel_argument>& kargs,
+                      std::vector<std::any>& storage,
+                      const value& v,
+                      std::size_t sz)
+{
+    // Cast from value's promoted type back to the exact kernel ABI type,
+    // store in std::any so the pointer remains valid for pack_args.
+    switch(sz)
+    {
+    case 1:
+    {
+        auto& ref = storage.emplace_back(static_cast<uint8_t>(v.to<uint64_t>()));
+        kargs.emplace_back(*std::any_cast<uint8_t>(&ref));
+        break;
+    }
+    case 4:
+    {
+        if(v.is_float())
+        {
+            auto& ref = storage.emplace_back(static_cast<float>(v.to<double>()));
+            kargs.emplace_back(*std::any_cast<float>(&ref));
+        }
+        else if(v.is_uint64())
+        {
+            auto& ref = storage.emplace_back(static_cast<uint32_t>(v.to<uint64_t>()));
+            kargs.emplace_back(*std::any_cast<uint32_t>(&ref));
+        }
+        else
+        {
+            auto& ref = storage.emplace_back(static_cast<int32_t>(v.to<int64_t>()));
+            kargs.emplace_back(*std::any_cast<int32_t>(&ref));
+        }
+        break;
+    }
+    case 8:
+    {
+        if(v.is_float())
+        {
+            auto& ref = storage.emplace_back(v.to<double>());
+            kargs.emplace_back(*std::any_cast<double>(&ref));
+        }
+        else if(v.is_uint64())
+        {
+            auto& ref = storage.emplace_back(v.to<uint64_t>());
+            kargs.emplace_back(*std::any_cast<uint64_t>(&ref));
+        }
+        else
+        {
+            auto& ref = storage.emplace_back(v.to<int64_t>());
+            kargs.emplace_back(*std::any_cast<int64_t>(&ref));
+        }
+        break;
+    }
+    default: MIGRAPHX_THROW("push_karg: unsupported size " + std::to_string(sz));
+    }
+}
+
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
+    if(not kernel_args.empty())
+    {
+        // Patch buffer pointers into a mutable copy of kernel_args/sizes
+        auto local_args  = kernel_args;
+        auto local_sizes = kernel_arg_sizes;
+        for(const auto& [karg_idx, arg_idx] : runtime_arg_indices)
+        {
+            local_args[karg_idx]  = value(reinterpret_cast<uint64_t>(args[arg_idx].data()));
+            local_sizes[karg_idx] = 8; // uint64_t device pointer
+        }
+
+        // Build kernel_argument vector in index order.
+        // std::any storage keeps cast-back values alive for pack_args.
+        std::vector<kernel_argument> kargs;
+        std::vector<std::any> storage;
+        kargs.reserve(local_args.size());
+        storage.reserve(local_args.size());
+
+        for(auto& [idx, v] : local_args)
+        {
+            push_karg(kargs, storage, v, local_sizes.at(idx));
+        }
+
+        auto [start, stop] = ctx.get_perf_events();
+        k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+    }
+    else
+    {
 #if MIGRAPHX_HAS_PMR
-    std::array<char, 256> storage;
-    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
-    pmr::vector<void*> kargs(&resource);
+        std::array<char, 256> storage;
+        std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+        pmr::vector<void*> kargs(&resource);
 #else
-    pmr::vector<void*> kargs;
+        pmr::vector<void*> kargs;
 #endif
-    visit_flatten_args(args, [&](const auto& fargs) {
-        kargs.reserve(fargs.size());
-        std::transform(fargs.begin(),
-                       fargs.end(),
-                       std::back_inserter(kargs),
-                       [](const argument& a) { return a.data(); });
-    });
-    auto [start, stop] = ctx.get_perf_events();
-    k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+        visit_flatten_args(args, [&](const auto& fargs) {
+            kargs.reserve(fargs.size());
+            std::transform(fargs.begin(),
+                           fargs.end(),
+                           std::back_inserter(kargs),
+                           [](const argument& a) { return a.data(); });
+        });
+        auto [start, stop] = ctx.get_perf_events();
+        k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+    }
     return args[get_output_arg(args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)

@@ -144,9 +144,59 @@ struct find_mlss_attention
 };
 
 // ---------------------------------------------------------------------------
-// Matcher for convolution instructions.
-// The matcher checks the op name and then validates attributes in apply().
-// Shape support is determined by the AMDMLSS API (mlssGetBinaries).
+// Helper: create an mlss_conv_op intermediate node and replace the matched
+// instruction(s). The JIT compiler (jit/mlss_conv.cpp) will later convert
+// this into a code_object_op with the full kernarg layout.
+// ---------------------------------------------------------------------------
+static bool insert_mlss_conv(module& m,
+                             context* ctx,
+                             instruction_ref replace_ins,
+                             instruction_ref act_ins,
+                             instruction_ref wt_ins,
+                             instruction_ref bias_ins,      // end() if no bias
+                             const shape& output_shape,
+                             const std::vector<std::size_t>& cur_padding,
+                             const std::vector<std::size_t>& cur_stride,
+                             const std::vector<std::size_t>& cur_dilation,
+                             std::size_t cur_group,
+                             bool has_bias,
+                             uint8_t act_mode,
+                             float act_alpha)
+{
+    const auto act_lens = act_ins->get_shape().lens();
+    const auto wt_lens  = wt_ins->get_shape().lens();
+    const auto out_lens = output_shape.lens();
+    const auto dtype    = act_ins->get_shape().type();
+
+    // Check if AMDMLSS has a kernel for this configuration
+    auto info = query_mlss_conv_binary(
+        *ctx, act_lens, wt_lens, out_lens, cur_padding, cur_stride,
+        cur_dilation, cur_group,
+        has_bias, act_mode, dtype);
+    if(info.empty())
+        return false;
+
+    mlss_conv_op op;
+    op.padding          = cur_padding;
+    op.stride           = cur_stride;
+    op.dilation         = cur_dilation;
+    op.group            = cur_group;
+    op.has_bias         = has_bias;
+    op.activation_mode  = act_mode;
+    op.activation_alpha = act_alpha;
+    op.output           = output_shape;
+
+    std::vector<instruction_ref> args = {act_ins, wt_ins};
+    if(has_bias)
+        args.push_back(bias_ins);
+
+    m.replace_instruction(replace_ins, op, args);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// Conv matchers — each matches a pattern, validates attributes, and calls
+// insert_mlss_conv to create the intermediate mlss_conv op.
 // ---------------------------------------------------------------------------
 struct find_mlss_conv
 {
@@ -162,8 +212,6 @@ struct find_mlss_conv
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto ins = r.result;
-
-        // Retrieve the two instruction inputs: activation and weight literal.
         auto inputs = ins->inputs();
         if(inputs.size() < 2)
             return;
@@ -171,13 +219,9 @@ struct find_mlss_conv
         auto act_ins = inputs[0];
         auto wt_ins  = inputs[1];
 
-        // ---- shape checks ----
-        const auto act_lens = act_ins->get_shape().lens();
-        const auto wt_lens  = wt_ins->get_shape().lens();
+        const auto wt_lens = wt_ins->get_shape().lens();
         if(wt_lens[2] == 1 and wt_lens[3] == 1)
-            return; // skip 1x1 convolutions
-        const auto out_lens = ins->get_shape().lens();
-
+            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
@@ -187,49 +231,28 @@ struct find_mlss_conv
         if(ins->get_shape().type() != dtype)
             return;
 
-        // ---- convolution attribute checks ----
         const auto& op_val = ins->get_operator().to_value();
         auto get_vec = [&](const std::string& key) -> std::vector<std::size_t> {
             return op_val.get(key, std::vector<std::size_t>{});
         };
-
         const auto cur_padding  = get_vec("padding");
         const auto cur_stride   = get_vec("stride");
         const auto cur_dilation = get_vec("dilation");
         const auto cur_group    = op_val.get("group", std::size_t{1});
 
-        // ---- build the mlss_conv_op via AMDMLSS API ----
-        auto op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
-            *ctx, act_lens, wt_lens, out_lens, cur_padding, cur_stride,
-            cur_dilation, cur_group,
-            false, static_cast<uint8_t>(mlss_activation_mode::identity), dtype);
-        if(op.code_object.empty())
-            return; // AMDMLSS has no kernel for this configuration
-
-        op.pad_h  = static_cast<int32_t>(cur_padding[0]);
-        op.pad_w  = static_cast<int32_t>(cur_padding[1]);
-        op.output = ins->get_shape();
-
         auto& m = mpm.get_module();
-        m.replace_instruction(ins, op, {act_ins, wt_ins});
+        insert_mlss_conv(m, ctx, ins, act_ins, wt_ins, m.end(),
+                         ins->get_shape(), cur_padding, cur_stride, cur_dilation, cur_group,
+                         false, static_cast<uint8_t>(mlss_activation_mode::identity), 0.0f);
     }
 };
 
-// ---------------------------------------------------------------------------
-// Matcher for conv+bias pattern:
-//   add(convolution(input, weight_literal), broadcast(bias_literal))
-// Fuses the add into mlss_conv_op with has_bias=true, enabling the kernel's
-// built-in bias add (F_BIAS flag, bit 7 of flags64).
-// The matched instruction is the "add"; its output shape is the same as the
-// convolution output, so no shape change is needed.
-// ---------------------------------------------------------------------------
 struct find_mlss_conv_bias
 {
     context* ctx = nullptr;
 
     auto matcher() const
     {
-        // Match: add( convolution(any, @literal), broadcast(@literal) )
         auto conv_with_literal_weight =
             match::name("convolution")(
                 match::arg(0)(match::any()),
@@ -246,27 +269,20 @@ struct find_mlss_conv_bias
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto add_ins  = r.result;
-        auto conv_ins = add_ins->inputs()[0]; // convolution
-        auto bcast_ins = add_ins->inputs()[1]; // broadcast
+        auto add_ins   = r.result;
+        auto conv_ins  = add_ins->inputs()[0];
+        auto bcast_ins = add_ins->inputs()[1];
+        auto bias_ins  = bcast_ins->inputs()[0];
 
-        // The broadcast's input is the raw bias literal {K}
-        auto bias_ins = bcast_ins->inputs()[0];
-
-        // Retrieve convolution inputs
         auto conv_inputs = conv_ins->inputs();
         if(conv_inputs.size() < 2)
             return;
         auto act_ins = conv_inputs[0];
         auto wt_ins  = conv_inputs[1];
 
-        // ---- shape checks (same as find_mlss_conv) ----
-        const auto act_lens = act_ins->get_shape().lens();
-        const auto wt_lens  = wt_ins->get_shape().lens();
+        const auto wt_lens = wt_ins->get_shape().lens();
         if(wt_lens[2] == 1 and wt_lens[3] == 1)
-            return; // skip 1x1 convolutions
-        const auto out_lens = conv_ins->get_shape().lens(); // same as add output
-
+            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
@@ -276,40 +292,21 @@ struct find_mlss_conv_bias
         if(conv_ins->get_shape().type() != dtype)
             return;
 
-        // ---- convolution attribute checks ----
         const auto& op_val = conv_ins->get_operator().to_value();
         auto get_vec = [&](const std::string& key) -> std::vector<std::size_t> {
             return op_val.get(key, std::vector<std::size_t>{});
         };
-
         const auto cur_padding  = get_vec("padding");
         const auto cur_stride   = get_vec("stride");
         const auto cur_dilation = get_vec("dilation");
         const auto cur_group    = op_val.get("group", std::size_t{1});
 
-        // ---- build the mlss_conv_op via AMDMLSS API ----
-        auto op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
-            *ctx, act_lens, wt_lens, out_lens, cur_padding, cur_stride,
-            cur_dilation, cur_group,
-            true, static_cast<uint8_t>(mlss_activation_mode::identity), dtype);
-        if(op.code_object.empty())
+        auto& m = mpm.get_module();
+        if(not insert_mlss_conv(m, ctx, add_ins, act_ins, wt_ins, bias_ins,
+                                add_ins->get_shape(), cur_padding, cur_stride, cur_dilation, cur_group,
+                                true, static_cast<uint8_t>(mlss_activation_mode::identity), 0.0f))
             return;
 
-        op.pad_h    = static_cast<int32_t>(cur_padding[0]);
-        op.pad_w    = static_cast<int32_t>(cur_padding[1]);
-        op.has_bias = true;
-
-        op.output = add_ins->get_shape();
-
-        auto& m = mpm.get_module();
-
-        // args: [input, weight, bias]
-        // replace_instruction rewrites add_ins in-place and detaches bcast_ins
-        // and conv_ins from its input list, leaving them with no users.
-        m.replace_instruction(add_ins, op, {act_ins, wt_ins, bias_ins});
-
-        // Remove now-dead instructions (outputs().empty() guards against the
-        // unlikely case another instruction also consumed them).
         if(bcast_ins->outputs().empty())
             m.remove_instruction(bcast_ins);
         if(conv_ins->outputs().empty())
@@ -317,12 +314,6 @@ struct find_mlss_conv_bias
     }
 };
 
-// ---------------------------------------------------------------------------
-// Matcher for conv+bias+relu pattern:
-//   relu(add(convolution(input, weight_literal), broadcast(bias_literal)))
-// Same as find_mlss_conv_bias but sets activation_mode=relu and matches
-// the relu instruction as the outermost node to replace.
-// ---------------------------------------------------------------------------
 struct find_mlss_conv_bias_relu
 {
     context* ctx = nullptr;
@@ -349,10 +340,10 @@ struct find_mlss_conv_bias_relu
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto relu_ins  = r.result;
-        auto add_ins   = relu_ins->inputs()[0];   // add
-        auto conv_ins  = add_ins->inputs()[0];    // convolution
-        auto bcast_ins = add_ins->inputs()[1];    // broadcast
-        auto bias_ins  = bcast_ins->inputs()[0];  // @literal {K}
+        auto add_ins   = relu_ins->inputs()[0];
+        auto conv_ins  = add_ins->inputs()[0];
+        auto bcast_ins = add_ins->inputs()[1];
+        auto bias_ins  = bcast_ins->inputs()[0];
 
         auto conv_inputs = conv_ins->inputs();
         if(conv_inputs.size() < 2)
@@ -360,13 +351,9 @@ struct find_mlss_conv_bias_relu
         auto act_ins = conv_inputs[0];
         auto wt_ins  = conv_inputs[1];
 
-        // ---- shape / attribute checks (same as find_mlss_conv_bias) ----
-        const auto act_lens = act_ins->get_shape().lens();
-        const auto wt_lens  = wt_ins->get_shape().lens();
+        const auto wt_lens = wt_ins->get_shape().lens();
         if(wt_lens[2] == 1 and wt_lens[3] == 1)
-            return; // skip 1x1 convolutions
-        const auto out_lens = conv_ins->get_shape().lens();
-
+            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
@@ -385,25 +372,12 @@ struct find_mlss_conv_bias_relu
         const auto cur_dilation = get_vec("dilation");
         const auto cur_group    = op_val.get("group", std::size_t{1});
 
-        auto op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
-            *ctx, act_lens, wt_lens, out_lens, cur_padding, cur_stride,
-            cur_dilation, cur_group,
-            true, static_cast<uint8_t>(mlss_activation_mode::relu), dtype);
-        if(op.code_object.empty())
+        auto& m = mpm.get_module();
+        if(not insert_mlss_conv(m, ctx, relu_ins, act_ins, wt_ins, bias_ins,
+                                relu_ins->get_shape(), cur_padding, cur_stride, cur_dilation, cur_group,
+                                true, static_cast<uint8_t>(mlss_activation_mode::relu), 0.0f))
             return;
 
-        op.pad_h           = static_cast<int32_t>(cur_padding[0]);
-        op.pad_w           = static_cast<int32_t>(cur_padding[1]);
-        op.has_bias        = true;
-        op.activation_mode = static_cast<uint8_t>(mlss_activation_mode::relu);
-        op.output          = relu_ins->get_shape();
-
-        auto& m = mpm.get_module();
-
-        // Replace the relu instruction; conv, add, broadcast become dead.
-        m.replace_instruction(relu_ins, op, {act_ins, wt_ins, bias_ins});
-
-        // Remove now-dead instructions inner-to-outer.
         if(add_ins->outputs().empty())
             m.remove_instruction(add_ins);
         if(bcast_ins->outputs().empty())
@@ -412,13 +386,7 @@ struct find_mlss_conv_bias_relu
             m.remove_instruction(conv_ins);
     }
 };
-// ---------------------------------------------------------------------------
-// Matcher for conv+bias+leaky_relu pattern:
-//   leaky_relu[alpha=a](add(convolution(input, weight_literal), broadcast(bias_literal)))
-// Same as find_mlss_conv_bias_relu but sets activation_mode=leaky_relu and
-// stores the alpha attribute into op.activation_alpha, which is passed to the
-// kernel via the alpha field (offset 0x60 in the kernarg buffer).
-// ---------------------------------------------------------------------------
+
 struct find_mlss_conv_bias_leaky_relu
 {
     context* ctx = nullptr;
@@ -445,10 +413,10 @@ struct find_mlss_conv_bias_leaky_relu
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto lrelu_ins = r.result;
-        auto add_ins   = lrelu_ins->inputs()[0];  // add
-        auto conv_ins  = add_ins->inputs()[0];    // convolution
-        auto bcast_ins = add_ins->inputs()[1];    // broadcast
-        auto bias_ins  = bcast_ins->inputs()[0];  // @literal {K}
+        auto add_ins   = lrelu_ins->inputs()[0];
+        auto conv_ins  = add_ins->inputs()[0];
+        auto bcast_ins = add_ins->inputs()[1];
+        auto bias_ins  = bcast_ins->inputs()[0];
 
         auto conv_inputs = conv_ins->inputs();
         if(conv_inputs.size() < 2)
@@ -456,13 +424,9 @@ struct find_mlss_conv_bias_leaky_relu
         auto act_ins = conv_inputs[0];
         auto wt_ins  = conv_inputs[1];
 
-        // ---- shape / attribute checks (same as find_mlss_conv_bias) ----
-        const auto act_lens = act_ins->get_shape().lens();
-        const auto wt_lens  = wt_ins->get_shape().lens();
+        const auto wt_lens = wt_ins->get_shape().lens();
         if(wt_lens[2] == 1 and wt_lens[3] == 1)
-            return; // skip 1x1 convolutions
-        const auto out_lens = conv_ins->get_shape().lens();
-
+            return;
 
         const auto dtype = act_ins->get_shape().type();
         if(dtype != shape::float_type and dtype != shape::half_type)
@@ -481,25 +445,14 @@ struct find_mlss_conv_bias_leaky_relu
         const auto cur_dilation = get_vec("dilation");
         const auto cur_group    = op_val.get("group", std::size_t{1});
 
-        auto op = mlss_conv_op::make_gfx12_fp32_f2x3_stride1(
-            *ctx, act_lens, wt_lens, out_lens, cur_padding, cur_stride,
-            cur_dilation, cur_group,
-            true, static_cast<uint8_t>(mlss_activation_mode::leaky_relu), dtype);
-        if(op.code_object.empty())
-            return;
-
-        op.pad_h           = static_cast<int32_t>(cur_padding[0]);
-        op.pad_w           = static_cast<int32_t>(cur_padding[1]);
-        op.has_bias        = true;
-        op.activation_mode = static_cast<uint8_t>(mlss_activation_mode::leaky_relu);
-
-        // Read the alpha attribute from the leaky_relu operator.
-        const auto& lrelu_val  = lrelu_ins->get_operator().to_value();
-        op.activation_alpha    = lrelu_val.get("alpha", 0.0f);
-        op.output              = lrelu_ins->get_shape();
+        const auto& lrelu_val = lrelu_ins->get_operator().to_value();
+        float alpha = lrelu_val.get("alpha", 0.0f);
 
         auto& m = mpm.get_module();
-        m.replace_instruction(lrelu_ins, op, {act_ins, wt_ins, bias_ins});
+        if(not insert_mlss_conv(m, ctx, lrelu_ins, act_ins, wt_ins, bias_ins,
+                                lrelu_ins->get_shape(), cur_padding, cur_stride, cur_dilation, cur_group,
+                                true, static_cast<uint8_t>(mlss_activation_mode::leaky_relu), alpha))
+            return;
 
         if(add_ins->outputs().empty())
             m.remove_instruction(add_ins);
@@ -528,7 +481,6 @@ void fuse_mlss::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlss_conv_bias_leaky_relu{ctx});
         match::find_matches(mpm, find_mlss_conv_bias{ctx});
         match::find_matches(mpm, find_mlss_conv{ctx});
-
     }
 #endif // MIGRAPHX_USE_AMDMLSS
 }

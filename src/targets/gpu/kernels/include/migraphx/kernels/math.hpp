@@ -290,8 +290,8 @@ MIGRAPHX_DEVICE_MATH_VEC(log2)
 // Packed half2 max/min: lower to v_pk_max_f16 / v_pk_min_f16 via the
 // elementwise builtin. Must come before MIGRAPHX_DEVICE_MATH_VEC(max/min) so
 // the half2 overload is more specific than the generic vec_transform fallback.
-inline auto __device__ max(migraphx::vec<migraphx::half, 2> x,
-                           migraphx::vec<migraphx::half, 2> y) -> migraphx::vec<migraphx::half, 2>
+inline auto __device__ max(migraphx::vec<migraphx::half, 2> x, migraphx::vec<migraphx::half, 2> y)
+    -> migraphx::vec<migraphx::half, 2>
 {
     using half2_native = __attribute__((ext_vector_type(2))) _Float16;
     half2_native xn;
@@ -303,8 +303,8 @@ inline auto __device__ max(migraphx::vec<migraphx::half, 2> x,
     __builtin_memcpy(&r, &rn, sizeof(r));
     return r;
 }
-inline auto __device__ min(migraphx::vec<migraphx::half, 2> x,
-                           migraphx::vec<migraphx::half, 2> y) -> migraphx::vec<migraphx::half, 2>
+inline auto __device__ min(migraphx::vec<migraphx::half, 2> x, migraphx::vec<migraphx::half, 2> y)
+    -> migraphx::vec<migraphx::half, 2>
 {
     using half2_native = __attribute__((ext_vector_type(2))) _Float16;
     half2_native xn;

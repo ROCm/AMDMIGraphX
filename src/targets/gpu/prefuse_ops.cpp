@@ -380,8 +380,8 @@ static literal compute_winograd_weights_f23(const literal& w_lit)
                 {
                     for(int j = 0; j < 3; ++j)
                     {
-                        std::size_t off  = i * 3 * K * C + j * K * C + k * C + c;
-                        data[off]        = t[i][j];
+                        std::size_t off = i * 3 * K * C + j * K * C + k * C + c;
+                        data[off]       = t[i][j];
                     }
                 }
             }

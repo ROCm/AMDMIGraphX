@@ -271,9 +271,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const auto K     = out_shape.lens[1];
     const auto H_out = out_shape.lens[2];
     const auto W_out = out_shape.lens[3];
-    const auto C    = x_shape.lens[1];
-    const auto H_in = x_shape.lens[2];
-    const auto W_in = x_shape.lens[3];
+    const auto C     = x_shape.lens[1];
+    const auto H_in  = x_shape.lens[2];
+    const auto W_in  = x_shape.lens[3];
 
     const auto tiles_w       = (W_out + 1) / 2;
     const auto tiles_h       = (H_out + 1) / 2;
@@ -374,10 +374,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // checks [0, byte_count), so without these the boundary tiles silently
     // wrap into adjacent rows/channels. Precomputed once per lane (h0/w0 are
     // tile-fixed) so the cb loop's per-(i, j) check is just two compares.
-    const int v_i0 = -h0;
-    const int v_i1 = static_cast<int>(H_in) - h0;
-    const int v_j0 = -w0;
-    const int v_j1 = static_cast<int>(W_in) - w0;
+    const int v_i0         = -h0;
+    const int v_i1         = static_cast<int>(H_in) - h0;
+    const int v_j0         = -w0;
+    const int v_j1         = static_cast<int>(W_in) - w0;
     const int32_t hw_off   = h0 * sh_b + w0 * sw_b;
 
     // c-block range for this wave (= [0, cblocks) when SK=1; partitioned
@@ -421,14 +421,13 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     repeat_c<4>([&](auto i) {
                         const bool h_ok =
                             (static_cast<int>(i) >= v_i0 and static_cast<int>(i) < v_i1);
-                        const int32_t row_off =
-                            h_ok ? off + static_cast<int>(i) * sh_b : oob_byte;
-                        auto row         = buffer_load_half4(x_rsrc, row_off);
-                        const half hzero = half(0.0f);
-                        d[i * 4 + 0]     = (0 >= v_j0 and 0 < v_j1) ? row.x : hzero;
-                        d[i * 4 + 1]     = (1 >= v_j0 and 1 < v_j1) ? row.y : hzero;
-                        d[i * 4 + 2]     = (2 >= v_j0 and 2 < v_j1) ? row.z : hzero;
-                        d[i * 4 + 3]     = (3 >= v_j0 and 3 < v_j1) ? row.w : hzero;
+                        const int32_t row_off = h_ok ? off + static_cast<int>(i) * sh_b : oob_byte;
+                        auto row              = buffer_load_half4(x_rsrc, row_off);
+                        const half hzero      = half(0.0f);
+                        d[i * 4 + 0]          = (0 >= v_j0 and 0 < v_j1) ? row.x : hzero;
+                        d[i * 4 + 1]          = (1 >= v_j0 and 1 < v_j1) ? row.y : hzero;
+                        d[i * 4 + 2]          = (2 >= v_j0 and 2 < v_j1) ? row.z : hzero;
+                        d[i * 4 + 3]          = (3 >= v_j0 and 3 < v_j1) ? row.w : hzero;
                     });
                 }
                 else
@@ -515,10 +514,14 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     t2 = vec<half, 8>{0};
                 }
                 auto ur = apply_gt(t0, t1, t2);
-                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) = ur.u0;
-                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) = ur.u1;
-                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) = ur.u2;
-                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) = ur.u3;
+                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) =
+                    ur.u0;
+                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) =
+                    ur.u1;
+                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) =
+                    ur.u2;
+                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) =
+                    ur.u3;
             });
         }
         else
@@ -550,10 +553,14 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     t2 = vec<half, 8>{0};
                 }
                 auto ur = apply_gt(t0, t1, t2);
-                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 0, k_in_block, c_in_block)]) = ur.u0;
-                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 1, k_in_block, c_in_block)]) = ur.u1;
-                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 2, k_in_block, c_in_block)]) = ur.u2;
-                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 3, k_in_block, c_in_block)]) = ur.u3;
+                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 0, k_in_block, c_in_block)]) =
+                    ur.u0;
+                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 1, k_in_block, c_in_block)]) =
+                    ur.u1;
+                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 2, k_in_block, c_in_block)]) =
+                    ur.u2;
+                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 3, k_in_block, c_in_block)]) =
+                    ur.u3;
             }
         }
 
@@ -809,8 +816,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         constexpr int k_idx = k_idx_val;
         const index_int base_offset = n_idx * sn + (k_base + k_idx * BK + k_row_offset) * sk +
                                       (2 * th_idx) * sh + (2 * tw_idx) * sw;
-        const bool w_pair_in =
-            (static_cast<unsigned>(2 * tw_idx + 1) < W_out) and (sw == 1);
+        const bool w_pair_in = (static_cast<unsigned>(2 * tw_idx + 1) < W_out) and (sw == 1);
         repeat_c<8>([&](auto ki) {
             const index_int k = k_base + k_idx * BK + k_row_offset + ki;
             if(k < K)
@@ -829,16 +835,14 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                             {
                                 const int w_out0 = 2 * tw_idx;
                                 const int w_out1 = w_out0 + 1;
-                                const array<index_int, 4> idx0{
-                                    n_idx,
-                                    static_cast<index_int>(k),
-                                    static_cast<index_int>(h_out),
-                                    static_cast<index_int>(w_out0)};
-                                const array<index_int, 4> idx1{
-                                    n_idx,
-                                    static_cast<index_int>(k),
-                                    static_cast<index_int>(h_out),
-                                    static_cast<index_int>(w_out1)};
+                                const array<index_int, 4> idx0{n_idx,
+                                                               static_cast<index_int>(k),
+                                                               static_cast<index_int>(h_out),
+                                                               static_cast<index_int>(w_out0)};
+                                const array<index_int, 4> idx1{n_idx,
+                                                               static_cast<index_int>(k),
+                                                               static_cast<index_int>(h_out),
+                                                               static_cast<index_int>(w_out1)};
                                 using half2_t = __attribute__((ext_vector_type(2))) half;
                                 // Pack the j=0 / j=1 pair into vec<half, 2>
                                 // and call f once on the packed value. The
@@ -847,12 +851,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                 // with vec<half, 2> the operators (add,
                                 // mul, max) emit v_pk_* packed ops instead
                                 // of two scalar ops.
-                                vec<half, 2> y_pair{
-                                    static_cast<out_type>(y[k_idx][i * 2 + 0][ki]),
-                                    static_cast<out_type>(y[k_idx][i * 2 + 1][ki])};
-                                vec<half, 2> r = f(
-                                    y_pair,
-                                    vec<half, 2>{inputs[idx0], inputs[idx1]}...);
+                                vec<half, 2> y_pair{static_cast<out_type>(y[k_idx][i * 2 + 0][ki]),
+                                                    static_cast<out_type>(y[k_idx][i * 2 + 1][ki])};
+                                vec<half, 2> r =
+                                    f(y_pair, vec<half, 2>{inputs[idx0], inputs[idx1]}...);
                                 half2_t packed{r.x, r.y};
                                 __builtin_memcpy(&out_data[hbase], &packed, sizeof(half2_t));
                                 return;

@@ -624,7 +624,23 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // A-operand source: either LDS (cooperative SK==1 path) or directly
         // from global with G^T applied on the fly (SK>1 path).
         const int32_t u_oob_byte = static_cast<int32_t>(u_byte_count);
-        auto load_u_row          = [&](index_int k_idx, index_int wp_i, index_int c_offset) {
+        // Raw T-triple load for the direct path: returns the three T rows
+        // without applying G^T. Used to separate the global-load phase from
+        // the apply_gt+WMMA compute phase so the compiler can issue all loads
+        // up front, then overlap apply_gt+WMMA with the in-flight memory.
+        struct t_triple
+        {
+            vec<half, 8> t0, t1, t2;
+        };
+        auto load_t_triple = [&](index_int k_idx, index_int wp_i, index_int c_offset) {
+            const index_int k     = k_base + k_idx * BK + m_in_wave;
+            const index_int c_abs = c_base + c_offset + c_off;
+            const int32_t off0    = (k < K) ? t_off(wp_i, 0, k, c_abs) : u_oob_byte;
+            const int32_t off1    = (k < K) ? t_off(wp_i, 1, k, c_abs) : u_oob_byte;
+            const int32_t off2    = (k < K) ? t_off(wp_i, 2, k, c_abs) : u_oob_byte;
+            return t_triple{load_t(off0), load_t(off1), load_t(off2)};
+        };
+        auto load_u_row = [&](index_int k_idx, index_int wp_i, index_int c_offset) {
             if constexpr(u_via_lds)
             {
                 u_row r;
@@ -640,28 +656,58 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             }
             else
             {
-                const index_int k     = k_base + k_idx * BK + m_in_wave;
-                const index_int c_abs = c_base + c_offset + c_off;
-                const int32_t off0    = (k < K) ? t_off(wp_i, 0, k, c_abs) : u_oob_byte;
-                const int32_t off1    = (k < K) ? t_off(wp_i, 1, k, c_abs) : u_oob_byte;
-                const int32_t off2    = (k < K) ? t_off(wp_i, 2, k, c_abs) : u_oob_byte;
-                return apply_gt(load_t(off0), load_t(off1), load_t(off2));
+                auto tt = load_t_triple(k_idx, wp_i, c_offset);
+                return apply_gt(tt.t0, tt.t1, tt.t2);
             }
         };
 
         repeat_c<KW>([&](auto k_idx_val) {
             constexpr int k_idx = k_idx_val;
+            // For the direct (SK>1) path: pre-issue all wp_i × ck T-loads up
+            // front so the compiler emits them back-to-back. Then process
+            // each (wp_i, ck) with apply_gt + WMMA — the in-flight loads
+            // overlap with the apply_gt+WMMA work, hiding the global memory
+            // latency that would otherwise dominate the kernel.
+            t_triple t_buf[wmma_chunks == 2 ? 8 : 4];
+            if constexpr(not u_via_lds)
+            {
+                repeat_c<4>([&](auto wp_i_val) {
+                    constexpr int wp_i = wp_i_val;
+                    if constexpr(wmma_chunks == 2)
+                    {
+                        t_buf[wp_i * 2 + 0] = load_t_triple(k_idx, wp_i, 0);
+                        t_buf[wp_i * 2 + 1] = load_t_triple(k_idx, wp_i, 16);
+                    }
+                    else
+                    {
+                        t_buf[wp_i] = load_t_triple(k_idx, wp_i, 0);
+                    }
+                });
+            }
+            auto get_ur = [&](auto wp_i_val, index_int c_offset) {
+                constexpr int wp_i = wp_i_val;
+                if constexpr(u_via_lds)
+                {
+                    return load_u_row(k_idx, wp_i, c_offset);
+                }
+                else
+                {
+                    const auto& tt = (wmma_chunks == 2) ? t_buf[wp_i * 2 + (c_offset == 16 ? 1 : 0)]
+                                                        : t_buf[wp_i];
+                    return apply_gt(tt.t0, tt.t1, tt.t2);
+                }
+            };
             repeat_c<4>([&](auto wp_i_val) {
                 constexpr int wp_i = wp_i_val;
                 vec<float, 8> m0{}, m1{}, m2{}, m3{};
                 if constexpr(wmma_chunks == 2)
                 {
-                    auto u_lo = load_u_row(k_idx, wp_i, 0);
+                    auto u_lo = get_ur(wp_i_val, 0);
                     auto b0   = load_v(wp_i * 4 + 0, 0);
                     auto b1   = load_v(wp_i * 4 + 1, 0);
                     auto b2   = load_v(wp_i * 4 + 2, 0);
                     auto b3   = load_v(wp_i * 4 + 3, 0);
-                    auto u_hi = load_u_row(k_idx, wp_i, 16);
+                    auto u_hi = get_ur(wp_i_val, 16);
                     auto b4   = load_v(wp_i * 4 + 0, 16);
                     auto b5   = load_v(wp_i * 4 + 1, 16);
                     auto b6   = load_v(wp_i * 4 + 2, 16);
@@ -701,7 +747,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     for(index_int ck = 0; ck < wmma_chunks; ++ck)
                     {
                         const index_int c_offset = ck * 16;
-                        auto ur                  = load_u_row(k_idx, wp_i, c_offset);
+                        auto ur                  = get_ur(wp_i_val, c_offset);
                         auto b0                  = load_v(wp_i * 4 + 0, c_offset);
                         auto b1                  = load_v(wp_i * 4 + 1, c_offset);
                         auto b2                  = load_v(wp_i * 4 + 2, c_offset);

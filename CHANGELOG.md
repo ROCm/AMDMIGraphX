@@ -39,6 +39,8 @@ Full documentation for MIGraphX is available at
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
 
+* `split_single_dyn_dim` gains a `bucket_by_optimals` field: when true and `dynamic_dimension::optimals` is non-empty, emit one submodule per (min, optimals..., max) instead of one per integer in `[min, max]` (O(|optimals|) vs O(max-min) compile cost / engine size). `select_module::compute()` always falls back to the smallest compatible bucket on a non-exact runtime shape (ref pads on host, GPU callers pre-pad). GPU/Ref targets read `MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS` once and forward it to the pass field; see `docs/reference/MIGraphX-dev-env-vars.rst`.
+* `select_module::compute()` adds a per-instance dispatch cache that skips the submodule scan and parameter-name / shape allocations on repeated calls with the same input-shape signature.
 
 ### Changed
 

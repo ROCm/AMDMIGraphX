@@ -6,7 +6,6 @@
 #include <migraphx/op/builder/insert.hpp>
 
 #include "GatherLayer_impl.hpp"
-#include "Helper.hpp"
 
 namespace nvinfer1
 {

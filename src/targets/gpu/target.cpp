@@ -110,8 +110,8 @@ struct pipeline_factory
     {
         return {
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
-                        split_single_dyn_dim{.bucket_by_optimals = enabled(
-                                                MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS{})}),
+                        split_single_dyn_dim{.bucket_by_optimals =
+                                                 enabled(MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS{})}),
             dead_code_elimination{},
             simplify_dyn_ops{},
             dead_code_elimination{},

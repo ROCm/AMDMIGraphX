@@ -90,6 +90,15 @@ struct quantizelinear
                     double quantized;
                     if constexpr(std::is_integral<quant_type>{})
                     {
+                        // NaN inputs saturate to the integer minimum to match the de facto
+                        // ONNX reference behavior (ONNX Runtime's CPU EP). Without this
+                        // explicit handling, NaN would propagate through std::min/std::max
+                        // and silently saturate to max_value.
+                        if(std::isnan(static_cast<double>(input[i])))
+                        {
+                            output[i] = min_value;
+                            return;
+                        }
                         quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
                                     static_cast<double>(zero_pts[i]);
                     }

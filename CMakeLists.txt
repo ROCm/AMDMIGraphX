@@ -62,7 +62,7 @@ find_package(Threads REQUIRED)
 
 include(CMakeDependentOption)
 
-cmake_dependent_option(MIGRAPHX_MSVC_STATIC_RUNTIME "" OFF "WIN32" OFF)
+cmake_dependent_option(MIGRAPHX_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF "WIN32" OFF)
 
 if(NOT MIGRAPHX_MSVC_STATIC_RUNTIME)
     set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")

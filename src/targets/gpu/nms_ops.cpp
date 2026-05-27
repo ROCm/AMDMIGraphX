@@ -57,7 +57,7 @@ struct nms_sort
         const auto num_batches = boxes_s.lens()[0];
         const auto num_boxes   = boxes_s.lens()[1];
         const auto num_classes = scores_s.lens()[1];
-        const auto aligned_b = bit_ceil(static_cast<std::uint64_t>(num_boxes));
+        const auto aligned_b   = bit_ceil(static_cast<std::uint64_t>(num_boxes));
         shape out_scores_shape{scores_s.type(), {num_batches * num_classes, aligned_b}};
         shape out_boxes_shape{boxes_s.type(), {num_batches * num_classes, aligned_b, 4}};
         shape out_box_index_shape{shape::int32_type, {num_batches * num_classes, aligned_b}};
@@ -98,7 +98,7 @@ struct nms_filter
 MIGRAPHX_REGISTER_OP(nms_filter);
 
 // TODO: This should work in-place, saving memory. Need to update IR to handle it.
-//  Needs a make_tuple type of operator that reuses the indicies input.
+//  Needs a make_tuple type of operator that reuses the indices input.
 // Prefix-scan the per-block counts and compact the selections into
 // the final selected_indices. Output as selected_indices and num_selected tuple.
 // inputs = {output_bc_counts, output_indices}

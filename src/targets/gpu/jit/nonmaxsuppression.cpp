@@ -150,8 +150,7 @@ struct nms_sort_compiler : compiler<nms_sort_compiler>
         const auto num_batches = boxes_s.lens()[0];
         const auto num_boxes   = boxes_s.lens()[1];
         const auto num_classes = scores_s.lens()[1];
-        const auto aligned_num_boxes =
-            static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
+        const std::size_t aligned_num_boxes = bit_ceil(num_boxes);
         // NOTE: topK kernel uses relement/4 for amount of work in a block?
         auto block_size = compute_block_size(ctx, aligned_num_boxes, 1024);
 
@@ -192,8 +191,7 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
         const auto num_batches = v.at("num_batches").to<std::size_t>();
         const auto num_classes = v.at("num_classes").to<std::size_t>();
         const auto num_boxes   = v.at("num_boxes").to<std::size_t>();
-        const auto aligned_num_boxes =
-            static_cast<std::size_t>(bit_ceil(static_cast<std::uint64_t>(num_boxes)));
+        const std::size_t aligned_num_boxes = bit_ceil(num_boxes);
         // TODO: tune for max block size?
         // ceil_div(num_boxes, 2) because of strided thread work distribution
         const auto block_size = compute_block_size(ctx, (num_boxes + 1) / 2, 256);

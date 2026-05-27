@@ -146,8 +146,10 @@ struct bitonic_sort
     __device__ void block_sort(index idx, T& buf) const
     {
         static_assert(is_power_of_2(N), "N must be a power of 2");
+        //NOLINTNEXTLINE(hicpp-signed-bitwise)
         for(index_int k = 2; k <= N; k <<= 1)
         {
+            //NOLINTNEXTLINE(hicpp-signed-bitwise)
             for(index_int j = k >> 1; j > 0; j >>= 1)
             {
                 idx.local_stride(N, [&](auto tid) {
@@ -171,8 +173,10 @@ struct bitonic_sort
     __device__ void block_sort_indexed(index idx, CompareAt compare_at, SwapAt swap_at) const
     {
         static_assert(is_power_of_2(N), "N must be a power of 2");
+        //NOLINTNEXTLINE(hicpp-signed-bitwise)
         for(index_int k = 2; k <= N; k <<= 1)
         {
+            //NOLINTNEXTLINE(hicpp-signed-bitwise)
             for(index_int j = k >> 1; j > 0; j >>= 1)
             {
                 idx.local_stride(N, [&](auto tid) {

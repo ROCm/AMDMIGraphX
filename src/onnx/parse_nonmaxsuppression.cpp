@@ -24,6 +24,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/env.hpp>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_DYNAMIC_NMS)
 

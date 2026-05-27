@@ -165,6 +165,7 @@ __device__ void nonmaxsuppression_sort(const Boxes boxes_tv,
 
     // Sort scores descending, dragging boxes and indices along. Uses the
     // indexed variant so we can swap all 4 box lanes per index pair.
+    // NOLINTNEXTLINE(clang-diagnostic-error)
     bitonic_sort{greater{}}.template block_sort_indexed<AlignedNumBoxes>(
         idx,
         [&](auto i, auto j) { return my_sorted_scores[j] > my_sorted_scores[i]; },
@@ -214,6 +215,7 @@ __device__ void nms_make_iou_mask(const index idx,
     });
 
     // Have thread 0 do middle row if odd NumBoxes
+    // NOLINTNEXTLINE(hicpp-signed-bitwise)
     if constexpr((NumBoxes & 1) != 0 and NumBoxes > 1)
     {
         if(idx.local == 0)

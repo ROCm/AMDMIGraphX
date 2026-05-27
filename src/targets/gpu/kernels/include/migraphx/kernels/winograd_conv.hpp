@@ -271,7 +271,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const auto K     = out_shape.lens[1];
     const auto H_out = out_shape.lens[2];
     const auto W_out = out_shape.lens[3];
-    const auto C     = x_shape.lens[1];
+    const auto C    = x_shape.lens[1];
+    const auto H_in = x_shape.lens[2];
+    const auto W_in = x_shape.lens[3];
 
     const auto tiles_w       = (W_out + 1) / 2;
     const auto tiles_h       = (H_out + 1) / 2;
@@ -368,6 +370,14 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const int32_t n_off    = static_cast<int32_t>(n_idx * x_sh[0]) * sizeof(half);
     const int32_t sh_b     = static_cast<int32_t>(x_sh[2] * sizeof(half));
     const int32_t sw_b     = static_cast<int32_t>(x_sh[3] * sizeof(half));
+    // Per-lane H/W bounds for the V load. The X buffer descriptor only
+    // checks [0, byte_count), so without these the boundary tiles silently
+    // wrap into adjacent rows/channels. Precomputed once per lane (h0/w0 are
+    // tile-fixed) so the cb loop's per-(i, j) check is just two compares.
+    const int v_i0 = -h0;
+    const int v_i1 = static_cast<int>(H_in) - h0;
+    const int v_j0 = -w0;
+    const int v_j1 = static_cast<int>(W_in) - w0;
     const int32_t hw_off   = h0 * sh_b + w0 * sw_b;
 
     // c-block range for this wave (= [0, cblocks) when SK=1; partitioned
@@ -397,24 +407,42 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 const int32_t tile_off = base_off + hw_off;
                 const int32_t off          = active ? tile_off : static_cast<int32_t>(x_byte_count);
 
+                // The X buffer descriptor only enforces a single [0,
+                // byte_count) extent — h-OOB silently wraps into the next
+                // channel, w-OOB into the next row. Push h-OOB rows to an
+                // OOB byte offset (buffer hardware returns 0) and mask w-OOB
+                // columns to 0 explicitly. Whole-lane-inactive tiles
+                // (handled upstream via `off = x_byte_count`) still take the
+                // 0 path naturally.
+                const int32_t oob_byte = static_cast<int32_t>(x_byte_count);
                 array<half, 16> d;
                 if(sw_b == 2)
                 {
                     repeat_c<4>([&](auto i) {
-                        const int32_t row_off = off + static_cast<int>(i) * sh_b;
-                        auto row              = buffer_load_half4(x_rsrc, row_off);
-                        d[i * 4 + 0]          = row.x;
-                        d[i * 4 + 1]          = row.y;
-                        d[i * 4 + 2]          = row.z;
-                        d[i * 4 + 3]          = row.w;
+                        const bool h_ok =
+                            (static_cast<int>(i) >= v_i0 and static_cast<int>(i) < v_i1);
+                        const int32_t row_off =
+                            h_ok ? off + static_cast<int>(i) * sh_b : oob_byte;
+                        auto row         = buffer_load_half4(x_rsrc, row_off);
+                        const half hzero = half(0.0f);
+                        d[i * 4 + 0]     = (0 >= v_j0 and 0 < v_j1) ? row.x : hzero;
+                        d[i * 4 + 1]     = (1 >= v_j0 and 1 < v_j1) ? row.y : hzero;
+                        d[i * 4 + 2]     = (2 >= v_j0 and 2 < v_j1) ? row.z : hzero;
+                        d[i * 4 + 3]     = (3 >= v_j0 and 3 < v_j1) ? row.w : hzero;
                     });
                 }
                 else
                 {
                     repeat_c<4>([&](auto i) {
+                        const bool h_ok =
+                            (static_cast<int>(i) >= v_i0 and static_cast<int>(i) < v_i1);
                         repeat_c<4>([&](auto j) {
+                            const bool w_ok =
+                                (static_cast<int>(j) >= v_j0 and static_cast<int>(j) < v_j1);
                             const int32_t e_off =
-                                off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b;
+                                (h_ok and w_ok)
+                                    ? off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b
+                                    : oob_byte;
                             d[i * 4 + j] = buffer_load_half(x_rsrc, e_off);
                         });
                     });
@@ -430,39 +458,74 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // u_smem slot (slot = wave_id) so concurrent waves can work on
         // different c-blocks without trampling each other's U.
         static_assert(CB % 8 == 0, "CB must be a multiple of 8 for b128 U loads");
+        // U is stored in global as T = G*g with shape [4, 3, K, C] — 12
+        // halves per (k, c) instead of 16. The kernel applies the remaining
+        // G^T transform inline during the cooperative load:
+        //   U[i,0] = T[i,0]
+        //   U[i,1] = 0.5 * ((T[i,0] + T[i,2]) + T[i,1])
+        //   U[i,2] = 0.5 * ((T[i,0] + T[i,2]) - T[i,1])
+        //   U[i,3] = T[i,2]
+        // Each task loads 3 T b128s (one per j) for a single (i, k, c8-group)
+        // and writes 4 U b128s. Net: 25% fewer global loads, same LDS stores.
+        // u_sh layout: [4, 3, K, C] → u_sh[0]=3*K*C, u_sh[1]=K*C, u_sh[2]=C,
+        // u_sh[3]=1 (typically).
+        auto t_off = [&](index_int i_t, index_int j_t, index_int k, index_int c_abs) {
+            return static_cast<int32_t>(
+                (i_t * u_sh[0] + j_t * u_sh[1] + k * u_sh[2] + c_abs * u_sh[3]) * sizeof(half));
+        };
+        auto load_t = [&](int32_t off) {
+            vec<half, 8> v8;
+            auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
+            __builtin_memcpy(&v8, &raw, sizeof(v8));
+            return v8;
+        };
+        struct u_row
+        {
+            vec<half, 8> u0, u1, u2, u3;
+        };
+        auto apply_gt = [&](vec<half, 8> t0, vec<half, 8> t1, vec<half, 8> t2) -> u_row {
+            const auto half_c = static_cast<half>(0.5f);
+            // u0 = t0; u3 = t2; u1 = 0.5*((t0+t2) + t1); u2 = 0.5*((t0+t2) - t1)
+            vec<half, 8> s = t0 + t2;
+            return u_row{t0, (s + t1) * half_c, (s - t1) * half_c, t2};
+        };
         if constexpr(SK == 1)
         {
-            constexpr index_int U_TASKS = KW * 16 * BK * (CB / 8);
+            constexpr index_int U_TASKS = KW * 4 * BK * (CB / 8);
             idx.local_stride(_c<U_TASKS>, [&](auto task) {
                 const index_int c_half     = task % (CB / 8);
                 const index_int rest       = task / (CB / 8);
                 const index_int k_in_block = rest % BK;
                 const index_int rest2      = rest / BK;
-                const index_int wp         = rest2 % 16;
-                const index_int k_idx      = rest2 / 16;
+                const index_int i_t        = rest2 % 4;
+                const index_int k_idx      = rest2 / 4;
                 const index_int c_in_block = c_half * 8;
                 const index_int k          = k_base + k_idx * BK + k_in_block;
-                const int32_t off          = static_cast<int32_t>(
-                    (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) * sizeof(half));
-                vec<half, 8> v8;
+                vec<half, 8> t0, t1, t2;
                 if(k < K)
                 {
-                    auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
-                    __builtin_memcpy(&v8, &raw, sizeof(v8));
+                    t0 = load_t(t_off(i_t, 0, k, c_base + c_in_block));
+                    t1 = load_t(t_off(i_t, 1, k, c_base + c_in_block));
+                    t2 = load_t(t_off(i_t, 2, k, c_base + c_in_block));
                 }
                 else
                 {
-                    v8 = vec<half, 8>{0};
+                    t0 = vec<half, 8>{0};
+                    t1 = vec<half, 8>{0};
+                    t2 = vec<half, 8>{0};
                 }
-                half* dst       = &u_smem[u_cache_idx(k_idx, wp, k_in_block, c_in_block)];
-                *as_vec<8>(dst) = v8;
+                auto ur = apply_gt(t0, t1, t2);
+                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) = ur.u0;
+                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) = ur.u1;
+                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) = ur.u2;
+                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) = ur.u3;
             });
         }
         else
         {
             // SK>1: each wave loads U for its own c-block into its own slot.
             // KW is forced to 1 by static_assert above.
-            constexpr index_int U_TASKS_PER_WAVE = 16 * BK * (CB / 8);
+            constexpr index_int U_TASKS_PER_WAVE = 4 * BK * (CB / 8);
             constexpr index_int per_lane         = U_TASKS_PER_WAVE / 32;
             for(index_int t = 0; t < per_lane; ++t)
             {
@@ -470,27 +533,38 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 const index_int c_half     = task % (CB / 8);
                 const index_int rest       = task / (CB / 8);
                 const index_int k_in_block = rest % BK;
-                const index_int wp         = rest / BK;
+                const index_int i_t        = rest / BK;
                 const index_int c_in_block = c_half * 8;
                 const index_int k          = k_base + k_in_block;
-                const int32_t off          = static_cast<int32_t>(
-                    (wp * u_sh[0] + k * u_sh[1] + (c_base + c_in_block) * u_sh[2]) * sizeof(half));
-                vec<half, 8> v8;
+                vec<half, 8> t0, t1, t2;
                 if(k < K)
                 {
-                    auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
-                    __builtin_memcpy(&v8, &raw, sizeof(v8));
+                    t0 = load_t(t_off(i_t, 0, k, c_base + c_in_block));
+                    t1 = load_t(t_off(i_t, 1, k, c_base + c_in_block));
+                    t2 = load_t(t_off(i_t, 2, k, c_base + c_in_block));
                 }
                 else
                 {
-                    v8 = vec<half, 8>{0};
+                    t0 = vec<half, 8>{0};
+                    t1 = vec<half, 8>{0};
+                    t2 = vec<half, 8>{0};
                 }
-                half* dst       = &u_smem[u_cache_idx(wave_id, wp, k_in_block, c_in_block)];
-                *as_vec<8>(dst) = v8;
+                auto ur = apply_gt(t0, t1, t2);
+                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 0, k_in_block, c_in_block)]) = ur.u0;
+                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 1, k_in_block, c_in_block)]) = ur.u1;
+                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 2, k_in_block, c_in_block)]) = ur.u2;
+                *as_vec<8>(&u_smem[u_cache_idx(wave_id, i_t * 4 + 3, k_in_block, c_in_block)]) = ur.u3;
             }
         }
 
-        __syncthreads();
+        // For SK=1 the WG cooperatively loads all KW U slots and every wave
+        // reads from any of them, so we need a workgroup barrier. For SK>1
+        // each wave has its own slot (slot=wave_id) and reads only from that
+        // slot, so a wave-local wait on the LDS write is sufficient — the
+        // s_wait_dscnt the compiler inserts before the LDS read does that.
+        // NW=1 has only one wave per WG, so no inter-wave sync is ever needed.
+        if constexpr(SK == 1 and NW > 1)
+            __syncthreads();
 
         // ---- WMMA with fused incremental output transform ----
         constexpr index_int wmma_chunks = CB / 16;
@@ -654,7 +728,13 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             });
         });
 
-        __syncthreads();
+        // End-of-cb barrier: needed for SK=1 with NW>1 so the WG-shared U
+        // slots aren't overwritten before any wave has finished WMMA-reading
+        // them. For SK>1, U slots are per-wave so each wave can re-use its
+        // slot on the next cb iter without waiting on other waves. For NW=1
+        // there is no other wave, so no barrier is needed either.
+        if constexpr(SK == 1 and NW > 1)
+            __syncthreads();
     }
 
     // ---- Split-c cross-wave reduce (SK>1 only) ----
@@ -711,16 +791,26 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const auto sw  = out_shape.strides[3];
     auto* out_data = output.data();
 
-    // Fused post-op: apply f(y_val, xs[multi_idx]...) at each output position.
-    // For the non-fused case, F = op::id{} and Inputs... is empty so the call
-    // collapses to `static_cast<out_type>(y_val)`. For fused pointwise, F is
-    // the generated post_winograd_conv function and the extra inputs are
-    // indexed at the same (n, k, h_out, w_out) position as the output.
-    auto xs_pack = pack(inputs...);
+    // Fused post-op: apply f(y_val, inputs[multi_idx]...) at each output
+    // position. For the non-fused case, F = op::id{} and Inputs... is empty
+    // so the call collapses to `static_cast<out_type>(y_val)`. For fused
+    // pointwise, F is the generated post_winograd_conv function and the
+    // extra inputs are indexed at the same (n, k, h_out, w_out) position as
+    // the output.
+    //
+    // For NCHW + stride_w=1, manually pack the (j=0, j=1) outputs of each
+    // 2x2 winograd tile into a half2 and write via one b32. Without this the
+    // compiler emits two b16 stores per pair when there's a non-trivial
+    // post-op `f` (it stops packing the cast-to-fp16 with the j=0/j=1 store
+    // pair). That doubled the global_store count in fused kernels (e.g.,
+    // 96→96 192x192 with bias+leaky_relu went 86us unfused → 122us fused).
+    constexpr bool pkrtz_ok = sizeof(out_type) == 2 and __is_same(out_type, half);
     repeat_c<KW>([&](auto k_idx_val) {
         constexpr int k_idx = k_idx_val;
         const index_int base_offset = n_idx * sn + (k_base + k_idx * BK + k_row_offset) * sk +
                                       (2 * th_idx) * sh + (2 * tw_idx) * sw;
+        const bool w_pair_in =
+            (static_cast<unsigned>(2 * tw_idx + 1) < W_out) and (sw == 1);
         repeat_c<8>([&](auto ki) {
             const index_int k = k_base + k_idx * BK + k_row_offset + ki;
             if(k < K)
@@ -731,6 +821,44 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     if(static_cast<unsigned>(h_out) < H_out)
                     {
                         const index_int hbase = kbase + i * sh;
+                        // Fast path: both W in-bounds and stride_w=1 — pack
+                        // the two j outputs into one b32 store.
+                        if constexpr(pkrtz_ok)
+                        {
+                            if(w_pair_in)
+                            {
+                                const int w_out0 = 2 * tw_idx;
+                                const int w_out1 = w_out0 + 1;
+                                const array<index_int, 4> idx0{
+                                    n_idx,
+                                    static_cast<index_int>(k),
+                                    static_cast<index_int>(h_out),
+                                    static_cast<index_int>(w_out0)};
+                                const array<index_int, 4> idx1{
+                                    n_idx,
+                                    static_cast<index_int>(k),
+                                    static_cast<index_int>(h_out),
+                                    static_cast<index_int>(w_out1)};
+                                using half2_t = __attribute__((ext_vector_type(2))) half;
+                                // Pack the j=0 / j=1 pair into vec<half, 2>
+                                // and call f once on the packed value. The
+                                // generated post_winograd_conv function is
+                                // templated on input types; when invoked
+                                // with vec<half, 2> the operators (add,
+                                // mul, max) emit v_pk_* packed ops instead
+                                // of two scalar ops.
+                                vec<half, 2> y_pair{
+                                    static_cast<out_type>(y[k_idx][i * 2 + 0][ki]),
+                                    static_cast<out_type>(y[k_idx][i * 2 + 1][ki])};
+                                vec<half, 2> r = f(
+                                    y_pair,
+                                    vec<half, 2>{inputs[idx0], inputs[idx1]}...);
+                                half2_t packed{r.x, r.y};
+                                __builtin_memcpy(&out_data[hbase], &packed, sizeof(half2_t));
+                                return;
+                            }
+                        }
+                        // Slow path: scalar per-j store with bounds checks.
                         repeat_c<2>([&](auto j) {
                             const int w_out = static_cast<int>(2 * tw_idx) + static_cast<int>(j);
                             if(static_cast<unsigned>(w_out) < W_out)
@@ -739,11 +867,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                                                   static_cast<index_int>(k),
                                                                   static_cast<index_int>(h_out),
                                                                   static_cast<index_int>(w_out)};
-                                xs_pack([&](auto... xs) {
-                                    out_data[hbase + j * sw] = static_cast<out_type>(
-                                        f(static_cast<out_type>(y[k_idx][i * 2 + j][ki]),
-                                          xs[out_idx]...));
-                                });
+                                out_data[hbase + j * sw] = static_cast<out_type>(
+                                    f(static_cast<out_type>(y[k_idx][i * 2 + j][ki]),
+                                      inputs[out_idx]...));
                             }
                         });
                     }

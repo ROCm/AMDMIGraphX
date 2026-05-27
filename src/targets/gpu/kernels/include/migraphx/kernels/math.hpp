@@ -193,8 +193,18 @@ MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::fmaxf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::fminf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::__hmax)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::__hmin)
+// Use clang's elementwise builtins so the back-end emits the HW v_max_f16 /
+// v_min_f16 instructions. HIP's ::__hmax / ::__hmin do explicit NaN handling
+// (4 branches each) which the compiler can't lower back to the HW op, so they
+// generate a v_cmp + v_cndmask chain (~6 scalar ops) per fp16 max.
+inline auto __device__ max(migraphx::half x, migraphx::half y) -> migraphx::half
+{
+    return __builtin_elementwise_max(static_cast<_Float16>(x), static_cast<_Float16>(y));
+}
+inline auto __device__ min(migraphx::half x, migraphx::half y) -> migraphx::half
+{
+    return __builtin_elementwise_min(static_cast<_Float16>(x), static_cast<_Float16>(y));
+}
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>() and is_integral<T>{})>
 constexpr auto abs(const T& a)
@@ -277,6 +287,35 @@ MIGRAPHX_DEVICE_MATH_VEC(isinf)
 MIGRAPHX_DEVICE_MATH_VEC(isnan)
 MIGRAPHX_DEVICE_MATH_VEC(log)
 MIGRAPHX_DEVICE_MATH_VEC(log2)
+// Packed half2 max/min: lower to v_pk_max_f16 / v_pk_min_f16 via the
+// elementwise builtin. Must come before MIGRAPHX_DEVICE_MATH_VEC(max/min) so
+// the half2 overload is more specific than the generic vec_transform fallback.
+inline auto __device__ max(migraphx::vec<migraphx::half, 2> x,
+                           migraphx::vec<migraphx::half, 2> y) -> migraphx::vec<migraphx::half, 2>
+{
+    using half2_native = __attribute__((ext_vector_type(2))) _Float16;
+    half2_native xn;
+    half2_native yn;
+    __builtin_memcpy(&xn, &x, sizeof(xn));
+    __builtin_memcpy(&yn, &y, sizeof(yn));
+    half2_native rn = __builtin_elementwise_max(xn, yn);
+    migraphx::vec<migraphx::half, 2> r;
+    __builtin_memcpy(&r, &rn, sizeof(r));
+    return r;
+}
+inline auto __device__ min(migraphx::vec<migraphx::half, 2> x,
+                           migraphx::vec<migraphx::half, 2> y) -> migraphx::vec<migraphx::half, 2>
+{
+    using half2_native = __attribute__((ext_vector_type(2))) _Float16;
+    half2_native xn;
+    half2_native yn;
+    __builtin_memcpy(&xn, &x, sizeof(xn));
+    __builtin_memcpy(&yn, &y, sizeof(yn));
+    half2_native rn = __builtin_elementwise_min(xn, yn);
+    migraphx::vec<migraphx::half, 2> r;
+    __builtin_memcpy(&r, &rn, sizeof(r));
+    return r;
+}
 MIGRAPHX_DEVICE_MATH_VEC(max)
 MIGRAPHX_DEVICE_MATH_VEC(min)
 MIGRAPHX_DEVICE_MATH_VEC(mod)

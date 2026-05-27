@@ -328,26 +328,32 @@ struct winograd_conv
         const auto& x_shape = inputs[0];
         const auto& u_shape = inputs[1];
         auto x_lens         = x_shape.lens();
-        // U has shape [16, K, C] (F(2,3) winograd has 16 wp).
-        auto K                            = u_shape.lens()[1];
+        // U is now stored as T = G*g with shape [4, 3, K, C] (only the
+        // first half of the filter transform is precomputed; the kernel
+        // applies the remaining G^T at load time).
+        auto K                            = u_shape.lens()[2];
         std::vector<std::size_t> out_lens = {x_lens[0], K, x_lens[2], x_lens[3]};
         return shape{x_shape.type(), out_lens};
     }
 };
 MIGRAPHX_REGISTER_OP(winograd_conv);
 
-// Apply F(2x2, 3x3) Winograd filter transform U = G * g * G^T per (k, c).
-// Output U has shape [16, K, C] with C innermost so that consecutive lanes
-// loading consecutive C indices read contiguous global memory (coalesced).
+// Apply only the first half of the F(2x2, 3x3) Winograd filter transform:
+// T = G * g (per (k, c), shape 4x3). The second G^T multiply that finishes
+// the U = G g G^T transform is folded into the kernel's cooperative U load —
+// because column 0 / column 3 of U are direct copies of T columns 0 / 2 and
+// the middle two columns are linear combos, we only store 12 unique halves
+// per (k, c) instead of 16 (25% less weight memory).
+// Output layout [4, 3, K, C] with C innermost (coalesced loads).
 static literal compute_winograd_weights_f23(const literal& w_lit)
 {
     auto sh       = w_lit.get_shape();
     auto K        = sh.lens()[0];
     auto C        = sh.lens()[1];
     auto out_type = sh.type();
-    shape u_shape{out_type, {16, K, C}};
+    shape t_shape{out_type, {4, 3, K, C}};
 
-    std::vector<float> data(16ULL * K * C, 0.0f);
+    std::vector<float> data(4ULL * 3 * K * C, 0.0f);
 
     w_lit.visit([&](auto w_view) {
         for(std::size_t k = 0; k < K; ++k)
@@ -359,7 +365,8 @@ static literal compute_winograd_weights_f23(const literal& w_lit)
                     for(std::size_t j = 0; j < 3; ++j)
                         g[i][j] = static_cast<float>(w_view(k, c, i, j));
 
-                // T = G * g  (4x3)
+                // T = G * g  (4x3). G rows: [1,0,0], [0.5,0.5,0.5],
+                // [0.5,-0.5,0.5], [0,0,1].
                 float t[4][3];
                 for(int j = 0; j < 3; ++j)
                 {
@@ -369,22 +376,12 @@ static literal compute_winograd_weights_f23(const literal& w_lit)
                     t[3][j] = g[2][j];
                 }
 
-                // U_kc = T * G^T (4x4)
-                float u_kc[4][4];
                 for(int i = 0; i < 4; ++i)
                 {
-                    u_kc[i][0] = t[i][0];
-                    u_kc[i][1] = 0.5f * (t[i][0] + t[i][1] + t[i][2]);
-                    u_kc[i][2] = 0.5f * (t[i][0] - t[i][1] + t[i][2]);
-                    u_kc[i][3] = t[i][2];
-                }
-
-                for(int i = 0; i < 4; ++i)
-                {
-                    for(int j = 0; j < 4; ++j)
+                    for(int j = 0; j < 3; ++j)
                     {
-                        std::size_t wp               = i * 4 + j;
-                        data[wp * K * C + k * C + c] = u_kc[i][j];
+                        std::size_t off  = i * 3 * K * C + j * K * C + k * C + c;
+                        data[off]        = t[i][j];
                     }
                 }
             }
@@ -395,9 +392,9 @@ static literal compute_winograd_weights_f23(const literal& w_lit)
     {
         std::vector<half> hdata(data.size());
         std::transform(data.begin(), data.end(), hdata.begin(), [](float x) { return half(x); });
-        return literal{u_shape, hdata};
+        return literal{t_shape, hdata};
     }
-    return literal{u_shape, data};
+    return literal{t_shape, data};
 }
 
 MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)

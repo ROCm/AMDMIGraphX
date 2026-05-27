@@ -429,15 +429,27 @@ Semicolon-separated list (e.g. gfx94x;gfx950) for per-GPU deps, \
 or empty for device-all meta-package deps.")
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
     if(MIGRAPHX_THEROCK_GPU_ARCH)
-        # Per-GPU dependencies: one amdrocm-dnn/blas per arch
+        # Collect per-GPU dependencies: one amdrocm-dnn/blas per arch
+        set(_MGX_GPU_DEPS "")
         foreach(mgx_gpu_arch IN LISTS MIGRAPHX_THEROCK_GPU_ARCH)
             if(MIGRAPHX_USE_MIOPEN)
-                list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
+                list(APPEND _MGX_GPU_DEPS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
             endif()
             if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-                list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
+                list(APPEND _MGX_GPU_DEPS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
             endif()
         endforeach()
+        list(LENGTH MIGRAPHX_THEROCK_GPU_ARCH _MGX_NUM_ARCHS)
+        if(_MGX_NUM_ARCHS GREATER 1)
+            # Multi-arch fat binary: per-GPU libs are Recommends (only the
+            # libs for the GPU actually present are needed at runtime).
+            string(REPLACE ";" ", " _MGX_GPU_DEPS_CSV "${_MGX_GPU_DEPS}")
+            set(CPACK_DEBIAN_RUNTIME_PACKAGE_RECOMMENDS "${_MGX_GPU_DEPS_CSV}")
+            set(CPACK_RPM_PACKAGE_SUGGESTS "${_MGX_GPU_DEPS_CSV}")
+        else()
+            # Single-arch: hard dependency (user explicitly targets one GPU).
+            list(APPEND PACKAGE_DEPENDS ${_MGX_GPU_DEPS})
+        endif()
     else()
         # Device-all: depend on arch-independent meta packages
         if(MIGRAPHX_USE_MIOPEN)

@@ -47,10 +47,11 @@ __device__ void scatternd(const T& indices_t, const U& updates_t, const V& outpu
         auto indices_idx = indices_shape.multi(0);
         copy(updates_idx.begin(), updates_idx.begin() + q - 1, indices_idx.begin());
 
-        auto index_start = indices_t.begin() + indices_shape.index(indices_idx);
-        auto index_end   = index_start + k;
+        // begin_at is stride-aware; raw begin()+offset would only be correct
+        // for packed indices.
+        auto index_start = indices_t.begin_at(indices_idx);
         auto out_idx     = output_shape.multi(0);
-        copy(index_start, index_end, out_idx.begin());
+        copy(index_start, index_start + k, out_idx.begin());
         copy(updates_idx.begin() + q - 1, updates_idx.end(), out_idx.begin() + k);
 
         f(output_t[out_idx], updates_t[i]);

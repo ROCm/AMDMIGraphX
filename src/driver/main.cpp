@@ -603,8 +603,9 @@ struct program_params
                 load_arg_names.insert(x.substr(1));
         std::set<std::string> unset;
         for(const auto& param : param_shapes)
-            if(not contains(param.first, "#output_") and not contains(fill0, param.first) and
-               not contains(fill1, param.first) and not contains(load_arg_names, param.first))
+            if(shape::is_integral(param.second.type()) and not contains(param.first, "#output_") and
+               not contains(fill0, param.first) and not contains(fill1, param.first) and
+               not contains(load_arg_names, param.first))
                 unset.insert(param.first);
         if(unset.empty())
             return;

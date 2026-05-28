@@ -445,7 +445,7 @@ or empty for device-all meta-package deps.")
             # libs for the GPU actually present are needed at runtime).
             string(REPLACE ";" ", " _MGX_GPU_DEPS_CSV "${_MGX_GPU_DEPS}")
             set(CPACK_DEBIAN_RUNTIME_PACKAGE_RECOMMENDS "${_MGX_GPU_DEPS_CSV}")
-            set(CPACK_RPM_PACKAGE_SUGGESTS "${_MGX_GPU_DEPS_CSV}")
+            set(CPACK_RPM_RUNTIME_PACKAGE_SUGGESTS "${_MGX_GPU_DEPS_CSV}")
         else()
             # Single-arch: hard dependency (user explicitly targets one GPU).
             list(APPEND PACKAGE_DEPENDS ${_MGX_GPU_DEPS})

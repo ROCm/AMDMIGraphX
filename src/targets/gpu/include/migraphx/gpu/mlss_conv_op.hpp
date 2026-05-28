@@ -71,7 +71,7 @@ struct mlss_conv_op
                     f(self.output,            "output"));
     }
 
-    std::string name() const { return "mlss_conv"; }
+    std::string name() const { return "gpu::mlss_conv"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {

@@ -575,6 +575,20 @@ struct compile_manager
 
 void compile_ops::apply(module& m) const
 {
+    // First pass: compile ops that were placed directly into the module
+    // (via apply_map in lowering) without a precompile_op wrapper.
+    // These have a registered compiler but are not wrapped in precompile_op.
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "gpu::precompile_op")
+            continue;
+        if(not has_compiler_for(ins->name()))
+            continue;
+        auto op = ins->get_operator();
+        auto cr = compile(*ctx, ins, op, value{});
+        cr.replace(m, ins);
+    }
+
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
     // Find all precompile ops

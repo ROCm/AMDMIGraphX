@@ -43,7 +43,7 @@ static void set_karg(std::map<std::size_t, value>& ka, std::size_t idx, T v)
 
 struct mlss_conv_compiler : compiler<mlss_conv_compiler>
 {
-    std::vector<std::string> names() const { return {"mlss_conv"}; }
+    std::vector<std::string> names() const { return {"gpu::mlss_conv"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {

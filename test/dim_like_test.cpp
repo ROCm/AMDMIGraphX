@@ -280,7 +280,7 @@ TEST_CASE(visit_int)
     dim_like d = 42;
     auto seen  = visit(
         [](const auto& x) -> std::string {
-            if constexpr(std::is_same_v<std::decay_t<decltype(x)>, int64_t>)
+            if constexpr(std::is_same<std::decay_t<decltype(x)>, int64_t>{})
                 return "int";
             else
                 return "dd";
@@ -294,7 +294,7 @@ TEST_CASE(visit_dd)
     dim_like d = dd{1, 4};
     auto seen  = visit(
         [](const auto& x) -> std::string {
-            if constexpr(std::is_same_v<std::decay_t<decltype(x)>, int64_t>)
+            if constexpr(std::is_same<std::decay_t<decltype(x)>, int64_t>{})
                 return "int";
             else
                 return "dd";

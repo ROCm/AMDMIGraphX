@@ -148,6 +148,12 @@ struct reshape_lazy
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
+        if(std::any_of(dims.begin(), dims.end(), [](const auto& d) {
+               return std::holds_alternative<shape::dynamic_dimension>(d);
+           }))
+            MIGRAPHX_THROW(
+                "reshape_lazy: dynamic_dimension dim entries are not currently supported");
+
         auto n_neg_dims = std::count(dims.begin(), dims.end(), dim_like{-1});
         if(n_neg_dims > 1)
             MIGRAPHX_THROW("reshape_lazy: Dimensions for reshape_lazy can only have one -1 dim");

@@ -186,6 +186,11 @@ struct reshape
     {
         check_shapes{inputs, *this, true}.has(1, 2);
 
+        if(std::any_of(dims.begin(), dims.end(), [](const auto& d) {
+               return std::holds_alternative<shape::dynamic_dimension>(d);
+           }))
+            MIGRAPHX_THROW("Reshape: dynamic_dimension dim entries are not currently supported");
+
         auto n_neg_dims = std::count(dims.begin(), dims.end(), dim_like{-1});
         if(n_neg_dims > 1)
             MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");

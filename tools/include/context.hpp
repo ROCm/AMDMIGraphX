@@ -68,6 +68,16 @@ any_ptr get_queue_context(T&)
 }
 
 template <class T>
+void set_queue_context(T&, any_ptr)
+{
+}
+
+template <class T>
+void restore_queue_context(T&)
+{
+}
+
+template <class T>
 void wait_for_context(T&, any_ptr)
 {
 }
@@ -87,6 +97,8 @@ bool is_cross_compile_context(const T&)
         virtual('to_value', returns = 'value', const = True, default = 'to_value_context'),
         virtual('from_value', v = 'const value&', default = 'from_value_context'),
         virtual('get_queue', returns = 'any_ptr', default = 'get_queue_context'),
+        virtual('set_queue', queue = 'any_ptr', returns = 'void', default = 'set_queue_context'),
+        virtual('restore_queue', returns = 'void', default = 'restore_queue_context'),
         virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
         virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
         virtual('is_cross_compile',

@@ -649,7 +649,7 @@ std::vector<argument> program::eval(const parameter_map& params,
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
-        contexts.front().wait_for(exec_env.queue);
+        contexts.front().set_queue(exec_env.queue);
     }
 
     // When MIGRAPHX_TRACE_EVAL is set, overwrite any user-provided trace callback with our trace
@@ -702,7 +702,7 @@ std::vector<argument> program::eval(const parameter_map& params,
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
-        contexts.front().finish_on(exec_env.queue);
+        contexts.front().restore_queue();
     }
 
     return ret;

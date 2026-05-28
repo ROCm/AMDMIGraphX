@@ -199,6 +199,8 @@ add_library(migraphx_gpu
     ${MIOPEN_SRCS}
 )
 
+enable_static_init(migraphx_gpu)
+
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
 
@@ -391,7 +393,7 @@ if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
 else()
     target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 endif()
-target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
+target_link_libraries(migraphx_gpu PRIVATE $<BUILD_INTERFACE:migraphx_kernels>)
 
 # Link HSA runtime for chiplet query (Linux only)
 if(NOT WIN32)

@@ -90,27 +90,30 @@ struct gathernd
                            std::to_string(k));
         }
 
-        const bool any_dyn = data_shape.dynamic() or i_shape.dynamic();
-        if(output_ndim == 0)
-        {
-            if(any_dyn)
-                return shape(data_shape.type(), {shape::dynamic_dimension({1, 1})});
-            return shape{data_shape.type(), {1}};
-        }
-
         auto unified   = shape::to_dynamic(inputs);
         auto i_dims    = unified[1].dyn_dims();
         auto data_dims = unified[0].dyn_dims();
-        std::vector<shape::dynamic_dimension> output_dims(output_ndim);
-        std::copy(i_dims.begin(), i_dims.begin() + (q - 1), output_dims.begin());
-        // fill the rest of output shape from data tensor
-        if(k + batch_dims < r)
-            std::copy(data_dims.begin() + batch_dims + k,
-                      data_dims.begin() + r,
-                      output_dims.begin() + q - 1);
+        std::vector<shape::dynamic_dimension> output_dims;
+        if(output_ndim == 0)
+        {
+            // rank-0 result is represented as rank-1 size 1; pick the dd kind to
+            // match the lifted form so symbolic inputs stay symbolic.
+            output_dims.push_back(unified.front().symbolic() ? shape::dynamic_dimension{sym::lit(1)}
+                                                             : shape::dynamic_dimension{1, 1});
+        }
+        else
+        {
+            output_dims.resize(output_ndim);
+            std::copy(i_dims.begin(), i_dims.begin() + (q - 1), output_dims.begin());
+            // fill the rest of output shape from data tensor
+            if(k + batch_dims < r)
+                std::copy(data_dims.begin() + batch_dims + k,
+                          data_dims.begin() + r,
+                          output_dims.begin() + q - 1);
+        }
 
         shape output_shape(data_shape.type(), output_dims);
-        if(any_dyn)
+        if(data_shape.dynamic() or i_shape.dynamic())
             return output_shape;
         return output_shape.to_static();
     }

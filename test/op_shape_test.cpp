@@ -5936,6 +5936,15 @@ TEST_CASE(gathernd_sym_indices_k_must_be_fixed)
     throws_shape(migraphx::make_op("gathernd"), data, indices);
 }
 
+TEST_CASE(gathernd_sym_scalar_output)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {2}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(1)}}};
+    expect_shape(output, migraphx::make_op("gathernd"), data, indices);
+}
+
 TEST_CASE(test_scatternd0)
 {
     // good

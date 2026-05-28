@@ -88,6 +88,16 @@ file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
 migraphx_setup_msvc_runtime_library(migraphx_device)
 
+# Workaround for clang-cl HIP multi-arch bug: when /Fo is used, clang-cl uses
+# the same temp filename for all GPU target intermediate link outputs, causing
+# all code objects to contain only the last --offload-arch target. Using -o
+# instead of /Fo avoids this by letting clang generate unique temp filenames.
+if(WIN32)
+    set(CMAKE_CXX_COMPILE_OBJECT
+        "<CMAKE_CXX_COMPILER> /nologo -TP <DEFINES> <INCLUDES> <FLAGS> -clang:-MD -clang:-MF<OBJECT>.d -o <OBJECT> -c -- <SOURCE>")
+    set(CMAKE_DEPFILE_FLAGS_CXX "")
+endif()
+
 add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
 target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fnative-half-arguments-and-returns)

@@ -192,16 +192,28 @@ def isStageCompleted(String stageName) {
     def result = false
     try {
         withCredentials([usernamePassword(credentialsId: "${env.migraphx_ci_creds}", usernameVariable: 'USERNAME', passwordVariable: 'TOKEN')]) {
-            def response = sh(
-                script: """
-                    curl -s -L \
-                        -H "Accept: application/vnd.github+json" \
-                        -H "Authorization: Bearer \$TOKEN" \
-                        -H "X-GitHub-Api-Version: 2022-11-28" \
-                        "https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${commitSha}/status"
-                """,
-                returnStdout: true
-            ).trim()
+            def response = ''
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                response = sh(
+                    script: """
+                        curl -s -L \
+                            -H "Accept: application/vnd.github+json" \
+                            -H "Authorization: Bearer \$TOKEN" \
+                            -H "X-GitHub-Api-Version: 2022-11-28" \
+                            "https://api.github.com/repos/ROCm/AMDMIGraphX/commits/${commitSha}/status"
+                    """,
+                    returnStdout: true
+                ).trim()
+                if (response) {
+                    break
+                }
+                echo "Warning: empty response from GitHub API for '${stageName}' (attempt ${attempt}/3)"
+                sleep(time: 5 * attempt, unit: 'SECONDS')
+            }
+            if (!response) {
+                echo "Warning: GitHub API returned empty response for '${stageName}' after 3 attempts"
+                return false
+            }
             result = parseStageSuccess(response, context)
         }
     } catch (Exception e) {

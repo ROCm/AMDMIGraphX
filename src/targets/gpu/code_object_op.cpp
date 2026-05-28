@@ -120,30 +120,34 @@ void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
         return;
 
     // Pre-pack kernel_args into a flat aligned buffer.
+    // Null entries are 8-byte pointer slots filled from args[] in order at compute() time.
     packed_kernargs.clear();
     packed_kernargs.reserve(512);
     runtime_arg_offsets.clear();
 
+    std::size_t arg_counter = 0;
+
     for(const auto& [idx, v] : kernel_args)
     {
-        const auto& bin = v.get_binary();
-        auto sz         = bin.size();
-        auto align      = sz; // align == size for 1/4/8
-
-        // Insert alignment padding
-        std::size_t padding = (align - (packed_kernargs.size() % align)) % align;
-        packed_kernargs.insert(packed_kernargs.end(), padding, 0);
-
-        // Record offset for runtime pointer slots
-        if(runtime_arg_indices.count(idx))
+        if(v.is_null())
         {
-            runtime_arg_offsets.emplace_back(runtime_arg_indices.at(idx),
-                                             packed_kernargs.size());
+            // Pointer slot — align to 8, record offset for patching
+            std::size_t padding = (8 - (packed_kernargs.size() % 8)) % 8;
+            packed_kernargs.insert(packed_kernargs.end(), padding, 0);
+            runtime_arg_offsets.emplace_back(arg_counter++, packed_kernargs.size());
+            packed_kernargs.insert(packed_kernargs.end(), 8, 0);
         }
+        else
+        {
+            // Scalar — pack binary blob
+            const auto& bin = v.get_binary();
+            auto sz         = bin.size();
+            auto align      = sz; // align == size for 1/4/8
 
-        // Append raw bytes
-        packed_kernargs.insert(
-            packed_kernargs.end(), bin.data(), bin.data() + sz);
+            std::size_t padding = (align - (packed_kernargs.size() % align)) % align;
+            packed_kernargs.insert(packed_kernargs.end(), padding, 0);
+            packed_kernargs.insert(packed_kernargs.end(), bin.data(), bin.data() + sz);
+        }
     }
 }
 

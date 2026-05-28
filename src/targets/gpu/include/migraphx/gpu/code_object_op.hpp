@@ -50,10 +50,8 @@ struct code_object_op
     // Pre-computed scalar kernel arguments, keyed by position in the kernarg buffer.
     // Each value is a value::binary blob containing the raw bytes of the scalar
     // (binary.size() == 1, 4, or 8 encodes the exact byte width).
-    // runtime_arg_indices maps kernarg indices to runtime args[] positions for buffer pointers
-    // that are only known at compute() time (stored as uint64_t{0} placeholders at fusion time).
+    // Null entries are 8-byte pointer slots filled from args[] in order at compute() time.
     std::map<std::size_t, value> kernel_args{};
-    std::map<std::size_t, std::size_t> runtime_arg_indices{};
 
     // Pre-packed kernarg buffer built in finalize(); not reflected.
     std::vector<char> packed_kernargs{};
@@ -72,8 +70,7 @@ struct code_object_op
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"),
-                    f(self.kernel_args, "kernel_args"),
-                    f(self.runtime_arg_indices, "runtime_arg_indices"));
+                    f(self.kernel_args, "kernel_args"));
     }
 
     value attributes() const { return {{"group", group()}}; }

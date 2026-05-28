@@ -53,12 +53,12 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         uint8_t activation_mode  = static_cast<uint8_t>(v.at("activation_mode").to<uint64_t>());
         float   activation_alpha = static_cast<float>(v.at("activation_alpha").to<double>());
 
-        // Input shapes:
+        // Input shapes (after reorder in compile()):
         //   No bias:  [input, weight, output_buffer]
-        //   Has bias: [input, weight, bias, output_buffer]
+        //   Has bias: [input, weight, output_buffer, bias]
         const auto& input_shape  = inputs[0];
         const auto& weight_shape = inputs[1];
-        const auto& out_shape    = inputs.back();
+        const auto& out_shape    = inputs[2];
 
         const auto in_lens  = input_shape.lens();   // N, C, H, W
         const auto wt_lens  = weight_shape.lens();  // K, C/g, R, S
@@ -81,7 +81,6 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         // kernel_execution_conv_fp32_f2x3_stride1_cg64_kg128.cpp
         // -----------------------------------------------------------------------
         std::map<std::size_t, value> kernel_args;
-        std::map<std::size_t, std::size_t> runtime_arg_indices;
 
         int32_t N     = static_cast<int32_t>(in_lens[0]);
         int32_t Cg    = static_cast<int32_t>(in_lens[1]);
@@ -143,15 +142,10 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         set_karg(kernel_args, 5, ng);
         // 0x18: flags64
         set_karg(kernel_args, 6, flags64);
-        // 0x20: p_data (runtime arg 0)
-        set_karg(kernel_args, 7, uint64_t{0});
-        runtime_arg_indices[7] = 0;
-        // 0x28: p_filter (runtime arg 1)
-        set_karg(kernel_args, 8, uint64_t{0});
-        runtime_arg_indices[8] = 1;
-        // 0x30: p_output (runtime arg: last)
-        set_karg(kernel_args, 9, uint64_t{0});
-        runtime_arg_indices[9] = inputs.size() - 1;
+        // 0x20: p_data, 0x28: p_filter, 0x30: p_output — filled from args at compute time
+        kernel_args[7]  = value(nullptr);
+        kernel_args[8]  = value(nullptr);
+        kernel_args[9]  = value(nullptr);
         // 0x38: reserved3
         set_karg(kernel_args, 10, uint64_t{0});
         int32_t pad_h = cur_padding.size() > 0 ? static_cast<int32_t>(cur_padding[0]) : 0;
@@ -164,10 +158,11 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         set_karg(kernel_args, 14, pad_w);
         set_karg(kernel_args, 15, out_h);
         set_karg(kernel_args, 16, out_w);
-        // 0x58: p_bias (runtime arg 2 if has_bias, else 0)
-        set_karg(kernel_args, 17, uint64_t{0});
+        // 0x58: p_bias — filled from args if has_bias, else zero
         if(has_bias)
-            runtime_arg_indices[17] = 2;
+            kernel_args[17] = value(nullptr);
+        else
+            set_karg(kernel_args, 17, uint64_t{0});
         // 0x60: alpha, beta
         set_karg(kernel_args, 18, alpha);
         set_karg(kernel_args, 19, beta);
@@ -216,16 +211,31 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         cop.local             = local_size;
         cop.expected_inputs   = inputs;
         cop.output            = out_shape;
-        cop.output_arg        = static_cast<std::int64_t>(inputs.size() - 1);
-        cop.kernel_args         = std::move(kernel_args);
-        cop.runtime_arg_indices = std::move(runtime_arg_indices);
+        cop.output_arg        = 2;
+        cop.kernel_args = std::move(kernel_args);
 
         return cop;
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
-        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+        bool has_bias = op.to_value().at("has_bias").to<bool>();
+
+        // After lowering the inputs are [input, weight, (bias?), output_buffer].
+        // Reorder to [input, weight, output_buffer, (bias?)] so that gaps in
+        // kernel_args (indices 7,8,9,17) are filled from args in order.
+        auto inputs = ins->inputs();
+        if(has_bias)
+            std::swap(inputs[2], inputs[3]);
+
+        auto input_shapes = to_shapes(inputs);
+        auto cop = compile_op(ctx, input_shapes, op.to_value());
+
+        return compiler_replace(
+            cop,
+            [inputs](module& m, instruction_ref replace_ins, const operation& replace_op) {
+                m.replace_instruction(replace_ins, replace_op, inputs);
+            });
     }
 };
 

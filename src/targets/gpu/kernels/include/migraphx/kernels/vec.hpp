@@ -262,6 +262,90 @@ constexpr auto vec_generate(F f)
     return sequence_c<N>([&](auto... is) { return safe_vec<type, N>{f(is)...}; });
 }
 
+template <class T, class U>
+constexpr auto vec_dot(T x, U y)
+{
+    return vec_reduce(x * y, [](auto a, auto b) { return a + b; });
+}
+
+// Overload for half2 using hardware dot product builtin.
+// Returns float to keep f32 accumulation throughout the reduction.
+inline __device__ float vec_dot(vec<half, 2> x, vec<half, 2> y)
+{
+    return __builtin_amdgcn_fdot2(x, y, 0.0f, false);
+}
+
+// Chained hardware dot product for larger half vectors.
+// Returns float to keep f32 accumulation throughout the reduction.
+template <index_int N, MIGRAPHX_REQUIRES((N % 2) == 0 and N > 2)>
+__device__ float vec_dot(vec<half, N> x, vec<half, N> y)
+{
+    float acc = 0.0f;
+    for(int i = 0; i < N; i += 2)
+    {
+        vec<half, 2> x_pack = vec_packed_at<2>(x, i);
+        vec<half, 2> y_pack = vec_packed_at<2>(y, i);
+        acc                 = __builtin_amdgcn_fdot2(x_pack, y_pack, acc, false);
+    }
+    return acc;
+}
+
+// bf16 dot product using v_dot2_f32_bf16 (requires dot9-insts, RDNA3)
+#if defined(__GFX11__)
+
+// Overload for bf16x2 using hardware dot product builtin.
+// Returns float to keep f32 accumulation throughout the reduction.
+inline __device__ float vec_dot(vec<bf16, 2> x, vec<bf16, 2> y)
+{
+    return __builtin_amdgcn_fdot2_bf16_bf16(x, y, 0.0f);
+}
+
+// Chained hardware dot product for larger bf16 vectors.
+// Returns float to keep f32 accumulation throughout the reduction.
+template <index_int N, MIGRAPHX_REQUIRES((N % 2) == 0 and N > 2)>
+__device__ float vec_dot(vec<bf16, N> x, vec<bf16, N> y)
+{
+    float acc = 0.0f;
+    for(int i = 0; i < N; i += 2)
+    {
+        vec<bf16, 2> x_pack = vec_packed_at<2>(x, i);
+        vec<bf16, 2> y_pack = vec_packed_at<2>(y, i);
+        acc                 = __builtin_amdgcn_fdot2_bf16_bf16(x_pack, y_pack, acc);
+    }
+    return acc;
+}
+
+#endif // defined(__GFX11__)
+
+// int8 dot product using v_dot4_i32_i8 (requires dot1-insts, GFX9/RDNA2)
+#if defined(__GFX9__)
+
+// Overload for int8x4 using hardware dot product builtin.
+// Returns int32_t as the accumulation type.
+inline __device__ int32_t vec_dot(vec<int8_t, 4> x, vec<int8_t, 4> y)
+{
+    return __builtin_amdgcn_sdot4(
+        __builtin_bit_cast(int32_t, x), __builtin_bit_cast(int32_t, y), 0, false);
+}
+
+// Chained hardware dot product for larger int8 vectors.
+// Returns int32_t as the accumulation type.
+template <index_int N, MIGRAPHX_REQUIRES((N % 4) == 0 and N > 4)>
+__device__ int32_t vec_dot(vec<int8_t, N> x, vec<int8_t, N> y)
+{
+    int32_t acc = 0;
+    for(int i = 0; i < N; i += 4)
+    {
+        vec<int8_t, 4> x_pack = vec_packed_at<4>(x, i);
+        vec<int8_t, 4> y_pack = vec_packed_at<4>(y, i);
+        acc                   = __builtin_amdgcn_sdot4(
+            __builtin_bit_cast(int32_t, x_pack), __builtin_bit_cast(int32_t, y_pack), acc, false);
+    }
+    return acc;
+}
+
+#endif // defined(__GFX9__)
+
 template <class T>
 struct implicit_conversion_op
 {

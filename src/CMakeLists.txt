@@ -48,7 +48,7 @@ endif()
 
 # Windows uses clang-cl to compile MIGraphX, but kernels need to be compiled with clang++ instead.
 if(WIN32)
-    cmake_path(GET "${CMAKE_CXX_COMPILER}" PARENT_PATH __cmake_cxx_compiler_parent_path)
+    cmake_path(GET CMAKE_CXX_COMPILER PARENT_PATH __cmake_cxx_compiler_parent_path)
     cmake_path(APPEND __cmake_cxx_compiler_parent_path clang++${CMAKE_EXECUTABLE_SUFFIX} OUTPUT_VARIABLE MIGRAPHX_CXX_COMPILER)
 else()
     set(MIGRAPHX_CXX_COMPILER "${CMAKE_CXX_COMPILER}")

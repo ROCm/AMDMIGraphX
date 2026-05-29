@@ -78,14 +78,14 @@ static cache_hw_metadata query_current_gpu_metadata()
     if(colon != std::string::npos)
         meta.gpu_arch = meta.gpu_arch.substr(0, colon);
 
-    meta.cu_count            = props.multiProcessorCount;
-    meta.graphics_clock_mhz  = props.clockRate / 1000;       // kHz → MHz
-    meta.memory_clock_mhz    = props.memoryClockRate / 1000;  // kHz → MHz
-    meta.memory_bus_bits      = props.memoryBusWidth;
-    meta.vram_bytes           = static_cast<std::int64_t>(props.totalGlobalMem);
-    meta.wavefront_size       = props.warpSize;
-    meta.regs_per_block       = props.regsPerBlock;
-    meta.max_threads_per_cu   = props.maxThreadsPerMultiProcessor;
+    meta.cu_count           = props.multiProcessorCount;
+    meta.graphics_clock_mhz = props.clockRate / 1000;       // kHz → MHz
+    meta.memory_clock_mhz   = props.memoryClockRate / 1000; // kHz → MHz
+    meta.memory_bus_bits    = props.memoryBusWidth;
+    meta.vram_bytes         = static_cast<std::int64_t>(props.totalGlobalMem);
+    meta.wavefront_size     = props.warpSize;
+    meta.regs_per_block     = props.regsPerBlock;
+    meta.max_threads_per_cu = props.maxThreadsPerMultiProcessor;
 
     return meta;
 }
@@ -93,20 +93,20 @@ static cache_hw_metadata query_current_gpu_metadata()
 void problem_cache::load()
 {
     auto& backend = active_backend();
-    backend = make_default_cache_backend();
+    backend       = make_default_cache_backend();
 
     auto pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});
     if(pc_path.empty())
         return;
 
     // Query live GPU hardware metadata to derive device key.
-    auto hw_meta = query_current_gpu_metadata();
-    auto dk = hw_meta.device_key();
+    auto hw_meta        = query_current_gpu_metadata();
+    auto dk             = hw_meta.device_key();
     active_device_key() = to_string(dk);
 
     backend.open(pc_path, dk);
 
-    if(!hw_meta.empty())
+    if(not hw_meta.empty())
         backend.set_hw_metadata(hw_meta);
 
     // For the JSON backend, populate the legacy in-memory cache for backward
@@ -116,8 +116,8 @@ void problem_cache::load()
         auto entries = backend.all_entries();
         for(auto& e : entries)
         {
-            value key = {{"name", e.name}, {"problem", e.problem}};
-            value sol = e.solution.empty() ? value{} : value(e.solution);
+            value key  = {{"name", e.name}, {"problem", e.problem}};
+            value sol  = e.solution.empty() ? value{} : value(e.solution);
             cache[key] = sol;
         }
     }
@@ -126,7 +126,7 @@ void problem_cache::load()
 void problem_cache::load(const std::string& explicit_path, const std::string& explicit_backend)
 {
     auto& backend = active_backend();
-    backend = make_cache_backend_with_fallback(explicit_backend);
+    backend       = make_cache_backend_with_fallback(explicit_backend);
 
     // Precedence: explicit path > env var > no cache
     std::string pc_path = explicit_path;
@@ -136,13 +136,13 @@ void problem_cache::load(const std::string& explicit_path, const std::string& ex
         return;
 
     // Query live GPU hardware metadata to derive device key.
-    auto hw_meta = query_current_gpu_metadata();
-    auto dk = hw_meta.device_key();
+    auto hw_meta        = query_current_gpu_metadata();
+    auto dk             = hw_meta.device_key();
     active_device_key() = to_string(dk);
 
     backend.open(pc_path, dk);
 
-    if(!hw_meta.empty())
+    if(not hw_meta.empty())
         backend.set_hw_metadata(hw_meta);
 
     // For the JSON backend, populate the legacy in-memory cache for backward
@@ -152,8 +152,8 @@ void problem_cache::load(const std::string& explicit_path, const std::string& ex
         auto entries = backend.all_entries();
         for(auto& e : entries)
         {
-            value key = {{"name", e.name}, {"problem", e.problem}};
-            value sol = e.solution.empty() ? value{} : value(e.solution);
+            value key  = {{"name", e.name}, {"problem", e.problem}};
+            value sol  = e.solution.empty() ? value{} : value(e.solution);
             cache[key] = sol;
         }
     }
@@ -176,9 +176,9 @@ void problem_cache::save() const
         {
             cache_entry e;
             e.device_key = dk;
-            e.name     = k.at("name").to<std::string>();
-            e.problem  = k.at("problem").to<std::string>();
-            e.solution = v.is_null() ? std::string{} : v.to<std::string>();
+            e.name       = k.at("name").to<std::string>();
+            e.problem    = k.at("problem").to<std::string>();
+            e.solution   = v.is_null() ? std::string{} : v.to<std::string>();
             entries.push_back(std::move(e));
         }
         backend.load_entries(entries);
@@ -189,7 +189,7 @@ void problem_cache::save() const
 
 bool problem_cache::has(const std::string& name, const value& problem) const
 {
-    auto& backend = active_backend();
+    const auto& backend = active_backend();
     if(backend)
         return backend.has(active_device_key(), name, problem.to<std::string>());
     value key = {{"name", name}, {"problem", problem}};
@@ -201,12 +201,13 @@ void problem_cache::insert(const std::string& name, const value& problem, const 
     assert(not solution.is_null());
     auto& backend = active_backend();
     if(backend)
-        backend.insert(active_device_key(), name, problem.to<std::string>(), solution.to<std::string>());
+        backend.insert(
+            active_device_key(), name, problem.to<std::string>(), solution.to<std::string>());
 
     // Only update legacy cache map for JSON backend (backward compatibility)
     if(!backend || backend.backend_name() == "json")
     {
-        value key = {{"name", name}, {"problem", problem}};
+        value key  = {{"name", name}, {"problem", problem}};
         cache[key] = solution;
     }
 }
@@ -227,7 +228,7 @@ void problem_cache::mark(const std::string& name, const value& problem)
 
 optional<value> problem_cache::get(const std::string& name, const value& problem) const
 {
-    auto& backend = active_backend();
+    const auto& backend = active_backend();
     if(backend)
     {
         auto result = backend.get(active_device_key(), name, problem.to<std::string>());
@@ -238,7 +239,7 @@ optional<value> problem_cache::get(const std::string& name, const value& problem
         return value(*result);
     }
     value key = {{"name", name}, {"problem", problem}};
-    auto it = cache.find(key);
+    auto it   = cache.find(key);
     if(it == cache.end())
         return nullopt;
     return it->second;

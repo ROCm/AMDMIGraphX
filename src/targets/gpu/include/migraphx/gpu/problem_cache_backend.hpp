@@ -57,17 +57,17 @@ struct cache_entry
 /// Clock frequencies, VRAM size, etc. are metadata-only (stored but not keyed on).
 struct cache_device_key
 {
-    std::string gpu_arch;    // e.g. "gfx1100"
-    int cu_count = 0;        // compute units
-    int wavefront_size = 0;  // warp/wavefront width
+    std::string gpu_arch;   // e.g. "gfx1100"
+    int cu_count       = 0; // compute units
+    int wavefront_size = 0; // warp/wavefront width
 
     bool empty() const { return gpu_arch.empty(); }
     bool operator==(const cache_device_key& other) const
     {
-        return gpu_arch == other.gpu_arch && cu_count == other.cu_count &&
+        return gpu_arch == other.gpu_arch and cu_count == other.cu_count and
                wavefront_size == other.wavefront_size;
     }
-    bool operator!=(const cache_device_key& other) const { return !(*this == other); }
+    bool operator!=(const cache_device_key& other) const { return not(*this == other); }
 };
 
 /// Convert device key to a stable string representation for storage.
@@ -92,7 +92,7 @@ struct cache_device_key_hash
         auto h1 = std::hash<std::string>{}(dk.gpu_arch);
         auto h2 = std::hash<int>{}(dk.cu_count);
         auto h3 = std::hash<int>{}(dk.wavefront_size);
-        return h1 ^ (h2 << 1) ^ (h3 << 2);
+        return h1 ^ (h2 << 1U) ^ (h3 << 2U);
     }
 };
 
@@ -104,28 +104,25 @@ struct cache_device_key_hash
 struct cache_hw_metadata
 {
     std::string gpu_arch;
-    int cu_count = 0;
-    int graphics_clock_mhz = 0;
-    int memory_clock_mhz = 0;
-    int memory_bus_bits = 0;
+    int cu_count            = 0;
+    int graphics_clock_mhz  = 0;
+    int memory_clock_mhz    = 0;
+    int memory_bus_bits     = 0;
     std::int64_t vram_bytes = 0;
-    int wavefront_size = 0;
-    int regs_per_block = 0;
-    int max_threads_per_cu = 0;
+    int wavefront_size      = 0;
+    int regs_per_block      = 0;
+    int max_threads_per_cu  = 0;
 
     bool empty() const { return gpu_arch.empty(); }
 
     /// Extract the stable device key from full metadata.
-    cache_device_key device_key() const
-    {
-        return {gpu_arch, cu_count, wavefront_size};
-    }
+    cache_device_key device_key() const { return {gpu_arch, cu_count, wavefront_size}; }
 };
 
 /// Backend statistics for debugging/monitoring.
 struct backend_stats
 {
-    std::size_t entry_count = 0;
+    std::size_t entry_count     = 0;
     std::size_t file_size_bytes = 0;
     std::string storage_path;
     std::string backend_type;
@@ -144,11 +141,11 @@ struct backend_stats
 /// Required methods on a concrete backend T:
 ///   void open(const std::string& path, const cache_device_key& current_device)
 ///   void close()
-///   bool has(const std::string& device_key, const std::string& name, const std::string& problem) const
-///   std::optional<std::string> get(const std::string& device_key, const std::string& name, const std::string& problem) const
-///   void insert(const std::string& device_key, const std::string& name, const std::string& problem, const std::string& solution)
-///   void mark(const std::string& device_key, const std::string& name, const std::string& problem)
-///   void save()
+///   bool has(const std::string& device_key, const std::string& name, const std::string& problem)
+///   const std::optional<std::string> get(const std::string& device_key, const std::string& name,
+///   const std::string& problem) const void insert(const std::string& device_key, const
+///   std::string& name, const std::string& problem, const std::string& solution) void mark(const
+///   std::string& device_key, const std::string& name, const std::string& problem) void save()
 ///   std::vector<cache_entry> all_entries() const
 ///   void load_entries(const std::vector<cache_entry>& entries)
 ///   std::size_t size() const
@@ -158,7 +155,7 @@ struct backend_stats
 ///   const cache_hw_metadata& get_hw_metadata() const
 class MIGRAPHX_GPU_EXPORT problem_cache_backend
 {
-public:
+    public:
     problem_cache_backend() = default;
 
     template <class Backend>
@@ -167,7 +164,7 @@ public:
     {
     }
 
-    problem_cache_backend(problem_cache_backend&&) noexcept = default;
+    problem_cache_backend(problem_cache_backend&&) noexcept            = default;
     problem_cache_backend& operator=(problem_cache_backend&&) noexcept = default;
 
     explicit operator bool() const { return self_ != nullptr; }
@@ -175,23 +172,21 @@ public:
     // -- Lifecycle --
     void open(const std::string& path, const cache_device_key& current_device)
     {
-        self_->open_(path, current_device);
+        self_->do_open(path, current_device);
     }
-    void close() { self_->close_(); }
+    void close() { self_->do_close(); }
 
     // -- Read operations (device_key is the string form) --
-    bool has(const std::string& device_key,
-             const std::string& name,
-             const std::string& problem) const
+    bool
+    has(const std::string& device_key, const std::string& name, const std::string& problem) const
     {
-        return self_->has_(device_key, name, problem);
+        return self_->do_has(device_key, name, problem);
     }
 
-    std::optional<std::string> get(const std::string& device_key,
-                                   const std::string& name,
-                                   const std::string& problem) const
+    std::optional<std::string>
+    get(const std::string& device_key, const std::string& name, const std::string& problem) const
     {
-        return self_->get_(device_key, name, problem);
+        return self_->do_get(device_key, name, problem);
     }
 
     // -- Write operations --
@@ -200,49 +195,57 @@ public:
                 const std::string& problem,
                 const std::string& solution)
     {
-        self_->insert_(device_key, name, problem, solution);
+        self_->do_insert(device_key, name, problem, solution);
     }
 
-    void mark(const std::string& device_key,
-              const std::string& name,
-              const std::string& problem)
+    void mark(const std::string& device_key, const std::string& name, const std::string& problem)
     {
-        self_->mark_(device_key, name, problem);
+        self_->do_mark(device_key, name, problem);
     }
 
     // -- Persistence --
-    void save() { self_->save_(); }
+    void save() { self_->do_save(); }
 
     // -- Bulk operations --
-    std::vector<cache_entry> all_entries() const { return self_->all_entries_(); }
-    void load_entries(const std::vector<cache_entry>& entries) { self_->load_entries_(entries); }
+    std::vector<cache_entry> all_entries() const { return self_->do_all_entries(); }
+    void load_entries(const std::vector<cache_entry>& entries) { self_->do_load_entries(entries); }
 
     // -- Metadata --
-    std::size_t size() const { return self_->size_(); }
-    std::string backend_name() const { return self_->backend_name_(); }
-    backend_stats stats() const { return self_->stats_(); }
+    std::size_t size() const { return self_->do_size(); }
+    std::string backend_name() const { return self_->do_backend_name(); }
+    backend_stats stats() const { return self_->do_stats(); }
 
-    void set_hw_metadata(const cache_hw_metadata& meta) { self_->set_hw_metadata_(meta); }
-    const cache_hw_metadata& get_hw_metadata() const { return self_->get_hw_metadata_(); }
+    void set_hw_metadata(const cache_hw_metadata& meta) { self_->do_set_hw_metadata(meta); }
+    const cache_hw_metadata& get_hw_metadata() const { return self_->do_get_hw_metadata(); }
 
-private:
+    private:
     struct concept_t
     {
-        virtual ~concept_t() = default;
-        virtual void open_(const std::string& path, const cache_device_key& dk) = 0;
-        virtual void close_() = 0;
-        virtual bool has_(const std::string& dk, const std::string& n, const std::string& p) const = 0;
-        virtual std::optional<std::string> get_(const std::string& dk, const std::string& n, const std::string& p) const = 0;
-        virtual void insert_(const std::string& dk, const std::string& n, const std::string& p, const std::string& s) = 0;
-        virtual void mark_(const std::string& dk, const std::string& n, const std::string& p) = 0;
-        virtual void save_() = 0;
-        virtual std::vector<cache_entry> all_entries_() const = 0;
-        virtual void load_entries_(const std::vector<cache_entry>& entries) = 0;
-        virtual std::size_t size_() const = 0;
-        virtual std::string backend_name_() const = 0;
-        virtual backend_stats stats_() const = 0;
-        virtual void set_hw_metadata_(const cache_hw_metadata& meta) = 0;
-        virtual const cache_hw_metadata& get_hw_metadata_() const = 0;
+        concept_t()                                                               = default;
+        concept_t(const concept_t&)                                               = default;
+        concept_t(concept_t&&)                                                    = default;
+        concept_t& operator=(const concept_t&)                                    = default;
+        concept_t& operator=(concept_t&&)                                         = default;
+        virtual ~concept_t()                                                      = default;
+        virtual void do_open(const std::string& path, const cache_device_key& dk) = 0;
+        virtual void do_close()                                                   = 0;
+        virtual bool
+        do_has(const std::string& dk, const std::string& n, const std::string& p) const = 0;
+        virtual std::optional<std::string>
+        do_get(const std::string& dk, const std::string& n, const std::string& p) const         = 0;
+        virtual void do_insert(const std::string& dk,
+                               const std::string& n,
+                               const std::string& p,
+                               const std::string& s)                                            = 0;
+        virtual void do_mark(const std::string& dk, const std::string& n, const std::string& p) = 0;
+        virtual void do_save()                                                                  = 0;
+        virtual std::vector<cache_entry> do_all_entries() const                                 = 0;
+        virtual void do_load_entries(const std::vector<cache_entry>& entries)                   = 0;
+        virtual std::size_t do_size() const                                                     = 0;
+        virtual std::string do_backend_name() const                                             = 0;
+        virtual backend_stats do_stats() const                                                  = 0;
+        virtual void do_set_hw_metadata(const cache_hw_metadata& meta)                          = 0;
+        virtual const cache_hw_metadata& do_get_hw_metadata() const                             = 0;
     };
 
     template <class Backend>
@@ -251,20 +254,49 @@ private:
         Backend backend_;
         explicit model(Backend b) : backend_(std::move(b)) {}
 
-        void open_(const std::string& path, const cache_device_key& dk) override { backend_.open(path, dk); }
-        void close_() override { backend_.close(); }
-        bool has_(const std::string& dk, const std::string& n, const std::string& p) const override { return backend_.has(dk, n, p); }
-        std::optional<std::string> get_(const std::string& dk, const std::string& n, const std::string& p) const override { return backend_.get(dk, n, p); }
-        void insert_(const std::string& dk, const std::string& n, const std::string& p, const std::string& s) override { backend_.insert(dk, n, p, s); }
-        void mark_(const std::string& dk, const std::string& n, const std::string& p) override { backend_.mark(dk, n, p); }
-        void save_() override { backend_.save(); }
-        std::vector<cache_entry> all_entries_() const override { return backend_.all_entries(); }
-        void load_entries_(const std::vector<cache_entry>& entries) override { backend_.load_entries(entries); }
-        std::size_t size_() const override { return backend_.size(); }
-        std::string backend_name_() const override { return backend_.backend_name(); }
-        backend_stats stats_() const override { return backend_.stats(); }
-        void set_hw_metadata_(const cache_hw_metadata& meta) override { backend_.set_hw_metadata(meta); }
-        const cache_hw_metadata& get_hw_metadata_() const override { return backend_.get_hw_metadata(); }
+        void do_open(const std::string& path, const cache_device_key& dk) override
+        {
+            backend_.open(path, dk);
+        }
+        void do_close() override { backend_.close(); }
+        bool
+        do_has(const std::string& dk, const std::string& n, const std::string& p) const override
+        {
+            return backend_.has(dk, n, p);
+        }
+        std::optional<std::string>
+        do_get(const std::string& dk, const std::string& n, const std::string& p) const override
+        {
+            return backend_.get(dk, n, p);
+        }
+        void do_insert(const std::string& dk,
+                       const std::string& n,
+                       const std::string& p,
+                       const std::string& s) override
+        {
+            backend_.insert(dk, n, p, s);
+        }
+        void do_mark(const std::string& dk, const std::string& n, const std::string& p) override
+        {
+            backend_.mark(dk, n, p);
+        }
+        void do_save() override { backend_.save(); }
+        std::vector<cache_entry> do_all_entries() const override { return backend_.all_entries(); }
+        void do_load_entries(const std::vector<cache_entry>& entries) override
+        {
+            backend_.load_entries(entries);
+        }
+        std::size_t do_size() const override { return backend_.size(); }
+        std::string do_backend_name() const override { return backend_.backend_name(); }
+        backend_stats do_stats() const override { return backend_.stats(); }
+        void do_set_hw_metadata(const cache_hw_metadata& meta) override
+        {
+            backend_.set_hw_metadata(meta);
+        }
+        const cache_hw_metadata& do_get_hw_metadata() const override
+        {
+            return backend_.get_hw_metadata();
+        }
     };
 
     std::unique_ptr<concept_t> self_;

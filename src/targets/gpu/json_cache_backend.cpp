@@ -36,7 +36,7 @@ namespace gpu {
 
 void json_cache_backend::open(const std::string& path, const cache_device_key& current_device)
 {
-    filepath_ = path;
+    filepath_       = path;
     current_device_ = current_device;
     data_.clear();
 
@@ -59,21 +59,21 @@ void json_cache_backend::open(const std::string& path, const cache_device_key& c
         from_value(from_json_string(content), raw);
         for(auto& [k, v] : raw)
         {
-            auto name    = k.at("name").to<std::string>();
-            auto problem = k.at("problem").to<std::string>();
+            auto name     = k.at("name").to<std::string>();
+            auto problem  = k.at("problem").to<std::string>();
             auto solution = v.is_null() ? std::string{} : v.to<std::string>();
 
             // Try to reconstruct device_key from stored metadata fields.
             // If the entry has gpu_arch/cu_count/wavefront_size, build a device key.
             // Otherwise (legacy entries), assign to current device.
             std::string dk_str;
-            if(k.contains("gpu_arch") && k.contains("cu_count") && k.contains("wavefront_size"))
+            if(k.contains("gpu_arch") and k.contains("cu_count") and k.contains("wavefront_size"))
             {
                 cache_device_key stored_dk;
-                stored_dk.gpu_arch = k.at("gpu_arch").to<std::string>();
-                stored_dk.cu_count = k.at("cu_count").to<int>();
+                stored_dk.gpu_arch       = k.at("gpu_arch").to<std::string>();
+                stored_dk.cu_count       = k.at("cu_count").to<int>();
                 stored_dk.wavefront_size = k.at("wavefront_size").to<int>();
-                dk_str = to_string(stored_dk);
+                dk_str                   = to_string(stored_dk);
             }
             else
             {
@@ -85,9 +85,8 @@ void json_cache_backend::open(const std::string& path, const cache_device_key& c
     }
     catch(const std::exception& e)
     {
-        std::cerr << "[migraphx] WARNING: Failed to parse cache file '"
-                  << filepath_ << "': " << e.what()
-                  << ". Starting with empty cache." << std::endl;
+        std::cerr << "[migraphx] WARNING: Failed to parse cache file '" << filepath_
+                  << "': " << e.what() << ". Starting with empty cache." << std::endl;
         data_.clear();
     }
 }
@@ -143,15 +142,15 @@ void json_cache_backend::save()
     auto current_dk_str = to_string(current_device_);
     for(auto& [k, v] : data_)
     {
-        auto& dk_str = std::get<0>(k);
-        auto& name = std::get<1>(k);
+        auto& dk_str  = std::get<0>(k);
+        auto& name    = std::get<1>(k);
         auto& problem = std::get<2>(k);
 
         value key;
         // Parse the entry's own device_key to get its device fields
         auto entry_dk = parse_device_key(dk_str);
 
-        if(!hw_meta_.empty() && dk_str == current_dk_str)
+        if(not hw_meta_.empty() and dk_str == current_dk_str)
         {
             // Entry belongs to current device — write full hw provenance metadata
             key = {{"name", name},
@@ -166,7 +165,7 @@ void json_cache_backend::save()
                    {"regs_per_block", hw_meta_.regs_per_block},
                    {"max_threads_per_cu", hw_meta_.max_threads_per_cu}};
         }
-        else if(!entry_dk.empty())
+        else if(not entry_dk.empty())
         {
             // Entry belongs to a different device — write its device key fields only
             key = {{"name", name},
@@ -180,7 +179,7 @@ void json_cache_backend::save()
             // No device info available (legacy entry)
             key = {{"name", name}, {"problem", problem}};
         }
-        value sol = v.empty() ? value{} : value(v);
+        value sol   = v.empty() ? value{} : value(v);
         output[key] = sol;
     }
     write_string(filepath_, to_pretty_json_string(to_value(output)));
@@ -200,9 +199,9 @@ std::vector<cache_entry> json_cache_backend::all_entries() const
 void json_cache_backend::load_entries(const std::vector<cache_entry>& entries)
 {
     auto current_dk_str = to_string(current_device_);
-    for(auto& e : entries)
+    for(const auto& e : entries)
     {
-        auto dk = e.device_key.empty() ? current_dk_str : e.device_key;
+        auto dk                        = e.device_key.empty() ? current_dk_str : e.device_key;
         data_[{dk, e.name, e.problem}] = e.solution;
     }
 }
@@ -211,10 +210,7 @@ std::size_t json_cache_backend::size() const { return data_.size(); }
 
 std::string json_cache_backend::backend_name() const { return "json"; }
 
-backend_stats json_cache_backend::stats() const
-{
-    return {data_.size(), 0, filepath_, "json"};
-}
+backend_stats json_cache_backend::stats() const { return {data_.size(), 0, filepath_, "json"}; }
 
 void json_cache_backend::set_hw_metadata(const cache_hw_metadata& meta) { hw_meta_ = meta; }
 

@@ -136,6 +136,61 @@ inline auto pointwise_inputs()
     };
 }
 
+// find attention blocks that have been quantized and undo them
+struct find_quant_attention
+{
+    auto matcher() const
+    {
+        auto gemm1 =
+            match::name("dequantizelinear")(match::arg(0)(match::name("quant_dot").bind("qgemm1")))
+                .bind("deq1");
+        auto softmax = match::softmax_input(match::skip(match::name("convert"))(gemm1));
+        auto probs   = match::name("quantizelinear")(
+            match::arg(0)(match::skip(match::name("convert"))(softmax)));
+        return match::name("quant_dot")(match::arg(0)(probs)).bind("qgemm2");
+    }
+
+    // removes the q/dq pairs from attention block gemms
+    static bool dequantize_gemm(module& m, instruction_ref qgemm, instruction_ref deq)
+    {
+        auto qa = qgemm->inputs().at(0);
+        auto qb = qgemm->inputs().at(1);
+        if(qa->name() != "quantizelinear" or qb->name() != "quantizelinear")
+            return false;
+        auto a            = qa->inputs().front();
+        auto b            = qb->inputs().front();
+        auto compute_type = b->get_shape().type();
+        if(a->get_shape().type() != compute_type)
+            a = m.insert_instruction(deq, make_op("convert", {{"target_type", compute_type}}), a);
+        instruction_ref dot = m.insert_instruction(deq, make_op("dot"), a, b);
+        if(compute_type != deq->get_shape().type())
+            dot = m.insert_instruction(
+                deq, make_op("convert", {{"target_type", deq->get_shape().type()}}), dot);
+        m.replace_instruction(deq, dot);
+        return true;
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m     = mpm.get_module();
+        auto qgemm1 = r.instructions["qgemm1"];
+        auto deq1   = r.instructions["deq1"];
+        auto qgemm2 = r.result;
+
+        // gemm2's dequantizelinear is its consumer; locate it before rewriting.
+        auto qgemm2_outs = qgemm2->outputs();
+        auto deq2        = std::find_if(qgemm2_outs.begin(), qgemm2_outs.end(), [](auto o) {
+            return o->name() == "dequantizelinear";
+        });
+        if(deq2 == qgemm2_outs.end())
+            return;
+
+        if(not dequantize_gemm(m, qgemm1, deq1))
+            return;
+        dequantize_gemm(m, qgemm2, *deq2);
+    }
+};
+
 struct find_attention
 {
     std::size_t* counter;
@@ -977,6 +1032,11 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     // Only fuse plain attention when requested
     if(attn_enabled)
     {
+        // remove quantization from attention blocks so they can be fused; rocMLIR currently does
+        // not support fp8 attention
+        match::find_matches(mpm, find_quant_attention{});
+        mpm.run_pass(dead_code_elimination{});
+
         match::find_matches(mpm, find_attention{.counter = &counter});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});

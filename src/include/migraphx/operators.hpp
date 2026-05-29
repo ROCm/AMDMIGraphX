@@ -43,7 +43,6 @@
 #include <migraphx/op/clip.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/concat.hpp>
-#include <migraphx/op/concat_past_present.hpp>
 #include <migraphx/op/contiguous.hpp>
 #include <migraphx/op/convert.hpp>
 #include <migraphx/op/convolution.hpp>
@@ -71,6 +70,7 @@
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/if_op.hpp>
 #include <migraphx/op/im2col.hpp>
+#include <migraphx/op/insert_slice.hpp>
 #include <migraphx/op/isnan.hpp>
 #include <migraphx/op/leaky_relu.hpp>
 #include <migraphx/op/less.hpp>

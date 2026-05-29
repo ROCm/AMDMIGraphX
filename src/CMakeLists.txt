@@ -179,6 +179,7 @@ register_migraphx_ops(
     acosh
     acos
     add
+    addressof
     allocate
     argmax
     argmin
@@ -196,7 +197,6 @@ register_migraphx_ops(
     ceil
     clip
     concat
-    concat_past_present
     contiguous
     convert
     convolution
@@ -204,6 +204,7 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    deref
     dimensions_of
     div
     dot
@@ -226,6 +227,7 @@ register_migraphx_ops(
     identity
     if_op
     im2col
+    insert_slice
     isinf
     isnan
     layout

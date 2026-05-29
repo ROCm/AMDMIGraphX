@@ -306,7 +306,14 @@ else()
     endif()
 endif()
 
-target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+if(WIN32)
+    cmake_path(GET "${CMAKE_CXX_COMPILER}" PARENT_PATH __cmake_cxx_compiler_parent_path)
+    cmake_path(APPEND __cmake_cxx_compiler_parent_path clang++${CMAKE_EXECUTABLE_SUFFIX} OUTPUT_VARIABLE __migraphx_cxx_compiler)
+else()
+    set(__migraphx_cxx_compiler "${CMAKE_CXX_COMPILER}")
+endif()
+
+target_compile_definitions(migraphx_gpu PUBLIC MIGRAPHX_CXX_COMPILER="${__migraphx_cxx_compiler}")
 
 # Check miopen find mode api
 

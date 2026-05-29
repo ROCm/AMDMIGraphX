@@ -87,6 +87,22 @@ configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
 
+option(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG "Workaround clang-cl HIP multi-arch /Fo bug on Windows" OFF)
+if(NOT MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        set(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG ON CACHE BOOL "Workaround clang-cl HIP multi-arch /Fo bug on Windows" FORCE)
+    else()
+        set(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG OFF CACHE BOOL "Workaround clang-cl HIP multi-arch /Fo bug on Windows" FORCE)
+    endif()
+endif()
+message(STATUS "MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG = ${MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG}")
+
+if(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG)
+    set(CMAKE_CXX_COMPILE_OBJECT
+        "<CMAKE_CXX_COMPILER> /nologo -TP <DEFINES> <INCLUDES> <FLAGS> -clang:-MD -clang:-MF<OBJECT>.d -o <OBJECT> -c -- <SOURCE>")
+    set(CMAKE_DEPFILE_FLAGS_CXX "")
+endif()
+
 add_library(compile_for_gpu INTERFACE)
 target_compile_features(compile_for_gpu INTERFACE cxx_std_17)
 target_compile_options(compile_for_gpu INTERFACE -fno-gpu-rdc -Wno-cuda-compat -Wno-unused-command-line-argument -Xclang -fnative-half-arguments-and-returns)

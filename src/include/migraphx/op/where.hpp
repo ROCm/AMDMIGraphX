@@ -71,7 +71,8 @@ struct where
         else if(s1.broadcasted() != s2.broadcasted())
         {
             if(s1.symbolic())
-                return s1.broadcasted() ? s2.with_lens(s1.dyn_dims()) : s1.with_lens(s1.dyn_dims());
+                return s1.broadcasted() ? s2.with_lens(s1.dyn_dims())
+                                        : s1.with_lens(s1.dyn_dims());
             return s1.broadcasted() ? s2.with_lens(s1.lens()) : s1.with_lens(s1.lens());
         }
         else

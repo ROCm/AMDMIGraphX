@@ -69,16 +69,25 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
         f(args);
 }
 
-
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     if(not packed_kernargs.empty())
     {
-        // Fast path: stack-copy pre-packed buffer, patch pointer slots, launch.
-        alignas(8) char buf[512];
+        // Fast path: copy pre-packed buffer, patch pointer slots, launch.
+        // Use a stack buffer when the packed kernargs fit; otherwise fall back
+        // to a heap allocation sized to the actual payload.
+        constexpr std::size_t stack_buf_size = 512;
+        alignas(8) char stack_buf[stack_buf_size];
         auto sz = packed_kernargs.size();
-        assert(sz <= sizeof(buf));
+
+        std::vector<char> heap_buf;
+        char* buf = stack_buf;
+        if(sz > stack_buf_size)
+        {
+            heap_buf.resize(sz);
+            buf = heap_buf.data();
+        }
         std::memcpy(buf, packed_kernargs.data(), sz);
 
         for(const auto& [arg_idx, byte_offset] : runtime_arg_offsets)

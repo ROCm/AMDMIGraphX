@@ -52,23 +52,23 @@ struct mlss_conv_op
     std::vector<std::size_t> padding{};
     std::vector<std::size_t> stride{1, 1};
     std::vector<std::size_t> dilation{1, 1};
-    std::size_t group = 1;
-    bool has_bias = false;
+    std::size_t group       = 1;
+    bool has_bias           = false;
     uint8_t activation_mode = static_cast<uint8_t>(mlss_activation_mode::identity);
-    float activation_alpha = 0.0f;
+    float activation_alpha  = 0.0f;
     shape output{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.padding,           "padding"),
-                    f(self.stride,            "stride"),
-                    f(self.dilation,          "dilation"),
-                    f(self.group,             "group"),
-                    f(self.has_bias,          "has_bias"),
-                    f(self.activation_mode,   "activation_mode"),
-                    f(self.activation_alpha,  "activation_alpha"),
-                    f(self.output,            "output"));
+        return pack(f(self.padding, "padding"),
+                    f(self.stride, "stride"),
+                    f(self.dilation, "dilation"),
+                    f(self.group, "group"),
+                    f(self.has_bias, "has_bias"),
+                    f(self.activation_mode, "activation_mode"),
+                    f(self.activation_alpha, "activation_alpha"),
+                    f(self.output, "output"));
     }
 
     std::string name() const { return "gpu::mlss_conv"; }
@@ -104,18 +104,17 @@ struct mlss_conv_binary_info
 #ifdef MIGRAPHX_USE_AMDMLSS
 // Query the AMDMLSS API for a non-relocatable conv kernel binary.
 // Returns empty info if no kernel is available for the given configuration.
-mlss_conv_binary_info query_mlss_conv_binary(
-    const context& ctx,
-    const std::vector<std::size_t>& act_lens,
-    const std::vector<std::size_t>& wt_lens,
-    const std::vector<std::size_t>& out_lens,
-    const std::vector<std::size_t>& padding,
-    const std::vector<std::size_t>& stride,
-    const std::vector<std::size_t>& dilation,
-    std::size_t group,
-    bool has_bias_flag,
-    uint8_t act_mode,
-    shape::type_t dtype);
+mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
+                                             const std::vector<std::size_t>& act_lens,
+                                             const std::vector<std::size_t>& wt_lens,
+                                             const std::vector<std::size_t>& out_lens,
+                                             const std::vector<std::size_t>& padding,
+                                             const std::vector<std::size_t>& stride,
+                                             const std::vector<std::size_t>& dilation,
+                                             std::size_t group,
+                                             bool has_bias_flag,
+                                             uint8_t act_mode,
+                                             shape::type_t dtype);
 #endif
 
 } // namespace gpu

@@ -43,33 +43,31 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-mlss_conv_binary_info query_mlss_conv_binary(
-    const context& ctx,
-    const std::vector<std::size_t>& act_lens,
-    const std::vector<std::size_t>& wt_lens,
-    const std::vector<std::size_t>& out_lens,
-    const std::vector<std::size_t>& padding,
-    const std::vector<std::size_t>& stride,
-    const std::vector<std::size_t>& dilation,
-    std::size_t group,
-    bool has_bias_flag,
-    uint8_t act_mode,
-    shape::type_t dtype)
+mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
+                                             const std::vector<std::size_t>& act_lens,
+                                             const std::vector<std::size_t>& wt_lens,
+                                             const std::vector<std::size_t>& out_lens,
+                                             const std::vector<std::size_t>& padding,
+                                             const std::vector<std::size_t>& stride,
+                                             const std::vector<std::size_t>& dilation,
+                                             std::size_t group,
+                                             bool has_bias_flag,
+                                             uint8_t act_mode,
+                                             shape::type_t dtype)
 {
     mlss_conv_binary_info info;
 
     mlssSetVerboseLevel(MLSS_VERBOSE_NONE);
 
     const std::string gfx_name = ctx.get_current_device().get_gfx_name();
-    MLSScontext mlss_ctx        = 0;
-    MLSSstring op_name          = const_cast<MLSSstring>(MLSS_CONV);
+    MLSScontext mlss_ctx       = 0;
+    MLSSstring op_name         = const_cast<MLSSstring>(MLSS_CONV);
     if(mlssCreateContext(&mlss_ctx, const_cast<MLSSstring>(gfx_name.c_str()), op_name) !=
        MLSS_SUCCESS)
     {
         MIGRAPHX_THROW("mlss_conv: mlssCreateContext failed for " + gfx_name);
     }
 
-    // Dimensions: act=[N,C,H,W], wt=[K,C/g,R,S], out=[N,K,outH,outW]
     std::uint32_t n    = static_cast<std::uint32_t>(act_lens[0]);
     std::uint32_t c    = static_cast<std::uint32_t>(act_lens[1]);
     std::uint32_t h    = static_cast<std::uint32_t>(act_lens[2]);
@@ -97,10 +95,10 @@ mlss_conv_binary_info query_mlss_conv_binary(
     std::uint32_t filterStrideX = 1;
     std::uint32_t filterStrideY = 1;
 
-    std::uint32_t groups           = static_cast<std::uint32_t>(group);
-    MLSSbool      mlss_has_bias    = has_bias_flag ? true : false;
-    MLSSbool      crossCorrelation = false;
-    MLSSbool      backward         = false;
+    std::uint32_t groups      = static_cast<std::uint32_t>(group);
+    MLSSbool mlss_has_bias    = has_bias_flag ? true : false;
+    MLSSbool crossCorrelation = false;
+    MLSSbool backward         = false;
 
     // Tensor strides (NCHW)
     std::uint32_t dNStride = c * h * w;
@@ -125,11 +123,11 @@ mlss_conv_binary_info query_mlss_conv_binary(
     MLSSenum activation;
     switch(static_cast<mlss_activation_mode>(act_mode))
     {
-    case mlss_activation_mode::identity:   activation = MLSS_ACTIVATION_IDENTITY;   break;
+    case mlss_activation_mode::identity: activation = MLSS_ACTIVATION_IDENTITY; break;
     case mlss_activation_mode::leaky_relu: activation = MLSS_ACTIVATION_LEAKY_RELU; break;
-    case mlss_activation_mode::sigmoid:    activation = MLSS_ACTIVATION_SIGMOID;    break;
-    case mlss_activation_mode::scaled_tanh:activation = MLSS_ACTIVATION_SCALED_TANH;break;
-    case mlss_activation_mode::relu:       activation = MLSS_ACTIVATION_RELU;       break;
+    case mlss_activation_mode::sigmoid: activation = MLSS_ACTIVATION_SIGMOID; break;
+    case mlss_activation_mode::scaled_tanh: activation = MLSS_ACTIVATION_SCALED_TANH; break;
+    case mlss_activation_mode::relu: activation = MLSS_ACTIVATION_RELU; break;
     }
 
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_W, &w);
@@ -200,19 +198,20 @@ mlss_conv_binary_info query_mlss_conv_binary(
     if(bin == nullptr)
         return info;
 
-    const auto* raw = static_cast<const char*>(bin->m_binaries);
+    const auto* raw  = static_cast<const char*>(bin->m_binaries);
     info.code_object = value::binary(raw, bin->m_binarySize);
     info.symbol_name = (bin->m_pKernelName != nullptr) ? bin->m_pKernelName : "main";
 
     // Derive n_groups from the producer-chosen grid
     std::size_t grid_x = bin->m_grid.m_x;
-    info.n_groups = grid_x / (static_cast<std::size_t>(n) * static_cast<std::size_t>(groups));
+    info.n_groups      = grid_x / (static_cast<std::size_t>(n) * static_cast<std::size_t>(groups));
     if(info.n_groups == 0)
         info.n_groups = 64;
 
     // Block size from binary metadata, fallback by dtype
-    info.block_size = (bin->m_blocks.m_x > 1) ? bin->m_blocks.m_x
-                    : (dtype == shape::half_type) ? 384 : 256;
+    info.block_size = (bin->m_blocks.m_x > 1)       ? bin->m_blocks.m_x
+                      : (dtype == shape::half_type) ? 384
+                                                    : 256;
 
     return info;
 }

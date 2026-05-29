@@ -57,17 +57,17 @@ struct mlss_mha_op
     }
 
 #ifdef MIGRAPHX_USE_AMDMLSS
-    static mlss_mha_op make_gfx1201_fp16_packed_qkv(
-        const context& ctx,
-        const std::vector<std::size_t>& query_lens,
-        float scale,
-        std::size_t global,
-        std::size_t local);
+    static mlss_mha_op make_gfx1201_fp16_packed_qkv(const context& ctx,
+                                                    const std::vector<std::size_t>& query_lens,
+                                                    float scale,
+                                                    std::size_t global,
+                                                    std::size_t local);
 #endif
 
     std::string name() const { return "gpu::mlss_mha"; }
     shape compute_shape(std::vector<shape> inputs) const;
-    argument compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
+    argument
+    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
     void finalize(context&, const shape&, const std::vector<shape>&);
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {

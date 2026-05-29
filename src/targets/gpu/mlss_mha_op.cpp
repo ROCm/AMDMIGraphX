@@ -35,12 +35,11 @@ namespace gpu {
 
 MIGRAPHX_REGISTER_OP(mlss_mha_op);
 
-mlss_mha_op mlss_mha_op::make_gfx1201_fp16_packed_qkv(
-    const context& ctx,
-    const std::vector<std::size_t>& query_lens,
-    float scale,
-    std::size_t global,
-    std::size_t local)
+mlss_mha_op mlss_mha_op::make_gfx1201_fp16_packed_qkv(const context& ctx,
+                                                      const std::vector<std::size_t>& query_lens,
+                                                      float scale,
+                                                      std::size_t global,
+                                                      std::size_t local)
 {
     mlss_mha_op op;
     op.global = global;
@@ -107,10 +106,7 @@ mlss_mha_op mlss_mha_op::make_gfx1201_fp16_packed_qkv(
     return op;
 }
 
-shape mlss_mha_op::compute_shape(std::vector<shape> inputs) const
-{
-    return inputs.back();
-}
+shape mlss_mha_op::compute_shape(std::vector<shape> inputs) const { return inputs.back(); }
 
 void mlss_mha_op::finalize(context&, const shape&, const std::vector<shape>&)
 {
@@ -118,9 +114,7 @@ void mlss_mha_op::finalize(context&, const shape&, const std::vector<shape>&)
     k = kernel(code_object, symbol_name);
 }
 
-argument mlss_mha_op::compute(context& ctx,
-                               const shape&,
-                               const std::vector<argument>& args) const
+argument mlss_mha_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     // args layout:
     //   [0] packed QKV  [B, S, H, 3*D]
@@ -146,7 +140,8 @@ argument mlss_mha_op::compute(context& ctx,
     //   d2 = H * 3*D       (sequence stride)
     //   d3 = 1             (element stride)
     constexpr int qkv_components = 3;
-    uint32_t stride_d0 = static_cast<uint32_t>(sequence_length * head_num * qkv_components * head_dim);
+    uint32_t stride_d0 =
+        static_cast<uint32_t>(sequence_length * head_num * qkv_components * head_dim);
     uint32_t stride_d1 = static_cast<uint32_t>(qkv_components * head_dim);
     uint32_t stride_d2 = static_cast<uint32_t>(head_num * qkv_components * head_dim);
     uint32_t stride_d3 = 1u;

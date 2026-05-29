@@ -48,10 +48,10 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         // Extract metadata from the intermediate mlss_conv op
-        auto    cur_padding      = v.at("padding").to_vector<std::size_t>();
-        bool    has_bias         = v.at("has_bias").to<bool>();
-        uint8_t activation_mode  = static_cast<uint8_t>(v.at("activation_mode").to<uint64_t>());
-        float   activation_alpha = static_cast<float>(v.at("activation_alpha").to<double>());
+        auto cur_padding        = v.at("padding").to_vector<std::size_t>();
+        bool has_bias           = v.at("has_bias").to<bool>();
+        uint8_t activation_mode = static_cast<uint8_t>(v.at("activation_mode").to<uint64_t>());
+        float activation_alpha  = static_cast<float>(v.at("activation_alpha").to<double>());
 
         // Input shapes (after reorder in compile()):
         //   No bias:  [input, weight, output_buffer]
@@ -60,25 +60,31 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         const auto& weight_shape = inputs[1];
         const auto& out_shape    = inputs[2];
 
-        const auto in_lens  = input_shape.lens();   // N, C, H, W
-        const auto wt_lens  = weight_shape.lens();  // K, C/g, R, S
-        const auto out_lens = out_shape.lens();      // N, K, OH, OW
+        const auto in_lens  = input_shape.lens();  // N, C, H, W
+        const auto wt_lens  = weight_shape.lens(); // K, C/g, R, S
+        const auto out_lens = out_shape.lens();    // N, K, OH, OW
 
         // Query AMDMLSS API for kernel binary
         const auto cur_stride   = v.at("stride").to_vector<std::size_t>();
         const auto cur_dilation = v.at("dilation").to_vector<std::size_t>();
         const auto cur_group    = v.at("group").to<std::size_t>();
 
-        auto info = query_mlss_conv_binary(
-            ctx, in_lens, wt_lens, out_lens, cur_padding, cur_stride,
-            cur_dilation, cur_group,
-            has_bias, activation_mode, input_shape.type());
+        auto info = query_mlss_conv_binary(ctx,
+                                           in_lens,
+                                           wt_lens,
+                                           out_lens,
+                                           cur_padding,
+                                           cur_stride,
+                                           cur_dilation,
+                                           cur_group,
+                                           has_bias,
+                                           activation_mode,
+                                           input_shape.type());
         if(info.empty())
             MIGRAPHX_THROW("mlss_conv_compiler: no AMDMLSS binary for this configuration");
 
         // -----------------------------------------------------------------------
-        // Build kernel_args map — matches the 0xe8-byte kernarg layout from
-        // kernel_execution_conv_fp32_f2x3_stride1_cg64_kg128.cpp
+        // Build kernel_args map — matches the winograd conv kernels
         // -----------------------------------------------------------------------
         std::map<std::size_t, value> kernel_args;
 
@@ -97,18 +103,23 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         // Cap ng to prevent idle workgroups from writing out-of-bounds.
         {
             const int32_t kg_per_workgroup = 128;
-            int32_t k_groups    = (Kg + kg_per_workgroup - 1) / kg_per_workgroup;
-            int32_t h_tiles     = (out_h + 1) / 2;
-            int32_t w_tiles     = (out_w + 1) / 2;
-            int32_t total_tiles = N * G * h_tiles * w_tiles * k_groups;
+            int32_t k_groups               = (Kg + kg_per_workgroup - 1) / kg_per_workgroup;
+            int32_t h_tiles                = (out_h + 1) / 2;
+            int32_t w_tiles                = (out_w + 1) / 2;
+            int32_t total_tiles            = N * G * h_tiles * w_tiles * k_groups;
             if(ng > total_tiles)
                 ng = total_tiles;
         }
 
-        // flags64 encoding
-        uint64_t flags64 = has_bias
-            ? ((uint64_t{1} << 7) | (uint64_t{1} << 9) | (uint64_t{1} << 14) | (uint64_t{1} << 15))
-            : (uint64_t{1} << 10);
+        // flags64 encoding from documentation:
+        //   no-bias path: bit10 = fast tile-index division
+        //   bias path: bit7  = F_BIAS
+        //              bit9  = F_NKCHR_STRIDES  (deprecated, recommended=1)
+        //              bit14 = F_USE_ACTIVATION_MODE (deprecated, recommended=1)
+        //              bit15 = F_USE_EXTENDED_FLAGS_64 (deprecated, recommended=1)
+        uint64_t flags64 = has_bias ? ((uint64_t{1} << 7) | (uint64_t{1} << 9) |
+                                       (uint64_t{1} << 14) | (uint64_t{1} << 15))
+                                    : (uint64_t{1} << 10);
 
         float alpha = activation_alpha;
         float beta  = 0.0f;
@@ -143,9 +154,9 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         // 0x18: flags64
         set_karg(kernel_args, 6, flags64);
         // 0x20: p_data, 0x28: p_filter, 0x30: p_output — filled from args at compute time
-        kernel_args[7]  = value(nullptr);
-        kernel_args[8]  = value(nullptr);
-        kernel_args[9]  = value(nullptr);
+        kernel_args[7] = value(nullptr);
+        kernel_args[8] = value(nullptr);
+        kernel_args[9] = value(nullptr);
         // 0x38: reserved3
         set_karg(kernel_args, 10, uint64_t{0});
         int32_t pad_h = cur_padding.size() > 0 ? static_cast<int32_t>(cur_padding[0]) : 0;
@@ -205,14 +216,14 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         std::size_t local_size  = info.block_size;
 
         code_object_op cop;
-        cop.code_object       = info.code_object;
-        cop.symbol_name       = info.symbol_name;
-        cop.global            = global_size;
-        cop.local             = local_size;
-        cop.expected_inputs   = inputs;
-        cop.output            = out_shape;
-        cop.output_arg        = 2;
-        cop.kernel_args = std::move(kernel_args);
+        cop.code_object     = info.code_object;
+        cop.symbol_name     = info.symbol_name;
+        cop.global          = global_size;
+        cop.local           = local_size;
+        cop.expected_inputs = inputs;
+        cop.output          = out_shape;
+        cop.output_arg      = 2;
+        cop.kernel_args     = std::move(kernel_args);
 
         return cop;
     }
@@ -229,11 +240,10 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
             std::swap(inputs[2], inputs[3]);
 
         auto input_shapes = to_shapes(inputs);
-        auto cop = compile_op(ctx, input_shapes, op.to_value());
+        auto cop          = compile_op(ctx, input_shapes, op.to_value());
 
         return compiler_replace(
-            cop,
-            [inputs](module& m, instruction_ref replace_ins, const operation& replace_op) {
+            cop, [inputs](module& m, instruction_ref replace_ins, const operation& replace_op) {
                 m.replace_instruction(replace_ins, replace_op, inputs);
             });
     }

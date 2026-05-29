@@ -82,7 +82,8 @@ int main(int argc, const char* argv[])
          "test_isinf<migraphx::generic_float<7, 8> >",
          "test_isinf<migraphx::bf16>",
          // Disabled until following error can be addressed:
-         // Error eliminate_contiguous: could not create a descriptor for a binary operation primitive
+         // Error eliminate_contiguous: could not create a descriptor for a binary operation
+         // primitive
          "test_group_query_attention_decode",
          "test_group_query_attention_grouped",
          "test_group_query_attention_rotary_only",

@@ -83,25 +83,38 @@ struct concat
 
         bool all_static =
             std::none_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); });
+        // convert all shapes to dynamic to handle mixed static-dynamic case
         auto unified = shape::to_dynamic(inputs);
 
-        const auto& dds0 = unified.front().dyn_dims();
-        for(std::size_t i = 0; i < dds0.size(); ++i)
+        // Non-concat axes must agree across inputs. dynamic_dimension
+        // intersection resolves a fully-unconstrained wildcard dim (e.g. from a
+        // runtime-computed broadcast_with_dims / ONNX Expand) to the other
+        // input's constraint, and rejects genuinely incompatible dims.
+        auto new_dds = unified.front().dyn_dims();
+        for(std::size_t i = 0; i < new_dds.size(); ++i)
         {
             if(i == axis)
                 continue;
-            if(not std::all_of(unified.begin(), unified.end(), [&](const shape& s) {
-                   return s.dyn_dims()[i] == dds0[i];
-               }))
-                MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
-                               std::to_string(i));
+            for(const auto& s : unified)
+            {
+                auto merged = new_dds[i].intersection(s.dyn_dims()[i]);
+                if(not merged)
+                    MIGRAPHX_THROW("CONCAT: incompatible dimensions in axis " + std::to_string(i) +
+                                   ": " + to_string(new_dds[i]) + " vs " +
+                                   to_string(s.dyn_dims()[i]));
+                new_dds[i] = *merged;
+            }
         }
 
-        auto new_dds  = dds0;
+        // Sum the concat axis. operator+= saturates at SIZE_MAX, so an
+        // unconstrained input naturally yields an unconstrained sum rather than
+        // overflowing. The exact size is recovered once the program is
+        // specialised and the runtime op is constant-folded.
         new_dds[axis] = std::accumulate(
-            unified.begin() + 1, unified.end(), dds0[axis], [&](const auto& acc, const shape& s) {
-                return acc + s.dyn_dims()[axis];
-            });
+            unified.begin() + 1,
+            unified.end(),
+            unified.front().dyn_dims()[axis],
+            [&](const auto& acc, const shape& s) { return acc + s.dyn_dims()[axis]; });
 
         auto type = unified.front().type();
         if(all_static)

@@ -1417,6 +1417,26 @@ def concat_dyn_test():
 
 
 @onnx_test()
+def concat_dyn_expand_wildcard_test():
+    # Expand(qu, dims) with a runtime `dims` lowers to broadcast_with_dims whose
+    # output dynamic dims are fully unconstrained. Concatenating that with the
+    # dynamic `item` exercises concat's wildcard path (#4924); before the fix
+    # this threw "CONCAT: all input dimensions should match" while parsing.
+    item = helper.make_tensor_value_info('item', TensorProto.FLOAT, [None, 64])
+    qu = helper.make_tensor_value_info('qu', TensorProto.FLOAT, [1, 64])
+    dims = helper.make_tensor_value_info('dims', TensorProto.INT64, [2])
+    out = helper.make_tensor_value_info('out', TensorProto.FLOAT, [None, None])
+
+    expand = onnx.helper.make_node('Expand', inputs=['qu', 'dims'], outputs=['e'])
+    concat = onnx.helper.make_node('Concat',
+                                   inputs=['e', 'item'],
+                                   axis=1,
+                                   outputs=['out'])
+
+    return ([expand, concat], [item, qu, dims], [out])
+
+
+@onnx_test()
 def constant_test():
     x = np.array([0, 1, 2])
     y = helper.make_tensor_value_info('0', TensorProto.FLOAT, [3])

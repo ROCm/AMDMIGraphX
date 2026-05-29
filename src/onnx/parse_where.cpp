@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,45 +40,30 @@ struct parse_where : op_parser<parse_where>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        // TODO: broadcasting for dynamic shapes is only implemented
-        // for binary ops at time of writing, not ternary ops.
-        //   When it becomes available, add multibroadcasting steps in the dynamic shape case.
-        // For now for dynamic shapes, just insert the Where op.  All shapes must be the
-        // same for it to succeed.
-        if(std::all_of(args.begin(), args.end(), [](auto v) { return v->get_shape().dynamic(); }))
-        {
+        // Fast path: when all three inputs already share the same dims, emit
+        // where() directly (no redundant broadcast). This keeps the common
+        // same-shape case -- including all-dynamic identical shapes -- as a
+        // bare where op.
+        auto dims_match = [](const shape& a, const shape& b) {
+            if(a.dynamic() or b.dynamic())
+                return a.dynamic() and b.dynamic() and a.dyn_dims() == b.dyn_dims();
+            return a.lens() == b.lens();
+        };
+        const auto s0 = args[0]->get_shape();
+        if(dims_match(args[1]->get_shape(), s0) and dims_match(args[2]->get_shape(), s0))
             return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
-        }
-        else if(std::none_of(
-                    args.begin(), args.end(), [](auto v) { return v->get_shape().dynamic(); }))
-        {
-            // If shapes are static and any are broadcasted, insert multibroadcast ops
-            auto lens =
-                compute_broadcasted_lens(args[0]->get_shape().lens(), args[1]->get_shape().lens());
-            lens = compute_broadcasted_lens(lens, args[2]->get_shape().lens());
 
-            if(args[0]->get_shape().lens() != lens)
-            {
-                args[0] =
-                    info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[0]);
-            }
-
-            if(args[1]->get_shape().lens() != lens)
-            {
-                args[1] =
-                    info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[1]);
-            }
-
-            if(args[2]->get_shape().lens() != lens)
-            {
-                args[2] =
-                    info.add_instruction(make_op("multibroadcast", {{"out_lens", lens}}), args[2]);
-            }
-
-            return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
-        }
-        else
-            MIGRAPHX_THROW("PARSE_WHERE: doesn't support mixed static and dynamic shape inputs");
+        // Otherwise broadcast the three inputs to a common shape. where()
+        // must NOT unify element types (args[0] is the bool condition while
+        // args[1]/args[2] carry the data type), so add_common_op is called
+        // with common_type=false. This handles static, dynamic, and mixed
+        // inputs uniformly; the dynamic path goes through
+        // compute_common_dyn_dims, so an unconstrained input (e.g. a
+        // broadcast_with_dims / ONNX Expand output {0, SIZE_MAX}) is
+        // intersected with the other operands instead of requiring every
+        // input to already share an identical dynamic shape.
+        return migraphx::add_common_op(
+            *info.mod, make_op("where"), args, {/*common_type=*/false, /*common_lens=*/true});
     }
 };
 

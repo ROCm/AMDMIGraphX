@@ -87,6 +87,12 @@ void finish_on_context(T&, any_ptr)
 {
 }
 
+template <class T>
+bool is_cross_compile_context(const T&)
+{
+    return false;
+}
+
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
@@ -106,6 +112,8 @@ struct MIGRAPHX_EXPORT context
     void wait_for(any_ptr queue);
     // (optional)
     void finish_on(any_ptr queue);
+    // (optional)
+    bool is_cross_compile() const;
     //
     void finish() const;
 };
@@ -210,6 +218,19 @@ struct context
         finish_on_context(private_detail_te_self, queue);
     }
 
+    template <class T>
+    static auto private_detail_te_default_is_cross_compile(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.is_cross_compile())
+    {
+        return private_detail_te_self.is_cross_compile();
+    }
+
+    template <class T>
+    static bool private_detail_te_default_is_cross_compile(float, T&& private_detail_te_self)
+    {
+        return is_cross_compile_context(private_detail_te_self);
+    }
+
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
     {
@@ -241,6 +262,8 @@ struct context
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
                  private_detail_te_default_finish_on(
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
+                 private_detail_te_default_is_cross_compile(
+                     char(0), std::declval<PrivateDetailTypeErasedT>()),
                  std::declval<PrivateDetailTypeErasedT>().finish(),
                  void());
 
@@ -358,6 +381,12 @@ struct context
         (*this).private_detail_te_get_handle().finish_on(queue);
     }
 
+    bool is_cross_compile() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().is_cross_compile();
+    }
+
     void finish() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -384,6 +413,7 @@ struct context
         virtual void restore_queue()            = 0;
         virtual void wait_for(any_ptr queue)    = 0;
         virtual void finish_on(any_ptr queue)   = 0;
+        virtual bool is_cross_compile() const   = 0;
         virtual void finish() const             = 0;
     };
 
@@ -456,6 +486,12 @@ struct context
             private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
         }
 
+        bool is_cross_compile() const override
+        {
+
+            return private_detail_te_default_is_cross_compile(char(0), private_detail_te_value);
+        }
+
         void finish() const override { private_detail_te_value.finish(); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
@@ -524,6 +560,13 @@ inline const ValueType& any_cast(const context& x)
 }
 // NOLINTEND(performance-unnecessary-value-param)
 #endif
+
+/// True iff `c` holds a concrete context impl and that impl reports cross-compiling.
+/// Safe to call on default-constructed (empty) contexts, unlike `c.is_cross_compile()`.
+inline bool is_cross_compiling(const context& c)
+{
+    return c.type_id() != typeid(std::nullptr_t) and c.is_cross_compile();
+}
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
 

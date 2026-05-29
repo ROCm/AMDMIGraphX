@@ -145,6 +145,13 @@ static auto to_objptr_vector(const U* x, std::size_t n)
 
 static target get_target(const std::string& name) { return make_target(name); }
 
+static target get_target_with_options(const std::string& name, const char* options_json)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return make_target(name);
+    return make_target(name, from_json_string(options_json));
+}
+
 static void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
 static void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }

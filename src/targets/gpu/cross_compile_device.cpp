@@ -21,43 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/register_target.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/value.hpp>
-#include "test.hpp"
+#include <migraphx/gpu/cross_compile_device.hpp>
+#include <algorithm>
 
-TEST_CASE(make_target)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, std::size_t cu_count)
 {
-    for(const auto& name : migraphx::get_targets())
-    {
-        auto t = migraphx::make_target(name);
-        CHECK(t.name() == name);
-    }
+    hipDeviceProp_t props{};
+    auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
+    std::copy_n(arch_name.begin(), n, props.gcnArchName);
+    props.gcnArchName[n] = '\0';
+    // these are placeholders
+    props.warpSize                    = 64;
+    props.maxThreadsPerMultiProcessor = 2048;
+    props.maxThreadsPerBlock          = 1024;
+    props.multiProcessorCount         = cu_count;
+    return props;
 }
 
-TEST_CASE(make_invalid_target)
-{
-    EXPECT(test::throws([&] { migraphx::make_target("mi100"); }));
-}
-
-TEST_CASE(make_invalid_target_value_scalar)
-{
-    auto t = migraphx::make_target("ref");
-    EXPECT(test::throws([&] { t.from_value(migraphx::value(1)); }));
-}
-
-TEST_CASE(targets)
-{
-    auto ref_target = migraphx::make_target("ref");
-    auto ts         = migraphx::get_targets();
-    EXPECT(ts.size() >= 1);
-}
-
-TEST_CASE(target_to_value_is_object)
-{
-    auto t = migraphx::make_target("ref");
-    auto v = t.to_value();
-    CHECK(v.is_object());
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

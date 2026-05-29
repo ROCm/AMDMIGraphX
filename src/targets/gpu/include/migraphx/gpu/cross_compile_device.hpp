@@ -21,60 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_REGISTER_TARGET_HPP
-#define MIGRAPHX_GUARD_RTGLIB_REGISTER_TARGET_HPP
+#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
+#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
 
+#include <migraphx/gpu/export.h>
 #include <migraphx/config.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/auto_register.hpp>
-#include <cstring>
-#include <utility>
-#include <vector>
+#include <hip/hip_runtime_api.h>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-struct value;
+/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
+/// Used when no physical GPU is present and the target architecture
+/// is specified via environment variables.
+MIGRAPHX_GPU_EXPORT hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name,
+                                                                    std::size_t cu_count);
 
-MIGRAPHX_EXPORT void register_target_init();
-MIGRAPHX_EXPORT void register_target(const target& t);
-MIGRAPHX_EXPORT void unregister_target(const std::string& name);
-MIGRAPHX_EXPORT target make_target(const std::string& name);
-MIGRAPHX_EXPORT target make_target(const std::string& name, const value& options);
-MIGRAPHX_EXPORT std::vector<std::string> get_targets();
-
-namespace detail {
-struct target_handler
-{
-    target t;
-    std::string target_name;
-    explicit target_handler(target t_r) : t(std::move(t_r)), target_name(t.name()) {}
-    ~target_handler() { unregister_target(target_name); }
-};
-} // namespace detail
-
-template <class T>
-void register_target()
-{
-    register_target_init();
-    static auto t_h = detail::target_handler(T{});
-    register_target(t_h.t);
-}
-
-struct register_target_action
-{
-    template <class T>
-    static void apply()
-    {
-        register_target<T>();
-    }
-};
-
-template <class T>
-using auto_register_target = auto_register<register_target_action, T>;
-
-#define MIGRAPHX_REGISTER_TARGET(...) MIGRAPHX_AUTO_REGISTER(register_target_action, __VA_ARGS__)
-
+} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

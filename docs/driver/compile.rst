@@ -18,6 +18,18 @@ Compile on the cpu
 
 Compile on the reference implementation
 
+.. option::  --gpu-arch [std::string]
+
+Cross-compile for the given GPU architecture (e.g. ``gfx942``) without requiring a physical device. Only applies to the ``gpu`` target.
+
+.. option::  --gpu-num-cus [std::size_t] (Default: 120)
+
+Number of compute units to assume for cross-compilation. Only used when ``--gpu-arch`` is set.
+
+.. option::  --gpu-num-chiplets [std::size_t] (Default: 1)
+
+Number of chiplets (XCCs) to assume for cross-compilation. Only used when ``--gpu-arch`` is set.
+
 .. option::  --enable-offload-copy
 
 Enable implicit offload copying

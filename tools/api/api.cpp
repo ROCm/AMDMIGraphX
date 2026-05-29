@@ -159,11 +159,13 @@ static void set_file_format(file_options& options, const char* format) { options
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
+    options.default_set       = true;
 }
 
 static void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimension& dd)
 {
     options.default_dyn_dim_value = dd;
+    options.default_set           = true;
 }
 
 static void set_default_loop_iterations(onnx_options& options, int64_t value)

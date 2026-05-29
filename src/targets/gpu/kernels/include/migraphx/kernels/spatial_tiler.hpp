@@ -39,7 +39,7 @@ constexpr bool has_nonzero(index_ints<Ps...>)
     return ((Ps != 0) or ...);
 }
 
-template <index_int NTiles, class TileLens, class OutputShape, class Padding = index_ints<>>
+template <index_int NTiles, class TileLens, class OutputShape, class Padding = index_ints<0>>
 struct spatial_tiler
 {
     static constexpr auto keep_spatial()
@@ -72,37 +72,48 @@ struct spatial_tiler
     static constexpr index_int tiles_total() { return tiles_per_dim().product(); }
     static constexpr auto ndim() { return out_spatial_lens().size(); }
 
-    static constexpr bool is_padded()
+    static constexpr auto get_padding()
     {
-        return (out_spatial_lens() != tiles_per_dim() * output_lens());
+        if constexpr(Padding{}.size() < 2)
+        {
+            auto pre = transform(TileLens{}, [](auto) { return index_c<0>; });
+            return join(pre, pre);
+        }
+        else
+        {
+            return Padding{};
+        }
     }
-
-    static constexpr bool has_conv_padding() { return has_nonzero(Padding{}); }
 
     // Left (begin) padding per dim: (0, 0, left_h, left_w)
     static constexpr auto left_padding()
     {
-        return return_array_c([] {
-            constexpr auto p  = Padding{};
-            constexpr auto ns = p.size() / 2;
-            auto result       = array<index_int, ns + 2>(index_int{0});
-            for(index_int i = 0; i < ns; i++)
-                result[i + 2] = p[i];
-            return result;
+        constexpr auto p  = get_padding();
+        constexpr auto ns = p.size() / 2;
+        return generate_const_array<index_int>(_c<ns + 2>, [&](auto i) {
+            if constexpr(i < 2)
+                return index_c<0>;
+            else
+                return index_c<p[i - 2]>;
         });
     }
 
     // Total (left+right) padding per dim: (0, 0, left_h+right_h, left_w+right_w)
     static constexpr auto total_padding()
     {
-        return return_array_c([] {
-            constexpr auto p  = Padding{};
-            constexpr auto ns = p.size() / 2;
-            auto result       = array<index_int, ns + 2>(index_int{0});
-            for(index_int i = 0; i < ns; i++)
-                result[i + 2] = p[i] + p[i + ns];
-            return result;
+        constexpr auto p  = get_padding();
+        constexpr auto ns = p.size() / 2;
+        return generate_const_array<index_int>(_c<ns + 2>, [&](auto i) {
+            if constexpr(i < 2)
+                return index_c<0>;
+            else
+                return index_c<p[i - 2] + p[i - 2 + ns]>;
         });
+    }
+
+    static constexpr bool is_padded()
+    {
+        return (out_spatial_lens() != (tiles_per_dim() * output_lens() + total_padding()));
     }
 
     index idx;
@@ -114,19 +125,10 @@ struct spatial_tiler
     static constexpr auto halo_lens_for()
     {
         constexpr auto halo_extra = [] {
-            if constexpr(has_conv_padding())
-            {
-                return return_array_c([] {
-                    return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
-                           total_padding();
-                });
-            }
-            else
-            {
-                constexpr auto input_spatial = make_slice(InputShape{}, keep_spatial()).lens;
-                return transform(
-                    input_spatial, out_spatial_lens(), [](auto is, auto os) { return is - os; });
-            }
+            return return_array_c([] {
+                return make_slice(InputShape{}, keep_spatial()).lens - out_spatial_lens() +
+                       total_padding();
+            });
         }();
         return transform(output_lens(), halo_extra, [](auto o, auto h) { return o + h; });
     }
@@ -167,19 +169,14 @@ struct spatial_tiler
         idx.local_stride(_c<hl.product()>, [&](auto i) {
             auto halo_multi = halo_shape.multi(i);
             auto src_pos    = tile_origin + halo_multi;
-            if constexpr(has_conv_padding())
+            auto input_pos  = src_pos - left_padding();
+            if constexpr(is_padded())
             {
-                constexpr auto pad = left_padding();
-                auto input_pos     = src_pos - pad;
                 smem[i] = in_bounds(input_pos, input_spatial) ? type{input_ch[input_pos]} : type{0};
-            }
-            else if constexpr(is_padded())
-            {
-                smem[i] = in_bounds(src_pos, input_spatial) ? type{input_ch[src_pos]} : type{0};
             }
             else
             {
-                smem[i] = input_ch[src_pos];
+                smem[i] = input_ch[input_pos];
             }
         });
 
@@ -203,7 +200,7 @@ struct spatial_tiler
     }
 };
 
-template <index_int NTiles, class TileLens, class OutputShape, class Padding = index_ints<>>
+template <index_int NTiles, class TileLens, class OutputShape, class Padding = index_ints<0>>
 __device__ auto make_spatial_tiler(index idx, TileLens, OutputShape, Padding = {})
 {
     using tiler_type = spatial_tiler<NTiles, TileLens, OutputShape, Padding>;

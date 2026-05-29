@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -194,6 +194,22 @@ TEST_CASE(program_copy)
         p2.compile(migraphx::make_target("ref"));
         EXPECT(p2 == p1);
     }
+}
+
+TEST_CASE(program_file_version_accessor_matches_serialized_value)
+{
+    // The new program::get_program_file_version() accessor is also what
+    // to_value() writes into the "version" field of a serialized program and
+    // what from_value() compares against on load.  Guard against silent drift
+    // between the accessor and the serialized form.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    mm->add_literal(1);
+    p.compile(migraphx::make_target("ref"));
+
+    auto v = p.get_program_file_version();
+    EXPECT(v > 0);
+    EXPECT(p.to_value().at("version").to<int>() == v);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

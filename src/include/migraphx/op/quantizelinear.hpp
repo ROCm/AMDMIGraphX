@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,8 +79,6 @@ struct quantizelinear
             y_zero_point = args.at(2);
         }
         argument result{output_shape};
-        auto rounding_mode = fegetround();
-        fesetround(FE_TONEAREST);
         visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
             visit_all(x, y_scale)([&](auto input, auto scales) {
                 using quant_type = typename decltype(output)::value_type;
@@ -90,8 +88,16 @@ struct quantizelinear
                     double quantized;
                     if constexpr(std::is_integral<quant_type>{})
                     {
-                        quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
-                                    static_cast<double>(zero_pts[i]);
+                        if(std::isnan(static_cast<double>(input[i])))
+                        {
+                            output[i] = min_value;
+                            return;
+                        }
+                        auto rounding_mode = fegetround();
+                        fesetround(FE_TONEAREST);
+                        auto rounded = std::nearbyint(input[i] / scales[i]);
+                        fesetround(rounding_mode);
+                        quantized = static_cast<double>(rounded) + static_cast<double>(zero_pts[i]);
                     }
                     else
                     {
@@ -103,7 +109,6 @@ struct quantizelinear
                 });
             });
         });
-        fesetround(rounding_mode);
         return result;
     }
 };

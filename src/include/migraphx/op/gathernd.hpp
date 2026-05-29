@@ -49,10 +49,10 @@ struct gathernd
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
-        auto i_shape    = inputs.back();
-        auto data_shape = inputs.front();
-        auto r          = data_shape.ndim();
-        auto q          = i_shape.ndim();
+        const auto& i_shape    = inputs.back();
+        const auto& data_shape = inputs.front();
+        auto r                 = data_shape.ndim();
+        auto q                 = i_shape.ndim();
 
         size_t k;
         if(i_shape.dynamic())

@@ -91,7 +91,17 @@ add_library(migraphx_device ${DEVICE_GPU_SRCS})
 # the same temp filename for all GPU target intermediate link outputs, causing
 # all code objects to contain only the last --offload-arch target. Using -o
 # instead of /Fo avoids this by letting clang generate unique temp filenames.
-if(WIN32)
+option(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG "Workaround clang-cl HIP multi-arch /Fo bug on Windows" OFF)
+if(NOT MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        set(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG ON CACHE BOOL "Workaround clang-cl HIP multi-arch /Fo bug on Windows" FORCE)
+    else()
+        set(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG OFF CACHE BOOL "Workaround clang-cl HIP multi-arch /Fo bug on Windows" FORCE)
+    endif()
+endif()
+message(STATUS "MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG = ${MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG}")
+
+if(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG)
     set(CMAKE_CXX_COMPILE_OBJECT
         "<CMAKE_CXX_COMPILER> /nologo -TP <DEFINES> <INCLUDES> <FLAGS> -clang:-MD -clang:-MF<OBJECT>.d -o <OBJECT> -c -- <SOURCE>")
     set(CMAKE_DEPFILE_FLAGS_CXX "")

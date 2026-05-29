@@ -94,10 +94,10 @@ add_library(migraphx
     load_save.cpp
     logger.cpp
     make_op.cpp
+    md5.cpp
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
-    netron_output.cpp
     normalize_attributes.cpp
     normalize_ops.cpp
     op_enums.cpp
@@ -132,6 +132,7 @@ add_library(migraphx
     rewrite_pooling.cpp
     rewrite_quantization.cpp
     rewrite_rnn.cpp
+    reshape_dims.cpp
     rewrite_topk.cpp
     schedule.cpp
     serialize.cpp
@@ -148,6 +149,8 @@ add_library(migraphx
     value.cpp
     verify_args.cpp
 )
+
+enable_static_init(migraphx)
 
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})

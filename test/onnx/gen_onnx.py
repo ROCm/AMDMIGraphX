@@ -14248,6 +14248,9 @@ def resize_upsample_pc_test():
 
 @onnx_test()
 def resize_aspect_ratio_err_test():
+    # The 'stretch' policy is now accepted as a no-op (matches pre-Resize-18
+    # semantics already implemented). This negative test exercises a policy
+    # value that is still unsupported.
     sizes = np.array([1, 1, 3, 5], dtype=np.int64)
     size_tensor = helper.make_tensor(name='sizes',
                                       data_type=TensorProto.INT64,
@@ -14262,8 +14265,32 @@ def resize_aspect_ratio_err_test():
                                  outputs=['Y'],
                                  coordinate_transformation_mode='asymmetric',
                                  mode='nearest',
-                                 keep_aspect_ratio_policy='stretch',
+                                 keep_aspect_ratio_policy='not_larger',
                                  nearest_mode='ceil')
+
+    return ([node], [X], [Y], [size_tensor])
+
+
+@onnx_test()
+def resize_aspect_ratio_stretch_test():
+    # 'stretch' is the Resize-18 default and matches pre-18 per-axis semantics.
+    # ORT injects it for opset-18 exports, so the parser must accept it as a no-op.
+    sizes = np.array([1, 1, 4, 8], dtype=np.int64)
+    size_tensor = helper.make_tensor(name='sizes',
+                                     data_type=TensorProto.INT64,
+                                     dims=sizes.shape,
+                                     vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 8])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'sizes'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 keep_aspect_ratio_policy='stretch',
+                                 nearest_mode='floor')
 
     return ([node], [X], [Y], [size_tensor])
 

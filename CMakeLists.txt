@@ -23,6 +23,8 @@
 #####################################################################################
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
+cmake_policy(SET CMP0099 NEW)
+
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     message(FATAL_ERROR "The binary and source directory cannot be the same")
 endif()
@@ -58,18 +60,37 @@ detect_package_backend()
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
-option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
-option(MIGRAPHX_ENABLE_TENSORFLOW "Enable TensorFlow integration" ON)
-option(MIGRAPHX_ENABLE_ONNX "Enable ONNX model import" ON)
-
-if(WIN32)
-option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" OFF)
-else()
-option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binary Analyzer" OFF)
+    option(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES "Use Spectre-mitigated libraries" OFF)
+    if(MSVC AND MSVC_VERSION GREATER_EQUAL 1900)
+        if(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS)
+            message(STATUS "Control Flow Guard enabled")
+            add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/guard:cf>)
+            add_link_options(/guard:cf /DYNAMICBASE)
+        endif()
+        if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
+            message(STATUS "Using Spectre-mitigated libraries")
+            add_compile_options($<$<COMPILE_LANGUAGE:C,CXX>:/Qspectre>)
+        endif()
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        if(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS)
+            message(STATUS "Control Flow Guard enabled")
+            add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:SHELL:-Xclang -cfguard>")
+            add_link_options(-Wl,-guard:cf)
+        endif()
+        if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
+            message(WARNING "Spectre-mitigated libraries are not yet available for Clang in this project.")
+        endif()
+    endif()
 endif()
 
 option(MIGRAPHX_USE_ROCBLAS "Enable MIGraphX to use rocBLAS" ON)
 option(MIGRAPHX_USE_HIPBLASLT "Enable MIGraphX to use hipBLASLt" ON)
+option(MIGRAPHX_USE_MIOPEN "Enable MIGraphX to use MIOpen" ON)
+option(MIGRAPHX_ENABLE_PYTHON "Enable python bindings" ON)
+option(MIGRAPHX_ENABLE_TENSORFLOW "Enable TensorFlow integration" ON)
+option(MIGRAPHX_ENABLE_ONNX "Enable ONNX model import" ON)
 
 if(MIGRAPHX_USE_HIPBLASLT AND NOT MIGRAPHX_USE_ROCBLAS)
     message(FATAL_ERROR "hipBLASLt requires rocBLAS, but MIGRAPHX_USE_ROCBLAS is OFF")
@@ -77,6 +98,7 @@ endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
 
@@ -101,8 +123,6 @@ option(BUILD_DEV "Build for development purpose only" OFF)
 rocm_setup_version(VERSION 2.16.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
-
-option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("--cuda-host-only -x hip" HAS_HIP)
@@ -166,6 +186,7 @@ rocm_enable_clang_tidy(
         performance-*
         readability-*
         -bugprone-crtp-constructor-accessibility
+        -bugprone-derived-method-shadowing-base-method
         -bugprone-easily-swappable-parameters
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
@@ -173,6 +194,7 @@ rocm_enable_clang_tidy(
         -bugprone-return-const-ref-from-parameter
         -bugprone-signed-char-misuse
         -bugprone-unchecked-optional-access
+        -bugprone-unintended-char-ostream-output
         # Disable the aliased reserved identifiers
         -cert-dcl37-c
         -cert-dcl51-cpp
@@ -208,6 +230,7 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-misleading-capture-default-by-value
         -cppcoreguidelines-missing-std-forward
         -cppcoreguidelines-pro-bounds-array-to-pointer-decay
+        -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access
         -cppcoreguidelines-pro-bounds-constant-array-index
         -cppcoreguidelines-pro-bounds-pointer-arithmetic
         -cppcoreguidelines-pro-type-member-init
@@ -216,25 +239,30 @@ rocm_enable_clang_tidy(
         -cppcoreguidelines-pro-type-vararg
         -cppcoreguidelines-special-member-functions
         -cppcoreguidelines-use-default-member-init
+        -cppcoreguidelines-use-enum-class
         -cppcoreguidelines-virtual-class-destructor
         -google-readability-*
         -google-runtime-int
         -google-runtime-references
+        -misc-const-correctness
         -misc-include-cleaner
         -misc-macro-parentheses
         -misc-no-recursion
+        -misc-override-with-different-visibility
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-type-traits
         -modernize-use-default-member-init
         -modernize-use-nodiscard
         -modernize-use-override
+        -modernize-use-scoped-lock
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-avoid-endl
         -performance-type-promotion-in-math-fn
         -performance-enum-size
         -readability-braces-around-statements
+        -readability-container-size-empty
         -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
         -readability-else-after-return
@@ -243,9 +271,11 @@ rocm_enable_clang_tidy(
         -readability-math-missing-parentheses
         -readability-named-parameter
         -readability-redundant-member-init
+        -readability-redundant-parentheses
         -readability-redundant-string-init
         -readability-suspicious-call-argument
         -readability-uppercase-literal-suffix
+        -readability-use-concise-preprocessor-directives
         -*-avoid-c-arrays
         -*-explicit-constructor
         -*-magic-numbers
@@ -291,6 +321,7 @@ rocm_enable_cppcheck(
         unusedStructMember
         functionStatic
         functionConst
+        passedByValueCallback
         shadowFunction
         shadowVar
         shadowVariable
@@ -351,6 +382,23 @@ rocm_enable_cppcheck(
 include(ROCMCreatePackage)
 include(ROCMTest)
 
+function(enable_static_init LIB)
+    get_target_property(_type ${LIB} TYPE)
+    if(_type STREQUAL "STATIC_LIBRARY")
+        if(APPLE)
+            target_link_options(${LIB} INTERFACE
+                "LINKER:-force_load,$<TARGET_FILE:${LIB}>")
+        elseif(MSVC)
+            target_link_options(${LIB} INTERFACE
+                "LINKER:/WHOLEARCHIVE:$<TARGET_FILE:${LIB}>")
+        else()
+            # GNU ld / LLD / gold
+            target_link_options(${LIB} INTERFACE
+                "LINKER:--push-state,--whole-archive,$<TARGET_FILE:${LIB}>,--pop-state")
+        endif()
+    endif()
+endfunction()
+
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)
@@ -372,19 +420,23 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     if(NOT MIGRAPHX_THEROCK_GPU_ARCH)
         message(FATAL_ERROR "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH (e.g. -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x).")
     endif()
-    # TheRock amdrocm packages (RFC0009-OS-Packaging-Requirements):
-    #   Gfxarch=False packages: amdrocm-{component}
-    #   Gfxarch=True  packages: amdrocm-{component}-{gpu_arch}
+
+    # TheRock versioned packaging (RFC0009-OS-Packaging-Requirements):
+    #   Versioned (installed by meta-package): amdrocm-{component}{MAJOR.MINOR}[-{gpu_arch}]
+    #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
+    # We target versioned names to match what install_rocm_packages.sh actually installs.
     # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
-    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime")
+    set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
+        "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
+    set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
     if(MIGRAPHX_USE_MIOPEN)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn-${MIGRAPHX_THEROCK_GPU_ARCH}")
+        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
     if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-blas-${MIGRAPHX_THEROCK_GPU_ARCH}")
+        list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
     endif()
-    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev")
-    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel")
+    rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${MIGRAPHX_THEROCK_ROCM_VERSION}")
+    rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${MIGRAPHX_THEROCK_ROCM_VERSION}")
 
     # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
     set(ROCM_DEP_ROCMCORE OFF)

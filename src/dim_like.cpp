@@ -22,21 +22,29 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
-#include <migraphx/op/reshape.hpp>
+#include <migraphx/dim_like.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/value.hpp>
 
-TEST_CASE(reshape_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+void migraphx_to_value(value& v, const dim_like& d)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::op::reshape op;
-    std::vector<int64_t> reshape_dims{3, 8};
-    mm->add_literal(
-        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2}}, reshape_dims});
-    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {4, 2, 3}});
-    op.dims.assign(reshape_dims.begin(), reshape_dims.end());
-    mm->add_instruction(op, l0);
-    mm->add_instruction(op, l0);
-    auto prog = optimize_onnx("reshape_test.onnx");
-    EXPECT(p == prog);
+    v = visit([](const auto& x) { return migraphx::to_value(x); }, d);
 }
+
+void migraphx_from_value(const value& v, dim_like& d)
+{
+    if(v.is_object())
+    {
+        shape::dynamic_dimension dd;
+        migraphx::from_value(v, dd);
+        d = std::move(dd);
+        return;
+    }
+    d = v.to<int64_t>();
+}
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

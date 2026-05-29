@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/reshape_dims.hpp>
@@ -37,7 +38,7 @@ namespace op {
 
 struct reshape_lazy
 {
-    std::vector<int64_t> dims;
+    std::vector<dim_like> dims;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -65,12 +66,12 @@ struct reshape_lazy
         {
             if(dyn_dims[i].is_fixed())
             {
-                num_dims_ele *= dims[i];
+                num_dims_ele *= std::get<int64_t>(dims[i]);
                 num_dd_ele *= dyn_dims[i].get_interval().min;
             }
             else
             {
-                if(dims[i] != 0 and dims[i] != -1)
+                if(dims[i] != dim_like{0} and dims[i] != dim_like{-1})
                 {
                     MIGRAPHX_THROW(
                         "reshape_lazy: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
@@ -89,9 +90,10 @@ struct reshape_lazy
                        dims.cend(),
                        dyn_dims.cbegin(),
                        output_dyn_dims.begin(),
-                       [](std::size_t dim, auto dyn_dim) {
+                       [](const dim_like& d, auto dyn_dim) {
                            if(not dyn_dim.is_fixed())
                                return dyn_dim;
+                           std::size_t dim = std::get<int64_t>(d);
                            return shape::dynamic_dimension{dim, dim};
                        });
         return {s0.type(), output_dyn_dims};
@@ -101,16 +103,19 @@ struct reshape_lazy
     {
         check_shapes{inputs, *this}.has(1);
         auto&& idims = inputs.front().lens();
-        std::vector<std::size_t> rdims(dims.begin(), dims.end());
+        std::vector<std::size_t> rdims(dims.size());
+        std::transform(dims.begin(), dims.end(), rdims.begin(), [](const dim_like& d) {
+            return std::get<int64_t>(d);
+        });
 
         for(std::size_t i = 0; i < dims.size(); i++)
         {
-            if(dims[i] == 0)
+            if(dims[i] == dim_like{0})
                 rdims[i] = idims[i];
 
             // since rdims using size_t type, -1 is the max value
             // is size_t that cause later compuation incorrect
-            if(dims[i] == -1)
+            if(dims[i] == dim_like{-1})
                 rdims[i] = 1;
         }
 
@@ -121,7 +126,7 @@ struct reshape_lazy
                 std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
             for(std::size_t i = 0; i < rdims.size(); i++)
             {
-                if(dims[i] == -1)
+                if(dims[i] == dim_like{-1})
                     rdims[i] = missing_dim;
             }
         }
@@ -143,7 +148,13 @@ struct reshape_lazy
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
+        if(std::any_of(dims.begin(), dims.end(), [](const auto& d) {
+               return std::holds_alternative<shape::dynamic_dimension>(d);
+           }))
+            MIGRAPHX_THROW(
+                "reshape_lazy: dynamic_dimension dim entries are not currently supported");
+
+        auto n_neg_dims = std::count(dims.begin(), dims.end(), dim_like{-1});
         if(n_neg_dims > 1)
             MIGRAPHX_THROW("reshape_lazy: Dimensions for reshape_lazy can only have one -1 dim");
         const auto& s0 = inputs[0];

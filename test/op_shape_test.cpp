@@ -5278,6 +5278,108 @@ TEST_CASE(slice_dyn_shape5)
         input);
 }
 
+TEST_CASE(slice_dyn_preserves_optimals)
+{
+    migraphx::shape input{migraphx::shape::int32_type, {dd{2, 4, {3}}, dd{7, 7}, dd{2, 5, {3, 4}}}};
+    migraphx::shape expected{migraphx::shape::int32_type,
+                             {dd{2, 4, {3}}, dd{3, 3}, dd{2, 5, {3, 4}}}};
+    expect_shape(expected,
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_sym)
+{
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {1, 16});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 3}, {m, 5}, {k, 7}};
+
+    auto expect_matches_static = [&](const migraphx::operation& op,
+                                     const migraphx::shape& sin,
+                                     const migraphx::shape& sym_out) {
+        EXPECT(sym_out.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+    };
+
+    {
+        // Slice axis 0 (first); sym at axis 1.
+        auto op = migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {3}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(5)}, dd{n}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Slice axis 1 (middle); syms at axes 0 and 2.
+        auto op = migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {6}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{m}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{m}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Slice axis 3 (last) on a 4D shape; syms at axes 0, 1, 2.
+        auto op = migraphx::make_op("slice", {{"axes", {3}}, {"starts", {0}}, {"ends", {3}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(10)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(3)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+}
+
+TEST_CASE(slice_sym_multiple_axes)
+{
+    // Slice axes 0 and 2 at once; sym at axis 1 is untouched.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}};
+
+    auto op = migraphx::make_op("slice", {{"axes", {0, 2}}, {"starts", {1, 2}}, {"ends", {4, 5}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(6)}, dd{n}, dd{lit(8)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(3)}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(slice_sym_fixed_bound_var)
+{
+    // var("k", {3, 3}) is fixed (collapsed bound), so slicing the axis is allowed.
+    auto k                                      = var("k", {3, 3});
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 5}};
+
+    auto op = migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{k}, dd{lit(4)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(4)}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(slice_sym_non_fixed_throws)
+{
+    // Slicing on a non-fixed symbolic axis is rejected (same contract as range).
+    auto n = var("n", {1, 8});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(4)}, dd{n}, dd{lit(8)}}};
+    throws_shape(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), sin);
+}
+
+TEST_CASE(slice_sym_nonstandard_layout)
+{
+    // Non-standard symbolic input: the slice must preserve the permutation
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
+
+    auto sin = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(7)}}, {0, 2, 3, 1});
+    auto op   = migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {6}}});
+    auto sout = op.compute_shape({sin});
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
 TEST_CASE(test_scan_slice1)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 4}};
@@ -6357,6 +6459,135 @@ TEST_CASE(step_test)
     }
 }
 
+TEST_CASE(step_sym)
+{
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {1, 16});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 3}, {m, 5}, {k, 7}};
+
+    auto expect_matches_static = [&](const migraphx::operation& op,
+                                     const migraphx::shape& sin,
+                                     const migraphx::shape& sym_out) {
+        EXPECT(sym_out.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+    };
+
+    {
+        // Step axis 0 (first); sym at axis 1.
+        auto op = migraphx::make_op("step", {{"axes", {0}}, {"steps", {2}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(5)}, dd{n}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type,
+            {dd{lit(3)}, dd{n}, dd{lit(4)}},
+            {sin.dyn_strides()[0] * lit(2), sin.dyn_strides()[1], sin.dyn_strides()[2]}};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Step axis 1 (middle); syms at axes 0 and 2.
+        auto op = migraphx::make_op("step", {{"axes", {1}}, {"steps", {3}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(8)}, dd{m}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type,
+            {dd{n}, dd{lit(3)}, dd{m}},
+            {sin.dyn_strides()[0], sin.dyn_strides()[1] * lit(3), sin.dyn_strides()[2]}};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+    {
+        // Step axis 3 (last) on a 4D shape; syms at axes 0, 1, 2.
+        auto op = migraphx::make_op("step", {{"axes", {3}}, {"steps", {2}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}, dd{lit(10)}}};
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{n}, dd{m}, dd{k}, dd{lit(5)}},
+                             {sin.dyn_strides()[0],
+                              sin.dyn_strides()[1],
+                              sin.dyn_strides()[2],
+                              sin.dyn_strides()[3] * lit(2)}};
+        expect_shape(sout, op, sin);
+        expect_matches_static(op, sin, sout);
+    }
+}
+
+TEST_CASE(step_sym_on_sym_axis)
+{
+    // Stepping a symbolic axis: output dim is (n+1)/2 symbolically.
+    auto n                                      = var("n", {2, 32});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 9}};
+
+    auto op = migraphx::make_op("step", {{"axes", {1}}, {"steps", {2}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{lit(2)}, dd{(n + lit(1)) / lit(2)}, dd{lit(4)}},
+        {sin.dyn_strides()[0], sin.dyn_strides()[1] * lit(2), sin.dyn_strides()[2]}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_sym_multiple_axes)
+{
+    // Step two axes at once; one literal, one symbolic; verify both dims and the
+    // stride scaling at each stepped axis.
+    auto m                                      = var("m", {1, 16});
+    std::unordered_map<se, std::size_t> sym_map = {{m, 7}};
+
+    auto op = migraphx::make_op("step", {{"axes", {0, 2}}, {"steps", {2, 3}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(6)}, dd{m}, dd{lit(9)}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{lit(3)}, dd{m}, dd{lit(3)}},
+        {sin.dyn_strides()[0] * lit(2), sin.dyn_strides()[1], sin.dyn_strides()[2] * lit(3)}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_sym_fully_symbolic)
+{
+    // Every axis symbolic; step the middle axis. Output dim is (m+1)/2 symbolically.
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {2, 16});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 4}, {m, 11}, {k, 5}};
+
+    auto op = migraphx::make_op("step", {{"axes", {1}}, {"steps", {2}}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    migraphx::shape sout{
+        migraphx::shape::float_type,
+        {dd{n}, dd{(m + lit(1)) / lit(2)}, dd{k}},
+        {sin.dyn_strides()[0], sin.dyn_strides()[1] * lit(2), sin.dyn_strides()[2]}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_sym_nonstandard_layout)
+{
+    // Non-standard symbolic input via from_permutation: step must preserve the
+    // permutation and scale only the stepped axis's stride.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
+
+    auto sin = migraphx::shape::from_permutation(
+        migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(8)}}, {0, 2, 3, 1});
+    auto op = migraphx::make_op("step", {{"axes", {3}}, {"steps", {2}}});
+    migraphx::shape sout{migraphx::shape::float_type,
+                         {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(4)}},
+                         {sin.dyn_strides()[0],
+                          sin.dyn_strides()[1],
+                          sin.dyn_strides()[2],
+                          sin.dyn_strides()[3] * lit(2)}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(step_dyn)
+{
+    // Range-dynamic input: ceil-divide bounds; fixed-step shifts the optimal.
+    migraphx::shape input{migraphx::shape::float_type, {dd{2, 2}, dd{2, 8, {4}}, dd{4, 4}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{2, 2}, dd{1, 4, {2}}, dd{4, 4}}};
+    expect_shape(expected, migraphx::make_op("step", {{"axes", {1}}, {"steps", {2}}}), input);
+}
+
 TEST_CASE(unary_scalar_input)
 {
     migraphx::shape ss{migraphx::shape::half_type};
@@ -6472,6 +6703,12 @@ TEST_CASE(test_dyn_concat)
 
     expect_shape(sout, migraphx::make_op("concat", {{"axis", 2}}), sx, sy);
 
+    // static + range-dynamic with compatible non-axis dims (static lifts to fixed range)
+    migraphx::shape sr{migraphx::shape::float_type, {{2, 2}, {1, 5}, {4, 4}}};
+    migraphx::shape ss{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::shape sr_out{migraphx::shape::float_type, {{2, 2}, {4, 8}, {4, 4}}};
+    expect_shape(sr_out, migraphx::make_op("concat", {{"axis", 1}}), sr, ss);
+
     // axis out of range
     throws_shape(migraphx::make_op("concat", {{"axis", 4}}), sx, sy);
 
@@ -6482,9 +6719,124 @@ TEST_CASE(test_dyn_concat)
     // non-matching dimension 2
     throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
 
-    // static and dynamic shapes together
+    // static input with non-axis dim that doesn't match the range-dynamic input
     migraphx::shape sstat{migraphx::shape::float_type, {3, 4, 1, 6}};
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
+}
+
+TEST_CASE(concat_sym)
+{
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {1, 16});
+    auto s                                      = var("s", {1, 128});
+    auto k                                      = var("k", {1, 64});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 3}, {m, 5}, {s, 7}, {k, 9}};
+
+    auto expect_matches_static = [&](const migraphx::operation& op,
+                                     const std::vector<migraphx::shape>& inputs,
+                                     const migraphx::shape& sym_out) {
+        std::vector<migraphx::shape> static_inputs(inputs.size());
+        std::transform(inputs.begin(), inputs.end(), static_inputs.begin(), [&](const auto& sh) {
+            return sh.to_static(sym_map);
+        });
+        EXPECT(sym_out.to_static(sym_map) == op.compute_shape(static_inputs));
+    };
+
+    {
+        // axis 0 (first): distinct symbols on the concat axis.
+        auto op = migraphx::make_op("concat", {{"axis", 0}});
+        migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}};
+        migraphx::shape sy{migraphx::shape::float_type, {dd{m}, dd{lit(4)}}};
+        migraphx::shape sout{migraphx::shape::float_type, {dd{n + m}, dd{lit(4)}}};
+        expect_shape(sout, op, sx, sy);
+        expect_matches_static(op, {sx, sy}, sout);
+    }
+    {
+        // axis 1 (middle): non-axis sym shared, distinct sym on the concat axis.
+        auto op = migraphx::make_op("concat", {{"axis", 1}});
+        migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{s}, dd{lit(8)}}};
+        migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{k}, dd{lit(8)}}};
+        migraphx::shape sout{migraphx::shape::float_type, {dd{n}, dd{s + k}, dd{lit(8)}}};
+        expect_shape(sout, op, sx, sy);
+        expect_matches_static(op, {sx, sy}, sout);
+    }
+    {
+        // axis 3 (last) on a 4D shape; sym at axis 0 and at the concat axis.
+        auto op = migraphx::make_op("concat", {{"axis", 3}});
+        migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{s}}};
+        migraphx::shape sy{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{k}}};
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{s + k}}};
+        expect_shape(sout, op, sx, sy);
+        expect_matches_static(op, {sx, sy}, sout);
+    }
+}
+
+TEST_CASE(concat_sym_same_var)
+{
+    // Same symbol on the concat axis across both inputs -> 2*s.
+    auto s = var("s", {1, 64});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(4)}, dd{s}, dd{lit(8)}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{lit(4)}, dd{s + s}, dd{lit(8)}}};
+    auto op = migraphx::make_op("concat", {{"axis", 1}});
+    expect_shape(sout, op, sx, sx);
+
+    std::unordered_map<se, std::size_t> sym_map = {{s, 7}};
+    auto static_in                              = sx.to_static(sym_map);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({static_in, static_in}));
+}
+
+TEST_CASE(concat_sym_static_mix)
+{
+    // Static + symbolic: static input lifts to sym-lits; output stays symbolic.
+    auto n = var("n", {1, 16});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {3, 4, 5}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{n + lit(3)}, dd{lit(4)}, dd{lit(5)}}};
+    auto op = migraphx::make_op("concat", {{"axis", 0}});
+    expect_shape(sout, op, sx, sy);
+
+    std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sx.to_static(sym_map), sy}));
+}
+
+TEST_CASE(concat_sym_three_inputs)
+{
+    // Three inputs with three distinct symbols on the concat axis.
+    auto a = var("a", {1, 8});
+    auto b = var("b", {1, 16});
+    auto c = var("c", {1, 32});
+    migraphx::shape s_a{migraphx::shape::float_type, {dd{lit(2)}, dd{a}, dd{lit(4)}}};
+    migraphx::shape s_b{migraphx::shape::float_type, {dd{lit(2)}, dd{b}, dd{lit(4)}}};
+    migraphx::shape s_c{migraphx::shape::float_type, {dd{lit(2)}, dd{c}, dd{lit(4)}}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{lit(2)}, dd{a + b + c}, dd{lit(4)}}};
+    auto op = migraphx::make_op("concat", {{"axis", 1}});
+    expect_shape(sout, op, s_a, s_b, s_c);
+
+    std::unordered_map<se, std::size_t> sym_map = {{a, 3}, {b, 5}, {c, 7}};
+    EXPECT(
+        sout.to_static(sym_map) ==
+        op.compute_shape({s_a.to_static(sym_map), s_b.to_static(sym_map), s_c.to_static(sym_map)}));
+}
+
+TEST_CASE(concat_sym_non_axis_mismatch_throws)
+{
+    // Non-axis dim has different symbols -> throws.
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 16});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{m}, dd{lit(4)}, dd{lit(5)}}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
+}
+
+TEST_CASE(concat_sym_with_range)
+{
+    // Symbolic + range-dynamic: sym side materialized to range; output is range.
+    auto n = var("n", {1, 8});
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    migraphx::shape sy{migraphx::shape::float_type, {{2, 2}, {1, 5}, {4, 4}}};
+    migraphx::shape sout{migraphx::shape::float_type, {{2, 2}, {2, 13}, {4, 4}}};
+    expect_shape(sout, migraphx::make_op("concat", {{"axis", 1}}), sx, sy);
 }
 
 TEST_CASE(test_binary_nonpacked)

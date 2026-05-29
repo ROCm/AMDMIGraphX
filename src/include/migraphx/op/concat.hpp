@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_CONCAT_HPP
 
 #include <array>
+#include <limits>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/stringutils.hpp>
@@ -112,31 +113,56 @@ struct concat
         else if(std::all_of(
                     inputs.begin(), inputs.end(), [&](const shape& s) { return s.dynamic(); }))
         {
-            // Dynamic input shapes
+            // Dynamic input shapes. On non-concat axes the dims must agree,
+            // but a fully-unconstrained dim {0, SIZE_MAX} is a wildcard: it
+            // is the output of an op whose shape is only known at runtime
+            // (e.g. broadcast_with_dims / ONNX Expand whose target shape is
+            // computed from another tensor's shape), so it matches any dim
+            // and adopts that dim's constraint in the output.
+            auto is_unconstrained = [](const shape::dynamic_dimension& dd) {
+                const auto iv = dd.get_interval();
+                return iv.min == 0 and iv.max == std::numeric_limits<std::size_t>::max();
+            };
+            auto out_dims = inputs[0].dyn_dims();
             for(std::size_t index = 0; index < inputs[0].ndim(); index++)
             {
-                if(index != axis)
+                if(index == axis)
+                    continue;
+                for(const auto& s : inputs)
                 {
-                    if(not std::all_of(inputs.begin(), inputs.end(), [&](const shape& s) {
-                           return s.dyn_dims()[index] == inputs[0].dyn_dims()[index];
-                       }))
+                    const auto& dd = s.dyn_dims()[index];
+                    if(is_unconstrained(out_dims[index]))
+                        out_dims[index] = dd;
+                    else if(not is_unconstrained(dd) and dd != out_dims[index])
                         MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
                                        std::to_string(index));
                 }
             }
-            std::size_t new_min = 0;
-            std::size_t new_max = 0;
+            // Sum the concat axis. If any input is unconstrained on the
+            // axis, the sum is unknown too -- emit a wildcard rather than
+            // overflowing SIZE_MAX. The exact size is recovered once the
+            // program is specialised and the runtime op is constant-folded.
+            constexpr std::size_t size_max = std::numeric_limits<std::size_t>::max();
+            std::size_t new_min            = 0;
+            std::size_t new_max            = 0;
+            bool axis_unconstrained        = false;
             for(const auto& input : inputs)
             {
-                auto ddim         = input.dyn_dims()[axis];
-                auto dim_interval = ddim.get_interval();
+                const auto& ddim = input.dyn_dims()[axis];
+                if(is_unconstrained(ddim))
+                {
+                    axis_unconstrained = true;
+                    break;
+                }
+                const auto dim_interval = ddim.get_interval();
                 new_min += dim_interval.min;
                 new_max += dim_interval.max;
             }
 
-            auto new_dims  = inputs[0].dyn_dims();
-            new_dims[axis] = migraphx::shape::dynamic_dimension{new_min, new_max};
-            return {inputs[0].type(), new_dims};
+            out_dims[axis] = axis_unconstrained
+                                 ? migraphx::shape::dynamic_dimension{0, size_max}
+                                 : migraphx::shape::dynamic_dimension{new_min, new_max};
+            return {inputs[0].type(), out_dims};
         }
         else
         {

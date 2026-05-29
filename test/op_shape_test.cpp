@@ -6487,6 +6487,33 @@ TEST_CASE(test_dyn_concat)
     throws_shape(migraphx::make_op("concat", {{"axis", 2}}), sx, sstat);
 }
 
+TEST_CASE(test_dyn_concat_unconstrained)
+{
+    using dd                  = migraphx::shape::dynamic_dimension;
+    const std::size_t max_int = std::numeric_limits<std::size_t>::max();
+
+    // A fully-unconstrained dynamic dim {0, SIZE_MAX} is what
+    // broadcast_with_dims / ONNX Expand emits when its target shape is only
+    // known at runtime. It must act as a wildcard on the non-concat axes
+    // (adopting the other input's constraint) instead of forcing a throw.
+    migraphx::shape expand_out{migraphx::shape::float_type, {dd{0, max_int}, dd{0, max_int}}};
+    migraphx::shape item{migraphx::shape::float_type, {dd{1, 1000}, dd{64, 64}}};
+
+    // concat axis 1: non-axis (0) wildcard adopts {1,1000}; the concat axis
+    // has an unconstrained input, so the summed dim is itself unconstrained.
+    migraphx::shape sout1{migraphx::shape::float_type, {dd{1, 1000}, dd{0, max_int}}};
+    expect_shape(sout1, migraphx::make_op("concat", {{"axis", 1}}), expand_out, item);
+
+    // concat axis 0: non-axis (1) wildcard adopts {64,64}.
+    migraphx::shape sout0{migraphx::shape::float_type, {dd{0, max_int}, dd{64, 64}}};
+    expect_shape(sout0, migraphx::make_op("concat", {{"axis", 0}}), expand_out, item);
+
+    // Two genuinely-different concrete dynamic dims on a non-axis still throw.
+    migraphx::shape a{migraphx::shape::float_type, {dd{1, 1000}, dd{32, 32}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{1, 1000}, dd{64, 64}}};
+    throws_shape(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+}
+
 TEST_CASE(test_binary_nonpacked)
 {
     auto sx   = migraphx::shape(migraphx::shape::float_type, {4, 3}, {1, 8});

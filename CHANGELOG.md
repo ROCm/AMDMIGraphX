@@ -44,6 +44,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Fixed a compile-time crash in the `concat` operator when an input had a fully-unconstrained dynamic dimension (e.g. the output of `broadcast_with_dims` / ONNX `Expand`). Such dimensions are now treated as a wildcard during dynamic-shape inference (#4924).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).

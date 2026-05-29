@@ -292,6 +292,9 @@ MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
 
 struct find_channelwise_convolution
 {
+    // Minimum C*H*W for half_type to use channelwise kernel instead of MLIR
+    std::size_t channelwise_half_min_chw = 48 * 1024;
+
     auto matcher() const { return conv_channelwise(); }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -301,8 +304,18 @@ struct find_channelwise_convolution
         auto weights     = ins->inputs().back();
         auto num_spatial = ins->get_shape().ndim() - 2;
 
-        if(input->get_shape().type() != shape::float_type)
+        const auto type = input->get_shape().type();
+        if(type != shape::float_type and type != shape::half_type)
             return;
+
+        if(type == shape::half_type)
+        {
+            const auto& lens = input->get_shape().lens();
+            const auto chw =
+                std::accumulate(lens.begin() + 1, lens.end(), std::size_t{1}, std::multiplies<>{});
+            if(chw < channelwise_half_min_chw)
+                return;
+        }
 
         auto v        = ins->get_operator().to_value();
         auto pad_vals = v.at("padding");

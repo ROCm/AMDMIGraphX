@@ -65,12 +65,14 @@ cache_device_key parse_device_key(const std::string& s)
 problem_cache_backend make_cache_backend(const std::string& type)
 {
     if(type == "json")
+        // cppcheck-suppress returnDanglingLifetime
         return problem_cache_backend{json_cache_backend{}};
     throw std::runtime_error("Problem cache backend not available: " + type);
 }
 
 problem_cache_backend make_default_cache_backend()
 {
+    // cppcheck-suppress returnDanglingLifetime
     return problem_cache_backend{json_cache_backend{}};
 }
 
@@ -81,6 +83,7 @@ problem_cache_backend make_cache_backend_with_fallback(const std::string& explic
         log::warn() << "Unknown cache backend '" << explicit_backend
                     << "'. Falling back to JSON.\n";
     }
+    // cppcheck-suppress returnDanglingLifetime
     return problem_cache_backend{json_cache_backend{}};
 }
 

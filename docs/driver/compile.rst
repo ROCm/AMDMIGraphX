@@ -28,20 +28,24 @@ Disable fast math optimization
 
 .. option:: --exhaustive-tune
 
-Perform an exhaustive search to find the fastest version of generated kernels for selected backend
+Exhaustively search for best tuning parameters for kernels
 
 .. option::  --fp16
 
-Quantize for fp16
+Quantize for FP16
 
 .. option::  --bf16
 
-Quantize for bf16
+Quantize for BF16
 
 .. option::  --int8
 
-Quantize for int8
+Quantize for INT8
 
 .. option:: --fp8
 
-Quantize for Float8E4M3FNUZ type
+Quantize for FP8
+
+.. option:: --int4-weights
+
+Quantize weights for INT4

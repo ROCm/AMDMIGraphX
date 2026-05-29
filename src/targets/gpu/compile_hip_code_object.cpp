@@ -211,7 +211,7 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
         kernels.end(),
         std::back_inserter(srcs),
         [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
-    srcs.emplace_back("main.cpp", content);
+    srcs.emplace_back(options.src_file, content);
 
     if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
         options.emplace_param("-fno-offload-uniform-block");

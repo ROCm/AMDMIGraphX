@@ -71,8 +71,9 @@ else()
     set(MIGRAPHX_USE_HIPRTC ON CACHE BOOL "Use hipRTC APIs")
 endif()
 
-file(GLOB KERNEL_FILES CONFIGURE_DEPENDS
-    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/migraphx/kernels/*.hpp)
+file(GLOB_RECURSE KERNEL_FILES CONFIGURE_DEPENDS LIST_DIRECTORIES false
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/*.hpp
+)
 
 if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
     list(REMOVE_ITEM KERNEL_FILES
@@ -97,6 +98,31 @@ check_cxx_compiler_flag("--cuda-host-only -fhip-lambda-host-device -x hip" HAS_H
 if(HAS_HIP_LAMBDA_HOST_DEVICE)
     message(STATUS "Enable -fhip-lambda-host-device")
     target_compile_options(compile_for_gpu INTERFACE -fhip-lambda-host-device)
+endif()
+
+function(check_hip_deduction_guide VAR)
+    set(CMAKE_REQUIRED_LIBRARIES hip::device)
+    check_cxx_source_compiles("
+template<class T>
+struct S
+{
+    T x;
+};
+
+template<class T>
+S(T) -> S<T>;
+
+__attribute__((device)) auto f()
+{
+    return S{1};
+}
+    " ${VAR})
+endfunction()
+check_hip_deduction_guide(HIP_HAS_WORKING_DEDUCTION_GUIDE)
+
+if(NOT HIP_HAS_WORKING_DEDUCTION_GUIDE)
+    message(STATUS "Enable deduction guide workaround")
+    target_compile_definitions(compile_for_gpu INTERFACE MIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE=1)
 endif()
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
@@ -124,18 +150,22 @@ endif()
 
 add_library(migraphx_gpu_kernel_file_check EXCLUDE_FROM_ALL)
 
-set(CK_TIDY_SKIP_KERNEL_FILES "ck" "ck_gemm" "ck_gemm_softmax_gemm")
+set(CK_TIDY_SKIP_KERNEL_FILES ck ck_gemm ck_gemm_softmax_gemm)
 foreach(KERNEL_FILE ${KERNEL_FILES})
-    get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE} NAME_WE)
+    file(RELATIVE_PATH KERNEL_FILE_REL ${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/ ${KERNEL_FILE})
+    get_filename_component(KERNEL_BASE_FILE ${KERNEL_FILE_REL} NAME_WE)
+    get_filename_component(KERNEL_DIR ${KERNEL_FILE_REL} DIRECTORY)
     # Temporary workaround for tidy issue that arises from the fact that CK no longer exposes headers to the host code
     if(${KERNEL_BASE_FILE} IN_LIST CK_TIDY_SKIP_KERNEL_FILES)
         continue()
     endif()
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp "#include <migraphx/kernels/${KERNEL_BASE_FILE}.hpp>\n")
-    target_sources(migraphx_gpu_kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/migraphx/kernels/${KERNEL_BASE_FILE}.cpp)
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/${KERNEL_DIR}/${KERNEL_BASE_FILE}.cpp "#include <${KERNEL_DIR}/${KERNEL_BASE_FILE}.hpp>\n")
+    target_sources(migraphx_gpu_kernel_file_check PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/${KERNEL_DIR}/${KERNEL_BASE_FILE}.cpp)
 endforeach()
 
 target_link_libraries(migraphx_gpu_kernel_file_check compile_migraphx_gpu_kernels)
+# Copy the .clang-tidy files over
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/kernels/include/rocm/.clang-tidy ${CMAKE_CURRENT_BINARY_DIR}/kernels/include/rocm/.clang-tidy COPYONLY)
 
 rocm_clang_tidy_check(migraphx_gpu_kernel_file_check)
 

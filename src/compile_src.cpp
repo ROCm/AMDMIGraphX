@@ -51,7 +51,7 @@ std::vector<char> src_compiler::compile(const std::vector<src_file>& srcs) const
         write_buffer(full_path, src.content.data(), src.content.size());
         if(src.path.extension().string() == ".cpp")
         {
-            params.emplace_back(src.path.filename().string());
+            params.emplace_back(src.path.string());
             if(out.empty())
                 out = src.path.stem().string() + out_ext;
         }

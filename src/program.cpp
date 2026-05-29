@@ -360,6 +360,16 @@ void program::finalize()
     mm->finalize(this->impl->contexts);
 }
 
+void program::finalize(const target& t)
+{
+    if(not this->is_compiled())
+    {
+        this->impl->targets  = {t};
+        this->impl->contexts = {t.get_context()};
+    }
+    this->finalize();
+}
+
 template <class T>
 static std::string classify(T x)
 {

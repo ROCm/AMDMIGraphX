@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
 
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/mlir_ops.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,13 +35,14 @@ struct module_pass_manager;
 namespace gpu {
 
 MIGRAPHX_GPU_EXPORT bool mlir_enabled();
-MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx);
+MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx, const mlir_ops_options& mlir_ops);
 MIGRAPHX_GPU_EXPORT bool mlir_flash_decoding_enabled();
 MIGRAPHX_GPU_EXPORT bool mlir_geg_multi_user_intermediates_supported();
 
 struct MIGRAPHX_GPU_EXPORT fuse_mlir
 {
     context* ctx      = nullptr;
+    mlir_ops_options mlir_ops{};
     bool enable_extra = false;
     bool enable_geg_multi_out_intermediates = false;
     std::string name() const { return "gpu::fuse_mlir"; }

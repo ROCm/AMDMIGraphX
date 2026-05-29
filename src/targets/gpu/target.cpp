@@ -99,6 +99,7 @@ struct pipeline_factory
 {
     migraphx::context* gctx_ptr = nullptr;
     compile_options options;
+    mlir_ops_options mlir_ops;
 
     migraphx::context* get_generic_context() const { return gctx_ptr; }
 
@@ -176,7 +177,7 @@ struct pipeline_factory
     {
         return {
             enable_pass(mlir_enabled(),
-                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
+                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context(), mlir_ops),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
@@ -186,7 +187,7 @@ struct pipeline_factory
             enable_pass(enabled(MIGRAPHX_ENABLE_CK{}), fuse_ck{}),
 #endif
             dead_code_elimination{},
-            enable_pass(mlir_enabled(), fuse_mlir{get_context()}),
+            enable_pass(mlir_enabled(), fuse_mlir{get_context(), mlir_ops}),
             dead_code_elimination{},
             fuse_concat{},
             dead_code_elimination{},
@@ -246,7 +247,9 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
 
-    pipeline_factory p{&gctx, options};
+    auto mlir_ops = mlir_ops_options{};
+
+    pipeline_factory p{&gctx, options, mlir_ops};
 
     std::vector<std::vector<pass>> pipelines = {
         p.dynamic_shapes_pipeline(),

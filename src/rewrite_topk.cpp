@@ -43,6 +43,8 @@ struct find_large_topk
     {
         auto ins   = r.result;
         auto input = ins->inputs().front();
+        if(input->get_shape().dynamic())
+            return;
         auto op    = ins->get_operator().to_value();
         auto axis  = op["axis"].to<std::int64_t>();
         auto k     = op["k"].to<std::int64_t>();

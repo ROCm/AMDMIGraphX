@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +52,7 @@ struct compute_output_shape
     operator dyn_output() const
     {
         return ins_inputs([](const auto& x, shape ins_shape, const std::vector<argument>& inputs) {
-            if(ins_shape.dynamic())
+            if(ins_shape.any_of_dynamic()) // some op returns a tuple shape e.g. TopK
                 return dyn_output{ins_shape, compute_shape(x, to_shapes(inputs))};
             return dyn_output{ins_shape, ins_shape};
         });

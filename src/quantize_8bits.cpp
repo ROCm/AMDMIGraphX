@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -103,10 +103,6 @@ void capture_arguments_pass::apply(module& m) const // NOLINT
     for(auto ins : iterator_for(m))
     {
         if((not contains(ins_names, ins->name())) or (ins->name() == "convert"))
-        {
-            continue;
-        }
-        if(contains(skip_instructions, ins))
         {
             continue;
         }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,6 @@
 #include <functional>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,7 +45,6 @@ struct MIGRAPHX_EXPORT capture_arguments_pass
     std::unordered_set<std::string> ins_names = {"dot", "convolution"};
     std::function<void(std::size_t, std::vector<argument>)> f{};
     std::size_t* param_index = nullptr;
-    std::unordered_set<instruction_ref> skip_instructions{};
     std::string name() const { return "capture_arguments"; }
     void apply(module& m) const;
 };

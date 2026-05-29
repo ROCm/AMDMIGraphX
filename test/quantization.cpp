@@ -610,47 +610,6 @@ TEST_CASE(op_capture_subgraph)
     }
 }
 
-TEST_CASE(op_capture_skip_attention)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {1, 4, 8, 8}};
-    auto x  = mm->add_parameter("x", s);
-    auto wq = mm->add_parameter("wq", s);
-    auto wo = mm->add_parameter("wo", s);
-    auto k  = mm->add_parameter("k", s);
-    auto v  = mm->add_parameter("v", s);
-
-    // Pre-attention projection: outside the attention region.
-    auto pre = mm->add_instruction(migraphx::make_op("dot"), x, wq);
-
-    // Attention region: these dots must NOT be captured.
-    auto kt =
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
-    auto qk   = mm->add_instruction(migraphx::make_op("dot"), pre, kt);
-    auto sm   = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), qk);
-    auto attn = mm->add_instruction(migraphx::make_op("dot"), sm, v);
-
-    // Post-attention projection: outside the attention region.
-    auto out = mm->add_instruction(migraphx::make_op("dot"), attn, wo);
-    mm->add_return({out});
-
-    migraphx::target t = migraphx::make_target("ref");
-    std::vector<migraphx::parameter_map> cali;
-    migraphx::quantize_fp8(p, t, cali);
-
-    auto has_dq_input = [](auto ins) {
-        return std::any_of(ins->inputs().begin(), ins->inputs().end(), [](auto in) {
-            return in->name() == "dequantizelinear";
-        });
-    };
-
-    EXPECT(not has_dq_input(qk));
-    EXPECT(not has_dq_input(attn));
-    EXPECT(has_dq_input(pre));
-    EXPECT(has_dq_input(out));
-}
-
 TEST_CASE(dot_float)
 {
     auto create_program = [] {

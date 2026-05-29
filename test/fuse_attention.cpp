@@ -2229,6 +2229,72 @@ TEST_CASE(ceil_mul_of_function)
     EXPECT(migraphx::ceil_mul_of(2049, 32) == 2080); // 2049 -> 2080 (padding = 31)
 }
 
+// Attention block with 8-bit quantization should have q/dq pairs removed to allow for fusion
+TEST_CASE(fp8_quant_gemm_softmax_gemm)
+{
+    migraphx::shape s{migraphx::shape::half_type, {1, 12, 256, 256}};
+
+    auto quantize = [](migraphx::module* mm, migraphx::instruction_ref x) {
+        auto scale = mm->add_literal(
+            migraphx::literal{migraphx::shape{x->get_shape().type(), {1}}, {0.05f}});
+        scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), scale);
+        auto zp = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}}, {0}});
+        zp = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), zp);
+        return mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale, zp);
+    };
+    auto dequantize = [](migraphx::module* mm,
+                         migraphx::instruction_ref x,
+                         migraphx::shape::type_t out_type) {
+        auto scale = mm->add_literal(migraphx::literal{migraphx::shape{out_type, {1}}, {0.0025f}});
+        scale      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), scale);
+        return mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale);
+    };
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s);
+        auto k   = mm->add_parameter("k", s);
+        auto v   = mm->add_parameter("v", s);
+        auto kt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+
+        auto gemm1 =
+            mm->add_instruction(migraphx::make_op("quant_dot"), quantize(mm, q), quantize(mm, kt));
+        auto deq1 = dequantize(mm, gemm1, migraphx::shape::float_type);
+
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), deq1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), deq1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}),
+                                   rsum);
+        auto div = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+
+        auto gemm2 =
+            mm->add_instruction(migraphx::make_op("quant_dot"), quantize(mm, div), quantize(mm, v));
+        auto deq2 = dequantize(mm, gemm2, migraphx::shape::half_type);
+        mm->add_return({deq2});
+    }
+    run_pass(p1, {.attn_enabled = true});
+
+    auto* mm = p1.get_main_module();
+    // The attention gemms must be de-quantized (no quant_dot left) ...
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "quant_dot"; }));
+    // ... and fused into an attention group.
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "group" and
+               ins.get_operator().to_value()["tag"].template to<std::string>() == "attention";
+    }));
+}
+
 int main(int argc, const char* argv[])
 {
     test::run(argc, argv);

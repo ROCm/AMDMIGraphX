@@ -26,6 +26,7 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,11 +35,16 @@ namespace op {
 struct select_module
 {
     shape output_dyn_shapes;
+    // Axis index of the runtime-varying ("batch") dimension. Used at eval
+    // time to pick the closest matching submodule when split_single_dyn_dim
+    // only emits a subset of bucket sizes (e.g. min, max, optimals).
+    std::size_t dynamic_idx = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.output_dyn_shapes, "output_dyn_shapes"));
+        return pack(f(self.output_dyn_shapes, "output_dyn_shapes"),
+                    f(self.dynamic_idx, "dynamic_idx"));
     }
 
     std::string name() const { return "select_module"; }
@@ -80,20 +86,27 @@ struct select_module
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        // Find submodule with input parameter shapes exactly the same as the input instruction
-        // arguments. Assuming instruction arguments are in the same order as the instruction
-        // parameters.
+        // Determine the requested batch size from the inputs. Inspect only
+        // concrete (non-dynamic, non-tuple) args -- the dynamic ones are the
+        // output buffers appended by replace_allocate.
+        std::size_t orig_batch = 1;
+        for(const auto& arg : args)
+        {
+            const auto& a_shape = arg.get_shape();
+            if(a_shape.any_of_dynamic() or a_shape.type() == shape::tuple_type)
+                continue;
+            const auto& a_lens = a_shape.lens();
+            assert(dynamic_idx < a_lens.size());
+            orig_batch = std::max(orig_batch, a_lens[dynamic_idx]);
+        }
+
+        // Submodules are named "dim_<N>" by split_single_dyn_dim. Pick the
+        // smallest bucket whose <N> is >= orig_batch so the chosen submodule
+        // can accommodate the request.
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
-                auto in_param_names = get_input_parameter_names(mr);
-                auto param_shapes   = mr->get_parameter_shapes();
-                assert(in_param_names.size() <= args.size());
-                return std::equal(in_param_names.cbegin(),
-                                  in_param_names.cend(),
-                                  args.cbegin(),
-                                  [&](const auto& p_name, const auto& a) {
-                                      return a.get_shape() == param_shapes[p_name];
-                                  });
+                auto suffix = remove_prefix(mr->name(), "dim_");
+                return std::stoull(suffix) >= orig_batch;
             });
 
         if(module_iter == submodule_list.end())
@@ -135,6 +148,27 @@ struct select_module
                            }
                        });
         auto results = run(module_to_run, p_map);
+
+        // The selected bucket submodule pads inputs up to its dim_size via
+        // fixed_pad, so its results are sized to dim_size on the dynamic
+        // axis. Trim them back to orig_batch so the rest of the program
+        // sees the actually-requested batch.
+        for(auto& result : results)
+        {
+            auto result_shape = result.get_shape();
+            if(result_shape.dynamic())
+            {
+                result = result.reshape(result_shape.to_static(orig_batch));
+            }
+            else if(dynamic_idx < result_shape.lens().size() and
+                    result_shape.lens()[dynamic_idx] != orig_batch)
+            {
+                auto result_dims         = result_shape.lens();
+                result_dims[dynamic_idx] = orig_batch;
+                result = result.reshape(shape{result_shape.type(), result_dims});
+            }
+        }
+
         return argument{results};
     }
 

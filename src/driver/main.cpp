@@ -309,6 +309,32 @@ struct loader
         return map_input_dims;
     }
 
+    // shape::dynamic_dimension::reflect was changed from the historical
+    // {min, max, optimals} layout to {range:{min,max}, optimals, sym}.
+    // Calling from_value<dynamic_dimension> directly on the documented
+    // {min, max, optimals} form silently drops min/max (range stays nullopt)
+    // and downstream collapses the dim to a static 0. Translate the legacy
+    // form here so existing scripts and the --help docs keep working, while
+    // still accepting the new schema if a user passes it explicitly.
+    static migraphx::shape::dynamic_dimension dd_from_json_object(const migraphx::value& x)
+    {
+        if(x.contains("range") or x.contains("sym"))
+            return from_value<migraphx::shape::dynamic_dimension>(x);
+
+        auto min = x.at("min").to<std::size_t>();
+        auto max = x.at("max").to<std::size_t>();
+        if(not x.contains("optimals"))
+            return migraphx::shape::dynamic_dimension{min, max};
+
+        std::set<std::size_t> opts;
+        const auto& opts_val = x.at("optimals");
+        std::transform(opts_val.begin(),
+                       opts_val.end(),
+                       std::inserter(opts, opts.end()),
+                       [](const auto& o) { return o.template to<std::size_t>(); });
+        return migraphx::shape::dynamic_dimension{min, max, std::move(opts)};
+    }
+
     static auto parse_dyn_dims_json(const std::string& dd_json)
     {
         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
@@ -316,7 +342,7 @@ struct loader
         std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
         std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](const auto& x) {
             if(x.is_object())
-                return from_value<migraphx::shape::dynamic_dimension>(x);
+                return dd_from_json_object(x);
             auto d = x.template to<std::size_t>();
             return migraphx::shape::dynamic_dimension{d, d};
         });
@@ -408,7 +434,7 @@ struct loader
         else
         {
             auto v                        = from_json_string(convert_to_json(default_dyn_dim));
-            options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
+            options.default_dyn_dim_value = dd_from_json_object(v);
         }
         options.skip_unknown_operators = skip_unknown_operators;
         options.print_program_on_error = true;

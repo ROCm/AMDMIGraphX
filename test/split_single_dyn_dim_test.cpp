@@ -46,11 +46,18 @@ TEST_CASE(dynamic_batch)
     {
         auto* mm0 = p0.get_main_module();
 
-        // create batch submodules
-        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
+        // create batch submodules: each bucket accepts inputs whose batch lies
+        // in (prev_b, dim_b] and pads them up to a static {dim_b, 4} via
+        // fixed_pad before the rest of the computation runs.
+        auto create_submodule = [&](std::size_t prev_b,
+                                    std::size_t dim_b,
+                                    const std::string& module_name) {
             auto* submod = p0.create_module(module_name);
-            migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
-            auto sm_input = submod->add_parameter("data", sm_shape);
+            migraphx::shape sm_dyn_shape{migraphx::shape::float_type,
+                                         {{prev_b + 1, dim_b}, {4, 4}}};
+            auto sm_input_dyn = submod->add_parameter("data", sm_dyn_shape);
+            auto sm_input =
+                submod->add_instruction(migraphx::make_op("fixed_pad"), sm_input_dyn);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
             auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
             auto broadcast_lit =
@@ -60,10 +67,8 @@ TEST_CASE(dynamic_batch)
             submod->add_return({add_ins});
             return submod;
         };
-        auto* dim1 = create_submodule(1, "dim_1");
-        auto* dim2 = create_submodule(2, "dim_2");
-        auto* dim3 = create_submodule(3, "dim_3");
-        auto* dim4 = create_submodule(4, "dim_4");
+        auto* dim1 = create_submodule(0, 1, "dim_1");
+        auto* dim4 = create_submodule(1, 4, "dim_4");
 
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
         auto input0                             = mm0->add_parameter("data", s);
@@ -74,7 +79,7 @@ TEST_CASE(dynamic_batch)
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
-            {dim1, dim2, dim3, dim4});
+            {dim1, dim4});
         auto ret =
             mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
         mm0->add_return({ret});
@@ -103,13 +108,23 @@ TEST_CASE(dynamic_batch_multiple_input)
     {
         auto* mm0 = p0.get_main_module();
 
-        // create batch submodules
-        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
+        // create batch submodules: each bucket pads its three dynamic inputs
+        // up to a static {dim_b, 4} via fixed_pad before the adds run.
+        auto create_submodule = [&](std::size_t prev_b,
+                                    std::size_t dim_b,
+                                    const std::string& module_name) {
             auto* submod = p0.create_module(module_name);
-            migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
-            auto sm_input0 = submod->add_parameter("data0", sm_shape);
-            auto sm_input1 = submod->add_parameter("data1", sm_shape);
-            auto sm_input2 = submod->add_parameter("data2", sm_shape);
+            migraphx::shape sm_dyn_shape{migraphx::shape::float_type,
+                                         {{prev_b + 1, dim_b}, {4, 4}}};
+            auto sm_input0_dyn = submod->add_parameter("data0", sm_dyn_shape);
+            auto sm_input1_dyn = submod->add_parameter("data1", sm_dyn_shape);
+            auto sm_input2_dyn = submod->add_parameter("data2", sm_dyn_shape);
+            auto sm_input0 =
+                submod->add_instruction(migraphx::make_op("fixed_pad"), sm_input0_dyn);
+            auto sm_input1 =
+                submod->add_instruction(migraphx::make_op("fixed_pad"), sm_input1_dyn);
+            auto sm_input2 =
+                submod->add_instruction(migraphx::make_op("fixed_pad"), sm_input2_dyn);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
             auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
             auto broadcast_lit = submod->add_instruction(
@@ -121,10 +136,8 @@ TEST_CASE(dynamic_batch_multiple_input)
             submod->add_return({add_ins2});
             return submod;
         };
-        auto* dim1 = create_submodule(1, "dim_1");
-        auto* dim2 = create_submodule(2, "dim_2");
-        auto* dim3 = create_submodule(3, "dim_3");
-        auto* dim4 = create_submodule(4, "dim_4");
+        auto* dim1 = create_submodule(0, 1, "dim_1");
+        auto* dim4 = create_submodule(1, 4, "dim_4");
 
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
         auto input0                             = mm0->add_parameter("data0", s);
@@ -137,7 +150,7 @@ TEST_CASE(dynamic_batch_multiple_input)
             migraphx::make_op("select_module",
                                            {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0, input1, input2},
-            {dim1, dim2, dim3, dim4});
+            {dim1, dim4});
         auto ret =
             mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
         mm0->add_return({ret});
@@ -170,11 +183,17 @@ TEST_CASE(multiple_outputs)
     {
         auto* mm0 = p0.get_main_module();
 
-        // create batch submodules
-        auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
+        // create batch submodules: each bucket pads its dynamic input up to a
+        // static {dim_b, 4} via fixed_pad before producing the two outputs.
+        auto create_submodule = [&](std::size_t prev_b,
+                                    std::size_t dim_b,
+                                    const std::string& module_name) {
             auto* submod = p0.create_module(module_name);
-            migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
-            auto sm_input = submod->add_parameter("data", sm_shape);
+            migraphx::shape sm_dyn_shape{migraphx::shape::float_type,
+                                         {{prev_b + 1, dim_b}, {4, 4}}};
+            auto sm_input_dyn = submod->add_parameter("data", sm_dyn_shape);
+            auto sm_input =
+                submod->add_instruction(migraphx::make_op("fixed_pad"), sm_input_dyn);
             migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
             auto literal_ins   = submod->add_literal(migraphx::literal{lit_s, {6}});
             auto broadcast_lit =
@@ -185,10 +204,8 @@ TEST_CASE(multiple_outputs)
             submod->add_return({add0_ins, add1_ins});
             return submod;
         };
-        auto* dim1 = create_submodule(1, "dim_1");
-        auto* dim2 = create_submodule(2, "dim_2");
-        auto* dim3 = create_submodule(3, "dim_3");
-        auto* dim4 = create_submodule(4, "dim_4");
+        auto* dim1 = create_submodule(0, 1, "dim_1");
+        auto* dim4 = create_submodule(1, 4, "dim_4");
 
         migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {4, 4}}};
         auto input0                             = mm0->add_parameter("data", s);
@@ -201,7 +218,7 @@ TEST_CASE(multiple_outputs)
             migraphx::make_op("select_module",
                               {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             {input0},
-            {dim1, dim2, dim3, dim4});
+            {dim1, dim4});
         auto ret0 =
             mm0->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
         auto ret1 =

@@ -155,6 +155,16 @@ struct find_concat_pointwise : concat_counter<0>
         {
             return;
         }
+        // Helper module names must be scoped to the parent module. Without the
+        // prefix, running fuse_concat on multiple sibling submodules
+        // (e.g. dim_1, dim_2, dim_4 buckets produced by split_single_dyn_dim)
+        // hits the same "concat:noop<N>" / "noop:concat<N>" names because the
+        // matcher's counter is per-instance and resets per apply(). The
+        // program-level create_module silently returns the existing module on
+        // a name collision and the second/third visit mutates it in place,
+        // producing modules with duplicate-named @param/@return instructions
+        // that later make the JIT'd kernel disagree with the host call site.
+        const auto& parent_name = mpm.get_module().name();
         std::vector<module_ref> module_inputs;
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
@@ -165,13 +175,15 @@ struct find_concat_pointwise : concat_counter<0>
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm = mpm.create_module("concat:noop" +
-                                                        std::to_string(get_noop_counter()));
+                           auto* pm =
+                               mpm.create_module(parent_name + ":concat:noop" +
+                                                 std::to_string(get_noop_counter()));
                            auto x   = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;
                        });
-        auto* post_pm = mpm.create_module("noop:concat" + std::to_string(get_noop_counter()));
+        auto* post_pm = mpm.create_module(parent_name + ":noop:concat" +
+                                          std::to_string(get_noop_counter()));
         auto x        = post_pm->add_parameter("!x0", shape{concat_ins->get_shape().type()});
         post_pm->add_return({x});
         module_inputs.push_back(post_pm);
@@ -213,6 +225,9 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                      std::back_inserter(inputs),
                      [&](auto input) { return input != concat_ins; });
 
+        // Same parent-scoping fix as in find_concat_pointwise -- see the
+        // comment there for why this prefix is required.
+        const auto& parent_name = mpm.get_module().name();
         std::vector<module_ref> module_inputs;
         std::transform(concat_ins->inputs().begin(),
                        concat_ins->inputs().end(),
@@ -223,8 +238,9 @@ struct find_pointwise_concat_pointwise : concat_counter<1>
                                auto* pm = input->module_inputs().front();
                                return mpm.create_module("concat:" + pm->name(), *pm);
                            }
-                           auto* pm = mpm.create_module("concat:noop" +
-                                                        std::to_string(get_noop_counter()));
+                           auto* pm =
+                               mpm.create_module(parent_name + ":concat:noop" +
+                                                 std::to_string(get_noop_counter()));
                            auto x  = pm->add_parameter("x0", shape{input->get_shape().type()});
                            pm->add_return({x});
                            return pm;

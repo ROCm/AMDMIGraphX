@@ -87,10 +87,6 @@ configure_file(device/targets.hpp.in include/migraphx/gpu/device/targets.hpp)
 file(GLOB DEVICE_GPU_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(migraphx_device ${DEVICE_GPU_SRCS})
 
-# Workaround for clang-cl HIP multi-arch bug: when /Fo is used, clang-cl uses
-# the same temp filename for all GPU target intermediate link outputs, causing
-# all code objects to contain only the last --offload-arch target. Using -o
-# instead of /Fo avoids this by letting clang generate unique temp filenames.
 option(MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG "Workaround clang-cl HIP multi-arch /Fo bug on Windows" OFF)
 if(NOT MIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")

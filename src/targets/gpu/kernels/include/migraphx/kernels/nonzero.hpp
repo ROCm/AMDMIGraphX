@@ -47,18 +47,22 @@ __device__ void nonzero(Input input, Output output)
     constexpr auto block_size = decltype(idx.max_nlocal()){};
     static_assert(block_size % MIGRAPHX_WAVEFRONTSIZE == 0,
                   "Block size must be a multiple of wavefront size");
+    // input (elem_num) uint32_t covers any input we realistically see;
+    // a narrower type uint8_t wraps once the prefix sum exceeds the
+    // type's range, producing negative out_loc values and OOB stores
     block_scan(
         idx,
         op::sum{},
-        0,
+        index_int{0},
         elem_num,
-        [&](auto j) -> uint8_t { return float_equal(input[j], 0) ? 0 : 1; },
+        [&](auto j) -> index_int { return float_equal(input[j], 0) ? 0 : 1; },
         [&](auto j, auto value) {
             MIGRAPHX_ASSERT(j < elem_num);
             if(float_equal(input[j], 0))
                 return;
-            const auto out_loc   = value - 1;
-            const auto multi_idx = in_shape.multi(j);
+            MIGRAPHX_ASSERT(value > 0);
+            const index_int out_loc = value - 1;
+            const auto multi_idx    = in_shape.multi(j);
             for(auto k = 0; k < multi_idx.size(); ++k)
             {
                 output[make_array<index_int>(k, out_loc)] = multi_idx[k];

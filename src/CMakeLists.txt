@@ -46,6 +46,16 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT COMPILER_IGNORES_DEPRECATED_DEC
 	add_compile_options("--gcc-install-dir=${LIBSTDCXX11_PATH}")
 endif()
 
+# Windows uses clang-cl to compile MIGraphX, but kernels need to be compiled with clang++ instead.
+if(WIN32)
+    cmake_path(GET "${CMAKE_CXX_COMPILER}" PARENT_PATH __cmake_cxx_compiler_parent_path)
+    cmake_path(APPEND __cmake_cxx_compiler_parent_path clang++${CMAKE_EXECUTABLE_SUFFIX} OUTPUT_VARIABLE MIGRAPHX_CXX_COMPILER)
+else()
+    set(MIGRAPHX_CXX_COMPILER "${CMAKE_CXX_COMPILER}")
+endif()
+
+message(STATUS "MIGRAPHX_CXX_COMPILER: ${MIGRAPHX_CXX_COMPILER}")
+
 add_library(migraphx
     adjust_allocation.cpp
     analyze_streams.cpp
@@ -447,7 +457,7 @@ if(BUILD_DEV)
     target_compile_definitions(migraphx PUBLIC -DBUILD_DEV)
 endif()
 
-target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${MIGRAPHX_CXX_COMPILER}")
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

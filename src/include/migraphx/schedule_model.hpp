@@ -48,6 +48,8 @@ struct schedule_model
 {
     /// Get the number of concurrent instruction allowed
     std::size_t concurrency() const;
+    /// Get the minimum accumulated weight required to split a partition
+    std::size_t split_threshold() const;
     /// Schedule a concurrent instruction
     void sched(module& m, instruction_ref ins, std::size_t n) const;
     // Insert necessary waits before an instruction
@@ -67,6 +69,8 @@ struct MIGRAPHX_EXPORT schedule_model
 {
     //
     std::size_t concurrency() const;
+    // (optional)
+    std::size_t split_threshold() const;
     //
     void sched(module& m, instruction_ref ins, std::size_t n) const;
     //
@@ -82,6 +86,17 @@ struct MIGRAPHX_EXPORT schedule_model
 struct schedule_model
 {
     private:
+    template <class T>
+    static auto private_detail_te_default_split_threshold(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.split_threshold())
+    { return private_detail_te_self.split_threshold(); }
+
+    template <class T>
+    static std::size_t private_detail_te_default_split_threshold(float, T&& private_detail_te_self)
+    {
+        return [](const auto&) { return std::size_t{2}; }(private_detail_te_self);
+    }
+
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
     {
@@ -99,6 +114,8 @@ struct schedule_model
     template <class PrivateDetailTypeErasedT>
     using private_te_constraints_impl =
         decltype(std::declval<PrivateDetailTypeErasedT>().concurrency(),
+                 private_detail_te_default_split_threshold(
+                     char(0), std::declval<PrivateDetailTypeErasedT>()),
                  std::declval<PrivateDetailTypeErasedT>().sched(std::declval<module&>(),
                                                                 std::declval<instruction_ref>(),
                                                                 std::declval<std::size_t>()),
@@ -191,6 +208,12 @@ struct schedule_model
         return (*this).private_detail_te_get_handle().concurrency();
     }
 
+    std::size_t split_threshold() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().split_threshold();
+    }
+
     void sched(module& m, instruction_ref ins, std::size_t n) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -230,6 +253,7 @@ struct schedule_model
         virtual const std::type_info& type() const                                = 0;
 
         virtual std::size_t concurrency() const                                        = 0;
+        virtual std::size_t split_threshold() const                                    = 0;
         virtual void sched(module& m, instruction_ref ins, std::size_t n) const        = 0;
         virtual void wait(module& m, instruction_ref ins, std::size_t wait_id) const   = 0;
         virtual void record(module& m, instruction_ref ins, std::size_t wait_id) const = 0;
@@ -257,37 +281,26 @@ struct schedule_model
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        {
-            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
-        }
+        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::size_t concurrency() const override { return private_detail_te_value.concurrency(); }
 
-        void sched(module& m, instruction_ref ins, std::size_t n) const override
-        {
+        std::size_t split_threshold() const override
+        { return private_detail_te_default_split_threshold(char(0), private_detail_te_value); }
 
-            private_detail_te_value.sched(m, ins, n);
-        }
+        void sched(module& m, instruction_ref ins, std::size_t n) const override
+        { private_detail_te_value.sched(m, ins, n); }
 
         void wait(module& m, instruction_ref ins, std::size_t wait_id) const override
-        {
-
-            private_detail_te_value.wait(m, ins, wait_id);
-        }
+        { private_detail_te_value.wait(m, ins, wait_id); }
 
         void record(module& m, instruction_ref ins, std::size_t wait_id) const override
-        {
-
-            private_detail_te_value.record(m, ins, wait_id);
-        }
+        { private_detail_te_value.record(m, ins, wait_id); }
 
         std::size_t weight(const operation& op) const override
-        {
-
-            return private_detail_te_value.weight(op);
-        }
+        { return private_detail_te_value.weight(op); }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -303,9 +316,7 @@ struct schedule_model
     };
 
     bool private_detail_te_handle_empty() const
-    {
-        return private_detail_te_handle_mem_var == nullptr;
-    }
+    { return private_detail_te_handle_mem_var == nullptr; }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -326,15 +337,11 @@ struct schedule_model
 
 template <typename ValueType>
 inline const ValueType* any_cast(const schedule_model* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType* any_cast(schedule_model* x)
-{
-    return x->any_cast<ValueType>();
-}
+{ return x->any_cast<ValueType>(); }
 
 template <typename ValueType>
 inline ValueType& any_cast(schedule_model& x)

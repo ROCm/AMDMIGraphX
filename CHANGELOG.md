@@ -64,6 +64,7 @@ Full documentation for MIGraphX is available at
 * Added early return to avoid unessicary fill operation if tile sizes out of range (#4514).
 * Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
+* Reduced undersized GPU partitions and tuned pointwise launch bounds in scheduling hot paths (#4668).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 
 ### Removed

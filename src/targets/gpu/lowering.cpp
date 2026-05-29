@@ -251,9 +251,7 @@ struct miopen_apply
     }
 
     instruction_ref insert_allocation(instruction_ref ins, const shape& s) const
-    {
-        return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}}));
-    }
+    { return mod->insert_instruction(ins, make_op("allocate", {{"shape", to_value(s)}})); }
 
 #if MIGRAPHX_USE_ROCBLAS or MIGRAPHX_USE_HIPBLASLT
     template <typename Op>
@@ -609,9 +607,7 @@ struct miopen_apply
 };
 
 void lowering::apply(module_pass_manager& mpm) const
-{
-    miopen_apply{&mpm.get_module(), &mpm, this}.apply();
-}
+{ miopen_apply{&mpm.get_module(), &mpm, this}.apply(); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

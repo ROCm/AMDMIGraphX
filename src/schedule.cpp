@@ -107,14 +107,14 @@ struct stream_info
                   }));
     }
 
-    std::vector<instruction_ref>::iterator sort_args(std::vector<instruction_ref>& args)
+    std::vector<instruction_ref>::iterator sort_args(std::vector<instruction_ref>& args,
+                                                     std::size_t min_partition_threshold)
     {
         if(args.size() < 2)
         {
             return args.end();
         }
 
-        const std::size_t min_partition_threshold = 2;
         sort_args_by_weight(args, std::greater<>{});
 
         auto it = std::lower_bound(std::next(args.begin()),
@@ -139,7 +139,7 @@ struct stream_info
         }
     };
 
-    std::size_t assign_streams(module& m, std::size_t n)
+    std::size_t assign_streams(module& m, std::size_t n, std::size_t min_partition_threshold)
     {
         assert(n > 0);
         partition critical;
@@ -157,7 +157,7 @@ struct stream_info
             part.add(ins, this->iweights[ins]);
 
             auto args         = ins->inputs();
-            auto threshold_it = this->sort_args(args);
+            auto threshold_it = this->sort_args(args, min_partition_threshold);
 
             if(not args.empty())
             {
@@ -539,7 +539,7 @@ void schedule::apply(module& m) const
     si.calc_implicit_deps(m);
     auto last = std::prev(m.end());
     si.accumulate_weights(last, model);
-    auto nstreams = si.assign_streams(m, model.concurrency());
+    auto nstreams = si.assign_streams(m, model.concurrency(), model.split_threshold());
     si.sort(m, model.concurrency());
 
     if(enabled(MIGRAPHX_TRACE_COMPILE{}) or enabled(MIGRAPHX_TRACE_SCHEDULE{}))

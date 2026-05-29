@@ -26,6 +26,8 @@ Full documentation for MIGraphX is available at
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
+* Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
+
 ### Changed
 
 * Converted `nonzero` operator from device implementation to JIT compilation (#4720).
@@ -68,6 +70,7 @@ Full documentation for MIGraphX is available at
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).
+* Removed `onnx_options::use_dyn_output` after redesign of `NonMaxSuppression` operator (#4893).
 
 ## MIGraphX 2.15 for ROCm 7.2.0
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,14 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 namespace device {
 
+// Inclusive prefix sum within a kernel block.
+// Hillis-Steele scan with double-buffered (ping-pong) shared array.
+// `N`: upper bound on blockDim.x, sizes the shared buffer.
+// `op`: associative binary reduce function ex. sum or max.
+// `init`: initializer
+// `fs`: striding function for thread work distribution.
+// `input`: input with input(index_int).
+// `output`: output with output(index_int, inclusive_scan_value_at_index_int).
 template <index_int N,
           class Op,
           class T,
@@ -72,6 +80,7 @@ __device__ void block_scan(index idx, Op op, T init, ForStride fs, Input input, 
     });
 }
 
+// Overload of block_scan with default local_stride up to `n`.
 template <index_int N, class Op, class T, class Input, class Output>
 __device__ void block_scan(index idx, Op op, T init, index_int n, Input input, Output output)
 {

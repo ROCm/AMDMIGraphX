@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -216,14 +216,17 @@ TEST_CASE(single_target_multi_compile)
     auto max_out_l                = gpu_mod->add_literal(int64_t{4});
     auto iou_threshold            = gpu_mod->add_literal(0.5f);
     auto score_threshold          = gpu_mod->add_literal(0.0f);
-    auto r                        = gpu_mod->add_instruction(
-        migraphx::make_op("nonmaxsuppression",
-                          {{"center_point_box", true}, {"use_dyn_output", true}}),
+    auto nms                      = gpu_mod->add_instruction(
+        migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
         boxes_param_gpu,
         scores_l,
         max_out_l,
         iou_threshold,
         score_threshold);
+    auto idx = gpu_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto cnt = gpu_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    auto r   = gpu_mod->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), idx, cnt);
     gpu_mod->add_return({r});
 
     auto run_on_gpu = mm->add_instruction(
@@ -241,7 +244,7 @@ TEST_CASE(single_target_multi_compile)
     // eval
     migraphx::parameter_map params;
     std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     params["boxes"]               = migraphx::argument(boxes_s, boxes_vec.data());
     auto output                   = p.eval(params).back();
     std::vector<int64_t> gold_vec = {0, 0, 3, 0, 0, 0, 0, 0, 5};

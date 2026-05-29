@@ -30,7 +30,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 namespace gpu {
 
@@ -42,7 +42,7 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
     bool exhaustive_tune = false;
     bool skip_benchmark  = false;
     std::string name() const { return "gpu::compile_ops"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu

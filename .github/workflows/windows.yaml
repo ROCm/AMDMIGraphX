@@ -68,8 +68,8 @@ jobs:
       env:
         CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget
         CXXFLAGS: -DMIGRAPHX_USE_TYPE_ERASED_MATCHERS=1 -ftrivial-auto-var-init=zero
-        CC: clang
-        CXX: clang++
+        CC: clang-cl
+        CXX: clang-cl
       run: |
         rbuild build -d cget -s gh-win-cpu -G Ninja -T tests \
           -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \

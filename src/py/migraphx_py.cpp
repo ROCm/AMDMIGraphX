@@ -45,6 +45,7 @@
 #include <migraphx/op/builder/insert.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/version.h>
 #include <migraphx/iterator_for.hpp>
 #ifdef HAVE_GPU
@@ -541,6 +542,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             },
             py::keep_alive<0, 1>());
 
+    py::enum_<migraphx::compile_modes>(m, "compile_modes")
+        .value("eager", migraphx::compile_modes::eager)
+        .value("balanced", migraphx::compile_modes::balanced)
+        .value("max", migraphx::compile_modes::max);
+
     py::class_<migraphx::program>(m, "program")
         .def(py::init([]() { return migraphx::program(); }))
         .def("get_parameter_names", &migraphx::program::get_parameter_names)
@@ -553,17 +559,20 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                const migraphx::target& t,
                bool offload_copy,
                bool fast_math,
-               bool exhaustive_tune) {
+               bool exhaustive_tune,
+               migraphx::compile_modes compile_mode) {
                 migraphx::compile_options options;
                 options.offload_copy    = offload_copy;
                 options.fast_math       = fast_math;
                 options.exhaustive_tune = exhaustive_tune;
+                options.compile_mode    = compile_mode;
                 p.compile(t, options);
             },
             py::arg("t"),
             py::arg("offload_copy")    = true,
             py::arg("fast_math")       = true,
-            py::arg("exhaustive_tune") = false)
+            py::arg("exhaustive_tune") = false,
+            py::arg("compile_mode")    = migraphx::compile_modes::balanced)
         .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(
             "create_module",

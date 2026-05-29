@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,6 +35,38 @@ TEST_CASE(compile_options_api_test)
         options.get_handle_ptr());
     CHECK(s_options->fast_math == false);
     CHECK(s_options->offload_copy == false);
+}
+
+TEST_CASE(compile_options_set_compile_mode_eager)
+{
+    migraphx::api::compile_options options;
+    options.set_compile_mode(0);
+    const auto* s_options = reinterpret_cast<const migraphx::MIGRAPHX_INLINE_NS::compile_options*>(
+        options.get_handle_ptr());
+    CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::eager);
+}
+
+TEST_CASE(compile_options_set_compile_mode_balanced)
+{
+    migraphx::api::compile_options options;
+    options.set_compile_mode(50);
+    const auto* s_options = reinterpret_cast<const migraphx::MIGRAPHX_INLINE_NS::compile_options*>(
+        options.get_handle_ptr());
+    CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::balanced);
+}
+
+TEST_CASE(compile_options_set_compile_mode_max)
+{
+    migraphx::api::compile_options options;
+    options.set_compile_mode(100);
+    const auto* s_options = reinterpret_cast<const migraphx::MIGRAPHX_INLINE_NS::compile_options*>(
+        options.get_handle_ptr());
+    CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::max);
+}
+
+TEST_CASE(compile_options_set_compile_mode_null_pointer)
+{
+    CHECK(migraphx_compile_options_set_compile_mode(nullptr, 50) == migraphx_status_bad_param);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

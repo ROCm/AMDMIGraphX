@@ -682,6 +682,14 @@ struct compiler
            {"--exhaustive-tune"},
            ap.help("Exhastively search for best tuning parameters for kernels"),
            ap.set_value(true));
+        ap(co.compile_mode,
+           {"--compile-mode"},
+           ap.help("Set compilation mode: eager, balanced, max, or an integer 0-100"),
+           ap.write_action([](auto&, auto& x, const auto& params) {
+               if(params.empty())
+                   throw std::runtime_error("Flag with no value.");
+               x = convert_to_compile_mode(params.back());
+           }));
         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));

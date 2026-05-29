@@ -21,32 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP
 
-#include <migraphx/gpu/config.hpp>
+#include <migraphx/config.hpp>
+#include <cstdint>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
-
-namespace gpu {
-
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT compile_ops
+enum class compile_modes
 {
-    context* ctx         = nullptr;
-    bool exhaustive_tune = false;
-    bool skip_benchmark  = false;
-    std::string name() const { return "gpu::compile_ops"; }
-    void apply(module_pass_manager& mpm) const;
+    eager    = 0,
+    balanced = 50,
+    max      = 100
 };
 
-} // namespace gpu
+MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(uint8_t mode);
+MIGRAPHX_EXPORT compile_modes convert_to_compile_mode(const std::string& mode);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+
+#endif // MIGRAPHX_GUARD_MIGRAPHX_COMPILE_MODES_HPP

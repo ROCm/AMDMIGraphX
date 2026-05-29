@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/tracer.hpp>
 
 namespace migraphx {
@@ -40,6 +41,8 @@ struct compile_options
 
     bool fast_math       = true;
     bool exhaustive_tune = false;
+
+    compile_modes compile_mode = compile_modes::balanced;
 
     tracer trace{};
 };

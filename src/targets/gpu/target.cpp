@@ -24,6 +24,7 @@
 #include <migraphx/adjust_allocation.hpp>
 #include <migraphx/auto_contiguous.hpp>
 #include <migraphx/check_context.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_allocation.hpp>
 #include <migraphx/eliminate_concat.hpp>
@@ -219,7 +220,9 @@ struct pipeline_factory
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
-            compile_ops{get_context(), options.exhaustive_tune},
+            compile_ops{get_context(),
+                        options.exhaustive_tune,
+                        options.compile_mode == compile_modes::eager},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
@@ -246,15 +249,32 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache();
 
+    if(options.compile_mode == compile_modes::max)
+        ctx.set_exhaustive_tune_flag(true);
+
     pipeline_factory p{&gctx, options};
 
-    std::vector<std::vector<pass>> pipelines = {
-        p.dynamic_shapes_pipeline(),
-        p.required_pipeline(),
-        p.optimize_rewrite_pipeline(),
-        p.fusion_pipeline(),
-        p.backend_pipeline(),
-    };
+    std::vector<std::vector<pass>> pipelines;
+
+    if(options.compile_mode == compile_modes::eager)
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
+    else
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            p.optimize_rewrite_pipeline(),
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
 
     std::vector<pass> passes;
     std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));

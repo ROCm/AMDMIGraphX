@@ -54,6 +54,15 @@ MIGRAPHX_DEVICE_CONSTEXPR void cas(rank<1>, T& x, T y, Op op)
     MIGRAPHX_ATOMIC_CAS_WARNING();
     using storage    = conditional_t<sizeof(T) == 4, uint32_t, uint64_t>;
     storage* address = reinterpret_cast<storage*>(&x);
+#if __has_builtin(__scoped_atomic_load_n)
+    storage expected = __scoped_atomic_load_n(address, __ATOMIC_RELAXED, __MEMORY_SCOPE_DEVICE);
+    while(not __scoped_atomic_compare_exchange(address,
+                                               &expected,
+                                               bit_cast<storage>(op(bit_cast<T>(expected), y)),
+                                               __ATOMIC_RELAXED,
+                                               __ATOMIC_RELAXED,
+                                               __MEMORY_SCOPE_DEVICE))
+#else
     storage expected = __hip_atomic_load(address, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_AGENT);
     while(not __hip_atomic_compare_exchange_strong(address,
                                                    &expected,
@@ -61,6 +70,7 @@ MIGRAPHX_DEVICE_CONSTEXPR void cas(rank<1>, T& x, T y, Op op)
                                                    __ATOMIC_RELAXED,
                                                    __ATOMIC_RELAXED,
                                                    __HIP_MEMORY_SCOPE_AGENT))
+#endif
     {
     }
 }

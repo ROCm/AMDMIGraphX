@@ -53,6 +53,8 @@ struct op_builder_if
 
 MIGRAPHX_EXPORT void register_builder(const std::string& name, op_builder_if opb_if);
 
+const op_builder_if& get_op_builder_if(const std::string& name);
+
 template <class T>
 auto invoke_builder(const std::string& /*name*/,
                     module& m,

@@ -170,11 +170,18 @@ struct find_attention
         auto expand = fix([&](auto self, auto ins) {
             for(auto input : ins->inputs())
             {
-                if(not contains(attn_inss, input) and input->can_eval())
-                {
-                    attn_inss.insert(input);
-                    self(input);
-                }
+                if(contains(attn_inss, input) or not input->can_eval())
+                    continue;
+                // A captured @literal is lowered as `migraphx.literal`, whose
+                // dense_elements_attr requires standard (row-major) strides.
+                // Leave non-standard literals (e.g. constant-folded transposed
+                // bias) outside the group so they enter as a parameter
+                // instead, where mlir_contiguous + adjust_param_shapes can
+                // normalise the layout.
+                if(input->name() == "@literal" and not input->get_shape().standard())
+                    continue;
+                attn_inss.insert(input);
+                self(input);
             }
         });
         auto starts = attn_inss;

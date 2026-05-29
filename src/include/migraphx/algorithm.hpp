@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -182,6 +182,18 @@ F for_each(Iterator1 first1, Iterator1 last1, Iterator2 first2, F f)
 {
     for(; first1 != last1; ++first1, ++first2)
         f(*first1, *first2);
+    return f;
+}
+
+template <class Iterator1, class Iterator2, class F>
+F for_each(Iterator1 first1, Iterator1 last1, Iterator2 first2, Iterator2 last2, F f)
+{
+    while(first1 != last1 and first2 != last2)
+    {
+        f(*first1, *first2);
+        ++first1;
+        ++first2;
+    }
     return f;
 }
 

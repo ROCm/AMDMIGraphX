@@ -109,6 +109,7 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
     std::vector<std::vector<std::size_t>> common_axes_map_from_dst() const;
 
     std::vector<std::size_t> get_dst_axes_from_src(std::size_t axis) const;
+    std::vector<std::vector<std::size_t>> axes_map_from_src(bool keep_partial_axes = false) const;
 
     bool empty() const;
     std::vector<std::size_t> lens() const;

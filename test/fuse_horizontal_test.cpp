@@ -513,4 +513,284 @@ TEST_CASE(gather_horiz_no_fusion_dependent)
     EXPECT(m1 == m2);
 }
 
+// ===========================================================================
+// Dot horizontal fusion tests
+// ===========================================================================
+
+// 4 dots with constant weights and same shapes → fuse into 1 batched dot
+TEST_CASE(dot_horiz_fusion_basic)
+{
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", {migraphx::shape::float_type, {1, 64, 128}});
+
+        auto w0 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 0));
+        auto w1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 1));
+        auto w2 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 2));
+        auto w3 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 3));
+
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), input, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), input, w1);
+        auto d2 = m1.add_instruction(migraphx::make_op("dot"), input, w2);
+        auto d3 = m1.add_instruction(migraphx::make_op("dot"), input, w3);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
+                           std::vector<migraphx::instruction_ref>{d0, d1, d2, d3});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", {migraphx::shape::float_type, {1, 64, 128}});
+
+        auto w0 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 0));
+        auto w1 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 1));
+        auto w2 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 2));
+        auto w3 = m2.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 3));
+
+        // Unsqueeze each A input
+        auto a0 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), input);
+        auto a1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), input);
+        auto a2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), input);
+        auto a3 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), input);
+
+        // Unsqueeze each B weight
+        auto b0 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w0);
+        auto b1 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+        auto b2 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+        auto b3 = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w3);
+
+        auto stacked_a = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{a0, a1, a2, a3});
+        auto stacked_b = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{b0, b1, b2, b3});
+
+        auto batched = m2.add_instruction(migraphx::make_op("dot"), stacked_a, stacked_b);
+
+        auto s0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), batched);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), batched);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), batched);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), batched);
+
+        auto sq0 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto sq2 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
+        auto sq3 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s3);
+
+        m2.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
+                           std::vector<migraphx::instruction_ref>{sq0, sq1, sq2, sq3});
+    }
+    EXPECT(m1 == m2);
+}
+
+// Dots with non-constant weights → no fusion
+TEST_CASE(dot_horiz_no_fusion_non_constant_weights)
+{
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", {migraphx::shape::float_type, {1, 64, 128}});
+        auto w0    = m1.add_parameter("w0", {migraphx::shape::float_type, {1, 128, 64}});
+        auto w1    = m1.add_parameter("w1", {migraphx::shape::float_type, {1, 128, 64}});
+
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), input, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), input, w1);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
+                           std::vector<migraphx::instruction_ref>{d0, d1});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Dots with different output shapes → separate groups, no fusion (below threshold)
+TEST_CASE(dot_horiz_no_fusion_different_shapes)
+{
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", {migraphx::shape::float_type, {1, 64, 128}});
+        auto w0    = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 0));
+        auto w1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 32}}, 1));
+
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), input, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), input, w1);
+
+        auto r0 = m1.add_instruction(migraphx::make_op("relu"), d0);
+        auto r1 = m1.add_instruction(migraphx::make_op("relu"), d1);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
+                           std::vector<migraphx::instruction_ref>{r0, r1});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Dots with add consumers → NOT fused by dot_horizontal (MLIR handles them better)
+TEST_CASE(dot_horiz_no_fusion_add_consumer)
+{
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", {migraphx::shape::float_type, {1, 64, 128}});
+
+        auto w0 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 0));
+        auto w1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 1));
+        auto b0 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 64}}, 10));
+        auto b1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 64}}, 11));
+
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), input, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), input, w1);
+        auto a0 = m1.add_instruction(migraphx::make_op("add"), d0, b0);
+        auto a1 = m1.add_instruction(migraphx::make_op("add"), d1, b1);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
+                           std::vector<migraphx::instruction_ref>{a0, a1});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// ===========================================================================
+// Expert head (SwiGLU + dot + add) horizontal fusion tests
+// ===========================================================================
+
+// 4 expert heads with SwiGLU pattern → fuse into batched sigmoid+mul+dot+add
+TEST_CASE(expert_head_fusion_basic)
+{
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", {migraphx::shape::float_type, {1, 64, 512}});
+
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {128}}}), input);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {128}}, {"ends", {256}}}), input);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {256}}, {"ends", {384}}}), input);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {384}}, {"ends", {512}}}), input);
+
+        auto w0 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 128}}, 0));
+        auto w1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 128}}, 1));
+        auto w2 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 128}}, 2));
+        auto w3 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 128}}, 3));
+
+        auto b0 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 128}}, 10));
+        auto b1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 128}}, 11));
+        auto b2 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 128}}, 12));
+        auto b3 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 128}}, 13));
+
+        // SwiGLU: sigmoid(x) * x
+        auto sig0 = m1.add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto mul0 = m1.add_instruction(migraphx::make_op("mul"), s0, sig0);
+        auto sig1 = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), s1, sig1);
+        auto sig2 = m1.add_instruction(migraphx::make_op("sigmoid"), s2);
+        auto mul2 = m1.add_instruction(migraphx::make_op("mul"), s2, sig2);
+        auto sig3 = m1.add_instruction(migraphx::make_op("sigmoid"), s3);
+        auto mul3 = m1.add_instruction(migraphx::make_op("mul"), s3, sig3);
+
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), mul0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), mul1, w1);
+        auto d2 = m1.add_instruction(migraphx::make_op("dot"), mul2, w2);
+        auto d3 = m1.add_instruction(migraphx::make_op("dot"), mul3, w3);
+
+        auto a0 = m1.add_instruction(migraphx::make_op("add"), d0, b0);
+        auto a1 = m1.add_instruction(migraphx::make_op("add"), d1, b1);
+        auto a2 = m1.add_instruction(migraphx::make_op("add"), d2, b2);
+        auto a3 = m1.add_instruction(migraphx::make_op("add"), d3, b3);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
+                           std::vector<migraphx::instruction_ref>{a0, a1, a2, a3});
+    }
+    run_pass(m1);
+
+    auto dot_count = std::count_if(m1.begin(), m1.end(), [](const auto& ins) {
+        return ins.name() == "dot";
+    });
+    auto sigmoid_count = std::count_if(m1.begin(), m1.end(), [](const auto& ins) {
+        return ins.name() == "sigmoid";
+    });
+    auto add_count = std::count_if(m1.begin(), m1.end(), [](const auto& ins) {
+        return ins.name() == "add";
+    });
+    EXPECT(dot_count == 1);
+    EXPECT(sigmoid_count == 1);
+    EXPECT(add_count == 1);
+}
+
+// Non-SwiGLU dots with add should NOT trigger expert head fusion
+TEST_CASE(expert_head_no_fusion_missing_sigmoid)
+{
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", {migraphx::shape::float_type, {1, 64, 128}});
+
+        auto w0 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 0));
+        auto w1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 1));
+        auto w2 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 2));
+        auto w3 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 128, 64}}, 3));
+
+        auto b0 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 64}}, 10));
+        auto b1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 64}}, 11));
+        auto b2 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 64}}, 12));
+        auto b3 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {1, 64, 64}}, 13));
+
+        // Plain dot + add (no SwiGLU) → should not trigger expert_head fusion
+        // and dot_horizontal is blocked by add consumer
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), input, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), input, w1);
+        auto d2 = m1.add_instruction(migraphx::make_op("dot"), input, w2);
+        auto d3 = m1.add_instruction(migraphx::make_op("dot"), input, w3);
+
+        auto a0 = m1.add_instruction(migraphx::make_op("add"), d0, b0);
+        auto a1 = m1.add_instruction(migraphx::make_op("add"), d1, b1);
+        auto a2 = m1.add_instruction(migraphx::make_op("add"), d2, b2);
+        auto a3 = m1.add_instruction(migraphx::make_op("add"), d3, b3);
+
+        m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}),
+                           std::vector<migraphx::instruction_ref>{a0, a1, a2, a3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

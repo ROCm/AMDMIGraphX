@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -548,10 +548,8 @@ struct test_group_query_attention_concat_negative_seqlens_k
         const size_t max_sequence_length = 8;
 
         auto dtype = migraphx::shape::half_type;
-        migraphx::shape present_s{dtype,
-                                  {batch_size, kv_num_heads, sequence_length, head_size}};
-        migraphx::shape cache_s{dtype,
-                                {batch_size, kv_num_heads, max_sequence_length, head_size}};
+        migraphx::shape present_s{dtype, {batch_size, kv_num_heads, sequence_length, head_size}};
+        migraphx::shape cache_s{dtype, {batch_size, kv_num_heads, max_sequence_length, head_size}};
         migraphx::shape slk_s{migraphx::shape::int32_type, {batch_size, 1}};
 
         auto present = mm->add_parameter("present", present_s);
@@ -587,10 +585,8 @@ struct test_group_query_attention_concat_mixed_seqlens_k
         const size_t max_sequence_length = 8;
 
         auto dtype = migraphx::shape::half_type;
-        migraphx::shape present_s{dtype,
-                                  {batch_size, kv_num_heads, sequence_length, head_size}};
-        migraphx::shape cache_s{dtype,
-                                {batch_size, kv_num_heads, max_sequence_length, head_size}};
+        migraphx::shape present_s{dtype, {batch_size, kv_num_heads, sequence_length, head_size}};
+        migraphx::shape cache_s{dtype, {batch_size, kv_num_heads, max_sequence_length, head_size}};
         migraphx::shape slk_s{migraphx::shape::int32_type, {batch_size, 1}};
 
         auto present = mm->add_parameter("present", present_s);
@@ -626,10 +622,8 @@ struct test_group_query_attention_concat_negative_seqlens_k_prefill
         const size_t max_sequence_length = 8;
 
         auto dtype = migraphx::shape::half_type;
-        migraphx::shape present_s{dtype,
-                                  {batch_size, kv_num_heads, sequence_length, head_size}};
-        migraphx::shape cache_s{dtype,
-                                {batch_size, kv_num_heads, max_sequence_length, head_size}};
+        migraphx::shape present_s{dtype, {batch_size, kv_num_heads, sequence_length, head_size}};
+        migraphx::shape cache_s{dtype, {batch_size, kv_num_heads, max_sequence_length, head_size}};
         migraphx::shape slk_s{migraphx::shape::int32_type, {batch_size, 1}};
 
         auto present = mm->add_parameter("present", present_s);

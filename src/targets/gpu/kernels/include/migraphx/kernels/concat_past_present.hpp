@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,11 +75,10 @@ update_cache(const Present present, SeqLensK seqlens_k, Cache cache, Params para
     const index_int inner_i  = idx % (sequence_length * head_size);
     if(i < loop_len)
     {
-        const index_int batch_index       = i / kv_num_heads;
-        const index_int head_index        = i % kv_num_heads;
-        const index_int past_seqlen       = is_prompt
-                                                ? 0
-                                                : static_cast<index_int>(seqlens_k[batch_index]);
+        const index_int batch_index = i / kv_num_heads;
+        const index_int head_index  = i % kv_num_heads;
+        const index_int past_seqlen =
+            is_prompt ? 0 : static_cast<index_int>(seqlens_k[batch_index]);
         if(past_seqlen >= past_buffer_sequence_length)
             return;
         const index_int past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;

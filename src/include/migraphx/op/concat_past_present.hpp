@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,6 +30,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/gemm.hpp>
 #include <migraphx/argument.hpp>
+#include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <iomanip>
@@ -104,10 +105,17 @@ struct concat_past_present
         par_for(loop_len, [&](const auto i) {
             const std::size_t batch_index = i / kv_num_heads;
             const std::size_t head_index  = i % kv_num_heads;
-            const std::size_t past_seqlen =
-                is_prompt ? 0 : seqlens_k[batch_index];
-            if(past_seqlen >= past_buffer_sequence_length)
+            // Read as signed first: when the attention mask is all zeros, seqlens_k =
+            // sum(mask) - 1 = -1. An implicit conversion of that negative value to
+            // std::size_t is undefined behaviour (caught by UBSan), so guard against
+            // negative values before narrowing.
+            const std::int64_t signed_seqlen =
+                is_prompt ? std::int64_t{0}
+                          : static_cast<std::int64_t>(seqlens_k[batch_index]);
+            if(signed_seqlen < 0 or
+               static_cast<std::size_t>(signed_seqlen) >= past_buffer_sequence_length)
                 return;
+            const std::size_t past_seqlen       = static_cast<std::size_t>(signed_seqlen);
             const std::size_t past_chunk_length = is_prompt ? 0 : past_seqlen * head_size;
             auto current                        = present_key + packed_batch_stride * batch_index +
                            kv_input_chunk_length * head_index;

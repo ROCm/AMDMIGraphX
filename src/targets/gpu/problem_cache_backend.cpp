@@ -50,7 +50,7 @@ cache_device_key parse_device_key(const std::string& s)
     dk.gpu_arch = s.substr(0, first_pipe);
     try
     {
-        dk.cu_count = std::stoi(s.substr(first_pipe + 1, second_pipe - first_pipe - 1));
+        dk.cu_count       = std::stoi(s.substr(first_pipe + 1, second_pipe - first_pipe - 1));
         dk.wavefront_size = std::stoi(s.substr(second_pipe + 1));
     }
     catch(...)
@@ -74,10 +74,9 @@ problem_cache_backend make_default_cache_backend()
     return problem_cache_backend{json_cache_backend{}};
 }
 
-problem_cache_backend
-make_cache_backend_with_fallback(const std::string& explicit_backend)
+problem_cache_backend make_cache_backend_with_fallback(const std::string& explicit_backend)
 {
-    if(!explicit_backend.empty() && explicit_backend != "json")
+    if(not explicit_backend.empty() and explicit_backend != "json")
     {
         log::warn() << "Unknown cache backend '" << explicit_backend
                     << "'. Falling back to JSON.\n";

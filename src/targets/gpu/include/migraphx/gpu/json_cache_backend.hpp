@@ -45,24 +45,20 @@ namespace gpu {
 /// Legacy JSON files (no device_key) are loaded under the current device key.
 class json_cache_backend
 {
-public:
+    public:
     void open(const std::string& path, const cache_device_key& current_device);
     void close();
 
-    bool has(const std::string& device_key,
-             const std::string& name,
-             const std::string& problem) const;
-    std::optional<std::string> get(const std::string& device_key,
-                                   const std::string& name,
-                                   const std::string& problem) const;
+    bool
+    has(const std::string& device_key, const std::string& name, const std::string& problem) const;
+    std::optional<std::string>
+    get(const std::string& device_key, const std::string& name, const std::string& problem) const;
 
     void insert(const std::string& device_key,
                 const std::string& name,
                 const std::string& problem,
                 const std::string& solution);
-    void mark(const std::string& device_key,
-              const std::string& name,
-              const std::string& problem);
+    void mark(const std::string& device_key, const std::string& name, const std::string& problem);
 
     void save();
 
@@ -76,7 +72,7 @@ public:
     void set_hw_metadata(const cache_hw_metadata& meta);
     const cache_hw_metadata& get_hw_metadata() const;
 
-private:
+    private:
     // Key: (device_key_string, name, problem)
     using key_type = std::tuple<std::string, std::string, std::string>;
 
@@ -87,7 +83,7 @@ private:
             auto h1 = std::hash<std::string>{}(std::get<0>(k));
             auto h2 = std::hash<std::string>{}(std::get<1>(k));
             auto h3 = std::hash<std::string>{}(std::get<2>(k));
-            return h1 ^ (h2 << 1) ^ (h3 << 2);
+            return h1 ^ (h2 << 1U) ^ (h3 << 2U);
         }
     };
 

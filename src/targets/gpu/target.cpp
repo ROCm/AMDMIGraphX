@@ -93,6 +93,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS)
 
 namespace {
 struct pipeline_factory
@@ -108,7 +109,9 @@ struct pipeline_factory
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
-            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}),
+                        split_single_dyn_dim{.bucket_by_optimals =
+                                                 enabled(MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS{})}),
             dead_code_elimination{},
             simplify_dyn_ops{},
             dead_code_elimination{},

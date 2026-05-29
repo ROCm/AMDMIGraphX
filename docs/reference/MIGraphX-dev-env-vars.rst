@@ -63,6 +63,23 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Layernorm fusion is not used.
 
+  * - | ``MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS``
+      | * Switches ``split_single_dyn_dim`` to bucket mode: emit
+      |   one submodule per ``dynamic_dimension::optimals`` value
+      |   (plus the ``min`` / ``max`` endpoints), instead of one
+      |   per integer in ``[min, max]``.  O(|optimals|) compile
+      |   cost.
+      | * Read once per compile in the GPU/Ref target and forwarded
+      |   as the ``split_single_dyn_dim::bucket_by_optimals``
+      |   pass field; tests use the field directly.
+      | * ``select_module::compute()`` always falls back to the
+      |   smallest compatible bucket when no exact submodule
+      |   matches the runtime shape, independent of this env var.
+      |   Ref pads on host; GPU callers pre-pad.
+
+    - | ``1``: bucket mode.
+      | ``0`` or unset: legacy enumerate mode (default).
+
   * - | ``MIGRAPHX_ENABLE_MIOPEN_POOLING``
       | When set, MIOpen pooling is used instead of MIGraphX pooling.
       

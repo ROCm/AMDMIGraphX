@@ -755,7 +755,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("skip_unknown_operators") = false,
         py::arg("print_program_on_error") = false,
         py::arg("external_data_path")     = "",
-        py::arg("use_debug_symbols")      = false);		
+        py::arg("use_debug_symbols")      = false);
 #endif
 
     m.def(

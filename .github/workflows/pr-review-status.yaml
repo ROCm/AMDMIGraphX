@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - develop
-  pull_request:
-    types:
-      - ready_for_review
   schedule:
     - cron: '0 * * * *'
   workflow_dispatch:
@@ -61,12 +58,12 @@ jobs:
       - name: Generate data.json
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: python tools/pr-review-status.py --json > pr_review_dashboard/data.json
+        run: python tools/pr_review_dashboard/pr-review-status.py --json > tools/pr_review_dashboard/data.json
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: pr_review_dashboard
+          path: tools/pr_review_dashboard
 
       - name: Deploy to GitHub Pages
         id: deployment

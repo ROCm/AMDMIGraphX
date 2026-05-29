@@ -23,6 +23,8 @@
 #####################################################################################
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
+cmake_policy(SET CMP0099 NEW)
+
 if("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     message(FATAL_ERROR "The binary and source directory cannot be the same")
 endif()
@@ -49,6 +51,8 @@ endif()
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
+cmake_policy(SET CMP0091 NEW)
+
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
@@ -57,6 +61,18 @@ detect_package_backend()
 
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
+
+include(CMakeDependentOption)
+
+cmake_dependent_option(MIGRAPHX_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF "WIN32" OFF)
+
+if(NOT MIGRAPHX_MSVC_STATIC_RUNTIME)
+    set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")
+endif()
+
+if(NOT CMAKE_MSVC_RUNTIME_LIBRARY)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binary Analyzer" OFF)
@@ -94,7 +110,7 @@ endif()
 
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
-
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
 
 # Strip symbols for release
@@ -118,8 +134,6 @@ option(BUILD_DEV "Build for development purpose only" OFF)
 rocm_setup_version(VERSION 2.16.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
-
-option( BUILD_SHARED_LIBS "Build as a shared library" ON )
 
 include(CheckCXXCompilerFlag)
 check_cxx_compiler_flag("--cuda-host-only -x hip" HAS_HIP)
@@ -378,6 +392,23 @@ rocm_enable_cppcheck(
 
 include(ROCMCreatePackage)
 include(ROCMTest)
+
+function(enable_static_init LIB)
+    get_target_property(_type ${LIB} TYPE)
+    if(_type STREQUAL "STATIC_LIBRARY")
+        if(APPLE)
+            target_link_options(${LIB} INTERFACE
+                "LINKER:-force_load,$<TARGET_FILE:${LIB}>")
+        elseif(MSVC)
+            target_link_options(${LIB} INTERFACE
+                "LINKER:/WHOLEARCHIVE:$<TARGET_FILE:${LIB}>")
+        else()
+            # GNU ld / LLD / gold
+            target_link_options(${LIB} INTERFACE
+                "LINKER:--push-state,--whole-archive,$<TARGET_FILE:${LIB}>,--pop-state")
+        endif()
+    endif()
+endfunction()
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)

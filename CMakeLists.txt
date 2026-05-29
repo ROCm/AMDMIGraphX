@@ -51,6 +51,8 @@ endif()
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
+cmake_policy(SET CMP0091 NEW)
+
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
@@ -59,6 +61,18 @@ detect_package_backend()
 
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
+
+include(CMakeDependentOption)
+
+cmake_dependent_option(MIGRAPHX_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF "WIN32" OFF)
+
+if(NOT MIGRAPHX_MSVC_STATIC_RUNTIME)
+    set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")
+endif()
+
+if(NOT CMAKE_MSVC_RUNTIME_LIBRARY)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binary Analyzer" OFF)
@@ -97,7 +111,6 @@ endif()
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
 option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
 
 # Strip symbols for release

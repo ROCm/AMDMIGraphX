@@ -27,7 +27,7 @@ if(protobuf_FOUND)
     add_library(tf-proto OBJECT ${PROTO_SRCS})
     protobuf_generate(
         TARGET tf-proto
-        PROTOS 
+        PROTOS
             graph.proto
             node_def.proto
             attr_value.proto
@@ -39,9 +39,8 @@ if(protobuf_FOUND)
             op_def.proto
             versions.proto
     )
-    target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR} ${PROTOBUF_INCLUDE_DIR})
-    target_link_libraries(tf-proto PRIVATE ${PROTOBUF_LIBRARY})
-    target_link_libraries(tf-proto PRIVATE protobuf::libprotobuf)
+    target_include_directories(tf-proto SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(tf-proto PUBLIC protobuf::libprotobuf)
 else()
     find_package(Protobuf REQUIRED)
     protobuf_generate_cpp(
@@ -87,4 +86,3 @@ rocm_install_targets(
   PRIVATE
   TARGETS migraphx_tf
 )
-

@@ -457,6 +457,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("name", [](migraphx::instruction_ref i) { return i->name(); })
         .def("get_literal",
              [](migraphx::instruction_ref i) { return i->get_literal().get_argument(); })
+        .def("get_debug_symbols",
+             [](migraphx::instruction_ref i) { return i->get_debug_symbols(); })
         .def(py::hash(py::self))
         .def(py::self == py::self)
         .def(py::self != py::self);
@@ -468,70 +470,125 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             [](migraphx::module& mm,
                const migraphx::operation& op,
                std::vector<migraphx::instruction_ref>& args,
-               std::vector<migraphx::module*>& mod_args) {
-                return mm.add_instruction(op, args, mod_args);
+               std::vector<migraphx::module*>& mod_args,
+               const std::vector<std::string>& debug_symbols) {
+                auto ins = mm.add_instruction(op, args, mod_args);
+                if(not debug_symbols.empty())
+                    mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
+                return ins;
             },
             py::arg("op"),
             py::arg("args"),
-            py::arg("mod_args") = std::vector<migraphx::module*>{})
+            py::arg("mod_args")      = std::vector<migraphx::module*>{},
+            py::arg("debug_symbols") = std::vector<std::string>{})
         .def(
             "add_literal",
-            [](migraphx::module& mm, migraphx::argument a) {
-                return mm.add_literal(a.get_shape(), a.data());
+            [](migraphx::module& mm,
+               migraphx::argument a,
+               const std::vector<std::string>& debug_symbols) {
+                auto ins = mm.add_literal(a.get_shape(), a.data());
+                if(not debug_symbols.empty())
+                    mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
+                return ins;
             },
-            py::arg("data"))
+            py::arg("data"),
+            py::arg("debug_symbols") = std::vector<std::string>{})
         .def(
             "add_literal",
-            [](migraphx::module& mm, py::buffer data) {
+            [](migraphx::module& mm,
+               py::buffer data,
+               const std::vector<std::string>& debug_symbols) {
                 py::buffer_info info = data.request();
                 auto literal_shape   = to_shape(info);
-                return mm.add_literal(literal_shape, reinterpret_cast<char*>(info.ptr));
+                auto ins = mm.add_literal(literal_shape, reinterpret_cast<char*>(info.ptr));
+                if(not debug_symbols.empty())
+                    mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
+                return ins;
             },
-            py::arg("data"))
+            py::arg("data"),
+            py::arg("debug_symbols") = std::vector<std::string>{})
         .def(
             "add_parameter",
-            [](migraphx::module& mm, const std::string& name, const migraphx::shape shape) {
-                return mm.add_parameter(name, shape);
+            [](migraphx::module& mm,
+               const std::string& name,
+               const migraphx::shape shape,
+               const std::vector<std::string>& debug_symbols) {
+                auto ins = mm.add_parameter(name, shape);
+                if(not debug_symbols.empty())
+                    mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
+                return ins;
             },
             py::arg("name"),
-            py::arg("shape"))
+            py::arg("shape"),
+            py::arg("debug_symbols") = std::vector<std::string>{})
         .def(
             "add_return",
-            [](migraphx::module& mm, std::vector<migraphx::instruction_ref>& args) {
-                return mm.add_return(args);
+            [](migraphx::module& mm,
+               std::vector<migraphx::instruction_ref>& args,
+               const std::vector<std::string>& debug_symbols) {
+                auto ins = mm.add_return(args);
+                if(not debug_symbols.empty())
+                    mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
+                return ins;
             },
-            py::arg("args"))
+            py::arg("args"),
+            py::arg("debug_symbols") = std::vector<std::string>{})
         .def(
             "replace_return",
-            [](migraphx::module& mm, std::vector<migraphx::instruction_ref>& args) {
-                return mm.replace_return(args);
+            [](migraphx::module& mm,
+               std::vector<migraphx::instruction_ref>& args,
+               const std::vector<std::string>& debug_symbols) {
+                auto ins = mm.replace_return(args);
+                if(not debug_symbols.empty())
+                    mm.add_debug_symbols(ins, {debug_symbols.begin(), debug_symbols.end()});
+                return ins;
             },
-            py::arg("args"))
+            py::arg("args"),
+            py::arg("debug_symbols") = std::vector<std::string>{})
         .def(
             "add_macro",
             [](migraphx::module& mm,
                const py_macro& mac,
                std::vector<migraphx::instruction_ref>& args,
-               std::vector<migraphx::module*>& mod_args) {
-                return migraphx::op::builder::add(mac.op_name, mm, args, mod_args, mac.options);
+               std::vector<migraphx::module*>& mod_args,
+               const std::vector<std::string>& debug_symbols) {
+                auto result =
+                    migraphx::op::builder::add(mac.op_name, mm, args, mod_args, mac.options);
+                if(not debug_symbols.empty())
+                {
+                    std::set<std::string> syms{debug_symbols.begin(), debug_symbols.end()};
+                    for(auto ins : migraphx::get_added_instructions(args, result))
+                        mm.add_debug_symbols(ins, syms);
+                }
+                return result;
             },
             py::arg("macro"),
             py::arg("args"),
-            py::arg("mod_args") = std::vector<migraphx::module*>{})
+            py::arg("mod_args")      = std::vector<migraphx::module*>{},
+            py::arg("debug_symbols") = std::vector<std::string>{})
         .def(
             "insert_macro",
             [](migraphx::module& mm,
                migraphx::instruction_ref ins,
                const py_macro& mac,
                std::vector<migraphx::instruction_ref>& args,
-               std::vector<migraphx::module*>& mod_args) {
-                return migraphx::op::builder::insert(
+               std::vector<migraphx::module*>& mod_args,
+               const std::vector<std::string>& debug_symbols) {
+                auto result = migraphx::op::builder::insert(
                     mac.op_name, mm, ins, args, mod_args, mac.options);
+                if(not debug_symbols.empty())
+                {
+                    std::set<std::string> syms{debug_symbols.begin(), debug_symbols.end()};
+                    for(auto added : migraphx::get_added_instructions(args, result))
+                        mm.add_debug_symbols(added, syms);
+                }
+                return result;
             },
             py::arg("ins"),
             py::arg("macro"),
             py::arg("args"),
-            py::arg("mod_args") = std::vector<migraphx::module*>{})
+            py::arg("mod_args")      = std::vector<migraphx::module*>{},
+            py::arg("debug_symbols") = std::vector<std::string>{})
         .def("__repr__", [](const migraphx::module& mm) { return migraphx::to_string(mm); })
         .def(
             "__iter__",

@@ -68,18 +68,13 @@ struct unary : op_name<Derived>
     {
         check_shapes{inputs, static_cast<const Derived&>(*this), true}.has(1);
         auto s = inputs.at(0);
-        if(s.dynamic() or s.scalar())
-        {
+        // scalar and range-based dynamic pass through; static and symbolic re-pack the
+        // same way (drop broadcast strides, otherwise preserve permutation via with_lens).
+        if(s.scalar() or (s.dynamic() and not s.symbolic()))
             return s;
-        }
-        else if(s.broadcasted())
-        {
-            return {s.type(), s.lens()};
-        }
-        else
-        {
-            return s.with_lens(s.lens());
-        }
+        if(s.broadcasted())
+            return s.symbolic() ? shape{s.type(), s.dyn_dims()} : shape{s.type(), s.lens()};
+        return s.symbolic() ? s.with_lens(s.dyn_dims()) : s.with_lens(s.lens());
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

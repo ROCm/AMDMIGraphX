@@ -51,14 +51,15 @@ struct where
 
         auto s1 = inputs.at(1);
         auto s2 = inputs.at(2);
-        if(s1.dynamic() or s2.dynamic())
+        // Range-based dynamic (or mixed dynamic/static) inputs only support strict equality.
+        if((s1.dynamic() or s2.dynamic()) and not(s1.symbolic() and s2.symbolic()))
         {
             if(s1 == s2)
                 return s1;
             MIGRAPHX_THROW("WHERE: dynamic input shapes must be the same");
         }
 
-        // Compare two static shapes, returning a standard shape
+        // Compare two static (or two symbolic) shapes, returning a standard shape
         if(s1 == s2 and s1.packed())
         {
             return s1;
@@ -69,10 +70,14 @@ struct where
         }
         else if(s1.broadcasted() != s2.broadcasted())
         {
+            if(s1.symbolic())
+                return s1.broadcasted() ? s2.with_lens(s1.dyn_dims()) : s1.with_lens(s1.dyn_dims());
             return s1.broadcasted() ? s2.with_lens(s1.lens()) : s1.with_lens(s1.lens());
         }
         else
         {
+            if(s1.symbolic())
+                return {s1.type(), s1.dyn_dims()};
             return {s1.type(), s1.lens()};
         }
     }

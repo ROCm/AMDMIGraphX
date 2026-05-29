@@ -57,7 +57,11 @@ struct bit_cast : unary<bit_cast>
         {
             MIGRAPHX_THROW("BIT_CAST: target_type has different type_size from input's");
         }
-        if(input.dynamic())
+        if(input.symbolic())
+        {
+            return {target_type, input.dyn_dims(), input.dyn_strides()};
+        }
+        else if(input.dynamic())
         {
             return {target_type, input.dyn_dims()};
         }

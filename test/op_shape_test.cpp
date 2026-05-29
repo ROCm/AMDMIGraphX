@@ -6373,6 +6373,49 @@ TEST_CASE(unary_broadcast_input)
     expect_shape(s, migraphx::make_op("sin"), ss);
 }
 
+TEST_CASE(unary_sym_packed)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    expect_shape(s, migraphx::make_op("sin"), s);
+}
+
+TEST_CASE(unary_sym_broadcasted)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims, {lit(0), lit(4), lit(1)}};
+    migraphx::shape sout{migraphx::shape::float_type, dims};
+    expect_shape(sout, migraphx::make_op("sin"), sx);
+}
+
+TEST_CASE(unary_sym_nonpacked_permutation)
+{
+    std::vector<dd> dims{dd{lit(4)}, dd{lit(3)}};
+    migraphx::shape sx{migraphx::shape::float_type, dims, {lit(1), lit(8)}};
+    auto sout = migraphx::shape::from_permutation(migraphx::shape::float_type, dims, {1, 0});
+    expect_shape(sout, migraphx::make_op("sin"), sx);
+}
+
+TEST_CASE(convert_sym_packed)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    migraphx::shape sout{migraphx::shape::half_type, {dd{lit(2)}, dd{n}}};
+    expect_shape(
+        sout, migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), s);
+}
+
+TEST_CASE(convert_sym_nonpacked)
+{
+    // Symbolic strides are preserved through convert, mirroring the static path.
+    std::vector<dd> dims{dd{lit(4)}, dd{lit(3)}};
+    migraphx::shape s{migraphx::shape::float_type, dims, {lit(1), lit(8)}};
+    migraphx::shape sout{migraphx::shape::half_type, dims, {lit(1), lit(8)}};
+    expect_shape(
+        sout, migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), s);
+}
+
 TEST_CASE(where_broadcast_input)
 {
     migraphx::shape s1{migraphx::shape::float_type, {2, 2}, {3, 0}};
@@ -6415,6 +6458,33 @@ TEST_CASE(where_dyn_input3)
     migraphx::shape s2{migraphx::shape::float_type, {{2, 3}, {3, 3}}};
     migraphx::shape s3{migraphx::shape::bool_type, {{2, 3}, {3, 4}}};
     throws_shape(migraphx::make_op("where"), s3, s1, s2);
+}
+
+TEST_CASE(where_sym_same_packed)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape sb{migraphx::shape::bool_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    migraphx::shape s{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(4)}}};
+    expect_shape(s, migraphx::make_op("where"), sb, s, s);
+}
+
+TEST_CASE(where_sym_packed_vs_broadcasted)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> dims{dd{lit(2)}, dd{n}, dd{lit(4)}};
+    migraphx::shape sb{migraphx::shape::bool_type, dims};
+    migraphx::shape sx{migraphx::shape::float_type, dims};
+    migraphx::shape sy{migraphx::shape::float_type, dims, {lit(0), lit(4), lit(1)}};
+    expect_shape(sx, migraphx::make_op("where"), sb, sx, sy);
+}
+
+TEST_CASE(where_sym_with_range_dyn_error)
+{
+    auto n = var("n", {2, 8});
+    migraphx::shape sb{migraphx::shape::bool_type, {dd{lit(2)}, dd{n}}};
+    migraphx::shape sx{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    migraphx::shape sy{migraphx::shape::float_type, {dd{2, 2}, dd{2, 8}}};
+    throws_shape(migraphx::make_op("where"), sb, sx, sy);
 }
 
 TEST_CASE(roialign_test)

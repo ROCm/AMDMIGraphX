@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pmr/vector.hpp>
+#include <cstring>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -71,28 +72,92 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
+    if(not packed_kernargs.empty())
+    {
+        // Fast path: copy pre-packed buffer, patch pointer slots, launch.
+        // Use a stack buffer when the packed kernargs fit; otherwise fall back
+        // to a heap allocation sized to the actual payload.
+        constexpr std::size_t stack_buf_size = 512;
+        alignas(8) char stack_buf[stack_buf_size];
+        auto sz = packed_kernargs.size();
+
+        std::vector<char> heap_buf;
+        char* buf = stack_buf;
+        if(sz > stack_buf_size)
+        {
+            heap_buf.resize(sz);
+            buf = heap_buf.data();
+        }
+        std::memcpy(buf, packed_kernargs.data(), sz);
+
+        for(const auto& [arg_idx, byte_offset] : runtime_arg_offsets)
+        {
+            auto ptr = reinterpret_cast<uint64_t>(args[arg_idx].data());
+            std::memcpy(buf + byte_offset, &ptr, sizeof(uint64_t));
+        }
+
+        auto [start, stop] = ctx.get_perf_events();
+        k.launch(ctx.get_stream().get(), global, local, buf, sz, start, stop);
+    }
+    else
+    {
 #if MIGRAPHX_HAS_PMR
-    std::array<char, 256> storage;
-    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
-    pmr::vector<void*> kargs(&resource);
+        std::array<char, 256> storage;
+        std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+        pmr::vector<void*> kargs(&resource);
 #else
-    pmr::vector<void*> kargs;
+        pmr::vector<void*> kargs;
 #endif
-    visit_flatten_args(args, [&](const auto& fargs) {
-        kargs.reserve(fargs.size());
-        std::transform(fargs.begin(),
-                       fargs.end(),
-                       std::back_inserter(kargs),
-                       [](const argument& a) { return a.data(); });
-    });
-    auto [start, stop] = ctx.get_perf_events();
-    k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+        visit_flatten_args(args, [&](const auto& fargs) {
+            kargs.reserve(fargs.size());
+            std::transform(fargs.begin(),
+                           fargs.end(),
+                           std::back_inserter(kargs),
+                           [](const argument& a) { return a.data(); });
+        });
+        auto [start, stop] = ctx.get_perf_events();
+        k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+    }
     return args[get_output_arg(args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
 {
     assert(not code_object.empty());
     k = kernel(code_object, symbol_name);
+
+    if(kernel_args.empty())
+        return;
+
+    // Pre-pack kernel_args into a flat aligned buffer.
+    // Null entries are 8-byte pointer slots filled from args[] in order at compute() time.
+    packed_kernargs.clear();
+    packed_kernargs.reserve(512);
+    runtime_arg_offsets.clear();
+
+    std::size_t arg_counter = 0;
+
+    for(const auto& [idx, v] : kernel_args)
+    {
+        if(v.is_null())
+        {
+            // Pointer slot — align to 8, record offset for patching
+            std::size_t padding = (8 - (packed_kernargs.size() % 8)) % 8;
+            packed_kernargs.insert(packed_kernargs.end(), padding, 0);
+            runtime_arg_offsets.emplace_back(arg_counter++, packed_kernargs.size());
+            packed_kernargs.insert(packed_kernargs.end(), 8, 0);
+        }
+        else
+        {
+            // Scalar — pack binary blob
+            const auto& bin = v.get_binary();
+            auto sz         = bin.size();
+            auto align      = sz; // align == size for 1/4/8
+
+            std::size_t padding = (align - (packed_kernargs.size() % align)) % align;
+            packed_kernargs.insert(packed_kernargs.end(), padding, 0);
+            packed_kernargs.insert(packed_kernargs.end(), bin.data(), bin.data() + sz);
+        }
+    }
 }
 
 } // namespace gpu

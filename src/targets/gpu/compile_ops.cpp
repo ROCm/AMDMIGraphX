@@ -581,15 +581,23 @@ void compile_ops::apply(module_pass_manager& mpm) const
 {
     bool is_root = &mpm.get_module() == mpm.get_root_module();
     auto& m      = mpm.get_module();
+
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
-    // Find all precompile ops
+    // Find all precompile ops, and compile directly-placed ops
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() != "gpu::precompile_op")
+        if(ins->name() == "gpu::precompile_op")
+        {
+            operation preop = any_cast<precompile_op>(ins->get_operator()).op;
+            cm.add_plan(ctx, preop, ins, &m);
             continue;
-        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        cm.add_plan(ctx, preop, ins, &m);
+        }
+        if(not has_compiler_for(ins->name()))
+            continue;
+        auto op = ins->get_operator();
+        auto cr = compile(*ctx, ins, op, value{});
+        cr.replace(m, ins);
     }
     cm.update_configs();
     cm.compile(m, is_root);

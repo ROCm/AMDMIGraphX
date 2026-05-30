@@ -760,9 +760,8 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // y[0][out_i] is one vec<float,8>; the 8 ki land contiguously in LDS
         // (lane_off and out_i*8 are both multiples of 8 floats -> 32-byte
         // aligned), so move each output as one packed vec store/load.
-        repeat_c<4>([&](auto out_i) {
-            *as_vec<8>(&y_reduce_lds[lane_off + out_i * 8]) = y[0][out_i];
-        });
+        repeat_c<4>(
+            [&](auto out_i) { *as_vec<8>(&y_reduce_lds[lane_off + out_i * 8]) = y[0][out_i]; });
         __syncthreads();
         // wave_sk_part == 0 waves sum partials from waves 1..SK-1 of their
         // NT-group into their own y; other waves are now idle for writeback.

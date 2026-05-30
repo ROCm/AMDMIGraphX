@@ -411,53 +411,63 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // lane mapping (lane%16 -> nt, lane/16*8 -> c_chunk_start) places the
         // V values right where the WMMA B operand expects them — no LDS round
         // trip and no cross-lane permute.
+        //
+        // Two-phase to expose load/transform overlap: issue every (vc, ci)
+        // tile's d-load first (all into d_buf, constexpr-indexed so it stays
+        // register-resident), then run the input transform on each. This
+        // lets the global d-loads stay in flight while the transforms of
+        // earlier tiles compute, hiding the load latency. The X buffer
+        // descriptor only enforces a single [0, byte_count) extent — h-OOB
+        // silently wraps into the next channel, w-OOB into the next row. For
+        // sw_b == 2 we keep the fast b64 load and post-mask the w-OOB
+        // columns; the per-element fallback handles other strides. Inactive
+        // lanes have `off == x_byte_count`, so every load returns 0.
+        const int32_t oob_byte = static_cast<int32_t>(x_byte_count);
+        const half hzero       = half(0.0f);
+        const bool hi[4]       = {v_hok0, v_hok1, v_hok2, v_hok3};
+        const bool wj[4]       = {v_wok0, v_wok1, v_wok2, v_wok3};
+        auto load_d            = [&](index_int vc, index_int ci) {
+            const index_int c_in_block = vc * 16 + c_off + ci;
+            const index_int c          = c_base + c_in_block;
+            const bool active          = nt_active and (c < C);
+            const int32_t base_off = n_off + static_cast<int32_t>(c * x_sh[1]) * sizeof(half);
+            const int32_t off      = active ? (base_off + hw_off) : oob_byte;
+            array<half, 16> d;
+            if(sw_b == 2)
+            {
+                repeat_c<4>([&](auto i) {
+                    const int32_t row_off = hi[i] ? off + static_cast<int>(i) * sh_b : oob_byte;
+                    auto row              = buffer_load_half4(x_rsrc, row_off);
+                    d[i * 4 + 0]          = wj[0] ? row.x : hzero;
+                    d[i * 4 + 1]          = wj[1] ? row.y : hzero;
+                    d[i * 4 + 2]          = wj[2] ? row.z : hzero;
+                    d[i * 4 + 3]          = wj[3] ? row.w : hzero;
+                });
+            }
+            else
+            {
+                repeat_c<4>([&](auto i) {
+                    repeat_c<4>([&](auto j) {
+                        const int32_t e_off =
+                            (hi[i] and wj[j])
+                                ? off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b
+                                : oob_byte;
+                        d[i * 4 + j] = buffer_load_half(x_rsrc, e_off);
+                    });
+                });
+            }
+            return d;
+        };
+        array<array<array<half, 16>, 8>, v_chunks> d_buf;
+        repeat_c<v_chunks>([&](auto vc_val) {
+            constexpr index_int vc = vc_val;
+            repeat_c<8>([&](auto ci_val) { d_buf[vc][ci_val] = load_d(vc, ci_val); });
+        });
         repeat_c<v_chunks>([&](auto vc_val) {
             constexpr index_int vc = vc_val;
             repeat_c<8>([&](auto ci_val) {
-                constexpr index_int ci     = ci_val;
-                const index_int c_in_block = vc * 16 + c_off + ci;
-                const index_int c          = c_base + c_in_block;
-                const bool active          = nt_active and (c < C);
-                const int32_t base_off = n_off + static_cast<int32_t>(c * x_sh[1]) * sizeof(half);
-                const int32_t tile_off = base_off + hw_off;
-                const int32_t off          = active ? tile_off : static_cast<int32_t>(x_byte_count);
-
-                // The X buffer descriptor only enforces a single [0,
-                // byte_count) extent — h-OOB silently wraps into the next
-                // channel, w-OOB into the next row. For sw_b == 2 we keep
-                // the fast b64 load and post-mask the w-OOB columns; the
-                // per-element fallback handles other strides. Inactive
-                // lanes have `off == x_byte_count`, so every load returns 0
-                // naturally.
-                const int32_t oob_byte = static_cast<int32_t>(x_byte_count);
-                const half hzero       = half(0.0f);
-                const bool hi[4]       = {v_hok0, v_hok1, v_hok2, v_hok3};
-                const bool wj[4]       = {v_wok0, v_wok1, v_wok2, v_wok3};
-                array<half, 16> d;
-                if(sw_b == 2)
-                {
-                    repeat_c<4>([&](auto i) {
-                        const int32_t row_off = hi[i] ? off + static_cast<int>(i) * sh_b : oob_byte;
-                        auto row              = buffer_load_half4(x_rsrc, row_off);
-                        d[i * 4 + 0]          = wj[0] ? row.x : hzero;
-                        d[i * 4 + 1]          = wj[1] ? row.y : hzero;
-                        d[i * 4 + 2]          = wj[2] ? row.z : hzero;
-                        d[i * 4 + 3]          = wj[3] ? row.w : hzero;
-                    });
-                }
-                else
-                {
-                    repeat_c<4>([&](auto i) {
-                        repeat_c<4>([&](auto j) {
-                            const int32_t e_off =
-                                (hi[i] and wj[j])
-                                    ? off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b
-                                    : oob_byte;
-                            d[i * 4 + j] = buffer_load_half(x_rsrc, e_off);
-                        });
-                    });
-                }
-                auto V = winograd_input_transform_f23(d);
+                constexpr index_int ci = ci_val;
+                auto V                 = winograd_input_transform_f23(d_buf[vc][ci]);
                 repeat_c<16>([&](auto wp) { v_lane[vc][ci][wp] = V[wp]; });
             });
         });

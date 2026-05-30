@@ -425,7 +425,7 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
     set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
         "TheRock GPU arch(es) for per-GPU package dependencies. \
-Semicolon-separated list (e.g. gfx94x;gfx950) for per-GPU deps, \
+Semicolon-separated list (e.g. gfx90a;gfx942;gfx950) for per-GPU deps, \
 or empty for device-all meta-package deps.")
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
     if(MIGRAPHX_THEROCK_GPU_ARCH)

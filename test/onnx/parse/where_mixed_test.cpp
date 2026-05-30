@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,16 @@
 
 TEST_CASE(where_mixed_test)
 {
-    //  mixture of static and dynamic input shapes is not supported
+    // Mixed static + dynamic where inputs are now broadcast to a common
+    // shape via add_common_op (previously unsupported -- threw). The static
+    // input y={3,2,2} pins the broadcasted dimension, so the result has
+    // fixed dims {3,2,2}.
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    EXPECT(test::throws([&] { read_onnx("where_mixed_test.onnx", options); }));
+    auto prog                     = read_onnx("where_mixed_test.onnx", options);
+
+    auto out_shapes = prog.get_output_shapes();
+    EXPECT(out_shapes.size() == 1);
+    migraphx::shape expected{migraphx::shape::float_type, {{3, 3}, {2, 2}, {2, 2}}};
+    EXPECT(out_shapes.front() == expected);
 }

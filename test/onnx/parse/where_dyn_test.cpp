@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,9 @@
 
 TEST_CASE(where_dyn_test)
 {
-    // TODO: broadcasting for dynamic shapes isn't implemented at time of writing.
-    // Update this test case to use shapes that require broadcasting, when available.
+    // All three inputs already share the same dynamic dims, so parse_where
+    // emits a bare where op (no broadcast needed). The broadcasting path for
+    // mismatched dynamic shapes is covered by where_mixed_test.
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto lc  = mm->add_parameter(

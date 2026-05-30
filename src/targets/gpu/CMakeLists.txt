@@ -154,10 +154,6 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
-if(MIGRAPHX_USE_MIOPEN)
-    set(MIOPEN_SRCS abs.cpp)
-endif()
-
 add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
@@ -191,7 +187,6 @@ add_library(migraphx_gpu
     prefuse_ops.cpp
     prepare_mlir.cpp
     prepare_reduce.cpp
-    perfdb.cpp
     pooling.cpp
     problem_cache.cpp
     rocblas.cpp
@@ -205,8 +200,14 @@ add_library(migraphx_gpu
     mlss_mha_op.cpp
     mlss_conv_op.cpp
     ${JIT_GPU_SRCS}
-    ${MIOPEN_SRCS}
 )
+
+if(MIGRAPHX_USE_MIOPEN)
+    target_sources(migraphx_gpu
+        PRIVATE
+            abs.cpp
+            perfdb.cpp)
+endif()
 
 enable_static_init(migraphx_gpu)
 

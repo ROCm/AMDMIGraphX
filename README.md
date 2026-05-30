@@ -127,6 +127,17 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
     Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure CMake.
 
+    The default build type is `Release`. To build MIGraphX in debug mode, pass
+    `-DCMAKE_BUILD_TYPE=Debug` when configuring CMake:
+
+    ```bash
+    CXX=/opt/rocm/llvm/bin/clang++ cmake .. \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+    ```
+
+    For optimized binaries with debug symbols, use `-DCMAKE_BUILD_TYPE=RelWithDebInfo`.
+
 5. Build MIGraphX source code:
 
     ```cpp

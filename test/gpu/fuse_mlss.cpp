@@ -47,16 +47,6 @@ static void run_pass(migraphx::program& p)
         p, {migraphx::gpu::fuse_mlss{&get_context()}, migraphx::dead_code_elimination{}});
 }
 
-// Set MIGRAPHX_MLSS_USE_SPECIFIC_OPS=conv at static-init time, before any test runs.
-// This must happen before the first call to string_value_of(), which caches its result.
-const int mlss_env_init = ([] {
-#ifdef _WIN32
-    _putenv_s("MIGRAPHX_MLSS_USE_SPECIFIC_OPS", "conv");
-#else
-    setenv("MIGRAPHX_MLSS_USE_SPECIFIC_OPS", "conv", /*overwrite=*/1); // NOLINT(cert-env33-c)
-#endif
-}(), 0);
-
 // Build the pre-pass program for conv+bias+relu:
 //   relu(add(convolution(data, weight_literal), broadcast(bias_literal)))
 // The shapes match the VGG-19 first-layer entry in conv_mxn_shapes:
@@ -135,8 +125,8 @@ TEST_CASE(mlss_conv_bias_relu_vgg19_first_layer)
         if(ins->name() != "gpu::mlss_conv")
             continue;
 
-        // args: [input, weight, bias, output_alloc]
-        EXPECT(ins->inputs().size() == 4);
+        // args: [input, weight, bias]
+        EXPECT(ins->inputs().size() == 3);
 
         // Output shape must match the conv output
         const migraphx::shape expected_out{migraphx::shape::float_type, {1, 64, 224, 224}};
@@ -151,4 +141,16 @@ TEST_CASE(mlss_conv_bias_relu_vgg19_first_layer)
 
 #endif // MIGRAPHX_USE_AMDMLSS
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+int main(int argc, const char* argv[])
+{
+#ifdef MIGRAPHX_USE_AMDMLSS
+    // Must be set before the first string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS),
+    // which caches its result.
+#ifdef _WIN32
+    _putenv_s("MIGRAPHX_MLSS_USE_SPECIFIC_OPS", "conv");
+#else
+    setenv("MIGRAPHX_MLSS_USE_SPECIFIC_OPS", "conv", /*overwrite=*/1); // NOLINT(cert-env33-c)
+#endif
+#endif
+    test::run(argc, argv);
+}

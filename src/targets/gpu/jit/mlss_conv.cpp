@@ -27,6 +27,8 @@
 #include <migraphx/gpu/mlss_conv_op.hpp>
 #include <cstring>
 
+#ifdef MIGRAPHX_USE_AMDMLSS
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
@@ -252,3 +254,5 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif // MIGRAPHX_USE_AMDMLSS

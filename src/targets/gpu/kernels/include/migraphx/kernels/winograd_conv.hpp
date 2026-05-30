@@ -332,8 +332,11 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // alpha[wp,r,c] = A^T[r, wp/4] * A[wp%4, c]
     constexpr float at[2][4] = {{1.f, 1.f, 1.f, 0.f}, {0.f, 1.f, -1.f, -1.f}};
 
-    // Y[k_idx][r*2+c][k_offset] running accumulator. KW * 4 outputs * 8 K rows per lane.
-    array<array<array<float, 8>, 4>, KW> y{};
+    // Y[k_idx][r*2+c] running accumulator, one vec<float,8> per output
+    // position (8 K rows per lane). KW * 4 outputs. Using vec (the native
+    // WMMA accumulator type) instead of array lets the output transform fold
+    // run as packed vec adds rather than per-lane scalar extraction.
+    array<array<vec<float, 8>, 4>, KW> y{};
 
     // Buffer descriptors for X (input) and U (weights). raw_buffer_load
     // returns 0 for OOB byte offsets so we don't need explicit bounds checks.
@@ -560,57 +563,23 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                             const vec<float, 8>& m1,
                             const vec<float, 8>& m2,
                             const vec<float, 8>& m3) {
+            // M*A column transform for this row i (= wp_i): produce the two
+            // output-column partials as packed vec<float,8> over the 8 K rows.
             const vec<float, 8> s0 = m0 + m1 + m2;
             const vec<float, 8> s1 = m1 - m2 - m3;
+            // A^T left multiply, accumulated incrementally into y. The
+            // coefficients at[r][wp_i] are exactly 0 / +1 / -1, so the whole
+            // 8-row update is one packed vec add/sub (vs the old per-ki
+            // scalar extraction). With coef_r a constexpr +-1.0, the
+            // `coef_r * s` multiply folds to an identity/negate at -O3, so
+            // this is bit-identical to the scalar form. y[r*2+0] takes
+            // output column c=0 (s0), y[r*2+1] takes column c=1 (s1).
             repeat_c<2>([&](auto r) {
                 constexpr float coef_r = at[r][wp_i_val];
                 if constexpr(coef_r != 0.f)
                 {
-                    repeat_c<8>([&](auto ki) {
-                        float v0, v1;
-                        if constexpr(ki == 0)
-                        {
-                            v0 = s0.s0;
-                            v1 = s1.s0;
-                        }
-                        else if constexpr(ki == 1)
-                        {
-                            v0 = s0.s1;
-                            v1 = s1.s1;
-                        }
-                        else if constexpr(ki == 2)
-                        {
-                            v0 = s0.s2;
-                            v1 = s1.s2;
-                        }
-                        else if constexpr(ki == 3)
-                        {
-                            v0 = s0.s3;
-                            v1 = s1.s3;
-                        }
-                        else if constexpr(ki == 4)
-                        {
-                            v0 = s0.s4;
-                            v1 = s1.s4;
-                        }
-                        else if constexpr(ki == 5)
-                        {
-                            v0 = s0.s5;
-                            v1 = s1.s5;
-                        }
-                        else if constexpr(ki == 6)
-                        {
-                            v0 = s0.s6;
-                            v1 = s1.s6;
-                        }
-                        else
-                        {
-                            v0 = s0.s7;
-                            v1 = s1.s7;
-                        }
-                        y[k_idx_val][r * 2 + 0][ki] = y[k_idx_val][r * 2 + 0][ki] + coef_r * v0;
-                        y[k_idx_val][r * 2 + 1][ki] = y[k_idx_val][r * 2 + 1][ki] + coef_r * v1;
-                    });
+                    y[k_idx_val][r * 2 + 0] = y[k_idx_val][r * 2 + 0] + coef_r * s0;
+                    y[k_idx_val][r * 2 + 1] = y[k_idx_val][r * 2 + 1] + coef_r * s1;
                 }
             });
         };
@@ -788,9 +757,11 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         constexpr index_int per_lane_floats = 32; // 4 outputs * 8 ki
         const index_int wave_red_off = (wave_nt_idx * SK + wave_sk_part) * 32 * per_lane_floats;
         const index_int lane_off     = wave_red_off + lane * per_lane_floats;
+        // y[0][out_i] is one vec<float,8>; the 8 ki land contiguously in LDS
+        // (lane_off and out_i*8 are both multiples of 8 floats -> 32-byte
+        // aligned), so move each output as one packed vec store/load.
         repeat_c<4>([&](auto out_i) {
-            repeat_c<8>(
-                [&](auto ki) { y_reduce_lds[lane_off + out_i * 8 + ki] = y[0][out_i][ki]; });
+            *as_vec<8>(&y_reduce_lds[lane_off + out_i * 8]) = y[0][out_i];
         });
         __syncthreads();
         // wave_sk_part == 0 waves sum partials from waves 1..SK-1 of their
@@ -803,9 +774,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 const index_int s_off =
                     group_base + s * 32 * per_lane_floats + lane * per_lane_floats;
                 repeat_c<4>([&](auto out_i) {
-                    repeat_c<8>([&](auto ki) {
-                        y[0][out_i][ki] = y[0][out_i][ki] + y_reduce_lds[s_off + out_i * 8 + ki];
-                    });
+                    y[0][out_i] = y[0][out_i] + *as_vec<8>(&y_reduce_lds[s_off + out_i * 8]);
                 });
             }
         }
@@ -883,8 +852,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                 // with vec<half, 2> the operators (add,
                                 // mul, max) emit v_pk_* packed ops instead
                                 // of two scalar ops.
-                                vec<half, 2> y_pair{static_cast<out_type>(y[k_idx][i * 2 + 0][ki]),
-                                                    static_cast<out_type>(y[k_idx][i * 2 + 1][ki])};
+                                vec<half, 2> y_pair{
+                                    static_cast<out_type>(y[k_idx][i * 2 + 0][index_int{ki}]),
+                                    static_cast<out_type>(y[k_idx][i * 2 + 1][index_int{ki}])};
                                 vec<half, 2> r =
                                     f(y_pair, vec<half, 2>{inputs[idx0], inputs[idx1]}...);
                                 half2_t packed{r.x, r.y};
@@ -902,7 +872,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                                                   static_cast<index_int>(h_out),
                                                                   static_cast<index_int>(w_out)};
                                 out_data[hbase + j * sw] = static_cast<out_type>(
-                                    f(static_cast<out_type>(y[k_idx][i * 2 + j][ki]),
+                                    f(static_cast<out_type>(y[k_idx][i * 2 + j][index_int{ki}]),
                                       inputs[out_idx]...));
                             }
                         });

@@ -430,8 +430,8 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             const index_int c_in_block = vc * 16 + c_off + ci;
             const index_int c          = c_base + c_in_block;
             const bool active          = nt_active and (c < C);
-            const int32_t base_off = n_off + static_cast<int32_t>(c * x_sh[1]) * sizeof(half);
-            const int32_t off      = active ? (base_off + hw_off) : oob_byte;
+            const int32_t base_off     = n_off + static_cast<int32_t>(c * x_sh[1]) * sizeof(half);
+            const int32_t off          = active ? (base_off + hw_off) : oob_byte;
             array<half, 16> d;
             if(sw_b == 2)
             {
@@ -448,11 +448,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             {
                 repeat_c<4>([&](auto i) {
                     repeat_c<4>([&](auto j) {
-                        const int32_t e_off =
-                            (hi[i] and wj[j])
-                                ? off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b
-                                : oob_byte;
-                        d[i * 4 + j] = buffer_load_half(x_rsrc, e_off);
+                        const int32_t e_off = (hi[i] and wj[j]) ? off + static_cast<int>(i) * sh_b +
+                                                                      static_cast<int>(j) * sw_b
+                                                                           : oob_byte;
+                        d[i * 4 + j]        = buffer_load_half(x_rsrc, e_off);
                     });
                 });
             }

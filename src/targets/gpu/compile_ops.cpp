@@ -579,31 +579,25 @@ struct compile_manager
 
 void compile_ops::apply(module_pass_manager& mpm) const
 {
-    // First pass: compile ops that were placed directly into the module
-    // (via apply_map in lowering) without a precompile_op wrapper.
-    // These have a registered compiler but are not wrapped in precompile_op.
+    bool is_root = &mpm.get_module() == mpm.get_root_module();
+    auto& m      = mpm.get_module();
+
+    compile_manager cm;
+    cm.exhaustive = exhaustive_tune;
+    // Find all precompile ops, and compile directly-placed ops
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "gpu::precompile_op")
+        {
+            operation preop = any_cast<precompile_op>(ins->get_operator()).op;
+            cm.add_plan(ctx, preop, ins, &m);
             continue;
+        }
         if(not has_compiler_for(ins->name()))
             continue;
         auto op = ins->get_operator();
         auto cr = compile(*ctx, ins, op, value{});
         cr.replace(m, ins);
-    }
-
-    bool is_root = &mpm.get_module() == mpm.get_root_module();
-    auto& m      = mpm.get_module();
-    compile_manager cm;
-    cm.exhaustive = exhaustive_tune;
-    // Find all precompile ops
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() != "gpu::precompile_op")
-            continue;
-        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
-        cm.add_plan(ctx, preop, ins, &m);
     }
     cm.update_configs();
     cm.compile(m, is_root);

@@ -450,7 +450,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     repeat_c<4>([&](auto j) {
                         const int32_t e_off = (hi[i] and wj[j]) ? off + static_cast<int>(i) * sh_b +
                                                                       static_cast<int>(j) * sw_b
-                                                                           : oob_byte;
+                                                                : oob_byte;
                         d[i * 4 + j]        = buffer_load_half(x_rsrc, e_off);
                     });
                 });

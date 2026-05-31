@@ -981,7 +981,7 @@ expr max(expr x, expr y)
 }
 
 std::optional<bool>
-strict_less(const expr& a, const expr& b, const std::unordered_map<expr, interval>& vars)
+strict_less(const expr& a, const expr& b, interval default_bounds)
 {
     if(a.empty() or b.empty())
         return std::nullopt;
@@ -990,7 +990,7 @@ strict_less(const expr& a, const expr& b, const std::unordered_map<expr, interva
     //    cross-term correlations between b and a get picked up automatically.
     try
     {
-        auto i = (b - a).eval_interval(vars);
+        auto i = (b - a).eval_interval_default(default_bounds);
         if(scalar_less(scalar{int64_t{0}}, i.min))
             return true;
         if(not scalar_less(scalar{int64_t{0}}, i.max))
@@ -1003,12 +1003,12 @@ strict_less(const expr& a, const expr& b, const std::unordered_map<expr, interva
     // 2. b / a vs 1, when a's interval doesn't include zero.
     try
     {
-        auto a_int = a.eval_interval(vars);
+        auto a_int = a.eval_interval_default(default_bounds);
         bool a_pos = scalar_less(scalar{int64_t{0}}, a_int.min);
         bool a_neg = scalar_less(a_int.max, scalar{int64_t{0}});
         if(a_pos or a_neg)
         {
-            auto q_int = (b / a).eval_interval(vars);
+            auto q_int = (b / a).eval_interval_default(default_bounds);
             if(a_pos)
             {
                 // a > 0: a < b iff b/a > 1

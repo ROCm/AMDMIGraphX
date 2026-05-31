@@ -3300,16 +3300,16 @@ TEST_CASE(strict_less_unconstrained_var_indeterminate)
 {
     auto x = var("x");
     auto y = var("y");
-    auto r = strict_less(x, y);
+    // both fall back to the same default range, so the order is not determinable
+    auto r = strict_less(x, y, interval{int64_t{0}, int64_t{100}});
     EXPECT(not r.has_value());
 }
 
-TEST_CASE(strict_less_with_vars_map)
+TEST_CASE(strict_less_with_var_constraints)
 {
-    auto x = var("x");
-    auto y = var("y");
-    auto r = strict_less(
-        x, y, {{x, interval{int64_t{1}, int64_t{5}}}, {y, interval{int64_t{10}, int64_t{20}}}});
+    auto x = var("x", {int64_t{1}, int64_t{5}});
+    auto y = var("y", {int64_t{10}, int64_t{20}});
+    auto r = strict_less(x, y);
     EXPECT(r.has_value() and *r);
 }
 
@@ -3318,6 +3318,32 @@ TEST_CASE(strict_less_empty_indeterminate)
     expr e;
     auto r = strict_less(e, lit(1));
     EXPECT(not r.has_value());
+}
+
+TEST_CASE(strict_less_default_bounds_true)
+{
+    auto x = var("x");
+    // unbound x falls back to default [10, 20], so 5 < x always
+    auto r = strict_less(lit(5), x, interval{int64_t{10}, int64_t{20}});
+    EXPECT(r.has_value() and *r);
+}
+
+TEST_CASE(strict_less_default_bounds_indeterminate)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // both unbound vars share the same default [1, 10]; x < y not guaranteed
+    auto r = strict_less(x, y, interval{int64_t{1}, int64_t{10}});
+    EXPECT(not r.has_value());
+}
+
+TEST_CASE(strict_less_constraint_overrides_default)
+{
+    auto x = var("x", {int64_t{1}, int64_t{5}});
+    auto y = var("y"); // unbound -> default [10, 20]
+    // x uses its own [1,5], y falls back to [10,20], so x < y always
+    auto r = strict_less(x, y, interval{int64_t{10}, int64_t{20}});
+    EXPECT(r.has_value() and *r);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

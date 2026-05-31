@@ -56,10 +56,7 @@ scalar scalar_max(const scalar& a, const scalar& b)
     return scalar_invoke_common([](auto x, auto y) { return x > y ? x : y; }, a, b);
 }
 
-bool interval::valid() const
-{
-    return max >= min;
-}
+bool interval::valid() const { return max >= min; }
 
 interval operator+(interval a, interval b)
 {

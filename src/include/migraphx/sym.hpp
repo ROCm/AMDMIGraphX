@@ -129,6 +129,8 @@ struct MIGRAPHX_EXPORT interval
     scalar min = std::numeric_limits<std::int64_t>::min();
     scalar max = std::numeric_limits<int64_t>::max();
 
+    bool valid() const;
+
     interval& operator+=(interval b) { return *this = *this + b; }
     interval& operator-=(interval b) { return *this = *this - b; }
     interval& operator*=(interval b) { return *this = *this * b; }

@@ -56,6 +56,11 @@ scalar scalar_max(const scalar& a, const scalar& b)
     return scalar_invoke_common([](auto x, auto y) { return x > y ? x : y; }, a, b);
 }
 
+bool interval::valid() const
+{
+    return max >= min;
+}
+
 interval operator+(interval a, interval b)
 {
     auto f = [](auto x, auto y) { return x + y; };
@@ -394,6 +399,8 @@ expr var(std::string name, interval constraint, std::set<scalar> optimals)
 {
     if(name.empty())
         MIGRAPHX_THROW("Variable name must not be empty");
+    if(not constraint.valid())
+        MIGRAPHX_THROW("Invalid interval");
     return expr(variable_node{std::move(name), {constraint}, std::move(optimals)});
 }
 

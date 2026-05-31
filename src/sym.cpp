@@ -1355,6 +1355,14 @@ static scalar eval_impl(const expr& root, F lookup)
             return *v;
         return std::visit(
             overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
+                       [](const variable_node& n) -> std::optional<scalar> {
+                           // A variable with a fixed constraint (min == max) has a
+                           // known value, so resolve it from its own bounds.
+                           const auto& c = n.constraints;
+                           if(not c.empty() and c.front().min == c.front().max)
+                               return c.front().min;
+                           return std::nullopt;
+                       },
                        [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
             get_node(e));
     });

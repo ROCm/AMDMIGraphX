@@ -1360,7 +1360,7 @@ TEST_CASE(eval_optimals_negative_throws)
     auto n = var("n", {1, 4}, {2});
     auto m = var("m", {1, 8}, {5});
     auto e = n - m;
-    EXPECT(test::throws([&] { (void)e.eval_optimals(); }));
+    EXPECT(test::throws([&] { (void)e.eval_optimals_uint(); }));
 }
 
 TEST_CASE(eval_optimals_no_optimals)

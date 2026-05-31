@@ -1370,6 +1370,11 @@ static scalar eval_impl(const expr& root, F lookup)
     });
 }
 
+static bool is_unsigned(scalar x)
+{
+    return std::holds_alternative<int64_t>(x) and std::get<int64_t>(x) >= 0;
+}
+
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
     auto lookup = [&](const expr& sub) -> std::optional<scalar> {
@@ -1378,7 +1383,10 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
             return it->second;
         return std::nullopt;
     };
-    return to<std::size_t>(eval_impl(*this, lookup));
+    auto r = eval_impl(*this, lookup);
+    if(not is_unsigned(r))
+        MIGRAPHX_THROW("Result is not an unsigned integer.");
+    return to<std::size_t>(r);
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
@@ -1547,6 +1555,8 @@ std::set<std::size_t> expr::eval_optimals_uint() const
     std::set<std::size_t> result;
     auto r = eval_optimals();
     std::transform(r.begin(), r.end(), std::inserter(result, result.end()), [](const scalar& v) {
+        if(not is_unsigned(v))
+            MIGRAPHX_THROW("Result is not an unsigned integer.");
         return to<std::size_t>(v);
     });
     return result;

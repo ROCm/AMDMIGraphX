@@ -195,6 +195,7 @@ class MIGRAPHX_EXPORT expr
     const std::vector<expr>& children() const;
     scalar eval(const std::unordered_map<expr, scalar>& vars) const;
     interval eval_interval(const std::unordered_map<expr, interval>& vars = {}) const;
+    interval eval_interval_default(interval default_bounds = {}) const;
     std::string to_string() const;
     bool empty() const;
     std::size_t hash() const;

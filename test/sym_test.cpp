@@ -1085,6 +1085,33 @@ TEST_CASE(eval_interval_empty_throws)
     EXPECT(test::throws([&] { (void)empty.eval_interval(); }));
 }
 
+TEST_CASE(eval_interval_default_unbound)
+{
+    auto n = var("n");
+    EXPECT(n.eval_interval_default({0, 100}) == interval{0, 100});
+}
+
+TEST_CASE(eval_interval_default_uses_constraint)
+{
+    auto n = var("n", {2, 16});
+    EXPECT(n.eval_interval_default({0, 100}) == interval{2, 16});
+}
+
+TEST_CASE(eval_interval_default_mixed)
+{
+    auto n = var("n", {1, 4});
+    auto m = var("m"); // unbound -> default
+    auto e = n + m;
+    // n in [1,4], m defaults to [0,10] -> [1,14]
+    EXPECT(e.eval_interval_default({0, 10}) == interval{1, 14});
+}
+
+TEST_CASE(eval_interval_default_no_arg_is_full_range)
+{
+    auto n = var("n");
+    EXPECT(n.eval_interval_default() == interval{});
+}
+
 TEST_CASE(eval_interval_uint)
 {
     auto n = var("n", {2, 16});

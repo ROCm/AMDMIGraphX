@@ -1402,6 +1402,25 @@ interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) con
     return eval_interval_impl(*this, lookup, cache);
 }
 
+interval expr::eval_interval_default(interval default_bounds) const
+{
+    // Resolve every variable to its own constraint, or to default_bounds when
+    // it has none, so an unconstrained variable yields the default rather than
+    // throwing.
+    auto lookup = [&](const expr& sub) -> std::optional<interval> {
+        if(sub.empty())
+            return std::nullopt;
+        const auto* v = std::get_if<variable_node>(&get_node(sub));
+        if(v == nullptr)
+            return std::nullopt;
+        if(not v->constraints.empty())
+            return v->constraints.front();
+        return default_bounds;
+    };
+    std::unordered_map<expr, interval> cache;
+    return eval_interval_impl(*this, lookup, cache);
+}
+
 struct optimal_sample
 {
     std::unordered_map<expr, scalar> bindings;

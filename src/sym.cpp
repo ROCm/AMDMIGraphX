@@ -1188,8 +1188,7 @@ static expr diff(const expr& e, const expr& v)
 // constraint). Throws on any unconstrained variable; that aborts the monotone
 // path.
 static std::vector<std::pair<expr, interval>>
-collect_free_vars(const expr& e,
-                  const std::function<std::optional<interval>(const expr&)>& lookup)
+collect_free_vars(const expr& e, const std::function<std::optional<interval>(const expr&)>& lookup)
 {
     std::vector<std::pair<expr, interval>> result;
     std::unordered_set<expr> seen;
@@ -1221,9 +1220,10 @@ collect_free_vars(const expr& e,
 // per-call memo of eval_interval results, so a subexpression reached through
 // multiple parents is only computed once and a loop of eval_interval calls on
 // overlapping expressions can amortize cost.
-static interval eval_interval_impl(const expr& e,
-                                   const std::function<std::optional<interval>(const expr&)>& lookup,
-                                   std::unordered_map<expr, interval>& cache);
+static interval
+eval_interval_impl(const expr& e,
+                   const std::function<std::optional<interval>(const expr&)>& lookup,
+                   std::unordered_map<expr, interval>& cache);
 
 // For each free variable v, compute d(e)/dv and check its sign over v's range;
 // if every variable has a definite direction the expression is monotone in
@@ -1294,9 +1294,10 @@ try_monotone_interval(const expr& e,
 // The actual cached evaluator. Cache is keyed on the full subexpression and
 // stores the tightened (structural ∩ monotone) interval; the lookup in the
 // replace lambda short-circuits the whole subtree walk for nodes already seen.
-static interval eval_interval_impl(const expr& e,
-                                   const std::function<std::optional<interval>(const expr&)>& lookup,
-                                   std::unordered_map<expr, interval>& cache)
+static interval
+eval_interval_impl(const expr& e,
+                   const std::function<std::optional<interval>(const expr&)>& lookup,
+                   std::unordered_map<expr, interval>& cache)
 {
     return generic_eval<interval>(
         e,

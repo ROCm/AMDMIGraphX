@@ -1184,20 +1184,21 @@ static expr diff(const expr& e, const expr& v)
 }
 
 // Collect every free variable appearing in `e`, with its effective interval
-// (from `vars` if present, otherwise the variable_node's own constraint).
-// Throws on any unconstrained variable; that aborts the monotone path.
+// (from `lookup` if it resolves the var, otherwise the variable_node's own
+// constraint). Throws on any unconstrained variable; that aborts the monotone
+// path.
 static std::vector<std::pair<expr, interval>>
-collect_free_vars(const expr& e, const std::unordered_map<expr, interval>& vars)
+collect_free_vars(const expr& e,
+                  const std::function<std::optional<interval>(const expr&)>& lookup)
 {
     std::vector<std::pair<expr, interval>> result;
     std::unordered_set<expr> seen;
     std::function<void(const expr&)> walk = [&](const expr& x) {
         if(x.empty() or not seen.insert(x).second)
             return;
-        auto it = vars.find(x);
-        if(it != vars.end())
+        if(auto iv = lookup(x))
         {
-            result.emplace_back(x, it->second);
+            result.emplace_back(x, *iv);
             return;
         }
         if(x.name() == "variable")
@@ -1215,26 +1216,29 @@ collect_free_vars(const expr& e, const std::unordered_map<expr, interval>& vars)
     return result;
 }
 
-// The cache passed below is a per-call memo of eval_interval results, so a
-// subexpression reached through multiple parents is only computed once and
-// a loop of eval_interval calls on overlapping expressions can amortize cost.
+// `lookup` resolves a (variable) subexpression to its interval, or nullopt to
+// fall back to the node's own constraint / structural recursion. The cache is a
+// per-call memo of eval_interval results, so a subexpression reached through
+// multiple parents is only computed once and a loop of eval_interval calls on
+// overlapping expressions can amortize cost.
 static interval eval_interval_impl(const expr& e,
-                                   const std::unordered_map<expr, interval>& vars,
+                                   const std::function<std::optional<interval>(const expr&)>& lookup,
                                    std::unordered_map<expr, interval>& cache);
 
 // For each free variable v, compute d(e)/dv and check its sign over v's range;
 // if every variable has a definite direction the expression is monotone in
 // each one and the extrema are at corners, so two evals give the exact range.
 // Derivative intervals go through eval_interval_impl so they hit the cache too.
-static std::optional<interval> try_monotone_interval(const expr& e,
-                                                     const std::unordered_map<expr, interval>& vars,
-                                                     std::unordered_map<expr, interval>& cache)
+static std::optional<interval>
+try_monotone_interval(const expr& e,
+                      const std::function<std::optional<interval>(const expr&)>& lookup,
+                      std::unordered_map<expr, interval>& cache)
 {
     if(e.empty())
         return std::nullopt;
     try
     {
-        auto fvs = collect_free_vars(e, vars);
+        auto fvs = collect_free_vars(e, lookup);
         if(fvs.empty())
         {
             auto v = e.eval({});
@@ -1255,7 +1259,7 @@ static std::optional<interval> try_monotone_interval(const expr& e,
         for(const auto& fv : fvs)
         {
             auto deriv = diff(e, fv.first);
-            auto di    = eval_interval_impl(deriv, vars, cache);
+            auto di    = eval_interval_impl(deriv, lookup, cache);
             // 0 <= min => non-negative derivative => non-decreasing in this var
             bool nonneg = not scalar_less(di.min, scalar{int64_t{0}});
             // max <= 0 => non-positive derivative => non-increasing
@@ -1291,7 +1295,7 @@ static std::optional<interval> try_monotone_interval(const expr& e,
 // stores the tightened (structural ∩ monotone) interval; the lookup in the
 // replace lambda short-circuits the whole subtree walk for nodes already seen.
 static interval eval_interval_impl(const expr& e,
-                                   const std::unordered_map<expr, interval>& vars,
+                                   const std::function<std::optional<interval>(const expr&)>& lookup,
                                    std::unordered_map<expr, interval>& cache)
 {
     return generic_eval<interval>(
@@ -1299,11 +1303,10 @@ static interval eval_interval_impl(const expr& e,
         [&](const expr& sub) -> std::optional<interval> {
             if(auto cit = cache.find(sub); cit != cache.end())
                 return cit->second;
-            auto it = vars.find(sub);
-            if(it != vars.end())
+            if(auto iv = lookup(sub))
             {
-                cache.emplace(sub, it->second);
-                return it->second;
+                cache.emplace(sub, *iv);
+                return iv;
             }
             return std::visit(
                 overloaded{[&](const literal_node& n) -> std::optional<interval> {
@@ -1326,7 +1329,7 @@ static interval eval_interval_impl(const expr& e,
         // when the subtree is monotone in each free variable.
         [&](const expr& sub, const op_node& op, std::vector<interval> args) -> interval {
             auto structural = generic_eval_auto_apply(sub, op, args);
-            auto mono       = try_monotone_interval(sub, vars, cache);
+            auto mono       = try_monotone_interval(sub, lookup, cache);
             interval result;
             if(not mono)
             {
@@ -1388,8 +1391,14 @@ scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 
 interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const
 {
+    auto lookup = [&](const expr& sub) -> std::optional<interval> {
+        auto it = vars.find(sub);
+        if(it != vars.end())
+            return it->second;
+        return std::nullopt;
+    };
     std::unordered_map<expr, interval> cache;
-    return eval_interval_impl(*this, vars, cache);
+    return eval_interval_impl(*this, lookup, cache);
 }
 
 struct optimal_sample

@@ -1099,6 +1099,8 @@ static expr generic_eval_auto_apply(const expr&, const op_node& op, const std::v
 template <class R, class Replace, class Apply>
 static R generic_eval(const expr& e, const Replace& replace, const Apply& apply)
 {
+    if(e.empty())
+        return {};
     auto r = replace(e);
     if(r)
         return *r;

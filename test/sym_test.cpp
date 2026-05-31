@@ -1079,10 +1079,10 @@ TEST_CASE(eval_interval_subtraction_independent)
     EXPECT(e.eval_interval() == interval{-4, 9});
 }
 
-TEST_CASE(eval_interval_empty_throws)
+TEST_CASE(eval_interval_empty_no_throws)
 {
     se empty;
-    EXPECT(test::throws([&] { (void)empty.eval_interval(); }));
+    EXPECT(empty.eval_interval() == interval{});
 }
 
 TEST_CASE(eval_interval_default_unbound)

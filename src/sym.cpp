@@ -456,8 +456,7 @@ static bool match_expr(const expr& pattern, const expr& e, std::unordered_map<ex
                                      return pl.val == std::get<literal_node>(get_node(e)).val;
                                  },
                                  [&](const variable_node& pv) {
-                                     const auto& ev = std::get<variable_node>(get_node(e));
-                                     return pv.name == ev.name and pv.constraints == ev.constraints;
+                                     return pv == std::get<variable_node>(get_node(e));
                                  },
                                  [&](const op_node& po) {
                                      const auto& eo = std::get<op_node>(get_node(e));

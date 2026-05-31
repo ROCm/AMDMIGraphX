@@ -980,8 +980,7 @@ expr max(expr x, expr y)
         [](interval a, interval b) { return max(a, b); })(std::move(x), std::move(y));
 }
 
-std::optional<bool>
-strict_less(const expr& a, const expr& b, interval default_bounds)
+std::optional<bool> strict_less(const expr& a, const expr& b, interval default_bounds)
 {
     if(a.empty() or b.empty())
         return std::nullopt;

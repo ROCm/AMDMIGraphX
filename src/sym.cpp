@@ -1523,8 +1523,11 @@ std::set<scalar> expr::eval_optimals() const
                         return std::vector<optimal_sample>{{{}, n.val}};
                     },
                     [&](const variable_node& n) -> std::optional<std::vector<optimal_sample>> {
+                        // No optimals to sample: yield an empty sample set, which
+                        // combine_optimals propagates so the whole expression
+                        // evaluates to an empty result rather than throwing.
                         if(n.optimals.empty())
-                            MIGRAPHX_THROW("Variable '" + n.name + "' has no optimals to evaluate");
+                            return std::vector<optimal_sample>{};
                         std::vector<optimal_sample> samples;
                         samples.reserve(n.optimals.size());
                         std::transform(

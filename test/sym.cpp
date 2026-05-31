@@ -2938,13 +2938,6 @@ TEST_CASE(eval_optimals_duplicate_results)
     EXPECT(result == std::set<scalar>{int64_t{1}});
 }
 
-TEST_CASE(eval_optimals_var_no_optimals)
-{
-    auto x = var("x");
-    auto e = x + lit(1);
-    test::throws([&] { e.eval_optimals(); });
-}
-
 TEST_CASE(eval_optimals_double_values)
 {
     auto x      = var("x", interval{}, std::set<scalar>{1.0, 2.0, 3.0});

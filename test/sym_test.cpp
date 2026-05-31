@@ -1167,9 +1167,9 @@ TEST_CASE(cmp_stride_ordering_4d)
 TEST_CASE(cmp_scaled_symbol)
 {
     auto n = var("n");
-    EXPECT(strict_less(n, 2 * n) == std::optional<bool>{true});
-    EXPECT(strict_less(n, 3 * n) == std::optional<bool>{true});
-    EXPECT(strict_less(2 * n, n) == std::optional<bool>{false});
+    EXPECT(strict_less(n, 2 * n, {.min = 1}) == std::optional<bool>{true});
+    EXPECT(strict_less(n, 3 * n, {.min = 1}) == std::optional<bool>{true});
+    EXPECT(strict_less(2 * n, n, {.min = 1}) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_product_explicit_bounds)
@@ -1212,8 +1212,8 @@ TEST_CASE(cmp_strides_after_conv)
 TEST_CASE(cmp_broadcast_stride_zero)
 {
     auto w = var("w");
-    EXPECT(strict_less(lit(0), w) == std::optional<bool>{true});
-    EXPECT(strict_less(w, lit(0)) == std::optional<bool>{false});
+    EXPECT(strict_less(lit(0), w, {.min = 1}) == std::optional<bool>{true});
+    EXPECT(strict_less(w, lit(0), {.min = 1}) == std::optional<bool>{false});
 }
 
 TEST_CASE(cmp_offset_expressions)
@@ -1325,9 +1325,9 @@ TEST_CASE(cmp_zero_stride_less_than_symbolic_stride)
 {
     auto h = var("h");
     auto w = var("w");
-    EXPECT(strict_less(lit(0), h) == std::optional<bool>{true});
-    EXPECT(strict_less(lit(0), h * w) == std::optional<bool>{true});
-    EXPECT(strict_less(lit(0), h + w) == std::optional<bool>{true});
+    EXPECT(strict_less(lit(0), h, {.min = 1}) == std::optional<bool>{true});
+    EXPECT(strict_less(lit(0), h * w, {.min = 1}) == std::optional<bool>{true});
+    EXPECT(strict_less(lit(0), h + w, {.min = 1}) == std::optional<bool>{true});
 }
 
 // -------------------------------------------------------------------

@@ -1347,17 +1347,28 @@ eval_interval_impl(const expr& e,
         });
 }
 
-std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
+template<class F>
+static scalar eval_impl(const expr& root, F lookup)
 {
-    return to<std::size_t>(generic_eval<scalar>(*this, [&](const expr& e) -> std::optional<scalar> {
-        auto it = symbol_map.find(e);
-        if(it != symbol_map.end())
-            return scalar(it->second);
+    return generic_eval<scalar>(root, [&](const expr& e) -> std::optional<scalar> {
+        if(auto v = lookup(e))
+            return *v;
         return std::visit(
             overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
                        [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
             get_node(e));
-    }));
+    });
+}
+
+std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
+{
+    auto lookup = [&](const expr& sub) -> std::optional<scalar> {
+        auto it = symbol_map.find(sub);
+        if(it != symbol_map.end())
+            return it->second;
+        return std::nullopt;
+    };
+    return to<std::size_t>(eval_impl(*this, lookup));
 }
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
@@ -1378,15 +1389,13 @@ expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
 
 scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 {
-    return generic_eval<scalar>(*this, [&](const expr& e) -> std::optional<scalar> {
-        auto it = vars.find(e);
+    auto lookup = [&](const expr& sub) -> std::optional<scalar> {
+        auto it = vars.find(sub);
         if(it != vars.end())
             return it->second;
-        return std::visit(
-            overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
-                       [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
-            get_node(e));
-    });
+        return std::nullopt;
+    };
+    return eval_impl(*this, lookup);
 }
 
 interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const

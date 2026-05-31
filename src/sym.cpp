@@ -1347,7 +1347,7 @@ eval_interval_impl(const expr& e,
         });
 }
 
-template<class F>
+template <class F>
 static scalar eval_impl(const expr& root, F lookup)
 {
     return generic_eval<scalar>(root, [&](const expr& e) -> std::optional<scalar> {

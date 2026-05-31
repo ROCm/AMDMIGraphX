@@ -303,10 +303,25 @@ struct variable_node
     std::vector<interval> constraints;
     std::set<scalar> optimals;
 
-    std::size_t hash() const { return hash_value(name); }
+    // Identity includes the metadata so equal values are substitutable (regular
+    // equality): two variable nodes that differ in constraints or optimals
+    // evaluate differently, so they must not compare equal. Use same_symbol /
+    // as_symbol to compare ignoring metadata.
+    std::size_t hash() const
+    {
+        std::size_t h = hash_value(name);
+        for(const auto& c : constraints)
+        {
+            hash_combine(h, hash_scalar(c.min));
+            hash_combine(h, hash_scalar(c.max));
+        }
+        for(const auto& o : optimals)
+            hash_combine(h, hash_scalar(o));
+        return h;
+    }
     friend bool operator==(const variable_node& a, const variable_node& b)
     {
-        return a.name == b.name;
+        return a.name == b.name and a.constraints == b.constraints and a.optimals == b.optimals;
     }
     friend bool operator!=(const variable_node& a, const variable_node& b) { return not(a == b); }
 };
@@ -1353,6 +1368,54 @@ eval_interval_impl(const expr& e,
         });
 }
 
+// Project an expr onto its pure structural symbol form by deep-stripping every
+// variable's metadata (constraints, optimals). Exprs that differ only in
+// variable metadata share the same as_symbol result, so it is the projection
+// used to look up variables regardless of their bounds.
+expr as_symbol(const expr& e)
+{
+    if(e.empty())
+        return e;
+    return generic_eval<expr>(e, [](const expr& sub) -> std::optional<expr> {
+        if(sub.empty())
+            return sub;
+        return std::visit(
+            overloaded{[&](const literal_node&) -> std::optional<expr> { return sub; },
+                       [](const variable_node& n) -> std::optional<expr> { return var(n.name); },
+                       [](const op_node&) -> std::optional<expr> { return std::nullopt; }},
+            get_node(sub));
+    });
+}
+
+bool same_symbol(const expr& a, const expr& b) { return as_symbol(a) == as_symbol(b); }
+
+// Look up `e` in a map keyed on exprs: try the exact key first, then the
+// constraint-stripped symbol form, so a bare-symbol key resolves a constrained
+// occurrence (and vice-versa when the map is keyed on symbols). Returns a
+// pointer to the value, or nullptr when neither form is present.
+// Look up `e` in a map keyed on exprs: exact match first, then (only for a
+// variable node) the metadata-stripped symbol form, so a bare-symbol key
+// resolves a constrained occurrence and vice-versa. The fallback is restricted
+// to variable nodes because they are the only nodes whose metadata the key
+// equality ignores; op/literal nodes have no separate symbol form.
+template <class Map>
+static const typename Map::mapped_type* find_symbol(const Map& m, const expr& e)
+{
+    if(auto it = m.find(e); it != m.end())
+        return &it->second;
+    if(e.empty())
+        return nullptr;
+    const auto* v = std::get_if<variable_node>(&get_node(e));
+    if(v == nullptr)
+        return nullptr;
+    auto sym = var(v->name);
+    if(sym == e)
+        return nullptr;
+    if(auto it = m.find(sym); it != m.end())
+        return &it->second;
+    return nullptr;
+}
+
 template <class F>
 static scalar eval_impl(const expr& root, F lookup)
 {
@@ -1382,9 +1445,8 @@ static bool is_unsigned(scalar x)
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
     auto lookup = [&](const expr& sub) -> std::optional<scalar> {
-        auto it = symbol_map.find(sub);
-        if(it != symbol_map.end())
-            return it->second;
+        if(const auto* v = find_symbol(symbol_map, sub))
+            return scalar(*v);
         return std::nullopt;
     };
     auto r = eval_impl(*this, lookup);
@@ -1396,9 +1458,8 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
 {
     return generic_eval<expr>(*this, [&](const expr& e) -> std::optional<expr> {
-        auto it = symbol_map.find(e);
-        if(it != symbol_map.end())
-            return it->second;
+        if(const auto* v = find_symbol(symbol_map, e))
+            return *v;
         if(e.empty())
             return e;
         return std::visit(
@@ -1412,9 +1473,8 @@ expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
 scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 {
     auto lookup = [&](const expr& sub) -> std::optional<scalar> {
-        auto it = vars.find(sub);
-        if(it != vars.end())
-            return it->second;
+        if(const auto* v = find_symbol(vars, sub))
+            return *v;
         return std::nullopt;
     };
     return eval_impl(*this, lookup);
@@ -1423,9 +1483,8 @@ scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const
 {
     auto lookup = [&](const expr& sub) -> std::optional<interval> {
-        auto it = vars.find(sub);
-        if(it != vars.end())
-            return it->second;
+        if(const auto* v = find_symbol(vars, sub))
+            return *v;
         return std::nullopt;
     };
     std::unordered_map<expr, interval> cache;

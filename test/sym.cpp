@@ -676,7 +676,9 @@ TEST_CASE(expr_variable_constraint_equality)
 {
     auto c = interval{int64_t{0}, int64_t{10}};
     EXPECT(var("x", c) == var("x", c));
-    EXPECT(var("x") == var("x", c));
+    // Differing metadata makes them unequal, but they are the same symbol.
+    EXPECT(var("x") != var("x", c));
+    EXPECT(migraphx::sym::same_symbol(var("x"), var("x", c)));
 }
 
 TEST_CASE(expr_equal_compound)

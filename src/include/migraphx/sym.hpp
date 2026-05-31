@@ -244,6 +244,12 @@ class MIGRAPHX_EXPORT expr
 MIGRAPHX_EXPORT expr var(std::string name);
 MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
 
+// Project an expr onto its structural symbol form, stripping all variable
+// metadata (constraints, optimals). `same_symbol(a, b)` is true when a and b
+// are equal ignoring that metadata.
+MIGRAPHX_EXPORT expr as_symbol(const expr& e);
+MIGRAPHX_EXPORT bool same_symbol(const expr& a, const expr& b);
+
 MIGRAPHX_EXPORT expr arg(expr x);
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>

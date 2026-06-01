@@ -1367,35 +1367,61 @@ eval_interval_impl(const expr& e,
         });
 }
 
+// Bottom-up structure-preserving rewrite: f is applied to each node after its
+// children have been transformed, and `f` must return the same expr object when
+// it leaves a node unchanged. transform_expr returns the original expr (sharing
+// pimpl) whenever nothing below changed, so an identity transform allocates
+// nothing and an isolated change rebuilds only the spine above it.
+//
+// max_depth bounds how many levels are visited: the root is depth 1, and nodes
+// deeper than max_depth are returned untouched (f is not applied to them).
+// A negative max_depth means unlimited.
+//
+// Op nodes are rebuilt directly (expr(op_node, children)) rather than through
+// call_op, so the already-normalized shape is preserved verbatim and we never
+// re-enter call_op -> normalize -> eval.
+template <class F>
+static expr transform_expr(const expr& e, F f, int max_depth = -1)
+{
+    if(e.empty() or max_depth == 0)
+        return e;
+    const auto& children = e.children();
+    std::vector<expr> new_children;
+    new_children.reserve(children.size());
+    bool changed     = false;
+    int child_depth  = max_depth < 0 ? -1 : max_depth - 1;
+    for(const auto& child : children)
+    {
+        auto nc = transform_expr(child, f, child_depth);
+        changed = changed or nc.get_pimpl() != child.get_pimpl();
+        new_children.push_back(std::move(nc));
+    }
+    // `changed` can only be true for op nodes (leaves have no children).
+    expr node = changed ? expr(std::get<op_node>(get_node(e)), std::move(new_children)) : e;
+    return f(node);
+}
+
 // Project an expr onto its pure structural symbol form by deep-stripping every
 // variable's metadata (constraints, optimals). Exprs that differ only in
 // variable metadata share the same as_symbol result, so it is the projection
-// used to look up variables regardless of their bounds.
+// used to look up variables regardless of their bounds. A symbol-only expr is
+// returned unchanged (sharing pimpl).
 //
-// Op nodes are rebuilt directly (expr(op_node, children)) rather than through
-// call_op: stripping metadata is structure-preserving, so the already-normalized
-// shape must be kept verbatim, and crucially this avoids re-entering
-// call_op -> normalize -> eval. That matters because as_symbol is used by
-// find_symbol on the eval path; routing through eval would recurse infinitely.
-expr as_symbol(const expr& e)
+// max_depth limits the strip to the top max_depth levels (see transform_expr);
+// callers that only need to match keys up to a known depth can pass that depth
+// to avoid stripping deeper subexpressions that can never match. Default is
+// unlimited.
+expr as_symbol(const expr& e, int max_depth)
 {
-    if(e.empty())
-        return e;
-    return generic_eval<expr>(
+    return transform_expr(
         e,
-        [](const expr& sub) -> std::optional<expr> {
-            if(sub.empty())
+        [](const expr& sub) -> expr {
+            const auto* v = std::get_if<variable_node>(&get_node(sub));
+            if(v == nullptr or (v->constraints.empty() and v->optimals.empty()))
                 return sub;
-            return std::visit(
-                overloaded{
-                    [&](const literal_node&) -> std::optional<expr> { return sub; },
-                    [](const variable_node& n) -> std::optional<expr> { return var(n.name); },
-                    [](const op_node&) -> std::optional<expr> { return std::nullopt; }},
-                get_node(sub));
+            return var(v->name);
         },
-        [](const expr&, const op_node& op, std::vector<expr> args) {
-            return expr(op_node{op.op}, std::move(args));
-        });
+        max_depth);
 }
 
 // Equivalent to as_symbol(a) == as_symbol(b) but compared in lockstep: no
@@ -1426,27 +1452,49 @@ bool same_symbol(const expr& a, const expr& b)
            });
 }
 
-// Look up `e` in a map keyed on exprs, ignoring variable metadata. The exact
-// (constraint-aware) hash lookup is tried first; on a miss we fall back to a
-// linear scan that compares each key with same_symbol, so an entry keyed on a
-// differently-constrained — or fully bare — form of the same expression still
-// resolves (e.g. a key `x + y` matches a query `x + y` whose x, y carry
-// constraints). The scan, not a second hash probe, is required because the key
-// hash includes constraints. same_symbol allocates nothing, so this stays off
-// the recursive construct/normalize path that re-entering as_symbol here would
-// trigger. Returns a pointer to the value, or nullptr when not present.
-template <class Map>
-static const typename Map::mapped_type* find_symbol(const Map& m, const expr& e)
+// Number of levels in e: a leaf (literal/variable) is depth 1, empty is 0.
+static int expr_depth(const expr& e)
 {
-    if(auto it = m.find(e); it != m.end())
-        return &it->second;
     if(e.empty())
+        return 0;
+    const auto& children = e.children();
+    int max_child = 0;
+    for(const auto& c : children)
+        max_child = std::max(max_child, expr_depth(c));
+    return 1 + max_child;
+}
+
+// Build a lookup function over a fixed map keyed on exprs that resolves keys
+// ignoring variable metadata. The exact (constraint-aware) hash lookup is tried
+// first; on a miss the query is projected to its bare-symbol form with as_symbol
+// and hash-looked-up again, so an entry keyed on the bare expression resolves a
+// query whose variables carry constraints (e.g. key `x + y` matches a query
+// `x + y` whose x, y are constrained). Both probes are O(1).
+//
+// The map's deepest key is computed once up front and passed as the as_symbol
+// depth limit: a query that matches a key has that key's depth, so stripping is
+// only ever needed in the top max_key_depth levels. A query deeper than every
+// key strips only those top levels, stays unequal to all keys, and misses
+// harmlessly -- so no per-lookup depth check is needed. The returned closure
+// captures the map by reference, so the map must outlive it.
+template <class Map>
+static auto make_find_symbol(const Map& m)
+{
+    int max_key_depth = 0;
+    for(const auto& kv : m)
+        max_key_depth = std::max(max_key_depth, expr_depth(kv.first));
+    return [&m, max_key_depth](const expr& e) -> const typename Map::mapped_type* {
+        if(auto it = m.find(e); it != m.end())
+            return &it->second;
+        if(e.empty() or max_key_depth == 0)
+            return nullptr;
+        auto sym = as_symbol(e, max_key_depth);
+        if(sym.get_pimpl() == e.get_pimpl())
+            return nullptr;
+        if(auto it = m.find(sym); it != m.end())
+            return &it->second;
         return nullptr;
-    auto it =
-        std::find_if(m.begin(), m.end(), [&](const auto& kv) { return same_symbol(kv.first, e); });
-    if(it != m.end())
-        return &it->second;
-    return nullptr;
+    };
 }
 
 template <class F>
@@ -1477,8 +1525,9 @@ static bool is_unsigned(scalar x)
 
 std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_map) const
 {
+    auto find   = make_find_symbol(symbol_map);
     auto lookup = [&](const expr& sub) -> std::optional<scalar> {
-        if(const auto* v = find_symbol(symbol_map, sub))
+        if(const auto* v = find(sub))
             return scalar(*v);
         return std::nullopt;
     };
@@ -1490,8 +1539,9 @@ std::size_t expr::eval_uint(const std::unordered_map<expr, std::size_t>& symbol_
 
 expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
 {
+    auto find = make_find_symbol(symbol_map);
     return generic_eval<expr>(*this, [&](const expr& e) -> std::optional<expr> {
-        if(const auto* v = find_symbol(symbol_map, e))
+        if(const auto* v = find(e))
             return *v;
         if(e.empty())
             return e;
@@ -1505,8 +1555,9 @@ expr expr::subs(const std::unordered_map<expr, expr>& symbol_map) const
 
 scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 {
+    auto find   = make_find_symbol(vars);
     auto lookup = [&](const expr& sub) -> std::optional<scalar> {
-        if(const auto* v = find_symbol(vars, sub))
+        if(const auto* v = find(sub))
             return *v;
         return std::nullopt;
     };
@@ -1515,8 +1566,9 @@ scalar expr::eval(const std::unordered_map<expr, scalar>& vars) const
 
 interval expr::eval_interval(const std::unordered_map<expr, interval>& vars) const
 {
+    auto find   = make_find_symbol(vars);
     auto lookup = [&](const expr& sub) -> std::optional<interval> {
-        if(const auto* v = find_symbol(vars, sub))
+        if(const auto* v = find(sub))
             return *v;
         return std::nullopt;
     };

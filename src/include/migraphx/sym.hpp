@@ -246,8 +246,10 @@ MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar>
 
 // Project an expr onto its structural symbol form, stripping all variable
 // metadata (constraints, optimals). `same_symbol(a, b)` is true when a and b
-// are equal ignoring that metadata.
-MIGRAPHX_EXPORT expr as_symbol(const expr& e);
+// are equal ignoring that metadata. max_depth limits the strip to the top
+// max_depth levels (root is level 1); a negative value, the default, is
+// unlimited.
+MIGRAPHX_EXPORT expr as_symbol(const expr& e, int max_depth = -1);
 MIGRAPHX_EXPORT bool same_symbol(const expr& a, const expr& b);
 
 MIGRAPHX_EXPORT expr arg(expr x);

@@ -1388,15 +1388,11 @@ static expr transform_expr(const expr& e, F f, int max_depth = -1)
     const auto& children = e.children();
     std::vector<expr> new_children;
     new_children.reserve(children.size());
-    bool changed    = false;
     int child_depth = max_depth < 0 ? -1 : max_depth - 1;
-    for(const auto& child : children)
-    {
-        auto nc = transform_expr(child, f, child_depth);
-        changed = changed or nc.get_pimpl() != child.get_pimpl();
-        new_children.push_back(std::move(nc));
-    }
-    // `changed` can only be true for op nodes (leaves have no children).
+    std::transform(children.begin(), children.end(), std::back_inserter(new_children), [&](const expr& child) {
+        return transform_expr(child, f, child_depth);
+    });
+    bool changed    = children != new_children;
     expr node = changed ? expr(std::get<op_node>(get_node(e)), std::move(new_children)) : e;
     return f(node);
 }
@@ -1489,7 +1485,7 @@ static auto make_find_symbol(const Map& m)
         if(e.empty() or max_key_depth == 0)
             return nullptr;
         auto sym = as_symbol(e, max_key_depth);
-        if(sym.get_pimpl() == e.get_pimpl())
+        if(sym == e)
             return nullptr;
         if(auto it = m.find(sym); it != m.end())
             return &it->second;

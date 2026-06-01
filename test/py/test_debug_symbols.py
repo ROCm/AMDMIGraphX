@@ -242,7 +242,6 @@ if __name__ == "__main__":
     test_add_instruction_empty_debug_symbols()
     test_add_instruction_with_mod_args_and_debug_symbols()
     test_add_literal_argument_with_debug_symbols()
-    test_add_literal_buffer_with_debug_symbols()
     test_add_parameter_with_debug_symbols()
     test_add_return_with_debug_symbols()
     test_replace_return_with_debug_symbols()

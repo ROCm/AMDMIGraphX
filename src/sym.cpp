@@ -1389,10 +1389,11 @@ static expr transform_expr(const expr& e, F f, int max_depth = -1)
     std::vector<expr> new_children;
     new_children.reserve(children.size());
     int child_depth = max_depth < 0 ? -1 : max_depth - 1;
-    std::transform(children.begin(), children.end(), std::back_inserter(new_children), [&](const expr& child) {
-        return transform_expr(child, f, child_depth);
-    });
-    bool changed    = children != new_children;
+    std::transform(children.begin(),
+                   children.end(),
+                   std::back_inserter(new_children),
+                   [&](const expr& child) { return transform_expr(child, f, child_depth); });
+    bool changed = children != new_children;
     expr node = changed ? expr(std::get<op_node>(get_node(e)), std::move(new_children)) : e;
     return f(node);
 }

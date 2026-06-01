@@ -785,7 +785,7 @@ struct find_kv_cache_attention
             "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze"};
 
         auto keys =
-            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
+            match::skip(match::name(skip_set))(match::name("insert_slice")).bind("pres_k");
         auto k_transpose =
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
         auto queries = match::name("slice");
@@ -811,7 +811,7 @@ struct find_kv_cache_attention
         auto attn_probabilities = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(mask)));
         auto values =
-            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v");
+            match::skip(match::name(skip_set))(match::name("insert_slice")).bind("pres_v");
         auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
         auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
         return match::name("reshape")(match::arg(0)(transpose_out));
@@ -882,6 +882,12 @@ struct find_kv_cache_attention
         auto starts = inss;
         for(auto ins : starts)
         {
+            // insert_slice may be added by find_instructions_between, but is not fusible
+            if(ins->name() == "insert_slice")
+            {
+                inss.erase(ins);
+                continue;
+            }
             expand(ins);
         }
 

@@ -101,8 +101,7 @@ target make_target(const std::string& name,
 
 target make_target_from_value(const std::string& name, const value& options)
 {
-    if(not(options.is_null() or options.is_object() or
-           (options.empty() and options.is_array())))
+    if(not(options.is_null() or options.is_object() or (options.empty() and options.is_array())))
         MIGRAPHX_THROW("Value is not an object for make_target: " + name);
     target t = make_target(name);
     if(not options.is_null())

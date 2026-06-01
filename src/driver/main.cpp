@@ -673,8 +673,8 @@ struct compiler_target
         {
             return make_target(target_name,
                                {{"gpu_arch", gpu_arch},
-                                     {"gpu_num_cu", gpu_num_cu},
-                                     {"gpu_num_chiplets", gpu_num_chiplets}});
+                                {"gpu_num_cu", gpu_num_cu},
+                                {"gpu_num_chiplets", gpu_num_chiplets}});
         }
         return make_target(target_name);
     }

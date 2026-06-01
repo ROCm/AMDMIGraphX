@@ -40,9 +40,8 @@ MIGRAPHX_EXPORT void register_target_init();
 MIGRAPHX_EXPORT void register_target(const target& t);
 MIGRAPHX_EXPORT void unregister_target(const std::string& name);
 MIGRAPHX_EXPORT target make_target(const std::string& name);
-MIGRAPHX_EXPORT target
-make_target(const std::string& name,
-            const std::initializer_list<std::pair<std::string, value>>& options);
+MIGRAPHX_EXPORT target make_target(
+    const std::string& name, const std::initializer_list<std::pair<std::string, value>>& options);
 MIGRAPHX_EXPORT target make_target_from_value(const std::string& name, const value& options);
 
 template <class Value>

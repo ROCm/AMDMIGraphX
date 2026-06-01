@@ -34,8 +34,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 /// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present and the target architecture
-/// is specified via environment variables.
+/// Used when no physical GPU is present.
 MIGRAPHX_GPU_EXPORT hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name,
                                                                     std::size_t cu_count);
 

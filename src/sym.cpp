@@ -1388,8 +1388,8 @@ static expr transform_expr(const expr& e, F f, int max_depth = -1)
     const auto& children = e.children();
     std::vector<expr> new_children;
     new_children.reserve(children.size());
-    bool changed     = false;
-    int child_depth  = max_depth < 0 ? -1 : max_depth - 1;
+    bool changed    = false;
+    int child_depth = max_depth < 0 ? -1 : max_depth - 1;
     for(const auto& child : children)
     {
         auto nc = transform_expr(child, f, child_depth);
@@ -1458,7 +1458,7 @@ static int expr_depth(const expr& e)
     if(e.empty())
         return 0;
     const auto& children = e.children();
-    int max_child = 0;
+    int max_child        = 0;
     for(const auto& c : children)
         max_child = std::max(max_child, expr_depth(c));
     return 1 + max_child;

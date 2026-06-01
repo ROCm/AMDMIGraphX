@@ -79,6 +79,8 @@ struct quantizelinear
             y_zero_point = args.at(2);
         }
         argument result{output_shape};
+        auto rounding_mode = fegetround();
+        fesetround(FE_TONEAREST);
         visit_all(result, y_zero_point)([&](auto output, auto zero_pts) {
             visit_all(x, y_scale)([&](auto input, auto scales) {
                 using quant_type = typename decltype(output)::value_type;
@@ -93,11 +95,8 @@ struct quantizelinear
                             output[i] = min_value;
                             return;
                         }
-                        auto rounding_mode = fegetround();
-                        fesetround(FE_TONEAREST);
-                        auto rounded = std::nearbyint(input[i] / scales[i]);
-                        fesetround(rounding_mode);
-                        quantized = static_cast<double>(rounded) + static_cast<double>(zero_pts[i]);
+                        quantized = static_cast<double>(std::nearbyint(input[i] / scales[i])) +
+                                    static_cast<double>(zero_pts[i]);
                     }
                     else
                     {
@@ -109,6 +108,7 @@ struct quantizelinear
                 });
             });
         });
+        fesetround(rounding_mode);
         return result;
     }
 };

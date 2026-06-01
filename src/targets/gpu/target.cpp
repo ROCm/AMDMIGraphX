@@ -151,8 +151,9 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
-        auto gfx_name               = get_context()->get_current_device().get_gfx_name();
-        const bool missing_fp32_mma = starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
+        auto gfx_name = get_context()->get_current_device().get_gfx_name();
+        const bool missing_fp32_mma =
+            starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
         return {
             rewrite_gelu{options.fast_math},
             optimize_module{},

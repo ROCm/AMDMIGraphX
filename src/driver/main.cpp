@@ -672,7 +672,7 @@ struct compiler_target
         if(target_name == "gpu" and not gpu_arch.empty())
         {
             return make_target(target_name,
-                               value{{"gpu_arch", gpu_arch},
+                               {{"gpu_arch", gpu_arch},
                                      {"gpu_num_cu", gpu_num_cu},
                                      {"gpu_num_chiplets", gpu_num_chiplets}});
         }

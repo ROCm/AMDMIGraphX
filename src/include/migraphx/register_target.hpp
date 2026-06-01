@@ -26,21 +26,31 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/target.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/auto_register.hpp>
 #include <cstring>
+#include <initializer_list>
 #include <utility>
 #include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct value;
-
 MIGRAPHX_EXPORT void register_target_init();
 MIGRAPHX_EXPORT void register_target(const target& t);
 MIGRAPHX_EXPORT void unregister_target(const std::string& name);
 MIGRAPHX_EXPORT target make_target(const std::string& name);
-MIGRAPHX_EXPORT target make_target(const std::string& name, const value& options);
+MIGRAPHX_EXPORT target
+make_target(const std::string& name,
+            const std::initializer_list<std::pair<std::string, value>>& options);
+MIGRAPHX_EXPORT target make_target_from_value(const std::string& name, const value& options);
+
+template <class Value>
+target make_target(const std::string& name, const Value& options)
+{
+    return make_target_from_value(name, options);
+}
+
 MIGRAPHX_EXPORT std::vector<std::string> get_targets();
 
 namespace detail {

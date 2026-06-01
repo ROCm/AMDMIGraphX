@@ -334,7 +334,8 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_target_create(migraphx_target_t* targ
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_target_create_with_options(migraphx_target_t* target,
                                                                       const char* name,
-                                                                      const char* options_json);
+                                                                      const char* options_json,
+                                                                      ...);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_parameter_shapes_destroy(
     migraphx_program_parameter_shapes_t program_parameter_shapes);

@@ -87,8 +87,23 @@ target make_target(const std::string& name)
     return it->second;
 }
 
-target make_target(const std::string& name, const value& options)
+target make_target(const std::string& name,
+                   const std::initializer_list<std::pair<std::string, value>>& options)
 {
+    target t = make_target(name);
+    value v;
+    for(auto&& [key, x] : options)
+        v[key] = x;
+    if(not v.is_null())
+        t.from_value(v);
+    return t;
+}
+
+target make_target_from_value(const std::string& name, const value& options)
+{
+    if(not(options.is_null() or options.is_object() or
+           (options.empty() and options.is_array())))
+        MIGRAPHX_THROW("Value is not an object for make_target: " + name);
     target t = make_target(name);
     if(not options.is_null())
         t.from_value(options);

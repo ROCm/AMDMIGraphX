@@ -145,12 +145,25 @@ static auto to_objptr_vector(const U* x, std::size_t n)
 
 static target get_target(const std::string& name) { return make_target(name); }
 
-static target get_target_with_options(const std::string& name, const char* options_json)
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+
+static target
+get_target_with_options(const std::string& name, const char* options_json, va_list vlist)
 {
     if(options_json == nullptr or *options_json == '\0')
         return make_target(name);
-    return make_target(name, from_json_string(options_json));
+    std::string soptions = options_json;
+    std::vector<char> buffer(soptions.size() * 2);
+    std::vsnprintf(buffer.data(), buffer.size(), soptions.c_str(), vlist);
+    return make_target(name, from_json_string(convert_to_json(std::string(buffer.data()))));
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 static void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
@@ -1352,12 +1365,16 @@ extern "C" migraphx_status migraphx_target_create(migraphx_target_t* target, con
 
 extern "C" migraphx_status migraphx_target_create_with_options(migraphx_target_t* target,
                                                                const char* name,
-                                                               const char* options_json)
+                                                               const char* options_json,
+                                                               ...)
 {
+    va_list vlist;
+    va_start(vlist, options_json);
     auto api_error_result = migraphx::try_([&] {
-        *target = object_cast<migraphx_target_t>(
-            allocate<migraphx::target>(migraphx::get_target_with_options((name), (options_json))));
+        *target = object_cast<migraphx_target_t>(allocate<migraphx::target>(
+            migraphx::get_target_with_options((name), (options_json), (vlist))));
     });
+    va_end(vlist);
     return api_error_result;
 }
 

@@ -131,6 +131,39 @@ target_include_directories(migraphx_device PRIVATE $<BUILD_INTERFACE:${CMAKE_CUR
 target_compile_options(migraphx_device PRIVATE -Wno-ignored-attributes)
 migraphx_generate_export_header(migraphx_device DIRECTORY migraphx/gpu/device)
 
+function(post_verify_targets TARGET)
+    string(REPLACE ";" "," _archs_csv "${GPU_TARGETS}")
+    add_custom_command(TARGET ${TARGET} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+                -DOBJDUMP=${LLVM_OBJDUMP}
+                -DOBJCOPY=${LLVM_OBJCOPY}
+                -DBUNDLER=${CLANG_OFFLOAD_BUNDLER}
+                -DREADOBJ=${LLVM_READOBJ}
+                -DTARGET_FILE=$<TARGET_FILE:${TARGET}>
+                -DARCHS=${_archs_csv}
+                -P ${CMAKE_SOURCE_DIR}/cmake/verify_offload_archs.cmake
+        VERBATIM
+        COMMENT "Verifying offload archs in $<TARGET_FILE:${TARGET}>")
+endfunction()
+
+if(WIN32)
+    find_program(LLVM_OBJCOPY NAMES llvm-objcopy HINTS ${LLVM_BINARY_DIR} ENV HIP_PATH)
+    find_program(CLANG_OFFLOAD_BUNDLER NAMES clang-offload-bundler HINTS ${LLVM_BINARY_DIR} ENV HIP_PATH)
+    find_program(LLVM_READOBJ NAMES llvm-readobj HINTS ${LLVM_BINARY_DIR} ENV HIP_PATH)
+    if(LLVM_OBJCOPY AND CLANG_OFFLOAD_BUNDLER AND LLVM_READOBJ)
+        post_verify_targets(migraphx_device)
+    else()
+        message(STATUS "llvm-objcopy, clang-offload-bundler or llvm-readobj not found, skipping offload arch verification")
+    endif()
+else()
+    find_program(LLVM_OBJDUMP NAMES llvm-objdump HINTS ${LLVM_BINARY_DIR})
+    if(LLVM_OBJDUMP)
+        post_verify_targets(migraphx_device)
+    else()
+        message(STATUS "llvm-objdump not found, skipping offload arch verification")
+    endif()
+endif()
+
 add_library(compile_migraphx_gpu_kernels INTERFACE)
 target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_NLOCAL=256)
 target_compile_definitions(compile_migraphx_gpu_kernels INTERFACE -DMIGRAPHX_WAVEFRONTSIZE=64)

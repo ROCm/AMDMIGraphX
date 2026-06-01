@@ -68,6 +68,16 @@ any_ptr get_queue_context(T&)
 }
 
 template <class T>
+void set_queue_context(T&, any_ptr)
+{
+}
+
+template <class T>
+void restore_queue_context(T&)
+{
+}
+
+template <class T>
 void wait_for_context(T&, any_ptr)
 {
 }
@@ -88,6 +98,10 @@ struct MIGRAPHX_EXPORT context
     void from_value(const value& v);
     // (optional)
     any_ptr get_queue();
+    // (optional)
+    void set_queue(any_ptr queue);
+    // (optional)
+    void restore_queue();
     // (optional)
     void wait_for(any_ptr queue);
     // (optional)
@@ -143,6 +157,33 @@ struct context
     }
 
     template <class T>
+    static auto private_detail_te_default_set_queue(char, T&& private_detail_te_self, any_ptr queue)
+        -> decltype(private_detail_te_self.set_queue(queue))
+    {
+        private_detail_te_self.set_queue(queue);
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_set_queue(float, T&& private_detail_te_self, any_ptr queue)
+    {
+        set_queue_context(private_detail_te_self, queue);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_restore_queue(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.restore_queue())
+    {
+        private_detail_te_self.restore_queue();
+    }
+
+    template <class T>
+    static void private_detail_te_default_restore_queue(float, T&& private_detail_te_self)
+    {
+        restore_queue_context(private_detail_te_self);
+    }
+
+    template <class T>
     static auto private_detail_te_default_wait_for(char, T&& private_detail_te_self, any_ptr queue)
         -> decltype(private_detail_te_self.wait_for(queue))
     {
@@ -192,6 +233,10 @@ struct context
                                                       std::declval<const value&>()),
                  private_detail_te_default_get_queue(char(0),
                                                      std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_set_queue(
+                     char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
+                 private_detail_te_default_restore_queue(char(0),
+                                                         std::declval<PrivateDetailTypeErasedT>()),
                  private_detail_te_default_wait_for(
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
                  private_detail_te_default_finish_on(
@@ -289,6 +334,18 @@ struct context
         return (*this).private_detail_te_get_handle().get_queue();
     }
 
+    void set_queue(any_ptr queue)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().set_queue(queue);
+    }
+
+    void restore_queue()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().restore_queue();
+    }
+
     void wait_for(any_ptr queue)
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -323,6 +380,8 @@ struct context
         virtual value to_value() const          = 0;
         virtual void from_value(const value& v) = 0;
         virtual any_ptr get_queue()             = 0;
+        virtual void set_queue(any_ptr queue)   = 0;
+        virtual void restore_queue()            = 0;
         virtual void wait_for(any_ptr queue)    = 0;
         virtual void finish_on(any_ptr queue)   = 0;
         virtual void finish() const             = 0;
@@ -371,6 +430,18 @@ struct context
         {
 
             return private_detail_te_default_get_queue(char(0), private_detail_te_value);
+        }
+
+        void set_queue(any_ptr queue) override
+        {
+
+            private_detail_te_default_set_queue(char(0), private_detail_te_value, queue);
+        }
+
+        void restore_queue() override
+        {
+
+            private_detail_te_default_restore_queue(char(0), private_detail_te_value);
         }
 
         void wait_for(any_ptr queue) override

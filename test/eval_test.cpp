@@ -28,6 +28,8 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/execution_environment.hpp>
+#include <migraphx/any_ptr.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -149,6 +151,24 @@ struct double_invert_target
         return {invert_pass{}, invert_pass{}};
     }
     migraphx::context get_context() const { return {}; }
+};
+
+// Minimal context that implements the optional set_queue/restore_queue members
+// of the context concept
+// Each call bumps a counter so a test can verify the dispatch routed through.
+struct tracked_ctx
+{
+    int set_calls     = 0;
+    int restore_calls = 0;
+    migraphx::any_ptr last_queue{};
+
+    void finish() const {}
+    void set_queue(migraphx::any_ptr q)
+    {
+        ++set_calls;
+        last_queue = q;
+    }
+    void restore_queue() { ++restore_calls; }
 };
 
 TEST_CASE(literal_test1)
@@ -643,6 +663,59 @@ TEST_CASE(eval_trace_with_target_test)
     auto result = p.eval({}, exec_env).back();
     EXPECT(result == migraphx::literal{3});
     EXPECT(not fired_ops.empty());
+}
+
+TEST_CASE(async_eval_on_cpu_target_invokes_set_and_restore_queue)
+{
+    // The async branches of program::eval() call contexts.front().set_queue()
+    // before generic_eval and contexts.front().restore_queue() after.  id_target
+    // wraps an id_target::context that has no set_queue/restore_queue members,
+    // so this exercises the type-erased facade end-to-end on a non-GPU build:
+    //   - program::eval async prologue + epilogue (set_queue / restore_queue)
+    //   - context::set_queue / context::restore_queue facade bodies
+    //   - the float-overload (no-member) dispatchers
+    //   - the default set_queue_context / restore_queue_context free-function
+    //     fallbacks
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
+
+    int dummy = 0;
+    migraphx::execution_environment exec_env;
+    exec_env.queue = migraphx::any_ptr{&dummy};
+    exec_env.async = true;
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+
+    // A default-constructed any_ptr is a legal exec_env.queue and must also
+    // round-trip through set_queue / restore_queue without throwing.
+    migraphx::execution_environment exec_env_null;
+    exec_env_null.async = true;
+    auto result2        = p.eval({}, exec_env_null).back();
+    EXPECT(result2 == migraphx::literal{3});
+}
+
+TEST_CASE(context_facade_dispatches_to_member_set_and_restore_queue)
+{
+    // Sister test of the one above: tracked_ctx *does* implement set_queue and
+    // restore_queue.
+    migraphx::context ctx{tracked_ctx{}};
+
+    int dummy = 0;
+    migraphx::any_ptr q{&dummy};
+    ctx.set_queue(q);
+    ctx.set_queue(q);
+    ctx.restore_queue();
+
+    auto* held = ctx.any_cast<tracked_ctx>();
+    EXPECT(held != nullptr);
+    EXPECT(held->set_calls == 2);
+    EXPECT(held->restore_calls == 1);
+    EXPECT(held->last_queue.unsafe_get() == &dummy);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

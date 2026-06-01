@@ -94,6 +94,7 @@ add_library(migraphx
     load_save.cpp
     logger.cpp
     make_op.cpp
+    md5.cpp
     memory_coloring.cpp
     module.cpp
     msgpack.cpp
@@ -149,15 +150,14 @@ add_library(migraphx
     verify_args.cpp
 )
 
+enable_static_init(migraphx)
+
 file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
-    target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
-    # Due to BinSkim errors EnableControlFlowGuard
-    target_compile_options(migraphx PUBLIC "SHELL:-Xclang -cfguard")
 endif()
 
 configure_file(version.h.in include/migraphx/version.h)
@@ -348,7 +348,7 @@ endif()
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 if(MIGRAPHX_USE_EIGEN)
-    find_package(Eigen3)
+    find_package(Eigen3 QUIET)
     if(Eigen3_FOUND)
         target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_EIGEN=1)
         target_compile_definitions(migraphx PRIVATE EIGEN_MPL2_ONLY)
@@ -382,7 +382,7 @@ target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
 # See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
 # Prefer 6.x (msgpack-cxx)
-find_package(msgpack-cxx)
+find_package(msgpack-cxx QUIET)
 if(msgpack-cxx_FOUND)
     message(STATUS "Found msgpack-cxx (>=6.x)")
 else()

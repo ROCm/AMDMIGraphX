@@ -21,31 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_MD5_HPP
+#define MIGRAPHX_GUARD_RTGLIB_MD5_HPP
 
-#include <migraphx/gpu/config.hpp>
 #include <string>
+#include <string_view>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
-
-namespace gpu {
-
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT compile_ops
-{
-    context* ctx         = nullptr;
-    bool exhaustive_tune = false;
-    std::string name() const { return "gpu::compile_ops"; }
-    void apply(module_pass_manager& mpm) const;
-};
-
-} // namespace gpu
+/// Compute the MD5 digest of a string and return it as a lowercase hex string.
+std::string MIGRAPHX_EXPORT md5(const std::string_view& str);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+
+#endif

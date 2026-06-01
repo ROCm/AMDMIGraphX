@@ -47,6 +47,7 @@
 #include <migraphx/propagate_precision.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
+#include <migraphx/rewrite_convolution.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
@@ -151,6 +152,8 @@ struct pipeline_factory
     std::vector<pass> optimize_rewrite_pipeline() const
     {
         return {
+            rewrite_convolution{},
+            dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
             layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},

@@ -76,6 +76,7 @@ endif()
 if(_missing)
     message(FATAL_ERROR
         "Offload arch(s) missing from ${TARGET_FILE}: ${_missing}\n"
+        "Try setting -DMIGRAPHX_WORKAROUND_HIP_MULTI_ARCH_BUG=ON to fix this issue.\n"
         "--offloading output:\n${_dump}")
 endif()
 message(STATUS "Offload archs verified in ${TARGET_FILE}: ${_archs}")

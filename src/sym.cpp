@@ -1386,7 +1386,33 @@ expr as_symbol(const expr& e)
     });
 }
 
-bool same_symbol(const expr& a, const expr& b) { return as_symbol(a) == as_symbol(b); }
+// Equivalent to as_symbol(a) == as_symbol(b) but compared in lockstep: no
+// stripped trees are materialized and the walk short-circuits on the first
+// structural mismatch. Variable nodes match on name alone (metadata ignored);
+// literals and ops match exactly, then children recurse.
+bool same_symbol(const expr& a, const expr& b)
+{
+    if(a.empty() or b.empty())
+        return a.empty() and b.empty();
+    const auto& na = get_node(a);
+    const auto& nb = get_node(b);
+    if(na.index() != nb.index())
+        return false;
+    bool node_match = std::visit(
+        overloaded{
+            [&](const literal_node& la) { return la == std::get<literal_node>(nb); },
+            [&](const variable_node& va) { return va.name == std::get<variable_node>(nb).name; },
+            [&](const op_node& oa) { return oa == std::get<op_node>(nb); }},
+        na);
+    if(not node_match)
+        return false;
+    const auto& ca = a.children();
+    const auto& cb = b.children();
+    return ca.size() == cb.size() and
+           std::equal(ca.begin(), ca.end(), cb.begin(), [](const expr& x, const expr& y) {
+               return same_symbol(x, y);
+           });
+}
 
 // Look up `e` in a map keyed on exprs: try the exact key first, then the
 // constraint-stripped symbol form, so a bare-symbol key resolves a constrained

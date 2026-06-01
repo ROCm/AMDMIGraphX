@@ -33,6 +33,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/value.hpp>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,7 +41,7 @@ namespace op {
 
 struct topk
 {
-    int64_t k    = 1;
+    std::optional<int64_t> k;
     int64_t axis = 0;
     bool largest = true;
 
@@ -67,11 +68,14 @@ struct topk
         if(inputs.at(0).dynamic())
         {
             auto dyn_dims     = inputs.at(0).dyn_dims();
-            auto min_lens_vec = inputs.at(0).min_lens();
-            auto max_lens_vec = inputs.at(0).max_lens();
-            auto min_kk       = std::min(static_cast<std::size_t>(k), min_lens_vec[axis]);
-            auto max_kk       = std::min(static_cast<std::size_t>(k), max_lens_vec[axis]);
-            dyn_dims[axis]    = {min_kk, max_kk};
+            if(k.has_value())
+            {
+                auto min_lens_vec = inputs.at(0).min_lens();
+                auto max_lens_vec = inputs.at(0).max_lens();
+                auto min_kk       = std::min(static_cast<std::size_t>(*k), min_lens_vec[axis]);
+                auto max_kk       = std::min(static_cast<std::size_t>(*k), max_lens_vec[axis]);
+                dyn_dims[axis]    = {min_kk, max_kk};
+            }
 
             shape s_val{type, dyn_dims};
             shape s_ind{shape::int64_type, dyn_dims};
@@ -80,9 +84,11 @@ struct topk
         else
         {
             auto lens = inputs.at(0).lens();
-            // Clamp k to input size: k may be a placeholder (max dim) from parse time
-            auto kk    = std::min(static_cast<std::size_t>(k), lens[axis]);
-            lens[axis] = kk;
+            if(k.has_value())
+            {
+                auto kk    = std::min(static_cast<std::size_t>(*k), lens[axis]);
+                lens[axis] = kk;
+            }
 
             shape s_val{type, lens};
             shape s_ind{shape::int64_type, lens};
@@ -110,7 +116,7 @@ struct topk
         argument res_ind{vec_ss.back()};
         auto in_val       = args.front();
         auto relements    = in_val.get_shape().lens()[axis];
-        auto actual_k     = std::min(static_cast<std::size_t>(k), relements);
+        auto actual_k     = k.has_value() ? std::min(static_cast<std::size_t>(*k), relements) : relements;
         auto make_indices = [&](const auto& m_idx) {
             return [&](int64_t i) {
                 if(args.size() < 2)

@@ -37,19 +37,20 @@ namespace {
 struct find_large_topk
 {
     std::size_t n_threshold = 0;
-    auto matcher() const { return match::name("topk"); }
+    auto matcher() const
+    {
+        return match::name("topk")(match::arg(0)(match::not_dynamic_shape()));
+    }
 
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins   = r.result;
         auto input = ins->inputs().front();
-        if(input->get_shape().dynamic())
-            return;
         auto op    = ins->get_operator().to_value();
         auto axis  = op["axis"].to<std::int64_t>();
-        auto k     = op["k"].to<std::int64_t>();
         auto dims  = input->get_shape().lens();
         auto n     = dims.at(axis);
+        auto k     = op["k"].is_null() ? static_cast<std::int64_t>(n) : op["k"].to<std::int64_t>();
         if(n < n_threshold)
             return;
 

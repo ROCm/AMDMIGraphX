@@ -26,6 +26,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,26 +53,11 @@ struct parse_topk : op_parser<parse_topk>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        int64_t k = 0;
+        std::optional<int64_t> k;
         if(args.size() == 2)
         {
             auto arg_k = args.at(1)->eval();
-            if(arg_k.empty())
-            {
-                // k is not constant: use the input dimension along the topk axis
-                auto input_shape = args.at(0)->get_shape();
-                auto ndim        = input_shape.ndim();
-                auto norm_axis   = axis < 0 ? axis + static_cast<int64_t>(ndim) : axis;
-                if(input_shape.dynamic())
-                {
-                    k = input_shape.dyn_dims().at(norm_axis).get_interval().max;
-                }
-                else
-                {
-                    k = input_shape.lens().at(norm_axis);
-                }
-            }
-            else
+            if(not arg_k.empty())
             {
                 k = arg_k.at<int>();
             }
@@ -81,8 +67,13 @@ struct parse_topk : op_parser<parse_topk>
             k = info.attributes.at("k").i();
         }
 
-        auto topk_ret = info.add_instruction(
-            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
+        auto topk_ret =
+            k.has_value()
+                ? info.add_instruction(
+                      make_op("topk", {{"k", *k}, {"axis", axis}, {"largest", largest}}),
+                      args.at(0))
+                : info.add_instruction(
+                      make_op("topk", {{"axis", axis}, {"largest", largest}}), args.at(0));
 
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
         auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);

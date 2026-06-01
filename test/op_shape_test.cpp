@@ -1818,6 +1818,64 @@ TEST_CASE(gather_dyn4)
                  indices);
 }
 
+TEST_CASE(gather_sym_data_on_axis)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {2, 4}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(3)}, dd{lit(2)}, dd{lit(4)}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
+TEST_CASE(gather_sym_data_off_axis)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {2, 4}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(2)}, dd{lit(4)}, dd{n}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 0}}), input, indices);
+}
+
+TEST_CASE(gather_sym_indices)
+{
+    auto k = var("k", {1, 6}, {3});
+    migraphx::shape input{migraphx::shape::float_type, {4, 5, 6}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{k}, dd{lit(3)}}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(4)}, dd{k}, dd{lit(3)}, dd{lit(6)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
+TEST_CASE(gather_sym_both)
+{
+    auto n = var("n", {2, 8}, {4});
+    auto k = var("k", {1, 6}, {3});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{k}, dd{lit(3)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{k}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
+TEST_CASE(gather_sym_scalar_indices)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(3)}, dd{n}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {1}, {0}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
+TEST_CASE(gather_sym_data_dyn_indices)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{1, 3, {2}}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{2, 8, {4}}, dd{1, 3, {2}}}};
+    expect_shape(output, migraphx::make_op("gather", {{"axis", 1}}), input, indices);
+}
+
 TEST_CASE(get_tuple_elem_test)
 {
     migraphx::shape s0{migraphx::shape::bool_type, {1, 1}};
@@ -5833,6 +5891,60 @@ TEST_CASE(test_gathernd_dynamic8)
     expect_shape(s0, migraphx::make_op("gathernd", {{"batch_dims", batch_dims}}), ds, is);
 }
 
+TEST_CASE(gathernd_sym_data)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {4, 2}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(4)}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gathernd"), data, indices);
+}
+
+TEST_CASE(gathernd_sym_indices_leading)
+{
+    auto m = var("m", {1, 6}, {3});
+    migraphx::shape data{migraphx::shape::float_type, {7, 3, 5}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{m}, dd{lit(2)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{m}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gathernd"), data, indices);
+}
+
+TEST_CASE(gathernd_sym_both)
+{
+    auto n = var("n", {2, 8}, {4});
+    auto m = var("m", {1, 6}, {3});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{m}, dd{lit(2)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{m}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gathernd"), data, indices);
+}
+
+TEST_CASE(gathernd_sym_batch_dims)
+{
+    auto n = var("n", {2, 6}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{n}, dd{lit(4)}, dd{lit(1)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(5)}}};
+    expect_shape(output, migraphx::make_op("gathernd", {{"batch_dims", 1}}), data, indices);
+}
+
+TEST_CASE(gathernd_sym_indices_k_must_be_fixed)
+{
+    auto k = var("k", {1, 3});
+    migraphx::shape data{migraphx::shape::float_type, {4, 3, 5}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{lit(2)}, dd{k}}};
+    throws_shape(migraphx::make_op("gathernd"), data, indices);
+}
+
+TEST_CASE(gathernd_sym_scalar_output)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {2}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(1)}}};
+    expect_shape(output, migraphx::make_op("gathernd"), data, indices);
+}
+
 TEST_CASE(test_scatternd0)
 {
     // good
@@ -5972,6 +6084,67 @@ TEST_CASE(test_scatternd_dyn5)
     migraphx::shape is{itype, {dd, dd}};
     migraphx::shape us{dtype, {dbad}};
     throws_shape(migraphx::make_op("scatternd_none"), ds, is, us);
+}
+
+TEST_CASE(scatternd_sym_data)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{lit(3)}, dd{lit(2)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{lit(3)}}};
+    expect_shape(data, migraphx::make_op("scatternd_none"), data, indices, updates);
+}
+
+TEST_CASE(scatternd_sym_partial_index)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{lit(3)}, dd{lit(1)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{lit(3)}, dd{lit(5)}}};
+    expect_shape(data, migraphx::make_op("scatternd_none"), data, indices, updates);
+}
+
+TEST_CASE(scatternd_sym_mismatch_throws)
+{
+    auto n = var("n", {2, 8}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int64_type, {dd{lit(3)}, dd{lit(1)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{lit(3)}, dd{lit(4)}}};
+    throws_shape(migraphx::make_op("scatternd_none"), data, indices, updates);
+}
+
+TEST_CASE(scatter_static)
+{
+    migraphx::shape data{migraphx::shape::float_type, {3, 5}};
+    migraphx::shape indices{migraphx::shape::int32_type, {2, 5}};
+    migraphx::shape updates{migraphx::shape::float_type, {2, 5}};
+    expect_shape(data, migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
+}
+
+TEST_CASE(scatter_dyn)
+{
+    migraphx::shape data{migraphx::shape::float_type, {{2, 6, {4}}, {5, 5}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {{1, 4}, {5, 5}}};
+    migraphx::shape updates{migraphx::shape::float_type, {{1, 4}, {5, 5}}};
+    expect_shape(data, migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
+}
+
+TEST_CASE(scatter_sym)
+{
+    auto n = var("n", {2, 6}, {4});
+    migraphx::shape data{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    expect_shape(data, migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
+}
+
+TEST_CASE(scatter_dyn_data_sym_indices)
+{
+    auto n = var("n", {1, 4}, {2});
+    migraphx::shape data{migraphx::shape::float_type, {{2, 6, {4}}, {5, 5}}};
+    migraphx::shape indices{migraphx::shape::int32_type, {dd{n}, dd{lit(5)}}};
+    migraphx::shape updates{migraphx::shape::float_type, {dd{n}, dd{lit(5)}}};
+    expect_shape(data, migraphx::make_op("scatter_none", {{"axis", 0}}), data, indices, updates);
 }
 
 TEST_CASE(test_squeeze)

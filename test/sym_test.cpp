@@ -509,6 +509,19 @@ TEST_CASE(eval_uint_falls_back_to_fixed_bounds)
     EXPECT((h + n).eval_uint({{h, 2}}) == 6);
 }
 
+TEST_CASE(eval_compound_key_ignores_constraints)
+{
+    // A compound map key resolves regardless of the variable metadata carried
+    // by the expression being evaluated: key (x+y) matches a query x+y whose
+    // x, y are constrained.
+    auto x  = var("x", {1, 100});
+    auto y  = var("y", {1, 100});
+    auto e  = x + y;
+    auto kx = var("x");
+    auto ky = var("y");
+    EXPECT(e.eval_uint({{kx + ky, 42}}) == 42);
+}
+
 TEST_CASE(eval_division_by_zero_throws)
 {
     auto h = var("h");

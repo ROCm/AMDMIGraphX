@@ -1371,19 +1371,31 @@ eval_interval_impl(const expr& e,
 // variable's metadata (constraints, optimals). Exprs that differ only in
 // variable metadata share the same as_symbol result, so it is the projection
 // used to look up variables regardless of their bounds.
+//
+// Op nodes are rebuilt directly (expr(op_node, children)) rather than through
+// call_op: stripping metadata is structure-preserving, so the already-normalized
+// shape must be kept verbatim, and crucially this avoids re-entering
+// call_op -> normalize -> eval. That matters because as_symbol is used by
+// find_symbol on the eval path; routing through eval would recurse infinitely.
 expr as_symbol(const expr& e)
 {
     if(e.empty())
         return e;
-    return generic_eval<expr>(e, [](const expr& sub) -> std::optional<expr> {
-        if(sub.empty())
-            return sub;
-        return std::visit(
-            overloaded{[&](const literal_node&) -> std::optional<expr> { return sub; },
-                       [](const variable_node& n) -> std::optional<expr> { return var(n.name); },
-                       [](const op_node&) -> std::optional<expr> { return std::nullopt; }},
-            get_node(sub));
-    });
+    return generic_eval<expr>(
+        e,
+        [](const expr& sub) -> std::optional<expr> {
+            if(sub.empty())
+                return sub;
+            return std::visit(
+                overloaded{
+                    [&](const literal_node&) -> std::optional<expr> { return sub; },
+                    [](const variable_node& n) -> std::optional<expr> { return var(n.name); },
+                    [](const op_node&) -> std::optional<expr> { return std::nullopt; }},
+                get_node(sub));
+        },
+        [](const expr&, const op_node& op, std::vector<expr> args) {
+            return expr(op_node{op.op}, std::move(args));
+        });
 }
 
 // Equivalent to as_symbol(a) == as_symbol(b) but compared in lockstep: no
@@ -1414,15 +1426,15 @@ bool same_symbol(const expr& a, const expr& b)
            });
 }
 
-// Look up `e` in a map keyed on exprs: try the exact key first, then the
-// constraint-stripped symbol form, so a bare-symbol key resolves a constrained
-// occurrence (and vice-versa when the map is keyed on symbols). Returns a
-// pointer to the value, or nullptr when neither form is present.
-// Look up `e` in a map keyed on exprs: exact match first, then (only for a
-// variable node) the metadata-stripped symbol form, so a bare-symbol key
-// resolves a constrained occurrence and vice-versa. The fallback is restricted
-// to variable nodes because they are the only nodes whose metadata the key
-// equality ignores; op/literal nodes have no separate symbol form.
+// Look up `e` in a map keyed on exprs, ignoring variable metadata. The exact
+// (constraint-aware) hash lookup is tried first; on a miss we fall back to a
+// linear scan that compares each key with same_symbol, so an entry keyed on a
+// differently-constrained — or fully bare — form of the same expression still
+// resolves (e.g. a key `x + y` matches a query `x + y` whose x, y carry
+// constraints). The scan, not a second hash probe, is required because the key
+// hash includes constraints. same_symbol allocates nothing, so this stays off
+// the recursive construct/normalize path that re-entering as_symbol here would
+// trigger. Returns a pointer to the value, or nullptr when not present.
 template <class Map>
 static const typename Map::mapped_type* find_symbol(const Map& m, const expr& e)
 {
@@ -1430,13 +1442,9 @@ static const typename Map::mapped_type* find_symbol(const Map& m, const expr& e)
         return &it->second;
     if(e.empty())
         return nullptr;
-    const auto* v = std::get_if<variable_node>(&get_node(e));
-    if(v == nullptr)
-        return nullptr;
-    auto sym = var(v->name);
-    if(sym == e)
-        return nullptr;
-    if(auto it = m.find(sym); it != m.end())
+    auto it = std::find_if(
+        m.begin(), m.end(), [&](const auto& kv) { return same_symbol(kv.first, e); });
+    if(it != m.end())
         return &it->second;
     return nullptr;
 }

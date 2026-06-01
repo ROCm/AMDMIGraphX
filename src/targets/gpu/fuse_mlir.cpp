@@ -552,21 +552,37 @@ bool is_reduce_op_supported_by_mlir(const instruction& i)
 {
     using type_t                                      = shape::type_t;
     const auto result_type                            = i.get_shape().type();
-    const std::initializer_list<type_t> allowed_types = {type_t::float_type,
-                                                         type_t::half_type,
-                                                         type_t::bf16_type,
-                                                         type_t::fp8e4m3fnuz_type,
-                                                         type_t::fp8e5m2fnuz_type,
-                                                         type_t::fp8e4m3fn_type,
-                                                         type_t::fp8e5m2_type};
+    const std::initializer_list<type_t> allowed_types = {
+        type_t::float_type, type_t::half_type, type_t::bf16_type};
 
-    // Preliminary type check.
     if(not contains(allowed_types, result_type))
     {
         return false;
     }
     const std::initializer_list<std::string> reduce_ops = {"reduce_mean", "reduce_sum"};
     return contains(reduce_ops, i.name());
+}
+
+std::set<shape::type_t> get_supported_mlir_reduce_types(const std::string& device_name)
+{
+    using type_t = shape::type_t;
+    std::set<type_t> types;
+
+    if(starts_with(device_name, "gfx12") or starts_with(device_name, "gfx950"))
+    {
+        types = {type_t::float_type, type_t::half_type, type_t::bf16_type};
+    }
+    else if(starts_with(device_name, "gfx94") or starts_with(device_name, "gfx90a") or
+            starts_with(device_name, "gfx908"))
+    {
+        types = {type_t::float_type, type_t::half_type};
+    }
+    else if(starts_with(device_name, "gfx11"))
+    {
+        types = {type_t::float_type};
+    }
+
+    return types;
 }
 
 // A separate function so we can remove operators that are supported by mlir
@@ -640,6 +656,8 @@ struct find_mlir_split_reduce
 {
     mlir_mode conv_mode = mlir_mode::none;
     mlir_mode dot_mode  = mlir_mode::none;
+    std::string device_name;
+
     auto matcher() const
     {
         auto dot_or_conv = match::name("gpu::mlir_op");
@@ -649,10 +667,16 @@ struct find_mlir_split_reduce
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        auto reduce_ins = r.result;
-        auto gemm_ins   = r.instructions["gemm"];
+        auto reduce_ins      = r.result;
+        auto supported_types = get_supported_mlir_reduce_types(device_name);
+        auto* rm             = reduce_ins->module_inputs().front();
+        for(auto i : iterator_for(*rm))
+        {
+            if(is_reduce(*i) and not contains(supported_types, i->get_shape().type()))
+                return;
+        }
+        auto gemm_ins = r.instructions["gemm"];
         assert(gemm_ins->get_shape().sub_shapes().empty());
-        auto* rm   = reduce_ins->module_inputs().front();
         auto names = rm->get_parameter_names();
         std::sort(names.begin(), names.end());
         module_ref gemm_old_mm = gemm_ins->module_inputs().front();
@@ -1562,8 +1586,9 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     {
         match::find_matches(
             mpm,
-            find_mlir_split_reduce{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
-                                   .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
+            find_mlir_split_reduce{.conv_mode   = get_mode("fused_convolution", mlir_mode::fast),
+                                   .dot_mode    = get_mode("fused_dot", mlir_mode::fast),
+                                   .device_name = device_name});
     }
 
     match::find_matches(mpm, find_pointwise_mlir{});

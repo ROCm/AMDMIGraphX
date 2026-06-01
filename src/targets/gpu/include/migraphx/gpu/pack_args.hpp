@@ -25,7 +25,13 @@
 #define MIGRAPHX_GUARD_RTGLIB_PACK_ARGS_HPP
 
 #include <migraphx/gpu/config.hpp>
+#include <migraphx/bit_cast.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/requires.hpp>
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -46,7 +52,41 @@ struct kernel_argument
     void* data;
 };
 
+struct kernel_argument_value
+{
+    kernel_argument_value() = default;
+
+    template <class T,
+              class U = std::remove_reference_t<T>,
+              MIGRAPHX_REQUIRES(not std::is_base_of<kernel_argument_value, U>{} and
+                                std::is_trivially_copyable<U>{})>
+    kernel_argument_value(T&& x) : align(alignof(U)), data(sizeof(U))
+    {
+        auto as_bytes = migraphx::bit_cast<std::array<char, sizeof(U)>>(x);
+        std::copy(as_bytes.begin(), as_bytes.end(), data.begin());
+    }
+
+    std::size_t align = 0;
+    std::vector<char> data{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.align, "align"), f(self.data, "data"));
+    }
+
+    friend bool operator==(const kernel_argument_value& a, const kernel_argument_value& b)
+    {
+        return a.align == b.align and a.data == b.data;
+    }
+    friend bool operator!=(const kernel_argument_value& a, const kernel_argument_value& b)
+    {
+        return not(a == b);
+    }
+};
+
 MIGRAPHX_GPU_EXPORT std::vector<char> pack_args(const std::vector<kernel_argument>& args);
+MIGRAPHX_GPU_EXPORT std::vector<char> pack_args(const std::vector<kernel_argument_value>& args);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

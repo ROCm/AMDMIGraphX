@@ -582,10 +582,8 @@ struct miopen_apply
     }
 
     // gpu::mlss_conv is created by fuse_mlss (pre-lowering) without an
-    // output buffer.  Append the allocate here so it is created after
-    // optimize_module / CSE have already run.  The op is kept as-is
-    // (not wrapped in precompile_op) so that compile_ops processes it
-    // separately from the precompile_op plans
+    // output buffer. The op is kept as-is (not wrapped in precompile_op)
+    // so that compile_ops processes it separately from the precompile_op plans
     void add_mlss_conv_op()
     {
         apply_map.emplace("gpu::mlss_conv", [=](instruction_ref ins) {

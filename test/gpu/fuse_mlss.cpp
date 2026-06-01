@@ -31,7 +31,6 @@
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <test.hpp>
-#include <cstdlib>
 
 static migraphx::gpu::context& get_context()
 {
@@ -43,8 +42,9 @@ static migraphx::gpu::context& get_context()
 
 static void run_pass(migraphx::program& p)
 {
-    migraphx::run_passes(
-        p, {migraphx::gpu::fuse_mlss{&get_context()}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(p,
+                         {migraphx::gpu::fuse_mlss{&get_context(), /*enable_conv=*/true},
+                          migraphx::dead_code_elimination{}});
 }
 
 // Build the pre-pass program for conv+bias+relu:
@@ -141,16 +141,4 @@ TEST_CASE(mlss_conv_bias_relu_vgg19_first_layer)
 
 #endif // MIGRAPHX_USE_AMDMLSS
 
-int main(int argc, const char* argv[])
-{
-#ifdef MIGRAPHX_USE_AMDMLSS
-    // Must be set before the first string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS),
-    // which caches its result.
-#ifdef _WIN32
-    _putenv_s("MIGRAPHX_MLSS_USE_SPECIFIC_OPS", "conv");
-#else
-    setenv("MIGRAPHX_MLSS_USE_SPECIFIC_OPS", "conv", /*overwrite=*/1); // NOLINT(cert-env33-c)
-#endif
-#endif
-    test::run(argc, argv);
-}
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

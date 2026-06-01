@@ -29,6 +29,7 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <migraphx/gpu/pack_args.hpp>
 #include <map>
 
 namespace migraphx {
@@ -47,12 +48,7 @@ struct code_object_op
     shape output{};
     std::int64_t output_arg = -1;
 
-    // Pre-computed scalar kernel arguments, keyed by position in the kernarg buffer.
-    // Each value is a value::binary blob containing the raw bytes of the scalar
-    // (binary.size() == 1, 4, or 8 encodes the exact byte width).
-    // Null entries are 8-byte pointer slots filled from args[] in order at compute() time.
-    std::map<std::size_t, value> kernel_args{};
-
+    std::map<std::size_t, kernel_argument_value> kernel_args{};
     // Pre-packed kernarg buffer built in finalize(); not reflected.
     std::vector<char> packed_kernargs{};
     // (runtime arg index, byte offset) pairs for pointer patching in compute().

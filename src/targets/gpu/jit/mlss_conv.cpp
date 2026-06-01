@@ -25,7 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/mlss_conv_op.hpp>
-#include <cstring>
+#include <migraphx/gpu/pack_args.hpp>
 
 #ifdef MIGRAPHX_USE_AMDMLSS
 
@@ -33,14 +33,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// Store a scalar kernel argument as a value::binary blob preserving the exact byte width.
-// binary.size() encodes sizeof(T), so no parallel size map is needed.
+// Store a scalar kernel argument; kernel_argument_value owns the bytes and
+// records sizeof(T)/alignof(T) for the packer.
 template <class T>
-static void set_karg(std::map<std::size_t, value>& ka, std::size_t idx, T v)
+static void set_karg(std::map<std::size_t, kernel_argument_value>& ka, std::size_t idx, T v)
 {
-    value::binary b(sizeof(T));
-    std::memcpy(b.data(), &v, sizeof(T));
-    ka[idx] = value(std::move(b));
+    ka[idx] = kernel_argument_value(v);
 }
 
 struct mlss_conv_compiler : compiler<mlss_conv_compiler>
@@ -88,7 +86,7 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         // -----------------------------------------------------------------------
         // Build kernel_args map — matches the winograd conv kernels
         // -----------------------------------------------------------------------
-        std::map<std::size_t, value> kernel_args;
+        std::map<std::size_t, kernel_argument_value> kernel_args;
 
         int32_t N     = static_cast<int32_t>(in_lens[0]);
         int32_t Cg    = static_cast<int32_t>(in_lens[1]);
@@ -156,9 +154,9 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         // 0x18: flags64
         set_karg(kernel_args, 6, flags64);
         // 0x20: p_data, 0x28: p_filter, 0x30: p_output — filled from args at compute time
-        kernel_args[7] = value(nullptr);
-        kernel_args[8] = value(nullptr);
-        kernel_args[9] = value(nullptr);
+        kernel_args[7] = kernel_argument_value{};
+        kernel_args[8] = kernel_argument_value{};
+        kernel_args[9] = kernel_argument_value{};
         // 0x38: reserved3
         set_karg(kernel_args, 10, uint64_t{0});
         int32_t pad_h = cur_padding.size() > 0 ? static_cast<int32_t>(cur_padding[0]) : 0;
@@ -173,7 +171,7 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         set_karg(kernel_args, 16, out_w);
         // 0x58: p_bias — filled from args if has_bias, else zero
         if(has_bias)
-            kernel_args[17] = value(nullptr);
+            kernel_args[17] = kernel_argument_value{};
         else
             set_karg(kernel_args, 17, uint64_t{0});
         // 0x60: alpha, beta

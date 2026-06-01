@@ -39,7 +39,7 @@ static std::size_t packed_sizes()
 template <class... Ts>
 static std::size_t sizes()
 {
-    return migraphx::gpu::pack_args({Ts{}...}).size();
+    return migraphx::gpu::pack_args(std::vector<migraphx::gpu::kernel_argument>{Ts{}...}).size();
 }
 
 template <class... Ts>

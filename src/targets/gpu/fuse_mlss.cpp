@@ -40,20 +40,26 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 /*
- * Comma-separated list of MLSS ops to enable, e.g. MIGRAPHX_MLSS_USE_SPECIFIC_OPS=conv
- * If unset, no MLSS ops are fused. Recognized values: "conv".
+ * @brief Declares a new MIGraphX environment variable which forces to delegate
+ * only specific operations to AMDMLSS.
+ *
+ * The variable, if defined, forces MIGraphX to use only specific operations
+ * with AMDMLSS regardless of the underlying GPU architecture. The variable
+ * accepts a list of operations separated by comma. The variable recognizes the
+ * following operations: "conv". If the variable is not defined MIGraphX will
+ * decide by itself which operations to delegate to AMDMLSS.
  */
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLSS_USE_SPECIFIC_OPS);
 
-bool mlss_enabled() { return not string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS{}, "").empty(); }
+static bool mlss_specific_op(std::string_view op_name)
+{
+    static const auto options =
+        split_string(string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS{}, ""), ',');
+    return std::any_of(
+        options.begin(), options.end(), [&](const auto& opt) { return opt == op_name; });
+}
 
 #ifdef MIGRAPHX_USE_AMDMLSS
-
-static bool mlss_op_enabled(std::string_view op_name)
-{
-    const auto ops = split_string(string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS{}, ""), ',');
-    return std::any_of(ops.begin(), ops.end(), [&](const auto& opt) { return opt == op_name; });
-}
 
 // ---------------------------------------------------------------------------
 // Helper: create an mlss_conv_op intermediate node and replace the matched
@@ -415,7 +421,7 @@ struct find_mlss_conv_bias_leaky_relu
 void fuse_mlss::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_USE_AMDMLSS
-    if(mlss_op_enabled("conv"))
+    if(enable_conv or mlss_specific_op("conv"))
     {
         // Match most-specific patterns first to avoid partial consumption.
         match::find_matches(mpm, find_mlss_conv_bias_relu{ctx});
@@ -423,6 +429,8 @@ void fuse_mlss::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_mlss_conv_bias{ctx});
         match::find_matches(mpm, find_mlss_conv{ctx});
     }
+#else
+    (void)mpm;
 #endif // MIGRAPHX_USE_AMDMLSS
 }
 

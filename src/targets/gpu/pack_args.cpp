@@ -28,19 +28,38 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-std::vector<char> pack_args(const std::vector<kernel_argument>& args)
+namespace {
+std::size_t get_size(const kernel_argument& k) { return k.size; }
+std::size_t get_size(const kernel_argument_value& k) { return k.data.size(); }
+
+const char* get_data(const kernel_argument& k) { return static_cast<const char*>(k.data); }
+const char* get_data(const kernel_argument_value& k) { return k.data.data(); }
+
+template <class PackArgs>
+std::vector<char> pack_args_impl(const PackArgs& args)
 {
     std::vector<char> kernargs;
     for(auto&& arg : args)
     {
-        std::size_t n = arg.size;
-        const auto* p = static_cast<const char*>(arg.data);
+        std::size_t n = get_size(arg);
+        const auto* p = get_data(arg);
         // Insert padding
         std::size_t padding = (arg.align - (kernargs.size() % arg.align)) % arg.align;
         kernargs.insert(kernargs.end(), padding, 0);
         kernargs.insert(kernargs.end(), p, p + n);
     }
     return kernargs;
+}
+} // namespace
+
+std::vector<char> pack_args(const std::vector<kernel_argument>& args)
+{
+    return pack_args_impl(args);
+}
+
+std::vector<char> pack_args(const std::vector<kernel_argument_value>& args)
+{
+    return pack_args_impl(args);
 }
 
 } // namespace gpu

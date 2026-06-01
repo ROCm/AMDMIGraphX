@@ -28,7 +28,9 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/convolution_backwards.hpp>
 
+#include <algorithm>
 #include <functional>
+#include <iterator>
 #include <numeric>
 #include <vector>
 
@@ -146,7 +148,15 @@ void rewrite_convolution::apply(module& m) const
                 return a * di.ytilda;
             });
 
-        std::vector<instruction_ref> placed;
+        // When there is no dilation every output position is covered exactly once, so the residues
+        // reassemble with a pure interleave (concat + reshape/transpose, no pad/add kernels). The
+        // `stride <= y` check guarantees no residue is empty, keeping the interleave grid full.
+        const bool interleave = std::all_of(dims.begin(), dims.end(), [](const dim_info& di) {
+            return di.dilation == 1 and di.stride <= di.y;
+        });
+
+        std::vector<instruction_ref> partials;
+        std::vector<std::vector<std::size_t>> partial_itilda;
         for(std::size_t r = 0; r < num_res; ++r)
         {
             // Mixed-radix decode of the residue index into itilda per dim.
@@ -252,23 +262,93 @@ void rewrite_convolution::apply(module& m) const
                                                 dy,
                                                 cw);
 
-            // --- place this residue onto its sub-lattice: zero-stuff by S, shift by itilda*D ---
-            for(std::size_t d = 0; d < nsp; ++d)
-            {
-                const std::size_t axis = 2 + d;
-                partial                = zero_stuff(partial, axis, dims[d].stride);
-                const int64_t before   = static_cast<int64_t>(itilda[d] * dims[d].dilation);
-                const int64_t after =
-                    static_cast<int64_t>((dims[d].ytilda - 1 - itilda[d]) * dims[d].dilation);
-                partial = pad_axis(partial, axis, before, after);
-            }
-            placed.push_back(partial);
+            partials.push_back(partial);
+            partial_itilda.push_back(itilda);
         }
 
-        // Sum the residues (disjoint supports) and crop the padding region to dx.
-        auto acc = placed.front();
-        for(std::size_t i = 1; i < placed.size(); ++i)
-            acc = m.insert_instruction(ins, make_op("add"), acc, placed[i]);
+        // With unit stride there is no upsampling, so the single forward convolution is the result.
+        const bool no_upsample = std::all_of(
+            dims.begin(), dims.end(), [](const dim_info& di) { return di.stride == 1; });
+
+        instruction_ref acc;
+        if(no_upsample)
+        {
+            acc = partials.front();
+        }
+        else if(interleave)
+        {
+            // Pixel-shuffle reassembly: stack the residues on a new trailing axis, then
+            // reshape/transpose so residue itilda interleaves into spatial position ht*S + itilda.
+            const int64_t new_axis = static_cast<int64_t>(2 + nsp);
+            std::vector<instruction_ref> stacked;
+            stacked.reserve(partials.size());
+            std::transform(
+                partials.begin(), partials.end(), std::back_inserter(stacked), [&](auto p) {
+                    return m.insert_instruction(
+                        ins, make_op("unsqueeze", {{"axes", {new_axis}}}), p);
+                });
+            auto cat = m.insert_instruction(ins, make_op("concat", {{"axis", new_axis}}), stacked);
+
+            const int64_t n_batch = static_cast<int64_t>(dy_lens[0]);
+            const int64_t c_total = static_cast<int64_t>(c_pg) * group;
+            // [N, C, *Htilda, num_res] -> [N, C, *Htilda, *S]
+            std::vector<int64_t> split_dims{n_batch, c_total};
+            for(const auto& di : dims)
+                split_dims.push_back(static_cast<int64_t>(di.htilda));
+            for(const auto& di : dims)
+                split_dims.push_back(static_cast<int64_t>(di.stride));
+            // For 1-D the concat already has this shape (num_res == stride), so the split is a
+            // no-op.
+            const auto cat_lens = cat->get_shape().lens();
+            auto split =
+                (std::equal(split_dims.begin(), split_dims.end(), cat_lens.begin(), cat_lens.end()))
+                    ? cat
+                    : m.insert_instruction(ins, make_op("reshape", {{"dims", split_dims}}), cat);
+            // interleave each Htilda_d with its stride axis: [N, C, H0, S0, H1, S1, ...]
+            std::vector<int64_t> perm{0, 1};
+            for(std::size_t d = 0; d < nsp; ++d)
+            {
+                perm.push_back(static_cast<int64_t>(2 + d));
+                perm.push_back(static_cast<int64_t>(2 + nsp + d));
+            }
+            std::vector<int64_t> identity(perm.size());
+            std::iota(identity.begin(), identity.end(), 0);
+            auto trans = (perm == identity)
+                             ? split // 1-D: the interleave permutation is a no-op
+                             : m.insert_instruction(
+                                   ins, make_op("transpose", {{"permutation", perm}}), split);
+            std::vector<int64_t> merge_dims{n_batch, c_total};
+            for(const auto& di : dims)
+                merge_dims.push_back(static_cast<int64_t>(di.htilda * di.stride));
+            acc = m.insert_instruction(ins, make_op("reshape", {{"dims", merge_dims}}), trans);
+        }
+        else
+        {
+            // General reassembly (handles dilation>1 / gcd>1): place each residue onto its
+            // sub-lattice via zero-stuff by S and shift by itilda*D, then sum (disjoint supports).
+            std::vector<instruction_ref> placed;
+            placed.reserve(partials.size());
+            for(std::size_t i = 0; i < partials.size(); ++i)
+            {
+                auto partial       = partials[i];
+                const auto& itilda = partial_itilda[i];
+                for(std::size_t d = 0; d < nsp; ++d)
+                {
+                    const std::size_t axis = 2 + d;
+                    partial                = zero_stuff(partial, axis, dims[d].stride);
+                    const int64_t before   = static_cast<int64_t>(itilda[d] * dims[d].dilation);
+                    const int64_t after =
+                        static_cast<int64_t>((dims[d].ytilda - 1 - itilda[d]) * dims[d].dilation);
+                    partial = pad_axis(partial, axis, before, after);
+                }
+                placed.push_back(partial);
+            }
+            acc = placed.front();
+            for(std::size_t i = 1; i < placed.size(); ++i)
+                acc = m.insert_instruction(ins, make_op("add"), acc, placed[i]);
+        }
+
+        // Crop the padding region to produce dx.
         for(std::size_t d = 0; d < nsp; ++d)
         {
             const int64_t start = static_cast<int64_t>(op.padding[d]);

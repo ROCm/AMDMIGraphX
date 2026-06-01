@@ -73,7 +73,8 @@ TEST_CASE(stride1_single_forward_conv)
     EXPECT(m1 == m2);
 }
 
-// stride 2: two residues -> two stride-1 forward convolutions interleaved back together.
+// stride 2 (no dilation): two residues -> two stride-1 forward convolutions interleaved back
+// together with a pixel-shuffle (concat + reshape), no pad/add kernels.
 TEST_CASE(stride2_two_residue_interleave)
 {
     migraphx::module m1;
@@ -94,36 +95,31 @@ TEST_CASE(stride2_two_residue_interleave)
         auto dy = m2.add_parameter("dy", sf({1, 1, 3}));
         auto w  = m2.add_parameter("w", sf({1, 1, 2}));
 
-        auto conv_residue = [&](migraphx::instruction_ref wslice, int64_t before, int64_t after) {
+        auto residue_conv = [&](migraphx::instruction_ref wslice) {
             auto st = m2.add_instruction(migraphx::make_op("step", {{"axes", {2}}, {"steps", {2}}}),
                                          wslice);
             auto t  = m2.add_instruction(
                 migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), st);
             auto rv = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2}}}), t);
-            auto c  = m2.add_instruction(
+            return m2.add_instruction(
                 migraphx::make_op(
                     "convolution",
                     {{"padding", {0, 0}}, {"stride", {1}}, {"dilation", {1}}, {"group", 1}}),
                 dy,
                 rv);
-            auto u = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), c);
-            auto p = m2.add_instruction(
-                migraphx::make_op("pad", {{"pads", {0, 0, 0, 0, 0, 0, 0, 1}}}), u);
-            auto rs = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 6}}}), p);
-            return m2.add_instruction(
-                migraphx::make_op("pad", {{"pads", {0, 0, before, 0, 0, after}}}), rs);
         };
 
-        // residue 0 (itilda=0): no leading slice (full axis); placed at offset 0
-        auto r0 = conv_residue(w, 0, 1);
-        // residue 1 (itilda=1): slice taps starting at 1; placed at offset 1
+        // residue 0 (itilda=0): no leading slice (full axis)
+        auto c0 = residue_conv(w);
+        // residue 1 (itilda=1): tap-slice starting at 1
         auto s1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {2}}}), w);
-        auto r1  = conv_residue(s1, 1, 0);
-        auto add = m2.add_instruction(migraphx::make_op("add"), r0, r1);
-        auto cr  = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {6}}}), add);
-        m2.add_return({cr});
+        auto c1  = residue_conv(s1);
+        auto u0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), c0);
+        auto u1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {3}}}), c1);
+        auto cat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), u0, u1);
+        auto rs  = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 6}}}), cat);
+        m2.add_return({rs});
     }
     EXPECT(m1 == m2);
 }

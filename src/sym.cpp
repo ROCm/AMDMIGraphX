@@ -1442,8 +1442,8 @@ static const typename Map::mapped_type* find_symbol(const Map& m, const expr& e)
         return &it->second;
     if(e.empty())
         return nullptr;
-    auto it = std::find_if(
-        m.begin(), m.end(), [&](const auto& kv) { return same_symbol(kv.first, e); });
+    auto it =
+        std::find_if(m.begin(), m.end(), [&](const auto& kv) { return same_symbol(kv.first, e); });
     if(it != m.end())
         return &it->second;
     return nullptr;

@@ -31,6 +31,7 @@
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/sat_ops.hpp>
+#include <migraphx/reshape_dims.hpp>
 
 #include <algorithm>
 
@@ -162,14 +163,19 @@ struct reshape
             }
         }
 
-        auto s = shape{inputs.front().type(), rdims};
+        auto nelements =
+            std::accumulate(rdims.begin(), rdims.end(), std::size_t{1}, std::multiplies<>{});
 
-        if(s.elements() != inputs.front().elements())
+        if(nelements != inputs.front().elements())
             MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
-                           std::to_string(s.elements()) + " elements whereas the input has " +
+                           std::to_string(nelements) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
 
-        return s;
+        auto s = reshape_dims(inputs.front(), rdims, {.lazy = false});
+        if(not s.has_value())
+            return shape{inputs.front().type(), rdims};
+
+        return s.value();
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -200,7 +206,6 @@ struct reshape
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        assert(dyn_out.computed_shape.standard());
         if(args.size() == 1)
         {
             argument result{dyn_out.computed_shape};

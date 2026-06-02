@@ -37,7 +37,7 @@ static std::vector<std::string> get_pass_names(migraphx::compile_modes mode)
     auto ctx = tgt.get_context();
     migraphx::compile_options options;
     options.compile_mode = mode;
-    auto passes = tgt.get_passes(ctx, options);
+    auto passes          = tgt.get_passes(ctx, options);
     std::vector<std::string> names;
     std::transform(passes.begin(), passes.end(), std::back_inserter(names), [](const auto& p) {
         return p.name();

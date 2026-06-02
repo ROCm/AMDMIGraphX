@@ -50,8 +50,8 @@ struct test_scatternd_nonpacked_indices
             7, 6, 5, 4, 3, 2, 1, 0
         };
         auto src_idx = mm->add_literal(migraphx::literal{src_idx_shape, src_idx_vec});
-        auto indices = mm->add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), src_idx);
+        auto indices =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), src_idx);
 
         migraphx::shape data_shape{DType, {1, n}};
         auto data = mm->add_parameter("data", data_shape);

@@ -135,7 +135,8 @@ TEST_CASE(scalar_invoke_no_promotion)
     // The visitor sees the actual held alternatives with no common-type promotion,
     // so a mixed pair is not (double, double).
     auto both_double = [](auto a, auto b) -> int64_t {
-        return (std::is_same<decltype(a), double>{} and std::is_same<decltype(b), double>{}) ? 1 : 0;
+        return (std::is_same<decltype(a), double>{} and std::is_same<decltype(b), double>{}) ? 1
+                                                                                             : 0;
     };
     EXPECT(scalar_invoke(both_double, scalar{int64_t{1}}, scalar{2.0}) == scalar{int64_t{0}});
     EXPECT(scalar_invoke(both_double, scalar{1.0}, scalar{2.0}) == scalar{int64_t{1}});
@@ -167,9 +168,11 @@ TEST_CASE(scalar_invoke_common_promotion)
 {
     // Unlike scalar_invoke, a mixed pair is promoted so both args become double.
     auto both_double = [](auto a, auto b) -> int64_t {
-        return (std::is_same<decltype(a), double>{} and std::is_same<decltype(b), double>{}) ? 1 : 0;
+        return (std::is_same<decltype(a), double>{} and std::is_same<decltype(b), double>{}) ? 1
+                                                                                             : 0;
     };
-    EXPECT(scalar_invoke_common(both_double, scalar{int64_t{1}}, scalar{2.0}) == scalar{int64_t{1}});
+    EXPECT(scalar_invoke_common(both_double, scalar{int64_t{1}}, scalar{2.0}) ==
+           scalar{int64_t{1}});
     EXPECT(scalar_invoke_common(both_double, scalar{int64_t{1}}, scalar{int64_t{2}}) ==
            scalar{int64_t{0}});
 }

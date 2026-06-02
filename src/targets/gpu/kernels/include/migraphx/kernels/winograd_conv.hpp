@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_KERNELS_WINOGRAD_CONV_HPP
 
 #include <migraphx/kernels/array.hpp>
+#include <migraphx/kernels/bit_cast.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/vec.hpp>
@@ -155,9 +156,7 @@ __device__ inline auto make_input_buffer_rsrc(const half* p, uint32_t byte_count
 __device__ inline half buffer_load_half(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
 {
     uint16_t v = __builtin_amdgcn_raw_buffer_load_b16(rsrc, byte_offset, 0, 0);
-    half h;
-    __builtin_memcpy(&h, &v, 2);
-    return h;
+    return bit_cast<half>(v);
 }
 
 // Lane-indexed raw buffer load of 4 fp16 = 8 bytes. OOB bytes return 0.
@@ -166,9 +165,7 @@ __device__ inline half buffer_load_half(__amdgpu_buffer_rsrc_t rsrc, int byte_of
 __device__ inline vec<half, 4> buffer_load_half4(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
 {
     auto v = __builtin_amdgcn_raw_buffer_load_b64(rsrc, byte_offset, 0, 0);
-    vec<half, 4> result;
-    __builtin_memcpy(&result, &v, sizeof(result));
-    return result;
+    return bit_cast<vec<half, 4>>(v);
 }
 
 // F(2x2, 3x3) Winograd transforms used inline by the WMMA path.
@@ -492,10 +489,8 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 (i_t * u_sh[0] + j_t * u_sh[1] + k * u_sh[2] + c_abs * u_sh[3]) * sizeof(half));
         };
         auto load_t = [&](int32_t off) {
-            vec<half, 8> v8;
             auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
-            __builtin_memcpy(&v8, &raw, sizeof(v8));
-            return v8;
+            return bit_cast<vec<half, 8>>(raw);
         };
         struct u_row
         {

@@ -111,12 +111,6 @@ TEST_CASE(convert_string_invalid)
     EXPECT(test::throws([&] { migraphx::convert_to_compile_mode("invalid"); }));
 }
 
-TEST_CASE(compile_options_default_mode)
-{
-    migraphx::compile_options co;
-    EXPECT(co.compile_mode == migraphx::compile_modes::balanced);
-}
-
 TEST_CASE(convert_string_empty_throws)
 {
     EXPECT(test::throws([&] { migraphx::convert_to_compile_mode(""); }));

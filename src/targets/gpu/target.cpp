@@ -176,9 +176,10 @@ struct pipeline_factory
     std::vector<pass> fusion_pipeline() const
     {
         return {
-            enable_pass(mlir_enabled(),
-                        fuse_attention{.attn_enabled = mlir_attention_enabled(get_context(), mlir_ops),
-                                       .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+            enable_pass(
+                mlir_enabled(),
+                fuse_attention{.attn_enabled = mlir_attention_enabled(get_context(), mlir_ops),
+                               .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
             fuse_pointwise_reduce{},

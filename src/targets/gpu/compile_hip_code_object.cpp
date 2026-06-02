@@ -247,7 +247,11 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},
                           options.kernel_name,
                           options.global,
+                          options.global_y,
+                          options.global_z,
                           options.local,
+                          options.local_y,
+                          options.local_z,
                           options.inputs,
                           options.output,
                           options.output_arg};

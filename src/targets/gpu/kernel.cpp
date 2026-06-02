@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -84,7 +84,11 @@ bool kernel::empty() const { return impl == nullptr; }
 static void launch_kernel(hipFunction_t fun,
                           hipStream_t stream,
                           std::size_t global,
+                          std::size_t global_y,
+                          std::size_t global_z,
                           std::size_t local,
+                          std::size_t local_y,
+                          std::size_t local_z,
                           void* kernargs,
                           std::size_t size,
                           hipEvent_t start,
@@ -107,11 +111,11 @@ static void launch_kernel(hipFunction_t fun,
 
     auto status = hipExtModuleLaunchKernel(fun,
                                            global,
-                                           1,
-                                           1,
+                                           global_y,
+                                           global_z,
                                            local,
-                                           1,
-                                           1,
+                                           local_y,
+                                           local_z,
                                            0,
                                            stream,
                                            nullptr,
@@ -130,7 +134,11 @@ static void launch_kernel(hipFunction_t fun,
 
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
+                    std::size_t global_y,
+                    std::size_t global_z,
                     std::size_t local,
+                    std::size_t local_y,
+                    std::size_t local_z,
                     pointers args,
                     hipEvent_t start,
                     hipEvent_t stop) const
@@ -139,12 +147,27 @@ void kernel::launch(hipStream_t stream,
     void* kernargs   = reinterpret_cast<void*>(args.data());
     std::size_t size = args.bytes();
 
-    launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
+    launch_kernel(impl->fun,
+                  stream,
+                  global,
+                  global_y,
+                  global_z,
+                  local,
+                  local_y,
+                  local_z,
+                  kernargs,
+                  size,
+                  start,
+                  stop);
 }
 
 void kernel::launch(hipStream_t stream,
                     std::size_t global,
+                    std::size_t global_y,
+                    std::size_t global_z,
                     std::size_t local,
+                    std::size_t local_y,
+                    std::size_t local_z,
                     const std::vector<kernel_argument>& args,
                     hipEvent_t start,
                     hipEvent_t stop) const
@@ -153,7 +176,18 @@ void kernel::launch(hipStream_t stream,
     std::vector<char> kernargs = pack_args(args);
     std::size_t size           = kernargs.size();
 
-    launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, start, stop);
+    launch_kernel(impl->fun,
+                  stream,
+                  global,
+                  global_y,
+                  global_z,
+                  local,
+                  local_y,
+                  local_z,
+                  kernargs.data(),
+                  size,
+                  start,
+                  stop);
 }
 
 } // namespace gpu

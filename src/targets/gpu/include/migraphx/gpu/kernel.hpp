@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -71,17 +71,45 @@ struct MIGRAPHX_GPU_EXPORT kernel
 
     void launch(hipStream_t stream,
                 std::size_t global,
+                std::size_t global_y,
+                std::size_t global_z,
                 std::size_t local,
+                std::size_t local_y,
+                std::size_t local_z,
                 const std::vector<kernel_argument>& args,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
 
     void launch(hipStream_t stream,
                 std::size_t global,
+                std::size_t global_y,
+                std::size_t global_z,
                 std::size_t local,
+                std::size_t local_y,
+                std::size_t local_z,
                 pointers args,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
+
+    void launch(hipStream_t stream,
+                std::size_t global,
+                std::size_t local,
+                const std::vector<kernel_argument>& args,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const
+    {
+        launch(stream, global, 1, 1, local, 1, 1, args, start, stop);
+    }
+
+    void launch(hipStream_t stream,
+                std::size_t global,
+                std::size_t local,
+                pointers args,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const
+    {
+        launch(stream, global, 1, 1, local, 1, 1, args, start, stop);
+    }
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const

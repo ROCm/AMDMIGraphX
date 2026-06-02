@@ -18,10 +18,8 @@
 #   rbuild build -d depend -B build \
 #       -DGPU_TARGETS=$(rocminfo | grep -o -m1 'gfx.*')
 
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
-ARG GPU_ARCH=gfx120x
-ARG ROCM_RELEASE_URL=https://rocm.nightlies.amd.com/deb/20260414-24379014014
 
 # Support multiarch
 RUN dpkg --add-architecture i386
@@ -31,14 +29,6 @@ RUN dpkg --add-architecture i386
 # signed-by= for them and no ROCm key is imported here.
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates gnupg2 curl && \
     curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg
-
-# Add rocm repository.
-# ROCm nightlies currently serve an unsigned Release (no InRelease / Release.gpg),
-# so trusted=yes is required. Switch to signed-by= once upstream signs the repo.
-RUN sh -c "echo deb [arch=amd64 trusted=yes] ${ROCM_RELEASE_URL} stable main > /etc/apt/sources.list.d/rocm.list"
-
-# From docs.amd.com for installing rocm. Needed to install properly
-RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
 
 # Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
 RUN sh -c "echo deb [arch=amd64 signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-17 main > /etc/apt/sources.list.d/llvm.list"
@@ -70,18 +60,31 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+
+# Download and install GPG key
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings
+
+# ROCm release signing key
+RUN wget https://repo.amd.com/rocm/packages/gpg/rocm.gpg -O - | \
+    gpg --dearmor | sudo tee /etc/apt/keyrings/amdrocm.gpg > /dev/null
+
+RUN tee /etc/apt/sources.list.d/rocm.list << EOF
+RUN deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages/ubuntu2204 stable main
+EOF
+
 # Install rocm libraries
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    amdrocm-runtime \
-    amdrocm-runtime-dev \
-    amdrocm-llvm \
-    amdrocm-core-${GPU_ARCH} \
-    amdrocm-core-dev-${GPU_ARCH} \
-    amdrocm-blas-${GPU_ARCH} \
-    amdrocm-blas-dev-${GPU_ARCH} \
-    amdrocm-hipblas-common-dev-${GPU_ARCH} \
-    amdrocm-dnn-${GPU_ARCH} \
-    amdrocm-dnn-dev-${GPU_ARCH} && \
+    amdrocm-developer-tools7.13 \
+    #amdrocm-runtime \
+    #amdrocm-runtime-dev \
+    #amdrocm-llvm \
+    #amdrocm-core-${GPU_ARCH} \
+    #amdrocm-core-dev-${GPU_ARCH} \
+    #amdrocm-blas-${GPU_ARCH} \
+    #amdrocm-blas-dev-${GPU_ARCH} \
+    #amdrocm-hipblas-common-dev-${GPU_ARCH} \
+    #amdrocm-dnn-${GPU_ARCH} \
+    #amdrocm-dnn-dev-${GPU_ARCH} && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -91,11 +94,6 @@ RUN pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.g
 
 # Add ROCm bin to PATH
 ENV PATH=/opt/rocm/bin:$PATH
-
-# Expose GPU arch for CMake packaging, particularly for TheRock:
-# Fallback for cache var MIGRAPHX_THEROCK_GPU_ARCH and avoid MIGRAPHX_ prefix "unused env" warning.
-#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=$GPU_ARCH_FOR_THEROCK
-ENV GPU_ARCH_FOR_THEROCK=${GPU_ARCH}
 
 # Set locale
 RUN locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8

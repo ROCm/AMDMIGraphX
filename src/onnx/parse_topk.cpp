@@ -26,7 +26,6 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -67,13 +66,13 @@ struct parse_topk : op_parser<parse_topk>
             k = info.attributes.at("k").i();
         }
 
-        auto topk_ret =
+          auto topk_ret =
             k.has_value()
                 ? info.add_instruction(
-                      make_op("topk", {{"k", *k}, {"axis", axis}, {"largest", largest}}),
-                      args.at(0))
+                    make_op("topk", {{"k", *k}, {"axis", axis}, {"largest", largest}}),
+                    args.at(0))
                 : info.add_instruction(
-                      make_op("topk", {{"axis", axis}, {"largest", largest}}), args.at(0));
+                    make_op("topk", {{"axis", axis}, {"largest", largest}}), args);
 
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
         auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);

@@ -119,7 +119,7 @@ struct topk
         auto actual_k     = k.has_value() ? std::min(static_cast<std::size_t>(*k), relements) : relements;
         auto make_indices = [&](const auto& m_idx) {
             return [&](int64_t i) {
-                if(args.size() < 2)
+                if(args.size() < 2 or not k.has_value())
                     return i;
                 auto j  = m_idx;
                 j[axis] = i;

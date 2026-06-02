@@ -446,16 +446,16 @@ TEST_CASE(make_combinations)
                               << std::endl;
 
                     std::stringstream ss;
-                    ss << backend << "_" << "full_" << num_split << "_" << batch << "_" << nhead << "_" << M
+                    ss << num_split << "_" << batch << "_" << nhead << "_" << M
                        << "_" << N << "_" << K << "_" << O << ".mxr";
-                    std::string check_filename = "saved_models/mlir_ck_combine_models/" + ss.str();
+                    std::string check_filename = "saved_models/mlir_main_mgx_combine_models/" + ss.str();
                     if(std::filesystem::exists(check_filename))
                     {
                         std::cout << "Skipping, file already exists: " << check_filename
                                   << std::endl;
                         continue;
                     }
-                    std::string output_filename = "saved_models/mlir_ck_combine_models/" + ss.str();
+                    std::string output_filename = "saved_models/mlir_main_mgx_combine_models/" + ss.str();
                     std::cout << "Compiling " << output_filename << std::endl;
                     auto start_time = std::chrono::high_resolution_clock::now();
                     p.compile(migraphx::make_target("gpu"), options);
@@ -464,7 +464,7 @@ TEST_CASE(make_combinations)
                     std::cout << p << std::endl;
                     std::cout << "Finished compiling " << output_filename << " in "
                               << elapsed.count() << " seconds" << std::endl;
-                    // migraphx::save(p, output_filename);
+                    migraphx::save(p, output_filename);
                 }
             }
         }
@@ -519,11 +519,14 @@ TEST_CASE(test_combinations)
 
             auto gpu_p = p;
             migraphx::compile_options options;
-            options.exhaustive_tune = true;
+            options.exhaustive_tune = false;
             options.offload_copy    = true;
             gpu_p.compile(migraphx::make_target("gpu"), options);
+            std::cout << "GPU program: " << std::endl;
             std::cout << gpu_p << std::endl;
             p.compile(migraphx::make_target("ref"));
+            std::cout << "Ref program: " << std::endl;
+            std::cout << p << std::endl;
 
             migraphx::parameter_map pm;
             std::vector<migraphx::half> q_data(a_shape.elements());

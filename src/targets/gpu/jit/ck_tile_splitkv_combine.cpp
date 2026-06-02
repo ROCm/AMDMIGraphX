@@ -249,6 +249,7 @@ struct ck_tile_splitkv_combine_compiler : compiler<ck_tile_splitkv_combine_compi
         auto shapes    = to_shapes(ins->inputs());
         auto problem   = create_problem(shapes, create_settings(ins, op));
         auto solutions = problem.GetSolutions(ctx.get_current_device().get_gfx_name());
+        std::cout << "Solutions: " << solutions.size() << std::endl;
         tc.solutions.resize(solutions.size());
         std::iota(tc.solutions.begin(), tc.solutions.end(), 0);
         std::vector<shape> key_shapes{shapes[0], shapes[1]};

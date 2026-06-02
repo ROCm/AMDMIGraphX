@@ -413,6 +413,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                                               const operation& op,
                                               bool exhaustive) const
     {
+        exhaustive = true;
         if(not exhaustive)
             return nullopt;
         if(op.name() != "fused_reduce")

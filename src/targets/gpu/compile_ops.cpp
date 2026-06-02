@@ -337,6 +337,7 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
+                std::cout << "Compil solutions size: " << solutions.size() << std::endl;
                 if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());

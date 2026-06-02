@@ -2,10 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="${SCRIPT_DIR}/build"
+BUILD_DIR="${SCRIPT_DIR}/build_temp"
 DRIVER="${BUILD_DIR}/bin/driver"
-CK_MLIR_DIR="${BUILD_DIR}/saved_models/ck_models"
-CK_CK_DIR="${BUILD_DIR}/saved_models/ck_full_models"
+MLIR_MGX_DIR="${BUILD_DIR}/saved_models/mlir_main_mgx_combine_models"
+MLIR_CK_DIR="${BUILD_DIR}/saved_models/mlir_main_ck_combine_models"
 NITER=2500
 MEASURE_PASSES=5
 SCLK_MHZ="${SCLK_MHZ:-1900}"
@@ -61,6 +61,9 @@ setup_perf_env() {
 
 log_gpu_metrics() {
     local label="${1:-SNAPSHOT}"
+    if [[ -z "${METRICS_LOG:-}" ]]; then
+        return
+    fi
     {
         echo "=== GPU ${GPU_ID} metrics [${label}] $(date '+%Y-%m-%d %H:%M:%S') ==="
         rocm-smi -d "$GPU_ID" -c -P -t -p 2>/dev/null | grep "GPU\[$GPU_ID\]" || true
@@ -70,6 +73,9 @@ log_gpu_metrics() {
 
 start_gpu_sampler() {
     local label="$1"
+    if [[ -z "${METRICS_LOG:-}" ]]; then
+        return
+    fi
     (
         while true; do
             local ts
@@ -170,18 +176,18 @@ print_stats() {
             has_filter = (fm != "" || fn != "" || fk != "" || fo != "")
             if (has_filter && !hit) next
         }
-        if ($10 == "ck_mlir") {
-            ck_mlir_count++
-            ck_mlir_speedups[ck_mlir_count] = $12
-            ck_mlir_sum += $12
-            if (ck_mlir_count == 1 || $12 < ck_mlir_min) ck_mlir_min = $12
-            if (ck_mlir_count == 1 || $12 > ck_mlir_max) ck_mlir_max = $12
+        if ($10 == "mlir_mgx") {
+            mlir_mgx_count++
+            mlir_mgx_speedups[mlir_mgx_count] = $12
+            mlir_mgx_sum += $12
+            if (mlir_mgx_count == 1 || $12 < mlir_mgx_min) mlir_mgx_min = $12
+            if (mlir_mgx_count == 1 || $12 > mlir_mgx_max) mlir_mgx_max = $12
         } else {
-            ck_ck_count++
-            ck_ck_speedups[ck_ck_count] = -$12
-            ck_ck_sum += -$12
-            if (ck_ck_count == 1 || -$12 < ck_ck_min) ck_ck_min = -$12
-            if (ck_ck_count == 1 || -$12 > ck_ck_max) ck_ck_max = -$12
+            mlir_ck_count++
+            mlir_ck_speedups[mlir_ck_count] = -$12
+            mlir_ck_sum += -$12
+            if (mlir_ck_count == 1 || -$12 < mlir_ck_min) mlir_ck_min = -$12
+            if (mlir_ck_count == 1 || -$12 > mlir_ck_max) mlir_ck_max = -$12
         }
     }
     function median(arr, n,    i, tmp, j) {
@@ -192,22 +198,22 @@ print_stats() {
         return (arr[n/2] + arr[n/2 + 1]) / 2
     }
     END {
-        total = ck_mlir_count + ck_ck_count
+        total = mlir_mgx_count + mlir_ck_count
         printf "=== Summary ===\n"
         printf "Total comparisons: %d\n\n", total
-        printf "CK+MLIR combine faster: %d/%d\n", ck_mlir_count, total
-        if (ck_mlir_count > 0) {
-            printf "  avg speedup: %.2f%%\n", ck_mlir_sum / ck_mlir_count
-            printf "  median speedup: %.2f%%\n", median(ck_mlir_speedups, ck_mlir_count)
-            printf "  min speedup: %.2f%%\n", ck_mlir_min
-            printf "  max speedup: %.2f%%\n", ck_mlir_max
+        printf "MLIR + MGX combine faster: %d/%d\n", mlir_mgx_count, total
+        if (mlir_mgx_count > 0) {
+            printf "  avg speedup: %.2f%%\n", mlir_mgx_sum / mlir_mgx_count
+            printf "  median speedup: %.2f%%\n", median(mlir_mgx_speedups, mlir_mgx_count)
+            printf "  min speedup: %.2f%%\n", mlir_mgx_min
+            printf "  max speedup: %.2f%%\n", mlir_mgx_max
         }
-        printf "\nCK+CK combine faster:   %d/%d\n", ck_ck_count, total
-        if (ck_ck_count > 0) {
-            printf "  avg speedup: %.2f%%\n", ck_ck_sum / ck_ck_count
-            printf "  median speedup: %.2f%%\n", median(ck_ck_speedups, ck_ck_count)
-            printf "  min speedup: %.2f%%\n", ck_ck_min
-            printf "  max speedup: %.2f%%\n", ck_ck_max
+        printf "\nMLIR + CK combine faster:   %d/%d\n", mlir_ck_count, total
+        if (mlir_ck_count > 0) {
+            printf "  avg speedup: %.2f%%\n", mlir_ck_sum / mlir_ck_count
+            printf "  median speedup: %.2f%%\n", median(mlir_ck_speedups, mlir_ck_count)
+            printf "  min speedup: %.2f%%\n", mlir_ck_min
+            printf "  max speedup: %.2f%%\n", mlir_ck_max
         }
     }' "$CSV"
 }
@@ -244,7 +250,7 @@ if [[ "$NO_PERF_SETUP" != "1" ]]; then
     trap teardown_perf_env EXIT
 fi
 
-CSV="${SCRIPT_DIR}/benchmark_splitkv_ck_mlir_vs_ck_ck_${NUM_SPLITS}_splits.csv"
+CSV="${SCRIPT_DIR}/benchmark_splitkv_mlir_mgx_vs_mlir_ck_${NUM_SPLITS}_splits.csv"
 if [[ "$DISCOVERY_MODE" == "1" ]]; then
     METRICS_LOG="${SCRIPT_DIR}/gpu_metrics_${NUM_SPLITS}_splits_gpu${GPU_ID}_$(date '+%Y%m%d_%H%M%S').log"
     echo "GPU metrics log: $METRICS_LOG"
@@ -253,12 +259,12 @@ fi
 
 RUN_COLS=""
 for i in $(seq 0 $((MEASURE_PASSES - 1))); do
-    RUN_COLS="${RUN_COLS},ck_mlir_run_${i}"
+    RUN_COLS="${RUN_COLS},mlir_mgx_run_${i}"
 done
 for i in $(seq 0 $((MEASURE_PASSES - 1))); do
-    RUN_COLS="${RUN_COLS},ck_ck_run_${i}"
+    RUN_COLS="${RUN_COLS},mlir_ck_run_${i}"
 done
-echo "num_splits,batch,nhead,M,N,K,O,ck_mlir_time_ms,ck_ck_time_ms,faster,delta_ms,speedup_pct${RUN_COLS}" > "$CSV"
+echo "num_splits,batch,nhead,M,N,K,O,mlir_mgx_time_ms,mlir_ck_time_ms,faster,delta_ms,speedup_pct${RUN_COLS}" > "$CSV"
 
 BATCH=2
 NHEAD=4
@@ -276,34 +282,32 @@ for M in 1 16 32; do
             for O in 32 48 64 80 96 128 192 256; do
                 TAG="${NUM_SPLITS}_${BATCH}_${NHEAD}_${M}_${N}_${K}_${O}"
 
-                CK_MLIR_MODEL="${CK_MLIR_DIR}/ck_${TAG}.mxr"
-                CK_CK_MODEL="${CK_CK_DIR}/ck_full_${TAG}.mxr"
+                mlir_mgx_MODEL="${MLIR_MGX_DIR}/${TAG}.mxr"
+                mlir_ck_MODEL="${MLIR_CK_DIR}/${TAG}.mxr"
 
-                if [[ ! -f "$CK_MLIR_MODEL" ]]; then
-                    echo "SKIP (missing): $CK_MLIR_MODEL"
+                if [[ ! -f "$mlir_mgx_MODEL" ]]; then
+                    echo "SKIP (missing): $mlir_mgx_MODEL"
                     continue
                 fi
-                if [[ ! -f "$CK_CK_MODEL" ]]; then
-                    echo "SKIP (missing): $CK_CK_MODEL"
+                if [[ ! -f "$mlir_ck_MODEL" ]]; then
+                    echo "SKIP (missing): $mlir_ck_MODEL"
                     continue
                 fi
-
                 echo -n "Timing ${TAG} ... "
-
                 [[ "$DISCOVERY_MODE" == "1" ]] && start_gpu_sampler "${TAG}"
-                read -r CK_MLIR_TIME CK_MLIR_RUNS <<< "$(measure_time "$CK_MLIR_MODEL")"
-                read -r CK_CK_TIME CK_CK_RUNS <<< "$(measure_time "$CK_CK_MODEL")"
+                read -r mlir_mgx_TIME mlir_mgx_RUNS <<< "$(measure_time "$mlir_mgx_MODEL")"
+                read -r mlir_ck_TIME mlir_ck_RUNS <<< "$(measure_time "$mlir_ck_MODEL")"
                 [[ "$DISCOVERY_MODE" == "1" ]] && stop_gpu_sampler
 
-                FASTER=$(awk "BEGIN {print ($CK_MLIR_TIME < $CK_CK_TIME) ? \"ck_mlir\" : \"ck_ck\"}")
-                DELTA=$(awk "BEGIN {printf \"%.6f\", $CK_CK_TIME - $CK_MLIR_TIME}")
-                SPEEDUP=$(awk "BEGIN {printf \"%.2f\", ($CK_CK_TIME - $CK_MLIR_TIME) / $CK_CK_TIME * 100}")
-                echo "ck_mlir=${CK_MLIR_TIME}ms  ck_ck=${CK_CK_TIME}ms  faster=${FASTER}  delta=${DELTA}ms  speedup=${SPEEDUP}%"
-                echo "  ck_mlir_runs: ${CK_MLIR_RUNS}  ck_ck_runs: ${CK_CK_RUNS}"
+                FASTER=$(awk "BEGIN {print ($mlir_mgx_TIME < $mlir_ck_TIME) ? \"mlir_mgx\" : \"mlir_ck\"}")
+                DELTA=$(awk "BEGIN {printf \"%.6f\", $mlir_ck_TIME - $mlir_mgx_TIME}")
+                SPEEDUP=$(awk "BEGIN {printf \"%.2f\", ($mlir_ck_TIME - $mlir_mgx_TIME) / $mlir_ck_TIME * 100}")
+                echo "mlir_mgx=${mlir_mgx_TIME}ms  mlir_ck=${mlir_ck_TIME}ms  faster=${FASTER}  delta=${DELTA}ms  speedup=${SPEEDUP}%"
+                echo "  mlir_mgx_runs: ${mlir_mgx_RUNS}  mlir_ck_runs: ${mlir_ck_RUNS}"
 
-                CK_MLIR_RUN_COLS=$(echo "$CK_MLIR_RUNS" | tr ' ' ',')
-                CK_CK_RUN_COLS=$(echo "$CK_CK_RUNS" | tr ' ' ',')
-                echo "${NUM_SPLITS},${BATCH},${NHEAD},${M},${N},${K},${O},${CK_MLIR_TIME},${CK_CK_TIME},${FASTER},${DELTA},${SPEEDUP},${CK_MLIR_RUN_COLS},${CK_CK_RUN_COLS}" >> "$CSV"
+                mlir_mgx_RUN_COLS=$(echo "$mlir_mgx_RUNS" | tr ' ' ',')
+                mlir_ck_RUN_COLS=$(echo "$mlir_ck_RUNS" | tr ' ' ',')
+                echo "${NUM_SPLITS},${BATCH},${NHEAD},${M},${N},${K},${O},${mlir_mgx_TIME},${mlir_ck_TIME},${FASTER},${DELTA},${SPEEDUP},${mlir_mgx_RUN_COLS},${mlir_ck_RUN_COLS}" >> "$CSV"
             done
         done
     done

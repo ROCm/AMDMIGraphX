@@ -868,8 +868,8 @@ struct mlir_program
 
             if(ins->name() == "@return")
             {
-                std::cout << "[mlir_program::parse] @return has " << ins->inputs().size()
-                          << " inputs" << std::endl;
+                // std::cout << "[mlir_program::parse] @return has " << ins->inputs().size()
+                //           << " inputs" << std::endl;
             }
             std::vector<MlirValue> inputs;
             transform(
@@ -903,11 +903,11 @@ struct mlir_program
 
     void run_high_level_pipeline()
     {
-        std::cout << "[run_high_level_pipeline] start, sym_name=" << sym_name << std::endl;
+        // std::cout << "[run_high_level_pipeline] start, sym_name=" << sym_name << std::endl;
         mlir_pass_manager pm_front{mlirPassManagerCreate(ctx.get())};
         mlirMIGraphXAddHighLevelPipeline(pm_front.get());
         logger.clear();
-        std::cout << "[run_high_level_pipeline] running pass manager... sym_name=" << sym_name << std::endl;
+        
         if(mlirLogicalResultIsFailure(
                mlirPassManagerRunOnOp(pm_front.get(), mlirModuleGetOperation(mmodule.get()))))
         {
@@ -918,12 +918,12 @@ struct mlir_program
             }
             MIGRAPHX_THROW(error);
         }
-        std::cout << "[run_high_level_pipeline] done, sym_name=" << sym_name << std::endl;
+        // std::cout << "[run_high_level_pipeline] done, sym_name=" << sym_name << std::endl;
     }
 
     void run_backend_pipeline(const std::string& solution)
     {
-        std::cout << "[run_backend_pipeline] start, sym_name=" << sym_name << std::endl;
+        // std::cout << "[run_backend_pipeline] start, sym_name=" << sym_name << std::endl;
         mlir_pass_manager pm_back{mlirPassManagerCreate(ctx.get())};
         MlirMIGraphXBackendOptions opts{};
         opts.arch       = target_arch.c_str();
@@ -940,7 +940,7 @@ struct mlir_program
             std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
         }
 
-        std::cout << "[run_backend_pipeline] running pass manager... sym_name=" << sym_name << std::endl;
+        // std::cout << "[run_backend_pipeline] running pass manager... sym_name=" << sym_name << std::endl;
         if(mlirLogicalResultIsFailure(mlirPassManagerRunOnOp(pm_back.get(), mod_op)))
         {
             std::string error = "MLIR backend compilation failed: " + logger.str();
@@ -950,7 +950,7 @@ struct mlir_program
             }
             MIGRAPHX_THROW(error);
         }
-        std::cout << "[run_backend_pipeline] done, sym_name=" << sym_name << std::endl;
+        // std::cout << "[run_backend_pipeline] done, sym_name=" << sym_name << std::endl;
     }
 
     code_object_op compile(const value& solution)
@@ -1156,23 +1156,23 @@ static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {
     auto mm = m;
-    std::cout << "[is_module_fusible] module has " << mm.get_output_shapes().size()
-              << " outputs, @return inputs: " << std::prev(mm.end())->inputs().size() << std::endl;
-    std::cout << "[is_module_fusible] before prepare, module contents:" << std::endl << mm << std::endl;
+    // std::cout << "[is_module_fusible] module has " << mm.get_output_shapes().size()
+    //           << " outputs, @return inputs: " << std::prev(mm.end())->inputs().size() << std::endl;
+    // std::cout << "[is_module_fusible] before prepare, module contents:" << std::endl << mm << std::endl;
     prepare(mm);
     // std::cout << "[is_module_fusible] after prepare, module contents:" << std::endl << mm << std::endl;
     // std::cout << "[is_module_fusible] after prepare, parsing..." << std::endl;
     mlir_program mp;
     mp.set_gpu_properties(migraphx_ctx);
     mp.parse(mm);
-    std::cout << "[is_module_fusible] parse done, running high_level_pipeline..." << std::endl;
+    // std::cout << "[is_module_fusible] parse done, running high_level_pipeline..." << std::endl;
     mp.run_high_level_pipeline();
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
-    std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
-    std::cout << "[is_module_fusible] high_level_pipeline done" << std::endl;
-    std::cout << *solution.if_string() << std::endl;
+    // std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
+    // std::cout << "[is_module_fusible] high_level_pipeline done" << std::endl;
+    // std::cout << *solution.if_string() << std::endl;
     auto ret = mlirIsModuleFusible(mp.mmodule.get(), make_mlir_string_ref(*solution.if_string()));
-    std::cout << "[is_module_fusible] mlirIsModuleFusible done, ret=" << ret << std::endl;
+    // std::cout << "[is_module_fusible] mlirIsModuleFusible done, ret=" << ret << std::endl;
     return ret;
 }
 
@@ -1306,10 +1306,10 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     const bool trace = enabled(MIGRAPHX_TRACE_MLIR{});
 
     static std::mutex mutex;
-    std::cout << "[compile_mlir] module '" << m.name() << "' has " << m.get_output_shapes().size()
-              << " outputs, @return inputs: " << std::prev(m.end())->inputs().size()
-              << ", in_shapes: " << in_shapes.size() << std::endl;
-    std::cout << "[compile_mlir] module contents:" << std::endl << m << std::endl;
+    // std::cout << "[compile_mlir] module '" << m.name() << "' has " << m.get_output_shapes().size()
+    //           << " outputs, @return inputs: " << std::prev(m.end())->inputs().size()
+    //           << ", in_shapes: " << in_shapes.size() << std::endl;
+    // std::cout << "[compile_mlir] module contents:" << std::endl << m << std::endl;
     if(trace)
     {
         const std::lock_guard<std::mutex> lock(mutex);
@@ -1319,9 +1319,9 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
     mlir_program mp;
 
     mp.set_gpu_properties(migraphx_ctx);
-    std::cout << "[compile_mlir] calling parse..." << std::endl;
+    // std::cout << "[compile_mlir] calling parse..." << std::endl;
     mp.parse(m, in_shapes);
-    std::cout << "[compile_mlir] parse done" << std::endl;
+    // std::cout << "[compile_mlir] parse done" << std::endl;
     auto mod_op = mlirModuleGetOperation(mp.mmodule.get());
     if(trace)
     {
@@ -1329,10 +1329,10 @@ mlir_code_object compile_mlir(const context& migraphx_ctx,
         std::cout << mlir_print(&mlirOperationPrint, mod_op) << std::endl;
     }
 
-    std::cout << "[compile_mlir] calling compile..." << std::endl;
-    std::cout << "solution: " << *solution.if_string() << std::endl;
+    // std::cout << "[compile_mlir] calling compile..." << std::endl;
+    // std::cout << "solution: " << *solution.if_string() << std::endl;
     auto co            = mp.compile(solution);
-    std::cout << "[compile_mlir] compile done" << std::endl;
+    // std::cout << "[compile_mlir] compile done" << std::endl;
     co.expected_inputs = in_shapes;
     co.output          = in_shapes.back();
 

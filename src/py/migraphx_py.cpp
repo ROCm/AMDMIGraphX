@@ -567,12 +567,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def(
             "finalize",
             [](migraphx::program& p, const migraphx::target& t) { p.finalize(t); },
-            "Attach a target+context and finalize without running compile "
-            "passes. Use this on programs loaded from .mxr files that are "
-            "already lowered (e.g. dumps from "
-            "MIGRAPHX_GPU_DUMP_BENCHMARK_MXR), where calling compile() would "
-            "rerun rewrites like auto_contiguous and corrupt the saved "
-            "code_object_op input shapes.",
+            "Attach a target+context and finalize an already-lowered program "
+            "(e.g. loaded from an .mxr) without running compile passes.",
             py::arg("t"))
         .def("get_main_module", [](const migraphx::program& p) { return p.get_main_module(); })
         .def(

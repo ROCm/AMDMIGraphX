@@ -69,4 +69,57 @@ TEST_CASE(compile_options_set_compile_mode_null_pointer)
     CHECK(migraphx_compile_options_set_compile_mode(nullptr, 50) == migraphx_status_bad_param);
 }
 
+TEST_CASE(compile_options_default_compile_mode)
+{
+    migraphx::api::compile_options options;
+    const auto* s_options = reinterpret_cast<const migraphx::MIGRAPHX_INLINE_NS::compile_options*>(
+        options.get_handle_ptr());
+    CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::balanced);
+}
+
+TEST_CASE(compile_options_set_compile_mode_closest_match)
+{
+    migraphx::api::compile_options options;
+    options.set_compile_mode(30);
+    const auto* s_options = reinterpret_cast<const migraphx::MIGRAPHX_INLINE_NS::compile_options*>(
+        options.get_handle_ptr());
+    CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::balanced);
+}
+
+TEST_CASE(compile_options_compile_with_eager_mode)
+{
+    migraphx::program p;
+    auto main_module = p.get_main_module();
+    migraphx::shape s{migraphx_shape_float_type, {2, 3}};
+    auto x  = main_module.add_parameter("x", s);
+    auto y  = main_module.add_parameter("y", s);
+    auto op = migraphx::operation("add");
+    main_module.add_instruction(op, {x, y});
+
+    migraphx::compile_options options;
+    options.set_compile_mode(0);
+    p.compile(migraphx::target("ref"), options);
+
+    auto output_shapes = p.get_output_shapes();
+    CHECK(output_shapes.size() == 1);
+}
+
+TEST_CASE(compile_options_compile_with_max_mode)
+{
+    migraphx::program p;
+    auto main_module = p.get_main_module();
+    migraphx::shape s{migraphx_shape_float_type, {2, 3}};
+    auto x  = main_module.add_parameter("x", s);
+    auto y  = main_module.add_parameter("y", s);
+    auto op = migraphx::operation("add");
+    main_module.add_instruction(op, {x, y});
+
+    migraphx::compile_options options;
+    options.set_compile_mode(100);
+    p.compile(migraphx::target("ref"), options);
+
+    auto output_shapes = p.get_output_shapes();
+    CHECK(output_shapes.size() == 1);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

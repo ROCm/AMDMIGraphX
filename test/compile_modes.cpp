@@ -111,4 +111,27 @@ TEST_CASE(convert_string_invalid)
     EXPECT(test::throws([&] { migraphx::convert_to_compile_mode("invalid"); }));
 }
 
+TEST_CASE(compile_options_default_mode)
+{
+    migraphx::compile_options co;
+    EXPECT(co.compile_mode == migraphx::compile_modes::balanced);
+}
+
+TEST_CASE(convert_string_empty_throws)
+{
+    EXPECT(test::throws([&] { migraphx::convert_to_compile_mode(""); }));
+}
+
+TEST_CASE(convert_uint8_boundary_25)
+{
+    auto result = migraphx::convert_to_compile_mode(uint8_t(25));
+    EXPECT(result == migraphx::compile_modes::eager or result == migraphx::compile_modes::balanced);
+}
+
+TEST_CASE(convert_uint8_boundary_75)
+{
+    auto result = migraphx::convert_to_compile_mode(uint8_t(75));
+    EXPECT(result == migraphx::compile_modes::balanced or result == migraphx::compile_modes::max);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

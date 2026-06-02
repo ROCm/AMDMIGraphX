@@ -26,7 +26,7 @@ ENV PATH="/opt/rocm-venv/bin:$PATH"
 # ── 3. Install ROCm wheels  ───────────────────
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
-        --index-url https://repo.amd.com/rocm/whl/whl-multi-arch/ \
+        --index-url https://repo.amd.com/rocm/whl-multi-arch/ \
         "rocm[libraries,devel,device-${GPU_ARCH}]"
 
 # ── 4. GPU device access (udev rules; applied by host at runtime in Docker) ────

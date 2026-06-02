@@ -595,7 +595,7 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
         std::find_if(factors.begin(), factors.end(), [](const expr& e) { return e.name() == "+"; });
     if(it != factors.end())
     {
-        auto plus_children = it->children();
+        const auto& plus_children = it->children();
         std::vector<expr> other_factors;
         std::copy_if(factors.begin(),
                      factors.end(),
@@ -1455,10 +1455,12 @@ static int expr_depth(const expr& e)
     if(e.empty())
         return 0;
     const auto& children = e.children();
-    int max_child        = 0;
-    for(const auto& c : children)
-        max_child = std::max(max_child, expr_depth(c));
-    return 1 + max_child;
+    return 1 + transform_accumulate(
+                   children.begin(),
+                   children.end(),
+                   0,
+                   [](int a, int b) { return std::max(a, b); },
+                   [](const expr& c) { return expr_depth(c); });
 }
 
 // Build a lookup function over a fixed map keyed on exprs that resolves keys
@@ -1477,9 +1479,12 @@ static int expr_depth(const expr& e)
 template <class Map>
 static auto make_find_symbol(const Map& m)
 {
-    int max_key_depth = 0;
-    for(const auto& kv : m)
-        max_key_depth = std::max(max_key_depth, expr_depth(kv.first));
+    int max_key_depth = transform_accumulate(
+        m.begin(),
+        m.end(),
+        0,
+        [](int a, int b) { return std::max(a, b); },
+        [](const auto& kv) { return expr_depth(kv.first); });
     return [&m, max_key_depth](const expr& e) -> const typename Map::mapped_type* {
         if(auto it = m.find(e); it != m.end())
             return &it->second;

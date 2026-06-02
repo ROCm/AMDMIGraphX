@@ -44,10 +44,7 @@ struct test_scatternd_nonpacked_indices : verify_program<test_scatternd_nonpacke
         constexpr std::size_t n = 8;
         constexpr std::size_t k = 2;
         migraphx::shape src_idx_shape{itype, {k, n}};
-        std::vector<int64_t> src_idx_vec{
-            0, 0, 0, 0, 0, 0, 0, 0,
-            7, 6, 5, 4, 3, 2, 1, 0
-        };
+        std::vector<int64_t> src_idx_vec{0, 0, 0, 0, 0, 0, 0, 0, 7, 6, 5, 4, 3, 2, 1, 0};
         auto src_idx = mm->add_literal(migraphx::literal{src_idx_shape, src_idx_vec});
         auto indices =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), src_idx);

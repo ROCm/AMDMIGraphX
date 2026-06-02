@@ -33,8 +33,7 @@
 // {1, N}. A naive kernel that reads two contiguous int64 entries per row will
 // pull the wrong values and direct every thread to the same output cell.
 template <migraphx::shape::type_t DType>
-struct test_scatternd_nonpacked_indices
-    : verify_program<test_scatternd_nonpacked_indices<DType>>
+struct test_scatternd_nonpacked_indices : verify_program<test_scatternd_nonpacked_indices<DType>>
 {
     migraphx::program create_program() const
     {

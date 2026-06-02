@@ -26,6 +26,8 @@ Full documentation for MIGraphX is available at
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
+* Added driver warnings when inputs dimensions and/or values are not set (#4850).
+
 ### Changed
 
 * Converted `nonzero` operator from device implementation to JIT compilation (#4720).

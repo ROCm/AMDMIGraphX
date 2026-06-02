@@ -37,9 +37,9 @@ struct context;
 
 struct hip_compile_options
 {
-    // Total number of threads
+    // Total number of work-items
     std::size_t global;
-    // Threads per block
+    // Number of work-items that make up a work-group
     std::size_t local;
     std::vector<shape> inputs;
     shape output;

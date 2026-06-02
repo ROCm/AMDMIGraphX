@@ -117,23 +117,43 @@ struct select_module
         auto out_param_names    = get_output_parameter_names(module_to_run);
         auto param_shapes       = module_to_run->get_parameter_shapes();
         auto output_sub_objects = args.back().get_sub_objects();
-        assert(out_param_names.size() == output_sub_objects.size());
-        std::transform(out_param_names.begin(),
-                       out_param_names.end(),
-                       output_sub_objects.begin(),
-                       std::inserter(p_map, p_map.end()),
-                       [&](auto&& name, auto&& a) {
-                           auto ps = param_shapes.at(name);
-                           if(a.get_shape() != ps)
-                           {
-                               assert(ps.bytes() <= a.get_shape().bytes());
-                               return std::make_pair(name, a.reshape(ps));
-                           }
-                           else
-                           {
-                               return std::make_pair(name, a);
-                           }
-                       });
+        if(out_param_names.size() == output_sub_objects.size())
+        {
+            std::transform(out_param_names.begin(),
+                           out_param_names.end(),
+                           output_sub_objects.begin(),
+                           std::inserter(p_map, p_map.end()),
+                           [&](auto&& name, auto&& a) {
+                               auto ps = param_shapes.at(name);
+                               if(a.get_shape() != ps)
+                               {
+                                   assert(ps.bytes() <= a.get_shape().bytes());
+                                   return std::make_pair(name, a.reshape(ps));
+                               }
+                               else
+                               {
+                                   return std::make_pair(name, a);
+                               }
+                           });
+        }
+        else
+        {
+            // Submodule has a single tuple output parameter but the output buffer was
+            // split into sub-objects. Reconstruct the tuple argument.
+            assert(out_param_names.size() == 1);
+            auto name = out_param_names.front();
+            auto ps   = param_shapes.at(name);
+            argument tuple_arg{output_sub_objects};
+            if(tuple_arg.get_shape() != ps)
+            {
+                assert(ps.bytes() <= tuple_arg.get_shape().bytes());
+                p_map[name] = tuple_arg.reshape(ps);
+            }
+            else
+            {
+                p_map[name] = tuple_arg;
+            }
+        }
         auto results = run(module_to_run, p_map);
         return argument{results};
     }

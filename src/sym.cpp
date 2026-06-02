@@ -56,6 +56,18 @@ scalar scalar_max(const scalar& a, const scalar& b)
     return scalar_invoke_common([](auto x, auto y) { return x > y ? x : y; }, a, b);
 }
 
+// Evaluate f at the four corners of a x b and return the enclosing interval.
+template <class F>
+static interval corner_extrema(F f, interval a, interval b)
+{
+    auto p1 = scalar_invoke_common(f, a.min, b.min);
+    auto p2 = scalar_invoke_common(f, a.min, b.max);
+    auto p3 = scalar_invoke_common(f, a.max, b.min);
+    auto p4 = scalar_invoke_common(f, a.max, b.max);
+    return {scalar_min(scalar_min(p1, p2), scalar_min(p3, p4)),
+            scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
+}
+
 bool interval::valid() const { return max >= min; }
 
 interval operator+(interval a, interval b)
@@ -72,13 +84,7 @@ interval operator-(interval a, interval b)
 
 interval operator*(interval a, interval b)
 {
-    auto f  = [](auto x, auto y) { return x * y; };
-    auto p1 = scalar_invoke_common(f, a.min, b.min);
-    auto p2 = scalar_invoke_common(f, a.min, b.max);
-    auto p3 = scalar_invoke_common(f, a.max, b.min);
-    auto p4 = scalar_invoke_common(f, a.max, b.max);
-    return {scalar_min(scalar_min(p1, p2), scalar_min(p3, p4)),
-            scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
+    return corner_extrema([](auto x, auto y) { return x * y; }, a, b);
 }
 
 interval operator/(interval a, interval b)
@@ -115,13 +121,7 @@ interval operator/(interval a, interval b)
         return {-inf, inf};
     }
 
-    auto f  = [](auto x, auto y) { return x / y; };
-    auto p1 = scalar_invoke_common(f, a.min, b.min);
-    auto p2 = scalar_invoke_common(f, a.min, b.max);
-    auto p3 = scalar_invoke_common(f, a.max, b.min);
-    auto p4 = scalar_invoke_common(f, a.max, b.max);
-    return {scalar_min(scalar_min(p1, p2), scalar_min(p3, p4)),
-            scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
+    return corner_extrema([](auto x, auto y) { return x / y; }, a, b);
 }
 
 interval operator%(interval, interval b)
@@ -248,16 +248,7 @@ interval floor(interval x)
 
 interval ceil(interval x) { return {std::ceil(to<double>(x.min)), std::ceil(to<double>(x.max))}; }
 
-interval pow(interval x, interval y)
-{
-    auto f  = MIGRAPHX_LIFT(std::pow);
-    auto p1 = scalar_invoke_common(f, x.min, y.min);
-    auto p2 = scalar_invoke_common(f, x.min, y.max);
-    auto p3 = scalar_invoke_common(f, x.max, y.min);
-    auto p4 = scalar_invoke_common(f, x.max, y.max);
-    return {scalar_min(scalar_min(p1, p2), scalar_min(p3, p4)),
-            scalar_max(scalar_max(p1, p2), scalar_max(p3, p4))};
-}
+interval pow(interval x, interval y) { return corner_extrema(MIGRAPHX_LIFT(std::pow), x, y); }
 
 interval min(interval x, interval y)
 {
@@ -358,20 +349,21 @@ static const node_variant& get_node(const expr& e)
     return e.get_pimpl()->node;
 }
 
-static std::string get_sym_name(const node_variant& nv)
+static std::string_view get_sym_name(const node_variant& nv)
 {
-    return std::visit(overloaded{[](const variable_node& n) { return n.name; },
-                                 [](const op_node& n) -> std::string { return n.op->name; },
-                                 [](const literal_node&) -> std::string { return ""; }},
+    return std::visit(overloaded{[](const variable_node& n) -> std::string_view { return n.name; },
+                                 [](const op_node& n) -> std::string_view { return n.op->name; },
+                                 [](const literal_node&) -> std::string_view { return ""; }},
                       nv);
 }
 
-static std::string get_node_name(const node_variant& nv)
+static std::string_view get_node_name(const node_variant& nv)
 {
-    return std::visit(overloaded{[](const literal_node&) -> std::string { return "literal"; },
-                                 [](const variable_node&) -> std::string { return "variable"; },
-                                 [](const op_node& n) -> std::string { return n.op->name; }},
-                      nv);
+    return std::visit(
+        overloaded{[](const literal_node&) -> std::string_view { return "literal"; },
+                   [](const variable_node&) -> std::string_view { return "variable"; },
+                   [](const op_node& n) -> std::string_view { return n.op->name; }},
+        nv);
 }
 
 static scalar get_scalar_or(const node_variant& nv, scalar s)
@@ -579,7 +571,11 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
         [](scalar acc, scalar v) {
             return scalar_invoke_common([](auto x, auto y) { return x * y; }, acc, v);
         },
-        [](const expr& a) { return std::get_if<literal_node>(&get_node(a))->val; });
+        [](const expr& a) {
+            const auto* n = std::get_if<literal_node>(&get_node(a));
+            assert(n != nullptr); // partitioned to the literal tail above
+            return n->val;
+        });
 
     if(is_zero(coeff))
         return lit(coeff);
@@ -629,6 +625,7 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
 
 static expr normalize_div(const op_def* op, std::vector<expr> args)
 {
+    assert(args.size() == 2); // div is binary
     const auto& num = args[0];
     const auto& den = args[1];
 
@@ -1003,7 +1000,7 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
     if(a.empty() or b.empty())
         return std::nullopt;
 
-    // 1. Interval of b - a. eval_interval is already Taylor-tightened, so the
+    // 1. Interval of b - a. eval_interval is already monotonicity-tightened, so the
     //    cross-term correlations between b and a get picked up automatically.
     try
     {
@@ -1075,7 +1072,7 @@ std::size_t expr::hash() const
     return pimpl->cached_hash;
 }
 
-std::string expr::name() const
+std::string_view expr::name() const
 {
     if(empty())
         return "";
@@ -1094,7 +1091,7 @@ const std::vector<expr>& expr::children() const
 
 // apply signature is (const expr& e, const op_node& op, std::vector<R> args).
 // The expr is passed so a custom apply can re-examine the subtree shape (e.g.
-// for symbolic tightening via Taylor expansion). The default _auto_apply
+// for monotonicity-based interval tightening). The default _auto_apply
 // overloads ignore it.
 
 static scalar
@@ -1199,7 +1196,7 @@ static expr diff(const expr& e, const expr& v)
             MIGRAPHX_THROW("diff: / by zero");
         return diff(cs[0], v) * lit(1.0 / c);
     }
-    MIGRAPHX_THROW("diff: unsupported op " + e.name());
+    MIGRAPHX_THROW("diff: unsupported op " + std::string{e.name()});
 }
 
 // Collect every free variable appearing in `e`, with its effective interval
@@ -1211,7 +1208,7 @@ collect_free_vars(const expr& e, const std::function<std::optional<interval>(con
 {
     std::vector<std::pair<expr, interval>> result;
     std::unordered_set<expr> seen;
-    std::function<void(const expr&)> walk = [&](const expr& x) {
+    fix([&](auto self, const expr& x) {
         if(x.empty() or not seen.insert(x).second)
             return;
         if(auto iv = lookup(x))
@@ -1228,17 +1225,16 @@ collect_free_vars(const expr& e, const std::function<std::optional<interval>(con
             return;
         }
         for(const auto& c : x.children())
-            walk(c);
-    };
-    walk(e);
+            self(c);
+    })(e);
     return result;
 }
 
 // `lookup` resolves a (variable) subexpression to its interval, or nullopt to
 // fall back to the node's own constraint / structural recursion. The cache is a
-// per-call memo of eval_interval results, so a subexpression reached through
-// multiple parents is only computed once and a loop of eval_interval calls on
-// overlapping expressions can amortize cost.
+// per-call memo of interval results, so a subexpression reached through multiple
+// parents (including via the monotone-path reentry) is only computed once within
+// a single evaluation.
 static interval
 eval_interval_impl(const expr& e,
                    const std::function<std::optional<interval>(const expr&)>& lookup,
@@ -1839,6 +1835,7 @@ static expr simplify_impl(const expr& e, const std::vector<rewrite_rule>& rules)
     if(e.children().empty())
         return apply_rules(e, rules);
     const auto* op_n = std::get_if<op_node>(&get_node(e));
+    assert(op_n != nullptr); // a non-leaf expr is always an op node
     std::vector<expr> new_children;
     new_children.reserve(e.children().size());
     std::transform(e.children().begin(),

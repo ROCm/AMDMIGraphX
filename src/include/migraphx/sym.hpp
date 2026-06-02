@@ -33,6 +33,7 @@
 #include <ostream>
 #include <set>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -191,7 +192,7 @@ class MIGRAPHX_EXPORT expr
     {
     }
 
-    std::string name() const;
+    std::string_view name() const;
     bool is_raw() const;
     const impl* get_pimpl() const;
     const std::vector<expr>& children() const;

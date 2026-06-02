@@ -43,6 +43,8 @@ using migraphx::sym::parse;
 using migraphx::sym::pow;
 using migraphx::sym::pvar;
 using migraphx::sym::scalar;
+using migraphx::sym::scalar_invoke;
+using migraphx::sym::scalar_invoke_common;
 using migraphx::sym::simplify;
 using migraphx::sym::sin;
 using migraphx::sym::sqrt;
@@ -97,6 +99,107 @@ TEST_CASE(scalar_from_double)
 }
 
 TEST_CASE(scalar_from_float) { EXPECT(scalar(1.0f) == scalar{double{1.0f}}); }
+
+// ---- scalar_invoke / scalar_invoke_common tests ----
+
+TEST_CASE(scalar_invoke_unary_int)
+{
+    auto r = scalar_invoke([](auto x) { return x * 2; }, scalar{int64_t{5}});
+    EXPECT(r == scalar{int64_t{10}});
+}
+
+TEST_CASE(scalar_invoke_unary_double)
+{
+    auto r = scalar_invoke([](auto x) { return x + 1; }, scalar{2.5});
+    EXPECT(r == scalar{3.5});
+}
+
+TEST_CASE(scalar_invoke_binary_all_int)
+{
+    // Both alternatives are int64_t, so integer division applies: 7 / 2 == 3.
+    auto r =
+        scalar_invoke([](auto a, auto b) { return a / b; }, scalar{int64_t{7}}, scalar{int64_t{2}});
+    EXPECT(r == scalar{int64_t{3}});
+}
+
+TEST_CASE(scalar_invoke_binary_mixed)
+{
+    // scalar_invoke passes each alternative as its held type, so int64_t / double
+    // yields a double: 7 / 2.0 == 3.5.
+    auto r = scalar_invoke([](auto a, auto b) { return a / b; }, scalar{int64_t{7}}, scalar{2.0});
+    EXPECT(r == scalar{3.5});
+}
+
+TEST_CASE(scalar_invoke_no_promotion)
+{
+    // The visitor sees the actual held alternatives with no common-type promotion,
+    // so a mixed pair is not (double, double).
+    auto both_double = [](auto a, auto b) -> int64_t {
+        return (std::is_same<decltype(a), double>{} and std::is_same<decltype(b), double>{}) ? 1 : 0;
+    };
+    EXPECT(scalar_invoke(both_double, scalar{int64_t{1}}, scalar{2.0}) == scalar{int64_t{0}});
+    EXPECT(scalar_invoke(both_double, scalar{1.0}, scalar{2.0}) == scalar{int64_t{1}});
+}
+
+TEST_CASE(scalar_invoke_common_all_int)
+{
+    // All-int path keeps integer semantics: 7 / 2 == 3.
+    auto r = scalar_invoke_common(
+        [](auto a, auto b) { return a / b; }, scalar{int64_t{7}}, scalar{int64_t{2}});
+    EXPECT(r == scalar{int64_t{3}});
+}
+
+TEST_CASE(scalar_invoke_common_mixed_promotes)
+{
+    // A non-int operand promotes every argument to double: 7 / 2.0 == 3.5.
+    auto r =
+        scalar_invoke_common([](auto a, auto b) { return a / b; }, scalar{int64_t{7}}, scalar{2.0});
+    EXPECT(r == scalar{3.5});
+}
+
+TEST_CASE(scalar_invoke_common_all_double)
+{
+    auto r = scalar_invoke_common([](auto a, auto b) { return a + b; }, scalar{1.5}, scalar{2.5});
+    EXPECT(r == scalar{4.0});
+}
+
+TEST_CASE(scalar_invoke_common_promotion)
+{
+    // Unlike scalar_invoke, a mixed pair is promoted so both args become double.
+    auto both_double = [](auto a, auto b) -> int64_t {
+        return (std::is_same<decltype(a), double>{} and std::is_same<decltype(b), double>{}) ? 1 : 0;
+    };
+    EXPECT(scalar_invoke_common(both_double, scalar{int64_t{1}}, scalar{2.0}) == scalar{int64_t{1}});
+    EXPECT(scalar_invoke_common(both_double, scalar{int64_t{1}}, scalar{int64_t{2}}) ==
+           scalar{int64_t{0}});
+}
+
+TEST_CASE(scalar_invoke_common_explicit_bool)
+{
+    // The explicit-return overload returns R directly (here bool), as used by
+    // literal equality.
+    auto less = [](auto a, auto b) { return a < b; };
+    auto r    = scalar_invoke_common<bool>(less, scalar{int64_t{2}}, scalar{int64_t{5}});
+    static_assert(std::is_same<decltype(r), bool>{}, "explicit R overload returns R");
+    EXPECT(r);
+    EXPECT(not scalar_invoke_common<bool>(less, scalar{int64_t{5}}, scalar{int64_t{2}}));
+}
+
+TEST_CASE(scalar_invoke_common_explicit_bool_mixed)
+{
+    // Mixed args are promoted before the comparison: 2.0 < 1.5 is false.
+    auto less = [](auto a, auto b) { return a < b; };
+    EXPECT(not scalar_invoke_common<bool>(less, scalar{int64_t{2}}, scalar{1.5}));
+}
+
+TEST_CASE(scalar_invoke_common_explicit_double)
+{
+    // The explicit-return overload forces a double result even for all-int args.
+    auto r = scalar_invoke_common<double>(
+        [](auto a, auto b) { return a + b; }, scalar{int64_t{3}}, scalar{int64_t{4}});
+    static_assert(std::is_same<decltype(r), double>{}, "explicit R overload returns R");
+    EXPECT(scalar{r} == scalar{7.0});
+}
 
 // ---- Value evaluation tests ----
 

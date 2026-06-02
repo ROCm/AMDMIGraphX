@@ -26,7 +26,6 @@ Full documentation for MIGraphX is available at
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
-
 ### Changed
 
 * Converted `nonzero` operator from device implementation to JIT compilation (#4720).
@@ -57,11 +56,11 @@ Full documentation for MIGraphX is available at
 * Fixed `scatternd_`* GPU JIT kernel and host reference op to read the `indices` tensor stride-aware (`begin_at`), so non-packed layouts produced by upstream `transpose`/`slice`/`concat` no longer collapse every write into the same output cell.
 
 ### Optimized
-
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).
 * Replaced Hillis-Steele scan algorithm with a wave-based hierarchical scan, reducing work complexity from O(N log N) to O(N) and synchronization from O(log N) to 2 `__syncthreads()` calls (#4720).
 * Optimized fusion for local_window mode of GQA operator (#4617).
 * Removed extra assignments and inserts of op names in find_nop_reshapes(#4696).
+
 * Added a new pass to replace convolution with constant broadcast input with a reduced GEMM which improves model compilation time (#4621).
 * Implemented JIT compilation for `logsoftmax` by decomposing it into fusible operations (`log`, `exp`, `reduce_max`, `reduce_sum`), enabling kernel fusion. (#4630).
 * Added early return to avoid unessicary fill operation if tile sizes out of range (#4514).
@@ -70,7 +69,6 @@ Full documentation for MIGraphX is available at
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 
 ### Removed
-
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).
 
 ## MIGraphX 2.15 for ROCm 7.2.0
@@ -90,6 +88,7 @@ Full documentation for MIGraphX is available at
 * Added index range check to the Gather operator.
 * Added `log(exp(x)) → x` and `log(a/b) → log(a) - log(b)` algebraic simplifications (#4630).
 
+
 ### Changed
 
 * Updated the Resize operator to support linear mode for Dynamic shapes.
@@ -101,6 +100,7 @@ Full documentation for MIGraphX is available at
 * Hide LLVM symbols that come from ROCmlir and provide option for stripping in release mode.
 * Model compilation failures now produce an mxr file for debugging the failure.
 * Bump SQlite3 to 3.50.4.
+
 
 ### Resolved issues
 
@@ -117,6 +117,7 @@ Full documentation for MIGraphX is available at
 * Ensured directories exist when generating files for debugging (#4383).
 * Resolved a compilation hang issue (#4428).
 
+
 ### Optimized
 
 * Converted the `LRN` operator to an optimized `pooling` operator.
@@ -124,7 +125,10 @@ Full documentation for MIGraphX is available at
 * Reduce the number of splits used for `split_reduce`.
 * Improve layout propagation in poinwise fusion when using broadcasted inputs.
 
+
 ### Removed
+
+
 
 ## MIGraphX 2.14 for ROCm 7.1.0
 
@@ -174,7 +178,7 @@ Full documentation for MIGraphX is available at
 * Fixed `reshape`, `transpose`, and `broadcast` rewrites between pointwise and reduce operators (#3978).
 * Fixed extraneous include file in HIPRTC-based compilation (#4130).
 * Fixed CI Perl dependency issue for SLES builds (#4254).
-* Fixed compiler warnings for ROCm 7.0 of `error: unknown warning option '-Wnrvo'`(#4192).
+* Fixed compiler warnings for ROCm 7.0 of ``error: unknown warning option '-Wnrvo'``(#4192).
 
 ### Optimized
 
@@ -189,6 +193,7 @@ Full documentation for MIGraphX is available at
 
 * Removed Perl dependency from SLES builds.
 * Removed redundant includes and unused internal dependencies.
+
 
 ## MIGraphX 2.13 for ROCm 7.0.0
 
@@ -221,7 +226,7 @@ Full documentation for MIGraphX is available at
 * Add a trim size flag to the verify option for migraphx-driver.
 * Node names are printed to track parsing within the ONNX graph when using the `MIGRAPHX_TRACE_ONNX_PARSER` flag.
 * Update accuracy checker to output test data with the `--show-test-data` flag.
-* The `MIGRAPHX_TRACE_BENCHMARKING` option now allows the problem cache file to be updated after finding the best solution.
+* The `MIGRAPHX_TRACE_BENCHMARKING` option now allows the problem cache file to be updated after finding the best solution. 
 
 ### Removed
 
@@ -273,6 +278,7 @@ Full documentation for MIGraphX is available at
 * Added a script to convert mxr files to ONNX models
 * Added the `MIGRAPHX_SET_GEMM_PROVIDER` environment variable to choose between rocBLAS and hipBLASLt. Set `MIGRAPHX_SET_GEMM_PROVIDER` to `rocblas` to use rocBLAS, or to `hipblaslt` to use hipBLASLt.
 
+
 ### Changed
 
 * With the exception of gfx90a, switched to using hipBLASLt instead of rocBLAS
@@ -283,12 +289,14 @@ Full documentation for MIGraphX is available at
 * Renamed the `layout_nhwc` to `layout_convolution` and ensured that either the weights are the same layout as the inputs or set the input and weights to NHWC
 * Minimum version of Cmake is now 3.27
 
+
 ### Removed
 
 * Removed `fp8e5m2fnuz` rocBLAS support
 * `__AMDGCN_WAVEFRONT_SIZE` has been deprecated.
 * Removed a warning that printed to stdout when using FP8 types
 * Remove zero point parameter for dequantizelinear when its zero
+
 
 ### Optimized
 
@@ -299,6 +307,8 @@ Full documentation for MIGraphX is available at
 * Added `MIGRAPHX_MLIR_DUMP` environment variable to be set to a folder where individual final rocMLIR modules can be saved for investigation
 * Improved the C++ API to allow onnxruntime access to fp8 quantization
 
+
+
 ### Resolved Issues
 
 * Fixed multistream execution with larger models (#3757)
@@ -308,6 +318,8 @@ Full documentation for MIGraphX is available at
 * Fixed instruction::replace() logic to handle more complex cases (#3574)
 * MatMulNBits could fail with a shape error (#3698)
 * Fixed a bug were some models could fail to compile with an error `flatten: Shapes are not in standard layout` (#3579)
+
+
 
 ## MIGraphX 2.11 for ROCm 6.3.0
 
@@ -335,6 +347,7 @@ Full documentation for MIGraphX is available at
 * reduce_any and reduce_all options to the Reduce operation via Torch MIGraphX
 * Examples for RNNT, and ControlNet
 
+
 ### Changed
 
 * Switched to MLIR's 3D Convolution operator.
@@ -343,31 +356,34 @@ Full documentation for MIGraphX is available at
 * Use random mode for benchmarking GEMMs and convolutions.
 * Python version is now printed with an actual version number.
 
+
 ### Removed
 
 * Disabled requirements for MIOpen and rocBlas when running on Windows.
 * Removed inaccurate warning messages when using exhaustive-tune.
 * Remove the hard coded path in MIGRAPHX_CXX_COMPILER allowing the compiler to be installed in different locations.
 
+
 ### Optimized
 
 * Improved:
-  * Infrastructure code to enable better Kernel fusions with all supported data types
-  * Subsequent model compile time by creating a cache for already performant kernels
-  * Use of Attention fusion with models
-  * Performance of the Softmax JIT kernel and of the Pooling operator
-  * Tuning operations through a new 50ms delay before running the next kernel
-  * Performance of several convolution based models through an optimized NHWC layout
-  * Performance for the FP8 datatype
-  * GPU utilization
-  * Verification tools
-  * Debug prints
-  * Documentation, including gpu-driver utility documentation
-  * Summary section of the migraphx-driver perf command
+    * Infrastructure code to enable better Kernel fusions with all supported data types
+    * Subsequent model compile time by creating a cache for already performant kernels
+    * Use of Attention fusion with models
+    * Performance of the Softmax JIT kernel and of the Pooling operator
+    * Tuning operations through a new 50ms delay before running the next kernel
+    * Performance of several convolution based models through an optimized NHWC layout
+    * Performance for the FP8 datatype
+    * GPU utilization
+    * Verification tools
+    * Debug prints
+    * Documentation, including gpu-driver utility documentation
+    * Summary section of the migraphx-driver perf command
 * Reduced model compilation time
 * Reordered some compiler passes to allow for more fusions
 * Preloaded tiles into LDS to improve performance of pointwise transposes
 * Exposed the external_data_path property in onnx_options to set the path from onnxruntime
+
 
 ### Resolved Issues
 
@@ -380,6 +396,7 @@ Full documentation for MIGraphX is available at
 * Fixed the BERT Squad example requirements file to support different versions of Python.
 * Fixed a bug that stopped the Vicuna model from compiling.
 * Fixed failures with the verify option of migraphx-driver that would cause the application to exit early.
+
 
 ## MIGraphX 2.10 for ROCm 6.2.0
 
@@ -395,6 +412,7 @@ Full documentation for MIGraphX is available at
 * Added fusion for group convolutions
 * Added rocMLIR conv3d support 
 * Added rocgdb to the Dockerfile
+
 
 ### Optimizations
 
@@ -423,6 +441,7 @@ Full documentation for MIGraphX is available at
 * Improve reduction fusion with reshape operators
 * Use the quantized output when an operator is used again
 
+
 ### Resolved issues
 
 * Super Resolution model verification failed with FP16
@@ -439,14 +458,19 @@ Full documentation for MIGraphX is available at
 * Removed list initializer of prefix_scan_sum which was causing issues during compilation and resulting in the incorrect constructor to be used at compile
 * Fixed the MIGRAPHX_GPU_COMPILE_PARALLEL flag to enable users to control number of threads used for parallel compilation
 
+
+
 ### Changes
 
 * Changed default location of libraries with release specific ABI changes
 * Reorganized documentation in GitHub
 
+
 ### Removals
 
 * Removed the `--model` flag with migraphx-driver
+
+
 
 ## MIGraphX 2.9 for ROCm 6.1.0
 
@@ -506,16 +530,20 @@ Full documentation for MIGraphX is available at
 * Fixed wrong size check when axes not present for slice
 * Set the .SO version correctly
 
+
 ### Changes
 
 * Cleanup LSTM and RNN activation functions
 * Placed gemm_pointwise at a higher priority than layernorm_pointwise
 * Updated README to mention the need to include GPU_TARGETS when building MIGraphX
 
+
 ### Removals
 
 * Removed unused device kernels from Gather and Pad operators
 * Removed int8x4 format
+
+
 
 ## MIGraphX 2.8 for ROCm 6.0.0
 
@@ -527,13 +555,13 @@ Full documentation for MIGraphX is available at
 * INT8 support for ONNX Runtime
 * Support for ONNX version 1.14.1
 * Added new operators: `Qlinearadd`, `QlinearGlobalAveragePool`, `Qlinearconv`, `Shrink`, `CastLike`,
-and `RandomUniform`
+  and `RandomUniform`
 * Added an error message for when `gpu_targets` is not set during MIGraphX compilation
 * Added parameter to set tolerances with `migraphx-driver` verify
 * Added support for MXR files > 4 GB
 * Added `MIGRAPHX_TRACE_MLIR` flag
 * BETA added capability for using ROCm Composable Kernels via the `MIGRAPHX_ENABLE_CK=1`
-environment variable
+  environment variable
 
 ### Optimizations
 
@@ -572,7 +600,7 @@ environment variable
 ### Additions
 
 * hipRTC no longer requires dev packages for MIGraphX runtime and allows the ROCm install to be in a
- different directory than build time
+   different directory than build time
 * Added support for multi-target execution
 * Added Dynamic Batch support with C++/Python APIs
 * Added `migraphx.create_argument` to Python API
@@ -580,7 +608,7 @@ environment variable
 * Added TensorFlow supported ops in driver similar to exist onnx operator list
 * Added a MIGRAPHX_TRACE_MATCHES_FOR env variable to filter the matcher trace
 * Improved debugging by printing max,min,mean and stddev values for TRACE_EVAL = 2
-* You can now use the  `fast_math` flag instead of `ENV` for GELU
+* You can now use the ` fast_math` flag instead of `ENV` for GELU
 * Print message from driver if offload copy is set for compiled program
 
 ### Optimizations
@@ -630,7 +658,7 @@ environment variable
 * Build support for ROCm MLIR
 * Added the `migraphx-driver` flag to print optimizations in Python (--python)
 * Added JIT implementation of the Gather and Pad operators, which results in better handling for
-larger tensor sizes
+  larger tensor sizes
 
 ### Optimizations
 
@@ -638,7 +666,7 @@ larger tensor sizes
 * Improved performance of the `Pad`, `Concat`, `Gather`, and `Pointwise` operators
 * Improved ONNX/pb file loading speed
 * Added a general optimize pass that runs several passes, such as `simplify_reshapes`, algebra, and DCE
-in a loop
+  in a loop
 
 ### Resolved issues
 
@@ -653,4 +681,3 @@ in a loop
 ### Changes
 
 * Changed version and location of third-party build dependencies in order to pick up fixes
-

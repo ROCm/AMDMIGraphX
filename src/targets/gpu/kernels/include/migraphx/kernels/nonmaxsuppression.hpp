@@ -90,6 +90,34 @@ __device__ inline index_int nms_packed_idx(index_int i, index_int j, index_int s
     return (i * size - (i * (i + 1)) / 2) + j - (i + 1);
 }
 
+// Higher score wins, with lower original box index breaking ties.
+// Matches ORT CPU EP behavior.
+template <class Scores, class Indices>
+__device__ inline bool nms_sorted_compare(const Scores& scores,
+                                          const Indices& indices,
+                                          index_int i,
+                                          index_int j)
+{
+    const auto si = scores[i];
+    const auto sj = scores[j];
+    if(sj > si)
+        return true;
+    if(si > sj)
+        return false;
+    return indices[j] < indices[i];
+}
+
+// Swap values in scores, indices, and boxes at the given indices.
+template <class Scores, class Indices, class Boxes>
+__device__ inline void
+nms_sorted_swap(Scores& scores, Indices& indices, Boxes& boxes, index_int i, index_int j)
+{
+    swap(scores[i], scores[j]);
+    swap(indices[i], indices[j]);
+    for(index_int k = 0; k < 4; ++k)
+        swap(boxes[array<index_int, 3>{0, i, k}], boxes[array<index_int, 3>{0, j, k}]);
+}
+
 // One block per (batch_idx, class_idx). Initializes the per-block slice of
 // sorted_* in place (padding past NumBoxes with score-sentinels) and bitonic
 // sorts the three global arrays in lockstep by descending score.
@@ -140,9 +168,7 @@ __device__ void nonmaxsuppression_sort(const Boxes boxes_tv,
     using boxes_type   = typename SortedBoxes::type;
     using indices_type = typename SortedIndices::type;
 
-    // Initialize sorted_* in place; pad past NumBoxes with sentinels that
-    // sink to the end under descending sort. sorted_boxes is 3D ([1, N, 4])
-    // since slice_tensor preserves rank.
+    // Initialize sorted_* in place. Pad past NumBoxes with sentinels.
     idx.local_stride(AlignedNumBoxes, [&](auto i) {
         if(i < NumBoxes)
         {
@@ -158,24 +184,21 @@ __device__ void nonmaxsuppression_sort(const Boxes boxes_tv,
             my_sorted_scores[i] = numeric_lowest<scores_type>();
             for(index_int k = 0; k < 4; ++k)
                 my_sorted_boxes[array<index_int, 3>{0, i, k}] = boxes_type{0};
-            my_sorted_indices[i] = static_cast<indices_type>(-1);
+            my_sorted_indices[i] = numeric_max<indices_type>();
         }
     });
     __syncthreads();
 
-    // Sort scores descending, dragging boxes and indices along. Uses the
-    // indexed variant so we can swap all 4 box lanes per index pair.
+    // Sort by (score DESC, original-index ASC) -- matches ORT's tie-break.
+    // Uses the by-index variant so we can swap all 4 box lanes per pair.
+    auto cmp = [&](index_int i, index_int j) {
+        return nms_sorted_compare(my_sorted_scores, my_sorted_indices, i, j);
+    };
+    auto swp = [&](index_int i, index_int j) {
+        nms_sorted_swap(my_sorted_scores, my_sorted_indices, my_sorted_boxes, i, j);
+    };
     // NOLINTNEXTLINE(clang-diagnostic-error)
-    bitonic_sort{greater{}}.template block_sort_indexed<AlignedNumBoxes>(
-        idx,
-        [&](auto i, auto j) { return my_sorted_scores[j] > my_sorted_scores[i]; },
-        [&](auto i, auto j) {
-            swap(my_sorted_scores[i], my_sorted_scores[j]);
-            swap(my_sorted_indices[i], my_sorted_indices[j]);
-            for(index_int k = 0; k < 4; ++k)
-                swap(my_sorted_boxes[array<index_int, 3>{0, i, k}],
-                     my_sorted_boxes[array<index_int, 3>{0, j, k}]);
-        });
+    bitonic_sort{cmp}.template block_sort_by_index<AlignedNumBoxes>(idx, swp);
 }
 
 // Build the packed upper-triangular IoU mask for the first NumBoxes sorted

@@ -1075,4 +1075,92 @@ TEST_CASE(nms_200boxes_2batch_2class_test)
     EXPECT(num_selected == 100);
 }
 
+// Pins the (score DESC, original-index ASC) tie-break ordering: when all
+// scores are equal and no box pair overlaps, every box survives and the
+// output order is the original index order.
+TEST_CASE(nms_ties_no_overlap_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 4, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 4}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{4});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_p,
+                                   scores_p,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    add_nms_return(mm, nms);
+
+    // 4 disjoint unit boxes in corner format [y1, x1, y2, x2]; identical scores.
+    std::vector<float> boxes_vec  = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 2.0f, 1.0f, 3.0f,
+                                     2.0f, 0.0f, 3.0f, 1.0f, 2.0f, 2.0f, 3.0f, 3.0f};
+    std::vector<float> scores_vec = {0.5f, 0.5f, 0.5f, 0.5f};
+
+    migraphx::parameter_map host_params;
+    host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
+    host_params["scores"] = migraphx::argument(scores_s, scores_vec.data());
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    std::vector<int64_t> gold = {0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 3};
+    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(num_selected == 4);
+}
+
+// Realistic test where many scores collide (quantized to 1 decimal). Gold
+// generated from ORT CPU EP; relies on the (score DESC, original-index ASC)
+// tie-break to match.
+TEST_CASE(nms_quantized_ties_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 16, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 16}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{10});
+    auto iou_threshold   = mm->add_literal(0.3000f);
+    auto score_threshold = mm->add_literal(0.0000f);
+
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_p,
+                                   scores_p,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    add_nms_return(mm, nms);
+
+    std::vector<float> boxes_vec = {
+        18.7529f, 29.8650f, 20.8000f, 33.8961f, 26.9164f, 23.7799f, 29.6860f, 29.2652f,
+        23.2706f, 18.6654f, 28.0387f, 22.1104f, 6.7562f,  29.6688f, 9.5586f,  34.0615f,
+        9.0050f,  6.4593f,  12.4831f, 8.6963f,  26.2066f, 4.8064f,  28.2215f, 8.3569f,
+        0.1580f,  18.3762f, 5.4781f,  21.6683f, 24.6369f, 1.3183f,  27.2547f, 3.9191f,
+        23.9121f, 1.0704f,  26.9825f, 6.3358f,  14.0380f, 15.4467f, 19.5594f, 18.9644f,
+        9.0910f,  13.9862f, 13.1301f, 19.9012f, 8.3528f,  27.5150f, 13.7414f, 31.8750f,
+        7.6461f,  18.8768f, 12.2050f, 23.2970f, 13.3523f, 15.4235f, 18.3194f, 19.9755f,
+        15.1364f, 14.9062f, 17.5024f, 19.6120f, 16.6049f, 7.4254f,  20.7695f, 10.0286f};
+    std::vector<float> scores_vec = {0.4f, 0.2f, 0.4f, 0.1f, 1.0f, 0.2f, 0.7f, 0.3f,
+                                     0.9f, 0.7f, 0.1f, 0.8f, 0.9f, 0.9f, 0.6f, 0.1f};
+
+    migraphx::parameter_map host_params;
+    host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
+    host_params["scores"] = migraphx::argument(scores_s, scores_vec.data());
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    std::vector<int64_t> gold = {0, 0, 4,  0, 0, 8, 0, 0, 12, 0, 0, 13, 0, 0, 11,
+                                 0, 0, 6,  0, 0, 0, 0, 0, 2,  0, 0, 1,  0, 0, 5};
+    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(num_selected == 10);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -140,10 +140,13 @@ struct bitonic_sort
         });
     }
 
-    // Block-wide bitonic sort of an N-element buffer (N must be a power of 2;
-    // pad with sentinels when the logical length is smaller).
-    template <index_int N, class T>
-    __device__ void block_sort(index idx, T& buf) const
+    // Block-wide bitonic sort of N-element buffer (N must be a power of 2) 
+    // with caller-supplied swap function.
+    // Used when multiple parallel arrays must be swapped in lockstep.
+    // compare_function(i, j) is true if position j should sort before
+    // position i.
+    template <index_int N, class SwapAt>
+    __device__ void block_sort_by_index(index idx, SwapAt swap_at) const
     {
         static_assert(is_power_of_2(N), "N must be a power of 2");
         //NOLINTNEXTLINE(hicpp-signed-bitwise)
@@ -157,55 +160,13 @@ struct bitonic_sort
                     if(partner > tid)
                     {
                         const bool reverse = (tid & k) != 0;
-                        if(this->compare(buf[tid], buf[partner], reverse))
-                            swap(buf[tid], buf[partner]);
-                    }
-                });
-                __syncthreads();
-            }
-        }
-    }
-
-    // Bitonic sort with caller-supplied compare and swap. Callbacks are
-    // always invoked with i < j; compare_at(i, j) follows the same convention
-    // as compare_function(buf[j], buf[i]) in block_sort.
-    template <index_int N, class CompareAt, class SwapAt>
-    __device__ void block_sort_indexed(index idx, CompareAt compare_at, SwapAt swap_at) const
-    {
-        static_assert(is_power_of_2(N), "N must be a power of 2");
-        //NOLINTNEXTLINE(hicpp-signed-bitwise)
-        for(index_int k = 2; k <= N; k <<= 1)
-        {
-            //NOLINTNEXTLINE(hicpp-signed-bitwise)
-            for(index_int j = k >> 1; j > 0; j >>= 1)
-            {
-                idx.local_stride(N, [&](auto tid) {
-                    index_int partner = tid ^ j;
-                    if(partner > tid)
-                    {
-                        const bool reverse = (tid & k) != 0;
-                        if(reverse ^ compare_at(tid, partner))
+                        if(reverse ^ compare_function(tid, partner))
                             swap_at(tid, partner);
                     }
                 });
                 __syncthreads();
             }
         }
-    }
-
-    // Sort keys (under compare_function) and swap each vals[i]/vals[j] in
-    // lockstep. Each ValBuf must support swap(buf[i], buf[j]). For non-scalar
-    // layouts, use block_sort_indexed directly.
-    template <index_int N, class KeyBuf, class... ValBufs>
-    __device__ void block_sort(index idx, KeyBuf& keys, ValBufs&... vals) const
-    {
-        block_sort_indexed<N>(
-            idx,
-            [&](auto i, auto j) { return compare_function(keys[j], keys[i]); },
-            [&](auto i, auto j) {
-                swap(keys[i], keys[j]);
-                (swap(vals[i], vals[j]), ...);
-            });
     }
 };
 

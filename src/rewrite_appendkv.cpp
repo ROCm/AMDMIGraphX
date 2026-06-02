@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,49 +21,46 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#include <migraphx/ref/target.hpp>
-#include <migraphx/ref/lowering.hpp>
-#include <migraphx/register_target.hpp>
-#include <migraphx/pass.hpp>
-#include <migraphx/auto_contiguous.hpp>
-#include <migraphx/rewrite_rnn.hpp>
-#include <migraphx/eliminate_convert.hpp>
-#include <migraphx/eliminate_pad.hpp>
-#include <migraphx/insert_pad.hpp>
-#include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/normalize_ops.hpp>
-#include <migraphx/eliminate_data_type.hpp>
 #include <migraphx/rewrite_appendkv.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/normalize_ops.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace ref {
 
-std::string target::name() const { return "ref"; }
+namespace {
 
-std::vector<pass> target::get_passes(migraphx::context&, const compile_options&) const
+struct find_appendkv
 {
-    return {rewrite_appendkv{},
-            dead_code_elimination{},
-            normalize_ops{},
-            eliminate_pad{},
-            dead_code_elimination{},
-            insert_pad{},
-            dead_code_elimination{},
-            rewrite_rnn{},
-            dead_code_elimination{},
-            auto_contiguous{},
-            dead_code_elimination{},
-            lowering{},
-            dead_code_elimination{}};
+    auto matcher() const { return match::name("rotary_embedding"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins         = r.result;
+        auto val         = ins->get_operator().to_value();
+        bool interleaved = val["interleaved"].to<bool>();
+
+        auto result = op::builder::insert(
+            "rotary_embedding", m, ins, ins->inputs(), {{"interleaved", interleaved}});
+        m.replace_instruction(ins, result.at(0));
+    }
+};
+
+} // namespace
+
+void rewrite_appendkv::apply(module& m) const
+{
+    match::find_matches(m, find_appendkv{});
+    normalize_ops{}.apply(m);
+    dead_code_elimination{}.apply(m);
+    simplify_reshapes{.enable_gather_rewrite = true}.apply(m);
+    dead_code_elimination{}.apply(m);
 }
 
-argument target::allocate(const shape& s) const { return fill_argument(s, 0); }
-
-MIGRAPHX_REGISTER_TARGET(target);
-
-} // namespace ref
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

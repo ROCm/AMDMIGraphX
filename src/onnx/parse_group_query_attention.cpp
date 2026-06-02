@@ -26,29 +26,37 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
+#include <migraphx/register_op.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
+struct rotary_embedding
+{
+    bool interleaved = false;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.interleaved, "interleaved"));
+    }
+
+    std::string name() const { return "rotary_embedding"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        check_shapes{inputs, *this}.has(4);
+        return inputs[0];
+    }
+};
+MIGRAPHX_REGISTER_OP(rotary_embedding);
+
 struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {
     std::vector<op_desc> operators() const { return {{"GroupQueryAttention"}}; }
-
-    static instruction_ref insert_rotary(module& m,
-                                         bool interleaved,
-                                         std::size_t sequence_length,
-                                         std::vector<instruction_ref> args)
-    {
-        // GQA position semantics: prefill starts from 0, decode uses seqlens_k
-        auto& pos_ids = args.at(1);
-        if(sequence_length > 1)
-        {
-            pos_ids = m.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
-        }
-        return op::builder::add("rotary_embedding", m, args, {{"interleaved", interleaved}}).at(0);
-    }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        const onnx_parser& parser,
@@ -144,10 +152,18 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
 
         if(do_rotary)
         {
-            qk = insert_rotary(*info.mod,
-                               rotary_interleaved,
-                               sequence_length,
-                               {qk, args.at(5), args.at(7), args.at(8)});
+            auto pos_ids = args.at(5);
+            if(sequence_length > 1)
+            {
+                pos_ids =
+                    info.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
+            }
+            qk = info.add_instruction(
+                make_op("rotary_embedding", {{"interleaved", rotary_interleaved}}),
+                qk,
+                pos_ids,
+                args.at(7),
+                args.at(8));
         }
 
         auto q = info.add_instruction(

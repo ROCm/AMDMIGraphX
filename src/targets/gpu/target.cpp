@@ -80,6 +80,7 @@
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/rewrite_appendkv.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -179,6 +180,7 @@ struct pipeline_factory
             enable_pass(mlir_enabled(),
                         fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
+            rewrite_appendkv{.use_gpu = true},
             dead_code_elimination{},
             optimize_module{},
             fuse_pointwise_reduce{},

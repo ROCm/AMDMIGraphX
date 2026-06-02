@@ -22,6 +22,8 @@
  * THE SOFTWARE.
  *
  */
+#include "migraphx/env.hpp"
+#include "migraphx/errors.hpp"
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -344,7 +346,8 @@ struct ck_tile_splitkv
         auto lse_lens   = o_lens;
         lse_lens.back() = 1;
 
-        return shape{{shape{migraphx::shape::float_type, o_lens}, shape{migraphx::shape::float_type, lse_lens}}};
+        return shape{{shape{migraphx::shape::float_type, o_lens},
+                      shape{migraphx::shape::float_type, lse_lens}}};
     }
 };
 MIGRAPHX_REGISTER_OP(ck_tile_splitkv);
@@ -912,6 +915,25 @@ struct find_flash_decoding
     }
 };
 
+struct ck_tile_appendkv
+{
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack();
+    }
+
+    std::string name() const { return "gpu::ck_tile_appendkv"; }
+
+    shape compute_shape(const std::vector<shape>& inputs) const
+    {
+        // TODO: Implement
+        return shape{};
+    }
+};
+MIGRAPHX_REGISTER_OP(ck_tile_appendkv);
+
 struct find_kv_cache_attention
 {
     std::size_t* counter;
@@ -922,7 +944,10 @@ struct find_kv_cache_attention
             "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze"};
 
         auto keys =
-            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
+            match::skip(match::name(skip_set))(
+                match::name("concat_past_present")(match::arg(1)(match::any().bind("slk")),
+                                                   match::arg(2)(match::any().bind("past_key"))))
+                .bind("pres_k");
         auto k_transpose =
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
         auto queries = match::name("slice");
@@ -948,7 +973,9 @@ struct find_kv_cache_attention
         auto attn_probabilities = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(mask)));
         auto values =
-            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v");
+            match::skip(match::name(skip_set))(
+                match::name("concat_past_present")(match::arg(2)(match::any().bind("past_val"))))
+                .bind("pres_v");
         auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
         auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
         return match::name("reshape")(match::arg(0)(transpose_out));
@@ -1030,10 +1057,42 @@ struct find_kv_cache_attention
         return sorted_inss;
     }
 
+    // TODO: Implement
+    // Checks for contents of attention submodule, only "plain attention" should
+    // work. Plain attention meaning: gemm->softmax->gemm, with optional scale, bias and local
+    // window.
+    bool is_structure_ck_applicable() const { return true; }
+
+    // TODO: Implement
+    // Needs to check layouts, enable only for Q, K row major layouts and V row or column major
+    bool is_layout_ck_applicable() const { return true; }
+
+    instruction_ref insert_ck_appendkv(module_pass_manager& mpm,
+                                       const match::matcher_result& r) const
+    {
+        std::cout << "pres_k: " << std::endl;
+        r.instructions["pres_k"]->debug_print();
+        std::cout << "pres_v: " << std::endl;
+        r.instructions["pres_v"]->debug_print();
+        std::cout << "total_sl: " << std::endl;
+        r.instructions["total_sl"]->debug_print();
+        std::cout << "slk: " << std::endl;
+        r.instructions["slk"]->debug_print();
+        std::cout << "past_key: " << std::endl;
+        r.instructions["past_key"]->debug_print();
+        std::cout << "past_val: " << std::endl;
+        r.instructions["past_val"]->debug_print();
+        instruction_ref ins;
+        return ins;
+    }
+
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
         auto total_sl = r.instructions["total_sl"];
         auto reshape  = r.result;
+        // TODO: Need to pay attention when inserting ck_appendkv, the output of that needs to
+        // replace the inputs of the attention
+        auto ck_appendkv = insert_ck_appendkv(mpm, r);
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);

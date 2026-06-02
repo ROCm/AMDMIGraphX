@@ -72,6 +72,7 @@ add_library(migraphx
     eliminate_identity.cpp
     eliminate_pad.cpp
     env.cpp
+    rewrite_appendkv.cpp
     file_buffer.cpp
     fileutils.cpp
     fp_to_double.cpp

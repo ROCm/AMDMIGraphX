@@ -31,6 +31,7 @@
 TEST_CASE(group_query_attention_decode_local_test)
 {
     auto p = read_onnx("group_query_attention_decode_local_test.onnx");
+    std::cout << "Hello" << std::endl;
     p.compile(migraphx::make_target("gpu"));
     std::cout << p << std::endl;
 
@@ -398,6 +399,7 @@ TEST_CASE(group_query_attention_prefill_local_test)
         1,         1,         1,         1,          1,        1,         1,        1,
         1,         1,         1,         1,          1,        1,         1,        1};
 
+    std::cout << "Hello" << std::endl;
     EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
                                                          migraphx::verify::expected{gold}));
     EXPECT(migraphx::verify::verify_range_with_tolerance(pres_key_vector,

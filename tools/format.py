@@ -84,6 +84,8 @@ def main():
     parser.add_argument('against', default='develop', nargs='?')
     parser.add_argument('-i', '--in-place', action='store_true')
     parser.add_argument('-q', '--quiet', action='store_true')
+    parser.add_argument('--exit-zero', action='store_true',
+                        help='Exit 0 even when formatting differs')
     args = parser.parse_args()
     try:
         clang_format(args.against, apply=args.in_place)
@@ -93,6 +95,8 @@ def main():
             print(ex.stdout)
         if ex.stderr:
             print(ex.stderr)
+        if args.exit_zero:
+            return
         if not args.quiet:
             print(f"Command '{ex.cmd}' returned {ex.returncode}")
             raise

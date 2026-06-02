@@ -279,14 +279,20 @@ def RedundantCast(cfg, data):
             continue
         m = match(token,
                   "%var%@decl ; %var%@assign = static_cast <*>@cast (*) ;")
-        if not m:
-            continue
-        if m.decl.varId != m.assign.varId:
-            continue
+        if m:
+            if m.decl.varId != m.assign.varId:
+                continue
+        else:
+            m = match(token, "%var%@assign = static_cast <*>@cast (*) ;")
+            if not m:
+                continue
+            if m.assign.variable.typeEndToken != m.assign.previous:
+                continue
+
         if not simpleMatch(token.previous, "auto"):
-            if not isTokensEqual(getVariableDecl(m.decl.variable),
+            if not isTokensEqual(getVariableDecl(m.assign.variable),
                                  getInnerLink(m.cast),
-                                 skip='const|volatile|&|&&|*'):
+                                 skip='static|constexpr|const|volatile|&|&&|*'):
                 continue
         cppcheck.reportError(token, "style", "Static cast is redundant.")
 
@@ -399,6 +405,47 @@ def UseManagePointer(cfg, data):
         cppcheck.reportError(token, "style",
                              "Use manage pointer for resource management.")
 
+@cppcheck.checker
+def UseNamedLogicOperator(cfg, data):
+    names = {'&&': 'and', '||': 'or', '!': 'not'}
+    # cppcheck rewrites the alternative tokens 'and', 'or' and 'not' to their
+    # symbolic spelling in the token list and does not always populate
+    # originalName, so consult the raw token stream for operators that were
+    # written in symbolic form -- anything else was already named.
+    symbolic = {(tok.file, tok.linenr, tok.column)
+                for tok in data.rawTokens if tok.str in names}
+    if not symbolic:
+        return
+    for token in cfg.tokenlist:
+        if token.str not in names:
+            continue
+        if (token.file, token.linenr, token.column) not in symbolic:
+            continue
+        if token.str == '&&':
+            # A '&&' token can also be an rvalue reference ('T&&') rather than
+            # a logical operator; require it to be a real expression.
+            if not token.astParent:
+                continue
+            if not token.astOperand1:
+                continue
+            if not token.astOperand2:
+                continue
+            op1 = token.astOperand1
+            op2 = token.astOperand2
+            # An rvalue reference declared with a concrete type ('int&& x',
+            # 'std::string&& x') has the declared variable on the right with
+            # its valueType tagged as an RValue reference.
+            if op2.valueType and op2.valueType.reference == 'RValue':
+                continue
+            # An rvalue reference whose type is a template parameter ('T&& x',
+            # 'Ts&&... xs') has a bare type name with no varId as its left
+            # operand.
+            if op1.isName and not op1.varId and not op1.function:
+                continue
+        cppcheck.reportError(
+            token, "style",
+            "Use named logic operator '%s' for '%s'" % (names[token.str],
+                                                       token.str))
 
 @cppcheck.checker
 def UseSmartPointer(cfg, data):
@@ -443,3 +490,39 @@ def MatcherNestedParentheses(cfg, data):
                 "Too many nested parentheses can affect readability; consider using variables instead."
             )
             break
+
+@cppcheck.checker
+def AvoidNestedValue(cfg, data):
+    for token in cfg.tokenlist:
+        if not simpleMatch(token, ":: value"):
+            continue
+        parent = token.previous
+        if not match(parent, ">|)"):
+            continue
+        valueTok = token.next
+        if valueTok.typeScope != None:
+            continue
+        if match(valueTok.next, "::|("):
+            continue
+        cppcheck.reportError(
+            token, "style",
+            "Construct trait instead of using ::value"
+        )
+
+@cppcheck.checker
+def UseCachedEnvVar(cfg, data):
+    env_functions = {"enabled", "disabled", "env", "value_of", "string_value_of"}
+    for token in cfg.tokenlist:
+        if not isFunctionCall(token):
+            continue
+        if not token.str in env_functions:
+            continue
+        m = match(token, "%name% ( %name%@env_var :: value ( ) )|,")
+        if not m:
+            continue
+        if(m.env_var.str == "T"):
+            continue
+        cppcheck.reportError(
+            token, "style",
+            "Use cached env variable"
+        )

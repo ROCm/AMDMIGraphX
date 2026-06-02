@@ -247,8 +247,7 @@ TEST_CASE(eager_vs_balanced_exact_difference)
     // Verify all optimize_rewrite-only passes appear in the difference
     for(const auto& pass_name : known_optimize_passes)
     {
-        bool found =
-            std::find(difference.begin(), difference.end(), pass_name) != difference.end();
+        bool found = std::find(difference.begin(), difference.end(), pass_name) != difference.end();
         EXPECT(found);
     }
 }

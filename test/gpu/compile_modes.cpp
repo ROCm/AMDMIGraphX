@@ -37,7 +37,7 @@ static std::vector<std::string> get_pass_names(migraphx::compile_modes mode)
     auto ctx = tgt.get_context();
     migraphx::compile_options options;
     options.compile_mode = mode;
-    auto passes = tgt.get_passes(ctx, options);
+    auto passes          = tgt.get_passes(ctx, options);
     std::vector<std::string> names;
     std::transform(passes.begin(), passes.end(), std::back_inserter(names), [](const auto& p) {
         return p.name();
@@ -247,8 +247,7 @@ TEST_CASE(eager_vs_balanced_exact_difference)
     // Verify all optimize_rewrite-only passes appear in the difference
     for(const auto& pass_name : known_optimize_passes)
     {
-        bool found =
-            std::find(difference.begin(), difference.end(), pass_name) != difference.end();
+        bool found = std::find(difference.begin(), difference.end(), pass_name) != difference.end();
         EXPECT(found);
     }
 }

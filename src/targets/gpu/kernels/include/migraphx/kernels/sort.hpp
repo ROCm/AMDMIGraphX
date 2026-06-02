@@ -140,7 +140,7 @@ struct bitonic_sort
         });
     }
 
-    // Block-wide bitonic sort of N-element buffer (N must be a power of 2) 
+    // Block-wide bitonic sort of N-element buffer (N must be a power of 2)
     // with caller-supplied swap function.
     // Used when multiple parallel arrays must be swapped in lockstep.
     // compare_function(i, j) is true if position j should sort before
@@ -149,12 +149,8 @@ struct bitonic_sort
     __device__ void block_sort_by_index(index idx, SwapAt swap_at) const
     {
         static_assert(is_power_of_2(N), "N must be a power of 2");
-        //NOLINTNEXTLINE(hicpp-signed-bitwise)
-        for(index_int k = 2; k <= N; k <<= 1)
-        {
-            //NOLINTNEXTLINE(hicpp-signed-bitwise)
-            for(index_int j = k >> 1; j > 0; j >>= 1)
-            {
+        repeat_up_by_2_c<2, (N * 2)>([&](auto k) {
+            repeat_down_by_2_c<(k >> 1)>([&](auto j) {
                 idx.local_stride(N, [&](auto tid) {
                     index_int partner = tid ^ j;
                     if(partner > tid)
@@ -165,8 +161,8 @@ struct bitonic_sort
                     }
                 });
                 __syncthreads();
-            }
-        }
+            });
+        });
     }
 };
 

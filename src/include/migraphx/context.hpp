@@ -561,6 +561,8 @@ inline const ValueType& any_cast(const context& x)
 // NOLINTEND(performance-unnecessary-value-param)
 #endif
 
+/// True iff `c` holds a concrete context impl and that impl reports cross-compiling.
+/// Safe to call on default-constructed (empty) contexts, unlike `c.is_cross_compile()`.
 inline bool is_cross_compiling(const context& c)
 {
     return c.type_id() != typeid(std::nullptr_t) and c.is_cross_compile();

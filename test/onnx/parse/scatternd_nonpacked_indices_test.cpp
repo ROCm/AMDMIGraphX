@@ -39,8 +39,8 @@ TEST_CASE(scatternd_nonpacked_indices_test)
     auto data    = mm->add_parameter("data", {migraphx::shape::float_type, {1, n}});
     auto updates = mm->add_parameter("updates", {migraphx::shape::float_type, {n}});
 
-    auto indices = mm->add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {1, 0}}}), raw_indices);
+    auto indices =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), raw_indices);
     auto r = mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
     mm->add_return({r});
 

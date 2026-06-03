@@ -242,9 +242,16 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         auto input_shapes = to_shapes(inputs);
         auto cop          = compile_op(ctx, input_shapes, op.to_value());
 
+        // Capture has_bias so the closure can re-read the live inputs from
+        // replace_ins at replace time. Capturing the iterator snapshot here
+        // would dangle if a producer instruction (e.g. an upstream mlir_op
+        // precompile_op) gets replaced before mlss_conv's replace fires.
         return compiler_replace(
-            cop, [inputs](module& m, instruction_ref replace_ins, const operation& replace_op) {
-                m.replace_instruction(replace_ins, replace_op, inputs);
+            cop, [has_bias](module& m, instruction_ref replace_ins, const operation& replace_op) {
+                auto live_inputs = replace_ins->inputs();
+                if(has_bias)
+                    std::swap(live_inputs[2], live_inputs[3]);
+                m.replace_instruction(replace_ins, replace_op, live_inputs);
             });
     }
 };

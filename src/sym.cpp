@@ -518,6 +518,112 @@ static expr build_term(const term& t)
     return lit(t.coeff) * base_product;
 }
 
+// Structural lexicographic order on (min, max) -- distinct from interval's
+// operator< (which is the semantic "strictly below"). Used to keep a
+// variable's constraint vector in a canonical sorted+deduped form.
+static bool interval_struct_less(const interval& a, const interval& b)
+{
+    if(scalar_less(a.min, b.min))
+        return true;
+    if(scalar_less(b.min, a.min))
+        return false;
+    return scalar_less(a.max, b.max);
+}
+
+static bool interval_struct_equal(const interval& a, const interval& b)
+{
+    return not interval_struct_less(a, b) and not interval_struct_less(b, a);
+}
+
+// Canonicalize a constraint set: sort structurally and drop duplicates, so the
+// set of assertions has a single representation regardless of insertion order.
+// This is what lets variable_node's positional operator==/hash stay correct
+// under metadata merging (option B1).
+static void normalize_constraints(std::vector<interval>& cs)
+{
+    std::stable_sort(cs.begin(), cs.end(), interval_struct_less);
+    cs.erase(std::unique(cs.begin(), cs.end(), interval_struct_equal), cs.end());
+}
+
+// Reduce a variable's constraint set to one effective interval: intersect all
+// assertions ([max mins, min maxs]); if that is empty (some pair is disjoint),
+// fall back to the convex hull of all ([min mins, max maxs]). Both are computed
+// over the whole set at once, so the result does not depend on the set's order.
+static interval resolve_constraints(const std::vector<interval>& cs)
+{
+    scalar imin = cs.front().min;
+    scalar imax = cs.front().max;
+    scalar hmin = cs.front().min;
+    scalar hmax = cs.front().max;
+    for(std::size_t i = 1; i < cs.size(); ++i)
+    {
+        imin = scalar_max(imin, cs[i].min);
+        imax = scalar_min(imax, cs[i].max);
+        hmin = scalar_min(hmin, cs[i].min);
+        hmax = scalar_max(hmax, cs[i].max);
+    }
+    interval intersection{imin, imax};
+    return intersection.valid() ? intersection : interval{hmin, hmax};
+}
+
+// The variable's effective interval, or nullopt when it carries no constraints.
+static std::optional<interval> variable_interval(const variable_node& n)
+{
+    if(n.constraints.empty())
+        return std::nullopt;
+    return resolve_constraints(n.constraints);
+}
+
+// Combine the metadata of a group of same-name variable nodes into one by
+// taking the union of their constraint sets and the union of their optimals.
+// Union is commutative and associative, so the result is order-independent;
+// intersect-vs-hull resolution is deferred to read time (resolve_constraints).
+static variable_node combine_variables(const std::vector<const variable_node*>& vs)
+{
+    variable_node r;
+    r.name = vs.front()->name;
+    for(const auto* v : vs)
+    {
+        r.constraints.insert(r.constraints.end(), v->constraints.begin(), v->constraints.end());
+        r.optimals.insert(v->optimals.begin(), v->optimals.end());
+    }
+    normalize_constraints(r.constraints);
+    return r;
+}
+
+// Combine a group of same-symbol exprs (pairwise equal under same_symbol, i.e.
+// identical structure differing only in variable metadata) into one, combining
+// the metadata of corresponding variable nodes n-ary. Structure is taken from
+// the first; recursion is position-wise, so the result is order-independent.
+static expr combine_symbols(const std::vector<expr>& group)
+{
+    const expr& rep = group.front();
+    return std::visit(
+        overloaded{
+            [&](const variable_node&) {
+                std::vector<const variable_node*> vs;
+                vs.reserve(group.size());
+                for(const auto& e : group)
+                    vs.push_back(std::get_if<variable_node>(&get_node(e)));
+                return expr(combine_variables(vs));
+            },
+            [&](const literal_node&) { return rep; },
+            [&](const op_node& o) {
+                std::vector<expr> children;
+                children.reserve(rep.children().size());
+                for(std::size_t i = 0; i < rep.children().size(); ++i)
+                {
+                    std::vector<expr> column;
+                    column.reserve(group.size());
+                    for(const auto& e : group)
+                        column.push_back(e.children()[i]);
+                    children.push_back(combine_symbols(column));
+                }
+                return expr(op_node{o.op}, std::move(children));
+            }},
+        get_node(rep));
+}
+
 static expr normalize_add(const op_def* op, std::vector<expr> args)
 {
     std::vector<term> terms;
@@ -528,20 +634,34 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
         return expr_children_less(a.bases, b.bases);
     });
 
-    // Merge adjacent terms with matching bases
+    // Merge adjacent same-symbol terms: sum their coefficients and combine the
+    // metadata of each base across the whole group (n-ary, order-independent).
+    // Grouping is by same_symbol (metadata-ignoring) to match the name-only sort
+    // key, so e.g. x{2,10} + x folds to 2*x{2,10}.
     std::vector<term> merged;
     group_unique(
         terms.begin(),
         terms.end(),
         [&](auto first, auto last) {
-            merged.push_back(
-                std::accumulate(std::next(first), last, *first, [](term acc, const term& t) {
-                    acc.coeff = scalar_invoke_common(
-                        [](auto x, auto y) { return x + y; }, acc.coeff, t.coeff);
-                    return acc;
-                }));
+            term acc;
+            acc.coeff = std::accumulate(
+                first, last, scalar{int64_t{0}}, [](scalar c, const term& t) {
+                    return scalar_invoke_common([](auto x, auto y) { return x + y; }, c, t.coeff);
+                });
+            acc.bases.reserve(first->bases.size());
+            for(std::size_t i = 0; i < first->bases.size(); ++i)
+            {
+                std::vector<expr> column;
+                for(auto it = first; it != last; ++it)
+                    column.push_back(it->bases[i]);
+                acc.bases.push_back(combine_symbols(column));
+            }
+            merged.push_back(std::move(acc));
         },
-        [](const term& a, const term& b) { return a.bases == b.bases; });
+        [](const term& a, const term& b) {
+            return a.bases.size() == b.bases.size() and
+                   std::equal(a.bases.begin(), a.bases.end(), b.bases.begin(), same_symbol);
+        });
 
     merged.erase(std::remove_if(
                      merged.begin(), merged.end(), [](const term& t) { return is_zero(t.coeff); }),
@@ -1210,10 +1330,7 @@ collect_free_vars(const expr& e, const std::function<std::optional<interval>(con
         if(x.name() == "variable")
         {
             const auto& n = std::get<variable_node>(get_node(x));
-            if(n.constraints.empty())
-                result.emplace_back(x, interval{});
-            else
-                result.emplace_back(x, n.constraints.front());
+            result.emplace_back(x, variable_interval(n).value_or(interval{}));
             return;
         }
         for(const auto& c : x.children())
@@ -1318,12 +1435,12 @@ eval_interval_impl(const expr& e,
                                return r;
                            },
                            [&](const variable_node& n) -> std::optional<interval> {
-                               if(n.constraints.empty())
+                               auto ci = variable_interval(n);
+                               if(not ci)
                                    MIGRAPHX_THROW("Variable '" + n.name +
                                                   "' not found in interval map");
-                               interval r = n.constraints.front();
-                               cache.emplace(sub, r);
-                               return r;
+                               cache.emplace(sub, *ci);
+                               return ci;
                            },
                            [](const op_node&) -> std::optional<interval> { return std::nullopt; }},
                 get_node(sub));
@@ -1491,11 +1608,11 @@ static scalar eval_impl(const expr& root, F lookup)
         return std::visit(
             overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
                        [](const variable_node& n) -> std::optional<scalar> {
-                           // A variable with a fixed constraint (min == max) has a
-                           // known value, so resolve it from its own bounds.
-                           const auto& c = n.constraints;
-                           if(not c.empty() and c.front().min == c.front().max)
-                               return c.front().min;
+                           // A variable whose resolved constraint is fixed
+                           // (min == max) has a known value, so use it.
+                           auto ci = variable_interval(n);
+                           if(ci and ci->min == ci->max)
+                               return ci->min;
                            return std::nullopt;
                        },
                        [](const auto&) -> std::optional<scalar> { return std::nullopt; }},
@@ -1572,9 +1689,7 @@ interval expr::eval_interval_default(interval default_bounds) const
         const auto* v = std::get_if<variable_node>(&get_node(sub));
         if(v == nullptr)
             return std::nullopt;
-        if(not v->constraints.empty())
-            return v->constraints.front();
-        return default_bounds;
+        return variable_interval(*v).value_or(default_bounds);
     };
     std::unordered_map<expr, interval> cache;
     return eval_interval_impl(*this, lookup, cache);
@@ -2115,7 +2230,12 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         auto name = v.at("name").get_string();
         std::vector<interval> constraints;
         if(v.contains("constraints"))
+        {
             constraints = migraphx::from_value<std::vector<interval>>(v.at("constraints"));
+            // Keep the canonical sorted+deduped form so a deserialized node
+            // compares equal to an equivalently-constructed one (option B1).
+            normalize_constraints(constraints);
+        }
         std::set<scalar> optimals;
         if(v.contains("optimals"))
         {

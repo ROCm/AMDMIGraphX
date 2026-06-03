@@ -24,6 +24,7 @@
 
 #include <migraphx/sym.hpp>
 #include <migraphx/serialize.hpp>
+#include <sstream>
 #include <utility>
 #include "test.hpp"
 
@@ -82,6 +83,80 @@ TEST_CASE(add_like_term_folding)
     auto h = var("h");
     auto r = h + h;
     EXPECT(r == 2 * h);
+}
+
+TEST_CASE(add_fold_same_name_different_metadata)
+{
+    // x{2,10} + x folds to 2*x despite the metadata mismatch.
+    auto x1 = var("x", {2, 10});
+    auto x2 = var("x");
+    EXPECT(x1 + x2 == 2 * x1);
+    // Order-independent: x + x{2,10} folds the same way.
+    EXPECT(x2 + x1 == x1 + x2);
+}
+
+TEST_CASE(add_fold_intersects_constraints)
+{
+    // Merged constraint is the intersection of the two: [2,10] n [5,20] = [5,10].
+    auto a = var("x", {2, 10});
+    auto b = var("x", {5, 20});
+    auto r = a + b; // 2*x with x constrained to [5,10]
+    EXPECT(r.eval_interval_default() == interval{10, 20});
+}
+
+TEST_CASE(add_fold_disjoint_constraints_take_hull)
+{
+    // Disjoint constraints fall back to the convex hull: [2,4] U [8,10] -> [2,10].
+    auto a = var("x", {2, 4});
+    auto b = var("x", {8, 10});
+    auto r = a + b; // 2*x with x in the hull [2,10]
+    EXPECT(r.eval_interval_default() == interval{4, 20});
+}
+
+TEST_CASE(add_fold_unions_optimals)
+{
+    // Optimals are unioned across the merged occurrences.
+    auto a = var("x", interval{1, 10}, std::set<migraphx::sym::scalar>{int64_t{2}, int64_t{4}});
+    auto b = var("x", interval{1, 10}, std::set<migraphx::sym::scalar>{int64_t{4}, int64_t{8}});
+    auto r = a + b; // 2*x, optimals {2,4,8} -> doubled {4,8,16}
+    EXPECT(r.eval_optimals_uint() == std::set<std::size_t>{4, 8, 16});
+}
+
+TEST_CASE(add_fold_three_way_order_independent)
+{
+    // Three occurrences, one disjoint pair ([1,3] vs [5,7]): folding must be
+    // order-independent. Intersect-all is empty, so the result is the hull of
+    // all three: [1,7]. Both orders must agree.
+    auto a  = var("x", {1, 3});
+    auto b  = var("x", {5, 7});
+    auto c  = var("x", {2, 6});
+    auto e1 = a + b + c;
+    auto e2 = c + b + a;
+    EXPECT(e1 == e2);
+    EXPECT(e1.eval_interval_default() == interval{3, 21}); // 3 * hull[1,7]
+}
+
+TEST_CASE(add_fold_three_way_overlapping_intersects)
+{
+    // All pairwise overlapping -> intersection is non-empty ([2,3]); the result
+    // is order-independent and equals the intersection, not a hull.
+    auto a  = var("x", {1, 3});
+    auto b  = var("x", {2, 5});
+    auto c  = var("x", {2, 8});
+    auto e1 = a + b + c;
+    auto e2 = c + a + b;
+    EXPECT(e1 == e2);
+    EXPECT(e1.eval_interval_default() == interval{6, 9}); // 3 * [2,3]
+}
+
+TEST_CASE(add_fold_merged_constraints_round_trip)
+{
+    // A node carrying a merged (multi-interval) constraint set survives
+    // serialization: the canonical sorted form compares equal after a round trip.
+    auto e = var("x", {1, 3}) + var("x", {5, 7});
+    auto v = migraphx::to_value(e);
+    auto r = migraphx::from_value<se>(v);
+    EXPECT(r == e);
 }
 
 TEST_CASE(add_constant_folding)

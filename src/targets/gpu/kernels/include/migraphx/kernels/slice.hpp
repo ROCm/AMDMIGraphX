@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -98,13 +98,12 @@ template <index_int N>
 constexpr auto slice_group()
 {
     return slice_size_transform{[](auto input, auto s) {
-        auto r = return_array_c([] {
+        return return_array_c([] {
             auto lens = decltype(s){}.lens.base();
             lens.back() *= N;
             lens -= 1;
             return decltype(input){}.lens.carry(lens) + index_int{1};
         });
-        return r;
     }};
 }
 
@@ -126,9 +125,9 @@ constexpr auto slice_tensor(Input input, T start, Ss... ss)
     constexpr auto inner_shape = make_slice(get_shape_c<Input>{}, ss...);
     auto outer_lens            = transform(
         get_shape_c<Input>{}.lens, inner_shape.lens, [=](auto x, auto inner) { return x / inner; });
-    // TODO: Handle non-divisble dimensions
+    // TODO: Handle non-divisible dimensions
     auto outer_shape = make_shape(outer_lens, get_shape_c<Input>{}.strides * inner_shape.lens);
-    auto offset                = outer_shape.index(start);
+    auto offset      = outer_shape.index(start);
     MIGRAPHX_ASSERT(outer_shape.elements() * inner_shape.elements() ==
                     input.get_shape().elements());
     MIGRAPHX_ASSERT((offset + inner_shape.element_space()) <= get_shape_c<Input>{}.element_space());

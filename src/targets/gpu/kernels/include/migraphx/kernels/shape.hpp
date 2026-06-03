@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -198,6 +198,17 @@ struct shape : equality_comparable<shape<Lens, Strides>>
         return ss;
     }
 };
+
+template <class Pos, class Lens>
+constexpr bool in_bounds(Pos pos, Lens lens)
+{
+    for(index_int d = 0; d < pos.size(); d++)
+    {
+        if(pos[d] >= lens[d])
+            return false;
+    }
+    return true;
+}
 
 template <class Lens>
 constexpr auto calculate_strides(Lens)

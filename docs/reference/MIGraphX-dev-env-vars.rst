@@ -63,13 +63,13 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: Layernorm fusion is not used.
 
-  * - | ``MIGRAPHX_DISABLE_MIOPEN_POOLING``
-      | When set, MIGraphX pooling is used instead of MIOpen pooling.
+  * - | ``MIGRAPHX_ENABLE_MIOPEN_POOLING``
+      | When set, MIOpen pooling is used instead of MIGraphX pooling.
       
-    - | ``1``: Use MIGraphX pooling.
+    - | ``1``: Use MIOpen pooling.
       | ``0``: Returns to default behavior.
 
-      | Default: MIOpen pooling is used.
+      | Default: MIGraphX pooling is used.
 
   * - | ``MIGRAPHX_USE_FAST_SOFTMAX``
       | Turns on fast softmax optimization to speed up softmax computations.
@@ -283,7 +283,7 @@ Model performance tunable variables change the compilation behavior of a model. 
       | Default: Composable Kernel workarounds are disabled.
 
   * - | ``MIGRAPHX_REWRITE_LRN``
-      | Turns on LRN-to-pooling lowering in the rewrite_pooling pass.
+      | When set, transforms LRN to use pooling in the ``rewrite_pooling`` pass.
       
     - | ``1``: Turns on LRN-to-pooling lowering.
       | ``0``: Returns to default behavior.
@@ -669,6 +669,19 @@ Advanced settings
 
       | Default: The hip-clang assembly output isn't written out.
 
+  * - | ``MIGRAPHX_GPU_DUMP_BENCHMARK_MXR``
+      | Sets the location to dump benchmark MXR files for benchmarking.
+
+    - | Takes the path to the directory where the files should be saved. The directory is created if it does not exist.
+
+      | After the files are dumped, compilation aborts with a message instructing the user to run the MXR files
+      | to generate a problem cache and then recompile with that cache.
+
+      | For example:
+      | ``MIGRAPHX_GPU_DUMP_BENCHMARK_MXR="/path/to/benchmark_mxr_dir/"``
+
+      | Default: Unset. Benchmark MXR files aren't dumped and compilation proceeds normally.
+
   * - | ``MIGRAPHX_GPU_HIP_FLAGS``
       | When set, the hip-clang compiler appends these extra flags for compilation.
 
@@ -733,4 +746,13 @@ Advanced settings
       | Sets the number of timing runs for each configuration bundle being benchmarked. 
       
     - Takes a positive integer.
+
+  * - | ``MIGRAPHX_SKIP_BENCHMARKING``
+      | When set, skips MIGraphX and rocMLIR kernel benchmarking and compiles with the first available solution.
+      
+    - | ``1``: Skip benchmarking.
+      | ``0``: Returns to default behavior.
+
+      | Default: Benchmarking is not skipped.
+
 

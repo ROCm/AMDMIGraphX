@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,12 +40,12 @@ namespace op {
  * Called with `axis` attribute that defaults to the last output axis
  * Constant depth: `onehot(indices, values), depth attribute must be set;
  * Variable depth: `onehot(indices, depth, values)`;
- * `indicies` as a N rank tensor of indices where value is `on_value`
+ * `indices` as a N rank tensor of indices where value is `on_value`
  * `depth` scalar with the number of classes for the one-hot dimension
  * `values` `[off_value, on_value]`
  * `axis` which axis to add the one-hot dimension to
  * For axis = 0 and rank(indices) = 2:
- * output is A[indicies[j, k], j, k] = on_value; A[i, j, k] = off_value otherwise
+ * output is A[indices[j, k], j, k] = on_value; A[i, j, k] = off_value otherwise
  * Can be simplified to other operators when `indices` has a static shape and
  * `depth` is constant at compile-time.
  */

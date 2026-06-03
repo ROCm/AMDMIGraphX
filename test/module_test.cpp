@@ -803,6 +803,29 @@ TEST_CASE(add_params)
     EXPECT(m1.get_parameter("x1") == map_ins[add]);
 }
 
+TEST_CASE(with_static_shapes)
+{
+    auto create_module = [](const std::vector<migraphx::shape>& input_shapes) {
+        migraphx::module m;
+        auto x   = m.add_parameter("x", input_shapes[0]);
+        auto y   = m.add_parameter("y", input_shapes[1]);
+        auto add = m.add_instruction(migraphx::make_op("add"), x, y);
+        auto reduce_mean =
+            m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {1}}}), add);
+        m.add_return({reduce_mean});
+        return m;
+    };
+    auto dyn_shape = migraphx::shape{migraphx::shape::float_type, {{1, 4}, {4, 8}}};
+    auto dyn_mod   = create_module({dyn_shape, dyn_shape});
+
+    auto static_shape = migraphx::shape{migraphx::shape::float_type, {2, 5}};
+    auto static_mod   = create_module({static_shape, static_shape});
+    std::unordered_map<std::string, migraphx::shape> static_arg_shapes{{"x", static_shape},
+                                                                       {"y", static_shape}};
+
+    EXPECT(dyn_mod.with_static_shapes(static_arg_shapes).sort() == static_mod.sort());
+}
+
 TEST_CASE(linear_graph_sort)
 {
     //
@@ -2006,6 +2029,206 @@ TEST_CASE(move_output_instructions_after_cross_module_mixed)
     }
 
     EXPECT(p1 == p2);
+}
+
+TEST_CASE(debug_symbols_copy_module_verify)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    auto x   = m1.add_parameter("x", s);
+    auto y   = m1.add_parameter("y", s);
+    auto add = m1.add_instruction(migraphx::make_op("add"), x, y);
+    auto neg = m1.add_instruction(migraphx::make_op("neg"), add);
+    auto ret = m1.add_return({neg});
+
+    m1.add_debug_symbols(add, {"add_node"});
+    m1.add_debug_symbols(neg, {"neg_node", "extra_sym"});
+    m1.add_debug_symbols(ret, {"@output:0:result_tensor"});
+
+    auto m2 = m1;
+
+    EXPECT(m2.has_debug_symbols());
+
+    auto it1 = m1.begin();
+    auto it2 = m2.begin();
+    for(; it1 != m1.end() and it2 != m2.end(); ++it1, ++it2)
+    {
+        EXPECT(it1->get_debug_symbols() == it2->get_debug_symbols());
+    }
+    EXPECT(it1 == m1.end());
+    EXPECT(it2 == m2.end());
+}
+
+TEST_CASE(debug_symbols_add_and_remove)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x                         = m.add_parameter("x", s);
+    auto y                         = m.add_parameter("y", s);
+    auto z                         = m.add_parameter("z", s);
+    migraphx::instruction_ref add1 = m.add_instruction(migraphx::make_op("add"), x, y);
+    migraphx::instruction_ref add2 = m.add_instruction(migraphx::make_op("add"), add1, z);
+    m.add_debug_symbols(add2, {"add2"});
+    m.add_return({add1});
+    EXPECT(m.has_debug_symbols());
+    m.remove_instruction(add2);
+    EXPECT(not m.has_debug_symbols());
+}
+
+TEST_CASE(debug_symbols_no_symbols)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x   = m.add_parameter("x", s);
+    auto y   = m.add_parameter("y", s);
+    auto add = m.add_instruction(migraphx::make_op("add"), x, y);
+    m.add_return({add});
+    EXPECT(not m.has_debug_symbols());
+}
+
+TEST_CASE(debug_symbols_multiple_instructions)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x    = m.add_parameter("x", s);
+    auto y    = m.add_parameter("y", s);
+    auto add1 = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto neg  = m.add_instruction(migraphx::make_op("neg"), add1);
+    m.add_debug_symbols(add1, {"add_op"});
+    m.add_debug_symbols(neg, {"neg_op"});
+    m.add_return({neg});
+    EXPECT(m.has_debug_symbols());
+
+    m.remove_debug_symbols(add1);
+    EXPECT(m.has_debug_symbols());
+
+    m.remove_debug_symbols(neg);
+    EXPECT(not m.has_debug_symbols());
+}
+
+TEST_CASE(debug_symbols_add_multiple_symbols_to_one_instruction)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x   = m.add_parameter("x", s);
+    auto y   = m.add_parameter("y", s);
+    auto add = m.add_instruction(migraphx::make_op("add"), x, y);
+    m.add_debug_symbols(add, {"sym1"});
+    m.add_debug_symbols(add, {"sym2", "sym3"});
+    m.add_return({add});
+
+    EXPECT(m.has_debug_symbols());
+    auto syms = add->get_debug_symbols();
+    EXPECT(syms.count("sym1") == 1);
+    EXPECT(syms.count("sym2") == 1);
+    EXPECT(syms.count("sym3") == 1);
+}
+
+TEST_CASE(debug_symbols_remove_instructions_range)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x    = m.add_parameter("x", s);
+    auto y    = m.add_parameter("y", s);
+    auto add1 = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto neg  = m.add_instruction(migraphx::make_op("neg"), add1);
+    auto relu = m.add_instruction(migraphx::make_op("relu"), neg);
+    m.add_debug_symbols(neg, {"neg_op"});
+    m.add_debug_symbols(relu, {"relu_op"});
+    m.add_return({add1});
+
+    EXPECT(m.has_debug_symbols());
+    m.remove_instructions(neg, m.end());
+    EXPECT(not m.has_debug_symbols());
+}
+
+TEST_CASE(erase_single_with_debug_symbols)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x    = m.add_parameter("x", s);
+    auto y    = m.add_parameter("y", s);
+    auto add1 = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto neg  = m.add_instruction(migraphx::make_op("neg"), add1);
+    m.add_debug_symbols(add1, {"add_sym"});
+    m.add_debug_symbols(neg, {"neg_sym"});
+    m.add_return({add1});
+
+    EXPECT(m.has_debug_symbols());
+    m.remove_instruction(neg);
+    EXPECT(m.has_debug_symbols());
+}
+
+TEST_CASE(erase_single_without_debug_symbols_preserves_counter)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x    = m.add_parameter("x", s);
+    auto y    = m.add_parameter("y", s);
+    auto add1 = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto neg  = m.add_instruction(migraphx::make_op("neg"), add1);
+    m.add_debug_symbols(add1, {"add_sym"});
+    m.add_return({add1});
+
+    EXPECT(m.has_debug_symbols());
+    m.remove_instruction(neg);
+    EXPECT(m.has_debug_symbols());
+}
+
+TEST_CASE(erase_single_last_debug_symbol)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x   = m.add_parameter("x", s);
+    auto y   = m.add_parameter("y", s);
+    auto add = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto neg = m.add_instruction(migraphx::make_op("neg"), add);
+    m.add_debug_symbols(neg, {"neg_sym"});
+    m.add_return({add});
+
+    EXPECT(m.has_debug_symbols());
+    m.remove_instruction(neg);
+    EXPECT(not m.has_debug_symbols());
+}
+
+TEST_CASE(erase_range_with_debug_symbols)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x    = m.add_parameter("x", s);
+    auto y    = m.add_parameter("y", s);
+    auto add1 = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto neg  = m.add_instruction(migraphx::make_op("neg"), add1);
+    auto relu = m.add_instruction(migraphx::make_op("relu"), neg);
+    m.add_debug_symbols(add1, {"add_sym"});
+    m.add_debug_symbols(neg, {"neg_sym"});
+    m.add_debug_symbols(relu, {"relu_sym"});
+    m.add_return({add1});
+
+    EXPECT(m.has_debug_symbols());
+    auto ret_ins = std::prev(m.end());
+    m.remove_instructions(neg, ret_ins);
+    EXPECT(m.has_debug_symbols());
+    EXPECT(add1->get_debug_symbols().count("add_sym") == 1);
+}
+
+TEST_CASE(erase_range_all_debug_symbols)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m;
+    auto x    = m.add_parameter("x", s);
+    auto y    = m.add_parameter("y", s);
+    auto add1 = m.add_instruction(migraphx::make_op("add"), x, y);
+    auto neg  = m.add_instruction(migraphx::make_op("neg"), add1);
+    auto relu = m.add_instruction(migraphx::make_op("relu"), neg);
+    m.add_debug_symbols(neg, {"neg_sym"});
+    m.add_debug_symbols(relu, {"relu_sym"});
+    m.add_return({add1});
+
+    EXPECT(m.has_debug_symbols());
+    auto ret_ins = std::prev(m.end());
+    m.remove_instructions(neg, ret_ins);
+    EXPECT(not m.has_debug_symbols());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

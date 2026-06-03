@@ -1,7 +1,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/make_op.hpp>
 #include "test.hpp"
+#include "rob.hpp"
 
 TEST_CASE(check_undefined)
 {
@@ -398,6 +399,73 @@ TEST_CASE(is_interdependent_large_set)
     EXPECT(migraphx::is_interdependent(subset, &m, m.begin()));
 }
 
+// Long chain (large n) between start and end:
+//
+//   x --> relu0 --> relu1 --> ... --> relu(N-1) --> abs
+//
+TEST_CASE(reaches_large_linear)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+    auto x = m.add_parameter("x", s);
+
+    // Keep this just above the small threshold (16) so we exercise the large-n
+    // path in track_visits without making the default unit test too heavy.
+    const int chain_len = 1000;
+    std::vector<migraphx::instruction_ref> chain;
+    chain.push_back(x);
+    for(int i = 0; i < chain_len; i++)
+        chain.push_back(m.add_instruction(migraphx::make_op("relu"), chain.back()));
+    auto last = m.add_instruction(migraphx::make_op("abs"), chain.back());
+
+    const int repeats = 3;
+    for(int i = 0; i < repeats; i++)
+    {
+        // Start to end (distance = chain_len + 1)
+        EXPECT(migraphx::reaches(x, last, &m));
+
+        // Mid-chain to end
+        EXPECT(migraphx::reaches(chain[chain_len / 2], last, &m));
+
+        // Start to mid-chain
+        EXPECT(migraphx::reaches(x, chain[(chain_len * 3) / 4], &m));
+    }
+}
+
+//
+// Two interleaved independent chains (no connection between them):
+//
+//   x --> relu0 --> relu1 --> ... --> relu19
+//   y --> tanh0 --> tanh1 --> ... --> tanh19
+//
+TEST_CASE(reaches_large_independent_chains)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {3, 3}};
+    auto x = m.add_parameter("x", s);
+    auto y = m.add_parameter("y", s);
+
+    const int chain_len = 20;
+    std::vector<migraphx::instruction_ref> chain_a;
+    chain_a.push_back(x);
+    std::vector<migraphx::instruction_ref> chain_b;
+    chain_b.push_back(y);
+    for(int i = 0; i < chain_len; i++)
+    {
+        // Interleave insertion into the module to exercise ordering with mixed instructions
+        chain_a.push_back(m.add_instruction(migraphx::make_op("relu"), chain_a.back()));
+        chain_b.push_back(m.add_instruction(migraphx::make_op("tanh"), chain_b.back()));
+    }
+
+    // Within each chain: reachable
+    EXPECT(migraphx::reaches(x, chain_a.back(), &m));
+    EXPECT(migraphx::reaches(y, chain_b.back(), &m));
+
+    // Across chains: not reachable
+    EXPECT(not migraphx::reaches(x, chain_b.back(), &m));
+    EXPECT(not migraphx::reaches(y, chain_a.back(), &m));
+}
+
 // Tests for the find_instructions_between function
 //
 // Linear chain:
@@ -538,6 +606,35 @@ TEST_CASE(find_instructions_between_complex)
     EXPECT(result.count(y) == 0);
     EXPECT(result.count(z) == 0);
     EXPECT(result.count(add2) == 0);
+}
+
+// Verify that replacing a @literal instruction clears the literal data.
+// This ensures host memory from parsed weights is freed after compilation
+// replaces @literal with gpu_literal via instruction::replace().
+MIGRAPHX_ROB(access_ins_lit, migraphx::literal, migraphx::instruction, lit)
+
+TEST_CASE(check_replace_clears_literal)
+{
+    migraphx::module m;
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1, 2, 3, 4, 5, 6};
+
+    auto lit = m.add_literal(migraphx::literal(s, data));
+
+    // Before replacement: literal data is present
+    EXPECT(lit->name() == "@literal");
+    EXPECT(not access_ins_lit(*lit).empty());
+
+    // Replace @literal with a non-literal op via module API
+    auto input = m.add_parameter("x", s);
+    m.replace_instruction(lit, migraphx::make_op("abs"), input);
+
+    // After replacement: no longer @literal
+    EXPECT(lit->name() == "abs");
+
+    // After replacement: literal data should be cleared
+    EXPECT(lit->name() == "abs");
+    EXPECT(access_ins_lit(*lit).empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

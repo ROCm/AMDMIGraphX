@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct module;
 
 /**
- * Remove concat operators by having each operator can write to different chunk of memory.
+ * Remove concat operators by having each operator write to different chunk of memory.
  */
 struct MIGRAPHX_EXPORT eliminate_concat
 {

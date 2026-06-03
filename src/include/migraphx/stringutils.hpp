@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,12 +25,17 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_STRINGUTILS_HPP
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <numeric>
 #include <string>
 #include <sstream>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/as_number.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -69,9 +74,12 @@ inline bool ends_with(const std::string& value, const std::string& suffix)
     else
         return std::equal(suffix.rbegin(), suffix.rend(), value.rbegin());
 }
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 template <class Strings>
-inline std::string join_strings(Strings strings, const std::string& delim)
+inline std::string
+join_strings(Strings strings,
+             const std::string& delim) 
+// NOLINTEND(performance-unnecessary-value-param)
 {
     auto it = strings.begin();
     if(it == strings.end())
@@ -222,6 +230,46 @@ inline auto to_string(const T& x)
     std::stringstream ss;
     ss << x;
     return ss.str();
+}
+
+template <class T>
+inline auto to_hex_float(const T& x)
+    -> decltype((std::declval<std::stringstream>() << x), std::string{})
+{
+    std::stringstream ss;
+    ss << std::hexfloat << x;
+    return ss.str();
+}
+
+/// Concatenate the lowercase hex representation of each integer in a range.
+/// Each element emits 2*sizeof(element) characters. When lsb is false the
+/// most-significant byte is emitted first (standard hex notation); when true,
+/// the least-significant byte is first (matches byte-stream hash digests).
+template <class Range>
+inline std::string to_hex_string(const Range& r, bool lsb = false)
+{
+    constexpr std::array<char, 16> hex_digits = {
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    return std::accumulate(r.begin(), r.end(), std::string{}, [&](std::string acc, const auto& x) {
+        using type         = std::make_unsigned_t<std::decay_t<decltype(x)>>;
+        using wide_type    = std::common_type_t<type, unsigned>;
+        const wide_type u  = bit_cast<type>(x);
+        const auto to_byte = [&](std::size_t b) -> std::uint8_t { return (u >> (b * 8u)) & 0xffu; };
+        const auto append_hex = [&](std::string s, std::uint8_t byte) {
+            s.push_back(hex_digits[byte >> 4u]);
+            s.push_back(hex_digits[byte & 0x0fu]);
+            return s;
+        };
+        const auto bytes = range(sizeof(type));
+        if(lsb)
+        {
+            return transform_accumulate(
+                bytes.begin(), bytes.end(), std::move(acc), append_hex, to_byte);
+        }
+        const auto rbytes = reverse(bytes);
+        return transform_accumulate(
+            rbytes.begin(), rbytes.end(), std::move(acc), append_hex, to_byte);
+    });
 }
 
 } // namespace MIGRAPHX_INLINE_NS

@@ -207,7 +207,7 @@ struct unary_pass_op
 
 struct pass_standard_op
 {
-    std::string name() const { return "pass"; }
+    std::string name() const { return "pass_standard"; }
     migraphx::argument
     compute(migraphx::context&, const migraphx::shape&, std::vector<migraphx::argument> args) const
     {

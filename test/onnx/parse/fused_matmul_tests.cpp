@@ -161,6 +161,26 @@ TEST_CASE(fused_matmul_trans_batch_b_test)
     EXPECT(p == prog);
 }
 
+// Rank-4 transBatchA + transB disambiguates the transBatch permutation, which rank-3
+// cannot since it collapses [1, ..., R-2, 0, R-1] and [R-2, 0, ..., R-3, R-1] to [1, 0, 2].
+// ORT's MatMulComputeHelper moves dim-0 to dim-(rank-2), so A [2,3,4,7] is permuted with
+// [1,2,0,3] -> [3,4,2,7] and B [3,4,8,7] with transB [0,1,3,2] -> [3,4,7,8], giving [3,4,2,8].
+TEST_CASE(fused_matmul_trans_batch_a_trans_b_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0  = mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {2, 3, 4, 7}});
+    auto l1  = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {3, 4, 8, 7}});
+    auto tba =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 2, 0, 3}}}), l0);
+    auto tb =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), l1);
+    mm->add_instruction(migraphx::make_op("dot"), tba, tb);
+
+    auto prog = optimize_onnx("fused_matmul_trans_batch_a_trans_b_test.onnx");
+    EXPECT(p == prog);
+}
+
 // Rank-error case: transBatchA is set on rank-2 inputs. ORT's MatMulComputeHelper
 // requires both operands to have the same rank and rank >= 3 when any transBatch is set,
 // so parsing must throw.

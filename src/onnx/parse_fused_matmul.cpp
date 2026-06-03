@@ -153,7 +153,6 @@ struct parse_fused_matmul : op_parser<parse_fused_matmul>
             a1            = op::builder::add("unsqueeze", *info.mod, {a1}, {{"axes", {1}}}).at(0);
         }
 
-        // transBatch* is applied before trans*, matching ORT's MatMulComputeHelper.
         if(trans_batch_a)
             a0 = apply_trans_batch(info, a0);
         if(trans_batch_b)

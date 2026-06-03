@@ -37,10 +37,7 @@ namespace {
 struct find_large_topk
 {
     std::size_t n_threshold = 0;
-    auto matcher() const
-    {
-        return match::name("topk")(match::arg(0)(match::not_dynamic_shape()));
-    }
+    auto matcher() const { return match::name("topk")(match::arg(0)(match::not_dynamic_shape())); }
 
     void apply(module& m, const match::matcher_result& r) const
     {

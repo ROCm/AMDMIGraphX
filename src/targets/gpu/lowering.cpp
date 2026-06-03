@@ -473,7 +473,7 @@ struct miopen_apply
         const auto num_boxes   = boxes_s.lens()[1];
         const auto num_classes = scores_s.lens()[1];
         assert(num_boxes > 0);
-        const auto iou_packed  = num_boxes * (num_boxes - 1) / 2;
+        const auto iou_packed = num_boxes * (num_boxes - 1) / 2;
 
         // Fill in missing optional scalar inputs with default literals.
         const shape default_max_s{shape::int64_type, {1}};

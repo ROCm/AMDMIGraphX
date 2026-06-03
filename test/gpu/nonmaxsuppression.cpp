@@ -107,7 +107,7 @@ TEST_CASE(nms_default_test)
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 3);
 }
 
@@ -146,7 +146,7 @@ TEST_CASE(nms_identical_all_test)
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 0};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 1);
 }
 
@@ -183,7 +183,7 @@ TEST_CASE(nms_not_center_test)
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 3);
 }
 
@@ -230,7 +230,7 @@ TEST_CASE(nms_dynamic_fallback_test)
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 3);
 }
 
@@ -274,7 +274,7 @@ TEST_CASE(nms_transpose1_test)
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 3);
 }
 
@@ -315,7 +315,7 @@ TEST_CASE(nms_transpose2_test)
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 3);
 }
 
@@ -363,7 +363,7 @@ TEST_CASE(nms_multi_batch_test)
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5, 1, 0, 3, 1, 0, 0, 1, 0, 5};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 6);
 }
 
@@ -405,7 +405,7 @@ TEST_CASE(nms_multi_class_test)
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 1, 3, 0, 1, 0};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 4);
 }
 
@@ -453,7 +453,7 @@ TEST_CASE(nms_20boxes_test)
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 19, 0, 0, 2, 0, 0, 6, 0, 0, 11, 0, 0, 0,
                                  0, 0, 15, 0, 0, 9, 0, 0, 7, 0, 0, 12, 0, 0, 1};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 10);
 }
 
@@ -521,7 +521,7 @@ TEST_CASE(nms_50boxes_center_test)
                                  0, 0, 33, 0, 0, 4,  0, 0, 24, 0, 0, 26, 0, 0, 42,
                                  0, 0, 45, 0, 0, 44, 0, 0, 0,  0, 0, 30, 0, 0, 32,
                                  0, 0, 17, 0, 0, 25, 0, 0, 7,  0, 0, 28, 0, 0, 35};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 20);
 }
 
@@ -681,7 +681,7 @@ TEST_CASE(nms_100boxes_2batch_test)
                                  0, 0, 52, 0, 0, 61, 0, 0, 12, 1, 0, 9,  1, 0, 94, 1, 0, 17,
                                  1, 0, 20, 1, 0, 83, 1, 0, 84, 1, 0, 13, 1, 0, 59, 1, 0, 35,
                                  1, 0, 55, 1, 0, 34, 1, 0, 61, 1, 0, 75, 1, 0, 88, 1, 0, 28};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 30);
 }
 
@@ -742,7 +742,7 @@ TEST_CASE(nms_30boxes_3class_test)
     std::vector<int64_t> gold = {0, 0, 7,  0, 0, 16, 0, 0, 0,  0, 0, 18, 0, 0, 26,
                                  0, 1, 1,  0, 1, 17, 0, 1, 14, 0, 1, 22, 0, 1, 4,
                                  0, 2, 26, 0, 2, 29, 0, 2, 10, 0, 2, 6,  0, 2, 25};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 15);
 }
 
@@ -1071,7 +1071,7 @@ TEST_CASE(nms_200boxes_2batch_2class_test)
         1, 1, 19,  1, 1, 11,  1, 1, 26,  1, 1, 84,  1, 1, 191, 1, 1, 117, 1, 1, 104, 1, 1, 197,
         1, 1, 192, 1, 1, 10,  1, 1, 48,  1, 1, 68,  1, 1, 22,  1, 1, 128, 1, 1, 25,  1, 1, 134,
         1, 1, 163, 1, 1, 121, 1, 1, 169, 1, 1, 185};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 100);
 }
 
@@ -1111,7 +1111,54 @@ TEST_CASE(nms_ties_no_overlap_test)
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 3};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
+    EXPECT(num_selected == 4);
+}
+
+// Pins the tie-break: when all scores are equal and boxes overlap pairwise,
+// the lower-index box of each tied pair wins and suppresses the higher-index
+// partner.
+TEST_CASE(nms_ties_with_overlap_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{6});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_p,
+                                   scores_p,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    add_nms_return(mm, nms);
+
+    // Corner format [y1, x1, y2, x2]. All scores identical. Overlapping pairs:
+    //   box 0 ~ box 5  (IoU ~ 0.82; lower-index 0 wins)
+    //   box 1 ~ box 4  (IoU ~ 0.82; lower-index 1 wins)
+    // boxes 2 and 3 are disjoint from everything.
+    std::vector<float> boxes_vec  = {0.0f, 0.0f, 1.0f, 1.0f,  // 0
+                                     0.0f, 2.0f, 1.0f, 3.0f,  // 1
+                                     0.0f, 4.0f, 1.0f, 5.0f,  // 2
+                                     2.0f, 4.0f, 3.0f, 5.0f,  // 3
+                                     0.0f, 2.1f, 1.0f, 3.1f,  // 4 overlaps 1
+                                     0.0f, 0.1f, 1.0f, 1.1f}; // 5 overlaps 0
+    std::vector<float> scores_vec = {0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f};
+
+    migraphx::parameter_map host_params;
+    host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
+    host_params["scores"] = migraphx::argument(scores_s, scores_vec.data());
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    std::vector<int64_t> gold = {0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 3};
+    EXPECT(indices == gold);
     EXPECT(num_selected == 4);
 }
 
@@ -1159,7 +1206,7 @@ TEST_CASE(nms_quantized_ties_test)
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
     std::vector<int64_t> gold = {0, 0, 4,  0, 0, 8, 0, 0, 12, 0, 0, 13, 0, 0, 11,
                                  0, 0, 6,  0, 0, 0, 0, 0, 2,  0, 0, 1,  0, 0, 5};
-    EXPECT(migraphx::verify::verify_rms_range(indices, gold));
+    EXPECT(indices == gold);
     EXPECT(num_selected == 10);
 }
 

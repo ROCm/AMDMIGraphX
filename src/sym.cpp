@@ -1179,7 +1179,8 @@ static expr diff(const expr& e, const expr& v)
         if(cs.size() != 2)
             MIGRAPHX_THROW("diff: / arity");
         if(cs[1].name() != "literal")
-            return expr{}; // non-literal divisors would require the quotient rule and break monotonicity
+            return expr{}; // non-literal divisors would require the quotient rule and break
+                           // monotonicity
         const auto& n = std::get<literal_node>(get_node(cs[1]));
         double c      = to<double>(n.val);
         if(c == 0.0)
@@ -1265,7 +1266,7 @@ try_monotone_interval(const expr& e,
         auto deriv = diff(e, fv.first);
         if(deriv.empty())
             return std::nullopt;
-        auto di    = eval_interval_impl(deriv, lookup, cache);
+        auto di = eval_interval_impl(deriv, lookup, cache);
         // 0 <= min => non-negative derivative => non-decreasing in this var
         bool nonneg = not scalar_less(di.min, scalar{int64_t{0}});
         // max <= 0 => non-positive derivative => non-increasing

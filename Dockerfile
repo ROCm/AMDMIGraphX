@@ -58,7 +58,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     hipsparse \
     rccl \
     rocm-smi-lib \
-    rocm-dev \
     roctracer-dev \
     hipcub  \
     hipblas  \

@@ -53,6 +53,7 @@ Full documentation for MIGraphX is available at
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 * Fixed an issue with `convert` output overflowing when converting inf/-inf to integral types (#4669).
 * Fixed issue with `find_concat_op` matcher merging converted int32 inputs after bf16/fp16 quant during compilation (#4745)
+* Fixed a regression in `simplify_reshapes` where `find_slice_shape_transforms` could trigger `same_dims: Dimensions do not match` when a slice's shape descriptor absorbed a `multibroadcast` on the sliced axis.
 
 ### Optimized
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).

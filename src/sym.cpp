@@ -1000,49 +1000,39 @@ std::optional<bool> strict_less(const expr& a, const expr& b, interval default_b
     if(a.empty() or b.empty())
         return std::nullopt;
 
+    if(same_symbol(a, b))
+        return false;
+
     // 1. Interval of b - a. eval_interval is already monotonicity-tightened, so the
     //    cross-term correlations between b and a get picked up automatically.
-    try
-    {
-        auto i = (b - a).eval_interval_default(default_bounds);
-        if(scalar_less(scalar{int64_t{0}}, i.min))
-            return true;
-        if(not scalar_less(scalar{int64_t{0}}, i.max))
-            return false;
-    }
-    catch(const migraphx::exception&)
-    {
-    }
-
+    auto i = (b - a).eval_interval_default(default_bounds);
+    if(scalar_less(scalar{int64_t{0}}, i.min))
+        return true;
+    if(not scalar_less(scalar{int64_t{0}}, i.max))
+        return false;
     // 2. b / a vs 1, when a's interval doesn't include zero.
-    try
+    auto a_int = a.eval_interval_default(default_bounds);
+    bool a_pos = scalar_less(scalar{int64_t{0}}, a_int.min);
+    bool a_neg = scalar_less(a_int.max, scalar{int64_t{0}});
+    if(a_pos or a_neg)
     {
-        auto a_int = a.eval_interval_default(default_bounds);
-        bool a_pos = scalar_less(scalar{int64_t{0}}, a_int.min);
-        bool a_neg = scalar_less(a_int.max, scalar{int64_t{0}});
-        if(a_pos or a_neg)
+        auto q_int = (b / a).eval_interval_default(default_bounds);
+        if(a_pos)
         {
-            auto q_int = (b / a).eval_interval_default(default_bounds);
-            if(a_pos)
-            {
-                // a > 0: a < b iff b/a > 1
-                if(scalar_less(scalar{int64_t{1}}, q_int.min))
-                    return true;
-                if(not scalar_less(scalar{int64_t{1}}, q_int.max))
-                    return false;
-            }
-            else
-            {
-                // a < 0: a < b iff b/a < 1 (dividing by negative flips)
-                if(scalar_less(q_int.max, scalar{int64_t{1}}))
-                    return true;
-                if(not scalar_less(q_int.min, scalar{int64_t{1}}))
-                    return false;
-            }
+            // a > 0: a < b iff b/a > 1
+            if(scalar_less(scalar{int64_t{1}}, q_int.min))
+                return true;
+            if(not scalar_less(scalar{int64_t{1}}, q_int.max))
+                return false;
         }
-    }
-    catch(const migraphx::exception&)
-    {
+        else
+        {
+            // a < 0: a < b iff b/a < 1 (dividing by negative flips)
+            if(scalar_less(q_int.max, scalar{int64_t{1}}))
+                return true;
+            if(not scalar_less(q_int.min, scalar{int64_t{1}}))
+                return false;
+        }
     }
 
     return std::nullopt;
@@ -1189,14 +1179,14 @@ static expr diff(const expr& e, const expr& v)
         if(cs.size() != 2)
             MIGRAPHX_THROW("diff: / arity");
         if(cs[1].name() != "literal")
-            MIGRAPHX_THROW("diff: non-literal divisor");
+            return expr{}; // non-literal divisors would require the quotient rule and break monotonicity
         const auto& n = std::get<literal_node>(get_node(cs[1]));
         double c      = to<double>(n.val);
         if(c == 0.0)
-            MIGRAPHX_THROW("diff: / by zero");
+            return expr{};
         return diff(cs[0], v) * lit(1.0 / c);
     }
-    MIGRAPHX_THROW("diff: unsupported op " + std::string{e.name()});
+    return expr{};
 }
 
 // Collect every free variable appearing in `e`, with its effective interval
@@ -1220,8 +1210,9 @@ collect_free_vars(const expr& e, const std::function<std::optional<interval>(con
         {
             const auto& n = std::get<variable_node>(get_node(x));
             if(n.constraints.empty())
-                MIGRAPHX_THROW("monotone: unbound var " + n.name);
-            result.emplace_back(x, n.constraints.front());
+                result.emplace_back(x, interval{});
+            else
+                result.emplace_back(x, n.constraints.front());
             return;
         }
         for(const auto& c : x.children())
@@ -1251,59 +1242,54 @@ try_monotone_interval(const expr& e,
 {
     if(e.empty())
         return std::nullopt;
-    try
+    auto fvs = collect_free_vars(e, lookup);
+    if(fvs.empty())
     {
-        auto fvs = collect_free_vars(e, lookup);
-        if(fvs.empty())
-        {
-            auto v = e.eval({});
-            return interval{v, v};
-        }
-        constexpr std::size_t max_vars = 16;
-        if(fvs.size() > max_vars)
-            return std::nullopt;
-
-        struct mono_info
-        {
-            expr var;
-            interval iv;
-            int dir;
-        };
-        std::vector<mono_info> infos;
-        infos.reserve(fvs.size());
-        for(const auto& fv : fvs)
-        {
-            auto deriv = diff(e, fv.first);
-            auto di    = eval_interval_impl(deriv, lookup, cache);
-            // 0 <= min => non-negative derivative => non-decreasing in this var
-            bool nonneg = not scalar_less(di.min, scalar{int64_t{0}});
-            // max <= 0 => non-positive derivative => non-increasing
-            bool nonpos = not scalar_less(scalar{int64_t{0}}, di.max);
-            int dir;
-            if(nonneg)
-                dir = +1;
-            else if(nonpos)
-                dir = -1;
-            else
-                return std::nullopt;
-            infos.push_back({fv.first, fv.second, dir});
-        }
-
-        auto eval_at = [&](bool maxify) {
-            std::unordered_map<expr, scalar> point;
-            for(const auto& m : infos)
-            {
-                bool hi      = (m.dir >= 0) == maxify;
-                point[m.var] = hi ? m.iv.max : m.iv.min;
-            }
-            return e.eval(point);
-        };
-        return interval{eval_at(false), eval_at(true)};
+        auto v = e.eval({});
+        return interval{v, v};
     }
-    catch(const migraphx::exception&)
-    {
+    constexpr std::size_t max_vars = 16;
+    if(fvs.size() > max_vars)
         return std::nullopt;
+
+    struct mono_info
+    {
+        expr var;
+        interval iv;
+        int dir;
+    };
+    std::vector<mono_info> infos;
+    infos.reserve(fvs.size());
+    for(const auto& fv : fvs)
+    {
+        auto deriv = diff(e, fv.first);
+        if(deriv.empty())
+            return std::nullopt;
+        auto di    = eval_interval_impl(deriv, lookup, cache);
+        // 0 <= min => non-negative derivative => non-decreasing in this var
+        bool nonneg = not scalar_less(di.min, scalar{int64_t{0}});
+        // max <= 0 => non-positive derivative => non-increasing
+        bool nonpos = not scalar_less(scalar{int64_t{0}}, di.max);
+        int dir;
+        if(nonneg)
+            dir = +1;
+        else if(nonpos)
+            dir = -1;
+        else
+            return std::nullopt;
+        infos.push_back({fv.first, fv.second, dir});
     }
+
+    auto eval_at = [&](bool maxify) {
+        std::unordered_map<expr, scalar> point;
+        for(const auto& m : infos)
+        {
+            bool hi      = (m.dir >= 0) == maxify;
+            point[m.var] = hi ? m.iv.max : m.iv.min;
+        }
+        return e.eval(point);
+    };
+    return interval{eval_at(false), eval_at(true)};
 }
 
 // The actual cached evaluator. Cache is keyed on the full subexpression and

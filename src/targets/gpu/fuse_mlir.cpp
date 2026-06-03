@@ -362,7 +362,7 @@ bool should_prefer_miopen_winograd(instruction_ref ins)
     auto inputs = ins->inputs();
     if(inputs.size() < 2)
         return false;
-    auto w      = inputs.at(1)->get_shape();
+    auto w             = inputs.at(1)->get_shape();
     const auto& w_lens = w.lens();
     if(w_lens.size() != 4)
         return false;

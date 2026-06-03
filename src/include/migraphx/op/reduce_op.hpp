@@ -108,56 +108,43 @@ struct reduce_op : op_name<Derived>
         return original_shape.with_lens(lens);
     }
 
-    // Compute the output shape for cases when the input tensor has a dynamic shape.
-    //
-    // If the axes are passed as a variable input(indicated by an empty axes attribute), we cannot
-    // determine which axes must be collapsed until we see the actual input values, so we must treat
-    // each axis as potentially collapsable and set its minimum dimension to 1.
-    shape compute_dynamic_shape(const std::vector<shape>& inputs) const
+    // Variable-axes form (axes attribute empty): every axis is potentially reduced, so each
+    // output dim is {1, upper_bound}. Works uniformly for static, range-dynamic, and symbolic
+    // inputs -- get_interval().max evaluates the sym::expr upper bound when the dim is symbolic.
+    shape variable_axes_compute_shape(const shape& s0) const
     {
-        const auto& data_shape = inputs[0];
-        auto dims              = data_shape.dyn_dims();
-        if(axes.empty())
-        {
-            std::transform(dims.begin(), dims.end(), dims.begin(), [](const auto& dim) {
-                return shape::dynamic_dimension{1, dim.get_interval().max};
-            });
-        }
-        else
-        {
-            for(auto a : axes)
-            {
-                dims[a] = {1, 1};
-            }
-        }
-
-        return {data_shape.type(), dims};
+        auto dims = s0.to_dynamic().dyn_dims();
+        std::transform(dims.begin(), dims.end(), dims.begin(), [](const auto& d) {
+            return shape::dynamic_dimension{1, d.get_interval().max};
+        });
+        return {s0.type(), dims};
     }
 
-    // Compute the output shape for cases when the input tensor has a static shape.
-    // Depending on how axes is passed to the operator the output shape can be either dynamic or
-    // static.
-    //
-    // If the axes are passed as a variable input(indicated by an empty axes attribute), we cannot
-    // determine which axes must be collapsed until we see the actual input values, so we must treat
-    // each axis as potentially collapsable, producing a dynamic output shape.
-    shape compute_static_shape(const std::vector<shape>& inputs) const
+    // Fixed-axes form for range-based dynamic input: set the reduced axes to {1,1}.
+    shape range_compute_shape(const shape& s0) const
     {
-        const auto& data_shape = inputs[0];
-        if(axes.empty())
+        auto dims = s0.dyn_dims();
+        for(auto a : axes)
         {
-            std::vector<shape::dynamic_dimension> dims(data_shape.ndim());
-            auto lens = data_shape.lens();
-            std::transform(lens.begin(), lens.end(), dims.begin(), [](auto len) {
-                return shape::dynamic_dimension{1, len};
-            });
+            dims[a] = {1, 1};
+        }
+        return {s0.type(), dims};
+    }
 
-            return {data_shape.type(), std::move(dims)};
-        }
-        else
+    // Fixed-axes form for static or symbolic input: build the output symbolically with the
+    // reduced axes set to lit(1), then collapse to a static shape if the input was static.
+    shape symbolic_compute_shape(const shape& s0) const
+    {
+        auto sym_in = s0.to_symbolic();
+        auto dds    = sym_in.dyn_dims();
+        for(auto a : axes)
         {
-            return collapse_reduced_axes(data_shape, axes);
+            dds[a] = shape::dynamic_dimension{sym::lit(1)};
         }
+        shape result{s0.type(), dds};
+        if(not s0.symbolic())
+            return result.to_static();
+        return result;
     }
 
     /**
@@ -169,17 +156,17 @@ struct reduce_op : op_name<Derived>
      */
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
+        // TODO: empty axes with a single input should not throw; in that case
+        // it should just do no reduction (ie. no-op)
         auto expected_arg_count = axes.empty() ? 2 : 1;
         check_shapes{inputs, *this, true}.has(expected_arg_count);
+        const auto& s0 = inputs[0];
 
-        if(inputs[0].dynamic())
-        {
-            return compute_dynamic_shape(inputs);
-        }
-        else
-        {
-            return compute_static_shape(inputs);
-        }
+        if(inputs.size() == 2)
+            return variable_axes_compute_shape(s0);
+        if(s0.dynamic() and not s0.symbolic())
+            return range_compute_shape(s0);
+        return symbolic_compute_shape(s0);
     }
 
     template <class T>

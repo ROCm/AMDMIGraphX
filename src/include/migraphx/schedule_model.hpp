@@ -257,23 +257,37 @@ struct schedule_model
         }
 
         std::shared_ptr<private_detail_te_handle_base_type> clone() const override
-        { return std::make_shared<private_detail_te_handle_type>(private_detail_te_value); }
+        {
+            return std::make_shared<private_detail_te_handle_type>(private_detail_te_value);
+        }
 
         const std::type_info& type() const override { return typeid(private_detail_te_value); }
 
         std::size_t concurrency() const override { return private_detail_te_value.concurrency(); }
 
         void sched(module& m, instruction_ref ins, std::size_t n) const override
-        { private_detail_te_value.sched(m, ins, n); }
+        {
+
+            private_detail_te_value.sched(m, ins, n);
+        }
 
         void wait(module& m, instruction_ref ins, std::size_t wait_id) const override
-        { private_detail_te_value.wait(m, ins, wait_id); }
+        {
+
+            private_detail_te_value.wait(m, ins, wait_id);
+        }
 
         void record(module& m, instruction_ref ins, std::size_t wait_id) const override
-        { private_detail_te_value.record(m, ins, wait_id); }
+        {
+
+            private_detail_te_value.record(m, ins, wait_id);
+        }
 
         std::size_t weight(const operation& op) const override
-        { return private_detail_te_value.weight(op); }
+        {
+
+            return private_detail_te_value.weight(op);
+        }
 
         PrivateDetailTypeErasedT private_detail_te_value;
     };
@@ -289,7 +303,9 @@ struct schedule_model
     };
 
     bool private_detail_te_handle_empty() const
-    { return private_detail_te_handle_mem_var == nullptr; }
+    {
+        return private_detail_te_handle_mem_var == nullptr;
+    }
 
     const private_detail_te_handle_base_type& private_detail_te_get_handle() const
     {
@@ -310,11 +326,15 @@ struct schedule_model
 
 template <typename ValueType>
 inline const ValueType* any_cast(const schedule_model* x)
-{ return x->any_cast<ValueType>(); }
+{
+    return x->any_cast<ValueType>();
+}
 
 template <typename ValueType>
 inline ValueType* any_cast(schedule_model* x)
-{ return x->any_cast<ValueType>(); }
+{
+    return x->any_cast<ValueType>();
+}
 
 template <typename ValueType>
 inline ValueType& any_cast(schedule_model& x)

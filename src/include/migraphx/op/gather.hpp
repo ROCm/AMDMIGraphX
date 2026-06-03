@@ -63,48 +63,26 @@ struct gather
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
-        shape data    = inputs[0];
-        shape indices = inputs[1];
-        auto type     = data.type();
-        // If index_dims is dynamic, convert the data to dynamic too.
-        if(indices.dynamic())
-        {
-            data = data.to_dynamic();
-        }
+        const auto& indices = inputs[1];
+        auto type           = inputs[0].type();
         const bool scalar_indices =
             indices.ndim() == 1 and indices.scalar() and indices.elements() == 1;
-        if(data.dynamic())
+
+        auto unified = shape::to_dynamic(inputs);
+        auto dims    = unified[0].dyn_dims();
+        dims.erase(dims.begin() + axis);
+        if(not scalar_indices)
         {
-            auto dims = data.dyn_dims();
-            dims.erase(dims.begin() + axis);
-
-            if(not scalar_indices)
-            {
-                auto index_dims = indices.to_dynamic().dyn_dims();
-                dims.insert(dims.begin() + axis, index_dims.begin(), index_dims.end());
-            }
-            return {type, dims};
+            auto idx_dims = unified[1].dyn_dims();
+            dims.insert(dims.begin() + axis, idx_dims.begin(), idx_dims.end());
         }
-        else
-        {
-            // Both data and indices are static.  indices may be scalar
-            auto lens = data.lens();
-            lens.erase(lens.begin() + axis);
 
-            if(not scalar_indices)
-            {
-                auto ind_lens = indices.lens();
-                lens.insert(lens.begin() + axis, ind_lens.begin(), ind_lens.end());
-            }
-
-            // for scalar output
-            if(lens.empty())
-            {
-                return {type};
-            }
-
-            return {type, lens};
-        }
+        if(dims.empty())
+            return {type};
+        shape result{type, dims};
+        if(inputs[0].dynamic() or inputs[1].dynamic())
+            return result;
+        return result.to_static();
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
@@ -129,7 +107,7 @@ struct gather
                     auto in_index = indices.front();
                     in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
                     check_index_range(in_index, axis_dim_size);
-                    output[0]     = data[in_index];
+                    output[0] = data[in_index];
                 }
                 else
                 {
@@ -137,12 +115,12 @@ struct gather
                     out_lens[axis] = indices.get_shape().elements();
                     migraphx::shape out_comp_shape{data.get_shape().type(), out_lens};
                     shape_for_each(out_comp_shape, [&](const auto& out_idx_v, size_t out_idx) {
-                        auto data_idx   = out_idx_v;
-                        auto in_index   = indices[data_idx[axis]];
-                        in_index        = (in_index < 0) ? in_index + axis_dim_size : in_index;
+                        auto data_idx = out_idx_v;
+                        auto in_index = indices[data_idx[axis]];
+                        in_index      = (in_index < 0) ? in_index + axis_dim_size : in_index;
                         // don't go out of bounds: https://github.com/ROCm/AMDMIGraphX/issues/2838
                         assert(in_index >= 0 and in_index < axis_dim_size);
-                        data_idx[axis]  = in_index;
+                        data_idx[axis] = in_index;
                         check_index_range(data_idx[axis], axis_dim_size);
                         output[out_idx] = data(data_idx.begin(), data_idx.end());
                     });

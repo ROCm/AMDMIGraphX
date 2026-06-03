@@ -86,6 +86,14 @@ static bool insert_mlss_conv(module& m,
     const auto out_lens = output_shape.lens();
     const auto dtype    = act_ins->get_shape().type();
 
+    // mlss_conv kernel args only encode a single (pad_h, pad_w) pair (start
+    // padding); the kernel does not support asymmetric start/end padding.
+    // query_mlss_conv_binary may still return a binary for the symmetric case
+    // it sees, so reject here before fusing.
+    if(cur_padding.size() == 4 and
+       (cur_padding[0] != cur_padding[2] or cur_padding[1] != cur_padding[3]))
+        return false;
+
     // Check if AMDMLSS has a kernel for this configuration
     auto info = query_mlss_conv_binary(*ctx,
                                        act_lens,

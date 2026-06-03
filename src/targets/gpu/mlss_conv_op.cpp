@@ -180,6 +180,16 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     if(mlssGetCaps(mlss_ctx, &p_statuses, &n_statuses) != MLSS_SUCCESS)
         return info;
 
+    // Each entry indicates whether the corresponding op configuration is
+    // supported. Reject if any is non-success (e.g. MLSS_ERROR_SHADER_*)
+    if(p_statuses == nullptr or n_statuses == 0)
+        return info;
+    for(MLSSsize i = 0; i < n_statuses; ++i)
+    {
+        if(p_statuses[i] != MLSS_SUCCESS)
+            return info;
+    }
+
     MLSSbinary* binaries  = nullptr;
     MLSSsize num_binaries = 0;
     if(mlssGetBinaries(mlss_ctx, &binaries, &num_binaries) != MLSS_SUCCESS || num_binaries == 0)

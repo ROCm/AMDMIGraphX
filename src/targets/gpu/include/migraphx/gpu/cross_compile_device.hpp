@@ -21,43 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/register_target.hpp>
-#include <migraphx/target.hpp>
-#include <migraphx/value.hpp>
-#include "test.hpp"
+#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
+#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
 
-TEST_CASE(make_target)
-{
-    for(const auto& name : migraphx::get_targets())
-    {
-        auto t = migraphx::make_target(name);
-        CHECK(t.name() == name);
-    }
-}
+#include <migraphx/gpu/export.h>
+#include <migraphx/config.hpp>
+#include <hip/hip_runtime_api.h>
+#include <string>
 
-TEST_CASE(make_invalid_target)
-{
-    EXPECT(test::throws([&] { migraphx::make_target("mi100"); }));
-}
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-TEST_CASE(make_invalid_target_value_scalar)
-{
-    auto t = migraphx::make_target("ref");
-    EXPECT(test::throws([&] { t.from_value(migraphx::value(1)); }));
-}
+/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
+/// Used when no physical GPU is present.
+MIGRAPHX_GPU_EXPORT hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name,
+                                                                    std::size_t cu_count);
 
-TEST_CASE(targets)
-{
-    auto ref_target = migraphx::make_target("ref");
-    auto ts         = migraphx::get_targets();
-    EXPECT(ts.size() >= 1);
-}
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
-TEST_CASE(target_to_value_is_object)
-{
-    auto t = migraphx::make_target("ref");
-    auto v = t.to_value();
-    CHECK(v.is_object());
-}
-
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+#endif

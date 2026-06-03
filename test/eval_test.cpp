@@ -28,6 +28,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/execution_environment.hpp>
 #include <migraphx/any_ptr.hpp>
 #include <sstream>
@@ -41,6 +42,13 @@ struct id_target
         void finish() const {}
     };
     migraphx::context ctx = context{};
+
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return migraphx::pack();
+    }
+
     std::string name() const { return "id"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&,
                                            const migraphx::compile_options&) const

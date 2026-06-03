@@ -365,6 +365,16 @@ TEST_CASE(tdiv_self)
     EXPECT((h * w) / (h * w) == lit(1));
 }
 
+TEST_CASE(tdiv_self_ignores_constraints)
+{
+    // x / x == 1 even when the two occurrences carry different metadata.
+    auto x1 = var("x", {1, 128});
+    auto x2 = var("x");
+    EXPECT(x1 / x2 == lit(1));
+    EXPECT(x2 / x1 == lit(1));
+    EXPECT((x1 + 1) / (x2 + 1) == lit(1));
+}
+
 TEST_CASE(tdiv_cancel_symbolic_factor)
 {
     auto h = var("h");
@@ -507,6 +517,19 @@ TEST_CASE(eval_uint_falls_back_to_fixed_bounds)
     EXPECT((n * 8).eval_uint({}) == 32);
     auto h = var("h", {1, 8});
     EXPECT((h + n).eval_uint({{h, 2}}) == 6);
+}
+
+TEST_CASE(eval_interval_diff_same_symbol_cancels)
+{
+    // x - x is 0 even when the two occurrences carry different metadata. The
+    // monotone tightener differentiates w.r.t. each occurrence; recognizing
+    // both as the same symbol makes the derivative 0, so the corner evaluation
+    // collapses to [0, 0]. With a metadata-sensitive comparison the two x's
+    // would move independently and yield [-8, 8].
+    auto x1 = var("x", {2, 10});
+    auto x2 = var("x");
+    auto e  = x1 - x2;
+    EXPECT(e.eval_interval_default({2, 10}) == interval{0, 0});
 }
 
 TEST_CASE(eval_compound_key_ignores_constraints)

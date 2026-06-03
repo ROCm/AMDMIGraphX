@@ -645,8 +645,8 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
             return num;
     }
 
-    // x / x == 1
-    if(num == den)
+    // x / x == 1 (regardless of the variables' metadata)
+    if(same_symbol(num, den))
         return lit(int64_t{1});
 
     // Factor cancellation between products
@@ -1150,7 +1150,7 @@ static expr diff(const expr& e, const expr& v)
     if(e.empty() or e.name() == "literal")
         return lit(0.0);
     if(e.name() == "variable")
-        return e == v ? lit(1.0) : lit(0.0);
+        return same_symbol(e, v) ? lit(1.0) : lit(0.0);
     if(e.name() == "+")
     {
         const auto& cs = e.children();

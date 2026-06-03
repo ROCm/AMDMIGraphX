@@ -66,9 +66,10 @@ struct scatternd_op : op_name<Derived>
             // the rank of the output is a function of k, so k must be fixed.
             if(not index_shape.dyn_dims().back().is_fixed())
             {
-                MIGRAPHX_THROW("GATHERND: last dimension of indices tensor must be fixed (min=max) "
-                               "but is " +
-                               to_string(index_shape.dyn_dims().back()));
+                MIGRAPHX_THROW(
+                    "ScatterND: last dimension of indices tensor must be fixed (min=max) "
+                    "but is " +
+                    to_string(index_shape.dyn_dims().back()));
             }
             k = index_shape.dyn_dims().back().get_interval().min;
         }

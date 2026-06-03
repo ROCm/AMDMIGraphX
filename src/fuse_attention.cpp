@@ -917,19 +917,31 @@ struct find_flash_decoding
 
 struct ck_tile_appendkv
 {
+    // 0 = none, 1 = half_rotated, 2 = interleaved
+    int rotary = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack();
+        return pack(f(self.rotary, "rotary"));
     }
 
-    std::string name() const { return "gpu::ck_tile_appendkv"; }
+    std::string name() const { return "ck_tile_appendkv"; }
 
+    // Inputs: q, k_cache, knew, v_cache, vnew, slk[, cos_cache, sin_cache]
+    // Outputs: tuple(q_rope, k_cache_updated, v_cache_updated)
     shape compute_shape(const std::vector<shape>& inputs) const
     {
-        // TODO: Implement
-        return shape{};
+        if(rotary == 0)
+            check_shapes{inputs, *this}.has(6);
+        else
+            check_shapes{inputs, *this}.has(8);
+
+        const auto& q_shape       = inputs[0];
+        const auto& k_cache_shape = inputs[1];
+        const auto& v_cache_shape = inputs[3];
+
+        return shape{{q_shape, k_cache_shape, v_cache_shape}};
     }
 };
 MIGRAPHX_REGISTER_OP(ck_tile_appendkv);
@@ -943,14 +955,25 @@ struct find_kv_cache_attention
         static const std::unordered_set<std::string> skip_set = {
             "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze"};
 
+        // With rotary: cur_k = slice(rotary_embedding(qk_combined, pos, cos, sin))
+        auto rotary =
+            match::name("rotary_embedding")(match::arg(0)(match::any().bind("qk_combined")),
+                                            match::arg(2)(match::any().bind("cos_cache")),
+                                            match::arg(3)(match::any().bind("sin_cache")))
+                .bind("rotary");
+        // Without rotary: cur_k = slice(qk_combined) where qk_combined = slice(transposed_qkv)
+        auto no_rotary_qk = match::name("slice").bind("qk_combined");
+        auto cur_k = match::name("slice")(match::arg(0)(match::any_of(rotary, no_rotary_qk)));
+
         auto keys =
             match::skip(match::name(skip_set))(
-                match::name("concat_past_present")(match::arg(1)(match::any().bind("slk")),
+                match::name("concat_past_present")(match::arg(0)(cur_k),
+                                                   match::arg(1)(match::any().bind("slk")),
                                                    match::arg(2)(match::any().bind("past_key"))))
                 .bind("pres_k");
         auto k_transpose =
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
-        auto queries = match::name("slice");
+        auto queries = match::name("slice").bind("queries");
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
         auto gemm1_maybe_cvt   = match::skip(match::name("convert"))(gemm1);
         auto scale             = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
@@ -974,7 +997,8 @@ struct find_kv_cache_attention
             match::softmax_input(match::skip(match::name("convert"))(mask)));
         auto values =
             match::skip(match::name(skip_set))(
-                match::name("concat_past_present")(match::arg(2)(match::any().bind("past_val"))))
+                match::name("concat_past_present")(match::arg(0)(match::any().bind("v")),
+                                                   match::arg(2)(match::any().bind("past_val"))))
                 .bind("pres_v");
         auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
         auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
@@ -1067,23 +1091,84 @@ struct find_kv_cache_attention
     // Needs to check layouts, enable only for Q, K row major layouts and V row or column major
     bool is_layout_ck_applicable() const { return true; }
 
-    instruction_ref insert_ck_appendkv(module_pass_manager& mpm,
-                                       const match::matcher_result& r) const
+    std::array<instruction_ref, 3> insert_ck_appendkv(module_pass_manager& mpm,
+                                                      const match::matcher_result& r) const
     {
-        std::cout << "pres_k: " << std::endl;
-        r.instructions["pres_k"]->debug_print();
-        std::cout << "pres_v: " << std::endl;
-        r.instructions["pres_v"]->debug_print();
-        std::cout << "total_sl: " << std::endl;
-        r.instructions["total_sl"]->debug_print();
-        std::cout << "slk: " << std::endl;
-        r.instructions["slk"]->debug_print();
+        auto& m      = mpm.get_module();
+        auto pres_k  = r.instructions["pres_k"];
+        auto pres_v  = r.instructions["pres_v"];
+        auto queries = r.instructions["queries"];
+
+        bool has_rotary = r.instructions.find("rotary") != r.instructions.end();
+
+        auto qk_combined = r.instructions["qk_combined"];
+        auto v           = r.instructions["v"];
+        auto past_k      = r.instructions["past_key"];
+        auto past_v      = r.instructions["past_val"];
+        auto slk         = r.instructions["slk"];
+
+        auto kv_num_heads = past_k->get_shape().lens()[1];
+        auto num_heads    = qk_combined->get_shape().lens()[1] - kv_num_heads;
+
+        auto q = m.insert_instruction(
+            pres_k,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}),
+            qk_combined);
+
+        auto k = m.insert_instruction(
+            pres_k,
+            make_op("slice",
+                    {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
+            qk_combined);
+
+        std::cout << "q: " << std::endl;
+        q->debug_print();
+        std::cout << "k: " << std::endl;
+        k->debug_print();
+        std::cout << "v: " << std::endl;
+        v->debug_print();
         std::cout << "past_key: " << std::endl;
-        r.instructions["past_key"]->debug_print();
+        past_k->debug_print();
         std::cout << "past_val: " << std::endl;
-        r.instructions["past_val"]->debug_print();
-        instruction_ref ins;
-        return ins;
+        past_v->debug_print();
+        std::cout << "slk: " << std::endl;
+        slk->debug_print();
+        // std::cout << "cos_cache: " << std::endl;
+        // cos_cache->debug_print();
+        // std::cout << "sin_cache: " << std::endl;
+        // sin_cache->debug_print();
+        // std::cout << "rotary: " << std::endl;
+        // rotary->debug_print();
+        std::cout << "queries: " << std::endl;
+        queries->debug_print();
+        std::cout << "pres_k: " << std::endl;
+        pres_k->debug_print();
+        std::cout << "pres_v: " << std::endl;
+        pres_v->debug_print();
+
+        std::vector<instruction_ref> ck_appendkv_inputs{q, past_k, k, past_v, v, slk};
+
+        int rotary_type = 0;
+        if(has_rotary)
+        {
+            rotary_type =
+                r.instructions["rotary"]->get_operator().to_value()["interleaved"].to<bool>() ? 2
+                                                                                              : 1;
+            ck_appendkv_inputs.push_back(r.instructions["cos_cache"]);
+            ck_appendkv_inputs.push_back(r.instructions["sin_cache"]);
+        }
+
+        auto ck_appendkv = m.insert_instruction(
+            pres_k, make_op("ck_tile_appendkv", {{"rotary", rotary_type}}), ck_appendkv_inputs);
+
+        auto q_out = m.insert_instruction(pres_k, make_op("get_tuple_elem", {{"index", 0}}), ck_appendkv);
+        auto k_out = m.insert_instruction(pres_k, make_op("get_tuple_elem", {{"index", 1}}), ck_appendkv);
+        auto v_out = m.insert_instruction(pres_k, make_op("get_tuple_elem", {{"index", 2}}), ck_appendkv);
+
+        m.replace_instruction(queries, q_out);
+        m.replace_instruction(pres_k, k_out);
+        m.replace_instruction(pres_v, v_out);
+        return {q_out, k_out, v_out};
     }
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
@@ -1092,7 +1177,9 @@ struct find_kv_cache_attention
         auto reshape  = r.result;
         // TODO: Need to pay attention when inserting ck_appendkv, the output of that needs to
         // replace the inputs of the attention
-        auto ck_appendkv = insert_ck_appendkv(mpm, r);
+        insert_ck_appendkv(mpm, r);
+        dead_code_elimination{}.apply(mpm.get_module());
+        std::cout << mpm.get_module() << std::endl;
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);

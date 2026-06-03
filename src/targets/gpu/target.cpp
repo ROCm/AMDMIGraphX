@@ -180,7 +180,7 @@ struct pipeline_factory
             enable_pass(mlir_enabled(),
                         fuse_attention{.attn_enabled = mlir_attention_enabled(get_context()),
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
-            rewrite_appendkv{.use_gpu = true},
+            // rewrite_appendkv{.use_gpu = true},
             dead_code_elimination{},
             optimize_module{},
             fuse_pointwise_reduce{},

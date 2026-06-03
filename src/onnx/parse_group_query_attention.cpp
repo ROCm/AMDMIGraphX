@@ -26,33 +26,12 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/float_equal.hpp>
-#include <migraphx/register_op.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
-
-struct rotary_embedding
-{
-    bool interleaved = false;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.interleaved, "interleaved"));
-    }
-
-    std::string name() const { return "rotary_embedding"; }
-
-    shape compute_shape(const std::vector<shape>& inputs) const
-    {
-        check_shapes{inputs, *this}.has(4);
-        return inputs[0];
-    }
-};
-MIGRAPHX_REGISTER_OP(rotary_embedding);
 
 struct parse_group_query_attention : op_parser<parse_group_query_attention>
 {

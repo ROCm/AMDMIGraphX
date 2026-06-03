@@ -21,31 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
-
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <migraphx/gpu/cross_compile_device.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
 namespace gpu {
 
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT compile_ops
+hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, std::size_t cu_count)
 {
-    context* ctx         = nullptr;
-    bool exhaustive_tune = false;
-    std::string name() const { return "gpu::compile_ops"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    hipDeviceProp_t props{};
+    auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
+    std::copy_n(arch_name.begin(), n, props.gcnArchName);
+    props.gcnArchName[n] = '\0';
+    // these are placeholders
+    props.warpSize                    = 64;
+    props.maxThreadsPerMultiProcessor = 2048;
+    props.maxThreadsPerBlock          = 1024;
+    props.multiProcessorCount         = cu_count;
+    return props;
+}
 
 } // namespace gpu
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP

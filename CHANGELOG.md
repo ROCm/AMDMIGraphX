@@ -15,6 +15,7 @@ Full documentation for MIGraphX is available at
 * Added a fuse_horizontal pass which batches independent cross embedding gather instructions (#4599).
 * Added GPU JIT `Resize` kernel (#4553).
 * Added environment variable `MIGRAPHX_SKIP_BENCHMARKING` which when enabled, skips tuning of MIGraphX and rocMLIR kernels (#4628).
+* Added cross-compilation support for the GPU target, enabling compilation for a target architecture without a physical device present, with new API and `migraphx-driver` flag support (#4795).
 * Added Cubic resize jit kernel (#4652).
 * Added JIT compiler for `fill` operation (#4666).
 * Added trace callback function to allow inspection of instruction output buffers; see `examples/migraphx/cpp_trace_callback` for an example (#4780).
@@ -26,6 +27,8 @@ Full documentation for MIGraphX is available at
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
+* Added driver warnings when inputs dimensions and/or values are not set (#4850).
+
 ### Changed
 
 * Converted `nonzero` operator from device implementation to JIT compilation (#4720).
@@ -41,9 +44,11 @@ Full documentation for MIGraphX is available at
 * Updated `bcast_qdq_instr` to accept an `axis` parameter for broadcasting 1-D scale/zero-point along the correct dimension.
 * Updated `QLinearConv` bias handling to dequantize bias using the product of input and weight scales before adding to the convolution output.
 * Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
+* Updated python API to allow getting and adding debug symbols from instructions. (#4803)
 
 ### Resolved issues
 
+* Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).

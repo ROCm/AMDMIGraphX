@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,7 @@
  */
 #include <migraphx/register_target.hpp>
 #include <migraphx/target.hpp>
+#include <migraphx/value.hpp>
 #include "test.hpp"
 
 TEST_CASE(make_target)
@@ -39,11 +40,24 @@ TEST_CASE(make_invalid_target)
     EXPECT(test::throws([&] { migraphx::make_target("mi100"); }));
 }
 
+TEST_CASE(make_invalid_target_value_scalar)
+{
+    auto t = migraphx::make_target("ref");
+    EXPECT(test::throws([&] { t.from_value(migraphx::value(1)); }));
+}
+
 TEST_CASE(targets)
 {
     auto ref_target = migraphx::make_target("ref");
-    auto ts = migraphx::get_targets();
+    auto ts         = migraphx::get_targets();
     EXPECT(ts.size() >= 1);
+}
+
+TEST_CASE(target_to_value_is_object)
+{
+    auto t = migraphx::make_target("ref");
+    auto v = t.to_value();
+    CHECK(v.is_object());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

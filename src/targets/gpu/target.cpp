@@ -225,7 +225,9 @@ struct pipeline_factory
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{get_context()},
+            // write_literals is deferred to finalize (see target::get_finalize_passes) so that a
+            // cross-compiled .mxr retains @literal instructions instead of baking in
+            // hip::hip_copy_literal ops. It runs at finalize time against a real device context.
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},
@@ -261,6 +263,15 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     std::vector<pass> passes;
     std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));
     return passes;
+}
+
+std::vector<pass> target::get_finalize_passes(migraphx::context& gctx) const
+{
+    auto& ctx = any_cast<context>(gctx);
+    return {
+        write_literals{&ctx},
+        dead_code_elimination{},
+    };
 }
 
 std::string target::name() const { return "gpu"; }

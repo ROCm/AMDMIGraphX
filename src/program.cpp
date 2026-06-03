@@ -320,7 +320,21 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
 
     if(not std::any_of(
            contexts.begin(), contexts.end(), [](const auto& c) { return is_cross_compiling(c); }))
+    {
+        // Run target-provided finalize passes (e.g. gpu::write_literals) scoped to each target's
+        // root modules before finalizing.
+        for(const auto i : range(targets.size()))
+        {
+            auto finalize_passes = targets.at(i).get_finalize_passes(contexts[i]);
+            if(finalize_passes.empty())
+                continue;
+            for(const auto& [id, root_mod] : range(roots.equal_range(i)))
+            {
+                run_passes(*this, root_mod, finalize_passes, trace);
+            }
+        }
         this->finalize();
+    }
 }
 
 void program::compile(const target& t, compile_options options)
@@ -338,6 +352,15 @@ void program::compile(const target& t, compile_options options)
     auto&& passes = t.get_passes(this->impl->contexts.front(), options);
     run_passes(*this, passes, options.trace);
     auto mods = this->get_modules();
+    // Run target-provided finalize passes (e.g. gpu::write_literals) before finalizing. Skipped
+    // for cross-compilation since there is no device to write literals to; they are deferred until
+    // the program is loaded and finalized on a real device.
+    if(not is_cross_compiling(this->impl->contexts.front()))
+    {
+        auto finalize_passes = t.get_finalize_passes(this->impl->contexts.front());
+        if(not finalize_passes.empty())
+            run_passes(*this, finalize_passes, options.trace);
+    }
     // Validate and finalize
     for(const auto& mod : reverse(mods))
     {
@@ -361,6 +384,17 @@ void program::compile(const target& t, compile_options options)
 
 void program::finalize()
 {
+    // Run any target-provided finalize passes (e.g. gpu::write_literals) before the
+    // per-instruction finalize step. This lets a target defer graph transformations until
+    // finalize time, which for cross-compiled programs happens when the .mxr is loaded on a
+    // real device.
+    const auto n = std::min(this->impl->targets.size(), this->impl->contexts.size());
+    for(std::size_t i = 0; i < n; ++i)
+    {
+        auto finalize_passes = this->impl->targets[i].get_finalize_passes(this->impl->contexts[i]);
+        if(not finalize_passes.empty())
+            run_passes(*this, finalize_passes);
+    }
     auto* mm = this->get_main_module();
     mm->finalize(this->impl->contexts);
 }

@@ -54,6 +54,7 @@ struct MIGRAPHX_GPU_EXPORT target
 
     std::string name() const;
     std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) const;
+    std::vector<pass> get_finalize_passes(migraphx::context& gctx) const;
     migraphx::context get_context() const;
     argument copy_to(const argument& arg) const;
     argument copy_from(const argument& arg) const;

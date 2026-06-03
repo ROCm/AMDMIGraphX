@@ -125,6 +125,12 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 }
 
 template <class T>
+std::vector<pass> target_get_finalize_passes(T&, context&)
+{
+    return {};
+}
+
+template <class T>
 value to_value_target(const T& x)
 {
     return migraphx::to_value(x);
@@ -147,6 +153,11 @@ void from_value_target(T& x, const value& v)
                       returns = 'std::vector<pass>',
                       const   = True),
               virtual('get_context', returns = 'context', const = True),
+              virtual('get_finalize_passes',
+                      ctx     = 'context&',
+                      returns = 'std::vector<pass>',
+                      const   = True,
+                      default = 'target_get_finalize_passes'),
               virtual('find_supported',
                       returns = 'supported_segments',
                       mod     = 'const_module_ref',

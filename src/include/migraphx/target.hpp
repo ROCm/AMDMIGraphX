@@ -68,6 +68,16 @@ struct target
      */
     context get_context() const;
     /**
+     * @brief Passes to run during finalization (e.g. on load of a compiled program).
+     *
+     * These run before the per-instruction finalize step, allowing a target to defer
+     * graph transformations (such as writing literals to the device) until finalize time.
+     *
+     * @param ctx The target-dependent context that is created by `get_context`
+     * @return The passes to be run during finalization
+     */
+    std::vector<pass> get_finalize_passes(context& ctx) const;
+    /**
      * @brief Get the ranges of instructions that are supported on a target
      * @param module Module to check for supported instructions
      * @param metric Used to define how the quality of the support should be measured
@@ -125,6 +135,12 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 }
 
 template <class T>
+std::vector<pass> target_get_finalize_passes(T&, context&)
+{
+    return {};
+}
+
+template <class T>
 value to_value_target(const T& x)
 {
     return migraphx::to_value(x);
@@ -150,6 +166,8 @@ struct MIGRAPHX_EXPORT target
     //
     context get_context() const;
     // (optional)
+    std::vector<pass> get_finalize_passes(context& ctx) const;
+    // (optional)
     supported_segments find_supported(const_module_ref mod, support_metric m) const;
     // (optional)
     argument copy_to(const argument& input) const;
@@ -168,6 +186,21 @@ struct MIGRAPHX_EXPORT target
 struct target
 {
     private:
+    template <class T>
+    static auto
+    private_detail_te_default_get_finalize_passes(char, T&& private_detail_te_self, context& ctx)
+        -> decltype(private_detail_te_self.get_finalize_passes(ctx))
+    {
+        return private_detail_te_self.get_finalize_passes(ctx);
+    }
+
+    template <class T>
+    static std::vector<pass>
+    private_detail_te_default_get_finalize_passes(float, T&& private_detail_te_self, context& ctx)
+    {
+        return target_get_finalize_passes(private_detail_te_self, ctx);
+    }
+
     template <class T>
     static auto private_detail_te_default_find_supported(char,
                                                          T&& private_detail_te_self,
@@ -279,6 +312,10 @@ struct target
                  std::declval<PrivateDetailTypeErasedT>().get_passes(
                      std::declval<context&>(), std::declval<const compile_options&>()),
                  std::declval<PrivateDetailTypeErasedT>().get_context(),
+                 private_detail_te_default_get_finalize_passes(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<context&>()),
                  private_detail_te_default_find_supported(char(0),
                                                           std::declval<PrivateDetailTypeErasedT>(),
                                                           std::declval<const_module_ref>(),
@@ -389,6 +426,12 @@ struct target
         return (*this).private_detail_te_get_handle().get_context();
     }
 
+    std::vector<pass> get_finalize_passes(context& ctx) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().get_finalize_passes(ctx);
+    }
+
     supported_segments find_supported(const_module_ref mod, support_metric m) const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -442,6 +485,7 @@ struct target
         virtual std::vector<pass> get_passes(context& ctx,
                                              const compile_options& options) const              = 0;
         virtual context get_context() const                                                     = 0;
+        virtual std::vector<pass> get_finalize_passes(context& ctx) const                        = 0;
         virtual supported_segments find_supported(const_module_ref mod, support_metric m) const = 0;
         virtual argument copy_to(const argument& input) const                                   = 0;
         virtual argument copy_from(const argument& input) const                                 = 0;
@@ -486,6 +530,13 @@ struct target
         }
 
         context get_context() const override { return private_detail_te_value.get_context(); }
+
+        std::vector<pass> get_finalize_passes(context& ctx) const override
+        {
+
+            return private_detail_te_default_get_finalize_passes(
+                char(0), private_detail_te_value, ctx);
+        }
 
         supported_segments find_supported(const_module_ref mod, support_metric m) const override
         {

@@ -128,6 +128,18 @@ char const* Layer_impl::getMetadata() const noexcept
     return nullptr;
 }
     
+void Layer_impl::setModule(migraphx::module* mod) noexcept
+{
+    mModule = mod;
+}
+
+migraphx::module* Layer_impl::getModule() const noexcept
+{
+    if(mModule != nullptr)
+        return mModule;
+    return mProgram ? mProgram->get_main_module() : nullptr;
+}
+
 std::vector<migraphx::instruction_ref> Layer_impl::getInputArguments() const noexcept
 {
     std::vector<migraphx::instruction_ref> args{};

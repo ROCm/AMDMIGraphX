@@ -6,10 +6,17 @@
 
 namespace nvinfer1
 {
-    class IteratorLayer_impl : public IIteratorLayer, public apiv::VIteratorLayer, public LoopBoundaryLayer_impl
+    //! Iterates over an input tensor along an axis, exposing one slice per
+    //! iteration. Equivalent to gather(tensor, I, axis) where I is the (possibly
+    //! reversed) loop iteration index.
+    class IteratorLayer_impl : public IIteratorLayer, public apiv::VIteratorLayer, virtual public LoopBoundaryLayer_impl
     {
     public:
-        IteratorLayer_impl();
+        IteratorLayer_impl(ITensor& tensor,
+                           int32_t axis,
+                           bool reverse,
+                           const std::shared_ptr<migraphx::program>& program,
+                           ILoop* loop) noexcept;
         ~IteratorLayer_impl() override;
 
         // public API
@@ -18,7 +25,9 @@ namespace nvinfer1
         void setReverse(bool reverse) noexcept override;
         bool getReverse() const noexcept override;
 
-        void build() noexcept override;
+    private:
+        int32_t mAxis;
+        bool mReverse;
     };
 
 }  // namespace nvinfer1

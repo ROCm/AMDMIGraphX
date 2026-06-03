@@ -27,8 +27,8 @@ ConstantLayer_impl::ConstantLayer_impl(Dims const& dimensions, Weights weights, 
 
 void ConstantLayer_impl::build() noexcept
 {
-    auto* mm = mProgram->get_main_module();
-    migraphx::shape s{helper::fromDataType(getWeights().type), helper::dimsToVec(getDimensions())};
+    auto* mm = getModule();
+    migraphx::shape s = helper::dimsToShape(getWeights().type, getDimensions());
     auto buff = reinterpret_cast<const uint8_t*>(getWeights().values);
     mInstructions.push_back(mm->add_literal(s, buff));
   

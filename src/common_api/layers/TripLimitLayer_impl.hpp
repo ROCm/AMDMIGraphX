@@ -9,13 +9,17 @@ namespace nvinfer1
     class TripLimitLayer_impl : public ITripLimitLayer, public apiv::VTripLimitLayer, virtual public LoopBoundaryLayer_impl
     {
     public:
-        TripLimitLayer_impl();
+        TripLimitLayer_impl(ITensor& tensor,
+                            TripLimit limit,
+                            const std::shared_ptr<migraphx::program>& program,
+                            ILoop* loop) noexcept;
         ~TripLimitLayer_impl() override;
 
         // public API
         TripLimit getTripLimit() const noexcept override;
 
-        void build() noexcept override;
+    private:
+        TripLimit mLimit;
     };
 
 }  // namespace nvinfer1

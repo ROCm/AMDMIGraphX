@@ -52,7 +52,7 @@ void ElementWiseLayer_impl::build() noexcept
     mInstructions.push_back(args[0]);
     mInstructions.push_back(args[1]);
 
-    auto* mm = mProgram->get_main_module();
+    auto* mm = getModule();
 
     const auto op_name = helper::toPointwiseOpName(mOp);
 

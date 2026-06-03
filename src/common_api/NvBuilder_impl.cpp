@@ -4,6 +4,10 @@
 
 #include <migraphx/register_target.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/builtin.hpp>
+#include <migraphx/iterator_for.hpp>
 
 #include "migraphx/common_api/NvInferImpl.h"
 #include "migraphx/common_api/NvInferRuntime.h"
@@ -103,6 +107,10 @@ nvinfer1::IHostMemory* NvBuilder_impl::buildSerializedNetwork(INetworkDefinition
     nw_impl.build();
     
     migraphx::program prog = *nw_impl.getProgram();
+    if(std::getenv("COMMONAPI_DEBUG_PROGRAM") != nullptr)
+    {
+        std::cout << "==== program before compile ====\n" << prog << std::endl;
+    }
     try
     {
         prog.compile(migraphx::make_target("gpu"));
@@ -112,7 +120,53 @@ nvinfer1::IHostMemory* NvBuilder_impl::buildSerializedNetwork(INetworkDefinition
         // TODO write to error recorder/logger
         return nullptr;
     }
-    
+
+    // replace_allocate names the generated output parameters "<module>:#output_N".
+    // Expose them instead under the names of the tensors that were marked as
+    // network outputs (TensorRT-style binding names), e.g. "output".
+    {
+        const auto output_names = nw_impl.getOutputNames();
+        const std::string prefix = "#output_";
+        auto* mm                 = prog.get_main_module();
+        for(auto ins : migraphx::iterator_for(*mm))
+        {
+            if(ins->name() != "@param")
+                continue;
+            const std::string param_name = migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter;
+            auto loc = param_name.find(prefix);
+            if(loc == std::string::npos)
+                continue;
+            try
+            {
+                const std::size_t index = std::stoul(param_name.substr(loc + prefix.size()));
+                if(index < output_names.size() and not output_names[index].empty())
+                    mm->rename_parameter(ins, output_names[index]);
+            }
+            catch(...)
+            {
+                // leave the parameter name unchanged
+            }
+        }
+    }
+
+    // Parameter ordering is significant for loop body submodules (run_loop binds
+    // body parameters positionally via get_parameter_names()). MIGraphX does not
+    // serialize the parameter "order" field, so on reload the order is rebuilt from
+    // the physical instruction order. Compilation can leave parameters physically
+    // out of order (e.g. the loop condition parameter, consumed only by @return,
+    // ends up last). Reorder each module's parameter instructions to match their
+    // logical order so the order survives the save/load round-trip.
+    for(auto* mod : prog.get_modules())
+    {
+        const auto names = mod->get_parameter_names();
+        for(auto it = names.rbegin(); it != names.rend(); ++it)
+        {
+            auto param = mod->get_parameter(*it);
+            if(param != mod->end())
+                mod->move_instruction(param, mod->begin());
+        }
+    }
+
     mSerializedNetworks.push_back(migraphx::save_buffer(prog));
     auto&& current_network = mSerializedNetworks.back();
 

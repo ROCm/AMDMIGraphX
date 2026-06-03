@@ -1,15 +1,41 @@
 #ifndef LOOP_IMPL_HPP
 #define LOOP_IMPL_HPP
 
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <migraphx/program.hpp>
+#include <migraphx/instruction_ref.hpp>
+
 #include "migraphx/common_api/NvInfer.h"
 
 namespace nvinfer1
 {
+    class NvNetworkDefinition_impl;
+    class Layer_impl;
+    class Tensor_impl;
+    class TripLimitLayer_impl;
+    class RecurrenceLayer_impl;
+    class IteratorLayer_impl;
+    class LoopOutputLayer_impl;
+
+    //! Facade that adapts TensorRT's incremental loop-building API onto a
+    //! migraphx "loop" instruction with a body submodule.
+    //!
+    //! The boundary layers (trip limit, recurrence, iterator, loop output) are
+    //! created and owned here. The actual migraphx graph is assembled in two
+    //! phases that bracket the building of the regular network layers:
+    //!   preBuild()  -> create the submodule + parameters, bind recurrence /
+    //!                  iterator outputs, and redirect body layers into it.
+    //!   finalize()  -> emit the loop instruction and bind the loop outputs.
     class Loop_impl : public ILoop, public apiv::VLoop
     {
     public:
-        Loop_impl();
-        ~Loop_impl() override;    
+        Loop_impl(const std::shared_ptr<migraphx::program>& program,
+                  NvNetworkDefinition_impl* network,
+                  int index);
+        ~Loop_impl() override;
 
         // public API
         IRecurrenceLayer* addRecurrence(ITensor& initialValue) noexcept override;
@@ -18,9 +44,33 @@ namespace nvinfer1
         ILoopOutputLayer* addLoopOutput(ITensor& tensor, LoopOutput outputKind, int32_t axis = 0) noexcept override;
         void setName(char const* name) noexcept override;
         char const* getName() const noexcept override;
+
+        // build orchestration (invoked by NvNetworkDefinition_impl::build())
+        void preBuild() noexcept;
+        void finalize() noexcept;
+
+    private:
+        void markBodyLayers() noexcept;
+        bool isOutputConsumed(const Tensor_impl* tensor) const noexcept;
+        int64_t readTripCount() const noexcept;
+        int recurrenceIndex(const Tensor_impl* tensor) const noexcept;
+
+        std::shared_ptr<migraphx::program> mProgram;
+        NvNetworkDefinition_impl* mNetwork;
+        int mIndex;
+        std::string mName;
+
+        migraphx::module* mBody = nullptr;
+        migraphx::instruction_ref mIterParam;
+        migraphx::instruction_ref mCondParam;
+
+        std::vector<std::unique_ptr<Layer_impl>> mOwned;
+        std::vector<TripLimitLayer_impl*> mTripLimits;
+        std::vector<RecurrenceLayer_impl*> mRecurrences;
+        std::vector<IteratorLayer_impl*> mIterators;
+        std::vector<LoopOutputLayer_impl*> mLoopOutputs;
     };
 
 }  // ns:nvinfer1
 
 #endif // LOOP_IMPL_HPP
-

@@ -48,7 +48,7 @@ void NvNetworkDefinition_impl::setProgram(std::shared_ptr<migraphx::program> pro
 ITensor* NvNetworkDefinition_impl::addInput(char const* name, DataType type, Dims const& dimensions) noexcept
 {
 	auto* mm = mProgram->get_main_module();
-	auto input = mm->add_parameter(name, migraphx::shape{helper::fromDataType(type), helper::dimsToVec(dimensions)});
+	auto input = mm->add_parameter(name, helper::dimsToShape(type, dimensions));
 	mInputTensors.push_back(std::make_unique<Tensor_impl>(input));
 	auto* ret = mInputTensors.back().get();
 	ret->setName(name);
@@ -298,8 +298,8 @@ IResizeLayer* NvNetworkDefinition_impl::addResize(ITensor& input) noexcept
 
 ILoop* NvNetworkDefinition_impl::addLoop() noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	mLoops.push_back(std::make_unique<Loop_impl>(mProgram, this, static_cast<int>(mLoops.size())));
+	return mLoops.back().get();
 }
 
 ISelectLayer* NvNetworkDefinition_impl::addSelect(ITensor& condition, ITensor& thenInput, ITensor& elseInput) noexcept
@@ -533,14 +533,57 @@ bool NvNetworkDefinition_impl::unmarkUnfusedTensorsAsDebugTensors() noexcept
 	return false;
 }
 
+std::vector<std::unique_ptr<Layer_impl>>& NvNetworkDefinition_impl::getLayers() noexcept
+{
+	return mLayers;
+}
+
+std::vector<std::string> NvNetworkDefinition_impl::getOutputNames() const
+{
+	std::vector<std::string> names;
+	names.reserve(mOutputTensors.size());
+	for(auto* tensor : mOutputTensors)
+	{
+		names.emplace_back(tensor->getName());
+	}
+	return names;
+}
+
 void NvNetworkDefinition_impl::build() noexcept
 {
+	// Phase 1: let each loop create its submodule + parameters, bind the
+	// recurrence/iterator outputs and redirect body layers into the submodule.
+	for(auto& loop : mLoops)
+	{
+		loop->preBuild();
+	}
+
+	// Phase 2: build the regular layers. Body layers now target the loop
+	// submodule; everything else targets the main module.
 	std::for_each(mLayers.begin(), mLayers.end(),
 		[](auto& layer)
 		{
 			layer->build();
 		}
 	);
+
+	// Phase 3: emit the loop instructions and bind the loop outputs.
+	for(auto& loop : mLoops)
+	{
+		loop->finalize();
+	}
+
+	// Phase 4: turn the marked output tensors into the program's return.
+	std::vector<migraphx::instruction_ref> outputs;
+	outputs.reserve(mOutputTensors.size());
+	for(auto* tensor : mOutputTensors)
+	{
+		outputs.push_back(tensor->getInstruction());
+	}
+	if(not outputs.empty())
+	{
+		mProgram->get_main_module()->add_return(outputs);
+	}
 }
 
 }  // namespace nvinfer1

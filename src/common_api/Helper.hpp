@@ -60,6 +60,15 @@ namespace helper
     inline nvinfer1::Dims toDimensions(const migraphx::shape& shape)
     {
         nvinfer1::Dims dims;
+        // A TensorRT rank-0 (scalar) tensor is represented in MIGraphX as a
+        // scalar shape (a single length of 1 with a zero stride). Map it back to
+        // nbDims == 0 so the public API reports the original rank.
+        if(not shape.dynamic() and shape.scalar() and shape.elements() == 1)
+        {
+            dims.nbDims = 0;
+            dims.d[0]   = 0;
+            return dims;
+        }
         auto lens   = shape.lens();
         dims.nbDims = static_cast<int32_t>(lens.size());
         std::transform(
@@ -72,6 +81,19 @@ namespace helper
         std::vector<int64_t> ret;
         std::copy(dims.d, dims.d + dims.nbDims, std::back_inserter(ret));
         return ret;
+    }
+
+    // Build a MIGraphX shape from a TensorRT Dims. A rank-0 Dims (nbDims == 0)
+    // becomes a MIGraphX scalar shape (1 element) rather than an empty-lens shape,
+    // which MIGraphX treats as having zero elements.
+    inline migraphx::shape dimsToShape(const nvinfer1::DataType& type, const nvinfer1::Dims& dims)
+    {
+        if(dims.nbDims <= 0)
+            return migraphx::shape{fromDataType(type)};
+        std::vector<std::size_t> lens;
+        lens.reserve(dims.nbDims);
+        std::copy(dims.d, dims.d + dims.nbDims, std::back_inserter(lens));
+        return migraphx::shape{fromDataType(type), lens};
     }
 
     inline std::string toPointwiseOpName(nvinfer1::ElementWiseOperation op)

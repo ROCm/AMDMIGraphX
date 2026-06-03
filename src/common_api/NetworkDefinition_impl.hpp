@@ -7,6 +7,7 @@
 
 #include "migraphx/common_api/NvInfer.h"
 #include "Tensor_impl.hpp"
+#include "Loop_impl.hpp"
 #include "layers/Layer_impl.hpp"
 
 namespace nvinfer1
@@ -116,6 +117,11 @@ namespace nvinfer1
         
         void build() noexcept;
 
+        // Used by Loop_impl to inspect the regular network layers and to learn
+        // the names that marked outputs should be exposed under.
+        std::vector<std::unique_ptr<Layer_impl>>& getLayers() noexcept;
+        std::vector<std::string> getOutputNames() const;
+
     private:
         IBuilder& mBuilder;
 
@@ -124,6 +130,7 @@ namespace nvinfer1
         std::vector<Tensor_impl*> mOutputTensors;
         std::vector<std::unique_ptr<Tensor_impl>> mOwnedOutputTensors;
         std::vector<std::unique_ptr<Layer_impl>> mLayers;
+        std::vector<std::unique_ptr<Loop_impl>> mLoops;
     };
 
 }   // ns:nvinfer1

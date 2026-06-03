@@ -40,11 +40,22 @@ namespace nvinfer1
 
         virtual void build() noexcept = 0;
 
+        // Select the migraphx module that build() emits instructions into.
+        // When unset (the common case) instructions go into the main module.
+        // The loop facade redirects body layers into the loop submodule.
+        void setModule(migraphx::module* mod) noexcept;
+        migraphx::module* getModule() const noexcept;
+
+        // Accessors used by the loop facade to inspect the layer graph.
+        const std::vector<Tensor_impl*>& inputTensors() const noexcept { return mInputs; }
+        Tensor_impl* outputTensor(int32_t index) const noexcept { return mOutputs.at(index).get(); }
+
     protected:
         std::vector<migraphx::instruction_ref> getInputArguments() const noexcept;
 
         LayerType mType;
         std::shared_ptr<migraphx::program> mProgram;
+        migraphx::module* mModule = nullptr;
         std::vector<Tensor_impl*> mInputs;
         std::vector<std::unique_ptr<Tensor_impl>> mOutputs;
         std::vector<migraphx::instruction_ref> mInstructions;

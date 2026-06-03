@@ -154,10 +154,15 @@ nvinfer1::IHostMemory* NvBuilder_impl::buildSerializedNetwork(INetworkDefinition
     // serialize the parameter "order" field, so on reload the order is rebuilt from
     // the physical instruction order. Compilation can leave parameters physically
     // out of order (e.g. the loop condition parameter, consumed only by @return,
-    // ends up last). Reorder each module's parameter instructions to match their
-    // logical order so the order survives the save/load round-trip.
+    // ends up last). Reorder each submodule's parameter instructions to match their
+    // logical order so the order survives the save/load round-trip. The main module
+    // is left untouched: its parameters are bound by name, not position, and
+    // reordering its instructions can disturb the compiled execution graph.
+    auto* main_mod = prog.get_main_module();
     for(auto* mod : prog.get_modules())
     {
+        if(mod == main_mod)
+            continue;
         const auto names = mod->get_parameter_names();
         for(auto it = names.rbegin(); it != names.rend(); ++it)
         {

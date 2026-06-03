@@ -131,6 +131,13 @@ namespace nvinfer1
         std::vector<std::unique_ptr<Tensor_impl>> mOwnedOutputTensors;
         std::vector<std::unique_ptr<Layer_impl>> mLayers;
         std::vector<std::unique_ptr<Loop_impl>> mLoops;
+
+        // Outputs the caller explicitly bound via markOutput(). These carry
+        // user-assigned binding names and are the only outputs whose names the
+        // generated parameters should be renamed to. Programs supplied directly
+        // (e.g. parsed from ONNX via setProgram) never populate this, so they are
+        // left under their native "<module>:#output_N" names.
+        std::vector<Tensor_impl*> mMarkedOutputs;
     };
 
 }   // ns:nvinfer1

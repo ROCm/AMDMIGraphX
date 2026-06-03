@@ -2,6 +2,8 @@
 #include "pass_warning.hpp"
 //
 
+#include <migraphx/instruction.hpp>
+
 #include "Helper.hpp"
 #include "NetworkDefinition_impl.hpp"
 
@@ -59,6 +61,7 @@ void NvNetworkDefinition_impl::markOutput(ITensor& tensor) noexcept
 {
 	Tensor_impl* impl = dynamic_cast<Tensor_impl*>(&tensor);
 	mOutputTensors.push_back(impl);
+	mMarkedOutputs.push_back(impl);
 	return;
 }
 
@@ -540,9 +543,12 @@ std::vector<std::unique_ptr<Layer_impl>>& NvNetworkDefinition_impl::getLayers() 
 
 std::vector<std::string> NvNetworkDefinition_impl::getOutputNames() const
 {
+	// Only outputs the caller explicitly marked carry user-assigned binding names.
+	// Their order matches the order they were marked, which is also the order they
+	// are added to the program's @return, so index i lines up with "#output_i".
 	std::vector<std::string> names;
-	names.reserve(mOutputTensors.size());
-	for(auto* tensor : mOutputTensors)
+	names.reserve(mMarkedOutputs.size());
+	for(auto* tensor : mMarkedOutputs)
 	{
 		names.emplace_back(tensor->getName());
 	}
@@ -574,15 +580,24 @@ void NvNetworkDefinition_impl::build() noexcept
 	}
 
 	// Phase 4: turn the marked output tensors into the program's return.
-	std::vector<migraphx::instruction_ref> outputs;
-	outputs.reserve(mOutputTensors.size());
-	for(auto* tensor : mOutputTensors)
+	// Networks supplied directly (e.g. parsed from ONNX via setProgram) already
+	// end in a @return; in that case mOutputTensors was derived from the existing
+	// return and we must not append a second one (which would corrupt the module).
+	auto* mm = mProgram->get_main_module();
+	const bool has_return =
+		mm->begin() != mm->end() and std::prev(mm->end())->name() == "@return";
+	if(not has_return)
 	{
-		outputs.push_back(tensor->getInstruction());
-	}
-	if(not outputs.empty())
-	{
-		mProgram->get_main_module()->add_return(outputs);
+		std::vector<migraphx::instruction_ref> outputs;
+		outputs.reserve(mOutputTensors.size());
+		for(auto* tensor : mOutputTensors)
+		{
+			outputs.push_back(tensor->getInstruction());
+		}
+		if(not outputs.empty())
+		{
+			mm->add_return(outputs);
+		}
 	}
 }
 

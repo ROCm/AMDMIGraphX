@@ -67,7 +67,7 @@ struct topk
 
         if(inputs.at(0).dynamic())
         {
-            auto dyn_dims     = inputs.at(0).dyn_dims();
+            auto dyn_dims = inputs.at(0).dyn_dims();
             if(k.has_value())
             {
                 auto min_lens_vec = inputs.at(0).min_lens();

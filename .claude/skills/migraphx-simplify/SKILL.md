@@ -64,7 +64,7 @@ instead.
 - Raw loops that should be STL `<algorithm>` or MIGraphX `<migraphx/algorithm.hpp>`
   algorithms (`transform_if`, `transform_accumulate`, `group_by`, `group_unique`,
   `adjacent_for_each`, etc.). `std::for_each` is not an acceptable substitute for
-  a real algorithm(but can be preferred over a raw loop).
+a real algorithm (but can be preferred over a raw loop).
 - Manually written lexicographical comparisons — use `std::tie` or
   `std::lexicographical_compare` instead.
 - Manual offset / stride / index math with mod and division — use the

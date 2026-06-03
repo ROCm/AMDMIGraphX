@@ -145,6 +145,26 @@ static auto to_objptr_vector(const U* x, std::size_t n)
 
 static target get_target(const std::string& name) { return make_target(name); }
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+
+static target
+get_target_with_options(const std::string& name, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return make_target(name);
+    std::string soptions = options_json;
+    std::vector<char> buffer(soptions.size() * 2);
+    std::vsnprintf(buffer.data(), buffer.size(), soptions.c_str(), vlist);
+    return make_target(name, from_json_string(convert_to_json(std::string(buffer.data()))));
+}
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
 static void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
 static void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }

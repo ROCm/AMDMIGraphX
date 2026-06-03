@@ -859,10 +859,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                 vec<out_type, 2> y_pair{
                                     static_cast<out_type>(y[k_idx][i * 2 + 0][index_int{ki}]),
                                     static_cast<out_type>(y[k_idx][i * 2 + 1][index_int{ki}])};
-                                *as_vec<2>(&out_data[hbase]) = f(
-                                    y_pair,
-                                    vec<remove_reference_t<decltype(inputs[idx0])>, 2>{
-                                        inputs[idx0], inputs[idx1]}...);
+                                *as_vec<2>(&out_data[hbase]) =
+                                    f(y_pair,
+                                      vec<remove_reference_t<decltype(inputs[idx0])>, 2>{
+                                          inputs[idx0], inputs[idx1]}...);
                                 return;
                             }
                         }

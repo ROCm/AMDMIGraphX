@@ -148,8 +148,8 @@ __device__ void nonmaxsuppression_sort(const Boxes boxes_tv,
 {
     static_assert(NumBatches > 0);
     static_assert(NumClasses > 0);
-    static_assert(NumBoxes > 0);
-    static_assert(AlignedNumBoxes > 0);
+    static_assert(NumBoxes > 1);
+    static_assert(AlignedNumBoxes > 1);
 
     auto idx                 = make_index();
     const index_int block_id = idx.group;
@@ -216,7 +216,7 @@ __device__ void nms_make_iou_mask(const index idx,
                                   Mask mask,
                                   const float iou_threshold)
 {
-    static_assert(NumBoxes > 0);
+    static_assert(NumBoxes > 1);
     constexpr index_int half = NumBoxes / 2;
     using box_elem_type      = typename SortedBoxes::type;
 
@@ -268,7 +268,7 @@ __device__ void nms_filter_per_block(const index idx,
                                      Output block_output,
                                      Counts bc_counts)
 {
-    static_assert(NumBoxes > 0);
+    static_assert(NumBoxes > 1);
     const index_int block_id = idx.group;
     const int batch_idx      = block_id / NumClasses;
     const int class_idx      = block_id % NumClasses;
@@ -339,7 +339,7 @@ __device__ void nonmaxsuppression_filter(const SortedScores sorted_scores,
 {
     static_assert(NumBatches > 0);
     static_assert(NumClasses > 0);
-    static_assert(NumBoxes > 0);
+    static_assert(NumBoxes > 1);
 
     auto idx                  = make_index();
     const index_int block_idx = idx.group;
@@ -387,7 +387,7 @@ __device__ void
 nonmaxsuppression_compact(const Counts bc_counts, const Idx indices, Out output, Num num_selected)
 {
     static_assert(NumBatchClass > 0);
-    static_assert(NumBoxes > 0);
+    static_assert(NumBoxes > 1);
     // TODO: get a better bound on this
     static_assert(NumBatchClass <= 8192,
                   "nms_compact: NumBatchClass exceeds the LDS budget for offsets[]");

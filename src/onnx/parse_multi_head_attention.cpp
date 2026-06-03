@@ -985,6 +985,89 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             }
         }
 
+        if(key->get_shape().dynamic() and value->get_shape().dynamic())
+        {
+            // Confirm that k/v have correct shape of (batch, num_heads, dyn_past_sl, head_size)
+            auto k_shape = key->get_shape();
+            auto v_shape = value->get_shape();
+            if(k_shape != v_shape)
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: dynamic key and value must have the same shape");
+            }
+            if(k_shape.dyn_dims().size() != 4 or k_shape.dyn_dims()[2].is_fixed())
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: dynamic key and value must have the correct shape");
+                //to do: replace error with shape correction
+            }
+            auto key_out = key;
+            auto value_out = value;
+            key = info.add_instruction(make_op("fixed_pad"), key);
+            value = info.add_instruction(make_op("fixed_pad"), value);
+            
+            // use dimensions_of to get the dynamic past sequence length as a runtime value
+            auto dyn_past_sl = info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), key);
+            // add one to get total sequence length
+            auto total_seq_len = info.add_instruction(make_op("add"), dyn_past_sl, info.add_literal(migraphx::literal{migraphx::shape{dyn_past_sl->get_shape().type(), {1}}, {1}}));
+            total_seq_len = info.add_instruction(make_op("multibroadcast", {{"out_lens", {params.batch_size, params.num_heads}}}), total_seq_len);
+
+
+            // insert attention op-by-op with greater/where/etc masking pattern of group_query_attention
+            auto max_seq_len = key->get_shape().lens()[2];
+
+            auto kt = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), key);
+            auto gemm1 = info.add_instruction(make_op("dot"), query, kt);
+            
+            std::vector<int> range_vec(max_seq_len);
+            std::iota(range_vec.begin(), range_vec.end(), 0);
+            shape range_s{total_seq_len->get_shape().type(), {max_seq_len}};
+            auto range = info.add_literal(range_s, range_vec);
+            std::vector<std::size_t> bnsm{static_cast<std::size_t>(params.batch_size), static_cast<std::size_t>(params.num_heads), static_cast<std::size_t>(params.q_sequence_length), static_cast<std::size_t>(max_seq_len)};
+            auto bc_range = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), range);
+
+            auto scalar_s = shape{query->get_shape().type(), {1}};
+            auto ninf = info.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
+            ninf = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
+            
+            float scale = 1 / std::sqrt(params.head_size);
+            if(contains(info.attributes, "scale"))
+                scale = parser.parse_value(info.attributes.at("scale")).at<float>();
+
+            if(float_equal(scale, 0.0))
+            {
+                scale = 1.0f / std::sqrt(static_cast<float>(params.head_size));
+            }
+            auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
+            scale_ins = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
+            auto mul = info.add_instruction(make_op("mul"), gemm1, scale_ins);
+            
+            
+            instruction_ref seq_range;
+            if(params.q_sequence_length > 1)
+            {
+                std::vector<int> seq_range_vec(params.q_sequence_length);
+                std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
+                shape seq_range_s{total_seq_len->get_shape().type(), {static_cast<std::size_t>(params.q_sequence_length)}};
+                seq_range = info.add_literal(seq_range_s, seq_range_vec);
+                seq_range = info.add_instruction(make_op("reshape", {{"dims", {params.q_sequence_length, 1}}}), seq_range);
+                seq_range = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
+                auto causal_mask = info.add_instruction(make_op("greater"), bc_range, seq_range);
+                causal_mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
+                mul = info.add_instruction(make_op("where"), causal_mask, ninf, mul);
+            }
+
+            auto bc_past_sl = info.add_instruction(make_op("reshape", {{"dims", {static_cast<std::size_t>(params.batch_size), static_cast<std::size_t>(params.num_heads), 1, 1}}}), total_seq_len);
+            auto mask_comp = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
+            auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
+            mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
+            auto where = info.add_instruction(make_op("where"), mask, ninf, mul);
+            auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+            auto scores = info.add_instruction(make_op("dot"), softmax, value);
+            auto out = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
+            out = info.add_instruction(make_op("reshape", {{"dims", {params.batch_size, params.q_sequence_length, params.hidden_size_v}}}), out);
+            return {out, key_out, value_out};
+
+        }
+
         // Set attention mask and bias when detected on input
         std::optional<instruction_ref> attn_mask;
         if(args.size() > 4)

@@ -26,38 +26,21 @@
 #include <migraphx/value.hpp>
 #include "test.hpp"
 
-TEST_CASE(make_target)
+TEST_CASE(gpu_target_to_value_with_options)
 {
-    for(const auto& name : migraphx::get_targets())
-    {
-        auto t = migraphx::make_target(name);
-        CHECK(t.name() == name);
-    }
-}
-
-TEST_CASE(make_invalid_target)
-{
-    EXPECT(test::throws([&] { migraphx::make_target("mi100"); }));
-}
-
-TEST_CASE(make_invalid_target_value_scalar)
-{
-    auto t = migraphx::make_target("ref");
-    EXPECT(test::throws([&] { t.from_value(migraphx::value(1)); }));
-}
-
-TEST_CASE(targets)
-{
-    auto ref_target = migraphx::make_target("ref");
-    auto ts         = migraphx::get_targets();
-    EXPECT(ts.size() >= 1);
-}
-
-TEST_CASE(target_to_value_is_object)
-{
-    auto t = migraphx::make_target("ref");
+    auto t = migraphx::make_target("gpu", migraphx::value{{"gpu_arch", "gfx1100"}});
     auto v = t.to_value();
-    CHECK(v.is_object());
+    CHECK(v.contains("gpu_arch"));
+    CHECK(v.at("gpu_arch").without_key().to<std::string>() == "gfx1100");
+}
+
+TEST_CASE(gpu_target_to_value_round_trip)
+{
+    auto t1 = migraphx::make_target("gpu", migraphx::value{{"gpu_arch", "gfx1100"}});
+    auto t2 = migraphx::make_target("gpu");
+    t2.from_value(t1.to_value());
+    CHECK(t2.name() == t1.name());
+    CHECK(t2.to_value() == t1.to_value());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

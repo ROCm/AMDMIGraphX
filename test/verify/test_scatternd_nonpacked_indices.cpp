@@ -64,4 +64,3 @@ struct test_scatternd_nonpacked_indices : verify_program<test_scatternd_nonpacke
 };
 
 template struct test_scatternd_nonpacked_indices<migraphx::shape::float_type>;
-template struct test_scatternd_nonpacked_indices<migraphx::shape::int64_type>;

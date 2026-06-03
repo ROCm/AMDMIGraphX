@@ -800,13 +800,19 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // extra inputs are indexed at the same (n, k, h_out, w_out) position as
     // the output.
     //
-    // For NCHW + stride_w=1, manually pack the (j=0, j=1) outputs of each
-    // 2x2 winograd tile into a half2 and write via one b32. Without this the
-    // compiler emits two b16 stores per pair when there's a non-trivial
-    // post-op `f` (it stops packing the cast-to-fp16 with the j=0/j=1 store
-    // pair). That doubled the global_store count in fused kernels (e.g.,
-    // 96→96 192x192 with bias+leaky_relu went 86us unfused → 122us fused).
-    constexpr bool pkrtz_ok = sizeof(out_type) == 2 and __is_same(out_type, half);
+    // For NCHW + stride_w=1, pack the (j=0, j=1) outputs of each 2x2 winograd
+    // tile into a vec<out_type, 2> and write via one store. Without this the
+    // compiler emits two narrow stores per pair when there's a non-trivial
+    // post-op `f` (it stops packing the converted j=0/j=1 store pair). That
+    // doubled the global_store count in fused kernels (e.g., 96→96 192x192
+    // with bias+leaky_relu went 86us unfused → 122us fused).
+    //
+    // Enabled for any 2-byte output type (fp16, bf16): two of them pack into
+    // a single b32 store. The output type is whatever the fused pointwise
+    // converts to — NOT assumed to be fp16 — and each extra input is packed
+    // at its own element type, so the result matches the slow path exactly.
+    // Wider output types (fp32, etc.) fall through to the slow path.
+    constexpr bool packed_store_ok = sizeof(out_type) == 2;
     repeat_c<KW>([&](auto k_idx_val) {
         constexpr int k_idx = k_idx_val;
         const index_int base_offset = n_idx * sn + (k_base + k_idx * BK + k_row_offset) * sk +
@@ -823,8 +829,8 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     {
                         const index_int hbase = kbase + i * sh;
                         // Fast path: both W in-bounds and stride_w=1 — pack
-                        // the two j outputs into one b32 store.
-                        if constexpr(pkrtz_ok)
+                        // the two j outputs into one packed store.
+                        if constexpr(packed_store_ok)
                         {
                             if(w_pair_in)
                             {
@@ -838,21 +844,25 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                                                static_cast<index_int>(k),
                                                                static_cast<index_int>(h_out),
                                                                static_cast<index_int>(w_out1)};
-                                using half2_t = __attribute__((ext_vector_type(2))) half;
-                                // Pack the j=0 / j=1 pair into vec<half, 2>
+                                // Pack the j=0 / j=1 pair into vec<out_type, 2>
                                 // and call f once on the packed value. The
                                 // generated post_winograd_conv function is
-                                // templated on input types; when invoked
-                                // with vec<half, 2> the operators (add,
-                                // mul, max) emit v_pk_* packed ops instead
-                                // of two scalar ops.
-                                vec<half, 2> y_pair{
+                                // templated on input types; invoking it with
+                                // packed vecs lets the fused ops (add, mul,
+                                // max) emit v_pk_* packed ops instead of two
+                                // scalar ones. Each extra input is packed at
+                                // its OWN element type — not forced to the
+                                // output type — so f sees exactly what it
+                                // sees in the slow path. f converts the result
+                                // to out_type, yielding vec<out_type, 2> for
+                                // one packed store.
+                                vec<out_type, 2> y_pair{
                                     static_cast<out_type>(y[k_idx][i * 2 + 0][index_int{ki}]),
                                     static_cast<out_type>(y[k_idx][i * 2 + 1][index_int{ki}])};
-                                vec<half, 2> r =
-                                    f(y_pair, vec<half, 2>{inputs[idx0], inputs[idx1]}...);
-                                half2_t packed{r.x, r.y};
-                                __builtin_memcpy(&out_data[hbase], &packed, sizeof(half2_t));
+                                *as_vec<2>(&out_data[hbase]) = f(
+                                    y_pair,
+                                    vec<remove_reference_t<decltype(inputs[idx0])>, 2>{
+                                        inputs[idx0], inputs[idx1]}...);
                                 return;
                             }
                         }

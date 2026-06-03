@@ -354,7 +354,17 @@ MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, sqrt, ::h2sqrt)
 template <class T, class U>
 constexpr auto convert(U v)
 {
-    return vec_transform(v)([](auto x) -> T { return static_cast<T>(x); });
+    return vec_transform(v)([](auto x) -> T {
+        using x_type = remove_cv_t<remove_reference_t<decltype(x)>>;
+        // Clang rejects a direct static_cast between _Float16 (half) and
+        // __bf16 (bf16); bounce that one pair through float. Every other
+        // conversion is a plain static_cast.
+        if constexpr((is_same<T, migraphx::half>{} and is_same<x_type, migraphx::bf16>{}) or
+                     (is_same<T, migraphx::bf16>{} and is_same<x_type, migraphx::half>{}))
+            return static_cast<T>(static_cast<float>(x));
+        else
+            return static_cast<T>(x);
+    });
 }
 
 template <class T, class U>

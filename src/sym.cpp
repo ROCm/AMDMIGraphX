@@ -598,30 +598,28 @@ static variable_node combine_variables(const std::vector<const variable_node*>& 
 static expr combine_symbols(const std::vector<expr>& group)
 {
     const expr& rep = group.front();
-    return std::visit(
-        overloaded{
-            [&](const variable_node&) {
-                std::vector<const variable_node*> vs;
-                vs.reserve(group.size());
-                for(const auto& e : group)
-                    vs.push_back(std::get_if<variable_node>(&get_node(e)));
-                return expr(combine_variables(vs));
-            },
-            [&](const literal_node&) { return rep; },
-            [&](const op_node& o) {
-                std::vector<expr> children;
-                children.reserve(rep.children().size());
-                for(std::size_t i = 0; i < rep.children().size(); ++i)
-                {
-                    std::vector<expr> column;
-                    column.reserve(group.size());
-                    for(const auto& e : group)
-                        column.push_back(e.children()[i]);
-                    children.push_back(combine_symbols(column));
-                }
-                return expr(op_node{o.op}, std::move(children));
-            }},
-        get_node(rep));
+    return std::visit(overloaded{[&](const variable_node&) {
+                                     std::vector<const variable_node*> vs;
+                                     vs.reserve(group.size());
+                                     for(const auto& e : group)
+                                         vs.push_back(std::get_if<variable_node>(&get_node(e)));
+                                     return expr(combine_variables(vs));
+                                 },
+                                 [&](const literal_node&) { return rep; },
+                                 [&](const op_node& o) {
+                                     std::vector<expr> children;
+                                     children.reserve(rep.children().size());
+                                     for(std::size_t i = 0; i < rep.children().size(); ++i)
+                                     {
+                                         std::vector<expr> column;
+                                         column.reserve(group.size());
+                                         for(const auto& e : group)
+                                             column.push_back(e.children()[i]);
+                                         children.push_back(combine_symbols(column));
+                                     }
+                                     return expr(op_node{o.op}, std::move(children));
+                                 }},
+                      get_node(rep));
 }
 
 static expr normalize_add(const op_def* op, std::vector<expr> args)
@@ -644,8 +642,8 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
         terms.end(),
         [&](auto first, auto last) {
             term acc;
-            acc.coeff = std::accumulate(
-                first, last, scalar{int64_t{0}}, [](scalar c, const term& t) {
+            acc.coeff =
+                std::accumulate(first, last, scalar{int64_t{0}}, [](scalar c, const term& t) {
                     return scalar_invoke_common([](auto x, auto y) { return x + y; }, c, t.coeff);
                 });
             acc.bases.reserve(first->bases.size());

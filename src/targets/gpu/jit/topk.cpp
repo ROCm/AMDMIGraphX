@@ -70,8 +70,8 @@ struct topk_compiler : compiler<topk_compiler>
         const auto& k_value = v.at("k");
         // use std::optional<int64_t> instead of placeholder value will let topk[k=nullopt]
         // we need to handle k = nullopt.
-        auto output_lens    = inputs.back().sub_shapes().front().lens();
-        auto kelements      = output_lens.at(axis);
+        auto output_lens = inputs.back().sub_shapes().front().lens();
+        auto kelements   = output_lens.at(axis);
         if(not k_value.is_null())
             kelements = k_value.to<std::size_t>();
         auto relements      = inputs.front().lens()[axis];

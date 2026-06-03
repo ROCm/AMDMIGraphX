@@ -128,6 +128,9 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     case mlss_activation_mode::sigmoid: activation = MLSS_ACTIVATION_SIGMOID; break;
     case mlss_activation_mode::scaled_tanh: activation = MLSS_ACTIVATION_SCALED_TANH; break;
     case mlss_activation_mode::relu: activation = MLSS_ACTIVATION_RELU; break;
+    default:
+        MIGRAPHX_THROW("mlss_conv: unknown activation mode " +
+                       std::to_string(static_cast<int>(act_mode)));
     }
 
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_W, &w);

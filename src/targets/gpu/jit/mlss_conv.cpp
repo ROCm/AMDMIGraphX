@@ -222,7 +222,10 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         cop.local           = local_size;
         cop.expected_inputs = inputs;
         cop.output          = out_shape;
-        cop.output_arg      = 2;
+        // No-bias inputs are [input, weight, output] so output_arg=-1 ("last")
+        // is the right idiom. With bias, the closure swaps to
+        // [input, weight, output, bias] so output is fixed at index 2.
+        cop.output_arg      = has_bias ? 2 : -1;
         cop.kernel_args     = std::move(kernel_args);
 
         return cop;

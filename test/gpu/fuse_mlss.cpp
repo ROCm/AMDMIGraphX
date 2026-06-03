@@ -32,13 +32,13 @@
 #include <migraphx/stringutils.hpp>
 #include <test.hpp>
 
+#ifdef MIGRAPHX_USE_AMDMLSS
+
 static migraphx::gpu::context& get_context()
 {
     static migraphx::gpu::context ctx;
     return ctx;
 }
-
-#ifdef MIGRAPHX_USE_AMDMLSS
 
 static void run_pass(migraphx::program& p)
 {

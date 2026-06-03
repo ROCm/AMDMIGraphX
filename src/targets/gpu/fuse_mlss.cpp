@@ -51,6 +51,8 @@ namespace gpu {
  */
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLSS_USE_SPECIFIC_OPS);
 
+#ifdef MIGRAPHX_USE_AMDMLSS
+
 static bool mlss_specific_op(std::string_view op_name)
 {
     static const auto options =
@@ -58,8 +60,6 @@ static bool mlss_specific_op(std::string_view op_name)
     return std::any_of(
         options.begin(), options.end(), [&](const auto& opt) { return opt == op_name; });
 }
-
-#ifdef MIGRAPHX_USE_AMDMLSS
 
 // ---------------------------------------------------------------------------
 // Helper: create an mlss_conv_op intermediate node and replace the matched
@@ -85,6 +85,12 @@ static bool insert_mlss_conv(module& m,
     const auto wt_lens  = wt_ins->get_shape().lens();
     const auto out_lens = output_shape.lens();
     const auto dtype    = act_ins->get_shape().type();
+
+    // mlss_conv is 2D NCHW only — the kernel args, stride math, and
+    // query_mlss_conv_binary all index [0..3]. A 3D/5D conv that slips past
+    // the matcher's wt[2..3] guard would index out of bounds.
+    if(act_lens.size() != 4 or wt_lens.size() != 4 or out_lens.size() != 4)
+        return false;
 
     // mlss_conv kernel args only encode a single (pad_h, pad_w) pair (start
     // padding); the kernel does not support asymmetric start/end padding.

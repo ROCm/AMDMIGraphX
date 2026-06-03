@@ -316,7 +316,11 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
             }
         }
     }
-    this->finalize();
+    auto& contexts = this->impl->contexts;
+
+    if(not std::any_of(
+           contexts.begin(), contexts.end(), [](const auto& c) { return is_cross_compiling(c); }))
+        this->finalize();
 }
 
 void program::compile(const target& t, compile_options options)
@@ -350,7 +354,8 @@ void program::compile(const target& t, compile_options options)
             MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
                            std::to_string(index));
         }
-        mod->finalize(this->impl->contexts);
+        if(not is_cross_compiling(this->impl->contexts.front()))
+            mod->finalize(this->impl->contexts);
     }
 }
 

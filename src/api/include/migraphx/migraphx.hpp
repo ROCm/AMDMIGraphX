@@ -890,6 +890,17 @@ struct target : MIGRAPHX_HANDLE_BASE(target)
 
     /// Construct a target from its name
     target(const char* name) { this->make_handle(&migraphx_target_create, name); }
+
+    /// Construct a target from its name and configuration options. `options_json`
+    /// is a JSON object (e.g. `{"gpu_arch":"gfx942"}`) whose keys are reflected
+    /// onto the target's data members. Accepts printf-style format specifiers
+    /// in `options_json` followed by their substitution values, e.g.
+    /// `target("gpu", "{gpu_arch: %s}", "gfx942")`.
+    template <class... Ts>
+    target(const char* name, const char* options_json, Ts... xs)
+    {
+        this->make_handle(&migraphx_target_create_with_options, name, options_json, xs...);
+    }
 };
 
 struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)

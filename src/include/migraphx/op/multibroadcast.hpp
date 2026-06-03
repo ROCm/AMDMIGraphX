@@ -63,7 +63,11 @@ struct multibroadcast
         auto t         = inputs.at(0).type();
         const auto& s0 = inputs.at(0);
 
-        MIGRAPHX_EXPECT(s0.ndim() >= 1, "MULTIBROADCAST: input dimensions should be > 0");
+        if(s0.ndim() < 1)
+        {
+            MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should be > 0 but input has rank " +
+                           std::to_string(s0.ndim()));
+        }
 
         if(inputs.size() == 1)
         {
@@ -75,16 +79,21 @@ struct multibroadcast
                                                      output_dyn_dims.end(),
                                                      [](const auto& d) { return d.is_symbolic(); });
             if(not output_dyn_dims.empty() and not symbolic_target)
-                MIGRAPHX_THROW("MULTIBROADCAST: output_dyn_dims must be fully symbolic");
+                MIGRAPHX_THROW(
+                    "MULTIBROADCAST: output_dyn_dims must be fully symbolic but given {" +
+                    to_string_range(output_dyn_dims) + "}");
 
             if(s0.dynamic() and not(symbolic_target and s0.symbolic()))
-                MIGRAPHX_THROW(
-                    "MULTIBROADCAST: Single dynamic input shape not supported.  Use two inputs.");
+                MIGRAPHX_THROW("MULTIBROADCAST: Single dynamic input shape not supported.  Use two "
+                               "inputs. Input shape: " +
+                               to_string(s0));
 
             // Shared validation: input dims must align with target dims, with axis-1 broadcast.
             auto validate = [](const auto& in_dims, const auto& out_dims) {
-                MIGRAPHX_EXPECT(in_dims.size() <= out_dims.size(),
-                                "MULTIBROADCAST: input dimensions should <= output size");
+                if(in_dims.size() > out_dims.size())
+                    MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" +
+                                   std::to_string(in_dims.size()) + ") should be <= output size (" +
+                                   std::to_string(out_dims.size()) + ")");
                 auto offset = out_dims.size() - in_dims.size();
                 for(std::ptrdiff_t i = in_dims.size() - 1; i >= 0; --i)
                 {

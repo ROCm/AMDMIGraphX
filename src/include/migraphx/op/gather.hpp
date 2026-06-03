@@ -116,8 +116,12 @@ struct gather
         // max dimension in axis
 
         auto check_index_range = [](auto in_index, auto axis_dim_size) {
-            MIGRAPHX_EXPECT(in_index >= 0 and in_index < axis_dim_size,
-                            "Gather: Out of bounds index detected");
+            if(in_index < 0 or in_index >= axis_dim_size)
+            {
+                MIGRAPHX_THROW("Gather: Out of bounds index detected: index " +
+                               std::to_string(in_index) + " not in range [0, " +
+                               std::to_string(axis_dim_size) + ")");
+            }
         };
 
         visit_all(result, args[0])([&](auto output, auto data) {

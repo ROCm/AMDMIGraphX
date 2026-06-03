@@ -127,9 +127,9 @@ struct check_shapes
      */
     const check_shapes& has_at_least(std::size_t n) const
     {
-        MIGRAPHX_EXPECT(this->size() >= n,
-                        prefix() + "Wrong number of arguments: expected at least " + to_string(n) +
-                            " but given " + std::to_string(size()));
+        if(this->size() < n)
+            MIGRAPHX_THROW(prefix() + "Wrong number of arguments: expected at least " +
+                           to_string(n) + " but given " + std::to_string(size()));
         return *this;
     }
 
@@ -153,8 +153,9 @@ struct check_shapes
     {
         if(begin != end)
         {
-            MIGRAPHX_EXPECT(begin->ndim() == n,
-                            prefix() + "Only " + std::to_string(n) + "d supported");
+            if(begin->ndim() != n)
+                MIGRAPHX_THROW(prefix() + "Only " + std::to_string(n) + "d supported but given " +
+                               std::to_string(begin->ndim()) + "d");
         }
         return *this;
     }
@@ -168,9 +169,9 @@ struct check_shapes
     {
         if(begin != end)
         {
-            MIGRAPHX_EXPECT(begin->ndim() <= n,
-                            prefix() + "Shape must have at most " + std::to_string(n) +
-                                " dimensions");
+            if(begin->ndim() > n)
+                MIGRAPHX_THROW(prefix() + "Shape must have at most " + std::to_string(n) +
+                               " dimensions but has " + std::to_string(begin->ndim()));
         }
         return *this;
     }
@@ -184,9 +185,9 @@ struct check_shapes
     {
         if(begin != end)
         {
-            MIGRAPHX_EXPECT(begin->ndim() >= n,
-                            prefix() + "Shape must have at least " + std::to_string(n) +
-                                " dimensions");
+            if(begin->ndim() < n)
+                MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) +
+                               " dimensions but has " + std::to_string(begin->ndim()));
         }
         return *this;
     }

@@ -1120,11 +1120,17 @@ std::ostream& operator<<(std::ostream& os, const expr& e)
 
 expr var(const std::string& name, interval bounds, std::set<int64_t> optimals)
 {
-    MIGRAPHX_EXPECT(not name.empty(), "sym::var: variable name must not be empty");
+    if(name.empty())
+        MIGRAPHX_THROW("sym::var: variable name must not be empty");
     auto bmin = to<int64_t>(bounds.min);
     auto bmax = to<int64_t>(bounds.max);
-    MIGRAPHX_EXPECT(bmin <= bmax, "sym::var: variable interval must satisfy min <= max");
-    MIGRAPHX_EXPECT(bmin >= 1, "sym::var: variable interval must satisfy min >= 1");
+    if(bmin > bmax)
+        MIGRAPHX_THROW("sym::var: variable '" + name +
+                       "' interval must satisfy min <= max but got [" + std::to_string(bmin) +
+                       ", " + std::to_string(bmax) + "]");
+    if(bmin < 1)
+        MIGRAPHX_THROW("sym::var: variable '" + name +
+                       "' interval must satisfy min >= 1 but got min=" + std::to_string(bmin));
     return {std::make_shared<expr::impl>(make_symbol(name, bmin, bmax, std::move(optimals)))};
 }
 

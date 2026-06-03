@@ -53,13 +53,18 @@ struct transpose
         check_shapes{inputs, *this, true}.has(1);
         const auto& input = inputs.at(0);
 
-        MIGRAPHX_EXPECT(dims.size() == input.ndim(),
-                        "TRANSPOSE: Permutation has wrong number of axes");
+        if(dims.size() != input.ndim())
+        {
+            MIGRAPHX_THROW("TRANSPOSE: Permutation has wrong number of axes: permutation {" +
+                           to_string_range(dims) + "} has " + std::to_string(dims.size()) +
+                           " axes but input has " + std::to_string(input.ndim()) + " dimensions");
+        }
         std::vector<int64_t> axes(dims.size());
         std::iota(axes.begin(), axes.end(), 0);
         if(not std::is_permutation(axes.begin(), axes.end(), dims.begin()))
         {
-            MIGRAPHX_THROW("TRANSPOSE: Invalid permutation");
+            MIGRAPHX_THROW("TRANSPOSE: Invalid permutation {" + to_string_range(dims) +
+                           "}: must be a permutation of [0, " + std::to_string(dims.size()) + ")");
         }
 
         return reorder_shape(input, dims);

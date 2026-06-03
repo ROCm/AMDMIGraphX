@@ -110,17 +110,25 @@ struct pooling
     {
         if(dyn_global)
             return;
-        MIGRAPHX_EXPECT((padding_mode == default_ or padding.size() == stride.size() or
-                         padding.size() == stride.size() * 2) and
-                            stride.size() == lengths.size() and dilations.size() == lengths.size(),
-                        "POOLING: inconsistent attribute sizes");
+        if((padding_mode != default_ and padding.size() != stride.size() and
+            (padding.size()) != stride.size() * 2) or
+           stride.size() != lengths.size() or dilations.size() != lengths.size())
+        {
+            MIGRAPHX_THROW(
+                "POOLING: inconsistent attribute sizes: padding (" +
+                std::to_string(padding.size()) + "), stride (" + std::to_string(stride.size()) +
+                "), lengths (" + std::to_string(lengths.size()) + "), dilations (" +
+                std::to_string(dilations.size()) + "); stride, lengths and dilations must match");
+        }
 
         const auto is_zero = [](auto el) { return el == 0; };
         if(std::any_of(lengths.begin(), lengths.end(), is_zero) or
            std::any_of(stride.begin(), stride.end(), is_zero) or
            std::any_of(dilations.begin(), dilations.end(), is_zero))
         {
-            MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride or dilations");
+            MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride or dilations: lengths {" +
+                           to_string_range(lengths) + "}, stride {" + to_string_range(stride) +
+                           "}, dilations {" + to_string_range(dilations) + "}");
         }
     }
 
@@ -171,7 +179,13 @@ struct pooling
             const bool kernel_doesnt_fit = shape::is_fixed_dim(numerator) and
                                            shape::static_dim_value(numerator) < dilated_length;
             if(kernel_doesnt_fit and padding_mode == default_)
-                MIGRAPHX_THROW("POOLING: not enough padding for the given kernel size");
+                MIGRAPHX_THROW("POOLING: not enough padding for the given kernel size on spatial "
+                               "axis " +
+                               std::to_string(i) + ": padded input length (" +
+                               std::to_string(shape::static_dim_value(numerator)) +
+                               ") < dilated kernel length (" + std::to_string(dilated_length) +
+                               ") for kernel " + std::to_string(lengths[i]) + " and dilation " +
+                               std::to_string(dilations[i]));
 
             auto dim_size =
                 kernel_doesnt_fit ? const_dim_like(numerator, 2) : (numerator - dilated_length);
@@ -191,8 +205,12 @@ struct pooling
 
         const shape& input = inputs.at(0);
         auto stride_size   = stride.size();
-        MIGRAPHX_EXPECT(input.ndim() == stride_size + 2,
-                        "POOLING: input and attribute size mismatch!");
+        if(input.ndim() != stride_size + 2)
+        {
+            MIGRAPHX_THROW("POOLING: input and attribute size mismatch! input rank (" +
+                           std::to_string(input.ndim()) + ") must equal stride size + 2 (" +
+                           std::to_string(stride_size + 2) + ")");
+        }
 
         // Range-based dynamic uses the dedicated path (auto-pad-aware). Static and symbolic
         // share the same path: static inputs get promoted to symbolic literals via the
@@ -343,8 +361,14 @@ struct pooling
                     end = std::min(start + dilated_kernel_dim, in_lens[dim]);
                 }
                 win_start.push_back(start);
-                // This error can be caused by misc. bad input combinations
-                MIGRAPHX_EXPECT(end >= start, "POOLING: invalid attributes");
+                if(end < start)
+                {
+                    // This error can be caused by misc. bad input combinations
+                    MIGRAPHX_THROW("POOLING: invalid attributes: empty pooling window on spatial "
+                                   "axis " +
+                                   std::to_string(d_2) + " (window end " + std::to_string(end) +
+                                   " < start " + std::to_string(start) + ")");
+                }
                 win_size.push_back(end - start);
             }
 

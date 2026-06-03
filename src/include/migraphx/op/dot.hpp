@@ -47,9 +47,12 @@ struct dot
         const shape& b = inputs.at(1);
         auto t         = a.type();
 
-        MIGRAPHX_EXPECT(
-            std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.ndim() >= 2; }),
-            "DOT: dot only accepts operands with 2 or more dimensions ");
+        if(not std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.ndim() >= 2; }))
+        {
+            MIGRAPHX_THROW(
+                "DOT: dot only accepts operands with 2 or more dimensions, but given A " +
+                to_string(a) + " and B " + to_string(b));
+        }
         auto aligned   = shape::to_dynamic({a, b});
         const auto& s0 = aligned[0];
         const auto& s1 = aligned[1];

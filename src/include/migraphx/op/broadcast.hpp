@@ -81,13 +81,20 @@ struct broadcast
                        const Zero& zero) const
     {
         if(axis >= target.size())
-            MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) + " is out of range");
-        MIGRAPHX_EXPECT(target.size() - axis >= in_dims.size(),
-                        "BROADCAST: (broadcast ndims - axis) is less than s0 ndims");
+            MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) +
+                           " is out of range for target of rank " +
+                           migraphx::to_string(target.size()));
+        if(target.size() - axis < in_dims.size())
+            MIGRAPHX_THROW("BROADCAST: (target rank " + migraphx::to_string(target.size()) +
+                           " - axis " + migraphx::to_string(axis) + ") is less than input rank " +
+                           migraphx::to_string(in_dims.size()));
         for(std::size_t i = 0; i < in_dims.size(); ++i)
         {
-            MIGRAPHX_EXPECT(target[axis + i] == in_dims[i],
-                            "BROADCAST: when broadcasting, succeeding sizes must match");
+            if(target[axis + i] != in_dims[i])
+                MIGRAPHX_THROW(
+                    "BROADCAST: when broadcasting, succeeding sizes must match at axis " +
+                    migraphx::to_string(axis + i) + ": input dims {" + to_string_range(in_dims) +
+                    "} into target dims {" + to_string_range(target) + "}");
         }
         std::vector<Zero> bcast_strides(target.size(), zero);
         std::copy(in_strides.begin(), in_strides.end(), bcast_strides.begin() + axis);
@@ -103,10 +110,13 @@ struct broadcast
                                                  output_dyn_dims.end(),
                                                  [](const auto& d) { return d.is_symbolic(); });
         if(not output_dyn_dims.empty() and not symbolic_target)
-            MIGRAPHX_THROW("BROADCAST: output_dyn_dims must be fully symbolic");
+            MIGRAPHX_THROW("BROADCAST: output_dyn_dims must be fully symbolic but given {" +
+                           to_string_range(output_dyn_dims) + "}");
 
         if(s0.dynamic() and not(symbolic_target and s0.symbolic()))
-            MIGRAPHX_THROW("BROADCAST: Single dynamic input shape not supported.  Use two inputs.");
+            MIGRAPHX_THROW("BROADCAST: Single dynamic input shape not supported.  Use two inputs. "
+                           "Input shape: " +
+                           to_string(s0));
 
         if(symbolic_target)
         {
@@ -117,17 +127,23 @@ struct broadcast
 
         auto output =
             build_output(s0.type(), broadcast_lens, s0.lens(), s0.strides(), std::size_t{0});
-        // don't think this can occur?
-        MIGRAPHX_EXPECT(output.elements() >= s0.elements(),
-                        "BROADCAST: output size must be greater than or equal to s0 size");
+        if(output.elements() < s0.elements())
+        {
+            // don't think this can occur?
+            MIGRAPHX_THROW("BROADCAST: output size (" + std::to_string(output.elements()) +
+                           ") must be greater than or equal to s0 size (" +
+                           std::to_string(s0.elements()) + ")");
+        }
         return output;
     }
 
     shape compute_shape_2in(shape s0, shape s1) const
     {
-        MIGRAPHX_EXPECT(s0.ndim() == 1,
-                        "BROADCAST_2in: s0 has ndim " + migraphx::to_string(s0.ndim()) +
-                            ", only handle ndim = 1");
+        if(s0.ndim() != 1)
+        {
+            MIGRAPHX_THROW("BROADCAST_2in: s0 has ndim " + migraphx::to_string(s0.ndim()) +
+                           ", only handle ndim = 1");
+        }
 
         if(s0.symbolic() or s1.symbolic())
         {
@@ -139,14 +155,16 @@ struct broadcast
 
         if(axis >= s1.ndim())
         {
-            MIGRAPHX_THROW("BROADCAST_2in: axis " + migraphx::to_string(axis) + " is out of range");
+            MIGRAPHX_THROW("BROADCAST_2in: axis " + migraphx::to_string(axis) +
+                           " is out of range for s1 of rank " + migraphx::to_string(s1.ndim()));
         }
 
         // Range-based dynamic s0 alone is not supported.
         if(s0.dynamic())
         {
             MIGRAPHX_THROW("BROADCAST_2in: s0 is a dynamic shape, does not handle broadcasting "
-                           "a dynamic shape");
+                           "a dynamic shape. s0: " +
+                           to_string(s0));
         }
         if(s1.dynamic())
         {

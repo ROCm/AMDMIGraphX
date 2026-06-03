@@ -59,9 +59,10 @@ struct test_conv_3x3_winograd_convert : verify_program<test_conv_3x3_winograd_co
         // the edges still produce border tiles.
         auto x = mm->add_parameter("x", {migraphx::shape::half_type, {1, 64, 14, 14}});
         // Winograd matcher requires can_eval() on weights -> add as literals.
-        auto w =
-            mm->add_literal(migraphx::generate_literal({migraphx::shape::half_type, {64, 64, 3, 3}}, 1));
-        auto bias = mm->add_literal(migraphx::generate_literal({migraphx::shape::half_type, {64}}, 2));
+        auto w = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::half_type, {64, 64, 3, 3}}, 1));
+        auto bias =
+            mm->add_literal(migraphx::generate_literal({migraphx::shape::half_type, {64}}, 2));
         auto conv = mm->add_instruction(
             migraphx::make_op("convolution",
                               {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),

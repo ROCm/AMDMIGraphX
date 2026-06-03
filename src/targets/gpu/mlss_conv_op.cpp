@@ -119,8 +119,14 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     MLSSenum dataType  = (dtype == shape::half_type) ? MLSS_FLOAT16 : MLSS_FLOAT32;
     MLSSenum precision = static_cast<MLSSenum>(MLSS_PRECISION_FLOAT16_ADD_FLOAT32);
 
-    // Map MIGraphX mlss_activation_mode to AMDMLSS MLSSActivationFunctionFlag
-    MLSSenum activation;
+    // Map MIGraphX mlss_activation_mode to AMDMLSS MLSSActivationFunctionFlag.
+    // Validate against the enum's `last` sentinel before casting so the switch
+    // covers every enumerator (avoids covered-switch-default). Adding a new
+    // mode requires bumping `last` in the enum, which keeps this guard in sync.
+    if(act_mode > static_cast<uint8_t>(mlss_activation_mode::last))
+        MIGRAPHX_THROW("mlss_conv: unknown activation mode " +
+                       std::to_string(static_cast<int>(act_mode)));
+    MLSSenum activation = MLSS_ACTIVATION_IDENTITY;
     switch(static_cast<mlss_activation_mode>(act_mode))
     {
     case mlss_activation_mode::identity: activation = MLSS_ACTIVATION_IDENTITY; break;
@@ -128,9 +134,6 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     case mlss_activation_mode::sigmoid: activation = MLSS_ACTIVATION_SIGMOID; break;
     case mlss_activation_mode::scaled_tanh: activation = MLSS_ACTIVATION_SCALED_TANH; break;
     case mlss_activation_mode::relu: activation = MLSS_ACTIVATION_RELU; break;
-    default:
-        MIGRAPHX_THROW("mlss_conv: unknown activation mode " +
-                       std::to_string(static_cast<int>(act_mode)));
     }
 
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_W, &w);

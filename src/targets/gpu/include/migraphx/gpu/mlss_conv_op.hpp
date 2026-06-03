@@ -36,6 +36,9 @@ namespace gpu {
 
 struct context;
 
+// Note: keep `last` pinned to the highest real enumerator. The validity check
+// in mlss_conv_op.cpp uses it as the upper bound; adding a new mode without
+// bumping `last` would silently let invalid bytes through.
 enum class mlss_activation_mode : uint8_t
 {
     identity    = 0,
@@ -43,6 +46,7 @@ enum class mlss_activation_mode : uint8_t
     sigmoid     = 2,
     scaled_tanh = 3,
     relu        = 4,
+    last        = relu,
 };
 
 // Intermediate op inserted by fuse_mlss. Carries conv metadata for the JIT

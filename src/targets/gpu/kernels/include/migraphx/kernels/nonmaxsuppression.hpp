@@ -82,14 +82,14 @@ __device__ inline bool nms_iou_over_threshold(const Box a, const Box b, const Th
     const auto area_b = max(b[2] - b[0], 0.f) * max(b[3] - b[1], 0.f);
     if(area_b <= 0.f)
         return false;
-    const auto un     = area_a + area_b - inter;
+    const auto un = area_a + area_b - inter;
     if(un <= 0.f)
         return false;
     return (inter / un) > threshold;
 }
 
 // Packed upper-triangular index for j > i within an N x N matrix.
-__device__ inline index_int nms_packed_idx(index_int i, index_int j, index_int size)
+constexpr index_int nms_packed_idx(index_int i, index_int j, index_int size)
 {
     return (i * size - (i * (i + 1)) / 2) + j - (i + 1);
 }
@@ -97,10 +97,8 @@ __device__ inline index_int nms_packed_idx(index_int i, index_int j, index_int s
 // Higher score wins, with lower original box index breaking ties.
 // Matches ORT CPU EP behavior.
 template <class Scores, class Indices>
-__device__ inline bool nms_sorted_compare(const Scores& scores,
-                                          const Indices& indices,
-                                          index_int i,
-                                          index_int j)
+__device__ inline bool
+nms_sorted_compare(const Scores& scores, const Indices& indices, index_int i, index_int j)
 {
     const auto si = scores[i];
     const auto sj = scores[j];
@@ -181,7 +179,7 @@ __device__ void nonmaxsuppression_sort(const Boxes boxes_tv,
             my_sorted_scores[i] = my_scores[i];
             for(index_int k = 0; k < 4; ++k)
                 my_sorted_boxes[array<index_int, 3>{0, i, k}] = box[k];
-            my_sorted_indices[i] = static_cast<indices_type>(i);
+            my_sorted_indices[i] = i;
         }
         else
         {
@@ -205,6 +203,15 @@ __device__ void nonmaxsuppression_sort(const Boxes boxes_tv,
     bitonic_sort{cmp}.template block_sort_by_index<AlignedNumBoxes>(idx, swp);
 }
 
+template <class Box>
+__device__ inline auto load_box(Box sorted_boxes, index_int i)
+{
+    return make_array(sorted_boxes[make_array(0, i, 0)],
+                      sorted_boxes[make_array(0, i, 1)],
+                      sorted_boxes[make_array(0, i, 2)],
+                      sorted_boxes[make_array(0, i, 3)]);
+}
+
 // Build the packed upper-triangular IoU mask for the first NumBoxes sorted
 // boxes. Threads are paired across the triangle so each does roughly the same
 // amount of work.
@@ -217,28 +224,19 @@ __device__ void nms_make_iou_mask(const index idx,
                                   const float iou_threshold)
 {
     static_assert(NumBoxes > 1);
-    constexpr index_int half = NumBoxes / 2;
-    using box_elem_type      = typename SortedBoxes::type;
-
-    auto load_box = [&](index_int i) {
-        return array<box_elem_type, 4>{sorted_boxes[array<index_int, 3>{0, i, 0}],
-                                       sorted_boxes[array<index_int, 3>{0, i, 1}],
-                                       sorted_boxes[array<index_int, 3>{0, i, 2}],
-                                       sorted_boxes[array<index_int, 3>{0, i, 3}]};
-    };
-
+    constexpr auto half = _c<NumBoxes / 2>;
     auto fill_row = [&](index_int i) {
-        const auto box_i = load_box(i);
+        const auto box_i = load_box(sorted_boxes, i);
         for(index_int j = i + 1; j < NumBoxes; ++j)
         {
             mask[nms_packed_idx(i, j, NumBoxes)] =
-                nms_iou_over_threshold(box_i, load_box(j), iou_threshold);
+                nms_iou_over_threshold(box_i, load_box(sorted_boxes, j), iou_threshold);
         }
     };
 
     idx.local_stride(half, [&](auto i) {
         fill_row(i);
-        fill_row(NumBoxes - 1 - i);
+        fill_row(_c<NumBoxes - 1> - i);
     });
 
     // Have thread 0 do middle row if odd NumBoxes
@@ -273,13 +271,12 @@ __device__ void nms_filter_per_block(const index idx,
     const int batch_idx      = block_id / NumClasses;
     const int class_idx      = block_id % NumClasses;
     // TODO: use bits for removed mask
-    __shared__ uint8_t removed[NumBoxes];
+    __shared__ uninitialized_buffer<uint8_t, NumBoxes> removed;
     // Match the ref op: only filter by score when score_threshold > 0.
-    const bool do_filter = score_thr > 0.f;
+    const bool do_score_filter = score_thr > 0.f;
     idx.local_stride(NumBoxes,
-                     [&](auto i) { removed[i] = (do_filter and sorted_scores[i] < score_thr); });
+            [&](auto i) { removed[i] = (do_score_filter and sorted_scores[i] < score_thr); });
     __syncthreads();
-
     index_int output_idx = 0;
     for(index_int i = 0; i < NumBoxes; ++i)
     {
@@ -306,7 +303,7 @@ __device__ void nms_filter_per_block(const index idx,
     }
 
     if(idx.local == 0)
-        bc_counts[block_id] = static_cast<int32_t>(output_idx);
+        bc_counts[block_id] = output_idx;
 }
 
 // TODO: Merge the nonmaxsuppression_sort and nonmaxsuppression_filter kernels by relaxing
@@ -393,7 +390,7 @@ nonmaxsuppression_compact(const Counts bc_counts, const Idx indices, Out output,
                   "nms_compact: NumBatchClass exceeds the LDS budget for offsets[]");
 
     auto idx = make_index();
-    __shared__ index_int offsets[NumBatchClass];
+    __shared__ uninitialized_buffer<index_int, NumBatchClass> offsets;
     // Exclusive prefix sum on bc_counts to get offsets
     // TODO: there's probably a better way to get the exclusive prefix sum rather than doing the
     // minus each time.

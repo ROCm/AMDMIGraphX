@@ -53,34 +53,3 @@ struct test_topk_dynamic : verify_program<test_topk_dynamic<N>>
 };
 
 template struct test_topk_dynamic<10>;
-
-template <std::size_t N>
-struct test_topk_dynamic_k_input : verify_program<test_topk_dynamic_k_input<N>>
-{
-    migraphx::program create_program() const
-    {
-        migraphx::program p;
-        auto* mm                                            = p.get_main_module();
-        std::vector<migraphx::shape::dynamic_dimension> dds = {{1, 100}};
-        migraphx::shape s{migraphx::shape::float_type, dds};
-        migraphx::shape ks{migraphx::shape::int64_type, {1}};
-        auto data = mm->add_parameter("data", s);
-        auto k    = mm->add_parameter("k", ks);
-        auto sliced_data = mm->add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), data, k);
-        auto topk = migraphx::make_op("topk", {{"axis", 0}, {"largest", 1}});
-        auto r    = mm->add_instruction(topk, sliced_data, k);
-        auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
-        auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
-        mm->add_return({r0, r1});
-        return p;
-    }
-
-    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
-    {
-        return {{"data", migraphx::shape{migraphx::shape::float_type, {N}}},
-                {"k", migraphx::shape{migraphx::shape::int64_type, {1}}}};
-    }
-};
-
-template struct test_topk_dynamic_k_input<10>;

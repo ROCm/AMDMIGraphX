@@ -141,8 +141,8 @@ struct select_module
             // Submodule has a single tuple output parameter but the output buffer was
             // split into sub-objects. Reconstruct the tuple argument.
             assert(out_param_names.size() == 1);
-            auto name = out_param_names.front();
-            auto ps   = param_shapes.at(name);
+            const auto& name = out_param_names.front();
+            const auto& ps   = param_shapes.at(name);
             argument tuple_arg{output_sub_objects};
             if(tuple_arg.get_shape() != ps)
             {

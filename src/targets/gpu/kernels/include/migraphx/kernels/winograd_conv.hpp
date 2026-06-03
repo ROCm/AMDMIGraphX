@@ -233,10 +233,18 @@ __device__ inline array<half, 16> winograd_input_transform_f23(const array<half,
 //     accumulators alive simultaneously (which would force register spill).
 //   - CB must be a multiple of 16 (WMMA K dim).
 
+// PostInput is the type the conv result is cast to before the fused
+// pointwise `f` runs. It is the conv's natural output type (half) so the
+// post-op computes at conv precision and matches the reference — UNLESS the
+// pointwise's first op converts the result to a wider type, in which case the
+// codegen passes that wider type here so we feed `f` the fp32 accumulator
+// directly instead of round-tripping it through half. The final store still
+// uses the actual output type (`f` converts to it).
 template <index_int NW,
           index_int CB,
           index_int KW,
           index_int SK,
+          class PostInput,
           class F,
           class Output,
           class Input,
@@ -853,12 +861,14 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                 // scalar ones. Each extra input is packed at
                                 // its OWN element type — not forced to the
                                 // output type — so f sees exactly what it
-                                // sees in the slow path. f converts the result
-                                // to out_type, yielding vec<out_type, 2> for
-                                // one packed store.
-                                vec<out_type, 2> y_pair{
-                                    static_cast<out_type>(y[k_idx][i * 2 + 0][index_int{ki}]),
-                                    static_cast<out_type>(y[k_idx][i * 2 + 1][index_int{ki}])};
+                                // sees in the slow path. The conv result is
+                                // cast to PostInput (conv precision, or the
+                                // pointwise's leading-convert target); f
+                                // converts the result to out_type, yielding
+                                // vec<out_type, 2> for one packed store.
+                                vec<PostInput, 2> y_pair{
+                                    static_cast<PostInput>(y[k_idx][i * 2 + 0][index_int{ki}]),
+                                    static_cast<PostInput>(y[k_idx][i * 2 + 1][index_int{ki}])};
                                 *as_vec<2>(&out_data[hbase]) =
                                     f(y_pair,
                                       vec<remove_reference_t<decltype(inputs[idx0])>, 2>{
@@ -876,7 +886,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                                                   static_cast<index_int>(h_out),
                                                                   static_cast<index_int>(w_out)};
                                 out_data[hbase + j * sw] = static_cast<out_type>(
-                                    f(static_cast<out_type>(y[k_idx][i * 2 + j][index_int{ki}]),
+                                    f(static_cast<PostInput>(y[k_idx][i * 2 + j][index_int{ki}]),
                                       inputs[out_idx]...));
                             }
                         });

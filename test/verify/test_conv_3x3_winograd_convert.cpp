@@ -78,7 +78,8 @@ struct test_conv_3x3_winograd_convert : verify_program<test_conv_3x3_winograd_co
     }
     std::string section() const { return "conv"; }
     // fp16 output uses the standard tolerance; fp32 output must allow for
-    // winograd's fp16-magnitude transform error (see header comment).
+    // winograd's fp16-magnitude input-transform error, which is preserved at
+    // fp32 instead of being re-rounded to fp16 (see header comment).
     std::size_t get_tolerance() const { return Out == migraphx::shape::half_type ? 80 : 80000; }
 };
 

@@ -26,6 +26,8 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/stringutils.hpp>
 
 namespace migraphx {
@@ -33,6 +35,38 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 using namespace migraphx::gpu::gen; // NOLINT
+
+// The fused pointwise's first parameter is the winograd conv result. If the
+// pointwise's first op converts it to a wider type (e.g. fp32), the post-op
+// genuinely computes at that wider precision, so the kernel should feed `f`
+// the fp32 accumulator directly rather than rounding it to the conv's half
+// precision first. Otherwise the conv result is cast to its natural type
+// (half) so the post-op matches the unfused conv + pointwise reference. Return
+// the C++ type the kernel should cast the conv result to before calling `f`.
+static std::string post_input_cast(const module& pm)
+{
+    // Pointwise submodule params are named x0, x1, ...; x0 is arg 0, which the
+    // fusion wires to the winograd conv output.
+    auto params = pm.get_parameter_names();
+    auto it     = std::find(params.begin(), params.end(), "x0");
+    if(it == params.end())
+        return "half";
+    auto x0 = pm.get_parameter(*it);
+    // Only treat a *leading* convert as the post-op's compute type, i.e. when
+    // the conv result feeds exactly one op and that op is a convert to a type
+    // wider than the conv's half output. A convert that appears later (after
+    // an add/activation/etc.) must still run at half precision first.
+    auto users = x0->outputs();
+    if(users.size() != 1)
+        return "half";
+    auto user = users.front();
+    if(user->name() != "convert")
+        return "half";
+    auto t = user->get_shape().type();
+    if(shape{t}.type_size() <= shape{shape::half_type}.type_size())
+        return "half";
+    return shape::cpp_type(t);
+}
 
 // NOLINTNEXTLINE
 static const char* const winograd_conv_kernel = R"__migraphx__(
@@ -52,7 +86,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}>(
+            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -118,6 +152,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"kw", std::to_string(kw)},
                                        {"sk", std::to_string(sk)},
                                        {"post", v.get("post", std::string{"op::id{}"})},
+                                       {"conv_cast", v.get("conv_cast", std::string{"half"})},
                                        {"preamble", v.get("preamble", std::string{})}});
 
         return compile_hip_code_object(ctx, src, options);
@@ -131,10 +166,11 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
             v.insert(s);
         if(not ins->module_inputs().empty())
         {
-            auto* pm      = ins->module_inputs().front();
-            v["preamble"] = generate_pointwise(*pm, "post_winograd_conv");
-            v["post"]     = "MIGRAPHX_LIFT(post_winograd_conv)";
-            v["kernel"]   = "winograd_conv_" + generate_name_from_ops(*pm) + "_kernel";
+            auto* pm       = ins->module_inputs().front();
+            v["preamble"]  = generate_pointwise(*pm, "post_winograd_conv");
+            v["post"]      = "MIGRAPHX_LIFT(post_winograd_conv)";
+            v["kernel"]    = "winograd_conv_" + generate_name_from_ops(*pm) + "_kernel";
+            v["conv_cast"] = post_input_cast(*pm);
         }
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }

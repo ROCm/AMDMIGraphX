@@ -47,11 +47,9 @@ static std::string post_input_cast(const module& pm)
 {
     // Pointwise submodule params are named x0, x1, ...; x0 is arg 0, which the
     // fusion wires to the winograd conv output.
-    auto params = pm.get_parameter_names();
-    auto it     = std::find(params.begin(), params.end(), "x0");
-    if(it == params.end())
+    auto x0 = pm.get_parameter("x0");
+    if(x0 == pm.end())
         return "half";
-    auto x0 = pm.get_parameter(*it);
     // Only treat a *leading* convert as the post-op's compute type, i.e. when
     // the conv result feeds exactly one op and that op is a convert to a type
     // wider than the conv's half output. A convert that appears later (after

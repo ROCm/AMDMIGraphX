@@ -295,10 +295,11 @@ __device__ void nms_filter_per_block(const index idx,
             }
             ++output_idx;
             // parallel mask
-            for(index_int j = i + 1 + idx.local; j < NumBoxes; j += idx.nlocal())
-            {
+            auto start = i + 1;
+            idx.local_stride(NumBoxes - start, [&](auto ls) {
+                auto j = start + ls;
                 removed[j] |= mask[nms_packed_idx(i, j, NumBoxes)];
-            }
+            });
         }
         __syncthreads();
     }

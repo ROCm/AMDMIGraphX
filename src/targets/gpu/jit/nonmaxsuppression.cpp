@@ -154,7 +154,7 @@ struct nms_sort_compiler : compiler<nms_sort_compiler>
         auto block_size = compute_block_size(ctx, aligned_num_boxes, 1024);
 
         hip_compile_options options;
-        options.inputs         = flatten_shapes(inputs);
+        options.inputs         = flatten_tuple_shapes(inputs);
         options.output         = inputs.back();
         options.kernel_name    = "nms_sort_kernel";
         options.virtual_inputs = options.inputs;
@@ -196,7 +196,7 @@ struct nms_filter_compiler : compiler<nms_filter_compiler>
         const auto block_size = compute_block_size(ctx, (num_boxes + 1) / 2, 256);
 
         hip_compile_options options;
-        options.inputs         = flatten_shapes(inputs);
+        options.inputs         = flatten_tuple_shapes(inputs);
         options.output         = inputs.back();
         options.kernel_name    = "nms_filter_kernel";
         options.virtual_inputs = options.inputs;
@@ -238,7 +238,7 @@ struct nms_compact_compiler : compiler<nms_compact_compiler>
         const auto block_size = compute_block_size(ctx, num_batch_class * num_boxes, 256);
 
         hip_compile_options options;
-        options.inputs         = flatten_shapes(inputs);
+        options.inputs         = flatten_tuple_shapes(inputs);
         options.output         = inputs.back();
         options.kernel_name    = "nms_compact_kernel";
         options.virtual_inputs = options.inputs;

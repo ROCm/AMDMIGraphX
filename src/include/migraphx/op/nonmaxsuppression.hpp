@@ -303,7 +303,7 @@ struct nonmaxsuppression
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
         // make buffer of maximum size
-        auto output_shapes     = flatten_shapes({output_shape});
+        auto output_shapes     = flatten_tuple_shapes({output_shape});
         shape max_output_shape = {output_shapes.at(0).type(), output_shapes.at(0).max_lens()};
         argument result{max_output_shape};
         argument num_selected_result{output_shapes.at(1)};

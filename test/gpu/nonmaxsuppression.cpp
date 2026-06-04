@@ -1211,6 +1211,46 @@ TEST_CASE(nms_ties_with_overlap_test)
     EXPECT(num_selected == 4);
 }
 
+TEST_CASE(nms_iou_at_threshold_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 4, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 4}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{4});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_p,
+                                   scores_p,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    add_nms_return(mm, nms);
+
+    //   boxes 0 & 1: IoU = 1/2 = 0.5 exactly (== threshold => both kept)
+    //   boxes 2 & 3: IoU = 1/1.99 ~ 0.5025 (>  threshold => box 3 suppressed)
+    std::vector<float> boxes_vec  = {0.0f,  0.0f, 1.0f,  1.0f,   // 0: area 1
+                                     0.0f,  0.0f, 1.0f,  2.0f,   // 1: area 2, contains 0
+                                     10.0f, 0.0f, 11.0f, 1.0f,   // 2: area 1
+                                     10.0f, 0.0f, 11.0f, 1.99f}; // 3: area 1.99, contains 2
+    std::vector<float> scores_vec = {0.95f, 0.90f, 0.85f, 0.80f};
+
+    migraphx::parameter_map host_params;
+    host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
+    host_params["scores"] = migraphx::argument(scores_s, scores_vec.data());
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    std::vector<int64_t> gold = {0, 0, 0, 0, 0, 1, 0, 0, 2};
+    EXPECT(indices == gold);
+    EXPECT(num_selected == 3);
+}
+
 // Realistic test where many scores collide (quantized to 1 decimal). Gold
 // generated from ORT CPU EP; relies on the (score DESC, original-index ASC)
 // tie-break to match.

@@ -67,7 +67,7 @@ static bool mlss_specific_op(std::string_view op_name)
 // this into a code_object_op with the full kernarg layout.
 // ---------------------------------------------------------------------------
 static bool insert_mlss_conv(module& m,
-                             context* ctx,
+                             const context* ctx,
                              instruction_ref replace_ins,
                              instruction_ref act_ins,
                              instruction_ref wt_ins,

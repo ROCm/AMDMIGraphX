@@ -88,17 +88,17 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         // -----------------------------------------------------------------------
         std::map<std::size_t, kernel_argument_value> kernel_args;
 
-        int32_t N     = static_cast<int32_t>(in_lens[0]);
-        int32_t Cg    = static_cast<int32_t>(in_lens[1]);
-        int32_t H     = static_cast<int32_t>(in_lens[2]);
-        int32_t W     = static_cast<int32_t>(in_lens[3]);
-        int32_t Kg    = static_cast<int32_t>(wt_lens[0]);
-        int32_t R     = static_cast<int32_t>(wt_lens[2]);
-        int32_t S     = static_cast<int32_t>(wt_lens[3]);
-        int32_t out_h = static_cast<int32_t>(out_lens[2]);
-        int32_t out_w = static_cast<int32_t>(out_lens[3]);
+        int32_t N     = in_lens[0];
+        int32_t Cg    = in_lens[1];
+        int32_t H     = in_lens[2];
+        int32_t W     = in_lens[3];
+        int32_t Kg    = wt_lens[0];
+        int32_t R     = wt_lens[2];
+        int32_t S     = wt_lens[3];
+        int32_t out_h = out_lens[2];
+        int32_t out_w = out_lens[3];
         int32_t G     = 1;
-        int32_t ng    = static_cast<int32_t>(info.n_groups);
+        int32_t ng    = info.n_groups;
 
         // Cap ng to prevent idle workgroups from writing out-of-bounds.
         {
@@ -129,19 +129,19 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         const auto wt_strides  = weight_shape.strides();
         const auto out_strides = out_shape.strides();
 
-        int32_t d_N_stride = static_cast<int32_t>(in_strides[0]);
-        int32_t d_C_stride = static_cast<int32_t>(in_strides[1]);
-        int32_t d_H_stride = static_cast<int32_t>(in_strides[2]);
+        int32_t d_N_stride = in_strides[0];
+        int32_t d_C_stride = in_strides[1];
+        int32_t d_H_stride = in_strides[2];
         int32_t d_G_stride = d_N_stride;
 
-        int32_t f_K_stride = static_cast<int32_t>(wt_strides[0]);
-        int32_t f_C_stride = static_cast<int32_t>(wt_strides[1]);
-        int32_t f_R_stride = static_cast<int32_t>(wt_strides[2]);
+        int32_t f_K_stride = wt_strides[0];
+        int32_t f_C_stride = wt_strides[1];
+        int32_t f_R_stride = wt_strides[2];
         int32_t f_G_stride = Kg * f_K_stride;
 
-        int32_t o_N_stride = static_cast<int32_t>(out_strides[0]);
-        int32_t o_K_stride = static_cast<int32_t>(out_strides[1]);
-        int32_t o_H_stride = static_cast<int32_t>(out_strides[2]);
+        int32_t o_N_stride = out_strides[0];
+        int32_t o_K_stride = out_strides[1];
+        int32_t o_H_stride = out_strides[2];
         int32_t o_G_stride = o_N_stride;
 
         // 0x00-0x14: N, Cg, H, W, Kg, ng

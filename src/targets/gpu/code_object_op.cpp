@@ -26,6 +26,7 @@
 #include <migraphx/gpu/pack_args.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pmr/vector.hpp>
+#include <algorithm>
 #include <cstring>
 
 namespace migraphx {
@@ -87,12 +88,13 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
 #else
         pmr::vector<char> buf(sz);
 #endif
-        std::memcpy(buf.data(), packed_kernargs.data(), sz);
+        std::copy(packed_kernargs.begin(), packed_kernargs.end(), buf.begin());
 
         for(const auto& [arg_idx, byte_offset] : runtime_arg_offsets)
         {
-            auto ptr = reinterpret_cast<uint64_t>(args[arg_idx].data());
-            std::memcpy(buf.data() + byte_offset, &ptr, sizeof(uint64_t));
+            auto ptr           = reinterpret_cast<uint64_t>(args[arg_idx].data());
+            const auto* p_byte = reinterpret_cast<const char*>(&ptr);
+            std::copy(p_byte, p_byte + sizeof(uint64_t), buf.begin() + byte_offset);
         }
 
         auto [start, stop] = ctx.get_perf_events();

@@ -55,11 +55,11 @@ mlss_mha_op mlss_mha_op::make_gfx1201_fp16_packed_qkv(const context& ctx,
        MLSS_SUCCESS)
         return op;
 
-    std::uint32_t batch   = static_cast<std::uint32_t>(query_lens[0]);
-    std::uint32_t heads   = static_cast<std::uint32_t>(query_lens[1]);
-    std::uint32_t q_seq   = static_cast<std::uint32_t>(query_lens[2]);
+    std::uint32_t batch   = query_lens[0];
+    std::uint32_t heads   = query_lens[1];
+    std::uint32_t q_seq   = query_lens[2];
     std::uint32_t kv_seq  = q_seq;
-    std::uint32_t h_dim   = static_cast<std::uint32_t>(query_lens[3]);
+    std::uint32_t h_dim   = query_lens[3];
     std::uint32_t kv_dim  = 0;
     std::uint32_t packing = MLSS_ATTR_CONFIG_MHA_PACKING_PACKED_QKV;
     float scale_val       = scale;
@@ -83,7 +83,7 @@ mlss_mha_op mlss_mha_op::make_gfx1201_fp16_packed_qkv(const context& ctx,
 
     MLSSbinary* binaries  = nullptr;
     MLSSsize num_binaries = 0;
-    if(mlssGetBinaries(mlss_ctx, &binaries, &num_binaries) != MLSS_SUCCESS || num_binaries == 0)
+    if(mlssGetBinaries(mlss_ctx, &binaries, &num_binaries) != MLSS_SUCCESS or num_binaries == 0)
         return op;
 
     // Find first non-relocatable binary
@@ -129,10 +129,10 @@ argument mlss_mha_op::compute(context& ctx, const shape&, const std::vector<argu
     auto query_lens     = query.get_shape().lens();
     auto outval_strides = outval.get_shape().strides();
 
-    int batch_size      = static_cast<int>(query_lens[0]);
-    int head_num        = static_cast<int>(query_lens[1]);
-    int sequence_length = static_cast<int>(query_lens[2]);
-    int head_dim        = static_cast<int>(query_lens[3]);
+    int batch_size      = query_lens[0];
+    int head_num        = query_lens[1];
+    int sequence_length = query_lens[2];
+    int head_dim        = query_lens[3];
 
     // QKV strides for the [B, S, H, 3*D] seq-major packed layout:
     //   d0 = S * H * 3*D   (batch stride)
@@ -153,10 +153,10 @@ argument mlss_mha_op::compute(context& ctx, const shape&, const std::vector<argu
 
     float scale_val = scale; // copy: compute() is const, so `scale` would be const float
 
-    uint32_t output_stride_d0 = static_cast<uint32_t>(outval_strides[0]);
-    uint32_t output_stride_d1 = static_cast<uint32_t>(outval_strides[1]);
-    uint32_t output_stride_d2 = static_cast<uint32_t>(outval_strides[2]);
-    uint32_t output_stride_d3 = static_cast<uint32_t>(outval_strides[3]);
+    uint32_t output_stride_d0 = outval_strides[0];
+    uint32_t output_stride_d1 = outval_strides[1];
+    uint32_t output_stride_d2 = outval_strides[2];
+    uint32_t output_stride_d3 = outval_strides[3];
 
     std::vector<kernel_argument> kargs;
     kargs.emplace_back(d_q_in);

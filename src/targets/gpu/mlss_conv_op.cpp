@@ -68,15 +68,15 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
         MIGRAPHX_THROW("mlss_conv: mlssCreateContext failed for " + gfx_name);
     }
 
-    std::uint32_t n    = static_cast<std::uint32_t>(act_lens[0]);
-    std::uint32_t c    = static_cast<std::uint32_t>(act_lens[1]);
-    std::uint32_t h    = static_cast<std::uint32_t>(act_lens[2]);
-    std::uint32_t w    = static_cast<std::uint32_t>(act_lens[3]);
-    std::uint32_t k    = static_cast<std::uint32_t>(wt_lens[0]);
-    std::uint32_t r    = static_cast<std::uint32_t>(wt_lens[2]);
-    std::uint32_t s    = static_cast<std::uint32_t>(wt_lens[3]);
-    std::uint32_t outH = static_cast<std::uint32_t>(out_lens[2]);
-    std::uint32_t outW = static_cast<std::uint32_t>(out_lens[3]);
+    std::uint32_t n    = act_lens[0];
+    std::uint32_t c    = act_lens[1];
+    std::uint32_t h    = act_lens[2];
+    std::uint32_t w    = act_lens[3];
+    std::uint32_t k    = wt_lens[0];
+    std::uint32_t r    = wt_lens[2];
+    std::uint32_t s    = wt_lens[3];
+    std::uint32_t outH = out_lens[2];
+    std::uint32_t outW = out_lens[3];
 
     std::uint32_t dilationX = dilation.size() > 1 ? static_cast<std::uint32_t>(dilation[1]) : 1;
     std::uint32_t dilationY = dilation.size() > 0 ? static_cast<std::uint32_t>(dilation[0]) : 1;
@@ -95,8 +95,8 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     std::uint32_t filterStrideX = 1;
     std::uint32_t filterStrideY = 1;
 
-    std::uint32_t groups      = static_cast<std::uint32_t>(group);
-    MLSSbool mlss_has_bias    = has_bias_flag ? true : false;
+    std::uint32_t groups      = group;
+    MLSSbool mlss_has_bias    = has_bias_flag;
     MLSSbool crossCorrelation = false;
     MLSSbool backward         = false;
 
@@ -117,7 +117,7 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     std::uint32_t bOffset  = 0;
 
     MLSSenum dataType  = (dtype == shape::half_type) ? MLSS_FLOAT16 : MLSS_FLOAT32;
-    MLSSenum precision = static_cast<MLSSenum>(MLSS_PRECISION_FLOAT16_ADD_FLOAT32);
+    MLSSenum precision = MLSS_PRECISION_FLOAT16_ADD_FLOAT32;
 
     // Map MIGraphX mlss_activation_mode to AMDMLSS MLSSActivationFunctionFlag.
     // Validate against the enum's `last` sentinel before casting so the switch
@@ -198,7 +198,7 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
 
     MLSSbinary* binaries  = nullptr;
     MLSSsize num_binaries = 0;
-    if(mlssGetBinaries(mlss_ctx, &binaries, &num_binaries) != MLSS_SUCCESS || num_binaries == 0)
+    if(mlssGetBinaries(mlss_ctx, &binaries, &num_binaries) != MLSS_SUCCESS or num_binaries == 0)
         return info;
 
     // Find first non-relocatable binary

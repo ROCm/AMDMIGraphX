@@ -111,6 +111,55 @@ TEST_CASE(nms_default_test)
     EXPECT(num_selected == 3);
 }
 
+TEST_CASE(nms_fp16_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::half_type, {1, 6, 4}};
+    migraphx::shape scores_s{migraphx::shape::half_type, {1, 1, 6}};
+    migraphx::shape scalar_s{migraphx::shape::half_type, {1}};
+    migraphx::shape int_scalar_s{migraphx::shape::int64_type, {1}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_p       = mm->add_parameter("max_out", int_scalar_s);
+    auto iou_threshold   = mm->add_parameter("iou_threshold", scalar_s);
+    auto score_threshold = mm->add_parameter("score_threshold", scalar_s);
+
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes_p,
+                            scores_p,
+                            max_out_p,
+                            iou_threshold,
+                            score_threshold);
+    add_nms_return(mm, nms);
+
+    std::vector<float> boxes_flt  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    std::vector<migraphx::half> boxes_vec;
+    std::transform(boxes_flt.begin(), boxes_flt.end(), std::back_inserter(boxes_vec), [&](auto flt){ return migraphx::half(flt);} );
+    std::vector<float> scores_flt = {0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
+    std::vector<migraphx::half> scores_vec;
+    std::transform(scores_flt.begin(), scores_flt.end(), std::back_inserter(scores_vec), [&](auto flt){ return migraphx::half(flt);} );
+    int64_t max_out_val = 4;
+    migraphx::half iou_val(0.5);
+    migraphx::half score_val(0.0f);
+
+    migraphx::parameter_map host_params;
+    host_params["boxes"]           = migraphx::argument(boxes_s, boxes_vec.data());
+    host_params["scores"]          = migraphx::argument(scores_s, scores_vec.data());
+    host_params["max_out"]         = migraphx::argument(int_scalar_s, &max_out_val);
+    host_params["iou_threshold"]   = migraphx::argument(scalar_s, &iou_val);
+    host_params["score_threshold"] = migraphx::argument(scalar_s, &score_val);
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
+    EXPECT(indices == gold);
+    EXPECT(num_selected == 3);
+}
+
 TEST_CASE(nms_identical_all_test)
 {
     migraphx::program p;

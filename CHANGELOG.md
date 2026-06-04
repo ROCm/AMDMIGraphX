@@ -27,6 +27,8 @@ Full documentation for MIGraphX is available at
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
+* Added driver warnings when inputs dimensions and/or values are not set (#4850).
+
 ### Changed
 
 * Converted `nonzero` operator from device implementation to JIT compilation (#4720).
@@ -42,9 +44,11 @@ Full documentation for MIGraphX is available at
 * Updated `bcast_qdq_instr` to accept an `axis` parameter for broadcasting 1-D scale/zero-point along the correct dimension.
 * Updated `QLinearConv` bias handling to dequantize bias using the product of input and weight scales before adding to the convolution output.
 * Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
+* Updated python API to allow getting and adding debug symbols from instructions. (#4803)
 
 ### Resolved issues
 
+* Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).
@@ -55,6 +59,7 @@ Full documentation for MIGraphX is available at
 * Fixed issue with `find_concat_op` matcher merging converted int32 inputs after bf16/fp16 quant during compilation (#4745)
 * Fixed `nonzero` GPU JIT kernel `block_scan` accumulator overflow that silently produced out-of-bounds writes for inputs with more than 255 nonzero elements; widened the predicate to `index_int`.
 * Fixed `scatternd_`* GPU JIT kernel and host reference op to read the `indices` tensor stride-aware (`begin_at`), so non-packed layouts produced by upstream `transpose`/`slice`/`concat` no longer collapse every write into the same output cell.
+* Fixed a regression in `simplify_reshapes` where `find_slice_shape_transforms` could trigger `same_dims: Dimensions do not match` when a slice's shape descriptor absorbed a `multibroadcast` on the sliced axis.
 
 ### Optimized
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).

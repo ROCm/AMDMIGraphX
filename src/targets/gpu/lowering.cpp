@@ -524,6 +524,7 @@ struct miopen_apply
         auto compact =
             mod->insert_instruction(ins, make_op("gpu::nms_compact"), bc_counts, raw_output);
         compact = insert_precompile_op(compact);
+        insert_fill(compact, 0);
 
         return mod->replace_instruction(ins, compact);
     }

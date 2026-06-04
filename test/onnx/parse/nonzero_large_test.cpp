@@ -21,31 +21,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT compile_ops
+TEST_CASE(nonzero_large_test)
 {
-    context* ctx         = nullptr;
-    bool exhaustive_tune = false;
-    std::string name() const { return "gpu::compile_ops"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::bool_type, {32, 32}};
+    auto data = mm->add_parameter("data", s);
+    auto r    = mm->add_instruction(migraphx::make_op("nonzero"), data);
+    mm->add_return({r});
 
-} // namespace gpu
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+    auto prog = read_onnx("nonzero_large_test.onnx");
+    EXPECT(p == prog);
+}

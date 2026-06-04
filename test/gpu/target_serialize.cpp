@@ -21,31 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+#include <migraphx/register_target.hpp>
+#include <migraphx/target.hpp>
+#include <migraphx/value.hpp>
+#include "test.hpp"
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
-
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT compile_ops
+TEST_CASE(gpu_target_to_value_with_options)
 {
-    context* ctx         = nullptr;
-    bool exhaustive_tune = false;
-    std::string name() const { return "gpu::compile_ops"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    auto t = migraphx::make_target("gpu", migraphx::value{{"gpu_arch", "gfx1100"}});
+    auto v = t.to_value();
+    CHECK(v.contains("gpu_arch"));
+    CHECK(v.at("gpu_arch").without_key().to<std::string>() == "gfx1100");
+}
 
-} // namespace gpu
+TEST_CASE(gpu_target_to_value_round_trip)
+{
+    auto t1 = migraphx::make_target("gpu", migraphx::value{{"gpu_arch", "gfx1100"}});
+    auto t2 = migraphx::make_target("gpu");
+    t2.from_value(t1.to_value());
+    CHECK(t2.name() == t1.name());
+    CHECK(t2.to_value() == t1.to_value());
+}
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

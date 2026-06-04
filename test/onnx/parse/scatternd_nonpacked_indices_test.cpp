@@ -21,31 +21,29 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
-#include <migraphx/gpu/config.hpp>
-#include <string>
+#include <onnx_test.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
-namespace gpu {
-
-struct context;
-
-struct MIGRAPHX_GPU_EXPORT compile_ops
+TEST_CASE(scatternd_nonpacked_indices_test)
 {
-    context* ctx         = nullptr;
-    bool exhaustive_tune = false;
-    std::string name() const { return "gpu::compile_ops"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    migraphx::program p;
+    auto* mm       = p.get_main_module();
+    const size_t n = 16;
 
-} // namespace gpu
+    std::vector<int64_t> raw_idx_vec(2 * n, 0);
+    for(size_t i = 0; i < n; ++i)
+        raw_idx_vec[n + i] = static_cast<int64_t>(n - 1 - i);
+    auto raw_indices = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2, n}}, raw_idx_vec});
 
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
+    auto data    = mm->add_parameter("data", {migraphx::shape::float_type, {1, n}});
+    auto updates = mm->add_parameter("updates", {migraphx::shape::float_type, {n}});
+
+    auto indices =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), raw_indices);
+    auto r = mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+    mm->add_return({r});
+
+    auto prog = read_onnx("scatternd_nonpacked_indices_test.onnx");
+    EXPECT(p == prog);
+}

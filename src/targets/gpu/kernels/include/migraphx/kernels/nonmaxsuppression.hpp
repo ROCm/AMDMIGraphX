@@ -117,7 +117,7 @@ nms_sorted_swap(Scores& scores, Indices& indices, Boxes& boxes, index_int i, ind
     swap(scores[i], scores[j]);
     swap(indices[i], indices[j]);
     for(index_int k = 0; k < 4; ++k)
-        swap(boxes[array<index_int, 3>{0, i, k}], boxes[array<index_int, 3>{0, j, k}]);
+        swap(boxes[make_array(0, i, k)], boxes[make_array(0, j, k)]);
 }
 
 // One block per (batch_idx, class_idx). Initializes the per-block slice of
@@ -166,10 +166,6 @@ __device__ void nonmaxsuppression_sort(const Boxes boxes_tv,
     auto my_sorted_indices =
         slice_tensor(sorted_indices, array<index_int, 2>{block_id, 0}, slice_axes<1>());
 
-    using scores_type  = typename SortedScores::type;
-    using boxes_type   = typename SortedBoxes::type;
-    using indices_type = typename SortedIndices::type;
-
     // Initialize sorted_* in place. Pad past NumBoxes with sentinels.
     idx.local_stride(AlignedNumBoxes, [&](auto i) {
         if(i < NumBoxes)
@@ -183,6 +179,9 @@ __device__ void nonmaxsuppression_sort(const Boxes boxes_tv,
         }
         else
         {
+            using scores_type  = typename SortedScores::type;
+            using boxes_type   = typename SortedBoxes::type;
+            using indices_type = typename SortedIndices::type;
             my_sorted_scores[i] = numeric_lowest<scores_type>();
             for(index_int k = 0; k < 4; ++k)
                 my_sorted_boxes[array<index_int, 3>{0, i, k}] = boxes_type{0};
@@ -278,6 +277,7 @@ __device__ void nms_filter_per_block(const index idx,
             [&](auto i) { removed[i] = (do_score_filter and sorted_scores[i] < score_thr); });
     __syncthreads();
     index_int output_idx = 0;
+    // sequential per-block step to match greedy NMS algorithm
     for(index_int i = 0; i < NumBoxes; ++i)
     {
         if(output_idx >= max_output)
@@ -294,6 +294,7 @@ __device__ void nms_filter_per_block(const index idx,
                 copy(tmp.begin(), tmp.end(), output_iter);
             }
             ++output_idx;
+            // parallel mask
             for(index_int j = i + 1 + idx.local; j < NumBoxes; j += idx.nlocal())
             {
                 removed[j] |= mask[nms_packed_idx(i, j, NumBoxes)];

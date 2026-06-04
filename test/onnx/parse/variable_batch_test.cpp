@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -119,6 +119,50 @@ TEST_CASE(variable_batch_user_input_test6)
     options.map_input_dims["0"]     = {2, 3, 16, 16};
 
     EXPECT(test::throws([&] { read_onnx("variable_batch_test.onnx", options); }));
+}
+
+TEST_CASE(variable_batch_symbolic_test)
+{
+    using namespace migraphx::sym;
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // The unnamed batch dim has no map_dyn_input_dims override, so parse_type synthesizes the
+    // symbol "0_d0" from the ranged default_dyn_dim_value; the fixed dims become literals.
+    auto l0 = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type,
+                        sym_dims({var("0_d0", {1, 4}), lit(3), lit(16), lit(16)})});
+    auto r = mm->add_instruction(migraphx::make_op("identity"), l0);
+    mm->add_return({r});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes   = true;
+    options.default_dyn_dim_value = {1, 4};
+
+    auto prog = read_onnx("variable_batch_test.onnx", options);
+
+    EXPECT(p == prog);
+}
+
+TEST_CASE(variable_batch_symbolic_map_dyn_input_test)
+{
+    using namespace migraphx::sym;
+    auto dims = [] { return sym_dims({var("n", {1, 4}), lit(3), lit(16), lit(16)}); };
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // map_dyn_input_dims supplies symbolic dims directly, overriding the model's input shape.
+    auto l0 = mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, dims()});
+    auto r  = mm->add_instruction(migraphx::make_op("identity"), l0);
+    mm->add_return({r});
+
+    migraphx::onnx_options options;
+    options.use_symbolic_shapes     = true;
+    options.map_dyn_input_dims["0"] = dims();
+
+    auto prog = read_onnx("variable_batch_test.onnx", options);
+
+    EXPECT(p == prog);
 }
 
 TEST_CASE(variable_batch_user_input_test7)

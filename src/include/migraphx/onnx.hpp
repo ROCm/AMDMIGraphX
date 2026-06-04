@@ -60,6 +60,8 @@ struct onnx_options
     bool use_dyn_output = false;
     /// Parse in ONNX node names as debug symbols
     bool use_debug_symbols = false;
+    /// Build shapes with symbolic dimensions, resolving ONNX dim_param names to sym::var
+    bool use_symbolic_shapes = false;
     /// Path to use for the external data if it is stored at different location compared to onnx
     /// file
     std::string external_data_path = "";

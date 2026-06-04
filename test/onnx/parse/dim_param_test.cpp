@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -52,5 +52,25 @@ TEST_CASE(dim_param_dynamic_test)
     opt.dim_params = {{"dim0", migraphx::shape::dynamic_dimension{1, 2}},
                       {"dim1", migraphx::shape::dynamic_dimension{2, 4}}};
     auto prog      = read_onnx("dim_param_test.onnx", opt);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(dim_param_symbolic_test)
+{
+    using migraphx::sym::var;
+    // use_symbolic_shapes maps each named dim to a sym::var; dim_params supplies its bounds.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0",
+                          migraphx::shape{migraphx::shape::float_type,
+                                          sym_dims({var("dim0", {1, 2}), var("dim1", {2, 4})})});
+    mm->add_return({input});
+
+    migraphx::onnx_options opt;
+    opt.use_symbolic_shapes = true;
+    opt.dim_params          = {{"dim0", migraphx::shape::dynamic_dimension{1, 2}},
+                               {"dim1", migraphx::shape::dynamic_dimension{2, 4}}};
+    auto prog               = read_onnx("dim_param_test.onnx", opt);
     EXPECT(p == prog);
 }

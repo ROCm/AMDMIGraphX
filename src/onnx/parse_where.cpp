@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,11 +40,30 @@ struct parse_where : op_parser<parse_where>
                           const onnx_parser::node_info& info,
                           std::vector<instruction_ref> args) const
     {
-        // TODO: broadcasting for dynamic shapes is only implemented
-        // for binary ops at time of writing, not ternary ops.
-        //   When it becomes available, add multibroadcasting steps in the dynamic shape case.
-        // For now for dynamic shapes, just insert the Where op.  All shapes must be the
-        // same for it to succeed.
+        // Symbolic inputs (no range-dynamic mixed in): broadcast to the common shape with
+        // single-input multibroadcasts, mirroring the static path.
+        bool any_symbolic =
+            std::any_of(args.begin(), args.end(), [](auto v) { return v->get_shape().symbolic(); });
+        bool any_range = std::any_of(args.begin(), args.end(), [](auto v) {
+            return v->get_shape().dynamic() and not v->get_shape().symbolic();
+        });
+        if(any_symbolic and not any_range)
+        {
+            auto c_dyn_dims = compute_common_dyn_dims(to_shapes(args));
+            for(auto& arg : args)
+            {
+                auto s = arg->get_shape();
+                if(not(s.symbolic() and s.dyn_dims() == c_dyn_dims))
+                {
+                    arg = info.add_instruction(
+                        make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), arg);
+                }
+            }
+            return info.add_instruction(make_op("where"), args[0], args[1], args[2]);
+        }
+
+        // Range-based dynamic shapes don't support ternary broadcasting; all shapes must match
+        // for the where op to succeed.
         if(std::all_of(args.begin(), args.end(), [](auto v) { return v->get_shape().dynamic(); }))
         {
             return info.add_instruction(make_op("where"), args[0], args[1], args[2]);

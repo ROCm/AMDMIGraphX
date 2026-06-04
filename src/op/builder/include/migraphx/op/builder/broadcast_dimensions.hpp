@@ -77,8 +77,6 @@ void broadcast_dimensions_dynamic(Builder& bldr,
                                   instruction_ref& ba0,
                                   instruction_ref& ba1)
 {
-    std::cout << "broadcast_dimensions_dynamic\n";
-
     auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
     auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
 
@@ -86,6 +84,41 @@ void broadcast_dimensions_dynamic(Builder& bldr,
     {
         ba0 = bldr.add_instruction(make_op("broadcast_for_dot"), a0, a1);
         ba1 = bldr.add_instruction(make_op("broadcast_for_dot"), a1, a0);
+    }
+}
+
+template <typename Builder>
+void broadcast_dimensions_symbolic(Builder& bldr,
+                                   const instruction_ref& a0,
+                                   const instruction_ref& a1,
+                                   instruction_ref& ba0,
+                                   instruction_ref& ba1)
+{
+    auto s0_dds = a0->get_shape().to_symbolic().dyn_dims();
+    auto s1_dds = a1->get_shape().to_symbolic().dyn_dims();
+
+    // broadcast if dimensions other than last two do not match
+    if(std::equal(s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
+        return;
+
+    auto l0_it = s0_dds.begin() + s0_dds.size() - 2;
+    std::vector<shape::dynamic_dimension> l0_dds(s0_dds.begin(), l0_it);
+    auto l1_it = s1_dds.begin() + s1_dds.size() - 2;
+    std::vector<shape::dynamic_dimension> l1_dds(s1_dds.begin(), l1_it);
+    auto out_dds = compute_broadcasted_dyn_dims(l0_dds, l1_dds);
+    l0_dds       = out_dds;
+    l0_dds.insert(l0_dds.end(), l0_it, s0_dds.end());
+    l1_dds = out_dds;
+    l1_dds.insert(l1_dds.end(), l1_it, s1_dds.end());
+    if(s0_dds != l0_dds)
+    {
+        ba0 = bldr.add_instruction(make_op("multibroadcast", {{"out_dyn_dims", to_value(l0_dds)}}),
+                                   a0);
+    }
+    if(s1_dds != l1_dds)
+    {
+        ba1 = bldr.add_instruction(make_op("multibroadcast", {{"out_dyn_dims", to_value(l1_dds)}}),
+                                   a1);
     }
 }
 
@@ -98,7 +131,14 @@ void broadcast_dimensions(Builder& bldr,
                           instruction_ref& ba0,
                           instruction_ref& ba1)
 {
-    if(a0->get_shape().dynamic() or a1->get_shape().dynamic())
+    bool any_symbolic = a0->get_shape().symbolic() or a1->get_shape().symbolic();
+    bool any_range    = (a0->get_shape().dynamic() and not a0->get_shape().symbolic()) or
+                     (a1->get_shape().dynamic() and not a1->get_shape().symbolic());
+    if(any_symbolic and not any_range)
+    {
+        detail::broadcast_dimensions_symbolic(bldr, a0, a1, ba0, ba1);
+    }
+    else if(a0->get_shape().dynamic() or a1->get_shape().dynamic())
     {
         detail::broadcast_dimensions_dynamic(bldr, a0, a1, ba0, ba1);
     }

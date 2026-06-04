@@ -36,6 +36,7 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/env.hpp>
 #include <onnx.pb.h>
 #include <iomanip>
@@ -132,16 +133,21 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
     if(args.size() == 3)
     {
         instruction_ref bias_bcast;
-        // if curr_ins has a dynamic output shape use 2 input broadcast
-        if(curr_ins->get_shape().dynamic())
+        const auto& s = curr_ins->get_shape();
+        if(s.symbolic())
+        {
+            bias_bcast = add_instruction(
+                make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", to_value(s.dyn_dims())}}),
+                args[2]);
+        }
+        else if(s.dynamic())
         {
             bias_bcast = add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
         }
         else
         {
             bias_bcast = add_instruction(
-                make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
-                args[2]);
+                make_op("broadcast", {{"axis", axis}, {"out_lens", s.lens()}}), args[2]);
         }
         return add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
@@ -404,7 +410,7 @@ parse_inputs(const onnx_parser& parser,
             }
             else
             {
-                s = parser.parse_type(input.type());
+                s = parser.parse_type(input.type(), name);
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -850,38 +856,60 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t) const
+shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
-    std::transform(tensor_dims.begin(),
-                   tensor_dims.end(),
-                   std::back_inserter(dynamic_dims),
-                   [&](auto&& d) -> shape::dynamic_dimension {
-                       if(d.has_dim_param())
-                       {
-                           const auto& dim_param = d.dim_param();
-                           if(contains(dim_params, dim_param))
-                           {
-                               return dim_params.at(dim_param);
-                           }
-                       }
-                       if(d.has_dim_value())
-                       {
-                           if(static_cast<int>(d.dim_value()) <= 0)
-                           {
-                               return default_dyn_dim_value;
-                           }
-                           std::size_t tmp = d.dim_value();
-                           return {tmp, tmp};
-                       }
-                       else
-                       {
-                           return default_dyn_dim_value;
-                       }
-                   });
+    // Fallback for a dim with no name and no value. default_dyn_dim_value supplies the bounds.
+    auto resolve_default = [&](int axis) -> shape::dynamic_dimension {
+        if(not use_symbolic_shapes)
+            return default_dyn_dim_value;
+        auto iv = default_dyn_dim_value.get_interval();
+        // A single-value default is a constant, so emit it as a literal.
+        if(default_dyn_dim_value.is_fixed())
+            return shape::dynamic_dimension{sym::lit(iv.min)};
+        // A ranged default is dynamic: name it "<input>_d<axis>" (onnxruntime's scheme for
+        // unnamed dims) so each unknown axis becomes its own symbol.
+        return shape::dynamic_dimension{
+            sym::var(name + "_d" + std::to_string(axis),
+                     {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)})};
+    };
+    auto parse_dim = [&](const auto& d, int axis) -> shape::dynamic_dimension {
+        if(d.has_dim_param())
+        {
+            const auto& dim_param = d.dim_param();
+            if(use_symbolic_shapes)
+            {
+                const auto& bounds = contains(dim_params, dim_param) ? dim_params.at(dim_param)
+                                                                     : default_dyn_dim_value;
+                auto iv            = bounds.get_interval();
+                return shape::dynamic_dimension{sym::var(
+                    dim_param, {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)})};
+            }
+            if(contains(dim_params, dim_param))
+            {
+                return dim_params.at(dim_param);
+            }
+        }
+        if(d.has_dim_value())
+        {
+            if(static_cast<int>(d.dim_value()) <= 0)
+            {
+                return resolve_default(axis);
+            }
+            if(use_symbolic_shapes)
+            {
+                return shape::dynamic_dimension{sym::lit(d.dim_value())};
+            }
+            std::size_t tmp = d.dim_value();
+            return {tmp, tmp};
+        }
+        return resolve_default(axis);
+    };
+    for(int axis = 0; axis < tensor_dims.size(); ++axis)
+        dynamic_dims.push_back(parse_dim(tensor_dims[axis], axis));
 
     if(dynamic_dims.empty())
     {

@@ -338,7 +338,8 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or solutions.size() == 1)
+                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or ctx->is_cross_compile() or
+                   solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
@@ -528,7 +529,7 @@ struct compile_manager
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
-    void compile(module& m)
+    void compile(module& m, bool is_root)
     {
         std::vector<std::function<void()>> compiles;
         for(auto& cp : cps)
@@ -559,7 +560,11 @@ struct compile_manager
             }
         }
 
-        if(dump_mxr)
+        // Only throw on the root module so that submodules (which are processed
+        // first by the pass manager and may legitimately have no precompile ops
+        // or no multi-solution candidates) don't abort compilation before the
+        // root module has had a chance to dump its benchmark MXR files.
+        if(dump_mxr and is_root)
         {
             MIGRAPHX_THROW(
                 "Benchmark MXR files dumped to " + mxr_path +
@@ -574,8 +579,10 @@ struct compile_manager
     }
 };
 
-void compile_ops::apply(module& m) const
+void compile_ops::apply(module_pass_manager& mpm) const
 {
+    bool is_root = &mpm.get_module() == mpm.get_root_module();
+    auto& m      = mpm.get_module();
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
     // Find all precompile ops
@@ -587,9 +594,9 @@ void compile_ops::apply(module& m) const
         cm.add_plan(ctx, preop, ins, &m);
     }
     cm.update_configs();
-    cm.compile(m);
+    cm.compile(m, is_root);
     // Compile already tuned configs
-    cm.compile(m);
+    cm.compile(m, is_root);
     assert(cm.cps.empty());
 }
 

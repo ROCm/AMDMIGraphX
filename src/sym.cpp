@@ -615,6 +615,9 @@ static int64_t eval_direct(const expr_ptr& e, const binding_map& bindings)
         auto it = bindings.find(node);
         if(it != bindings.end())
             return it->second;
+        // Fall back to the symbol's own bounds when fixed (min == max).
+        if(d.min == d.max)
+            return d.min;
         MIGRAPHX_THROW("sym::expr::eval_uint: unbound symbol '" + d.name + "'");
     });
 }

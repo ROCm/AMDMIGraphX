@@ -361,6 +361,12 @@ constexpr auto make_const_array(T x, Ts... xs)
 }
 
 template <class T, class N, class F>
+constexpr auto generate_const_array(N n, F f)
+{
+    return sequence_c<n>([=](auto... is) { return make_const_array(f(is)...); });
+}
+
+template <class T, class N, class F>
 constexpr auto generate_array(N n, F f)
 {
     return sequence_c<n>([=](auto... is) { return array<T, n>{f(is)...}; });

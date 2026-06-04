@@ -92,16 +92,14 @@ tmp_dir::~tmp_dir()
 {
     if(not enabled(MIGRAPHX_DEBUG_SAVE_TEMP_DIR{}))
     {
-        constexpr int max_retries_count = 5;
-        for([[maybe_unused]] auto count : range(max_retries_count))
+        std::error_code ec;
+        fs::remove_all(path, ec);
+#ifndef _WIN32
+        if(ec)
         {
-            std::error_code ec;
-            fs::remove_all(path, ec);
-            if(not ec)
-                break;
-            log::warn() << "Failed to remove " << path << ": " << ec.message();
-            std::this_thread::sleep_for(std::chrono::milliseconds(125));
+            log::info() << "Failed to remove " << path << ": " << ec.message();
         }
+#endif
     }
 }
 

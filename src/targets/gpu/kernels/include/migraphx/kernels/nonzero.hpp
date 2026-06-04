@@ -53,7 +53,7 @@ __device__ void nonzero(Input input, Output output)
     block_scan(
         idx,
         op::sum{},
-        index_int{0},
+        0,
         elem_num,
         [&](auto j) -> index_int { return float_equal(input[j], 0) ? 0 : 1; },
         [&](auto j, auto value) {

@@ -44,7 +44,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
-* Fixed the `migraphx-driver` `--default-dyn-dim` and `--dyn-input-dim` flags rejecting the documented flat `{min,max,optimals}` JSON form. After the `dynamic_dimension` refactor moved its bounds under a nested `range` field, the flat form silently produced a zero-sized dimension (turning a named dynamic axis into a static 0 and crashing shape inference); the driver now parses the flat form explicitly while still accepting the nested form (#4926).
+* Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
 * Fixed an issue in `propagate_precision` pass where precision could be incorrectly propagated across type boundaries (e.g., from integral to floating-point) (#4603).

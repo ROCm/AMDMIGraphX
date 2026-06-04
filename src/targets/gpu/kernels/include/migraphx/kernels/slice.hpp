@@ -94,6 +94,7 @@ constexpr auto nslices(Shape input, Ss... ss)
     return input.elements() / as.elements();
 }
 
+// Selector that regroups such that the inner shape's last dimension is N times wider.
 template <index_int N>
 constexpr auto slice_group()
 {
@@ -108,18 +109,25 @@ constexpr auto slice_group()
     }};
 }
 
+// Selector that splits so the inner_shape has 1/N the elements.
 template <index_int N>
 constexpr auto slice_split()
 {
     return slice_size_transform{[](auto, auto s) { return s.elements() / _c<N>; }};
 }
 
+// Selector that marks `Axes` as inner dimensions.
 template <diff_int... Axes>
 constexpr auto slice_axes()
 {
     return [](auto, auto i, auto n) { return ((Axes < 0 ? i == (n + Axes) : i == Axes) or ...); };
 }
 
+// Build a tensor_view from a sliced portion of `input`.
+// `start`: Starting index as an array in multi-dimensional index form.
+// `ss`: Slice selectors that define what is kept (inner) in the output tensor_view.
+// ex. `tensor[b, c, :] from `[B, C, N]` tensor:
+//  auto row = slice_tensor(t, array<index_int, 3>{b, c, 0}, slice_axes<2>());
 template <class Input, class T, class... Ss>
 constexpr auto slice_tensor(Input input, T start, Ss... ss)
 {
@@ -135,6 +143,9 @@ constexpr auto slice_tensor(Input input, T start, Ss... ss)
     return make_tensor_view(input.data() + offset, inner_shape);
 }
 
+// Schedule a kernel body over per-slice tensor views.
+// `Schedule`:  How the slices are dispatched to workgroups. Ex: per_block.
+// `ss`: Slice selectors that define what is kept (inner).
 template <class Schedule, class... Ss>
 constexpr auto slice_schedule(index idx, Ss... ss)
 {

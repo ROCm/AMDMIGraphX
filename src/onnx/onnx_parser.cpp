@@ -910,6 +910,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name)
         }
         return resolve_default(axis);
     };
+    dynamic_dims.reserve(tensor_dims.size());
     for(int axis = 0; axis < tensor_dims.size(); ++axis)
         dynamic_dims.push_back(parse_dim(tensor_dims[axis], axis));
 

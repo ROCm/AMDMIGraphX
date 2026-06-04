@@ -123,7 +123,8 @@ TEST_CASE(variable_batch_user_input_test6)
 
 TEST_CASE(variable_batch_symbolic_test)
 {
-    using namespace migraphx::sym;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
     migraphx::program p;
     auto* mm = p.get_main_module();
     // The unnamed batch dim has no map_dyn_input_dims override, so parse_type synthesizes the
@@ -146,7 +147,8 @@ TEST_CASE(variable_batch_symbolic_test)
 
 TEST_CASE(variable_batch_symbolic_map_dyn_input_test)
 {
-    using namespace migraphx::sym;
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
     auto dims = [] { return sym_dims({var("n", {1, 4}), lit(3), lit(16), lit(16)}); };
 
     migraphx::program p;

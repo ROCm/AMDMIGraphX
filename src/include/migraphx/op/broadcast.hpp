@@ -81,19 +81,18 @@ struct broadcast
                        const Zero& zero) const
     {
         if(axis >= target.size())
-            MIGRAPHX_THROW("BROADCAST : axis " + migraphx::to_string(axis) +
-                           " is out of range for target of rank " +
-                           migraphx::to_string(target.size()));
+            MIGRAPHX_THROW("BROADCAST : axis " + std::to_string(axis) +
+                           " is out of range for target of rank " + std::to_string(target.size()));
         if(target.size() - axis < in_dims.size())
-            MIGRAPHX_THROW("BROADCAST: (target rank " + migraphx::to_string(target.size()) +
-                           " - axis " + migraphx::to_string(axis) + ") is less than input rank " +
-                           migraphx::to_string(in_dims.size()));
+            MIGRAPHX_THROW("BROADCAST: (target rank " + std::to_string(target.size()) + " - axis " +
+                           std::to_string(axis) + ") is less than input rank " +
+                           std::to_string(in_dims.size()));
         for(std::size_t i = 0; i < in_dims.size(); ++i)
         {
             if(target[axis + i] != in_dims[i])
                 MIGRAPHX_THROW(
                     "BROADCAST: when broadcasting, succeeding sizes must match at axis " +
-                    migraphx::to_string(axis + i) + ": input dims {" + to_string_range(in_dims) +
+                    std::to_string(axis + i) + ": input dims {" + to_string_range(in_dims) +
                     "} into target dims {" + to_string_range(target) + "}");
         }
         std::vector<Zero> bcast_strides(target.size(), zero);
@@ -141,7 +140,7 @@ struct broadcast
     {
         if(s0.ndim() != 1)
         {
-            MIGRAPHX_THROW("BROADCAST_2in: s0 has ndim " + migraphx::to_string(s0.ndim()) +
+            MIGRAPHX_THROW("BROADCAST_2in: s0 has ndim " + std::to_string(s0.ndim()) +
                            ", only handle ndim = 1");
         }
 
@@ -155,8 +154,8 @@ struct broadcast
 
         if(axis >= s1.ndim())
         {
-            MIGRAPHX_THROW("BROADCAST_2in: axis " + migraphx::to_string(axis) +
-                           " is out of range for s1 of rank " + migraphx::to_string(s1.ndim()));
+            MIGRAPHX_THROW("BROADCAST_2in: axis " + std::to_string(axis) +
+                           " is out of range for s1 of rank " + std::to_string(s1.ndim()));
         }
 
         // Range-based dynamic s0 alone is not supported.
@@ -183,8 +182,8 @@ struct broadcast
         {
             MIGRAPHX_THROW("BROADCAST_2in: s0 length doesn't match with static s1 axis "
                            "dimension length (" +
-                           migraphx::to_string(s0.lens()[0]) +
-                           " != " + migraphx::to_string(s1.lens()[axis]) + ")");
+                           std::to_string(s0.lens()[0]) + " != " + std::to_string(s1.lens()[axis]) +
+                           ")");
         }
         std::vector<size_t> bcast_strides(s1.ndim(), 0);
         std::copy(s0.strides().begin(), s0.strides().end(), bcast_strides.begin() + axis);

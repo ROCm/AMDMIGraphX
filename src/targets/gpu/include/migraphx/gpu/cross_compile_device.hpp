@@ -21,21 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
+#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
 
-#include <onnx_test.hpp>
+#include <migraphx/gpu/export.h>
+#include <migraphx/config.hpp>
+#include <hip/hip_runtime_api.h>
+#include <string>
 
-TEST_CASE(where_mixed_test)
-{
-    // Mixed static + dynamic where inputs broadcast to a common
-    // shape via add_common_op(). The static
-    // input y={3,2,2} pins the broadcasted dimension, so the result has
-    // fixed dims {3,2,2}.
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    auto prog                     = read_onnx("where_mixed_test.onnx", options);
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-    auto out_shapes = prog.get_output_shapes();
-    EXPECT(out_shapes.size() == 1);
-    migraphx::shape expected{migraphx::shape::float_type, {{3, 3}, {2, 2}, {2, 2}}};
-    EXPECT(out_shapes.front() == expected);
-}
+/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
+/// Used when no physical GPU is present.
+MIGRAPHX_GPU_EXPORT hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name,
+                                                                    std::size_t cu_count);
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

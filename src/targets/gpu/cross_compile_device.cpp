@@ -21,21 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/gpu/cross_compile_device.hpp>
+#include <algorithm>
 
-#include <onnx_test.hpp>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
 
-TEST_CASE(where_mixed_test)
+hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, std::size_t cu_count)
 {
-    // Mixed static + dynamic where inputs broadcast to a common
-    // shape via add_common_op(). The static
-    // input y={3,2,2} pins the broadcasted dimension, so the result has
-    // fixed dims {3,2,2}.
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    auto prog                     = read_onnx("where_mixed_test.onnx", options);
-
-    auto out_shapes = prog.get_output_shapes();
-    EXPECT(out_shapes.size() == 1);
-    migraphx::shape expected{migraphx::shape::float_type, {{3, 3}, {2, 2}, {2, 2}}};
-    EXPECT(out_shapes.front() == expected);
+    hipDeviceProp_t props{};
+    auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
+    std::copy_n(arch_name.begin(), n, props.gcnArchName);
+    props.gcnArchName[n] = '\0';
+    // these are placeholders
+    props.warpSize                    = 64;
+    props.maxThreadsPerMultiProcessor = 2048;
+    props.maxThreadsPerBlock          = 1024;
+    props.multiProcessorCount         = cu_count;
+    return props;
 }
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx

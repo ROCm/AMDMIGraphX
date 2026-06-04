@@ -135,13 +135,19 @@ TEST_CASE(nms_fp16_test)
                             score_threshold);
     add_nms_return(mm, nms);
 
-    std::vector<float> boxes_flt  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    std::vector<float> boxes_flt = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     std::vector<migraphx::half> boxes_vec;
-    std::transform(boxes_flt.begin(), boxes_flt.end(), std::back_inserter(boxes_vec), [&](auto flt){ return migraphx::half(flt);} );
+    std::transform(boxes_flt.begin(),
+                   boxes_flt.end(),
+                   std::back_inserter(boxes_vec),
+                   [&](auto flt) { return migraphx::half(flt); });
     std::vector<float> scores_flt = {0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
     std::vector<migraphx::half> scores_vec;
-    std::transform(scores_flt.begin(), scores_flt.end(), std::back_inserter(scores_vec), [&](auto flt){ return migraphx::half(flt);} );
+    std::transform(scores_flt.begin(),
+                   scores_flt.end(),
+                   std::back_inserter(scores_vec),
+                   [&](auto flt) { return migraphx::half(flt); });
     int64_t max_out_val = 4;
     migraphx::half iou_val(0.5);
     migraphx::half score_val(0.0f);
@@ -1149,8 +1155,22 @@ TEST_CASE(nms_ties_no_overlap_test)
     add_nms_return(mm, nms);
 
     // 4 disjoint unit boxes in corner format [y1, x1, y2, x2]; identical scores.
-    std::vector<float> boxes_vec  = {0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 2.0f, 1.0f, 3.0f,
-                                     2.0f, 0.0f, 3.0f, 1.0f, 2.0f, 2.0f, 3.0f, 3.0f};
+    std::vector<float> boxes_vec  = {0.0f,
+                                     0.0f,
+                                     1.0f,
+                                     1.0f,
+                                     0.0f,
+                                     2.0f,
+                                     1.0f,
+                                     3.0f,
+                                     2.0f,
+                                     0.0f,
+                                     3.0f,
+                                     1.0f,
+                                     2.0f,
+                                     2.0f,
+                                     3.0f,
+                                     3.0f};
     std::vector<float> scores_vec = {0.5f, 0.5f, 0.5f, 0.5f};
 
     migraphx::parameter_map host_params;
@@ -1234,10 +1254,22 @@ TEST_CASE(nms_iou_at_threshold_test)
 
     //   boxes 0 & 1: IoU = 1/2 = 0.5 exactly (== threshold => both kept)
     //   boxes 2 & 3: IoU = 1/1.99 ~ 0.5025 (>  threshold => box 3 suppressed)
-    std::vector<float> boxes_vec  = {0.0f,  0.0f, 1.0f,  1.0f,   // 0: area 1
-                                     0.0f,  0.0f, 1.0f,  2.0f,   // 1: area 2, contains 0
-                                     10.0f, 0.0f, 11.0f, 1.0f,   // 2: area 1
-                                     10.0f, 0.0f, 11.0f, 1.99f}; // 3: area 1.99, contains 2
+    std::vector<float> boxes_vec  = {0.0f,
+                                     0.0f,
+                                     1.0f,
+                                     1.0f, // 0: area 1
+                                     0.0f,
+                                     0.0f,
+                                     1.0f,
+                                     2.0f, // 1: area 2, contains 0
+                                     10.0f,
+                                     0.0f,
+                                     11.0f,
+                                     1.0f, // 2: area 1
+                                     10.0f,
+                                     0.0f,
+                                     11.0f,
+                                     1.99f}; // 3: area 1.99, contains 2
     std::vector<float> scores_vec = {0.95f, 0.90f, 0.85f, 0.80f};
 
     migraphx::parameter_map host_params;
@@ -1284,8 +1316,22 @@ TEST_CASE(nms_quantized_ties_test)
         9.0910f,  13.9862f, 13.1301f, 19.9012f, 8.3528f,  27.5150f, 13.7414f, 31.8750f,
         7.6461f,  18.8768f, 12.2050f, 23.2970f, 13.3523f, 15.4235f, 18.3194f, 19.9755f,
         15.1364f, 14.9062f, 17.5024f, 19.6120f, 16.6049f, 7.4254f,  20.7695f, 10.0286f};
-    std::vector<float> scores_vec = {0.4f, 0.2f, 0.4f, 0.1f, 1.0f, 0.2f, 0.7f, 0.3f,
-                                     0.9f, 0.7f, 0.1f, 0.8f, 0.9f, 0.9f, 0.6f, 0.1f};
+    std::vector<float> scores_vec = {0.4f,
+                                     0.2f,
+                                     0.4f,
+                                     0.1f,
+                                     1.0f,
+                                     0.2f,
+                                     0.7f,
+                                     0.3f,
+                                     0.9f,
+                                     0.7f,
+                                     0.1f,
+                                     0.8f,
+                                     0.9f,
+                                     0.9f,
+                                     0.6f,
+                                     0.1f};
 
     migraphx::parameter_map host_params;
     host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
@@ -1293,8 +1339,8 @@ TEST_CASE(nms_quantized_ties_test)
 
     auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
     indices.resize(static_cast<std::size_t>(num_selected) * 3);
-    std::vector<int64_t> gold = {0, 0, 4,  0, 0, 8, 0, 0, 12, 0, 0, 13, 0, 0, 11,
-                                 0, 0, 6,  0, 0, 0, 0, 0, 2,  0, 0, 1,  0, 0, 5};
+    std::vector<int64_t> gold = {0, 0, 4, 0, 0, 8, 0, 0, 12, 0, 0, 13, 0, 0, 11,
+                                 0, 0, 6, 0, 0, 0, 0, 0, 2,  0, 0, 1,  0, 0, 5};
     EXPECT(indices == gold);
     EXPECT(num_selected == 10);
 }

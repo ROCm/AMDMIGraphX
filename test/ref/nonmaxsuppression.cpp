@@ -437,3 +437,40 @@ TEST_CASE(nms_dyn_different_spatial_ranges_test)
     std::vector<int64_t> gold = {0, 0, 3, 0, 0, 0, 0, 0, 5};
     EXPECT(migraphx::verify::verify_rms_range(result, gold));
 }
+
+// The nonmaxsuppression op produces a tuple {selected_indices, num_selected}.
+// Returning the tuple directly without get_tuple_elem makes the program output
+// a tuple-typed argument, and visiting it throws "Invalid tuple type".
+TEST_CASE(nms_no_get_tuple_elem_fails_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    std::vector<float> scores_vec = {0.9, 0.75, 0.6, 0.95, 0.5, 0.3};
+
+    auto boxes_l         = mm->add_literal(migraphx::literal(boxes_s, boxes_vec));
+    auto scores_l        = mm->add_literal(migraphx::literal(scores_s, scores_vec));
+    auto max_out_l       = mm->add_literal(int64_t{4});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto nms =
+        mm->add_instruction(migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
+                            boxes_l,
+                            scores_l,
+                            max_out_l,
+                            iou_threshold,
+                            score_threshold);
+    mm->add_return({nms});
+
+    p.compile(migraphx::make_target("ref"));
+    auto output = p.eval({}).back();
+    EXPECT(test::throws([&] {
+        std::vector<int64_t> result;
+        output.visit([&](auto out) { result.assign(out.begin(), out.end()); });
+    }));
+}

@@ -151,7 +151,7 @@ struct nms_sort_compiler : compiler<nms_sort_compiler>
         const auto num_boxes                = boxes_s.lens()[1];
         const auto num_classes              = scores_s.lens()[1];
         const std::size_t aligned_num_boxes = bit_ceil(num_boxes);
-        auto block_size = compute_block_size(ctx, aligned_num_boxes, 1024);
+        auto block_size                     = compute_block_size(ctx, aligned_num_boxes, 1024);
 
         hip_compile_options options;
         options.inputs         = flatten_tuple_shapes(inputs);

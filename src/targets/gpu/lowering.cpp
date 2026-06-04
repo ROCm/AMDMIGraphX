@@ -458,8 +458,8 @@ struct miopen_apply
             const auto& scores_s = ins->inputs()[1]->get_shape();
             if(boxes_s.dynamic() or scores_s.dynamic())
                 return lower_nms_to_ref(ins);
-            const auto num_boxes  = boxes_s.lens().at(1);
-            const auto num_bc = boxes_s.lens().at(0) * scores_s.lens().at(1);
+            const auto num_boxes = boxes_s.lens().at(1);
+            const auto num_bc    = boxes_s.lens().at(0) * scores_s.lens().at(1);
             // bound on (batch, class) from shared memory limit on compact kernel
             if(num_boxes < 2 or num_bc > 8192)
                 return lower_nms_to_ref(ins);

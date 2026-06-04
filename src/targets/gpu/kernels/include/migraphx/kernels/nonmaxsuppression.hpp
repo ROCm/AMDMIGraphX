@@ -338,28 +338,29 @@ __device__ void nonmaxsuppression_filter(const SortedScores sorted_scores,
     static_assert(NumClasses > 0);
     static_assert(NumBoxes > 1);
 
-    auto idx                  = make_index();
+    auto idx = make_index();
     // Read scalar tensor inputs
     const int max_output_boxes_per_class = max_out_p[0];
     const float iou_thr_val              = iou_thr_p[0];
     const float score_thr_val            = score_thr_p[0];
 
-    slice_schedule<per_block>(idx, slice_axes<1>())(
-        sorted_scores, sorted_indices, mask)([&](auto my_sorted_scores, auto my_sorted_indices, auto my_mask) {
-        slice_schedule<per_block>(idx, slice_axes<1, 2>())(sorted_boxes, output)([&](auto my_sorted_boxes, auto my_output) {
-            nms_make_iou_mask<NumBoxes>(idx, my_sorted_boxes, my_mask, iou_thr_val);
+    slice_schedule<per_block>(idx, slice_axes<1>())(sorted_scores, sorted_indices, mask)(
+        [&](auto my_sorted_scores, auto my_sorted_indices, auto my_mask) {
+            slice_schedule<per_block>(idx, slice_axes<1, 2>())(sorted_boxes, output)(
+                [&](auto my_sorted_boxes, auto my_output) {
+                    nms_make_iou_mask<NumBoxes>(idx, my_sorted_boxes, my_mask, iou_thr_val);
 
-            __syncthreads();
-            nms_filter_per_block<NumBoxes, NumClasses>(idx,
-                                                       my_sorted_scores,
-                                                       my_sorted_indices,
-                                                       my_mask,
-                                                       max_output_boxes_per_class,
-                                                       score_thr_val,
-                                                       my_output,
-                                                       bc_counts);
+                    __syncthreads();
+                    nms_filter_per_block<NumBoxes, NumClasses>(idx,
+                                                               my_sorted_scores,
+                                                               my_sorted_indices,
+                                                               my_mask,
+                                                               max_output_boxes_per_class,
+                                                               score_thr_val,
+                                                               my_output,
+                                                               bc_counts);
+                });
         });
-    });
 }
 
 // Move batch/class box index entries to the beginning of the output buffer. Runs with 1 block.

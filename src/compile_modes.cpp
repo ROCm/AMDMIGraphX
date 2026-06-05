@@ -35,25 +35,25 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 compile_modes convert_to_compile_mode(uint8_t mode)
 {
-    uint8_t clamped = std::clamp<int>(mode, 0, 100);
+    int clamped = std::clamp<int>(mode, 0, 100);
     if(clamped != mode)
-        log::warn() << "Compile mode value " << static_cast<int>(mode)
-                    << " out of range [0, 100], clamping to " << static_cast<int>(clamped);
+        log::warn() << "Compile mode value " << mode
+                    << " out of range [0, 100], clamping to " << clamped;
 
     static const std::array<compile_modes, 3> modes = {
         compile_modes::eager, compile_modes::balanced, compile_modes::max};
 
     // NOLINTNEXTLINE(readability-qualified-auto)
     auto it = std::find_if(modes.begin(), modes.end(), [&](compile_modes m) {
-        return static_cast<uint8_t>(m) == clamped;
+        return static_cast<int>(m) == clamped;
     });
     if(it != modes.end())
         return *it;
 
-    log::warn() << "Compile mode value " << static_cast<int>(clamped)
+    log::warn() << "Compile mode value " << clamped
                 << " does not match a known mode, using closest match";
     return *std::min_element(modes.begin(), modes.end(), by(std::less<>{}, [&](compile_modes m) {
-                                 return std::abs(static_cast<int>(clamped) - static_cast<int>(m));
+                                 return std::abs(clamped - static_cast<int>(m));
                              }));
 }
 
@@ -66,19 +66,12 @@ compile_modes convert_to_compile_mode(const std::string& mode)
         return compile_modes::balanced;
     if(lower == "max")
         return compile_modes::max;
-    try
-    {
-        int val = std::stoi(mode);
-        if(val < 0 or val > 100)
-            log::warn() << "Compile mode value " << val << " out of range [0, 100], clamping to "
-                        << std::clamp(val, 0, 100);
-        return convert_to_compile_mode(static_cast<uint8_t>(std::clamp(val, 0, 100)));
-    }
-    catch(const std::invalid_argument&)
-    {
-        MIGRAPHX_THROW("Invalid compile mode: " + mode +
-                       ". Expected eager, balanced, max, or an integer 0-100");
-    }
+
+    int val = std::stoi(mode);
+    if(val < 0 or val > 100)
+        log::warn() << "Compile mode value " << val << " out of range [0, 100], clamping to "
+                    << std::clamp(val, 0, 100);
+    return convert_to_compile_mode(std::clamp(val, 0, 100));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

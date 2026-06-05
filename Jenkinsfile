@@ -239,6 +239,10 @@ def rocmtest = { Map conf = [:], Closure body ->
     def image = conf.get("image", DOCKER_IMAGE)
     def imageTag = conf.get("imageTag", env.IMAGE_TAG)
     def ccache = "/workspaces/.cache/ccache"
+    def comgr_cache = "/workspaces/.cache/comgr_cache"
+    
+    env.AMD_COMGR_CACHE = 1
+    env.AMD_COMGR_CACHE_DIR = comgr_cache
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
     env.HSA_ENABLE_SDMA = 0
@@ -247,6 +251,8 @@ def rocmtest = { Map conf = [:], Closure body ->
         def docker_opts
         stage("setup ${variant}") {
             sh 'printenv'
+            mkdir -p "${ccache}"
+            mkdir -p "${comgr_cache}"
             checkout scm
             setup()
 

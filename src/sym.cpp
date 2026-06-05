@@ -2169,7 +2169,7 @@ static migraphx::value expr_to_value(const sym::expr& e)
     if(e.empty())
         return {};
     migraphx::value result;
-    std::visit(
+    visit(
         [&](const auto& n) {
             using t = std::decay_t<decltype(n)>;
             if constexpr(std::is_same<t, sym::literal_node>{})

@@ -56,8 +56,8 @@ struct mlss_conv_op
     std::vector<std::size_t> padding{};
     std::vector<std::size_t> stride{1, 1};
     std::vector<std::size_t> dilation{1, 1};
-    std::size_t group       = 1;
-    bool has_bias           = false;
+    std::size_t group = 1;
+    bool has_bias     = false;
     // The cast is needed (enum class → uint8_t isn't implicit)
     // cppcheck-suppress migraphx-RedundantCast
     uint8_t activation_mode = static_cast<uint8_t>(mlss_activation_mode::identity);

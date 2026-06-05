@@ -56,7 +56,9 @@ constexpr migraphx::half to_native(__half x) { return bit_cast<migraphx::half>(x
 
 template <class T>
 constexpr auto to_hip(T x)
-{ return x; }
+{
+    return x;
+}
 constexpr __half to_hip(migraphx::half x) { return bit_cast<__half>(x); }
 
 template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
@@ -118,12 +120,16 @@ __device__ auto wrap(F f, T x, Ts... xs)
 #define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname)                    \
     template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
     auto __device__ name(type x, Ts... xs) -> type                     \
-    { return fname(math::to_hip(x), math::to_hip(xs)...); }
+    {                                                                  \
+        return fname(math::to_hip(x), math::to_hip(xs)...);            \
+    }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname) \
     inline auto __device__ name(type x, type y) -> type    \
-    { return fname(math::to_hip(x), math::to_hip(y)); }
+    {                                                      \
+        return fname(math::to_hip(x), math::to_hip(y));    \
+    }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_HALF2(name, fname)                                           \

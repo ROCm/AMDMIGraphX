@@ -37,8 +37,8 @@ compile_modes convert_to_compile_mode(uint8_t mode)
 {
     int clamped = std::clamp<int>(mode, 0, 100);
     if(clamped != mode)
-        log::warn() << "Compile mode value " << mode
-                    << " out of range [0, 100], clamping to " << clamped;
+        log::warn() << "Compile mode value " << mode << " out of range [0, 100], clamping to "
+                    << clamped;
 
     static const std::array<compile_modes, 3> modes = {
         compile_modes::eager, compile_modes::balanced, compile_modes::max};

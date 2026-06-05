@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -4997,6 +4997,25 @@ def gridsample_512x512_test():
 def gridsample_half_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 1, 4, 4])
     grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT,
+                                         [1, 6, 6, 2])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 6, 6])
+
+    node = onnx.helper.make_node(
+        "GridSample",
+        inputs=["x", "grid"],
+        outputs=["y"],
+        mode="linear",
+        padding_mode="zeros",
+        align_corners=0,
+    )
+
+    return ([node], [x, grid], [y])
+
+
+@onnx_test()
+def gridsample_half_grid_test():
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT16, [1, 1, 4, 4])
+    grid = helper.make_tensor_value_info('grid', TensorProto.FLOAT16,
                                          [1, 6, 6, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [1, 1, 6, 6])
 

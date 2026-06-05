@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -202,6 +202,39 @@ TEST_CASE(propagate_reduce_float_to_double)
         auto reduce  = m2.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), x);
         auto squeeze = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), reduce);
         m2.add_return({squeeze});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Verify that propagation stops at type category boundaries (int div -> float)
+TEST_CASE(propagate_type_category_boundary)
+{
+    migraphx::shape s1{migraphx::shape::int32_type, {1, 4}};
+    migraphx::module m1;
+    {
+        auto x        = m1.add_parameter("x", s1);
+        auto two      = m1.add_literal(migraphx::literal{{migraphx::shape::int32_type}, {2}});
+        auto int_div  = migraphx::add_common_op(m1, migraphx::make_op("div"), {x, two});
+        auto convert1 = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), int_div);
+        auto one       = m1.add_literal(migraphx::literal{{migraphx::shape::float_type}, {1.0f}});
+        auto float_add = migraphx::add_common_op(m1, migraphx::make_op("add"), {convert1, one});
+        auto convert2  = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::double_type}}),
+            float_add);
+        m1.add_return({convert2});
+    }
+    run_pass(m1);
+    migraphx::module m2;
+    {
+        auto x        = m2.add_parameter("x", s1);
+        auto two      = m2.add_literal(migraphx::literal{{migraphx::shape::int32_type}, {2}});
+        auto int_div  = migraphx::add_common_op(m2, migraphx::make_op("div"), {x, two});
+        auto convert1 = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::double_type}}), int_div);
+        auto one       = m2.add_literal(migraphx::literal{{migraphx::shape::float_type}, {1.0f}});
+        auto float_add = migraphx::add_common_op(m2, migraphx::make_op("add"), {convert1, one});
+        m2.add_return({float_add});
     }
     EXPECT(m1.sort() == m2.sort());
 }

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -46,7 +46,7 @@ static literal get_scalar(instruction_ref ins)
     if(contains({"contiguous", "broadcast", "multibroadcast"}, ins->name()))
         return get_scalar(ins->inputs().front());
     const auto& s = ins->get_shape();
-    if(s.elements() != 1 and not(s.scalar()))
+    if(s.dynamic() or (s.elements() != 1 and not(s.scalar())))
         return {};
     if(not ins->can_eval())
         return {};
@@ -340,27 +340,39 @@ struct pointwise_reshape : rewrite_reshapes_base
     static std::string name() { return "pointwise"; }
 };
 
-struct pointwise_broadcast_pointwise
+struct pointwise_broadcast_pointwise : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
+        auto pointwise = match::name("pointwise")(match::used_once()).bind("x");
         auto broadcast_pointwise =
-            match::name("multibroadcast")(
-                match::used_once(),
-                match::args(match::name("pointwise")(match::used_once()).bind("x")))
+            match::name("multibroadcast")(match::used_once(), match::args(pointwise))
                 .bind("broadcast");
-        return match::name("pointwise")(match::any_of[match::inputs()](broadcast_pointwise));
+        auto dyn_broadcast_pointwise =
+            match::name("multibroadcast")(match::used_once(),
+                                          match::nargs(2),
+                                          match::arg(0)(pointwise),
+                                          match::arg(1)(match::any().bind("ref_ins")))
+                .bind("broadcast");
+        return match::name("pointwise")(match::any_of[match::inputs()](
+            match::any_of(broadcast_pointwise, dyn_broadcast_pointwise)));
     }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto broadcast_ins = r.instructions["broadcast"];
-        auto x_ins         = r.instructions["x"];
+        auto broadcast_ins    = r.instructions["broadcast"];
+        auto x_ins            = r.instructions["x"];
+        bool is_dyn_broadcast = contains(r.instructions, "ref_ins");
 
         auto broadcast = broadcast_ins->get_operator();
 
         auto x_inputs = x_ins->inputs();
         std::transform(x_inputs.begin(), x_inputs.end(), x_inputs.begin(), [&](auto input) {
+            if(is_dyn_broadcast)
+            {
+                return m.insert_instruction(
+                    broadcast_ins, broadcast, {input, r.instructions["ref_ins"]});
+            }
             return m.insert_instruction(broadcast_ins, broadcast, input);
         });
 

@@ -63,14 +63,18 @@ struct fused_reduce
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
-        check_shapes{inputs, *this}.has(names.size()).same_ndims();
+        check_shapes{inputs, *this, true}.has(names.size()).same_ndims();
         std::sort(names.begin(), names.end());
         auto shapes = sm->get_parameter_shapes();
         // Check dimension matches for each input
         if(not equal(names, inputs, [&](const auto& name, const auto& input) {
-               return shapes.at(name).lens() == input.lens();
+               auto s = shapes.at(name);
+               return shape::same_lens(input, s);
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
+
+        if(sm->get_output_shapes().front().dynamic())
+            return sm->get_output_shapes().front();
 
         return shape::from_permutation(sm->get_output_shapes().front().type(),
                                        sm->get_output_shapes().front().lens(),

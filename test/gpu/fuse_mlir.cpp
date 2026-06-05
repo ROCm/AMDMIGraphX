@@ -1777,6 +1777,58 @@ TEST_CASE(unpack_fp4_dot_odd)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(unpack_fp4_nonstandard)
+{
+    using migraphx::shape;
+    migraphx::program p1;
+    {
+        auto* m       = p1.get_main_module();
+        shape shape_a = shape::from_permutation(shape::fp4x2_type, {1, 3, 8, 8}, {1, 0, 3, 2});
+        auto param_a  = m->add_parameter("a", shape_a);
+        auto param_b  = m->add_parameter("b", {shape::fp4x2_type, {1, 3, 8, 8}});
+        auto packed_a = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), param_a);
+        auto packed_b = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), param_b);
+        auto scale_a  = m->add_parameter("scale_a", {shape::float_type, {1, 3, 8, 8}});
+        auto scale_b  = m->add_parameter("scale_b", {shape::float_type, {1, 3, 8, 8}});
+        auto unpack_a =
+            m->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_a);
+        auto unpack_b =
+            m->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), packed_b);
+        auto dot = m->add_instruction(
+            migraphx::make_op("quant_dot"), unpack_a, unpack_b, scale_a, scale_b);
+        m->add_return({dot});
+    }
+    run_pass(p1);
+
+    migraphx::program p2;
+    {
+        auto* m       = p2.get_main_module();
+        shape shape_a = shape::from_permutation(shape::fp4x2_type, {1, 3, 8, 8}, {1, 0, 3, 2});
+        auto param_a  = m->add_parameter("a", shape_a);
+        auto param_b  = m->add_parameter("b", {shape::fp4x2_type, {1, 3, 8, 8}});
+        auto packed_a = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), param_a);
+        auto packed_b = m->add_instruction(migraphx::make_op("pack_fp4", {{"axis", 3}}), param_b);
+        auto scale_a  = m->add_parameter("scale_a", {migraphx::shape::float_type, {1, 3, 8, 8}});
+        auto scale_b  = m->add_parameter("scale_b", {migraphx::shape::float_type, {1, 3, 8, 8}});
+        auto fused    = add_mlir(
+            p2,
+            "fp4:mlir_quant_dot0",
+            {packed_a, packed_b, scale_a, scale_b},
+            {"x1", "x2", "x3", "x4"},
+            [=](auto* pm, const auto& inputs) {
+                auto unpack_a =
+                    pm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), inputs[0]);
+                auto unpack_b =
+                    pm->add_instruction(migraphx::make_op("unpack_fp4", {{"axis", 3}}), inputs[1]);
+                auto dot = pm->add_instruction(
+                    migraphx::make_op("quant_dot"), unpack_a, unpack_b, inputs[2], inputs[3]);
+                return std::make_tuple(dot->get_operator(), dot);
+            });
+        m->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dot_add_dot)
 {
     migraphx::shape s1{migraphx::shape::half_type, {2, 3}};
@@ -2724,6 +2776,66 @@ TEST_CASE_SKIP(dot_add_dot_both_multi_user, "Not supported in rocMLIR")
     }
     if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_GEG_FUSION{}))
         return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dyn_dot)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4}, {6, 6}}};
+    migraphx::shape s2{migraphx::shape::float_type, {6, 3}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto dot = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        mm->add_return({dot});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto a      = mm->add_parameter("a", s1);
+        auto b      = mm->add_parameter("b", s2);
+        auto a_cont = mm->add_instruction(migraphx::make_op("contiguous"), a);
+
+        auto fused =
+            add_mlir(p2, "mlir_dot0", {a_cont, b}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto dot = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                return std::make_tuple(dot->get_operator(), dot);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dyn_conv)
+{
+    migraphx::shape s1{migraphx::shape::float_type, {{1, 4}, {56, 56}, {8, 64}, {8, 64}}};
+    migraphx::shape s2{migraphx::shape::float_type, {14, 56, 3, 3}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s1);
+        auto w    = mm->add_parameter("w", s2);
+        auto conv = mm->add_instruction(migraphx::make_op("convolution"), x, w);
+        mm->add_return({conv});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm    = p2.get_main_module();
+        auto x      = mm->add_parameter("x", s1);
+        auto w      = mm->add_parameter("w", s2);
+        auto x_cont = mm->add_instruction(migraphx::make_op("contiguous"), x);
+        auto conv   = add_mlir(
+            p2, "mlir_convolution0", {x_cont, w}, {"y0", "y1"}, [=](auto* pm, const auto& inputs) {
+                auto c =
+                    pm->add_instruction(migraphx::make_op("convolution"), inputs[0], inputs[1]);
+                return std::make_tuple(c->get_operator(), c);
+            });
+        mm->add_return({conv});
+    }
     EXPECT(p1.sort() == p2.sort());
 }
 

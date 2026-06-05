@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -72,9 +72,9 @@ struct code_object_op
     {
         return output_arg < 0 ? n + output_arg : output_arg;
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return get_output_arg(shapes.size());
+        return {static_cast<std::size_t>(get_output_arg(shapes.size()))};
     }
 
     friend std::ostream& operator<<(std::ostream& os, const code_object_op& op)

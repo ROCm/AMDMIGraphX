@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -88,7 +88,7 @@ struct parse_gelu : op_parser<parse_gelu>
         {
             // add should've been inserted from previous conditional statement
             assert(args.size() == 2);
-            return op::builder::add("gelu_split", *info.mod, {x}, {}).at(0);
+            return op::builder::add("gelu_split", *info.mod, {x}).at(0);
         }
 
         if(approximate == "tanh")
@@ -97,7 +97,7 @@ struct parse_gelu : op_parser<parse_gelu>
         }
         else
         {
-            return op::builder::add("gelu_erf", *info.mod, {x}, {}).at(0);
+            return op::builder::add("gelu_erf", *info.mod, {x}).at(0);
         }
     }
 };

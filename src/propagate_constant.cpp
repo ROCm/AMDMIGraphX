@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,9 +45,9 @@ static bool skip_propagate(instruction_ref ins)
     auto&& s = ins->get_shape();
     if(s.broadcasted() and s.element_space() < s.elements())
         return true;
-    auto alias = instruction::get_output_alias(ins, true);
-    if(alias != ins)
-        return skip_propagate(alias);
+    auto aliases = instruction::get_output_alias(ins, true);
+    if(aliases.size() == 1 and aliases.front() != ins)
+        return skip_propagate(aliases.front());
     if(ins->is_undefined())
         return true;
     return false;

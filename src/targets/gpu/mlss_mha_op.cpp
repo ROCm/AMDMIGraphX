@@ -99,6 +99,7 @@ mlss_mha_op mlss_mha_op::make_gfx1201_fp16_packed_qkv(const context& ctx,
     if(bin == nullptr)
         return op;
 
+    // cppcheck-suppress migraphx-RedundantCast
     const auto* raw = static_cast<const char*>(bin->m_binaries);
     op.code_object  = value::binary(raw, bin->m_binarySize);
     op.symbol_name  = (bin->m_pKernelName != nullptr) ? bin->m_pKernelName : "main";
@@ -114,6 +115,7 @@ void mlss_mha_op::finalize(context&, const shape&, const std::vector<shape>&)
     k = kernel(code_object, symbol_name);
 }
 
+// cppcheck-suppress constParameterReference
 argument mlss_mha_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     // args layout:
@@ -140,10 +142,9 @@ argument mlss_mha_op::compute(context& ctx, const shape&, const std::vector<argu
     //   d2 = H * 3*D       (sequence stride)
     //   d3 = 1             (element stride)
     constexpr int qkv_components = 3;
-    uint32_t stride_d0 =
-        static_cast<uint32_t>(sequence_length * head_num * qkv_components * head_dim);
-    uint32_t stride_d1 = static_cast<uint32_t>(qkv_components * head_dim);
-    uint32_t stride_d2 = static_cast<uint32_t>(head_num * qkv_components * head_dim);
+    uint32_t stride_d0 = sequence_length * head_num * qkv_components * head_dim;
+    uint32_t stride_d1 = qkv_components * head_dim;
+    uint32_t stride_d2 = head_num * qkv_components * head_dim;
     uint32_t stride_d3 = 1u;
 
     // kernel_argument stores void* — all values must be named locals (non-const) to

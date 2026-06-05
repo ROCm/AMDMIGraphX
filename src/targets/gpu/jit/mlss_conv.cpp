@@ -45,13 +45,14 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
 {
     std::vector<std::string> names() const { return {"gpu::mlss_conv"}; }
 
+    // cppcheck-suppress constParameterReference
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         // Extract metadata from the intermediate mlss_conv op
         auto cur_padding        = v.at("padding").to_vector<std::size_t>();
         bool has_bias           = v.at("has_bias").to<bool>();
-        uint8_t activation_mode = static_cast<uint8_t>(v.at("activation_mode").to<uint64_t>());
-        float activation_alpha  = static_cast<float>(v.at("activation_alpha").to<double>());
+        uint8_t activation_mode = v.at("activation_mode").to<uint64_t>();
+        float activation_alpha  = v.at("activation_alpha").to<double>();
 
         // Input shapes (after reorder in compile()):
         //   No bias:  [input, weight, output_buffer]
@@ -231,6 +232,7 @@ struct mlss_conv_compiler : compiler<mlss_conv_compiler>
         return cop;
     }
 
+    // cppcheck-suppress constParameterReference
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         bool has_bias = op.to_value().at("has_bias").to<bool>();

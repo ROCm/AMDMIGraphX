@@ -214,6 +214,7 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     if(bin == nullptr)
         return info;
 
+    // cppcheck-suppress migraphx-RedundantCast
     const auto* raw  = static_cast<const char*>(bin->m_binaries);
     info.code_object = value::binary(raw, bin->m_binarySize);
     info.symbol_name = (bin->m_pKernelName != nullptr) ? bin->m_pKernelName : "main";

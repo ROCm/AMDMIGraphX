@@ -151,18 +151,6 @@ const shape& argument::get_shape() const { return this->m_shape; }
 argument argument::reshape(const shape& s) const
 {
     assert(s.element_space() <= this->get_shape().element_space());
-    // Some Dynamic op e.g TopK flow through select_module, which may
-    // pass a flat tensor sub-object to a submodule that expects a tuple output
-    // parameter.Reshaping a non-tuple to a tuple restructures m_data.sub so
-    // it matches m_shape.sub_shapes() for get_sub_objects() to work.
-    if(s.type() == shape::tuple_type and m_data.sub.empty() and m_data.get)
-    {
-        argument result;
-        result.m_shape = s;
-        auto self      = this->m_data.share();
-        result.assign_buffer([self]() mutable { return self.get(); });
-        return result;
-    }
     return {s, this->m_data};
 }
 

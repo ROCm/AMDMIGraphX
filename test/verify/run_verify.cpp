@@ -173,7 +173,7 @@ static auto get_hash(const T& x)
     return std::hash<T>{}(x);
 }
 
-void run_verify::verify(const program_info& pi) const
+void run_verify::verify(const program_info& pi, migraphx::compile_modes mode) const
 {
     const std::string name    = pi.name;
     const migraphx::program p = pi.get_program();
@@ -215,7 +215,8 @@ void run_verify::verify(const program_info& pi) const
                 m[x.first] = migraphx::generate_argument(x.second, get_hash(x.first));
             }
         }
-        const migraphx::compile_options c_opts = pi.compile_options;
+        migraphx::compile_options c_opts = pi.compile_options;
+        c_opts.compile_mode              = mode;
         auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
@@ -264,7 +265,11 @@ void run_verify::run(int argc, const char* argv[]) const
     for(auto&& p : get_programs())
     {
         labels[p.section].push_back(p.name);
-        test::add_test_case(p.name, [=] { verify(p); });
+        test::add_test_case(p.name, [=] { verify(p, migraphx::compile_modes::balanced); });
+
+        const std::string eager_name = p.name + "_eager";
+        labels[p.section].push_back(eager_name);
+        test::add_test_case(eager_name, [=] { verify(p, migraphx::compile_modes::eager); });
     }
     test::driver d{};
     d.get_case_names = [&](const std::string& name) -> std::vector<std::string> {

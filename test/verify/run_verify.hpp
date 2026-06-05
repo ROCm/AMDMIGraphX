@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_TEST_RUN_VERIFY_HPP
 
 #include <migraphx/program.hpp>
+#include <migraphx/compile_modes.hpp>
 #include <functional>
 #include <map>
 
@@ -53,7 +54,7 @@ struct run_verify
     void validate(const migraphx::target& t,
                   const migraphx::program& p,
                   const migraphx::parameter_map& m) const;
-    void verify(const program_info& pi) const;
+    void verify(const program_info& pi, migraphx::compile_modes mode) const;
     void run(int argc, const char* argv[]) const;
 
     target_info get_target_info(const std::string& name) const;

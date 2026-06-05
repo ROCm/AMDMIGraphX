@@ -142,10 +142,10 @@ argument mlss_mha_op::compute(context& ctx, const shape&, const std::vector<argu
     //   d2 = H * 3*D       (sequence stride)
     //   d3 = 1             (element stride)
     constexpr int qkv_components = 3;
-    uint32_t stride_d0 = sequence_length * head_num * qkv_components * head_dim;
-    uint32_t stride_d1 = qkv_components * head_dim;
-    uint32_t stride_d2 = head_num * qkv_components * head_dim;
-    uint32_t stride_d3 = 1u;
+    uint32_t stride_d0           = sequence_length * head_num * qkv_components * head_dim;
+    uint32_t stride_d1           = qkv_components * head_dim;
+    uint32_t stride_d2           = head_num * qkv_components * head_dim;
+    uint32_t stride_d3           = 1u;
 
     // kernel_argument stores void* — all values must be named locals (non-const) to
     // allow &x → void* conversion, and must outlive k.launch().

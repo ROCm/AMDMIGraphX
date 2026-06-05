@@ -216,7 +216,24 @@ interval cos(interval x)
     return {rmin, rmax};
 }
 
-interval tan(interval x) { return {std::tan(to<double>(x.min)), std::tan(to<double>(x.max))}; }
+interval tan(interval x)
+{
+    double lo       = to<double>(x.min);
+    double hi       = to<double>(x.max);
+    const double pi = std::acos(-1.0);
+    constexpr double inf = std::numeric_limits<double>::infinity();
+
+    // tan has period pi and poles at pi/2 + k*pi
+    if(hi - lo >= pi)
+        return {-inf, inf};
+    double k = std::ceil((lo - pi / 2.0) / pi);
+    if(pi / 2.0 + k * pi <= hi)
+        return {-inf, inf};
+
+    double tlo = std::tan(lo);
+    double thi = std::tan(hi);
+    return {std::min(tlo, thi), std::max(tlo, thi)};
+}
 
 interval exp(interval x) { return {std::exp(to<double>(x.min)), std::exp(to<double>(x.max))}; }
 

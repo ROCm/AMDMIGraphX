@@ -251,8 +251,7 @@ def rocmtest = { Map conf = [:], Closure body ->
         def docker_opts
         stage("setup ${variant}") {
             sh 'printenv'
-            mkdir -p "${ccache}"
-            mkdir -p "${comgr_cache}"
+            sh "mkdir -p '${ccache}' '${comgr_cache}'"
             checkout scm
             setup()
 

@@ -98,12 +98,12 @@ Step 4: Reduce Graph Complexity
 Step 5: Test MIOpen Components
 -------------------------------
 
-**Purpose**: Isolate MIOpen integration issues by forcing MIGraphX native implementations
+**Purpose**: Isolate MIOpen integration issues by comparing MIOpen and MIGraphX native implementations
 
-**Pooling**: ``MIGRAPHX_DISABLE_MIOPEN_POOLING=1``
+**Pooling**: ``MIGRAPHX_ENABLE_MIOPEN_POOLING=1``
 
-- Forces MIGraphX pooling instead of MIOpen
-- Use for MaxPool, AvgPool, GlobalAvgPool issues
+- Forces MIOpen pooling instead of MIGraphX (the default)
+- Use for MaxPool, AvgPool, GlobalAvgPool issues to compare against MIOpen behavior
 
 Step 6: Test GEMM Providers
 ----------------------------

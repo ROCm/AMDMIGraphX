@@ -79,7 +79,7 @@ static bool is_dead(instruction_ref ins)
 }
 
 // We dont want to consider the `extra` instruction as dead as it might be an implicit return
-static bool is_used_once(instruction_ref ins, instruction_ref* extra = nullptr)
+static bool is_used_once(instruction_ref ins, const instruction_ref* extra = nullptr)
 {
     return std::count_if(ins->outputs().begin(), ins->outputs().end(), [&](auto output) {
                if(extra and *extra == output)
@@ -143,7 +143,7 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
     std::unordered_set<instruction_ref> original_inputs{ins->inputs().begin(), ins->inputs().end()};
     original_inputs.insert(output->inputs().begin(), output->inputs().end());
     module pm     = *ins->module_inputs().at(0);
-    module_ref xm = output->module_inputs().at(0);
+    const_module_ref xm  = output->module_inputs().at(0);
     const bool dependent = contains(output->inputs(), ins);
     assert(not dependent or pm.get_returns().size() == 1);
 
@@ -160,31 +160,6 @@ static module::with_inputs append_pointwise_module(instruction_ref ins, instruct
     pm.replace_return(returns);
     auto inputs = find_inputs(map_ins, original_inputs, &pm);
     return {std::move(pm), inputs};
-}
-
-static void move_output_instructions_after(module& m, instruction_ref src, instruction_ref dst)
-{
-    auto d = std::distance(src, dst);
-    std::vector<std::pair<std::size_t, instruction_ref>> instructions;
-    fix([&](auto self, instruction_ref ins) {
-        for(auto output : ins->outputs())
-        {
-            assert(m.has_instruction(output));
-            if(any_of(instructions, [&](const auto& p) { return p.second == output; }))
-                continue;
-            auto i = std::distance(src, output);
-            if(i >= d)
-                continue;
-            instructions.emplace_back(i, output);
-            self(output);
-        }
-    })(src);
-    std::sort(instructions.begin(), instructions.end(), by(std::less<>{}, [](auto&& p) {
-                  return p.first;
-              }));
-    auto loc = std::next(dst);
-    for(auto [i, ins] : instructions)
-        m.move_instruction(ins, loc);
 }
 
 static void replace_with_tuple(module& m, instruction_ref ins, instruction_ref rep, bool first)
@@ -232,7 +207,7 @@ merge_instruction(module_pass_manager& mpm, instruction_ref input, instruction_r
         mpm.get_module().insert_instruction(output, input->get_operator(), fused.inputs, {new_pm});
     if(fins->get_shape().tuple_size() != output->get_shape().tuple_size())
     {
-        move_output_instructions_after(mpm.get_module(), input, fins);
+        mpm.get_module().move_output_instructions_after(input, fins);
         replace_with_tuple(mpm.get_module(), input, fins, false);
     }
     replace_with_tuple(mpm.get_module(), output, fins, true);
@@ -282,11 +257,7 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
                          return false;
                      if(is_dead(output))
                          return false;
-                     // TODO: move_output_instructions_after doesnt handle outputs from different
-                     // modules so only fuse from the same module
-                     return std::all_of(output->outputs().begin(),
-                                        output->outputs().end(),
-                                        [&](auto out) { return m.has_instruction(out); });
+                     return true;
                  });
     if(outputs.size() < 2)
         return result;

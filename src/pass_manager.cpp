@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -181,8 +182,8 @@ struct module_pm : module_pass_manager
         }
         catch(const std::exception& e)
         {
-            std::cerr << "Error " << p.name() << ": " << e.what() << std::endl;
-            auto clk = std::chrono::steady_clock::now().time_since_epoch().count();
+            log::error() << "Error " << p.name() << ": " << e.what();
+            auto clk         = std::chrono::steady_clock::now().time_since_epoch().count();
             fs::path dirname = fs::temp_directory_path() / "migraphx";
             fs::create_directories(dirname);
             std::string base = p.name() + std::to_string(clk) + ".mxr";
@@ -191,7 +192,7 @@ struct module_pm : module_pass_manager
             sanitize(base);
 #endif
             fs::path fname = dirname / base;
-            std::cerr << "Dump: " << fname << std::endl;
+            log::error() << "Dump: " << fname;
             save(*prog, fname.string());
             throw;
         }

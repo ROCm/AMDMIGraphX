@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -81,6 +81,22 @@ TEST_CASE(common4)
     EXPECT(cd.dims == std::vector<std::size_t>{2, 2, 16, 64, 64});
     EXPECT(cd.axes_map1 == axes_map{{0, 1}, {2}, {3}, {4}});
     EXPECT(cd.axes_map2 == axes_map{{0}, {1, 2}, {3, 4}});
+}
+
+TEST_CASE(common5)
+{
+    auto cd = migraphx::common_dims::compute({3, 8, 5}, {12, 10});
+    EXPECT(cd.dims == std::vector<std::size_t>{3, 4, 2, 5});
+    EXPECT(cd.axes_map1 == axes_map{{0}, {1, 2}, {3}});
+    EXPECT(cd.axes_map2 == axes_map{{0, 1}, {1, 2}});
+}
+
+TEST_CASE(common6)
+{
+    auto cd = migraphx::common_dims::compute({12, 10}, {3, 8, 5});
+    EXPECT(cd.dims == std::vector<std::size_t>{3, 4, 2, 5});
+    EXPECT(cd.axes_map1 == axes_map{{0, 1}, {1, 2}});
+    EXPECT(cd.axes_map2 == axes_map{{0}, {1, 2}, {3}});
 }
 
 TEST_CASE(common_same_dims)

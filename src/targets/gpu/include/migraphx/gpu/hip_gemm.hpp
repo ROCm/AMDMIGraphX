@@ -130,6 +130,7 @@ struct MIGRAPHX_GPU_EXPORT hip_gemm
     }
 
     value
+    // cppcheck-suppress constParameterReference
     compile(migraphx::context& ctx, const shape& output, const std::vector<shape>& input_shapes)
     {
         finalize(any_cast<migraphx::gpu::context>(ctx), output, input_shapes);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -87,6 +87,8 @@ TEST_CASE(broadcast_with_dims_invalid)
 
 TEST_CASE(resize)
 {
+    // Test converting 2-input resize (with sizes as constant input) to 1-input resize with
+    // sizes as attribute
     migraphx::module m0;
     {
         std::vector<size_t> ds = {1, 1, 4, 6};
@@ -117,21 +119,23 @@ TEST_CASE(resize)
         migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
         auto inx = m1.add_parameter("X", sx);
 
-        std::vector<float> indices = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
-                                      2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-        migraphx::shape ss{migraphx::shape::int32_type, {1, 1, 4, 6}};
-        auto li = m1.insert_literal(inx, migraphx::literal{ss, indices});
-
-        auto reshape_ins = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
-        auto gather_ins =
-            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), reshape_ins, li);
-        m1.add_return({gather_ins});
+        // After simplify_dyn_ops, resize is converted to 1-input mode with sizes as attribute
+        auto resize_ins = m1.add_instruction(
+            migraphx::make_op("resize",
+                              {{"sizes", {1, 1, 4, 6}},
+                               {"mode", "nearest"},
+                               {"nearest_mode", "floor"},
+                               {"coordinate_transformation_mode", "asymmetric"}}),
+            inx);
+        m1.add_return({resize_ins});
     }
     EXPECT(m0 == m1);
 }
 
 TEST_CASE(resize_scales)
 {
+    // Test converting 2-input resize (with scales as constant input) to 1-input resize with
+    // scales as attribute
     migraphx::module m0;
     {
         // resize op. with scales (float_type) rather than sizes as an input
@@ -163,15 +167,15 @@ TEST_CASE(resize_scales)
         migraphx::shape sx{migraphx::shape::int64_type, {1, 1, 2, 2}};
         auto inx = m1.add_parameter("X", sx);
 
-        std::vector<float> indices = {0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1,
-                                      2, 2, 2, 3, 3, 3, 2, 2, 2, 3, 3, 3};
-        migraphx::shape ss{migraphx::shape::int32_type, {1, 1, 4, 6}};
-        auto li = m1.insert_literal(inx, migraphx::literal{ss, indices});
-
-        auto reshape_ins = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
-        auto gather_ins =
-            m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), reshape_ins, li);
-        m1.add_return({gather_ins});
+        // After simplify_dyn_ops, resize is converted to 1-input mode with scales as attribute
+        auto resize_ins = m1.add_instruction(
+            migraphx::make_op("resize",
+                              {{"scales", {1.0f, 1.0f, 2.0f, 3.0f}},
+                               {"mode", "nearest"},
+                               {"nearest_mode", "floor"},
+                               {"coordinate_transformation_mode", "asymmetric"}}),
+            inx);
+        m1.add_return({resize_ins});
     }
     EXPECT(m0 == m1);
 }

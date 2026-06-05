@@ -23,15 +23,10 @@
  *
  */
 // Test for LambdaAttribute check
+// cppcheck-suppress-file defineUpperCase
 
-#ifndef CPPCHECK
-// cppcheck-suppress defineUpperCase
-// cppcheck-suppress definePrefix
 #define __device__
-// cppcheck-suppress defineUpperCase
-// cppcheck-suppress definePrefix
 #define __host__
-#endif
 
 void test_device_attribute_before_params()
 {
@@ -58,7 +53,6 @@ void test_device_attribute_before_brace()
 
 void test_attribute_after_params()
 {
-    // cppcheck-suppress legacyUninitvar
     auto lambda1 = [](int a) __device__ { return a * 2; };
     (void)lambda1;
 }
@@ -78,7 +72,6 @@ void test_capture_list_only()
 
 void test_attribute_in_correct_position()
 {
-    // cppcheck-suppress legacyUninitvar
     auto lambda4 = [](int a) __host__ __device__ { return a; };
     (void)lambda4;
 }

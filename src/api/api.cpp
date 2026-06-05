@@ -26,6 +26,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
@@ -176,6 +177,18 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
+static sym::expr make_sym_var(const char* name, size_t min, size_t max)
+{
+    return sym::var(name, {static_cast<int64_t>(min), static_cast<int64_t>(max)});
+}
+
+static sym::expr make_sym_var(const char* name, size_t min, size_t max, std::set<size_t> optimals)
+{
+    std::set<int64_t> sym_optimals(optimals.begin(), optimals.end());
+    return sym::var(
+        name, {static_cast<int64_t>(min), static_cast<int64_t>(max)}, std::move(sym_optimals));
+}
+
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
@@ -206,6 +219,17 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 static void set_use_debug_symbols(onnx_options& options, bool value)
 {
     options.use_debug_symbols = value;
+}
+
+static void set_use_symbolic_shapes(onnx_options& options, bool value)
+{
+    options.use_symbolic_shapes = value;
+}
+
+static void
+set_dim_param(onnx_options& options, const char* name, const shape::dynamic_dimension& dd)
+{
+    options.dim_params[std::string(name)] = dd;
 }
 
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
@@ -528,6 +552,17 @@ struct migraphx_optimals
     {
     }
     std::set<size_t> object;
+};
+
+extern "C" struct migraphx_sym_expr;
+struct migraphx_sym_expr
+{
+    template <class... Ts>
+    migraphx_sym_expr(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    migraphx::sym::expr object;
 };
 
 extern "C" struct migraphx_dynamic_dimension;
@@ -924,6 +959,137 @@ migraphx_optimals_create(migraphx_optimals_t* optimals, const size_t* ptr, size_
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_sym_expr_destroy(migraphx_sym_expr_t sym_expr)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((sym_expr)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_sym_expr_assign_to(migraphx_sym_expr_t output,
+                                                       const_migraphx_sym_expr_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_sym_expr_create_var(migraphx_sym_expr_t* sym_expr,
+                                                        const char* name,
+                                                        size_t min,
+                                                        size_t max)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *sym_expr = object_cast<migraphx_sym_expr_t>(
+            allocate<migraphx::sym::expr>(migraphx::make_sym_var((name), (min), (max))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_sym_expr_create_var_optimals(migraphx_sym_expr_t* sym_expr,
+                                                                 const char* name,
+                                                                 size_t min,
+                                                                 size_t max,
+                                                                 migraphx_optimals_t optimals)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(optimals == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter optimals: Null pointer");
+        *sym_expr = object_cast<migraphx_sym_expr_t>(allocate<migraphx::sym::expr>(
+            migraphx::make_sym_var((name), (min), (max), (optimals->object))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_sym_expr_create_literal(migraphx_sym_expr_t* sym_expr,
+                                                            int64_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *sym_expr = object_cast<migraphx_sym_expr_t>(
+            allocate<migraphx::sym::expr>(migraphx::sym::lit((value))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_sym_expr_create_parse(migraphx_sym_expr_t* sym_expr,
+                                                          const char* s)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *sym_expr = object_cast<migraphx_sym_expr_t>(
+            allocate<migraphx::sym::expr>(migraphx::sym::parse((s))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_sym_expr_add(migraphx_sym_expr_t* out,
+                                                 const_migraphx_sym_expr_t sym_expr,
+                                                 const_migraphx_sym_expr_t x)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(sym_expr == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter sym_expr: Null pointer");
+        if(x == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
+        *out = allocate<migraphx_sym_expr_t>((sym_expr->object) + (x->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_sym_expr_sub(migraphx_sym_expr_t* out,
+                                                 const_migraphx_sym_expr_t sym_expr,
+                                                 const_migraphx_sym_expr_t x)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(sym_expr == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter sym_expr: Null pointer");
+        if(x == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
+        *out = allocate<migraphx_sym_expr_t>((sym_expr->object) - (x->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_sym_expr_mul(migraphx_sym_expr_t* out,
+                                                 const_migraphx_sym_expr_t sym_expr,
+                                                 const_migraphx_sym_expr_t x)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(sym_expr == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter sym_expr: Null pointer");
+        if(x == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
+        *out = allocate<migraphx_sym_expr_t>((sym_expr->object) * (x->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_sym_expr_div(migraphx_sym_expr_t* out,
+                                                 const_migraphx_sym_expr_t sym_expr,
+                                                 const_migraphx_sym_expr_t x)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(sym_expr == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter sym_expr: Null pointer");
+        if(x == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter x: Null pointer");
+        *out = allocate<migraphx_sym_expr_t>((sym_expr->object) / (x->object));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_sym_expr_to_string(char* out, size_t out_size, const_migraphx_sym_expr_t sym_expr)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(out == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(sym_expr == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter sym_expr: Null pointer");
+        auto&& api_result = (sym_expr->object).to_string();
+        auto* it = std::copy_n(api_result.begin(), std::min(api_result.size(), out_size - 1), out);
+        *it      = '\0';
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension)
 {
@@ -965,6 +1131,19 @@ migraphx_dynamic_dimension_create_min_max_optimals(migraphx_dynamic_dimension_t*
 }
 
 extern "C" migraphx_status
+migraphx_dynamic_dimension_create_symbolic(migraphx_dynamic_dimension_t* dynamic_dimension,
+                                           const_migraphx_sym_expr_t expr)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(expr == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter expr: Null pointer");
+        *dynamic_dimension = object_cast<migraphx_dynamic_dimension_t>(
+            allocate<migraphx::shape::dynamic_dimension>((expr->object)));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_dynamic_dimension_is_fixed(bool* out, const_migraphx_dynamic_dimension_t dynamic_dimension)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -972,6 +1151,19 @@ migraphx_dynamic_dimension_is_fixed(bool* out, const_migraphx_dynamic_dimension_
             MIGRAPHX_THROW(migraphx_status_bad_param,
                            "Bad parameter dynamic_dimension: Null pointer");
         *out = (dynamic_dimension->object).is_fixed();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimension_is_symbolic(bool* out,
+                                       const_migraphx_dynamic_dimension_t dynamic_dimension)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(dynamic_dimension == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter dynamic_dimension: Null pointer");
+        *out = (dynamic_dimension->object).is_symbolic();
     });
     return api_error_result;
 }
@@ -2148,6 +2340,30 @@ migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
         migraphx::set_use_debug_symbols((onnx_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_onnx_options_set_use_symbolic_shapes(migraphx_onnx_options_t onnx_options, bool value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        migraphx::set_use_symbolic_shapes((onnx_options->object), (value));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_onnx_options_set_dim_param(
+    migraphx_onnx_options_t onnx_options, const char* name, const_migraphx_dynamic_dimension_t dd)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        if(dd == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dd: Null pointer");
+        migraphx::set_dim_param((onnx_options->object), (name), (dd->object));
     });
     return api_error_result;
 }

@@ -60,13 +60,56 @@ def optimals(h):
                   fname='migraphx::make_set<size_t>')
 
 
+@api.handle('migraphx_sym_expr', 'migraphx::sym::expr')
+def sym_expr(h):
+    h.constructor('create_var',
+                  api.params(name='const char*', min='size_t', max='size_t'),
+                  fname='migraphx::make_sym_var')
+    h.constructor('create_var_optimals',
+                  api.params(name='const char*',
+                             min='size_t',
+                             max='size_t',
+                             optimals='std::set<size_t>'),
+                  fname='migraphx::make_sym_var')
+    h.constructor('create_literal',
+                  api.params(value='int64_t'),
+                  fname='migraphx::sym::lit')
+    h.constructor('create_parse',
+                  api.params(s='const char*'),
+                  fname='migraphx::sym::parse')
+    h.method('add',
+             api.params(x='const migraphx::sym::expr&'),
+             invoke='${sym_expr} + ${x}',
+             returns='migraphx::sym::expr',
+             const=True)
+    h.method('sub',
+             api.params(x='const migraphx::sym::expr&'),
+             invoke='${sym_expr} - ${x}',
+             returns='migraphx::sym::expr',
+             const=True)
+    h.method('mul',
+             api.params(x='const migraphx::sym::expr&'),
+             invoke='${sym_expr} * ${x}',
+             returns='migraphx::sym::expr',
+             const=True)
+    h.method('div',
+             api.params(x='const migraphx::sym::expr&'),
+             invoke='${sym_expr} / ${x}',
+             returns='migraphx::sym::expr',
+             const=True)
+    h.method('to_string', returns='std::string', const=True)
+
+
 @api.handle('migraphx_dynamic_dimension', 'migraphx::shape::dynamic_dimension')
 def dynamic_dimension(h):
     h.constructor('create_min_max', api.params(min='size_t', max='size_t'))
     h.constructor(
         'create_min_max_optimals',
         api.params(min='size_t', max='size_t', optimals='std::set<size_t>'))
+    h.constructor('create_symbolic',
+                  api.params(expr='const migraphx::sym::expr&'))
     h.method('is_fixed', returns='bool', const=True)
+    h.method('is_symbolic', returns='bool', const=True)
     h.method('equal',
              api.params(x='const migraphx::shape::dynamic_dimension&'),
              invoke='migraphx::equal($@)',
@@ -413,6 +456,17 @@ def onnx_options(h):
         'set_use_debug_symbols',
         api.params(value='bool'),
         invoke='migraphx::set_use_debug_symbols($@)',
+    )
+    h.method(
+        'set_use_symbolic_shapes',
+        api.params(value='bool'),
+        invoke='migraphx::set_use_symbolic_shapes($@)',
+    )
+    h.method(
+        'set_dim_param',
+        api.params(name='const char*',
+                   dd='const migraphx::shape::dynamic_dimension&'),
+        invoke='migraphx::set_dim_param($@)',
     )
 
 

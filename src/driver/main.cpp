@@ -37,6 +37,7 @@
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/sym.hpp>
 #ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>
 #endif
@@ -185,6 +186,7 @@ struct loader
     bool verbose                = false;
     bool strip_context          = false;
     bool use_debug_symbols      = false;
+    bool use_symbolic           = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -222,6 +224,14 @@ struct loader
            ap.help(
                "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
            ap.set_value(true));
+        ap(use_symbolic,
+           {"--enable-symbolic"},
+           ap.help("Build input shapes with symbolic dimensions. Named dim_params (--dim-param) "
+                   "and unnamed dynamic dims (--default-dyn-dim) become symbolic dimensions. "
+                   "--dyn-input-dim entries that carry a \"name\" field are symbolic regardless "
+                   "of this flag. "
+                   "Example: --enable-symbolic --default-dyn-dim \"{min:1, max:1024}\""),
+           ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
@@ -231,21 +241,33 @@ struct loader
            ap.nargs(2));
         ap(dim_params,
            {"--dim-param"},
-           ap.help("Symbolic parameter dimension name (fixed / dynamic) - "
-                   "(fixed format): \"@dim_param_name\" \"x\" / "
-                   "(dynamic format): \"@dim_param_name\" \"{min:x, max:y, optimals:[o1,o2]}\""),
+           ap.help(
+               "Bind a named ONNX dim_param to a dimension (fixed or dynamic). "
+               "Fixed:   \"@dim_param_name\" \"x\". "
+               "Dynamic: \"@dim_param_name\" \"{min:x, max:y, optimals:[o1,o2]}\". "
+               "With --enable-symbolic the dim_param becomes a symbolic dimension over this range. "
+               "Example: --enable-symbolic --dim-param \"@seq\" "
+               "\"{min:1, max:128, optimals:[64, 128]}\""),
            ap.append(),
            ap.nargs(2));
         ap(dyn_param_dims,
            {"--dyn-input-dim"},
-           ap.help("Dynamic dimensions of a parameter (format: \"@name_1\" \"[{min:x, max:y, "
-                   "optimals:[o1,o2,...]}, dim2,dim3, ...]\", \"@name_2\", ... You can supply a "
-                   "single integer value for a dimension to specify it as fixed."),
+           ap.help(
+               "Dynamic dimensions of a parameter "
+               "(format: \"@name\" \"[{min:x, max:y, optimals:[o1,o2,...]}, dim2, dim3, ...]\"). "
+               "A single integer makes that dimension fixed. "
+               "Add a \"name\" key to make a dimension symbolic; this is symbolic "
+               "regardless of --enable-symbolic. "
+               "Example: --dyn-input-dim \"@x\" \"[{name:batch, min:1, max:64}, 3, 224, 224]\""),
            ap.append(),
            ap.nargs(2));
         ap(default_dyn_dim,
            {"--default-dyn-dim"},
-           ap.help("Default dynamic dimension (format: \"{min:x, max:y, optimals:[o1,o2]}\")."));
+           ap.help("Default dynamic dimension for dynamic input dims "
+                   "(format: \"{min:x, max:y, optimals:[o1,o2]}\"). "
+                   "With --enable-symbolic these become symbolic dimensions (named after the ONNX "
+                   "dim_param, or <input>_d<axis> when unnamed). "
+                   "Example: --enable-symbolic --default-dyn-dim \"{min:1, max:1024}\""));
         ap(output_names,
            {"--output-names"},
            ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
@@ -310,6 +332,30 @@ struct loader
         return map_input_dims;
     }
 
+    static migraphx::shape::dynamic_dimension parse_dyn_dim_object(const value& x)
+    {
+        if(x.contains("min") and x.contains("max"))
+        {
+            auto mn = x.at("min").to<std::size_t>();
+            auto mx = x.at("max").to<std::size_t>();
+            std::set<std::size_t> optimals;
+            if(x.contains("optimals"))
+                for(const auto& o : x.at("optimals"))
+                    optimals.insert(o.to<std::size_t>());
+
+            if(x.contains("name"))
+            {
+                std::set<std::int64_t> sym_optimals(optimals.begin(), optimals.end());
+                return migraphx::shape::dynamic_dimension{migraphx::sym::var(
+                    x.at("name").to<std::string>(),
+                    {static_cast<std::int64_t>(mn), static_cast<std::int64_t>(mx)},
+                    std::move(sym_optimals))};
+            }
+            return migraphx::shape::dynamic_dimension{mn, mx, std::move(optimals)};
+        }
+        return from_value<migraphx::shape::dynamic_dimension>(x);
+    }
+
     static auto parse_dyn_dims_json(const std::string& dd_json)
     {
         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
@@ -317,7 +363,7 @@ struct loader
         std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
         std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](const auto& x) {
             if(x.is_object())
-                return from_value<migraphx::shape::dynamic_dimension>(x);
+                return parse_dyn_dim_object(x);
             auto d = x.template to<std::size_t>();
             return migraphx::shape::dynamic_dimension{d, d};
         });
@@ -361,12 +407,8 @@ struct loader
                    }))
                     map_dim_params[name] = {std::stoul(x), std::stoul(x)};
                 else
-                {
-                    auto dyn_dim = parse_dyn_dims_json(x);
-                    if(dyn_dim.size() != 1)
-                        MIGRAPHX_THROW("dim_param must only specify one dimension");
-                    map_dim_params[name] = dyn_dim.front();
-                }
+                    map_dim_params[name] =
+                        parse_dyn_dim_object(from_json_string(convert_to_json(x)));
             }
         }
 
@@ -409,12 +451,13 @@ struct loader
         else
         {
             auto v                        = from_json_string(convert_to_json(default_dyn_dim));
-            options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
+            options.default_dyn_dim_value = parse_dyn_dim_object(v);
             options.default_set           = true;
         }
         options.skip_unknown_operators = skip_unknown_operators;
         options.print_program_on_error = true;
         options.use_debug_symbols      = use_debug_symbols;
+        options.use_symbolic_shapes    = use_symbolic;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;

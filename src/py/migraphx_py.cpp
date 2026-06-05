@@ -27,6 +27,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
 #include <migraphx/program.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/quantization.hpp>
@@ -402,10 +403,41 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     py::enum_<migraphx::shape::type_t>(shape_cls, "type_t")
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_PYTHON_GENERATE_SHAPE_ENUM);
 
+    auto sym = m.def_submodule("sym", "Symbolic expressions for dynamic dimensions");
+    py::class_<migraphx::sym::expr>(sym, "expr")
+        .def("__add__",
+             [](const migraphx::sym::expr& a, const migraphx::sym::expr& b) { return a + b; })
+        .def("__sub__",
+             [](const migraphx::sym::expr& a, const migraphx::sym::expr& b) { return a - b; })
+        .def("__mul__",
+             [](const migraphx::sym::expr& a, const migraphx::sym::expr& b) { return a * b; })
+        .def("__truediv__",
+             [](const migraphx::sym::expr& a, const migraphx::sym::expr& b) { return a / b; })
+        .def("__repr__", [](const migraphx::sym::expr& e) { return e.to_string(); });
+
+    sym.def(
+        "var",
+        [](const std::string& name,
+           std::size_t min,
+           std::size_t max,
+           std::set<std::int64_t> optimals) {
+            return migraphx::sym::var(
+                name,
+                {static_cast<std::int64_t>(min), static_cast<std::int64_t>(max)},
+                std::move(optimals));
+        },
+        py::arg("name"),
+        py::arg("min"),
+        py::arg("max"),
+        py::arg("optimals") = std::set<std::int64_t>{});
+    sym.def("lit", &migraphx::sym::lit, py::arg("value"));
+    sym.def("parse", &migraphx::sym::parse, py::arg("expression"));
+
     py::class_<migraphx::shape::dynamic_dimension>(shape_cls, "dynamic_dimension")
         .def(py::init<>())
         .def(py::init<std::size_t, std::size_t>())
         .def(py::init<std::size_t, std::size_t, std::set<std::size_t>>())
+        .def(py::init<migraphx::sym::expr>())
         .def_property_readonly(
             "min", [](const migraphx::shape::dynamic_dimension& d) { return d.get_interval().min; })
         .def_property_readonly(
@@ -413,7 +445,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def_property_readonly(
             "optimals",
             [](const migraphx::shape::dynamic_dimension& d) { return d.get_optimals(); })
-        .def("is_fixed", &migraphx::shape::dynamic_dimension::is_fixed);
+        .def("is_fixed", &migraphx::shape::dynamic_dimension::is_fixed)
+        .def("is_symbolic", &migraphx::shape::dynamic_dimension::is_symbolic);
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
@@ -765,7 +798,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            bool print_program_on_error,
            int64_t max_loop_iterations,
            int64_t limit_max_iterations,
-           bool use_debug_symbols) {
+           bool use_debug_symbols,
+           bool use_symbolic_shapes) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -777,6 +811,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.max_loop_iterations    = max_loop_iterations;
             options.limit_max_iterations   = limit_max_iterations;
             options.use_debug_symbols      = use_debug_symbols;
+            options.use_symbolic_shapes    = use_symbolic_shapes;
             return migraphx::parse_onnx(filename, options);
         },
         "Parse onnx file",
@@ -792,42 +827,50 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("print_program_on_error") = false,
         py::arg("max_loop_iterations")    = 10,
         py::arg("limit_max_iterations")   = std::numeric_limits<uint16_t>::max(),
-        py::arg("use_debug_symbols")      = false);
+        py::arg("use_debug_symbols")      = false,
+        py::arg("use_symbolic_shapes")    = false);
 
     m.def(
         "parse_onnx_buffer",
         [](const std::string& onnx_buffer,
            unsigned int default_dim_value,
            migraphx::shape::dynamic_dimension default_dyn_dim_value,
+           std::unordered_map<std::string, migraphx::shape::dynamic_dimension> dim_params,
            std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
            std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
                map_dyn_input_dims,
            bool skip_unknown_operators,
            bool print_program_on_error,
            const std::string& external_data_path,
-           bool use_debug_symbols) {
+           bool use_debug_symbols,
+           bool use_symbolic_shapes) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
+            options.dim_params             = dim_params;
             options.map_input_dims         = map_input_dims;
             options.map_dyn_input_dims     = map_dyn_input_dims;
             options.skip_unknown_operators = skip_unknown_operators;
             options.print_program_on_error = print_program_on_error;
             options.external_data_path     = external_data_path;
             options.use_debug_symbols      = use_debug_symbols;
+            options.use_symbolic_shapes    = use_symbolic_shapes;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
         py::arg("filename"),
         py::arg("default_dim_value")     = 0,
         py::arg("default_dyn_dim_value") = migraphx::shape::dynamic_dimension{1, 1},
+        py::arg("dim_params") =
+            std::unordered_map<std::string, migraphx::shape::dynamic_dimension>(),
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("map_dyn_input_dims") =
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
         py::arg("skip_unknown_operators") = false,
         py::arg("print_program_on_error") = false,
         py::arg("external_data_path")     = "",
-        py::arg("use_debug_symbols")      = false);
+        py::arg("use_debug_symbols")      = false,
+        py::arg("use_symbolic_shapes")    = false);
 
     m.def(
         "load",

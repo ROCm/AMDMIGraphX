@@ -1,8 +1,9 @@
-	group_norm_4d_test:³
-:
+	group_norm_4d_test:Æ
+M
 x
 scale
 biasy"GroupNormalization*
+epsilon¬Å'7 *
 
 num_groups group_norm_4d_testZ
 x
@@ -14,11 +15,11 @@ num_groups group_norm_4d_testZ
 scale
 
 
-Z
+Z
 bias
 
 
-b
+b
 y
 
 

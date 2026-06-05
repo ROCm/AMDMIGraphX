@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,9 +33,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-std::vector<argument> generate_arguments(const std::vector<shape>& shapes,
-                                         unsigned long seed = 0,
-                                         random_mode rm     = random_mode::random)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_BUNDLE);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_BENCHMARKING_NRUNS);
+
+static std::vector<argument> generate_arguments(const std::vector<shape>& shapes,
+                                                unsigned long seed = 0,
+                                                random_mode rm     = random_mode::random)
 {
     std::vector<argument> args;
     std::transform(shapes.begin(), shapes.end(), std::back_inserter(args), [&](const auto& s) {
@@ -44,24 +47,45 @@ std::vector<argument> generate_arguments(const std::vector<shape>& shapes,
     return args;
 }
 
-template <class F>
-double time_loop(migraphx::gpu::context& gctx, int n, F f)
+double
+time_loop(migraphx::gpu::context& gctx, int bundle, int nruns, const std::function<void()>& f)
 {
-    auto start = context::create_event_for_timing();
-    auto stop  = context::create_event_for_timing();
+    // check for manual overrides
+    bundle = value_of(MIGRAPHX_BENCHMARKING_BUNDLE{}, bundle);
+    nruns  = value_of(MIGRAPHX_BENCHMARKING_NRUNS{}, nruns);
+
+    std::vector<std::pair<hip_event_ptr, hip_event_ptr>> events(nruns);
+    std::generate(events.begin(), events.end(), [] {
+        return std::make_pair(context::create_event_for_timing(),
+                              context::create_event_for_timing());
+    });
+    std::vector<double> times;
+    // Warmup
     f();
-    gctx.get_stream().record(start.get());
-    for(auto i : range(n))
+    for(auto i : range(nruns))
     {
-        (void)i;
-        f();
+        gctx.get_stream().record(events[i].first.get());
+        for(auto j : range(bundle))
+        {
+            (void)j;
+            f();
+        }
+        gctx.get_stream().record(events[i].second.get());
     }
-    gctx.get_stream().record(stop.get());
     gctx.finish();
-    return context::get_elapsed_ms(start.get(), stop.get()) / n;
+    std::transform(events.begin(), events.end(), std::back_inserter(times), [&](const auto& p) {
+        return context::get_elapsed_ms(p.first.get(), p.second.get()) / bundle;
+    });
+    std::sort(times.begin(), times.end());
+
+    // compute common average by removing top and bottom 25% of values
+    std::size_t quarters = times.size() / 4;
+    double total         = std::accumulate(times.begin() + quarters, times.end() - quarters, 0.0);
+    return total / std::distance(times.begin() + quarters, times.end() - quarters);
 }
 
-double time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int n)
+double
+time_op(const context& ictx, operation op, const std::vector<shape>& inputs, int bundle, int nruns)
 {
     // TODO: Use std::ref
     migraphx::context ctx = ictx;
@@ -70,16 +94,20 @@ double time_op(const context& ictx, operation op, const std::vector<shape>& inpu
     op.finalize(ctx, output, inputs);
     auto args = generate_arguments(inputs);
     auto run  = [&] { op.compute(ctx, output, args); };
-    return time_loop(gctx, n, run);
+    return time_loop(gctx, bundle, nruns, run);
 }
 
-double time_op(const context& ictx, operation op, int n)
+double time_op(const context& ictx, operation op, int bundle, int nruns)
 {
     auto inputs = any_cast<migraphx::gpu::code_object_op>(op).expected_inputs;
-    return time_op(ictx, op, inputs, n);
+    return time_op(ictx, op, inputs, bundle, nruns);
 }
 
-double time_program(const context& ictx, program p, int n)
+double time_program(const context& ictx,
+                    program p,
+                    const std::unordered_map<std::string, double>& fill_map,
+                    int bundle,
+                    int nruns)
 {
     std::vector<migraphx::context> ctx_vec = {ictx};
     auto& gctx                             = any_cast<migraphx::gpu::context>(ctx_vec.front());
@@ -90,10 +118,17 @@ double time_program(const context& ictx, program p, int n)
     unsigned long seed = 0;
     for(const auto& [name, shape] : in_shapes)
     {
-        param_map[name] = to_gpu(generate_argument(shape, seed++, random_mode::random));
+        std::string id = "";
+        if(shape.type() != migraphx::shape::tuple_type)
+            id = shape.type_string() + migraphx::shape::to_sizes_string({shape.as_standard()});
+
+        if(contains(fill_map, id))
+            param_map[name] = to_gpu(fill_argument(shape, fill_map.at(id)));
+        else
+            param_map[name] = to_gpu(generate_argument(shape, seed++, random_mode::random));
     }
     auto run = [&] { p.eval_with_context(ctx_vec, param_map); };
-    return time_loop(gctx, n, run);
+    return time_loop(gctx, bundle, nruns, run);
 }
 
 } // namespace gpu

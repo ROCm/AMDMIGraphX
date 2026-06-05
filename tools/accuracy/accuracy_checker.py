@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -87,6 +87,25 @@ def parse_args():
                         action='store_true',
                         default=False,
                         help='Turn on ort VERBOSE logging via session options')
+
+    parser.add_argument('--ort-disable-affinity',
+                        dest="ort_intra_op_num_threads",
+                        type=int,
+                        default=None,
+                        help='Set onnxruntime SessionOptions.intra_op_num_threads. '
+                             'Default (None) lets ORT auto-size the intra-op thread '
+                             'pool from the host CPU count and pin each worker to a '
+                             'specific CPU. In a container/cgroup with a cpuset '
+                             'smaller than the host, those pins fail with EINVAL and '
+                             'ORT floods stderr with "pthread_setaffinity_np failed" '
+                             'errors. Specifying this value explicitly (e.g. to the '
+                             'container-visible CPU count) disables that pinning.')
+
+    parser.add_argument('--show-test-data',
+                        dest='show_data',
+                        action='store_true',
+                        default=False,
+                        help='Display input data used for run')
 
     parser.add_argument(
         '--disable-offload-copy',
@@ -234,7 +253,7 @@ def main():
     params = {}
     test_inputs = {}
     for name, shape in model.get_parameter_shapes().items():
-        if args.verbose:
+        if args.verbose or args.show_data:
             print(f'Parameter {name} -> {shape}')
         in_shape = shape.lens()
         in_type = shape.type_string()
@@ -246,7 +265,12 @@ def main():
         else:
             test_input = np.zeros(in_shape).astype(get_np_datatype(in_type))
         test_inputs[name] = test_input
-        migraphx_arg = migraphx.argument(test_input)
+
+        if args.show_data:
+            print(f"Input data for {name}: {test_input}\n")
+
+
+        migraphx_arg = migraphx.argument(test_inputs[name])
         if not args.offload_copy:
             migraphx_arg = migraphx.to_gpu(migraphx_arg)
         params[name] = migraphx_arg
@@ -259,6 +283,11 @@ def main():
 
     if use_onnx:
         sess_op = ort.SessionOptions()
+        sess_op.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+
+        if args.ort_intra_op_num_threads is not None:
+            sess_op.intra_op_num_threads = args.ort_intra_op_num_threads
+            sess_op.inter_op_num_threads = 1
 
         if args.ort_logging:
             sess_op.log_verbosity_level = 0
@@ -325,6 +354,14 @@ def main():
             pred_fw = y_out
 
     if not args.ort_run:
+        if args.show_data:
+            if hasattr(pred_fw, '__iter__') and not isinstance(pred_fw, (str, bytes)):
+                print('Output Gold Data:')
+                for idx, output in enumerate(pred_fw):
+                    print(f'Output {idx}: {output}')
+            else:
+                print(f'Output Gold Data:\n{pred_fw}\n')
+
         is_correct = check_correctness(pred_fw, pred_migx, args.tolerance,
                                        args.tolerance, args.argmax,
                                        args.verbose)

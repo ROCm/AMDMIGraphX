@@ -17,6 +17,7 @@ python3 -m venv sd_venv
 Install dependencies
 
 ```bash
+pip install --upgrade pip
 pip install -r torch_requirements.txt
 pip install -r requirements.txt
 ```
@@ -37,7 +38,7 @@ huggingface-cli login
 Export the models to onnx. 
 Currently, optimum does not have the changes required in their latest release. Please install from their development branch instead.
 ```bash
-python -m pip install optimum[onnxruntime]@git+https://github.com/huggingface/optimum.git
+pip install "optimum-onnx[onnxruntime]"@git+https://github.com/huggingface/optimum-onnx.git
 ```
 
 Once optimum is built, use the following command to export the models:

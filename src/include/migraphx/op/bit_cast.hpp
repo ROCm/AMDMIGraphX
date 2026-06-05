@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,14 +50,18 @@ struct bit_cast : unary<bit_cast>
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
-        auto input = inputs.at(0);
+        const auto& input = inputs.at(0);
         std::size_t target_type_size;
         shape::visit(target_type, [&](auto as) { target_type_size = as.size(); });
         if(input.type_size() != target_type_size)
         {
             MIGRAPHX_THROW("BIT_CAST: target_type has different type_size from input's");
         }
-        if(input.dynamic())
+        if(input.symbolic())
+        {
+            return {target_type, input.dyn_dims(), input.dyn_strides()};
+        }
+        else if(input.dynamic())
         {
             return {target_type, input.dyn_dims()};
         }

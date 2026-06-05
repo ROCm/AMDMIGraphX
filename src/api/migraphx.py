@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -150,6 +150,17 @@ def argument(h):
              const=True)
 
 
+api.add_function('migraphx_argument_save',
+                 api.params(a='const migraphx::argument&', filename='const char*'),
+                 fname='migraphx::save_argument'
+                 )
+
+api.add_function('migraphx_argument_load',
+                 api.params(filename='const char*'),
+                 fname='migraphx::load_argument',
+                 returns='migraphx::argument'
+                 )
+
 api.add_function('migraphx_argument_generate',
                  api.params(s='const migraphx::shape&', seed='size_t'),
                  fname='migraphx::generate_argument',
@@ -161,6 +172,11 @@ def target(h):
     h.constructor('create',
                   api.params(name='const char*'),
                   fname='migraphx::get_target')
+    h.constructor('create_with_options',
+                  api.params(name='const char*',
+                             options_json='const char*',
+                             vlist='...'),
+                  fname='migraphx::get_target_with_options')
 
 
 @api.handle('migraphx_program_parameter_shapes',
@@ -257,6 +273,27 @@ def module(h):
 
 
 @auto_handle()
+def trace_info(h):
+    h.constructor('create')
+    h.method('get_index',
+             invoke='${trace_info}.index',
+             returns='size_t',
+             const=True)
+    h.method('get_name',
+             invoke='${trace_info}.name',
+             returns='const std::string&',
+             const=True)
+    h.method('get_result',
+             invoke='${trace_info}.result',
+             returns='const migraphx::argument&',
+             const=True)
+
+
+api.add_callback('migraphx_trace_callback_t',
+                 api.params(info='migraphx::trace_info', data='void*'))
+
+
+@auto_handle()
 def program(h):
     h.constructor('create')
     h.method('get_main_module', returns='migraphx::module*')
@@ -285,6 +322,19 @@ def program(h):
                  s='void*',
                  name='const char *'),
              invoke='migraphx::run_async($@)',
+             returns='std::vector<migraphx::argument>')
+    h.method('run_trace',
+             api.params(
+                 params='std::unordered_map<std::string, migraphx::argument>',
+                 callback='migraphx_trace_callback_t',
+                 data='void*'),
+             invoke='''migraphx::run_trace((${program}), (${params}),
+                 [callback, data](const migraphx::trace_info& info) {
+                     migraphx_trace_info handle{info};
+                     auto status = callback(&handle, data);
+                     if(status != migraphx_status_success)
+                         MIGRAPHX_THROW(status, "Trace callback returned an error");
+                 })''',
              returns='std::vector<migraphx::argument>')
     h.method('equal',
              api.params(x='const migraphx::program&'),
@@ -359,6 +409,11 @@ def onnx_options(h):
         api.params(external_data_path='const char*'),
         invoke='migraphx::set_external_data_path($@)',
     )
+    h.method(
+        'set_use_debug_symbols',
+        api.params(value='bool'),
+        invoke='migraphx::set_use_debug_symbols($@)',
+    )
 
 
 @auto_handle()
@@ -428,6 +483,13 @@ api.add_function('migraphx_parse_tf',
                  fname='migraphx::parse_tf',
                  returns='migraphx::program')
 
+api.add_function('migraphx_parse_tf_buffer',
+                 api.params(data='const void*',
+                            size='size_t',
+                            options='migraphx::tf_options'),
+                 fname='migraphx::parse_tf_buffer',
+                 returns='migraphx::program')
+
 
 @api.handle('migraphx_quantize_op_names', 'std::vector<std::string>')
 def quantize_op_names(h):
@@ -443,6 +505,15 @@ api.add_function('migraphx_quantize_fp16_with_op_names',
 api.add_function('migraphx_quantize_fp16',
                  api.params(prog='migraphx::program&'),
                  fname='migraphx::quantize_fp16')
+
+api.add_function('migraphx_quantize_bf16_with_op_names',
+                 api.params(prog='migraphx::program&',
+                            name='std::vector<std::string>&'),
+                 fname='migraphx::quantize_bf16_with_op_names')
+
+api.add_function('migraphx_quantize_bf16',
+                 api.params(prog='migraphx::program&'),
+                 fname='migraphx::quantize_bf16')
 
 
 @auto_handle()
@@ -482,6 +553,16 @@ api.add_function('migraphx_quantize_fp8',
                             target='migraphx::target',
                             options='migraphx::quantize_fp8_options'),
                  fname='migraphx::quantize_fp8_wrap')
+
+api.add_function('migraphx_get_onnx_operator_name_at_index',
+                 api.params(index='size_t'),
+                 fname='migraphx::get_onnx_operator_name_at_index',
+                 returns='char *')
+
+api.add_function('migraphx_get_onnx_operators_size',
+                 fname='migraphx::get_onnx_operators_size',
+                 returns='size_t')
+
 
 
 @auto_handle(ref=True)

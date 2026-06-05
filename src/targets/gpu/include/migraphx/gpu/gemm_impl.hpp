@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,10 +24,11 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_GEMM_IMPL_HPP
 #define MIGRAPHX_GUARD_RTGLIB_GEMM_IMPL_HPP
 
-#include <iterator>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <iterator>
+#include <chrono>
 
 // Set this environment variable to "true" to perform GEMM tuning even when the
 // --exhaustive-tune option isn't set.  Can be used to skip slow convolution tuning.
@@ -39,6 +40,9 @@ using microseconds = std::chrono::duration<double, std::micro>;
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+void blas_shape(const shape& in_shape);
+shape transpose_batch(const shape& s, unsigned trans_batch);
 
 /**
  * @brief Templated implementations of the compute() and finalize() methods of the Gemm operator.
@@ -73,7 +77,8 @@ int32_t gemm_finalize(context& ctx,
                       const std::vector<shape>& input_shapes,
                       float alpha,
                       float beta,
-                      bool compute_fp32);
+                      bool compute_fp32,
+                      int32_t solution_idx);
 
 int32_t gemm_finalize(context& ctx,
                       const shape& output_shape,

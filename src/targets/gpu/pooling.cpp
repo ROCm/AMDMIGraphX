@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,7 @@ shape miopen_pooling::compute_shape(const std::vector<shape>& inputs) const
     return op.normalize_compute_shape(pooling_input);
 }
 
-inline void reshape_if_1d(shape& input)
+inline static void reshape_if_1d(shape& input)
 {
     auto dims = input.lens();
 

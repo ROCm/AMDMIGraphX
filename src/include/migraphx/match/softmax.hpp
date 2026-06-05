@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,15 +32,16 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace match {
 
 namespace detail {
-template <class F>
+template <class F, class M>
 struct softmax_matcher
 {
     F f;
+    M input_matcher;
 
     auto exp_x_minus_max() const
     {
         auto x_minus_max =
-            f("sub")(arg(0)(any().bind("x")), arg(1)(skip_broadcasts(f("reduce_max"))));
+            f("sub")(arg(0)(input_matcher.bind("x")), arg(1)(skip_broadcasts(f("reduce_max"))));
         return f("exp")(arg(0)(x_minus_max));
     }
 
@@ -54,15 +55,21 @@ struct softmax_matcher
 };
 } // namespace detail
 
-template <class F>
-auto softmax(F f)
+template <class F, class M>
+auto softmax(F f, M input_matcher)
 {
-    return detail::softmax_matcher<F>{f}.matcher();
+    return detail::softmax_matcher<F, M>{f, input_matcher}.matcher();
 }
 
 inline auto softmax()
 {
-    return softmax([](auto x) { return name(x); });
+    return softmax([](auto x) { return name(x); }, any());
+}
+
+template <class M>
+inline auto softmax_input(M m)
+{
+    return softmax([](auto x) { return name(x); }, m);
 }
 
 } // namespace match

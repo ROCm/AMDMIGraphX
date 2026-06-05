@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ TEST_CASE(read_write)
         auto db   = migraphx::sqlite::read(db_path);
         auto rows = db.execute(select_all);
         EXPECT(rows.size() == 1);
-        auto row = rows.front();
+        const auto& row = rows.front();
         EXPECT(row.at("data") == "a");
         EXPECT(row.at("id") == "1");
     }

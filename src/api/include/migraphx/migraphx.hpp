@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@
 #include <numeric>
 #include <exception>
 #include <array>
+#include <utility>
 #include <vector>
 #include <cassert>
 #include <iostream>
@@ -334,7 +335,8 @@ struct handle_base : handle_lookup<Derived, std::remove_cv_t<T>>
     template <class U, class V>
     void set_handle(U* ptr, share<V> b)
     {
-        m_handle = std::shared_ptr<T>{ptr, [b](U*) {}};
+        m_handle =
+            std::shared_ptr<T>{ptr, [b](U*) {}}; // NOLINT(performance-unnecessary-value-param)
     }
 
     share<T> share_handle() const { return {m_handle}; }
@@ -561,10 +563,10 @@ struct interface_base : Base
 };
 
 // NOLINTNEXTLINE
-#define MIGRAPHX_INTERFACE_LIFT(n_out, T, prefix, name) \
-    this->set_auto_fp<T>(                               \
-        &migraphx_##prefix##_set_##name,                \
-        [](T& x, auto... xs) { return x.name(xs...); }, \
+#define MIGRAPHX_INTERFACE_LIFT(n_out, T, prefix, name)                              \
+    this->set_auto_fp<T>(                                                            \
+        &migraphx_##prefix##_set_##name,                                             \
+        [](T& x, auto&&... xs) { return x.name(static_cast<decltype(xs)>(xs)...); }, \
         out_params<n_out>{})
 
 template <class Base, class T>
@@ -648,7 +650,7 @@ struct dynamic_dimensions : MIGRAPHX_HANDLE_BASE(dynamic_dimensions)
     MIGRAPHX_HANDLE_CONSTRUCTOR(dynamic_dimensions)
 
     template <class... Ts>
-    dynamic_dimensions(Ts... xs)
+    dynamic_dimensions(const Ts&... xs)
     {
         std::array<const_migraphx_dynamic_dimension_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
         this->make_handle(&migraphx_dynamic_dimensions_create, a.data(), a.size());
@@ -850,6 +852,18 @@ struct argument : MIGRAPHX_CONST_HANDLE_BASE(argument)
         return res;
     }
 
+    /// Save an argument to a file
+    static void save_argument(const argument& a, const std::string& filename)
+    {
+        call(&migraphx_argument_save, a.get_handle_ptr(), filename.c_str());
+    }
+
+    /// Load an argument from a file
+    static argument load_argument(const std::string& filename)
+    {
+        return {make<migraphx_argument>(&migraphx_argument_load, filename.c_str()), own{}};
+    }
+
     /// Generate an argument using random data
     static argument generate(shape ps, size_t pseed = 0)
     {
@@ -876,6 +890,17 @@ struct target : MIGRAPHX_HANDLE_BASE(target)
 
     /// Construct a target from its name
     target(const char* name) { this->make_handle(&migraphx_target_create, name); }
+
+    /// Construct a target from its name and configuration options. `options_json`
+    /// is a JSON object (e.g. `{"gpu_arch":"gfx942"}`) whose keys are reflected
+    /// onto the target's data members. Accepts printf-style format specifiers
+    /// in `options_json` followed by their substitution values, e.g.
+    /// `target("gpu", "{gpu_arch: %s}", "gfx942")`.
+    template <class... Ts>
+    target(const char* name, const char* options_json, Ts... xs)
+    {
+        this->make_handle(&migraphx_target_create_with_options, name, options_json, xs...);
+    }
 };
 
 struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
@@ -1003,7 +1028,7 @@ struct instructions : MIGRAPHX_HANDLE_BASE(instructions)
     MIGRAPHX_HANDLE_CONSTRUCTOR(instructions)
 
     template <class... Ts>
-    instructions(Ts... xs)
+    instructions(const Ts&... xs)
     {
         std::array<const_migraphx_instruction_t, sizeof...(Ts)> a{xs.get_handle_ptr()...};
         this->make_handle(&migraphx_instructions_create, a.data(), a.size());
@@ -1017,7 +1042,7 @@ struct modules : MIGRAPHX_HANDLE_BASE(modules)
     MIGRAPHX_HANDLE_CONSTRUCTOR(modules)
 
     template <class... Ts>
-    modules(Ts... xs)
+    modules(const Ts&... xs)
     {
         std::array<migraphx_module_t, sizeof...(Ts)> a = {xs.get_handle_ptr()...};
         this->make_handle(&migraphx_modules_create, a.data(), a.size());
@@ -1032,7 +1057,7 @@ struct module
     module(migraphx_module* m, borrow) :mm(std::shared_ptr<migraphx_module*>(), m) {}
 
     template <class T>
-    module(migraphx_module* m, share<T> b) : mm(b.alias(m))
+    module(migraphx_module* m, const share<T>& b) : mm(b.alias(m))
     {
     }
 
@@ -1105,7 +1130,7 @@ struct context : handle_lookup<context, migraphx_context>
     context(migraphx_context* p, borrow) : ctx(std::shared_ptr<migraphx_context*>(), p) {}
 
     template <class T>
-    context(migraphx_context* p, share<T> b) : ctx(b.alias(p))
+    context(migraphx_context* p, const share<T>& b) : ctx(b.alias(p))
     {
     }
 
@@ -1122,6 +1147,34 @@ struct context : handle_lookup<context, migraphx_context>
 
     private:
     std::shared_ptr<migraphx_context> ctx;
+};
+
+struct trace_info : MIGRAPHX_HANDLE_BASE(trace_info)
+{
+    trace_info() { this->make_handle(&migraphx_trace_info_create); }
+
+    MIGRAPHX_HANDLE_CONSTRUCTOR(trace_info)
+
+    std::size_t get_index() const
+    {
+        std::size_t pout;
+        call(&migraphx_trace_info_get_index, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    std::string get_name() const
+    {
+        const char* out_name;
+        call(&migraphx_trace_info_get_name, &out_name, this->get_handle_ptr());
+        return {out_name};
+    }
+
+    argument get_result() const
+    {
+        const_migraphx_argument_t pout;
+        call(&migraphx_trace_info_get_result, &pout, this->get_handle_ptr());
+        return {pout, this->share_handle()};
+    }
 };
 
 struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
@@ -1199,6 +1252,33 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_arguments_t pout;
         call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
+        return arguments(pout, own{});
+    }
+
+    /// Run the program with a per-instruction callback for buffer inspection
+    template <class F>
+    arguments run_trace(const program_parameters& pparams, F callback) const
+    {
+        migraphx_trace_callback_t c_callback = [](migraphx_trace_info_t info,
+                                                  void* data) -> migraphx_status {
+            auto* fn = static_cast<F*>(data);
+            try
+            {
+                (*fn)(trace_info(info, borrow{}));
+            }
+            catch(...)
+            {
+                return migraphx_status_unknown_error;
+            }
+            return migraphx_status_success;
+        };
+        migraphx_arguments_t pout;
+        call(&migraphx_program_run_trace,
+             &pout,
+             this->get_handle_ptr(),
+             pparams.get_handle_ptr(),
+             c_callback,
+             &callback);
         return arguments(pout, own{});
     }
 
@@ -1352,6 +1432,12 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
              this->get_handle_ptr(),
              external_data_path.c_str());
     }
+
+    /// Enable debug symbols from ONNX node names
+    void set_use_debug_symbols(bool value = true)
+    {
+        call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
+    }
 };
 
 /// Parse an onnx file into a migraphx program
@@ -1460,6 +1546,42 @@ inline program parse_tf(const char* filename)
                    own{});
 }
 
+/// Parse a buffer of memory as an tf file
+inline program parse_tf_buffer(const void* data, size_t size, const migraphx::tf_options& options)
+{
+    return program(
+        make<migraphx_program>(&migraphx_parse_tf_buffer, data, size, options.get_handle_ptr()),
+        own{});
+}
+
+/// Parse a buffer of memory as an tf file
+inline program parse_tf_buffer(const void* data, size_t size)
+{
+    migraphx::tf_options options;
+    return program(
+        make<migraphx_program>(&migraphx_parse_tf_buffer, data, size, options.get_handle_ptr()),
+        own{});
+}
+
+/// Parse a buffer of memory as an tf file
+inline program parse_tf_buffer(const std::string& buffer, const migraphx::tf_options& options)
+{
+    return program(
+        make<migraphx_program>(
+            &migraphx_parse_tf_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
+        own{});
+}
+
+/// Parse a buffer of memory as an tf file
+inline program parse_tf_buffer(const std::string& buffer)
+{
+    migraphx::tf_options options;
+    return program(
+        make<migraphx_program>(
+            &migraphx_parse_tf_buffer, buffer.data(), buffer.size(), options.get_handle_ptr()),
+        own{});
+}
+
 struct quantize_op_names : MIGRAPHX_HANDLE_BASE(quantize_op_names)
 {
     quantize_op_names() { this->make_handle(&migraphx_quantize_op_names_create); }
@@ -1482,6 +1604,18 @@ inline void quantize_fp16(const program& prog, const quantize_op_names& names)
 inline void quantize_fp16(const program& prog)
 {
     call(&migraphx_quantize_fp16, prog.get_handle_ptr());
+}
+
+/// Quantize program to use fp16
+inline void quantize_bf16(const program& prog, const quantize_op_names& names)
+{
+    call(&migraphx_quantize_bf16_with_op_names, prog.get_handle_ptr(), names.get_handle_ptr());
+}
+
+/// Quantize program to use fp16
+inline void quantize_bf16(const program& prog)
+{
+    call(&migraphx_quantize_bf16, prog.get_handle_ptr());
 }
 
 /// Options to be passed when quantizing for int8
@@ -1539,6 +1673,23 @@ quantize_fp8(const program& prog, const target& ptarget, const quantize_fp8_opti
          prog.get_handle_ptr(),
          ptarget.get_handle_ptr(),
          options.get_handle_ptr());
+}
+
+inline std::vector<std::string> get_onnx_operators()
+{
+    size_t size = 0;
+    call(&migraphx_get_onnx_operators_size, &size);
+    std::vector<std::string> result(size, "");
+
+    size_t index = 0;
+    for(auto& name : result)
+    {
+        char* name_op;
+        call(&migraphx_get_onnx_operator_name_at_index, &name_op, index);
+        name = name_op;
+        index++;
+    }
+    return result;
 }
 
 struct experimental_custom_op_base

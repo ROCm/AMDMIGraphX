@@ -34,13 +34,13 @@
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 
-void run_lowering(migraphx::module& m, bool offload_copy = false)
+#if MIGRAPHX_USE_HIPBLASLT
+static void run_lowering(migraphx::module& m, bool offload_copy = false)
 {
     auto ctx = migraphx::gpu::context{};
     migraphx::run_passes(m, {migraphx::gpu::lowering{&ctx, offload_copy}});
 }
 
-#if MIGRAPHX_USE_HIPBLASLT
 TEST_CASE(hipblaslt_op)
 {
     if(not(migraphx::string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "rocblas") and

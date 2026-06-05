@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -67,7 +68,7 @@ struct compute_output_shape
 template <class F>
 compute_output_shape<F> make_compute_output_shape(F f)
 {
-    return {f};
+    return {std::move(f)};
 }
 
 } // namespace MIGRAPHX_INLINE_NS

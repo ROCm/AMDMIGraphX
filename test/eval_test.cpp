@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,12 +22,16 @@
  * THE SOFTWARE.
  */
 
+#include <algorithm>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/reflect.hpp>
+#include <migraphx/execution_environment.hpp>
+#include <migraphx/any_ptr.hpp>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -39,6 +43,13 @@ struct id_target
         void finish() const {}
     };
     migraphx::context ctx = context{};
+
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return migraphx::pack();
+    }
+
     std::string name() const { return "id"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&,
                                            const migraphx::compile_options&) const
@@ -65,7 +76,7 @@ struct id_ctx_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct id_ctx_final_op
@@ -88,7 +99,7 @@ struct id_ctx_final_op
             return {};
         return inputs.front();
     }
-    int output_alias(const std::vector<migraphx::shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<migraphx::shape>&) const { return {0}; }
 };
 
 struct reverse_pass
@@ -149,6 +160,24 @@ struct double_invert_target
         return {invert_pass{}, invert_pass{}};
     }
     migraphx::context get_context() const { return {}; }
+};
+
+// Minimal context that implements the optional set_queue/restore_queue members
+// of the context concept
+// Each call bumps a counter so a test can verify the dispatch routed through.
+struct tracked_ctx
+{
+    int set_calls     = 0;
+    int restore_calls = 0;
+    migraphx::any_ptr last_queue{};
+
+    void finish() const {}
+    void set_queue(migraphx::any_ptr q)
+    {
+        ++set_calls;
+        last_queue = q;
+    }
+    void restore_queue() { ++restore_calls; }
 };
 
 TEST_CASE(literal_test1)
@@ -247,9 +276,9 @@ TEST_CASE(get_param1)
     auto x = mm->add_parameter("x", s);
     auto y = mm->add_parameter("y", s);
     mm->add_instruction(migraphx::make_op("add"), x, y);
-    EXPECT(bool{p.get_parameter("x") == x});
-    EXPECT(bool{p.get_parameter("y") == y});
-    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
+    EXPECT(p.get_parameter("x") == x);
+    EXPECT(p.get_parameter("y") == y);
+    EXPECT(p.get_parameter("nonexistent") == mm->end());
 }
 
 TEST_CASE(get_param2)
@@ -259,7 +288,7 @@ TEST_CASE(get_param2)
     auto one = mm->add_literal(1);
     auto two = mm->add_literal(2);
     mm->add_instruction(migraphx::make_op("add"), one, two);
-    EXPECT(bool{p.get_parameter("nonexistent") == mm->end()});
+    EXPECT(p.get_parameter("nonexistent") == mm->end());
 }
 
 TEST_CASE(get_param_shapes)
@@ -284,7 +313,7 @@ TEST_CASE(replace_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->replace_instruction(sum, migraphx::make_op("sub"), two, one);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -300,7 +329,7 @@ TEST_CASE(replace_ins_test)
     auto sum   = mm->add_instruction(migraphx::make_op("add"), one, two);
     auto minus = mm->add_instruction(migraphx::make_op("sub"), two, one);
     mm->replace_instruction(sum, minus);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -317,7 +346,7 @@ TEST_CASE(replace_ins_test2)
     auto minus = mm->add_instruction(migraphx::make_op("sub"), two, one);
     mm->add_instruction(pass_op{}, minus);
     mm->replace_instruction(two, sum);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{2});
@@ -332,7 +361,7 @@ TEST_CASE(replace_op_test)
     auto two = mm->add_literal(2);
     auto sum = mm->add_instruction(migraphx::make_op("add"), two, one);
     sum->replace(migraphx::make_op("sub"));
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{1});
@@ -360,7 +389,7 @@ TEST_CASE(insert_replace_test)
 
     auto sum0 = mm->insert_instruction(sum1, migraphx::make_op("add"), two, two);
     mm->replace_instruction(sum1, migraphx::make_op("sub"), sum0, two);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{4});
@@ -376,7 +405,7 @@ TEST_CASE(remove_test1)
     auto sum     = mm->add_instruction(migraphx::make_op("add"), one, two);
     auto removed = mm->add_instruction(migraphx::make_op("sub"), sum, one);
     mm->remove_instruction(removed);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
@@ -392,7 +421,7 @@ TEST_CASE(remove_test2)
     auto removed = mm->add_instruction(migraphx::make_op("sub"), two, one);
     mm->add_instruction(migraphx::make_op("add"), one, two);
     mm->remove_instruction(removed);
-    EXPECT(bool{p.validate() == mm->end()});
+    EXPECT(p.validate() == mm->end());
 
     auto result = p.eval({}).back();
     EXPECT(result == migraphx::literal{3});
@@ -514,7 +543,7 @@ struct cout_redirect
 };
 
 template <class F>
-std::string capture_output(F f)
+static std::string capture_output(F f)
 {
     std::stringstream ss;
     cout_redirect cr{ss};
@@ -543,6 +572,195 @@ TEST_CASE(debug_print_test)
     EXPECT(inss_out == ins_out);
     EXPECT(end_out == "End instruction");
     EXPECT(p2_ins_out == "Instruction not part of module");
+}
+
+TEST_CASE(eval_trace_fires_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(not fired_ops.empty());
+    EXPECT(fired_ops.back() == "add");
+}
+
+TEST_CASE(eval_trace_disabled_falls_through)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+
+    migraphx::execution_environment exec_env;
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+}
+
+TEST_CASE(eval_trace_filter_by_name_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
+    mm->add_instruction(migraphx::make_op("sub"), sum, one);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        if(ins->name() == "sub")
+            fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{2});
+    EXPECT(fired_ops.size() == 1);
+    EXPECT(fired_ops.front() == "sub");
+}
+
+TEST_CASE(eval_trace_filter_by_ins_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    auto sum = mm->add_instruction(migraphx::make_op("add"), one, two);
+    mm->add_instruction(migraphx::make_op("sub"), sum, one);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        if(ins == sum)
+            fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{2});
+    EXPECT(fired_ops.size() == 1);
+    EXPECT(fired_ops.front() == "add");
+}
+
+TEST_CASE(eval_trace_with_target_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
+
+    std::vector<std::string> fired_ops;
+    migraphx::execution_environment exec_env;
+    exec_env.trace = [&](migraphx::instruction_ref ins, const migraphx::argument&) {
+        fired_ops.push_back(ins->name());
+    };
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+    EXPECT(not fired_ops.empty());
+}
+
+TEST_CASE(async_eval_on_cpu_target_invokes_set_and_restore_queue)
+{
+    // The async branches of program::eval() call contexts.front().set_queue()
+    // before generic_eval and contexts.front().restore_queue() after.  id_target
+    // wraps an id_target::context that has no set_queue/restore_queue members,
+    // so this exercises the type-erased facade end-to-end on a non-GPU build:
+    //   - program::eval async prologue + epilogue (set_queue / restore_queue)
+    //   - context::set_queue / context::restore_queue facade bodies
+    //   - the float-overload (no-member) dispatchers
+    //   - the default set_queue_context / restore_queue_context free-function
+    //     fallbacks
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(migraphx::make_op("add"), one, two);
+    p.compile(id_target{});
+
+    int dummy = 0;
+    migraphx::execution_environment exec_env;
+    exec_env.queue = migraphx::any_ptr{&dummy};
+    exec_env.async = true;
+
+    auto result = p.eval({}, exec_env).back();
+    EXPECT(result == migraphx::literal{3});
+
+    // A default-constructed any_ptr is a legal exec_env.queue and must also
+    // round-trip through set_queue / restore_queue without throwing.
+    migraphx::execution_environment exec_env_null;
+    exec_env_null.async = true;
+    auto result2        = p.eval({}, exec_env_null).back();
+    EXPECT(result2 == migraphx::literal{3});
+}
+
+TEST_CASE(context_facade_dispatches_to_member_set_and_restore_queue)
+{
+    // Sister test of the one above: tracked_ctx *does* implement set_queue and
+    // restore_queue.
+    migraphx::context ctx{tracked_ctx{}};
+
+    int dummy = 0;
+    migraphx::any_ptr q{&dummy};
+    ctx.set_queue(q);
+    ctx.set_queue(q);
+    ctx.restore_queue();
+
+    auto* held = ctx.any_cast<tracked_ctx>();
+    EXPECT(held != nullptr);
+    EXPECT(held->set_calls == 2);
+    EXPECT(held->restore_calls == 1);
+    EXPECT(held->last_queue.unsafe_get() == &dummy);
+}
+
+TEST_CASE(finalize_target_runnable)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
+
+    EXPECT(not p.is_compiled());
+    p.finalize(id_target{});
+    EXPECT(p.is_compiled());
+
+    auto result = p.eval({}).back();
+    EXPECT(result == migraphx::literal{3});
+}
+
+TEST_CASE(finalize_target_no_passes)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, two, one);
+
+    p.finalize(invert_target{});
+
+    EXPECT(
+        std::any_of(mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "sum"; }));
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "minus"; }));
+
+    // sum(2, 1) == 3, if compile(invert_target) had run, it would have produced minus(2, 1) == 1.
+    auto result = p.eval({}).back();
+    EXPECT(result == migraphx::literal{3});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

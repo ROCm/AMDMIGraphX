@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,13 +32,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 constexpr std::size_t msgpack_size_limit = std::numeric_limits<uint32_t>::max() - 1;
 
 template <class Range>
-std::size_t msgpack_chunk_size(const Range& r)
+static std::size_t msgpack_chunk_size(const Range& r)
 {
-    return 1 + (r.size() - 1) / msgpack_size_limit;
+    return 1 + (std::max<size_t>(1, r.size()) - 1) / msgpack_size_limit;
 }
 
 template <class Iterator, class F>
-void msgpack_chunk_for_each(Iterator start, Iterator last, F f)
+static void msgpack_chunk_for_each(Iterator start, Iterator last, F f)
 {
     while(std::distance(start, last) > msgpack_size_limit)
     {
@@ -81,6 +81,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
                 break;
             }
             case msgpack::type::FLOAT32:
+            /* Intentional Fall Through This is due to value encoding floats as double. */
             case msgpack::type::FLOAT64: {
                 v = o.as<double>();
                 break;

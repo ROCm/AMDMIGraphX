@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,18 @@ namespace onnx {
 struct parse_if : op_parser<parse_if>
 {
     std::vector<op_desc> operators() const { return {{"If"}}; }
+
+    static void make_standard_return(module_ref mm)
+    {
+        auto returns = mm->get_returns();
+        for(auto r : returns)
+        {
+            if(r->get_shape().standard())
+                continue;
+            auto ins = mm->add_instruction(make_op("contiguous"), r);
+            mm->replace_instruction(r, ins);
+        }
+    }
 
     std::vector<instruction_ref> parse(const op_desc& /*opd*/,
                                        onnx_parser& parser,
@@ -88,8 +100,19 @@ struct parse_if : op_parser<parse_if>
                           else_out_shapes.begin(),
                           else_out_shapes.end()))
         {
-            MIGRAPHX_THROW("PARSE_IF: " + info.name +
-                           " then and else sub_grahps must have same output shapes!");
+            if(not std::equal(then_out_shapes.begin(),
+                              then_out_shapes.end(),
+                              else_out_shapes.begin(),
+                              else_out_shapes.end(),
+                              [](const shape& then_s, const shape& else_s) {
+                                  return then_s.as_standard() == else_s.as_standard();
+                              }))
+            {
+                MIGRAPHX_THROW("PARSE_IF: " + info.name +
+                               " then and else sub_graphs must have same output shapes!");
+            }
+            make_standard_return(then_mdl);
+            make_standard_return(else_mdl);
         }
 
         auto if_ret = info.add_instruction(make_op("if"), args, {then_mdl, else_mdl});

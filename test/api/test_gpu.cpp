@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,11 +26,12 @@
 #include <migraphx/migraphx.h>
 #include <migraphx/migraphx.hpp>
 #include <migraphx/manage_ptr.hpp>
+#include <read_onnx.hpp>
 #include "test.hpp"
 
 TEST_CASE(load_and_run)
 {
-    auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto p             = read_onnx("conv_relu_maxpool_test.onnx");
     auto shapes_before = p.get_output_shapes();
     migraphx::compile_options options;
     options.set_offload_copy();
@@ -38,7 +39,7 @@ TEST_CASE(load_and_run)
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
     CHECK(shapes_before.size() == shapes_after.size());
-    CHECK(bool{shapes_before.front() == shapes_after.front()});
+    CHECK(shapes_before.front() == shapes_after.front());
     migraphx::program_parameters pp;
     auto param_shapes = p.get_parameter_shapes();
     for(auto&& name : param_shapes.names())
@@ -48,13 +49,13 @@ TEST_CASE(load_and_run)
 
     auto outputs = p.eval(pp);
     CHECK(shapes_before.size() == outputs.size());
-    CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
+    CHECK(shapes_before.front() == outputs.front().get_shape());
 }
 
 using hip_ptr    = MIGRAPHX_MANAGE_PTR(void, hipFree);
 using stream_ptr = MIGRAPHX_MANAGE_PTR(hipStream_t, hipStreamDestroy);
 
-stream_ptr get_stream()
+static stream_ptr get_stream()
 {
     hipStream_t stream;
     auto err = hipStreamCreateWithFlags(&stream, 0);
@@ -62,7 +63,7 @@ stream_ptr get_stream()
     return stream_ptr{stream};
 }
 
-hip_ptr get_hip_buffer(size_t size)
+static hip_ptr get_hip_buffer(size_t size)
 {
     void* ptr;
     auto err = hipMalloc(&ptr, size);
@@ -78,7 +79,7 @@ hip_ptr get_hip_buffer(size_t size)
 //    o_options.set_dyn_input_parameter_shape("0", dyn_dims);
 //    dyn_dims = {{2, 2}, {3, 3}, {3, 3}, {3, 3}};
 //    o_options.set_dyn_input_parameter_shape("1", dyn_dims);
-//    auto p = migraphx::parse_onnx("conv_dynamic_batch_test.onnx", o_options);
+//    auto p = read_onnx("conv_dynamic_batch_test.onnx", o_options);
 //    migraphx::compile_options c_options;
 //    c_options.set_split_single_dyn_dim();
 //    p.compile(migraphx::target("gpu"), c_options);
@@ -144,7 +145,7 @@ TEST_CASE(dynamic_batch_load_and_run_offload)
                 migraphx::dynamic_dimension{3, 3},
                 migraphx::dynamic_dimension{3, 3}};
     o_options.set_dyn_input_parameter_shape("1", dyn_dims);
-    auto p             = migraphx::parse_onnx("conv_dynamic_batch_test.onnx", o_options);
+    auto p             = read_onnx("conv_dynamic_batch_test.onnx", o_options);
     auto shapes_before = p.get_output_shapes();
     migraphx::compile_options c_options;
     c_options.set_offload_copy();
@@ -171,7 +172,7 @@ TEST_CASE(dynamic_batch_load_and_run_offload)
 
 TEST_CASE(load_and_run_async)
 {
-    auto p             = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto p             = read_onnx("conv_relu_maxpool_test.onnx");
     auto shapes_before = p.get_output_shapes();
     migraphx::compile_options options;
     options.set_offload_copy(false);
@@ -179,7 +180,7 @@ TEST_CASE(load_and_run_async)
     auto shapes_after = p.get_output_shapes();
     CHECK(shapes_before.size() == 1);
     CHECK(shapes_before.size() == shapes_after.size());
-    CHECK(bool{shapes_before.front() == shapes_after.front()});
+    CHECK(shapes_before.front() == shapes_after.front());
     migraphx::program_parameters pp;
     auto param_shapes = p.get_parameter_shapes();
 
@@ -202,12 +203,12 @@ TEST_CASE(load_and_run_async)
 
     auto outputs = p.run_async(pp, stream.get());
     CHECK(shapes_before.size() == outputs.size());
-    CHECK(bool{shapes_before.front() == outputs.front().get_shape()});
+    CHECK(shapes_before.front() == outputs.front().get_shape());
 }
 
 TEST_CASE(load_and_run_ctx)
 {
-    auto p = migraphx::parse_onnx("conv_relu_maxpool_test.onnx");
+    auto p = read_onnx("conv_relu_maxpool_test.onnx");
     migraphx::compile_options options;
     options.set_offload_copy();
     p.compile(migraphx::target("gpu"), options);
@@ -226,14 +227,14 @@ TEST_CASE(load_and_run_ctx)
 TEST_CASE(if_pl_test)
 {
     auto run_prog = [&](auto cond) {
-        auto p             = migraphx::parse_onnx("if_pl_test.onnx");
+        auto p             = read_onnx("if_pl_test.onnx");
         auto shapes_before = p.get_output_shapes();
         migraphx::compile_options options;
         options.set_offload_copy();
         p.compile(migraphx::target("gpu"), options);
         auto shapes_after = p.get_output_shapes();
         CHECK(shapes_before.size() == 1);
-        CHECK(bool{shapes_before.front() == shapes_after.front()});
+        CHECK(shapes_before.front() == shapes_after.front());
 
         migraphx::program_parameters pp;
         auto param_shapes = p.get_parameter_shapes();
@@ -271,14 +272,14 @@ TEST_CASE(loop_test)
     auto run_prog = [&](int64_t max_iter_num) {
         migraphx::onnx_options parse_options;
         parse_options.set_default_loop_iterations(max_iter_num);
-        auto p             = migraphx::parse_onnx("loop_default_test.onnx", parse_options);
+        auto p             = read_onnx("loop_default_test.onnx", parse_options);
         auto shapes_before = p.get_output_shapes();
         migraphx::compile_options options;
         options.set_offload_copy();
         p.compile(migraphx::target("gpu"), options);
         auto shapes_after = p.get_output_shapes();
         CHECK(shapes_before.size() == 2);
-        CHECK(bool{shapes_before.front() == shapes_after.front()});
+        CHECK(shapes_before.front() == shapes_after.front());
 
         migraphx::program_parameters pp;
         auto param_shapes     = p.get_parameter_shapes();
@@ -322,14 +323,14 @@ TEST_CASE(loop_test_limit_max_iter)
     auto run_prog = [&](int64_t limit_max_iterations) {
         migraphx::onnx_options parse_options;
         parse_options.set_limit_loop_iterations(limit_max_iterations);
-        auto p             = migraphx::parse_onnx("loop_test_implicit_tripcnt.onnx", parse_options);
+        auto p             = read_onnx("loop_test_implicit_tripcnt.onnx", parse_options);
         auto shapes_before = p.get_output_shapes();
         migraphx::compile_options options;
         options.set_offload_copy();
         p.compile(migraphx::target("gpu"), options);
         auto shapes_after = p.get_output_shapes();
         CHECK(shapes_before.size() == 2);
-        CHECK(bool{shapes_before.front() == shapes_after.front()});
+        CHECK(shapes_before.front() == shapes_after.front());
 
         migraphx::program_parameters pp;
         auto param_shapes     = p.get_parameter_shapes();

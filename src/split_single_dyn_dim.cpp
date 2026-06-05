@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/matcher.hpp>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,7 +47,7 @@ struct dynamic_dimensions_check
  * between all of the parameters with a non-fixed dynamic_dimension.
  * Returns the parameters and the dynamic dimension in a vector of dynamic_dimensions_check objects.
  */
-optional<std::vector<dynamic_dimensions_check>>
+static optional<std::vector<dynamic_dimensions_check>>
 has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shapes)
 {
     auto is_dynamic = [](const auto& p) { return p.second.dynamic(); };
@@ -60,7 +61,7 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
     for(const auto& param : dyn_params)
     {
         const auto& dds    = param.second.dyn_dims();
-        auto num_non_fixed = std::count_if(dds.cbegin(), dds.cend(), [&](auto dd) {
+        auto num_non_fixed = std::count_if(dds.cbegin(), dds.cend(), [&](const auto& dd) {
             if(not dd.is_fixed())
             {
                 ret.push_back(dynamic_dimensions_check{param.first, dd});
@@ -79,8 +80,8 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
         return std::nullopt;
     }
     // check all the same dynamic_dimension
-    bool same_dd =
-        std::all_of(ret.begin() + 1, ret.end(), [&](auto ddc) { return ddc.dd == ret.at(0).dd; });
+    bool same_dd = std::all_of(
+        ret.begin() + 1, ret.end(), [&](const auto& ddc) { return ddc.dd == ret.at(0).dd; });
     if(same_dd)
     {
         return ret;
@@ -92,7 +93,7 @@ has_one_unique_dyn_dim(const std::unordered_map<std::string, shape>& param_shape
  * Check the parameters in std::vector<dynamic_dimensions_check> object to see if any of the
  * parameters outputs to a select_module operator.
  */
-bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimensions_check>& ddcs)
+static bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimensions_check>& ddcs)
 {
     for(const auto& ddc : ddcs)
     {
@@ -116,9 +117,9 @@ bool any_sm_next(const_module_ref mm, const std::vector<dynamic_dimensions_check
  */
 void split_single_dyn_dim::apply(module_pass_manager& mpm) const
 {
-    module_ref mm                               = &mpm.get_module();
-    auto param_names                            = mm->get_parameter_names();
-    auto param_shapes                           = mm->get_parameter_shapes();
+    module_ref mm     = &mpm.get_module();
+    auto param_names  = mm->get_parameter_names();
+    auto param_shapes = mm->get_parameter_shapes();
     optional<std::vector<dynamic_dimensions_check>> dd_check_vec =
         has_one_unique_dyn_dim(param_shapes);
     if(dd_check_vec.has_value() and not any_sm_next(mm, dd_check_vec.value()))
@@ -127,7 +128,8 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         auto dyn_dim = dd_check_vec->at(0).dd;
         // create submodules for each dimension size
         std::vector<module_ref> submodules;
-        for(size_t dim_size : migraphx::range(dyn_dim.min, dyn_dim.max + 1))
+        auto dim_interval = dyn_dim.get_interval();
+        for(size_t dim_size : migraphx::range(dim_interval.min, dim_interval.max + 1))
         {
             auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
             // instruction map for new static shaped submodule parameters
@@ -151,12 +153,12 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
         std::transform(param_names.cbegin(),
                        param_names.cend(),
                        std::back_inserter(sm_inputs),
-                       [&](auto pn) { return mm->get_parameter(pn); });
+                       [&](auto pn) { return mm->get_parameter(std::move(pn)); });
         auto output_shapes       = mm->get_output_shapes();
         migraphx::shape out_attr = migraphx::shape{output_shapes};
         auto sm_ins              = mm->add_instruction(
             migraphx::make_op("select_module",
-                              {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+                                           {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
             sm_inputs,
             submodules);
         std::vector<instruction_ref> outputs(output_shapes.size());

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -196,7 +196,7 @@ TEST_CASE(half_copy_custom_op_test)
         auto result_vec = result.as_vector<float>();
         std::vector<float> expected_result(12, 0);
         std::iota(expected_result.begin() + 6, expected_result.end(), 6);
-        EXPECT(bool{result == migraphx::argument(s, expected_result.data())});
+        EXPECT(result == migraphx::argument(s, expected_result.data()));
     };
 
     // register all the ops

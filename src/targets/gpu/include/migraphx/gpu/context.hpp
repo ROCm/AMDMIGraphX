@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,8 +39,11 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
+#include <migraphx/gpu/hsa_chiplet.hpp>
+#include <migraphx/gpu/cross_compile_device.hpp>
 #include <unordered_map>
 #include <memory>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -59,10 +62,21 @@ struct hip_device
     {
         auto status = hipGetDeviceProperties(&device_props, device_id);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to allocate stream");
+            MIGRAPHX_THROW("Failed to get device properties: " + hip_error(status));
+
+        // Set the device prior to Events that get created within a Context.
+        set_device(device_id);
 
         for(std::size_t i = 0; i < n; i++)
             add_stream();
+    }
+
+    hip_device(const std::string& arch_name, std::size_t cu_count, std::size_t chiplets)
+        : cross_compile_mode(true),
+          chiplet_count_override(chiplets),
+          device_props(make_cross_compile_device_props(arch_name, cu_count))
+    {
+        add_stream();
     }
 
     struct stream
@@ -80,12 +94,14 @@ struct hip_device
             hipStream_t result = nullptr;
             auto status        = hipStreamCreateWithFlags(&result, hipStreamNonBlocking);
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to allocate stream");
+                MIGRAPHX_THROW("Failed to allocate stream: " + hip_error(status));
             return hip_stream_ptr{result};
         }
 
         hipStream_t get()
         {
+            if(external_stream.has_value())
+                return external_stream.value();
             if(not enabled(MIGRAPHX_ENABLE_NULL_STREAM{}))
             {
                 setup();
@@ -140,14 +156,41 @@ struct hip_device
         }
 #endif
 
+        void set_raw_stream(hipStream_t raw_stream)
+        {
+#if MIGRAPHX_USE_MIOPEN
+            if(mihandle != nullptr)
+                miopenSetStream(mihandle.get(), raw_stream);
+#endif
+#if MIGRAPHX_USE_ROCBLAS
+            if(rbhandle != nullptr)
+                rocblas_set_stream(rbhandle.get(), raw_stream);
+#endif
+        }
+
+        bool has_external_stream() const { return external_stream.has_value(); }
+
+        void set_queue(hipStream_t q)
+        {
+            external_stream = q;
+            set_raw_stream(q);
+        }
+
+        void restore_queue()
+        {
+            external_stream.reset();
+            set_raw_stream(s.get());
+        }
+
         void wait() const
         {
-            if(s == nullptr)
+            hipStream_t cur = external_stream.value_or(s.get());
+            if(cur == nullptr)
                 return;
             setup();
-            auto status = hipStreamSynchronize(s.get());
+            auto status = hipStreamSynchronize(cur);
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to wait.");
+                MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
         }
 
         void wait(hipEvent_t event)
@@ -155,7 +198,7 @@ struct hip_device
             setup();
             auto status = hipStreamWaitEvent(get(), event, 0);
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to wait.");
+                MIGRAPHX_THROW("Failed to wait: " + hip_error(status));
         }
 
         void record(hipEvent_t event)
@@ -163,12 +206,14 @@ struct hip_device
             setup();
             auto status = hipEventRecord(event, get());
             if(status != hipSuccess)
-                MIGRAPHX_THROW("Failed to record.");
+                MIGRAPHX_THROW("Failed to record: " + hip_error(status));
         }
 
         private:
         std::size_t id           = 0;
         shared<hip_stream_ptr> s = nullptr;
+        std::optional<hipStream_t> external_stream{};
+
 #if MIGRAPHX_USE_MIOPEN
         shared<miopen_handle> mihandle = nullptr;
 #endif
@@ -199,13 +244,22 @@ struct hip_device
 
     std::string get_device_name() const { return device_props.gcnArchName; }
 
-    std::string get_gfx_name() const { return trim(split_string(get_device_name(), ':').front()); }
+    std::string get_gfx_name() const { return gpu::get_gfx_name(get_device_name()); }
 
     std::size_t get_device_major() const { return device_props.major; }
 
     std::size_t get_device_minor() const { return device_props.minor; }
 
     std::size_t get_cu_count() const { return device_props.multiProcessorCount; }
+
+    std::size_t get_chiplet_count() const
+    {
+        if(cross_compile_mode)
+            return chiplet_count_override;
+        return get_hsa_chiplet_count(device_id);
+    }
+
+    bool is_cross_compile() const { return cross_compile_mode; }
 
     std::size_t get_max_workitems_per_cu() const
     {
@@ -217,8 +271,10 @@ struct hip_device
     std::size_t get_wavefront_size() const { return device_props.warpSize; }
 
     private:
-    std::size_t device_id      = 0;
-    std::size_t current_stream = 0;
+    std::size_t device_id              = 0;
+    std::size_t current_stream         = 0;
+    bool cross_compile_mode            = false;
+    std::size_t chiplet_count_override = 1;
     std::vector<stream> streams;
     hipDeviceProp_t device_props;
 
@@ -250,6 +306,12 @@ struct context
     {
     }
 
+    context(const std::string& arch_name, std::size_t cu_count, std::size_t chiplets)
+        : current_device(std::make_shared<hip_device>(arch_name, cu_count, chiplets)),
+          pc(std::make_shared<auto_save_problem_cache>())
+    {
+    }
+
     hip_device& get_current_device()
     {
         assert(current_device != nullptr);
@@ -260,6 +322,11 @@ struct context
     {
         assert(current_device != nullptr);
         return *current_device;
+    }
+
+    bool is_cross_compile() const
+    {
+        return current_device != nullptr and current_device->is_cross_compile();
     }
 
     bool get_exhaustive_tune_flag() const { return exhaustive_tune; }
@@ -286,14 +353,19 @@ struct context
     hipEvent_t get_event(std::size_t i) const { return events.at(i).get(); }
 
     std::vector<argument> literals{};
-    void finish() const { get_stream().wait(); }
+    void finish() const
+    {
+        if(is_cross_compile())
+            MIGRAPHX_THROW("Cannot execute in cross-compilation mode");
+        get_stream().wait();
+    }
 
     static hip_event_ptr create_event()
     {
         hipEvent_t event;
         auto status = hipEventCreateWithFlags(&event, hipEventDisableTiming);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to create event");
+            MIGRAPHX_THROW("Failed to create event: " + hip_error(status));
         return hip_event_ptr{event};
     }
 
@@ -302,7 +374,7 @@ struct context
         hipEvent_t event;
         auto status = hipEventCreate(&event);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to create event");
+            MIGRAPHX_THROW("Failed to create event: " + hip_error(status));
         return hip_event_ptr{event};
     }
 
@@ -328,25 +400,51 @@ struct context
         this->current_device = std::make_shared<hip_device>(device, n_streams);
     }
 
+    // Pure event-based synchronization point.  Records an event on the
+    // caller's queue and makes the context's current stream wait on it.
     void wait_for(any_ptr queue)
     {
+        if(is_cross_compile())
+            MIGRAPHX_THROW("Cannot execute in cross-compilation mode");
         auto status = hipEventRecord(begin_event.get(), queue.get<hipStream_t>());
         if(status != hipSuccess)
-            MIGRAPHX_THROW("failed to record " + hip_error(status));
-
+            MIGRAPHX_THROW("Failed to record: " + hip_error(status));
         get_stream().wait(begin_event.get());
     }
 
+    // Symmetric counterpart of wait_for().  Records an event on the context's
+    // current stream and makes the caller's queue wait on it.
     void finish_on(any_ptr queue)
     {
+        if(is_cross_compile())
+            MIGRAPHX_THROW("Cannot execute in cross-compilation mode");
         get_stream().record(finish_event.get());
-
         auto status = hipStreamWaitEvent(queue.get<hipStream_t>(), finish_event.get(), 0);
         if(status != hipSuccess)
-            MIGRAPHX_THROW("Failed to wait on event " + hip_error(status));
+            MIGRAPHX_THROW("Failed to wait on event: " + hip_error(status));
     }
 
-    any_ptr get_queue() { return get_stream().get(); }
+    any_ptr get_queue()
+    {
+        if(is_cross_compile())
+            MIGRAPHX_THROW("Cannot execute in cross-compilation mode");
+        auto* s = get_stream().get();
+        return s == nullptr ? any_ptr{} : any_ptr{s};
+    }
+
+    // Bind a caller-provided queue for subsequent submissions.
+    // Passing an empty / null any_ptr is equivalent to binding the HIP
+    // default stream (nullptr), which is a distinct, valid operation from
+    // restore_queue() -- the two must not be conflated.  We bypass the typed
+    // any_ptr accessor when the pointer is null because a default-constructed
+    // any_ptr carries no type name and would otherwise throw on get<>().
+    void set_queue(any_ptr queue)
+    {
+        hipStream_t s = queue.unsafe_get() == nullptr ? nullptr : queue.get<hipStream_t>();
+        get_stream().set_queue(s);
+    }
+
+    void restore_queue() { get_stream().restore_queue(); }
 
     std::pair<hipEvent_t, hipEvent_t> get_perf_events() const
     {
@@ -383,9 +481,9 @@ struct context
     // for event perf timing
     shared<hip_event_ptr> start_event = nullptr;
     shared<hip_event_ptr> stop_event  = nullptr;
-    // for stream syncronization
-    shared<hip_event_ptr> begin_event  = nullptr;
-    shared<hip_event_ptr> finish_event = nullptr;
+    // for stream synchronization
+    shared<hip_event_ptr> begin_event           = nullptr;
+    shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = nullptr;
 };
 

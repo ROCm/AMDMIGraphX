@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -49,7 +49,7 @@ ${decl_members}
 };
 
 #else
-
+// NOLINTBEGIN(performance-unnecessary-value-param)
 struct ${struct_name}
 {
 private:
@@ -157,7 +157,7 @@ private:
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type (PrivateDetailTypeErasedT value,
                 typename std::enable_if<
-                    std::is_reference<PrivateDetailTypeErasedU>::value
+                    std::is_reference<PrivateDetailTypeErasedU>{}
                 >::type * = nullptr) :
             private_detail_te_value (value)
         {}
@@ -165,7 +165,7 @@ private:
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type (PrivateDetailTypeErasedT value,
                 typename std::enable_if<
-                    not std::is_reference<PrivateDetailTypeErasedU>::value,
+                    not std::is_reference<PrivateDetailTypeErasedU>{},
                     int
                 >::type * = nullptr) noexcept :
             private_detail_te_value (std::move(value))
@@ -242,6 +242,7 @@ inline const ValueType & any_cast(const ${struct_name} & x)
     if (y == nullptr) throw std::bad_cast();
     return *y;
 }
+// NOLINTEND(performance-unnecessary-value-param)
 #endif
 ''')
 
@@ -308,14 +309,11 @@ def internal_name(name):
         return name
 
 
-empty_expression = 'static_cast<void>(void())'
-
-
 def generate_constraint(m, friend, indirect):
     if m['name'].startswith('operator'):
-        return empty_expression
+        return None
     if friend:
-        return empty_expression
+        return None
     if indirect:
         return string.Template(
             'private_detail_te_default_${internal_name}(char(0), std::declval<PrivateDetailTypeErasedT>() ${comma} ${param_constraints})'
@@ -437,7 +435,9 @@ def generate_form(name, members):
         virtual_members.append(virtual_member.substitute(m))
         comment_members.append(comment_member.substitute(m))
         decl_members.append(decl_member.substitute(m))
-        constraint_members.append(m['constraint'])
+        m_constraint = m['constraint']
+        if m_constraint:
+            constraint_members.append(m_constraint)
         if 'default' in m:
             default_members.append(default_member.substitute(m))
     return form.substitute(nonvirtual_members=''.join(nonvirtual_members),

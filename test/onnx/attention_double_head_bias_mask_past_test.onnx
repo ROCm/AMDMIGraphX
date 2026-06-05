@@ -1,0 +1,36 @@
+	)attention_double_head_bias_mask_past_test:
+H
+input
+weights
+bias
+
+mask_index
+pasty"	Attention*
+	num_heads )attention_double_head_bias_mask_past_testZ
+input
+
+
+
+Z
+weights
+
+
+Z
+bias
+
+
+Z
+
+mask_index
+
+
+Z
+past
+
+
+b
+y
+
+
+
+B

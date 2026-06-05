@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_RTGLIB_PAR_FOR_HPP
 
 #include <migraphx/par.hpp>
+#include <migraphx/simple_par_for.hpp>
 #include <migraphx/ranges.hpp>
 
 namespace migraphx {
@@ -34,7 +35,7 @@ template <class F>
 void par_for(std::size_t n, F f)
 {
     using iterator = basic_iota_iterator<id, std::size_t>;
-    par_for_each(iterator{0, {}}, iterator{n, {}}, f);
+    par_for_each(iterator{0}, iterator{n}, f);
 }
 
 template <class F>

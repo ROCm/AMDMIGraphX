@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,15 +23,40 @@
  *
  */
 #include <migraphx/rewrite_reduce.hpp>
+#include <migraphx/simplify_reshapes.hpp>
+#include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/match/softmax.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/common.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
+#include <migraphx/eliminate_convert.hpp>
+#include <migraphx/unfold.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_FP32_SOFTMAX);
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+struct find_logsoftmax
+{
+    auto matcher() const { return match::name("logsoftmax"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins  = r.result;
+        auto op   = ins->get_operator().to_value();
+        auto axis = op["axis"].to<std::int64_t>();
+
+        auto input   = ins->inputs().front();
+        auto softmax = m.insert_instruction(ins, make_op("softmax", {{"axis", axis}}), input);
+        m.replace_instruction(ins, make_op("log"), softmax);
+    }
+};
+
 struct find_softmax
 {
     auto matcher() const { return match::name("softmax"); }
@@ -55,11 +80,139 @@ struct find_softmax
     }
 };
 
+// Extend the FP32 upcast range from the dot output through mul/where to
+// softmax. Prevents FP16 overflow in Q*K attention dot products for models
+// with large k_proj.bias values (e.g. Qwen, DeepSeek).
+//
+// The dot stays as dot(f16,f16)->f16. A convert(f16->f32) is inserted on
+// its output, and the intermediate ops (mul, where) are upcasted to f32.
+// MFMA/WMMA accumulates in f32 internally; when fused into an attention
+// kernel, rocMLIR's RemoveRedundantCasts pass preserves the f32 accumulator.
+//
+// Runs before find_softmax_base_ops so that the softmax internals
+// (reduce_max through div) are still in f16 when find_softmax_base_ops
+// processes them.
+struct find_dot_softmax_fp32
+{
+    auto matcher() const { return match::softmax(); }
+
+    // Walk backwards from the softmax input through the attention chain
+    // to find an upstream dot. At each step, follows the non-constant,
+    // non-bool input (the attention data path), skipping constants (scale,
+    // -inf literals) and bool inputs (where conditions/masks).
+    static std::optional<instruction_ref> find_upstream_dot(instruction_ref inp)
+    {
+        auto step = [](instruction_ref current) -> std::optional<instruction_ref> {
+            if(current->name() == "dot")
+                return std::nullopt;
+            if(current->inputs().size() == 1)
+                return current->inputs().front();
+            auto it = std::find_if(
+                current->inputs().begin(), current->inputs().end(), [](instruction_ref input) {
+                    return not input->can_eval() and input->get_shape().type() != shape::bool_type;
+                });
+            if(it == current->inputs().end())
+                return std::nullopt;
+            return *it;
+        };
+        auto chain = unfold(inp, step);
+        auto it    = std::find_if(
+            chain.begin(), chain.end(), [](instruction_ref ins) { return ins->name() == "dot"; });
+        if(it != chain.end())
+            return *it;
+        return std::nullopt;
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto inp      = r.instructions["x"];
+        auto inp_type = inp->get_shape().type();
+
+        if(contains({shape::float_type, shape::double_type}, inp_type))
+            return;
+
+        auto dot_opt = find_upstream_dot(inp);
+        if(not dot_opt.has_value())
+            return;
+
+        // Upcast ops between dot (exclusive) and inp (inclusive)
+        auto dot_ins  = *dot_opt;
+        auto pre_inss = find_instructions_between(dot_ins, inp, &m);
+
+        for(const auto& ins : pre_inss)
+        {
+            if(ins == dot_ins)
+                continue;
+
+            std::vector<instruction_ref> ins_inputs_up;
+            std::transform(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                std::back_inserter(ins_inputs_up),
+                [&](auto i) {
+                    if(i->get_shape().type() == shape::bool_type or
+                       i->get_shape().type() == shape::float_type)
+                        return i;
+                    return m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", shape::float_type}}), i);
+                });
+
+            auto ins_up = m.insert_instruction(ins, ins->get_operator(), ins_inputs_up);
+            m.replace_instruction(
+                ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), ins_up);
+        }
+    }
+};
+
+struct find_softmax_base_ops
+{
+    bool full_precision;
+
+    auto matcher() const { return match::softmax(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto div             = r.result;
+        auto inp             = r.instructions["x"];
+        auto inp_type        = inp->get_shape().type();
+        auto requires_upcast = not contains({shape::float_type, shape::double_type}, inp_type);
+
+        if(not requires_upcast)
+            return;
+
+        auto softmax_inss = find_instructions_between(inp, div, &m);
+
+        for(const auto& ins : softmax_inss)
+        {
+            if(ins == inp)
+                continue;
+
+            // Upcast inputs
+            std::vector<instruction_ref> ins_inputs_up;
+            std::transform(
+                ins->inputs().begin(),
+                ins->inputs().end(),
+                std::back_inserter(ins_inputs_up),
+                [&](auto i) {
+                    return m.insert_instruction(
+                        ins, make_op("convert", {{"target_type", shape::float_type}}), i);
+                });
+
+            // Duplicate instruction to perform op in higher precision
+            auto ins_up = m.insert_instruction(ins, ins->get_operator(), ins_inputs_up);
+
+            // replace original ins with downcast to preserve graph validity
+            m.replace_instruction(
+                ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), ins_up);
+        }
+    }
+};
+
 struct find_reduce_mean_variance
 {
     auto matcher() const
     {
-        auto reduce_mean = match::name("reduce_mean");
+        auto reduce_mean          = match::name("reduce_mean");
         auto skip_broadcasts_mean = match::skip_broadcasts(reduce_mean.bind("mean"));
         auto x_minus_mean         = match::name("sub")(match::arg(0)(match::any().bind("x")),
                                                match::arg(1)(skip_broadcasts_mean));
@@ -145,8 +298,21 @@ struct find_reduce_mean
 
 void rewrite_reduce::apply(module& m) const
 {
+    match::find_matches(m, find_logsoftmax{});
     match::find_matches(m, find_softmax{}, find_reduce_mean_variance{});
+
+    if(not enabled(MIGRAPHX_DISABLE_FP32_SOFTMAX{}))
+    {
+        match::find_matches(m, find_dot_softmax_fp32{});
+        match::find_matches(m, find_softmax_base_ops{});
+        migraphx::run_passes(m,
+                             {migraphx::eliminate_convert{},
+                              migraphx::dead_code_elimination{},
+                              migraphx::eliminate_common_subexpression{}});
+    }
+
     match::find_matches(m, find_reduce_mean{});
+    migraphx::run_passes(m, {simplify_reshapes{}});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

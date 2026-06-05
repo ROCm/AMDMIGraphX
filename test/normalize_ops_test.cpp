@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -61,12 +61,12 @@ struct normalize_test_op
     }
 };
 
-void run_pass(migraphx::module& m)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m, {migraphx::normalize_ops{}, migraphx::dead_code_elimination{}});
 }
 
-migraphx::module create_gather(int64_t axis)
+static migraphx::module create_gather(int64_t axis)
 {
     migraphx::module m;
     migraphx::shape sd{migraphx::shape::float_type, {2, 3, 4}};
@@ -98,7 +98,7 @@ TEST_CASE(gather_test_1)
     EXPECT(m1 == m2);
 }
 
-migraphx::module create_padded_op(const std::vector<size_t>& pad_vals)
+static migraphx::module create_padded_op(const std::vector<size_t>& pad_vals)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -118,7 +118,7 @@ TEST_CASE(padding_attr_test)
     EXPECT(m1 == m2);
 }
 
-migraphx::module create_reduce_mean(const std::vector<int64_t>& axes)
+static migraphx::module create_reduce_mean(const std::vector<int64_t>& axes)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -147,9 +147,9 @@ TEST_CASE(reduce_mean_test_1)
     EXPECT(m1 == m2);
 }
 
-migraphx::module create_slice(const std::vector<int64_t>& axes,
-                              const std::vector<int64_t>& starts,
-                              const std::vector<int64_t>& ends)
+static migraphx::module create_slice(const std::vector<int64_t>& axes,
+                                     const std::vector<int64_t>& starts,
+                                     const std::vector<int64_t>& ends)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {2, 3, 4, 5}};
@@ -179,7 +179,7 @@ TEST_CASE(slice_test_1)
     EXPECT(m1 == m2);
 }
 
-migraphx::module create_test_op(const std::vector<int64_t>& axes)
+static migraphx::module create_test_op(const std::vector<int64_t>& axes)
 {
     migraphx::module m;
     migraphx::shape sd{migraphx::shape::float_type, {2, 3, 4}};

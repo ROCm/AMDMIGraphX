@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -71,6 +71,7 @@ typedef enum
 typedef enum
 {
     migraphx_shape_tuple_type,
+    migraphx_shape_fp4x2_type,
     MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES)
 } migraphx_shape_datatype_t;
 #undef MIGRAPHX_SHAPE_GENERATE_ENUM_TYPES
@@ -116,6 +117,11 @@ typedef const struct migraphx_modules* const_migraphx_modules_t;
 
 typedef struct migraphx_module* migraphx_module_t;
 typedef const struct migraphx_module* const_migraphx_module_t;
+
+typedef struct migraphx_trace_info* migraphx_trace_info_t;
+typedef const struct migraphx_trace_info* const_migraphx_trace_info_t;
+
+typedef migraphx_status (*migraphx_trace_callback_t)(migraphx_trace_info_t info, void* data);
 
 typedef struct migraphx_program* migraphx_program_t;
 typedef const struct migraphx_program* const_migraphx_program_t;
@@ -308,6 +314,12 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_equal(bool* out,
                                                           const_migraphx_argument_t argument,
                                                           const_migraphx_argument_t x);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_save(const_migraphx_argument_t a,
+                                                         const char* filename);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_load(migraphx_argument_t* out,
+                                                         const char* filename);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_argument_generate(migraphx_argument_t* out,
                                                              const_migraphx_shape_t s,
                                                              size_t seed);
@@ -319,6 +331,11 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_target_assign_to(migraphx_target_t ou
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_target_create(migraphx_target_t* target,
                                                          const char* name);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_target_create_with_options(migraphx_target_t* target,
+                                                                      const char* name,
+                                                                      const char* options_json,
+                                                                      ...);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_parameter_shapes_destroy(
     migraphx_program_parameter_shapes_t program_parameter_shapes);
@@ -431,6 +448,22 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_module_add_allocation(migraphx_instru
                                                                  migraphx_module_t module,
                                                                  const_migraphx_shape_t s);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_trace_info_destroy(migraphx_trace_info_t trace_info);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_trace_info_assign_to(migraphx_trace_info_t output,
+                                                                const_migraphx_trace_info_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_trace_info_create(migraphx_trace_info_t* trace_info);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_trace_info_get_index(size_t* out, const_migraphx_trace_info_t trace_info);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_trace_info_get_name(const char** out, const_migraphx_trace_info_t trace_info);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_trace_info_get_result(
+    const_migraphx_argument_t* out, const_migraphx_trace_info_t trace_info);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_destroy(migraphx_program_t program);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_assign_to(migraphx_program_t output,
@@ -468,6 +501,12 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_program_run_async(migraphx_arguments_
                                                              migraphx_program_parameters_t params,
                                                              void* s,
                                                              const char* name);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_program_run_trace(migraphx_arguments_t* out,
+                                                             migraphx_program_t program,
+                                                             migraphx_program_parameters_t params,
+                                                             migraphx_trace_callback_t callback,
+                                                             void* data);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_equal(bool* out,
                                                          const_migraphx_program_t program,
@@ -527,6 +566,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_limit_loop_iteration
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
     migraphx_onnx_options_t onnx_options, const char* external_data_path);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);
@@ -590,6 +632,11 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_tf(migraphx_program_t* out,
                                                     const char* name,
                                                     migraphx_tf_options_t options);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_tf_buffer(migraphx_program_t* out,
+                                                           const void* data,
+                                                           size_t size,
+                                                           migraphx_tf_options_t options);
+
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_op_names_destroy(migraphx_quantize_op_names_t quantize_op_names);
 
@@ -606,6 +653,11 @@ MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_fp16_with_op_names(migraphx_program_t prog, migraphx_quantize_op_names_t name);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp16(migraphx_program_t prog);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_quantize_bf16_with_op_names(migraphx_program_t prog, migraphx_quantize_op_names_t name);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_bf16(migraphx_program_t prog);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_quantize_int8_options_destroy(migraphx_quantize_int8_options_t quantize_int8_options);
@@ -641,6 +693,11 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8_options_add_calibration_
 MIGRAPHX_C_EXPORT migraphx_status migraphx_quantize_fp8(migraphx_program_t prog,
                                                         migraphx_target_t target,
                                                         migraphx_quantize_fp8_options_t options);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operator_name_at_index(char** out,
+                                                                           size_t index);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_get_onnx_operators_size(size_t* out);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_context_finish(const_migraphx_context_t context);
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
-#include <migraphx/op/group_query_attention.hpp>
+#include <migraphx/eliminate_common_subexpression.hpp>
 #ifdef MIGRAPHX_USE_COMPOSABLEKERNEL
 #include <migraphx/gpu/ck.hpp>
 #endif
@@ -39,7 +39,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_LAYERNORM_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 
 namespace {
 
@@ -236,163 +237,120 @@ struct find_gemm_softmax_gemm
     }
 };
 
-struct gpu_compute_attention_probabilities : op::group_query_attention
+struct channelwise_conv
 {
-    std::string name() const { return "gpu::compute_attention_probabilities"; }
+    std::size_t num_spatial = 2;
+    std::vector<std::size_t> padding;
+
+    std::string name() const { return "gpu::channelwise_conv"; }
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.num_spatial, "num_spatial"), f(self.padding, "padding"));
+    }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        auto query_lens        = inputs.front().lens();
-        auto present_kv_seqlen = inputs.at(1).lens().at(2);
-        std::vector<std::size_t> output_lens{
-            query_lens.at(0), num_heads, query_lens.at(2), present_kv_seqlen};
-        shape output_shape{inputs.front().type(), output_lens};
-        return output_shape;
-    }
-};
-MIGRAPHX_REGISTER_OP(gpu_compute_attention_probabilities);
-
-struct gpu_compute_attention_scores : op::group_query_attention
-{
-    std::string name() const { return "gpu::compute_attention_scores"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        auto query_lens = inputs.front().lens();
-        std::size_t q_hidden_size =
-            (query_lens[1] * query_lens[3] * num_heads) / (num_heads + 2 * kv_num_heads);
-        std::vector<std::size_t> output_lens{query_lens.at(0), query_lens.at(2), q_hidden_size};
-        shape output_shape{inputs.front().type(), output_lens};
-        return output_shape;
-    }
-};
-MIGRAPHX_REGISTER_OP(gpu_compute_attention_scores);
-
-struct gpu_gqa_rotary_embedding : op::group_query_attention
-{
-    std::string name() const { return "gpu::gqa_rotary_embedding"; }
-
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.front(); }
-};
-MIGRAPHX_REGISTER_OP(gpu_gqa_rotary_embedding);
-
-struct gpu_gqa_softmax : op::group_query_attention
-{
-    std::string name() const { return "gpu::gqa_softmax"; }
-
-    shape compute_shape(std::vector<shape> inputs) const { return inputs.at(2); }
-};
-MIGRAPHX_REGISTER_OP(gpu_gqa_softmax);
-
-struct gpu_concat_past_present : op::group_query_attention
-{
-    std::string name() const { return "gpu::concat_past_present"; }
-
-    shape compute_shape(std::vector<shape> inputs) const { return inputs[0]; }
-};
-MIGRAPHX_REGISTER_OP(gpu_concat_past_present);
-
-struct find_group_query_attention
-{
-    auto matcher() const { return match::name("group_query_attention"); }
-
-    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
-    {
-        auto ins    = r.result;
-        auto inputs = ins->inputs();
-        auto v      = ins->get_operator().to_value();
-
-        auto num_heads          = v.at("num_heads").to<std::size_t>();
-        auto kv_num_heads       = v.at("kv_num_heads").to<std::size_t>();
-        auto do_rotary          = v.at("do_rotary").to<bool>();
-        auto local_window_size  = v.at("local_window_size").to<int>();
-        auto rotary_interleaved = v.at("rotary_interleaved").to<bool>();
-        auto scale              = v.at("scale").to<float>();
-
-        auto q_shape                      = inputs[0]->get_shape();
-        auto q_lens                       = q_shape.lens();
-        const std::size_t batch_size      = q_lens[0];
-        const std::size_t sequence_length = q_lens[1];
-        std::size_t q_hidden_size         = q_lens[2];
-        std::size_t head_size             = q_hidden_size / (num_heads + 2 * kv_num_heads);
-
-        std::vector<std::size_t> bsnh{
-            batch_size, sequence_length, num_heads + 2 * kv_num_heads, head_size};
-
-        auto transposed_qkv = mpm.get_module().insert_instruction(
-            ins, make_op("reshape", {{"dims", bsnh}}), inputs.at(0));
-
-        transposed_qkv = mpm.get_module().insert_instruction(
-            ins, make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), transposed_qkv);
-
-        auto rotary_qkv = transposed_qkv;
-        if(do_rotary)
+        check_shapes{inputs, *this}.has(2).same_ndims();
+        auto x_lens = inputs[0].lens();
+        auto w_lens = inputs[1].lens();
+        std::vector<std::size_t> out_lens;
+        out_lens.push_back(x_lens[0]);
+        out_lens.push_back(w_lens[0]);
+        for(std::size_t i = 0; i < num_spatial; i++)
         {
-            std::vector<instruction_ref> rotary_inputs{
-                transposed_qkv, inputs.at(5), inputs.at(7), inputs.at(8)};
-            rotary_qkv =
-                mpm.get_module().insert_instruction(ins,
-                                                    gpu_gqa_rotary_embedding{do_rotary,
-                                                                             kv_num_heads,
-                                                                             local_window_size,
-                                                                             num_heads,
-                                                                             rotary_interleaved,
-                                                                             scale},
-                                                    rotary_inputs);
+            std::size_t total_pad = 0;
+            if(i < padding.size())
+                total_pad += padding[i];
+            if(i + num_spatial < padding.size())
+                total_pad += padding[i + num_spatial];
+            out_lens.push_back(x_lens[i + 2] + total_pad - w_lens[i + 2] + 1);
         }
-
-        auto pres_k = inputs.at(3);
-        auto pres_v = inputs.at(4);
-        std::vector<instruction_ref> concat_inputs{rotary_qkv, pres_k, pres_v, inputs.at(5)};
-
-        auto concat = mpm.get_module().insert_instruction(
-            ins,
-            gpu_concat_past_present{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-            concat_inputs);
-        auto id =
-            mpm.get_module().insert_instruction(ins, make_op("identity"), concat, pres_k, pres_v);
-
-        std::vector<instruction_ref> attn_probs_inputs{id, pres_k, pres_v, inputs.at(5)};
-        auto attn_probs = mpm.get_module().insert_instruction(
-            ins,
-            gpu_compute_attention_probabilities{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-            attn_probs_inputs);
-
-        std::vector<instruction_ref> softmax_inputs{rotary_qkv, pres_k, attn_probs, inputs.at(5)};
-        auto softmax = mpm.get_module().insert_instruction(
-            ins,
-            gpu_gqa_softmax{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-            softmax_inputs);
-        std::vector<instruction_ref> new_inputs{rotary_qkv, pres_k, pres_v, inputs.at(5), softmax};
-
-        auto get_tuple_elm_0 = std::next(ins);
-        auto get_tuple_elm_1 = std::next(get_tuple_elm_0);
-        auto get_tuple_elm_2 = std::next(get_tuple_elm_1);
-        mpm.get_module().replace_instruction(get_tuple_elm_2, pres_v);
-        mpm.get_module().replace_instruction(get_tuple_elm_1, pres_k);
-        mpm.get_module().replace_instruction(
-            get_tuple_elm_0,
-            gpu_compute_attention_scores{
-                do_rotary, kv_num_heads, local_window_size, num_heads, rotary_interleaved, scale},
-            new_inputs);
+        return inputs[0].with_lens(out_lens);
     }
 };
+MIGRAPHX_REGISTER_OP(channelwise_conv);
+
+MIGRAPHX_PRED_MATCHER(conv_channelwise, instruction_ref ins)
+{
+    if(ins->name() != "convolution")
+        return false;
+    auto v = ins->get_operator().to_value();
+    if(not all_of(v.at("stride"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    if(not all_of(v.at("dilation"), [](const value& x) { return x.to<std::size_t>() == 1; }))
+        return false;
+    auto w_lens = ins->inputs().back()->get_shape().lens();
+    if(w_lens[1] != 1)
+        return false;
+    auto x_lens = ins->inputs().front()->get_shape().lens();
+    auto c_in   = x_lens[1];
+    auto group  = v.at("group").to<std::size_t>();
+    return group == 1 or group == c_in;
+}
+
+struct find_channelwise_convolution
+{
+    auto matcher() const { return conv_channelwise(); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins         = r.result;
+        auto input       = ins->inputs().front();
+        auto weights     = ins->inputs().back();
+        auto num_spatial = ins->get_shape().ndim() - 2;
+
+        if(input->get_shape().type() != shape::float_type)
+            return;
+
+        auto v        = ins->get_operator().to_value();
+        auto pad_vals = v.at("padding");
+        std::vector<std::size_t> padding;
+        std::transform(pad_vals.begin(),
+                       pad_vals.end(),
+                       std::back_inserter(padding),
+                       [](const value& x) { return x.to<std::size_t>(); });
+
+        m.replace_instruction(
+            ins, channelwise_conv{num_spatial, std::move(padding)}, input, weights);
+    }
+};
+
+void inline_group_sub_module(module_pass_manager& mpm)
+{
+    auto& m = mpm.get_module();
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "group")
+            continue;
+
+        const auto& mod_inputs = ins->module_inputs();
+        auto inline_mod        = m.insert_inline(ins, *mod_inputs.at(0), ins->inputs());
+        m.replace_instruction(ins, inline_mod.at(0));
+    }
+}
 
 } // namespace
 
 void prefuse_ops::apply(module_pass_manager& mpm) const
 {
-    if(not enabled(MIGRAPHX_DISABLE_LAYERNORM_FUSION{}))
+    const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
+    const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
+    if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
         mpm.run_pass(dead_code_elimination{});
         match::find_matches(mpm.get_module(), find_add_layernorm{});
     }
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
-    match::find_matches(mpm, find_group_query_attention{});
+    if(is_navi)
+        match::find_matches(mpm.get_module(), find_channelwise_convolution{});
+    if(enabled(MIGRAPHX_DISABLE_MLIR{}))
+    {
+        inline_group_sub_module(mpm);
+        mpm.run_pass(dead_code_elimination{});
+    }
 }
 
 } // namespace gpu

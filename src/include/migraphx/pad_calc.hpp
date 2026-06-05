@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,14 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_EXPORT
+void calc_auto_padding(std::string auto_pad,
+                       const std::vector<std::size_t>& strides,
+                       const std::vector<std::size_t>& k_lens,
+                       const std::vector<std::size_t>& dilation,
+                       const std::vector<std::size_t>& in_lens,
+                       std::vector<int64_t>& paddings);
+
+MIGRAPHX_EXPORT
 void calculate_padding(int64_t idx,
                        std::vector<int64_t>& pads,
                        int64_t input_dim,
@@ -40,6 +48,13 @@ void calculate_padding(int64_t idx,
                        int64_t dilation,
                        int64_t weight_dim,
                        bool is_same_upper = true);
+
+MIGRAPHX_EXPORT
+void calc_conv_transpose_auto_padding(std::string auto_pad,
+                                      const std::vector<std::size_t>& strides,
+                                      const std::vector<std::size_t>& k_lens,
+                                      const std::vector<std::size_t>& dilation,
+                                      std::vector<int64_t>& paddings);
 
 /*!
  * Calculate the padding for auto_padding. Used for dynamic shapes

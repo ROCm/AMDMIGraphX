@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -40,7 +40,7 @@ inline uint64_t encode_divisor(uint64_t divisor)
     return (p + divisor - 1) / divisor;
 }
 
-inline constexpr bool is_divisor_encodable(uint64_t i)
+constexpr bool is_divisor_encodable(uint64_t i)
 {
     return i < (uint64_t{1} << (fast_div_shift / 2));
 }

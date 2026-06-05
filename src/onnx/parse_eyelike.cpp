@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +41,7 @@ struct parse_eyelike : op_parser<parse_eyelike>
                           std::vector<instruction_ref> args) const
     {
         auto input_shape = args[0]->get_shape();
-        auto input_lens  = input_shape.lens();
+        const auto& input_lens = input_shape.lens();
         if(input_lens.size() != 2)
         {
             MIGRAPHX_THROW("EYELIKE: tensor input not of rank 2");

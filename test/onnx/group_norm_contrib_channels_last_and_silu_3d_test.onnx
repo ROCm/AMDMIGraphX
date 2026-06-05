@@ -1,5 +1,4 @@
-
-1group_norm_contrib_channels_last_and_silu_3d_test:ù
+	1group_norm_contrib_channels_last_and_silu_3d_test:ù
 i
 x
 gamma
@@ -26,4 +25,4 @@ activation *
 
 
 
-B
+B

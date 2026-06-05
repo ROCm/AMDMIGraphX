@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,6 +54,13 @@ constexpr auto to_native(T x)
 
 constexpr migraphx::half to_native(__half x) { return bit_cast<migraphx::half>(x); }
 
+template <class T>
+constexpr auto to_hip(T x)
+{
+    return x;
+}
+constexpr __half to_hip(migraphx::half x) { return bit_cast<__half>(x); }
+
 template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
 __device__ auto wrap(F f, T x, Ts... xs)
 {
@@ -76,7 +83,7 @@ __device__ auto wrap(F f, T x, Ts... xs)
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_LIFT_IMPL(type, ...) \
-    [](type x, auto... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(x, xs...))
+    [](type x, auto... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(math::to_hip(x), math::to_hip(xs)...))
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_LIFT(...) MIGRAPHX_DEVICE_MATH_LIFT_IMPL(__VA_ARGS__)
@@ -114,12 +121,15 @@ __device__ auto wrap(F f, T x, Ts... xs)
     template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
     auto __device__ name(type x, Ts... xs) -> type                     \
     {                                                                  \
-        return fname(x, xs...);                                        \
+        return fname(math::to_hip(x), math::to_hip(xs)...);            \
     }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname) \
-    inline auto __device__ name(type x, type y) -> type { return fname(x, y); }
+    inline auto __device__ name(type x, type y) -> type    \
+    {                                                      \
+        return fname(math::to_hip(x), math::to_hip(y));    \
+    }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_HALF2(name, fname)                                           \
@@ -210,16 +220,34 @@ constexpr auto min(const T& a, const T& b)
     return where(a < b, a, b);
 }
 
-template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
-constexpr auto max(const T& a, const U& b)
+template <class T, class Compare, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
+constexpr auto max(const T& a, const T& b, Compare compare)
 {
-    return max<common_type_t<T, U>>(a, b);
+    return where(compare(a, b), b, a);
 }
 
-template <class T, class U, MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
-constexpr auto min(const T& a, const U& b)
+template <class T, class Compare, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
+constexpr auto min(const T& a, const T& b, Compare compare)
 {
-    return min<common_type_t<T, U>>(a, b);
+    return where(compare(a, b), a, b);
+}
+
+template <class T,
+          class U,
+          class... Compare,
+          MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
+constexpr auto max(const T& a, const U& b, Compare... compare)
+{
+    return max<common_type_t<T, U>>(a, b, compare...);
+}
+
+template <class T,
+          class U,
+          class... Compare,
+          MIGRAPHX_REQUIRES(not is_same<T, U>{} and not is_any_vec<T, U>())>
+constexpr auto min(const T& a, const U& b, Compare... compare)
+{
+    return min<common_type_t<T, U>>(a, b, compare...);
 }
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>())>
@@ -294,6 +322,12 @@ template <class T, class U>
 constexpr auto convert(U v)
 {
     return vec_transform(v)([](auto x) -> T { return static_cast<T>(x); });
+}
+
+template <class T, class U>
+constexpr auto ceil_div(T x, U y)
+{
+    return (x + y - _c<1>) / y;
 }
 
 } // namespace migraphx

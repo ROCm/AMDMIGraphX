@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -325,7 +325,7 @@ def disabled_tests_onnx_1_8_0(backend_test):
 def disabled_tests_onnx_1_9_0(backend_test):
     # fails
     # from OnnxBackendPyTorchConvertedModelTest
-    # MaxPool dialtion is partially supported on GPU by a workaround
+    # MaxPool dilation is partially supported on GPU by a workaround
     # But these tests require too large allocations to work properly
     backend_test.exclude(r'test_MaxPool1d_stride_padding_dilation_cpu')
     backend_test.exclude(r'test_MaxPool2d_stride_padding_dilation_cpu')
@@ -558,6 +558,9 @@ def disabled_tests_onnx_1_14_0(backend_test):
     backend_test.exclude(r'test_split_to_sequence_2_cpu')
     backend_test.exclude(r'test_split_to_sequence_nokeepdims_cpu')
     backend_test.exclude(r'test_wrap_pad_cpu')
+    # Scale and bias shape in GroupNorm were changed in 1.16.0 from num_groups to channels; MIGX implementation does not support the older version
+    backend_test.exclude(r'test_group_normalization_epsilon_cpu')
+    backend_test.exclude(r'test_group_normalization_example_cpu')
 
 
 def disabled_tests_onnx_1_16_0(backend_test):
@@ -576,8 +579,6 @@ def disabled_tests_onnx_1_16_0(backend_test):
         r'test_gridsample_volumetric_nearest_align_corners_0_cpu')
     backend_test.exclude(
         r'test_gridsample_volumetric_nearest_align_corners_1_cpu')
-    backend_test.exclude(r'test_group_normalization_epsilon_cpu')
-    backend_test.exclude(r'test_group_normalization_example_cpu')
     backend_test.exclude(r'test_quantizelinear_int16_cpu')
     backend_test.exclude(r'test_quantizelinear_uint16_cpu')
     backend_test.exclude(r'test_qlinearmatmul_2D_int8_float16_cpu')
@@ -618,16 +619,33 @@ def disabled_tests_onnx_1_16_0(backend_test):
 
 
 def disabled_tests_onnx_1_17_0(backend_test):
-    # TODO: convtranspose failing with mismatched channel numbers
-    backend_test.exclude(r'test_convtranspose_group_2_cpu')
-    backend_test.exclude(r'test_convtranspose_group_2_image_3_cpu')
     # TODO: empty set ReduceOps tests are generating dynamic shapes
     backend_test.exclude(r'test_reduce_max_empty_set_cpu')
     backend_test.exclude(r'test_reduce_sum_empty_axes_input_noop_cpu')
-    # TODO: not supported
+    # tf_crop_and_resize not supported
     backend_test.exclude(
         r'test_resize_tf_crop_and_resize_extrapolation_value_cpu')
+    # keep_aspect_ratio_policy not supported
     backend_test.exclude(r'test_resize_upsample_sizes_nearest_not_smaller_cpu')
+
+
+def disabled_tests_onnx_1_18_0(backend_test):
+    # src/onnx/onnx_parser.cpp:841: get_type: Prototensor data type 23 not supported
+    backend_test.exclude(r'test_cast_FLOAT16_to_FLOAT4E2M1_cpu')
+    backend_test.exclude(r'test_cast_FLOAT4E2M1_to_FLOAT16_cpu')
+    backend_test.exclude(r'test_cast_FLOAT4E2M1_to_FLOAT_cpu')
+    backend_test.exclude(r'test_cast_FLOAT_to_FLOAT4E2M1_cpu')
+    backend_test.exclude(r'test_dequantizelinear_float4e2m1_cpu')
+    backend_test.exclude(r'test_quantizelinear_float4e2m1_cpu')
+    # src/onnx/checks.cpp:35: check_arg_empty: PARSE_TopK: k input must be constant
+    backend_test.exclude(r'test_top_k_same_values_2d_cpu')
+    backend_test.exclude(r'test_top_k_same_values_cpu')
+    backend_test.exclude(r'test_top_k_same_values_largest_cpu')
+    backend_test.exclude(r'test_top_k_uint64_cpu')
+    #src/shape.cpp:367: lens: SHAPE: lens() called on a dynamic shape
+    backend_test.exclude(r'test_unique_length_1_cpu')
+    # 
+    backend_test.exclude(r'test_averagepool_2d_ceil_last_window_starts_on_pad_cpu')
 
 
 def disabled_tests_int4(backend_test):
@@ -1210,12 +1228,46 @@ def create_backend_test(testname=None, target_device=None):
         if version.parse(onnx.__version__) >= version.parse("1.17.0"):
             disabled_tests_onnx_1_17_0(backend_test)
 
+        if version.parse(onnx.__version__) >= version.parse("1.18.0"):
+            disabled_tests_onnx_1_18_0(backend_test)
+
+    _check_include_patterns_match(backend_test)
 
 # import all test cases at global scope to make
 # them visible to python.unittest.
     globals().update(backend_test.enable_report().test_cases)
 
     return backend_test
+
+
+def _check_include_patterns_match(backend_test):
+    """Warn for backend_test.include(...) patterns that match no tests.
+
+    Without this guard a typo (e.g. r'.*test_abss.*' instead of r'.*test_abs.*')
+    silently filters every test out of that include, the suite reports zero
+    failures, and CI passes even though that include contributed no coverage.
+    Surface unmatched patterns at test setup time so misspellings — and dead
+    entries left behind when ONNX renames or removes tests — are visible.
+    """
+    all_test_names = {
+        name
+        for items_map in backend_test._test_items.values()
+        for name in items_map
+    }
+    unmatched = sorted(
+        pat.pattern
+        for pat in backend_test._include_patterns
+        if not any(pat.search(name) for name in all_test_names)
+    )
+    if unmatched:
+        print(
+            "onnx_backend_test.py: WARNING: {} include() pattern(s) matched "
+            "no test cases (check for misspellings or stale entries):"
+            .format(len(unmatched)),
+            file=sys.stderr,
+        )
+        for pattern in unmatched:
+            print("  " + pattern, file=sys.stderr)
 
 
 def parse_args():

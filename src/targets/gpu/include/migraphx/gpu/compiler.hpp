@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
 #include <functional>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -48,7 +49,8 @@ struct compiler_replace
     compiler_replace(const operation& op) : code_objects{{op}} {}
 
     template <class F>
-    compiler_replace(const operation& op, F f) : code_objects{{op}}, replace_fn(make_replace(f))
+    compiler_replace(const operation& op, F f)
+        : code_objects{{op}}, replace_fn(make_replace(std::move(f)))
     {
     }
 
@@ -60,13 +62,13 @@ struct compiler_replace
 
     template <class F>
     compiler_replace(const std::vector<operation>& op, F f)
-        : code_objects{op}, replace_fn(make_replace_all(f))
+        : code_objects{op}, replace_fn(make_replace_all(std::move(f)))
     {
     }
 
     template <class F, class Trace>
     compiler_replace(const std::vector<operation>& op, F f, Trace t)
-        : code_objects{op}, replace_fn(make_replace_all(f)), trace_fn(t)
+        : code_objects{op}, replace_fn(make_replace_all(std::move(f))), trace_fn(t)
     {
     }
 
@@ -74,11 +76,12 @@ struct compiler_replace
     std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
         nullptr;
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
+    std::unordered_map<std::string, double> fill_map                    = {};
 
     template <class F>
     static auto make_replace(F f)
     {
-        return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
+        return [f = std::move(f)](const compiler_replace& cr, module& m, instruction_ref ins) {
             f(m, ins, cr.code_objects.front());
         };
     }
@@ -86,7 +89,7 @@ struct compiler_replace
     template <class F>
     static auto make_replace_all(F f)
     {
-        return [=](const compiler_replace& cr, module& m, instruction_ref ins) {
+        return [f = std::move(f)](const compiler_replace& cr, module& m, instruction_ref ins) {
             f(m, ins, cr.code_objects);
         };
     }
@@ -173,20 +176,27 @@ struct compiler : auto_register_compiler<Derived>
     {
         return nullopt;
     }
-    operation compile_op(context&, const std::vector<shape>&, const value&) const { return {}; }
+
+    // TODO: make it a compile error if this is not overridden by Derived rather than runtime error.
+    // Could rename Derived function to something like compile_op_impl.
+    // Or refactor to type-erased interface.
+    operation compile_op(context&, const std::vector<shape>&, const value&) const
+    {
+        MIGRAPHX_THROW("Missing override function");
+    }
 
     template <class D = Derived>
-    auto invoke_compile(
-        rank<1>, context& ctx, instruction_ref ins, operation op, const value& solution) const
-        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
+    auto
+    invoke_compile(rank<1>, context& ctx, instruction_ref ins, operation op, const value& solution)
+        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
     {
         return derived().compile(ctx, ins, std::move(op), solution);
     }
 
     template <class D = Derived>
-    auto invoke_compile(
-        rank<0>, context& ctx, instruction_ref ins, operation op, const value& solution) const
-        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
+    auto
+    invoke_compile(rank<0>, context& ctx, instruction_ref ins, operation op, const value& solution)
+        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
     {
         assert(solution.empty());
         (void)solution;

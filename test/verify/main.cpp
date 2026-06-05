@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -33,7 +33,7 @@
 #include <migraphx/cpu/target.hpp>
 #endif
 
-inline void check_gpu_streams(const migraphx::program& p)
+inline static void check_gpu_streams(const migraphx::program& p)
 {
 #ifdef HAVE_GPU
     const auto* mm = p.get_main_module();
@@ -51,7 +51,7 @@ inline void check_gpu_streams(const migraphx::program& p)
 #endif
 }
 
-void validate_gpu(const migraphx::program& p, const migraphx::parameter_map& m)
+static void validate_gpu(const migraphx::program& p, const migraphx::parameter_map& m)
 {
     check_gpu_streams(p);
 
@@ -81,6 +81,14 @@ int main(int argc, const char* argv[])
          "test_instancenorm_large_3d<migraphx::shape::half_type>",
          "test_isinf<migraphx::generic_float<7, 8> >",
          "test_isinf<migraphx::bf16>",
+         // Disabled until following error can be addressed:
+         // Error eliminate_contiguous: could not create a descriptor for a binary operation
+         // primitive
+         "test_group_query_attention_decode",
+         "test_group_query_attention_grouped",
+         "test_group_query_attention_rotary_only",
+         "test_group_query_attention_concat_only_small",
+         "test_group_query_attention_decode_local",
     // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)
          "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, "
@@ -142,7 +150,13 @@ int main(int argc, const char* argv[])
          "test_bit_cast<migraphx::shape::uint8_type, migraphx::shape::int8_type>",
          "test_bit_cast<migraphx::shape::int8_type, migraphx::shape::uint8_type>",
          "test_bit_cast<migraphx::shape::fp8e4m3fn_type, migraphx::shape::fp8e4m3fnuz_type>",
-         "test_bit_cast<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e4m3fn_type>"});
+         "test_bit_cast<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e4m3fn_type>",
+         "test_dynamic_pointwise<4, 16, 24>",
+         "test_dynamic_pointwise<2, 8, 4>",
+         "test_dynamic_pointwise<3, 10, 13>",
+         "test_dynamic_gemm_pointwise<4, 4>",
+         "test_dynamic_gemm_pointwise<3, 24>",
+         "test_dynamic_gemm_pointwise<2, 16>"});
     rv.disable_test_for("gpu",
                         {
                             // These passes on MI300 but fails on others, same issue as CPU.

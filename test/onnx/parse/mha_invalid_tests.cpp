@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -87,4 +87,109 @@ TEST_CASE(multi_head_attention_invalid_cross_key_test)
 TEST_CASE(multi_head_attention_invalid_cross_value_test)
 {
     EXPECT(test::throws([&] { read_onnx("mha_invalid_cross_value_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_bias_input_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_bias_shape_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_dims_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_dimensions_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_size_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_shape_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_size2_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_shape2_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_size3_shape)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_shape3_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_key_pad_shape_type)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_key_pad_type_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_not_4d_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_not_4d_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_batch_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_batch_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_num_heads_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_num_heads_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_seq_len_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_seq_len_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_attention_bias_kv_seq_len_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_attention_bias_kv_seq_len_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_key_not_4d_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_key_not_4d_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_key_batch_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_key_batch_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_key_num_heads_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_key_num_heads_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_key_head_size_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_key_head_size_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_value_not_4d_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_value_not_4d_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_value_batch_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_value_batch_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_value_num_heads_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_value_num_heads_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_value_head_size_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_value_head_size_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_seq_len_mismatch_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_seq_len_mismatch_test.onnx"); }));
+}
+
+TEST_CASE(multi_head_attention_invalid_past_seq_len_type_test)
+{
+    EXPECT(test::throws([&] { read_onnx("mha_invalid_past_seq_len_type_test.onnx"); }));
 }

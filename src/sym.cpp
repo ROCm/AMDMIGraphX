@@ -2140,8 +2140,13 @@ static migraphx::value sym_scalar_to_value(const sym::scalar& sv)
 
 static sym::scalar value_to_sym_scalar(const migraphx::value& v)
 {
+    // A msgpack round trip can re-tag a non-negative integer as uint64, so the
+    // unsigned case must be handled explicitly; scalar only holds int64/double,
+    // so the uint64 is clamped through scalar's pick_scalar conversion.
     if(v.is_float())
         return sym::scalar{v.get_float()};
+    if(const auto* u = v.if_uint64())
+        return sym::scalar(*u);
     return sym::scalar{v.get_int64()};
 }
 

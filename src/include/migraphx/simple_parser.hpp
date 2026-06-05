@@ -29,7 +29,14 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
+#include <algorithm>
+#include <cctype>
+#include <iterator>
+#include <memory>
+#include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace migraphx {

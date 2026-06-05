@@ -51,6 +51,7 @@ struct onnx_parser
     {
         attribute_map attributes{};
         std::size_t num_outputs = 1;
+        // unique identifier for MIGX, not given ONNX node name
         std::string name        = "";
         module* mod             = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;
@@ -98,11 +99,13 @@ struct onnx_parser
     std::unordered_map<std::string, instruction_ref> instructions;
     program prog                                   = program();
     shape::dynamic_dimension default_dyn_dim_value = {1, 1};
+    bool default_set                               = false;
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims;
     std::unordered_map<std::string, shape::dynamic_dimension> dim_params;
     std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
     bool use_dyn_output          = false;
     bool skip_unknown_operators  = false;
+    bool use_debug_symbols       = false;
     int64_t max_loop_iterations  = 10;
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;

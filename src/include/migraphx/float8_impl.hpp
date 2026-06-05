@@ -38,7 +38,7 @@ namespace impl {
 template <uint32_t Wm, uint32_t We, typename T, bool NegativeZeroNan, bool Clip>
 constexpr uint8_t cast_to_f8(T f_x, bool stoch = false, uint32_t rng = 0)
 {
-    constexpr bool is_float = std::is_same<T, float>::value;
+    constexpr bool is_float = std::is_same<T, float>{};
     // half is not supported for now
     constexpr bool is_half = false;
     static_assert(Wm + We == 7, "Wm+We==7");
@@ -251,7 +251,7 @@ constexpr T cast_from_f8(uint8_t x)
 {
     // half is not supported for now
     constexpr bool is_half  = false;
-    constexpr bool is_float = std::is_same<T, float>::value;
+    constexpr bool is_float = std::is_same<T, float>{};
     static_assert(is_float or is_half, "Only float are supported");
 
     constexpr int weo = is_half ? 5 : 8;

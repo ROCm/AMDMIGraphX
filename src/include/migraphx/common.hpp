@@ -153,6 +153,21 @@ instruction_ref add_common_op(module& m,
 MIGRAPHX_EXPORT
 shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens);
 
+/**
+ * Calculates the broadcasted shape from a symbolic broadcast target. The input shape MUST
+ * already be symbolic (`input_shape.symbolic()`); callers bridging from a static shape
+ * should promote via `shape::to_symbolic()` first. Mirrors the single-modality contract of
+ * the static overload above. Broadcast axes receive `sym::lit(0)`; matching axes propagate
+ * the input's symbolic stride.
+ *
+ * @param input_shape symbolic dynamic shape to broadcast
+ * @param bcast_dyn_dims symbolic dynamic dimensions to broadcast to
+ * @return broadcasted shape with symbolic dyn_strides
+ */
+MIGRAPHX_EXPORT
+shape make_bcast_shape(const shape& input_shape,
+                       const std::vector<shape::dynamic_dimension>& bcast_dyn_dims);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 #endif // MIGRAPHX_GUARD_MIGRAPHX_COMMON_HPP

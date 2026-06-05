@@ -1813,7 +1813,7 @@ std::set<std::size_t> expr::eval_optimals_uint() const
 
 static std::string scalar_to_string(const scalar& v)
 {
-    return std::visit(
+    return visit(
         [](auto x) -> std::string {
             std::ostringstream ss;
             ss << x;

@@ -218,9 +218,9 @@ interval cos(interval x)
 
 interval tan(interval x)
 {
-    double lo       = to<double>(x.min);
-    double hi       = to<double>(x.max);
-    const double pi = std::acos(-1.0);
+    double lo            = to<double>(x.min);
+    double hi            = to<double>(x.max);
+    const double pi      = std::acos(-1.0);
     constexpr double inf = std::numeric_limits<double>::infinity();
 
     // tan has period pi and poles at pi/2 + k*pi

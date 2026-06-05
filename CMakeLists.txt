@@ -51,6 +51,8 @@ endif()
 list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/llvm $ENV{ROCM_PATH} $ENV{HIP_PATH})
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
+cmake_policy(SET CMP0091 NEW)
+
 project(migraphx LANGUAGES C CXX)
 include(CTest)
 
@@ -59,6 +61,18 @@ detect_package_backend()
 
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
+
+include(CMakeDependentOption)
+
+cmake_dependent_option(MIGRAPHX_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF "WIN32" OFF)
+
+if(NOT MIGRAPHX_MSVC_STATIC_RUNTIME)
+    set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")
+endif()
+
+if(NOT CMAKE_MSVC_RUNTIME_LIBRARY)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binary Analyzer" OFF)
@@ -97,7 +111,6 @@ endif()
 # By default build shared libraries
 option(BUILD_SHARED_LIBS "Create shared libraries" ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
 option(MIGRAPHX_STRIP_SYMBOLS "Strip symbols in release mode" OFF)
 
 # Strip symbols for release
@@ -416,10 +429,6 @@ foreach(py_file ${backend_files})
 endforeach(py_file)
 
 if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
-    if(NOT MIGRAPHX_THEROCK_GPU_ARCH)
-        message(FATAL_ERROR "MIGRAPHX_PACKAGE_BACKEND=therock requires MIGRAPHX_THEROCK_GPU_ARCH (e.g. -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x).")
-    endif()
-
     # TheRock versioned packaging (RFC0009-OS-Packaging-Requirements):
     #   Versioned (installed by meta-package): amdrocm-{component}{MAJOR.MINOR}[-{gpu_arch}]
     #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
@@ -427,12 +436,41 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
     set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
+    set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
+        "TheRock GPU arch(es) for per-GPU package dependencies. \
+Semicolon-separated list (e.g. gfx90a;gfx942;gfx950) for per-GPU deps, \
+or empty for device-all meta-package deps.")
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
-    if(MIGRAPHX_USE_MIOPEN)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
-    endif()
-    if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${MIGRAPHX_THEROCK_GPU_ARCH}")
+    if(MIGRAPHX_THEROCK_GPU_ARCH)
+        # Collect per-GPU dependencies: one amdrocm-dnn/blas per arch
+        set(_MGX_GPU_DEPS "")
+        foreach(mgx_gpu_arch IN LISTS MIGRAPHX_THEROCK_GPU_ARCH)
+            if(MIGRAPHX_USE_MIOPEN)
+                list(APPEND _MGX_GPU_DEPS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
+            endif()
+            if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+                list(APPEND _MGX_GPU_DEPS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
+            endif()
+        endforeach()
+        list(LENGTH MIGRAPHX_THEROCK_GPU_ARCH _MGX_NUM_ARCHS)
+        if(_MGX_NUM_ARCHS GREATER 1)
+            # Multi-arch fat binary: per-GPU libs are Recommends (only the
+            # libs for the GPU actually present are needed at runtime).
+            string(REPLACE ";" ", " _MGX_GPU_DEPS_CSV "${_MGX_GPU_DEPS}")
+            set(CPACK_DEBIAN_RUNTIME_PACKAGE_RECOMMENDS "${_MGX_GPU_DEPS_CSV}")
+            set(CPACK_RPM_RUNTIME_PACKAGE_SUGGESTS "${_MGX_GPU_DEPS_CSV}")
+        else()
+            # Single-arch: hard dependency (user explicitly targets one GPU).
+            list(APPEND PACKAGE_DEPENDS ${_MGX_GPU_DEPS})
+        endif()
+    else()
+        # Device-all: depend on arch-independent meta packages
+        if(MIGRAPHX_USE_MIOPEN)
+            list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}")
+        endif()
+        if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+            list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}")
+        endif()
     endif()
     rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${MIGRAPHX_THEROCK_ROCM_VERSION}")
     rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${MIGRAPHX_THEROCK_ROCM_VERSION}")

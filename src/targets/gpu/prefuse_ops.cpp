@@ -21,6 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
+#include <array>
+#include <tuple>
 #include <migraphx/matcher.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -42,6 +45,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WINOGRAD);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_WINOGRAD);
 
 namespace {
 
@@ -397,6 +401,87 @@ static literal compute_winograd_weights_f23(const literal& w_lit)
     return literal{t_shape, data};
 }
 
+// Measured per-shape overrides: exact (C, K, H, W) convolutions where the
+// analytic heuristic below mispredicts the winograd-vs-default winner by more
+// than 10%. These are micro-architectural non-monotonicities that no smooth
+// function of the shape can capture -- e.g. 387 input channels pad to 25
+// BK=16 blocks and tile more efficiently than 384's 24, flipping a 9% loss
+// into a 34% win at 32x32; likewise 384->191 lands on an awkward output-block
+// count and loses where neighbouring channel counts win. Each entry was
+// verified on gfx1201 with `migraphx-driver time` (winograd forced on vs off).
+struct winograd_f23_shape
+{
+    std::size_t in_ch;
+    std::size_t out_ch;
+    std::size_t height;
+    std::size_t width;
+    bool use_winograd;
+};
+
+static constexpr std::array<winograd_f23_shape, 8> winograd_f23_overrides{{
+    {387, 384, 32, 32, true},   // 1.34x: 387 pads to 25 k-blocks, tiles better
+    {515, 512, 24, 24, true},   // 1.34x: 515 pads to 33 k-blocks
+    {515, 512, 32, 32, true},   // 1.20x
+    {195, 192, 128, 128, true}, // 1.10x: moderate channels still win here
+    {384, 191, 64, 64, false},  // 0.93x: 191 lands on an awkward block count
+    {768, 383, 48, 48, false},  // 0.87x
+    {384, 383, 48, 48, false},  // 0.91x
+    {256, 512, 16, 16, false},  // 0.94x: channel expansion at tiny spatial
+}};
+
+// Heuristic for when the F(2,3) winograd kernel beats the default (MLIR)
+// lowering on gfx12 fp16. Derived from a sweep of 3x3/pad-1/stride-1 convs
+// from real models (tools/bench_conv.py): winograd is count-weighted ~1.09x
+// faster overall (within 0.2% of the per-shape oracle), but loses in several
+// systematic regions, which this excludes:
+//   - Tiny input channels: C<16 feeding K>16 has too little contraction to
+//     amortize the input transform against an expensive output transform;
+//     C<8 (e.g. RGB stems) is near-zero contraction outright. The C in
+//     [8,16], K<=16 corner stays on -- both transforms are cheap and the many
+//     tiles amortize them.
+//   - Very large channel products (C*K >= 700k): these big GEMMs are exactly
+//     what the MLIR/rocBLAS path is tuned for, and winograd's 16/9x weight
+//     expansion becomes bandwidth-bound (e.g. 1280x1280 convs lose ~0.6x).
+//   - Both channel counts large (min(C,K) >= 224): profit is U-shaped in
+//     spatial. Small spatial is GEMM-bound and winograd's 2.25x fewer MACs
+//     win; mid spatial is input/output-transform-bound and loses; large
+//     spatial wins again only for a sweet-spot output-channel band where the
+//     k-block count lines up with occupancy.
+//   - Moderate square channels (min(C,K) >= 128) at very large spatial are
+//     transform-bound and lose.
+// A channel-collapsing conv (e.g. 512->8) keeps min(C,K) small, so it is not
+// caught by the large-channel rules and still wins ~2x as it should.
+static bool winograd_f23_profitable(std::size_t in_ch,
+                                    std::size_t out_ch,
+                                    std::size_t height,
+                                    std::size_t width)
+{
+    auto ovr = std::find_if(
+        winograd_f23_overrides.begin(), winograd_f23_overrides.end(), [&](const auto& o) {
+            return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
+                   std::tie(in_ch, out_ch, height, width);
+        });
+    if(ovr != winograd_f23_overrides.end())
+        return ovr->use_winograd;
+
+    const auto spatial = std::min(height, width);
+    const auto min_ch  = std::min(in_ch, out_ch);
+    const auto max_ch  = std::max(in_ch, out_ch);
+    if(in_ch < 16 and (max_ch > 16 or in_ch < 8))
+        return false;
+    if(in_ch * out_ch >= 700000)
+        return false;
+    if(min_ch >= 224)
+    {
+        if(spatial <= 16)
+            return true;
+        return spatial >= 48 and out_ch >= 288 and out_ch <= 384;
+    }
+    if(min_ch >= 128 and spatial >= 128)
+        return false;
+    return true;
+}
+
 MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
 {
     if(ins->name() != "convolution")
@@ -428,6 +513,15 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     // Only support literal weights -- we precompute the Winograd filter
     // transform U at compile time.
     if(not ins->inputs().back()->can_eval())
+        return false;
+    // Use the perf heuristic to skip shapes where the default lowering is
+    // faster. MIGRAPHX_ENABLE_WINOGRAD forces winograd on every eligible
+    // shape (bypassing the heuristic); MIGRAPHX_DISABLE_WINOGRAD forces it
+    // off everywhere. Both are for benchmarking/debugging.
+    if(enabled(MIGRAPHX_DISABLE_WINOGRAD{}))
+        return false;
+    if(not enabled(MIGRAPHX_ENABLE_WINOGRAD{}) and
+       not winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3]))
         return false;
     return true;
 }
@@ -474,6 +568,11 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
 {
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
+    // The F(2,3) winograd kernel uses gfx12 wave32 WMMA + the gfx12 buffer SRD
+    // format, so it is gfx12-only. On gfx12 it is enabled by default and the
+    // matcher's perf heuristic decides per-shape; MIGRAPHX_ENABLE_WINOGRAD
+    // forces it on for every eligible shape (heuristic bypass).
+    const bool is_gfx12 = starts_with(device_name, "gfx12");
     if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {
         match::find_matches(mpm.get_module(), find_layernorm{});
@@ -483,7 +582,7 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     match::find_matches(mpm, find_gemm_softmax_gemm{enable_attention});
     if(is_navi)
         match::find_matches(mpm.get_module(), find_channelwise_convolution{});
-    if(enabled(MIGRAPHX_ENABLE_WINOGRAD{}))
+    if(is_gfx12)
     {
         match::find_matches(mpm.get_module(), find_winograd_f23{});
         mpm.run_pass(dead_code_elimination{});

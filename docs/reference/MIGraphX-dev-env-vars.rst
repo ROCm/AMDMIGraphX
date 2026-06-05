@@ -37,6 +37,26 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: The rocMLIR library is used.
 
+  * - | ``MIGRAPHX_ENABLE_WINOGRAD``
+      | Forces the F(2,3) winograd convolution kernel on every eligible
+      | 3x3/stride-1/pad-1 fp16 convolution, bypassing the perf heuristic.
+      | gfx12 only.
+
+    - | ``1``: Use winograd on all eligible convolutions.
+      | ``0``: Returns to default behavior.
+
+      | Default: A per-shape heuristic decides between winograd and the
+      | default lowering.
+
+  * - | ``MIGRAPHX_DISABLE_WINOGRAD``
+      | When set, the winograd convolution kernel won't be used.
+
+    - | ``1``: The winograd kernel won't be used.
+      | ``0``: Returns to default behavior.
+
+      | Default: A per-shape heuristic decides between winograd and the
+      | default lowering.
+
   * - | ``MIGRAPHX_ENABLE_CK``
       | When set, the Composable Kernel library is used.
       

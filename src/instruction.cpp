@@ -24,6 +24,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/erase.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
@@ -582,6 +583,25 @@ std::vector<shape> try_compute_shape(const operation& op, const std::vector<shap
         return {};
     }
     return {new_shape};
+}
+
+std::vector<instruction_ref> get_added_instructions(const std::vector<instruction_ref>& starts,
+                                                    const std::vector<instruction_ref>& ends)
+{
+    std::vector<instruction_ref> added;
+    std::unordered_set<instruction_ref> visited;
+    fix([&](auto self, const auto& frontier) {
+        for(auto ins : frontier)
+        {
+            if(contains(starts, ins))
+                continue;
+            if(not visited.insert(ins).second)
+                continue;
+            self(ins->inputs());
+            added.push_back(ins);
+        }
+    })(ends);
+    return added;
 }
 
 migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept

@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <algorithm>
 #include <migraphx/program.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
@@ -724,6 +725,42 @@ TEST_CASE(context_facade_dispatches_to_member_set_and_restore_queue)
     EXPECT(held->set_calls == 2);
     EXPECT(held->restore_calls == 1);
     EXPECT(held->last_queue.unsafe_get() == &dummy);
+}
+
+TEST_CASE(finalize_target_runnable)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, one, two);
+
+    EXPECT(not p.is_compiled());
+    p.finalize(id_target{});
+    EXPECT(p.is_compiled());
+
+    auto result = p.eval({}).back();
+    EXPECT(result == migraphx::literal{3});
+}
+
+TEST_CASE(finalize_target_no_passes)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto one = mm->add_literal(1);
+    auto two = mm->add_literal(2);
+    mm->add_instruction(sum_op{}, two, one);
+
+    p.finalize(invert_target{});
+
+    EXPECT(
+        std::any_of(mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "sum"; }));
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "minus"; }));
+
+    // sum(2, 1) == 3, if compile(invert_target) had run, it would have produced minus(2, 1) == 1.
+    auto result = p.eval({}).back();
+    EXPECT(result == migraphx::literal{3});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

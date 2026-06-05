@@ -36,7 +36,6 @@
 #include "marker_roctx.hpp"
 
 #include <migraphx/tf.hpp>
-#include <set>
 #include <migraphx/onnx.hpp>
 #ifdef MIGRAPHX_ENABLE_PYTHON
 #include <migraphx/py.hpp>

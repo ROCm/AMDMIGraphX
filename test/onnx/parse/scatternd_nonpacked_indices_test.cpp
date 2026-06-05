@@ -24,18 +24,26 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(where_mixed_test)
+TEST_CASE(scatternd_nonpacked_indices_test)
 {
-    // Mixed static + dynamic where inputs broadcast to a common
-    // shape via add_common_op(). The static
-    // input y={3,2,2} pins the broadcasted dimension, so the result has
-    // fixed dims {3,2,2}.
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    auto prog                     = read_onnx("where_mixed_test.onnx", options);
+    migraphx::program p;
+    auto* mm       = p.get_main_module();
+    const size_t n = 16;
 
-    auto out_shapes = prog.get_output_shapes();
-    EXPECT(out_shapes.size() == 1);
-    migraphx::shape expected{migraphx::shape::float_type, {{3, 3}, {2, 2}, {2, 2}}};
-    EXPECT(out_shapes.front() == expected);
+    std::vector<int64_t> raw_idx_vec(2 * n, 0);
+    for(size_t i = 0; i < n; ++i)
+        raw_idx_vec[n + i] = static_cast<int64_t>(n - 1 - i);
+    auto raw_indices = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {2, n}}, raw_idx_vec});
+
+    auto data    = mm->add_parameter("data", {migraphx::shape::float_type, {1, n}});
+    auto updates = mm->add_parameter("updates", {migraphx::shape::float_type, {n}});
+
+    auto indices =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), raw_indices);
+    auto r = mm->add_instruction(migraphx::make_op("scatternd_none"), data, indices, updates);
+    mm->add_return({r});
+
+    auto prog = read_onnx("scatternd_nonpacked_indices_test.onnx");
+    EXPECT(p == prog);
 }

@@ -366,11 +366,14 @@ bool should_prefer_miopen_winograd(instruction_ref ins)
     const auto& w_lens = w.lens();
     if(w_lens.size() != 4)
         return false;
+    value v    = ins->get_operator().to_value();
+    auto group = v.at("group").to<std::size_t>();
+    if(group > 1 and group == w_lens[0])
+        return false;
     // Check for 3x3 filter
     if(w_lens[2] != 3 or w_lens[3] != 3)
         return false;
     // Check for stride=1
-    value v = ins->get_operator().to_value();
     if(not v.contains("stride"))
         return false;
     auto stride = v.at("stride").to_vector<std::size_t>();
@@ -406,7 +409,7 @@ bool check_mlir_conv(instruction_ref ins, mlir_mode mode)
         return false;
 #endif
 
-    // No winograd for group convolution, actually MIOpen support group > 1, need check
+    // No winograd for group convolution, actually MIOpen support group > 1
     if(group > 1)
         return true;
 

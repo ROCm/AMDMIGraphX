@@ -1492,7 +1492,7 @@ static expr transform_expr(const expr& e, F f, int max_depth = -1)
                    std::back_inserter(new_children),
                    [&](const expr& child) { return transform_expr(child, f, child_depth); });
     bool changed = children != new_children;
-    expr node = changed ? expr(std::get<op_node>(get_node(e)), std::move(new_children)) : e;
+    expr node    = changed ? expr(std::get<op_node>(get_node(e)), std::move(new_children)) : e;
     return f(node);
 }
 
@@ -2273,5 +2273,7 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
 
 namespace std {
 std::size_t hash<migraphx::sym::expr>::operator()(const migraphx::sym::expr& e) const
-{ return e.hash(); }
+{
+    return e.hash();
+}
 } // namespace std

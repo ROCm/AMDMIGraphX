@@ -85,6 +85,12 @@ void wait_for_context(T&, any_ptr)
 template <class T>
 void finish_on_context(T&, any_ptr){}
 
+template <class T>
+bool is_cross_compile_context(const T&)
+{
+    return false;
+}
+
 <%
     interface(
         'context',
@@ -95,13 +101,21 @@ void finish_on_context(T&, any_ptr){}
         virtual('restore_queue', returns = 'void', default = 'restore_queue_context'),
         virtual('wait_for', queue = 'any_ptr', returns = 'void', default = 'wait_for_context'),
         virtual('finish_on', queue = 'any_ptr', returns = 'void', default = 'finish_on_context'),
+        virtual('is_cross_compile',
+                returns = 'bool',
+                const   = True,
+                default = 'is_cross_compile_context'),
         virtual('finish', returns = 'void', const = True))
 %>
 
-    inline void migraphx_to_value(value& v, const context& ctx)
+/// True iff `c` holds a concrete context impl and that impl reports cross-compiling.
+/// Safe to call on default-constructed (empty) contexts, unlike `c.is_cross_compile()`.
+inline bool is_cross_compiling(const context& c)
 {
-    v = ctx.to_value();
+    return c.type_id() != typeid(std::nullptr_t) and c.is_cross_compile();
 }
+
+inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
 
 inline void migraphx_from_value(const value& v, context& ctx) { ctx.from_value(v); }
 

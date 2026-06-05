@@ -66,6 +66,7 @@
 
 #include <fstream>
 #include <optional>
+#include <set>
 #include <sstream>
 
 namespace {
@@ -425,6 +426,7 @@ struct loader
         {
             auto v                        = from_json_string(convert_to_json(default_dyn_dim));
             options.default_dyn_dim_value = parse_dyn_dim_object(v);
+            options.default_set           = true;
         }
         options.skip_unknown_operators = skip_unknown_operators;
         options.print_program_on_error = true;
@@ -610,6 +612,26 @@ struct program_params
         return map_load_args;
     }
 
+    void warn_unset_inputs(const std::unordered_map<std::string, shape>& param_shapes) const
+    {
+        std::set<std::string> load_arg_names;
+        for(auto&& x : load_args_info)
+            if(not x.empty() and x[0] == '@')
+                load_arg_names.insert(x.substr(1));
+        std::set<std::string> unset;
+        for(const auto& param : param_shapes)
+            if(shape::is_integral(param.second.type()) and not contains(param.first, "#output_") and
+               not contains(fill0, param.first) and not contains(fill1, param.first) and
+               not contains(load_arg_names, param.first))
+                unset.insert(param.first);
+        if(unset.empty())
+            return;
+        log::warn() << "Input(s) without explicit values: " << join_strings(std::move(unset), ", ")
+                    << ". These will be filled with random data and may cause unexpected behavior. "
+                       "Use `--fill0 <name>`, `--fill1 <name>`, or "
+                       "`--load-arg @<name> <file>` if the program fails to run.";
+    }
+
     auto generate(const program& p,
                   const target& t,
                   bool offload,
@@ -632,6 +654,9 @@ struct program_params
             m[s] = fill_argument(static_param_shapes.at(s), 0);
         for(auto&& s : fill1)
             m[s] = fill_argument(static_param_shapes.at(s), 1);
+
+        warn_unset_inputs(param_shapes);
+
         fill_param_map(m, static_param_shapes, t, offload);
         auto load_arg_map = program_params::parse_load_args(load_args_info, t, offload);
         for(auto&& arg : load_arg_map)
@@ -654,6 +679,13 @@ struct compiler_target
     std::string target_name = "ref";
 #endif
 
+    // GPU cross-compile options. When gpu_arch is non-empty, the GPU target is
+    // configured for cross-compilation against the given architecture without
+    // requiring a physical device.
+    std::string gpu_arch         = {};
+    std::size_t gpu_num_cu       = 120;
+    std::size_t gpu_num_chiplets = 1;
+
     void parse(argument_parser& ap)
     {
         ap(target_name, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value("gpu"));
@@ -662,9 +694,31 @@ struct compiler_target
            {"--ref"},
            ap.help("Compile on the reference implementation"),
            ap.set_value("ref"));
+        ap(gpu_arch,
+           {"--gpu-arch"},
+           ap.help("Cross-compile for the given GPU architecture (e.g. gfx942) without "
+                   "requiring a physical device. Only applies to the gpu target."));
+        ap(gpu_num_cu,
+           {"--gpu-num-cus"},
+           ap.help("Number of compute units to assume for cross-compilation. "
+                   "Only used when --gpu-arch is set."));
+        ap(gpu_num_chiplets,
+           {"--gpu-num-chiplets"},
+           ap.help("Number of chiplets (XCCs) to assume for cross-compilation. "
+                   "Only used when --gpu-arch is set."));
     }
 
-    target get_target() const { return make_target(target_name); }
+    target get_target() const
+    {
+        if(target_name == "gpu" and not gpu_arch.empty())
+        {
+            return make_target(target_name,
+                               {{"gpu_arch", gpu_arch},
+                                {"gpu_num_cu", gpu_num_cu},
+                                {"gpu_num_chiplets", gpu_num_chiplets}});
+        }
+        return make_target(target_name);
+    }
 };
 
 struct compiler

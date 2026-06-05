@@ -24,18 +24,15 @@
 
 #include <onnx_test.hpp>
 
-TEST_CASE(where_mixed_test)
+TEST_CASE(nonzero_large_test)
 {
-    // Mixed static + dynamic where inputs broadcast to a common
-    // shape via add_common_op(). The static
-    // input y={3,2,2} pins the broadcasted dimension, so the result has
-    // fixed dims {3,2,2}.
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    auto prog                     = read_onnx("where_mixed_test.onnx", options);
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::bool_type, {32, 32}};
+    auto data = mm->add_parameter("data", s);
+    auto r    = mm->add_instruction(migraphx::make_op("nonzero"), data);
+    mm->add_return({r});
 
-    auto out_shapes = prog.get_output_shapes();
-    EXPECT(out_shapes.size() == 1);
-    migraphx::shape expected{migraphx::shape::float_type, {{3, 3}, {2, 2}, {2, 2}}};
-    EXPECT(out_shapes.front() == expected);
+    auto prog = read_onnx("nonzero_large_test.onnx");
+    EXPECT(p == prog);
 }

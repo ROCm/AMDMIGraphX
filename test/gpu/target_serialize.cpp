@@ -21,21 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/register_target.hpp>
+#include <migraphx/target.hpp>
+#include <migraphx/value.hpp>
+#include "test.hpp"
 
-#include <onnx_test.hpp>
-
-TEST_CASE(where_mixed_test)
+TEST_CASE(gpu_target_to_value_with_options)
 {
-    // Mixed static + dynamic where inputs broadcast to a common
-    // shape via add_common_op(). The static
-    // input y={3,2,2} pins the broadcasted dimension, so the result has
-    // fixed dims {3,2,2}.
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    auto prog                     = read_onnx("where_mixed_test.onnx", options);
-
-    auto out_shapes = prog.get_output_shapes();
-    EXPECT(out_shapes.size() == 1);
-    migraphx::shape expected{migraphx::shape::float_type, {{3, 3}, {2, 2}, {2, 2}}};
-    EXPECT(out_shapes.front() == expected);
+    auto t = migraphx::make_target("gpu", migraphx::value{{"gpu_arch", "gfx1100"}});
+    auto v = t.to_value();
+    CHECK(v.contains("gpu_arch"));
+    CHECK(v.at("gpu_arch").without_key().to<std::string>() == "gfx1100");
 }
+
+TEST_CASE(gpu_target_to_value_round_trip)
+{
+    auto t1 = migraphx::make_target("gpu", migraphx::value{{"gpu_arch", "gfx1100"}});
+    auto t2 = migraphx::make_target("gpu");
+    t2.from_value(t1.to_value());
+    CHECK(t2.name() == t1.name());
+    CHECK(t2.to_value() == t1.to_value());
+}
+
+int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -84,7 +84,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}, ${conv_cast}>(
+            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}, ${ft}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -108,17 +108,17 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         options.virtual_inputs = inputs;
         options.kernel_name    = v.get("kernel", std::string{"winograd_conv_kernel"});
 
-        const auto nw                = v.get("nw", std::size_t{4});
-        const auto cb                = v.get("cb", std::size_t{16});
-        const auto kw                = v.get("kw", std::size_t{1});
+        const auto nw = v.get("nw", std::size_t{4});
+        const auto cb = v.get("cb", std::size_t{16});
+        const auto kw = v.get("kw", std::size_t{1});
         // sk = within-WG c-axis split factor. sk=1 is the original behavior;
         // sk>1 has nw/sk NT-groups per workgroup with sk waves cooperating on
         // the c contraction (cross-wave LDS reduce at the end). When sk>1, kw
         // is forced to 1 (LDS budget for per-wave U slots would otherwise
         // overflow).
-        const auto sk                = v.get("sk", std::size_t{1});
-        const std::size_t bk         = 16;
-        const std::size_t bk_wg      = bk * kw;
+        const auto sk           = v.get("sk", std::size_t{1});
+        const std::size_t bk    = 16;
+        const std::size_t bk_wg = bk * kw;
         // BT = BT_per_wave * (NW/SK). SK splits waves within a workgroup
         // across the c contraction, so each WG covers fewer NT tiles per round
         // when SK>1, increasing total WG count.
@@ -149,6 +149,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"cb", std::to_string(cb)},
                                        {"kw", std::to_string(kw)},
                                        {"sk", std::to_string(sk)},
+                                       {"ft", v.get("full_transform", false) ? "true" : "false"},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"conv_cast", v.get("conv_cast", std::string{"half"})},
                                        {"preamble", v.get("preamble", std::string{})}});

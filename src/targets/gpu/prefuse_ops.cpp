@@ -46,6 +46,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WINOGRAD);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_WINOGRAD);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_WINOGRAD_FULL_TRANSFORM);
 
 namespace {
 
@@ -324,6 +325,19 @@ struct find_channelwise_convolution
 
 struct winograd_conv
 {
+    // When true the weight input is the raw filter g [3, 3, K, C] and the
+    // kernel computes the full U = G g G^T transform at load time (9 halves
+    // per (k,c), best for weight-bandwidth-bound large-channel convs). When
+    // false the weight is the half-transformed T = G*g [4, 3, K, C] and the
+    // kernel only applies G^T (12 halves, best when the kernel is VALU-bound).
+    bool full_transform = false;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.full_transform, "full_transform"));
+    }
+
     std::string name() const { return "gpu::winograd_conv"; }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -332,9 +346,7 @@ struct winograd_conv
         const auto& x_shape = inputs[0];
         const auto& u_shape = inputs[1];
         auto x_lens         = x_shape.lens();
-        // U is now stored as T = G*g with shape [4, 3, K, C] (only the
-        // first half of the filter transform is precomputed; the kernel
-        // applies the remaining G^T at load time).
+        // u_shape is [4 or 3, 3, K, C]; lens()[2] is K either way.
         auto K                            = u_shape.lens()[2];
         std::vector<std::size_t> out_lens = {x_lens[0], K, x_lens[2], x_lens[3]};
         return shape{x_shape.type(), out_lens};
@@ -342,22 +354,25 @@ struct winograd_conv
 };
 MIGRAPHX_REGISTER_OP(winograd_conv);
 
-// Apply only the first half of the F(2x2, 3x3) Winograd filter transform:
-// T = G * g (per (k, c), shape 4x3). The second G^T multiply that finishes
-// the U = G g G^T transform is folded into the kernel's cooperative U load —
-// because column 0 / column 3 of U are direct copies of T columns 0 / 2 and
-// the middle two columns are linear combos, we only store 12 unique halves
-// per (k, c) instead of 16 (25% less weight memory).
-// Output layout [4, 3, K, C] with C innermost (coalesced loads).
-static literal compute_winograd_weights_f23(const literal& w_lit)
+// Precompute the F(2x2, 3x3) Winograd filter weight for the kernel. Two modes:
+//   full_transform=false: store the half-transformed T = G*g, shape [4, 3, K, C]
+//     (12 halves per (k,c)). The kernel finishes the U = T*G^T column transform
+//     at load time. Fewer in-kernel ops -- best when the kernel is VALU-bound.
+//   full_transform=true: store the raw filter g, shape [3, 3, K, C] (9 halves).
+//     The kernel computes the full U = G g G^T at load time. 25% less weight
+//     memory -- best for weight-bandwidth-bound large-channel convs.
+// The first dim differs (4 vs 3) but the byte-offset formula is identical
+// (both have a size-3 second dim). Output has C innermost (coalesced loads).
+static literal compute_winograd_weights_f23(const literal& w_lit, bool full_transform)
 {
-    auto sh       = w_lit.get_shape();
-    auto K        = sh.lens()[0];
-    auto C        = sh.lens()[1];
-    auto out_type = sh.type();
-    shape t_shape{out_type, {4, 3, K, C}};
+    auto sh                 = w_lit.get_shape();
+    auto K                  = sh.lens()[0];
+    auto C                  = sh.lens()[1];
+    auto out_type           = sh.type();
+    const std::size_t nrows = full_transform ? 3 : 4;
+    shape w_shape{out_type, {nrows, 3, K, C}};
 
-    std::vector<float> data(4ULL * 3 * K * C, 0.0f);
+    std::vector<float> data(nrows * 3 * K * C, 0.0f);
 
     w_lit.visit([&](auto w_view) {
         for(std::size_t k = 0; k < K; ++k)
@@ -369,23 +384,25 @@ static literal compute_winograd_weights_f23(const literal& w_lit)
                     for(std::size_t j = 0; j < 3; ++j)
                         g[i][j] = static_cast<float>(w_view(k, c, i, j));
 
-                // T = G * g  (4x3). G rows: [1,0,0], [0.5,0.5,0.5],
-                // [0.5,-0.5,0.5], [0,0,1].
-                float t[4][3];
-                for(int j = 0; j < 3; ++j)
+                auto store = [&](std::size_t i, std::size_t j, float v) {
+                    data[i * 3 * K * C + j * K * C + k * C + c] = v;
+                };
+                if(full_transform)
                 {
-                    t[0][j] = g[0][j];
-                    t[1][j] = 0.5f * (g[0][j] + g[1][j] + g[2][j]);
-                    t[2][j] = 0.5f * (g[0][j] - g[1][j] + g[2][j]);
-                    t[3][j] = g[2][j];
+                    for(std::size_t i = 0; i < 3; ++i)
+                        for(std::size_t j = 0; j < 3; ++j)
+                            store(i, j, g[i][j]);
                 }
-
-                for(int i = 0; i < 4; ++i)
+                else
                 {
-                    for(int j = 0; j < 3; ++j)
+                    // T = G * g (4x3). G rows: [1,0,0], [0.5,0.5,0.5],
+                    // [0.5,-0.5,0.5], [0,0,1].
+                    for(std::size_t j = 0; j < 3; ++j)
                     {
-                        std::size_t off = i * 3 * K * C + j * K * C + k * C + c;
-                        data[off]       = t[i][j];
+                        store(0, j, g[0][j]);
+                        store(1, j, 0.5f * (g[0][j] + g[1][j] + g[2][j]));
+                        store(2, j, 0.5f * (g[0][j] - g[1][j] + g[2][j]));
+                        store(3, j, g[2][j]);
                     }
                 }
             }
@@ -396,19 +413,20 @@ static literal compute_winograd_weights_f23(const literal& w_lit)
     {
         std::vector<half> hdata(data.size());
         std::transform(data.begin(), data.end(), hdata.begin(), [](float x) { return half(x); });
-        return literal{t_shape, hdata};
+        return literal{w_shape, hdata};
     }
-    return literal{t_shape, data};
+    return literal{w_shape, data};
 }
 
 // Measured per-shape overrides: exact (C, K, H, W) convolutions where the
 // analytic heuristic below mispredicts the winograd-vs-default winner by more
-// than 10%. These are micro-architectural non-monotonicities that no smooth
-// function of the shape can capture -- e.g. 387 input channels pad to 25
-// BK=16 blocks and tile more efficiently than 384's 24, flipping a 9% loss
-// into a 34% win at 32x32; likewise 384->191 lands on an awkward output-block
-// count and loses where neighbouring channel counts win. Each entry was
-// verified on gfx1201 with `migraphx-driver time` (winograd forced on vs off).
+// than 10% (using the better of the two weight stores). These are
+// micro-architectural non-monotonicities that no smooth function of the shape
+// captures -- e.g. 768->383 at 32x32 lands on an awkward output-block count and
+// loses where neighbouring channel counts win. The last group are very large
+// (C*K >= 700k) convs that the bandwidth rule excludes but that the g weight
+// store reclaims at the one spatial size where they cross 1.0. Each entry was
+// verified on gfx1201 with `migraphx-driver time`.
 struct winograd_f23_shape
 {
     std::size_t in_ch;
@@ -418,22 +436,25 @@ struct winograd_f23_shape
     bool use_winograd;
 };
 
-static constexpr std::array<winograd_f23_shape, 8> winograd_f23_overrides{{
-    {387, 384, 32, 32, true},   // 1.34x: 387 pads to 25 k-blocks, tiles better
-    {515, 512, 24, 24, true},   // 1.34x: 515 pads to 33 k-blocks
-    {515, 512, 32, 32, true},   // 1.20x
-    {195, 192, 128, 128, true}, // 1.10x: moderate channels still win here
-    {384, 191, 64, 64, false},  // 0.93x: 191 lands on an awkward block count
-    {768, 383, 48, 48, false},  // 0.87x
+static constexpr std::array<winograd_f23_shape, 10> winograd_f23_overrides{{
+    {195, 192, 128, 128, true}, // 1.12x: missed win (moderate ch, large spatial)
+    {768, 383, 32, 32, false},  // 0.86x: wrong pick
+    {768, 383, 48, 48, false},  // 0.90x
+    {384, 383, 32, 32, false},  // 0.92x
     {384, 383, 48, 48, false},  // 0.91x
-    {256, 512, 16, 16, false},  // 0.94x: channel expansion at tiny spatial
+    {1024, 511, 24, 24, false}, // 0.86x
+    {64, 112, 256, 256, false}, // 0.91x
+    {1280, 1280, 30, 30, true}, // 1.04x: C*K>=700k reclaimed via g store
+    {1920, 1280, 30, 30, true}, // 1.05x
+    {640, 1280, 30, 30, true},  // 1.03x
 }};
 
 // Heuristic for when the F(2,3) winograd kernel beats the default (MLIR)
 // lowering on gfx12 fp16. Derived from a sweep of 3x3/pad-1/stride-1 convs
-// from real models (tools/bench_conv.py): winograd is count-weighted ~1.09x
-// faster overall (within 0.2% of the per-shape oracle), but loses in several
-// systematic regions, which this excludes:
+// from real models (tools/bench_conv.py): winograd is count-weighted ~1.12x
+// faster overall with the dual T/g weight store (see winograd_f23_full_transform),
+// close to the per-shape oracle, but loses in several systematic regions, which
+// this excludes:
 //   - Tiny input channels: C<16 feeding K>16 has too little contraction to
 //     amortize the input transform against an expensive output transform;
 //     C<8 (e.g. RGB stems) is near-zero contraction outright. The C in
@@ -473,11 +494,45 @@ static bool winograd_f23_profitable(std::size_t in_ch,
         return false;
     if(min_ch >= 224)
     {
-        if(spatial <= 16)
+        if(spatial <= 32)
             return true;
         return spatial >= 48 and out_ch >= 288 and out_ch <= 384;
     }
     if(min_ch >= 128 and spatial >= 128)
+        return false;
+    return true;
+}
+
+// Whether to store the raw filter g (full in-kernel transform, 9 halves/KC)
+// instead of the half-transformed T (12 halves/KC). Storing g saves 25% weight
+// bandwidth -- a win for the bandwidth-bound large-channel convs -- but adds
+// in-kernel transform VALU, which loses for VALU-bound large-spatial convs and
+// for channel-collapsing convs (tiny K) whose weights aren't the bottleneck.
+// Derived from the same gfx12 fp16 sweep as winograd_f23_profitable.
+static bool winograd_f23_full_transform(std::size_t in_ch,
+                                        std::size_t out_ch,
+                                        std::size_t height,
+                                        std::size_t width)
+{
+    // Benchmarking override: force g storage on every winograd conv.
+    if(enabled(MIGRAPHX_WINOGRAD_FULL_TRANSFORM{}))
+        return true;
+    const auto spatial = std::min(height, width);
+    // g (full in-kernel transform) saves 25% weight bandwidth and wins on the
+    // large majority of shapes. Fall back to the half-transformed T only where
+    // the kernel is not bandwidth-bound and g's extra row-transform VALU costs
+    // more than the bandwidth it saves:
+    //   - Channel-collapsing convs (tiny output channel): weights are already
+    //     small, so the saved bandwidth is negligible and the extra VALU loses.
+    //   - VALU/transform-bound shapes: large min(C,K) * spatial, where the
+    //     input/output transforms dominate -- EXCEPT very large channel
+    //     products, which stay weight-bandwidth-bound and still prefer g.
+    // Thresholds from the gfx12 fp16 sweep.
+    if(out_ch <= 16)
+        return false;
+    if(in_ch * out_ch >= 700000)
+        return true;
+    if(std::min(in_ch, out_ch) * spatial >= 17000)
         return false;
     return true;
 }
@@ -540,11 +595,15 @@ struct find_winograd_f23
         if(w_arg.empty())
             return;
 
+        auto w_lens   = weights->get_shape().lens(); // [K, C, 3, 3]
+        auto x_lens   = input->get_shape().lens();   // [N, C, H, W]
+        const bool ft = winograd_f23_full_transform(w_lens[1], w_lens[0], x_lens[2], x_lens[3]);
+
         literal w_lit{w_arg.get_shape(), w_arg.data()};
-        auto u_lit = compute_winograd_weights_f23(w_lit);
+        auto u_lit = compute_winograd_weights_f23(w_lit, ft);
         auto u_ins = m.add_literal(u_lit);
 
-        m.replace_instruction(ins, winograd_conv{}, input, u_ins);
+        m.replace_instruction(ins, winograd_conv{ft}, input, u_ins);
     }
 };
 

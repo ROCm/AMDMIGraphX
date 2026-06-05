@@ -244,6 +244,7 @@ template <index_int NW,
           index_int CB,
           index_int KW,
           index_int SK,
+          bool FT,
           class PostInput,
           class F,
           class Output,
@@ -458,7 +459,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     repeat_c<4>([&](auto j) {
                         const int32_t e_off = (hi[i] and wj[j]) ? off + static_cast<int>(i) * sh_b +
                                                                       static_cast<int>(j) * sw_b
-                                                                : oob_byte;
+                                                                           : oob_byte;
                         d[i * 4 + j]        = buffer_load_half(x_rsrc, e_off);
                     });
                 });
@@ -479,22 +480,21 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             });
         });
 
-        // ---- T (weights) loader ----
-        // U is stored in global as T = G*g with shape [4, 3, K, C] — 12
-        // halves per (k, c) instead of 16. The kernel applies the remaining
-        // G^T transform inline at the WMMA dispatch site (see load_u_row
-        // below) and lets buffer caching handle reuse across waves of a WG:
-        //   U[i,0] = T[i,0]
-        //   U[i,1] = 0.5 * ((T[i,0] + T[i,2]) + T[i,1])
-        //   U[i,2] = 0.5 * ((T[i,0] + T[i,2]) - T[i,1])
-        //   U[i,3] = T[i,2]
-        // u_sh layout: [4, 3, K, C] → u_sh[0]=3*K*C, u_sh[1]=K*C, u_sh[2]=C,
-        // u_sh[3]=1 (typically). t_off computes a byte offset, load_t does
-        // one b128 (8 fp16) load.
+        // ---- weight loader (dual mode) ----
+        // FT (full transform): the weight is the raw filter g [3, 3, K, C] (9
+        // halves per (k, c)); load_trows loads it and applies the row transform
+        // T = G*g on the fly. !FT: the weight is the half-transformed T
+        // [4, 3, K, C] (12 halves) and load_trows just loads the 4 T rows. In
+        // both cases apply_gt then finishes the column transform U = T*G^T at
+        // the WMMA dispatch. Buffer caching handles reuse across waves of a WG.
+        //   T[0,j]=g0; T[1,j]=.5(g0+g1+g2); T[2,j]=.5(g0-g1+g2); T[3,j]=g2  (FT)
+        //   U[i,0]=T0; U[i,1]=.5((T0+T2)+T1); U[i,2]=.5((T0+T2)-T1); U[i,3]=T2
+        // u_sh strides are [3*K*C, K*C, C, 1] for either first-dim size (3 or
+        // 4). t_off computes a byte offset, load_t does one b128 (8 fp16) load.
         static_assert(CB % 8 == 0, "CB must be a multiple of 8 for b128 U loads");
-        auto t_off = [&](index_int i_t, index_int j_t, index_int k, index_int c_abs) {
+        auto t_off = [&](index_int i_g, index_int j_g, index_int k, index_int c_abs) {
             return static_cast<int32_t>(
-                (i_t * u_sh[0] + j_t * u_sh[1] + k * u_sh[2] + c_abs * u_sh[3]) * sizeof(half));
+                (i_g * u_sh[0] + j_g * u_sh[1] + k * u_sh[2] + c_abs * u_sh[3]) * sizeof(half));
         };
         auto load_t = [&](int32_t off) {
             auto raw = __builtin_amdgcn_raw_buffer_load_b128(u_rsrc, off, 0, 0);
@@ -504,50 +504,125 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         {
             vec<half, 8> u0, u1, u2, u3;
         };
+        // One row of the row-transformed filter T = G*g: 3 columns.
+        struct t_triple
+        {
+            vec<half, 8> t0, t1, t2;
+        };
         auto apply_gt = [&](vec<half, 8> t0, vec<half, 8> t1, vec<half, 8> t2) -> u_row {
             const auto half_c = static_cast<half>(0.5f);
             // u0 = t0; u3 = t2; u1 = 0.5*((t0+t2) + t1); u2 = 0.5*((t0+t2) - t1)
             vec<half, 8> s = t0 + t2;
             return u_row{t0, (s + t1) * half_c, (s - t1) * half_c, t2};
         };
+        // Return the 4 rows of T (each = 3 columns of 8 c values) for (k,
+        // c_abs). FT loads the raw 3x3 g (9 b128 loads) and applies the row
+        // transform G*; !FT loads the 4 stored T rows directly (12 loads). An
+        // OOB k (>= K) reads zeros via the buffer descriptor.
+        auto load_trows = [&](index_int k, index_int c_abs) {
+            auto ld = [&](index_int i, index_int j) {
+                const int32_t off =
+                    (k < K) ? t_off(i, j, k, c_abs) : static_cast<int32_t>(u_byte_count);
+                return load_t(off);
+            };
+            array<t_triple, 4> r;
+            if constexpr(FT)
+            {
+                const vec<half, 8> g00 = ld(0, 0), g01 = ld(0, 1), g02 = ld(0, 2);
+                const vec<half, 8> g10 = ld(1, 0), g11 = ld(1, 1), g12 = ld(1, 2);
+                const vec<half, 8> g20 = ld(2, 0), g21 = ld(2, 1), g22 = ld(2, 2);
+                const auto hc = static_cast<half>(0.5f);
+                r[0]          = t_triple{g00, g01, g02};
+                r[1]          = t_triple{
+                    (g00 + g10 + g20) * hc, (g01 + g11 + g21) * hc, (g02 + g12 + g22) * hc};
+                r[2] = t_triple{
+                    (g00 - g10 + g20) * hc, (g01 - g11 + g21) * hc, (g02 - g12 + g22) * hc};
+                r[3] = t_triple{g20, g21, g22};
+            }
+            else
+            {
+                r[0] = t_triple{ld(0, 0), ld(0, 1), ld(0, 2)};
+                r[1] = t_triple{ld(1, 0), ld(1, 1), ld(1, 2)};
+                r[2] = t_triple{ld(2, 0), ld(2, 1), ld(2, 2)};
+                r[3] = t_triple{ld(3, 0), ld(3, 1), ld(3, 2)};
+            }
+            return r;
+        };
         // Cooperative U → LDS load for SK==1 (every wave reads the same U).
         // For SK>1 there is no cross-wave U sharing, so we skip this and
         // stream U directly from global into the WMMA A operand below.
         if constexpr(u_via_lds)
         {
-            constexpr index_int U_TASKS = KW * 4 * BK * (CB / 8);
-            idx.local_stride(_c<U_TASKS>, [&](auto task) {
-                const index_int c_half     = task % (CB / 8);
-                const index_int rest       = task / (CB / 8);
-                const index_int k_in_block = rest % BK;
-                const index_int rest2      = rest / BK;
-                const index_int i_t        = rest2 % 4;
-                const index_int k_idx      = rest2 / 4;
-                const index_int c_in_block = c_half * 8;
-                const index_int k          = k_base + k_idx * BK + k_in_block;
-                vec<half, 8> t0, t1, t2;
-                if(k < K)
-                {
-                    t0 = load_t(t_off(i_t, 0, k, c_base + c_in_block));
-                    t1 = load_t(t_off(i_t, 1, k, c_base + c_in_block));
-                    t2 = load_t(t_off(i_t, 2, k, c_base + c_in_block));
-                }
-                else
-                {
-                    t0 = vec<half, 8>{0};
-                    t1 = vec<half, 8>{0};
-                    t2 = vec<half, 8>{0};
-                }
-                auto ur = apply_gt(t0, t1, t2);
-                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) =
-                    ur.u0;
-                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) =
-                    ur.u1;
-                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) =
-                    ur.u2;
-                *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) =
-                    ur.u3;
-            });
+            if constexpr(FT)
+            {
+                // g storage: one task per (k_idx, k_in_block, c_chunk) -- load
+                // the raw 3x3 g once and write the full 4x4 U into LDS.
+                constexpr index_int U_TASKS = KW * BK * (CB / 8);
+                idx.local_stride(_c<U_TASKS>, [&](auto task) {
+                    const index_int c_half     = task % (CB / 8);
+                    const index_int rest       = task / (CB / 8);
+                    const index_int k_in_block = rest % BK;
+                    const index_int k_idx      = rest / BK;
+                    const index_int c_in_block = c_half * 8;
+                    const index_int k          = k_base + k_idx * BK + k_in_block;
+                    auto trows                 = load_trows(k, c_base + c_in_block);
+                    repeat_c<4>([&](auto i_t_val) {
+                        const index_int i_t = i_t_val;
+                        auto ur             = apply_gt(trows[i_t].t0, trows[i_t].t1, trows[i_t].t2);
+                        *as_vec<8>(
+                            &u_smem[u_cache_idx(k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) =
+                            ur.u0;
+                        *as_vec<8>(
+                            &u_smem[u_cache_idx(k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) =
+                            ur.u1;
+                        *as_vec<8>(
+                            &u_smem[u_cache_idx(k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) =
+                            ur.u2;
+                        *as_vec<8>(
+                            &u_smem[u_cache_idx(k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) =
+                            ur.u3;
+                    });
+                });
+            }
+            else
+            {
+                // T storage: one task per (i_t, k_idx, k_in_block, c_chunk) --
+                // load one T row's 3 columns and write its 4 U columns. The
+                // extra i_t parallelism keeps more lanes issuing loads.
+                constexpr index_int U_TASKS = KW * 4 * BK * (CB / 8);
+                idx.local_stride(_c<U_TASKS>, [&](auto task) {
+                    const index_int c_half     = task % (CB / 8);
+                    const index_int rest       = task / (CB / 8);
+                    const index_int k_in_block = rest % BK;
+                    const index_int rest2      = rest / BK;
+                    const index_int i_t        = rest2 % 4;
+                    const index_int k_idx      = rest2 / 4;
+                    const index_int c_in_block = c_half * 8;
+                    const index_int k          = k_base + k_idx * BK + k_in_block;
+                    vec<half, 8> t0, t1, t2;
+                    if(k < K)
+                    {
+                        t0 = load_t(t_off(i_t, 0, k, c_base + c_in_block));
+                        t1 = load_t(t_off(i_t, 1, k, c_base + c_in_block));
+                        t2 = load_t(t_off(i_t, 2, k, c_base + c_in_block));
+                    }
+                    else
+                    {
+                        t0 = vec<half, 8>{0};
+                        t1 = vec<half, 8>{0};
+                        t2 = vec<half, 8>{0};
+                    }
+                    auto ur = apply_gt(t0, t1, t2);
+                    *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 0, k_in_block, c_in_block)]) =
+                        ur.u0;
+                    *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 1, k_in_block, c_in_block)]) =
+                        ur.u1;
+                    *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 2, k_in_block, c_in_block)]) =
+                        ur.u2;
+                    *as_vec<8>(&u_smem[u_cache_idx(k_idx, i_t * 4 + 3, k_in_block, c_in_block)]) =
+                        ur.u3;
+                });
+            }
             // Workgroup barrier so every wave sees the cooperative writes
             // before reading them for WMMA. NW==1 has only one wave so the
             // s_wait_dscnt the compiler inserts before the LDS read suffices.
@@ -602,25 +677,8 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             b.s7 = v_lane[vc][7][wp];
             return b;
         };
-        // A-operand source: either LDS (cooperative SK==1 path) or directly
-        // from global with G^T applied on the fly (SK>1 path).
-        const int32_t u_oob_byte = static_cast<int32_t>(u_byte_count);
-        // Raw T-triple load for the direct path: returns the three T rows
-        // without applying G^T. Used to separate the global-load phase from
-        // the apply_gt+WMMA compute phase so the compiler can issue all loads
-        // up front, then overlap apply_gt+WMMA with the in-flight memory.
-        struct t_triple
-        {
-            vec<half, 8> t0, t1, t2;
-        };
-        auto load_t_triple = [&](index_int k_idx, index_int wp_i, index_int c_offset) {
-            const index_int k     = k_base + k_idx * BK + m_in_wave;
-            const index_int c_abs = c_base + c_offset + c_off;
-            const int32_t off0    = (k < K) ? t_off(wp_i, 0, k, c_abs) : u_oob_byte;
-            const int32_t off1    = (k < K) ? t_off(wp_i, 1, k, c_abs) : u_oob_byte;
-            const int32_t off2    = (k < K) ? t_off(wp_i, 2, k, c_abs) : u_oob_byte;
-            return t_triple{load_t(off0), load_t(off1), load_t(off2)};
-        };
+        // A-operand source: either LDS (cooperative SK==1 path) or computed on
+        // the fly from the weight (SK>1 path, via load_trows + apply_gt).
         auto load_u_row = [&](index_int k_idx, index_int wp_i, index_int c_offset) {
             if constexpr(u_via_lds)
             {
@@ -637,33 +695,38 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             }
             else
             {
-                auto tt = load_t_triple(k_idx, wp_i, c_offset);
-                return apply_gt(tt.t0, tt.t1, tt.t2);
+                auto trows = load_trows(k_base + k_idx * BK + m_in_wave, c_base + c_offset + c_off);
+                return apply_gt(trows[wp_i].t0, trows[wp_i].t1, trows[wp_i].t2);
             }
         };
 
         repeat_c<KW>([&](auto k_idx_val) {
             constexpr int k_idx = k_idx_val;
-            // For the direct (SK>1) path: pre-issue all wp_i × ck T-loads up
-            // front so the compiler emits them back-to-back. Then process
-            // each (wp_i, ck) with apply_gt + WMMA — the in-flight loads
-            // overlap with the apply_gt+WMMA work, hiding the global memory
-            // latency that would otherwise dominate the kernel.
+            // For the direct (SK>1) path: load the raw 3x3 g once per c-chunk
+            // and apply the row transform up front (load_trows), staging the 4
+            // T rows in t_buf. apply_gt (the column transform) then runs at the
+            // WMMA dispatch, overlapping with the in-flight global loads.
             t_triple t_buf[wmma_chunks == 2 ? 8 : 4];
             if constexpr(not u_via_lds)
             {
-                repeat_c<4>([&](auto wp_i_val) {
-                    constexpr int wp_i = wp_i_val;
-                    if constexpr(wmma_chunks == 2)
-                    {
-                        t_buf[wp_i * 2 + 0] = load_t_triple(k_idx, wp_i, 0);
-                        t_buf[wp_i * 2 + 1] = load_t_triple(k_idx, wp_i, 16);
-                    }
-                    else
-                    {
-                        t_buf[wp_i] = load_t_triple(k_idx, wp_i, 0);
-                    }
-                });
+                const index_int kk = k_base + k_idx * BK + m_in_wave;
+                auto tr0           = load_trows(kk, c_base + c_off);
+                if constexpr(wmma_chunks == 2)
+                {
+                    auto tr1 = load_trows(kk, c_base + 16 + c_off);
+                    repeat_c<4>([&](auto wp_i_val) {
+                        const index_int wp_i = wp_i_val;
+                        t_buf[wp_i * 2 + 0]  = tr0[wp_i];
+                        t_buf[wp_i * 2 + 1]  = tr1[wp_i];
+                    });
+                }
+                else
+                {
+                    repeat_c<4>([&](auto wp_i_val) {
+                        const index_int wp_i = wp_i_val;
+                        t_buf[wp_i]          = tr0[wp_i];
+                    });
+                }
             }
             auto get_ur = [&](auto wp_i_val, index_int c_offset) {
                 constexpr int wp_i = wp_i_val;
@@ -822,7 +885,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // Wider output types (fp32, etc.) fall through to the slow path.
     constexpr bool packed_store_ok = sizeof(out_type) == 2;
     repeat_c<KW>([&](auto k_idx_val) {
-        constexpr int k_idx = k_idx_val;
+        constexpr int k_idx         = k_idx_val;
         const index_int base_offset = n_idx * sn + (k_base + k_idx * BK + k_row_offset) * sk +
                                       (2 * th_idx) * sh + (2 * tw_idx) * sw;
         const bool w_pair_in = (static_cast<unsigned>(2 * tw_idx + 1) < W_out) and (sw == 1);

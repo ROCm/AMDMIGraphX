@@ -57,6 +57,16 @@ Model performance tunable variables change the compilation behavior of a model. 
       | Default: A per-shape heuristic decides between winograd and the
       | default lowering.
 
+  * - | ``MIGRAPHX_WINOGRAD_FULL_TRANSFORM``
+      | Forces the winograd kernel to store the raw filter and do the full
+      | weight transform in-kernel, instead of the per-shape store heuristic.
+      | For benchmarking the two weight stores.
+
+    - | ``1``: Always use the in-kernel (raw-filter) weight transform.
+      | ``0``: Returns to default behavior.
+
+      | Default: A per-shape heuristic picks the weight store.
+
   * - | ``MIGRAPHX_ENABLE_CK``
       | When set, the Composable Kernel library is used.
       

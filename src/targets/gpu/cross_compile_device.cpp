@@ -22,11 +22,26 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/cross_compile_device.hpp>
+#include <migraphx/gpu/device_name.hpp>
+#include <migraphx/stringutils.hpp>
 #include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+// RDNA architectures (gfx10xx and newer) natively execute in wave32 mode, while
+// GCN/CDNA architectures (gfx9 and older) use wave64. The wavefront size selects
+// device-specific code paths (e.g. DPP row_bcast cross-lane ops, which only exist
+// on wave64 GCN/CDNA and are illegal on GFX10+), so cross-compilation must report
+// the same size a physical device would.
+static int arch_wavefront_size(const std::string& arch_name)
+{
+    const auto gfx = get_gfx_name(arch_name);
+    if(starts_with(gfx, "gfx10") or starts_with(gfx, "gfx11") or starts_with(gfx, "gfx12"))
+        return 32;
+    return 64;
+}
 
 hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, std::size_t cu_count)
 {
@@ -34,8 +49,8 @@ hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, st
     auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
     std::copy_n(arch_name.begin(), n, props.gcnArchName);
     props.gcnArchName[n] = '\0';
+    props.warpSize       = arch_wavefront_size(arch_name);
     // these are placeholders
-    props.warpSize                    = 64;
     props.maxThreadsPerMultiProcessor = 2048;
     props.maxThreadsPerBlock          = 1024;
     props.multiProcessorCount         = cu_count;

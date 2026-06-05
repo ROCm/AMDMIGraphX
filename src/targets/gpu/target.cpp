@@ -225,7 +225,7 @@ struct pipeline_factory
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{get_context()},
+            write_literals{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},

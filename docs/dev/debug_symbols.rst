@@ -7,7 +7,7 @@
 Debug Symbols
 =============
 
-A debug symbol is a free-form string attached to a MIGraphX instruction that
+A debug symbol is a set of strings attached to a MIGraphX instruction that
 travels with the instruction through the compilation pipeline. Symbols are
 inserted automatically when an ONNX graph is parsed, or manually when
 constructing instructions through the Python API. After the graph is compiled

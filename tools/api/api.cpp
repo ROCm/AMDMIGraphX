@@ -26,6 +26,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
@@ -176,6 +177,18 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
+static sym::expr make_sym_var(const char* name, size_t min, size_t max)
+{
+    return sym::var(name, {static_cast<int64_t>(min), static_cast<int64_t>(max)});
+}
+
+static sym::expr make_sym_var(const char* name, size_t min, size_t max, std::set<size_t> optimals)
+{
+    std::set<int64_t> sym_optimals(optimals.begin(), optimals.end());
+    return sym::var(
+        name, {static_cast<int64_t>(min), static_cast<int64_t>(max)}, std::move(sym_optimals));
+}
+
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
@@ -206,6 +219,17 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 static void set_use_debug_symbols(onnx_options& options, bool value)
 {
     options.use_debug_symbols = value;
+}
+
+static void set_use_symbolic_shapes(onnx_options& options, bool value)
+{
+    options.use_symbolic_shapes = value;
+}
+
+static void
+set_dim_param(onnx_options& options, const char* name, const shape::dynamic_dimension& dd)
+{
+    options.dim_params[std::string(name)] = dd;
 }
 
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }

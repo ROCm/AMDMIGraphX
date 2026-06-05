@@ -154,8 +154,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->ndim() != n)
-                MIGRAPHX_THROW(prefix() + "Only " + std::to_string(n) + "d supported but given " +
-                               std::to_string(begin->ndim()) + "d");
+                MIGRAPHX_THROW(prefix() + "Only " + to_string(n) + "d supported but given " +
+                               to_string(begin->ndim()) + "d");
         }
         return *this;
     }
@@ -170,8 +170,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->ndim() > n)
-                MIGRAPHX_THROW(prefix() + "Shape must have at most " + std::to_string(n) +
-                               " dimensions but has " + std::to_string(begin->ndim()));
+                MIGRAPHX_THROW(prefix() + "Shape must have at most " + to_string(n) +
+                               " dimensions but has " + to_string(begin->ndim()));
         }
         return *this;
     }
@@ -186,8 +186,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->ndim() < n)
-                MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) +
-                               " dimensions but has " + std::to_string(begin->ndim()));
+                MIGRAPHX_THROW(prefix() + "Shape must have at least " + to_string(n) +
+                               " dimensions but has " + to_string(begin->ndim()));
         }
         return *this;
     }

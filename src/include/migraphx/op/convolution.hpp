@@ -68,9 +68,8 @@ struct convolution
            stride.size() != dilation.size())
         {
             MIGRAPHX_THROW("CONVOLUTION: inconsistent attribute sizes: padding (" +
-                           std::to_string(padding.size()) + "), stride (" +
-                           std::to_string(stride.size()) + "), dilation (" +
-                           std::to_string(dilation.size()) +
+                           to_string(padding.size()) + "), stride (" + to_string(stride.size()) +
+                           "), dilation (" + to_string(dilation.size()) +
                            "); expected stride == dilation and padding == stride or 2*stride");
         }
     }
@@ -91,10 +90,10 @@ struct convolution
         if(input_ndim != padding_size / 2 + 2 and input_ndim != padding_size + 2)
         {
             MIGRAPHX_THROW("CONVOLUTION: input and attribute size mismatch! input rank (" +
-                           std::to_string(input_ndim) + ") must equal padding/2 + 2 (" +
-                           std::to_string(padding_size / 2 + 2) + ") or padding + 2 (" +
-                           std::to_string(padding_size + 2) + ") for padding size " +
-                           std::to_string(padding_size));
+                           to_string(input_ndim) + ") must equal padding/2 + 2 (" +
+                           to_string(padding_size / 2 + 2) + ") or padding + 2 (" +
+                           to_string(padding_size + 2) + ") for padding size " +
+                           to_string(padding_size));
         }
 
         const shape& x_shape          = inputs.at(0);
@@ -102,17 +101,16 @@ struct convolution
         const size_t num_spatial_dims = input_ndim - 2;
         if(num_spatial_dims != this->kdims())
         {
-            MIGRAPHX_THROW("CONVOLUTION: input k-dims (" + std::to_string(num_spatial_dims) +
-                           ") does not match attribute size (" + std::to_string(this->kdims()) +
-                           ")");
+            MIGRAPHX_THROW("CONVOLUTION: input k-dims (" + to_string(num_spatial_dims) +
+                           ") does not match attribute size (" + to_string(this->kdims()) + ")");
         }
 
         if(not x_shape.dynamic() and not w_shape.dynamic() and
            x_shape.lens().at(1) != (w_shape.lens().at(1) * group))
             MIGRAPHX_THROW("CONVOLUTION: mismatched channel numbers: input channels (" +
-                           std::to_string(x_shape.lens().at(1)) + ") != weights channels (" +
-                           std::to_string(w_shape.lens().at(1)) + ") * group (" +
-                           std::to_string(group) + ")");
+                           to_string(x_shape.lens().at(1)) + ") != weights channels (" +
+                           to_string(w_shape.lens().at(1)) + ") * group (" + to_string(group) +
+                           ")");
 
         // Range-based dynamic uses the dedicated path (auto-pad-aware). Static and symbolic
         // (incl. sym x static) share the same path: static inputs get promoted to symbolic

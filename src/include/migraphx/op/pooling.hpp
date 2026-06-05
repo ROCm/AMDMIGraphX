@@ -114,11 +114,11 @@ struct pooling
             (padding.size()) != stride.size() * 2) or
            stride.size() != lengths.size() or dilations.size() != lengths.size())
         {
-            MIGRAPHX_THROW(
-                "POOLING: inconsistent attribute sizes: padding (" +
-                std::to_string(padding.size()) + "), stride (" + std::to_string(stride.size()) +
-                "), lengths (" + std::to_string(lengths.size()) + "), dilations (" +
-                std::to_string(dilations.size()) + "); stride, lengths and dilations must match");
+            MIGRAPHX_THROW("POOLING: inconsistent attribute sizes: padding (" +
+                           to_string(padding.size()) + "), stride (" + to_string(stride.size()) +
+                           "), lengths (" + to_string(lengths.size()) + "), dilations (" +
+                           to_string(dilations.size()) +
+                           "); stride, lengths and dilations must match");
         }
 
         const auto is_zero = [](auto el) { return el == 0; };
@@ -181,11 +181,11 @@ struct pooling
             if(kernel_doesnt_fit and padding_mode == default_)
                 MIGRAPHX_THROW("POOLING: not enough padding for the given kernel size on spatial "
                                "axis " +
-                               std::to_string(i) + ": padded input length (" +
-                               std::to_string(shape::static_dim_value(numerator)) +
-                               ") < dilated kernel length (" + std::to_string(dilated_length) +
-                               ") for kernel " + std::to_string(lengths[i]) + " and dilation " +
-                               std::to_string(dilations[i]));
+                               to_string(i) + ": padded input length (" +
+                               to_string(shape::static_dim_value(numerator)) +
+                               ") < dilated kernel length (" + to_string(dilated_length) +
+                               ") for kernel " + to_string(lengths[i]) + " and dilation " +
+                               to_string(dilations[i]));
 
             auto dim_size =
                 kernel_doesnt_fit ? const_dim_like(numerator, 2) : (numerator - dilated_length);
@@ -208,8 +208,8 @@ struct pooling
         if(input.ndim() != stride_size + 2)
         {
             MIGRAPHX_THROW("POOLING: input and attribute size mismatch! input rank (" +
-                           std::to_string(input.ndim()) + ") must equal stride size + 2 (" +
-                           std::to_string(stride_size + 2) + ")");
+                           to_string(input.ndim()) + ") must equal stride size + 2 (" +
+                           to_string(stride_size + 2) + ")");
         }
 
         // Range-based dynamic uses the dedicated path (auto-pad-aware). Static and symbolic
@@ -366,8 +366,8 @@ struct pooling
                     // This error can be caused by misc. bad input combinations
                     MIGRAPHX_THROW("POOLING: invalid attributes: empty pooling window on spatial "
                                    "axis " +
-                                   std::to_string(d_2) + " (window end " + std::to_string(end) +
-                                   " < start " + std::to_string(start) + ")");
+                                   to_string(d_2) + " (window end " + to_string(end) + " < start " +
+                                   to_string(start) + ")");
                 }
                 win_size.push_back(end - start);
             }

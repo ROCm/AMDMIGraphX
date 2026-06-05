@@ -97,8 +97,8 @@ struct gather
             if(in_index < 0 or in_index >= axis_dim_size)
             {
                 MIGRAPHX_THROW("Gather: Out of bounds index detected: index " +
-                               std::to_string(in_index) + " not in range [0, " +
-                               std::to_string(axis_dim_size) + ")");
+                               to_string(in_index) + " not in range [0, " +
+                               to_string(axis_dim_size) + ")");
             }
         };
 

@@ -103,8 +103,8 @@ struct unsqueeze
 
             if(steps.size() > axes.size())
                 MIGRAPHX_THROW(
-                    "UNSQUEEZE: Steps provided with no axis: " + std::to_string(steps.size()) +
-                    " steps but only " + std::to_string(axes.size()) + " axes");
+                    "UNSQUEEZE: Steps provided with no axis: " + to_string(steps.size()) +
+                    " steps but only " + to_string(axes.size()) + " axes");
 
             std::size_t new_size = old_lens.size() + axes.size();
 
@@ -120,20 +120,18 @@ struct unsqueeze
                     if(axis_idx < steps.size())
                         step = steps[axis_idx];
                     if(step == 0)
-                        MIGRAPHX_THROW("UNSQUEEZE: step must be non-zero at axis " +
-                                       std::to_string(i));
+                        MIGRAPHX_THROW("UNSQUEEZE: step must be non-zero at axis " + to_string(i));
                     if(is_scalar and step != 1)
                         MIGRAPHX_THROW(
                             "UNSQUEEZE: step must be 1 when input is scalar but step is " +
-                            std::to_string(step) + " at axis " + std::to_string(i));
+                            to_string(step) + " at axis " + to_string(i));
                     new_lens[i] = step;
                     if(p < old_strides.size())
                     {
                         if((old_lens[p] % step) != 0)
-                            MIGRAPHX_THROW("UNSQUEEZE: Axis dimension (" +
-                                           std::to_string(old_lens[p]) +
-                                           ") is not divisible by step (" + std::to_string(step) +
-                                           ") at axis " + std::to_string(i));
+                            MIGRAPHX_THROW("UNSQUEEZE: Axis dimension (" + to_string(old_lens[p]) +
+                                           ") is not divisible by step (" + to_string(step) +
+                                           ") at axis " + to_string(i));
                         old_lens[p] /= step;
                         new_strides[i] = is_scalar ? 1 : old_strides[p] * old_lens[p];
                     }
@@ -141,7 +139,7 @@ struct unsqueeze
                     {
                         if(step != 1)
                             MIGRAPHX_THROW("UNSQUEEZE: Step must be 1 for extra axes but step is " +
-                                           std::to_string(step) + " at axis " + std::to_string(i));
+                                           to_string(step) + " at axis " + to_string(i));
                         new_strides[i] = 1;
                     }
                 }

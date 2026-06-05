@@ -82,8 +82,8 @@ struct gathernd
         if(batch_dims >= q or batch_dims >= r)
         {
             MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
-                           std::to_string(batch_dims) + " (indices rank " + std::to_string(q) +
-                           ", data rank " + std::to_string(r) + ")");
+                           to_string(batch_dims) + " (indices rank " + to_string(q) +
+                           ", data rank " + to_string(r) + ")");
         }
 
         if(output_ndim < 0)

@@ -48,6 +48,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
@@ -57,6 +58,8 @@ Full documentation for MIGraphX is available at
 * Fixed `eliminate_pad` pass bug that was removing nonzero `pad` instructions (#4600).
 * Fixed an issue with `convert` output overflowing when converting inf/-inf to integral types (#4669).
 * Fixed issue with `find_concat_op` matcher merging converted int32 inputs after bf16/fp16 quant during compilation (#4745)
+* Fixed `nonzero` GPU JIT kernel `block_scan` accumulator overflow that silently produced out-of-bounds writes for inputs with more than 255 nonzero elements; widened the predicate to `index_int`.
+* Fixed `scatternd_`* GPU JIT kernel and host reference op to read the `indices` tensor stride-aware (`begin_at`), so non-packed layouts produced by upstream `transpose`/`slice`/`concat` no longer collapse every write into the same output cell.
 * Fixed a regression in `simplify_reshapes` where `find_slice_shape_transforms` could trigger `same_dims: Dimensions do not match` when a slice's shape descriptor absorbed a `multibroadcast` on the sliced axis.
 
 ### Optimized
@@ -71,6 +74,7 @@ Full documentation for MIGraphX is available at
 * Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
+* Add matcher to `fuse_attention` that removes Q/DQ pairs from attention blocks (#4900).
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).

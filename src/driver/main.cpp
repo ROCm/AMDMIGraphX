@@ -332,28 +332,27 @@ struct loader
         return map_input_dims;
     }
 
-    static migraphx::shape::dynamic_dimension parse_dyn_dim_object(const value& x)
+    static migraphx::shape::dynamic_dimension parse_dyn_dim_object(const migraphx::value& x)
     {
+        // Accept the legacy JSON form {min, max, optimals:[...]}
         if(x.contains("min") and x.contains("max"))
         {
             auto mn = x.at("min").to<std::size_t>();
             auto mx = x.at("max").to<std::size_t>();
-            std::set<std::size_t> optimals;
+            std::set<std::size_t> opt;
             if(x.contains("optimals"))
-                for(const auto& o : x.at("optimals"))
-                    optimals.insert(o.to<std::size_t>());
-
+                opt = migraphx::from_value<std::set<std::size_t>>(x.at("optimals"));
             if(x.contains("name"))
             {
-                std::set<std::int64_t> sym_optimals(optimals.begin(), optimals.end());
+                std::set<std::int64_t> sym_optimals(opt.begin(), opt.end());
                 return migraphx::shape::dynamic_dimension{migraphx::sym::var(
                     x.at("name").to<std::string>(),
                     {static_cast<std::int64_t>(mn), static_cast<std::int64_t>(mx)},
                     std::move(sym_optimals))};
             }
-            return migraphx::shape::dynamic_dimension{mn, mx, std::move(optimals)};
+            return migraphx::shape::dynamic_dimension{mn, mx, opt};
         }
-        return from_value<migraphx::shape::dynamic_dimension>(x);
+        return migraphx::from_value<migraphx::shape::dynamic_dimension>(x);
     }
 
     static auto parse_dyn_dims_json(const std::string& dd_json)

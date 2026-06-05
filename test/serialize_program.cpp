@@ -24,6 +24,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/file_buffer.hpp>
 #include "test.hpp"
 #include <migraphx/make_op.hpp>
 #include <migraphx/sym.hpp>
@@ -267,6 +268,114 @@ TEST_CASE(no_debug_symbols_roundtrip)
 
     auto syms2 = collect_debug_symbols(*p2.get_main_module());
     EXPECT(syms2.empty());
+}
+
+// A program whose only large literal is a deterministic weight tensor, so the
+// external-weights tests have a measurable, content-addressable blob to share.
+static migraphx::program create_program_with_weight(std::size_t n, float bias, bool with_relu)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {n, n}};
+
+    std::vector<float> w(s.elements());
+    for(std::size_t i = 0; i < w.size(); i++)
+        w[i] = static_cast<float>(i) + bias;
+
+    auto x   = mm->add_parameter("x", s);
+    auto lit = mm->add_literal(migraphx::literal{s, w});
+    auto in  = with_relu ? mm->add_instruction(migraphx::make_op("relu"), x) : x;
+    auto add = mm->add_instruction(migraphx::make_op("add"), in, lit);
+    mm->add_return({add});
+    return p;
+}
+
+TEST_CASE(external_weights_roundtrip)
+{
+    std::string graph_file   = "migraphx_external.mxr";
+    std::string weights_file = "migraphx_external.data";
+
+    migraphx::file_options options;
+    options.weights_file = weights_file;
+
+    migraphx::program p1 = create_program_with_weight(32, 0.0f, false);
+    migraphx::save(p1, graph_file, options);
+    migraphx::program p2 = migraphx::load(graph_file, options);
+
+    // The graph file must be far smaller than the weights it references.
+    auto graph_size   = migraphx::read_buffer(graph_file).size();
+    auto weights_size = migraphx::read_buffer(weights_file).size();
+    EXPECT(graph_size < weights_size);
+
+    std::remove(graph_file.c_str());
+    std::remove(weights_file.c_str());
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(external_weights_missing_file_throws)
+{
+    std::string graph_file   = "migraphx_external_missing.mxr";
+    std::string weights_file = "migraphx_external_missing.data";
+
+    migraphx::file_options options;
+    options.weights_file = weights_file;
+
+    migraphx::save(create_program_with_weight(32, 0.0f, false), graph_file, options);
+    std::remove(weights_file.c_str());
+
+    EXPECT(test::throws([&] { migraphx::load(graph_file, options); }));
+    std::remove(graph_file.c_str());
+}
+
+TEST_CASE(external_weights_shared_dedup)
+{
+    std::string graph_a      = "migraphx_external_a.mxr";
+    std::string graph_b      = "migraphx_external_b.mxr";
+    std::string weights_file = "migraphx_external_shared.data";
+
+    migraphx::file_options options;
+    options.weights_file = weights_file;
+
+    // Two different graphs that reference an identical weight tensor.
+    migraphx::program a = create_program_with_weight(32, 1.0f, false);
+    migraphx::program b = create_program_with_weight(32, 1.0f, true);
+
+    migraphx::save(a, graph_a, options);
+    auto weights_size_after_a = migraphx::read_buffer(weights_file).size();
+
+    migraphx::save(b, graph_b, options);
+    auto weights_size_after_b = migraphx::read_buffer(weights_file).size();
+
+    // The shared weight is stored once: saving b adds no new blob.
+    EXPECT(weights_size_after_b == weights_size_after_a);
+
+    migraphx::program a2 = migraphx::load(graph_a, options);
+    migraphx::program b2 = migraphx::load(graph_b, options);
+
+    std::remove(graph_a.c_str());
+    std::remove(graph_b.c_str());
+    std::remove(weights_file.c_str());
+
+    EXPECT(a.sort() == a2.sort());
+    EXPECT(b.sort() == b2.sort());
+}
+
+TEST_CASE(external_weights_compiled)
+{
+    std::string graph_file   = "migraphx_external_compiled.mxr";
+    std::string weights_file = "migraphx_external_compiled.data";
+
+    migraphx::file_options options;
+    options.weights_file = weights_file;
+
+    migraphx::program p1 = create_program_with_weight(32, 0.5f, false);
+    p1.compile(migraphx::make_target("ref"));
+    migraphx::save(p1, graph_file, options);
+    migraphx::program p2 = migraphx::load(graph_file, options);
+
+    std::remove(graph_file.c_str());
+    std::remove(weights_file.c_str());
+    EXPECT(p1.sort() == p2.sort());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

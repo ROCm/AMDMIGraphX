@@ -34,6 +34,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct file_options
 {
     std::string format = "msgpack";
+    // When non-empty, save()/load() store literal weight blobs in this shared
+    // sidecar file instead of inlining them in the program file. Blobs are
+    // deduplicated by content across every program that references the same
+    // sidecar, so N programs that share weights cost one copy on disk rather
+    // than N. Only used by the file-based save()/load(), not the buffer APIs.
+    std::string weights_file = "";
+    // Weight blobs smaller than this stay inlined in the program file; tiny
+    // constants are not worth a sidecar reference.
+    std::size_t min_external_weight_bytes = 64;
 };
 
 MIGRAPHX_EXPORT program load(const std::string& filename,

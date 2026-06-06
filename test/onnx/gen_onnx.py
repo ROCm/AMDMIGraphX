@@ -11338,6 +11338,20 @@ def nonzero_int_test():
 
 
 @onnx_test()
+def nonzero_large_test():
+    rows, cols = 32, 32
+    x = helper.make_tensor_value_info('data', TensorProto.BOOL, [rows, cols])
+    y = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                      [2, rows * cols])
+
+    node = onnx.helper.make_node('NonZero',
+                                 inputs=['data'],
+                                 outputs=['indices'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def onehot_static_test():
     axis_value = 0
     depth = np.array([3])
@@ -15238,6 +15252,36 @@ def scatternd_dyn_test():
 
 
 @onnx_test()
+def scatternd_nonpacked_indices_test():
+    n = 16
+
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, n])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [n])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, n])
+
+    raw_indices = np.zeros((2, n), dtype=np.int64)
+    raw_indices[1, :] = np.arange(n - 1, -1, -1, dtype=np.int64)
+    raw_indices_init = helper.make_tensor(name='raw_indices',
+                                          data_type=TensorProto.INT64,
+                                          dims=raw_indices.shape,
+                                          vals=raw_indices.flatten())
+
+    transpose_node = onnx.helper.make_node('Transpose',
+                                           inputs=['raw_indices'],
+                                           outputs=['indices'],
+                                           perm=[1, 0])
+    scatter_node = onnx.helper.make_node(
+        'ScatterND',
+        inputs=['data', 'indices', 'updates'],
+        outputs=['output'])
+
+    return ([transpose_node, scatter_node], [data, updates], [output],
+            [raw_indices_init])
+
+
+@onnx_test()
 def selu_test():
     x = helper.make_tensor_value_info('x', TensorProto.DOUBLE, [2, 3])
     y = helper.make_tensor_value_info('y', TensorProto.DOUBLE, [2, 3])
@@ -18755,7 +18799,6 @@ def where_dyn_test():
 
 @onnx_test()
 def where_mixed_test():
-    # mixture of static and dynamic input shapes is not supported
     c = helper.make_tensor_value_info('c', TensorProto.BOOL, [None, 2, 2])
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 2, 2])

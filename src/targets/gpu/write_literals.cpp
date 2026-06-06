@@ -82,7 +82,8 @@ static bool is_allocate(instruction_ref ins)
     return contains({"hip::allocate", "allocate"}, ins->name());
 }
 
-static std::size_t estimate_scratch_size(const module& m, std::size_t alignment = 32)
+static std::size_t
+estimate_scratch_size(const module& m, std::size_t overhead_percent, std::size_t alignment = 32)
 {
     std::size_t scratch_size = 0;
     liveness(m, [&](instruction_ref ins, auto live_set) {
@@ -99,9 +100,9 @@ static std::size_t estimate_scratch_size(const module& m, std::size_t alignment 
                                  });
         scratch_size = std::max(scratch_size, n);
     });
-    // Add 50% since memory coloring is NP-hard and liveness is incomplete without the scheduler, so
-    // we might need more space
-    return scratch_size + scratch_size / 2;
+    // Pad the estimate by overhead_percent since memory coloring is NP-hard and liveness is
+    // incomplete without the scheduler, so we might need more space
+    return scratch_size + scratch_size * overhead_percent / 100;
 }
 
 static std::size_t get_total_literals(const module& m)
@@ -133,9 +134,10 @@ static std::size_t get_max_literals(const module& m)
                                 });
 }
 
-static std::size_t get_total_memory(const module& m)
+static std::size_t get_total_memory(const module& m, std::size_t scratch_overhead_percent)
 {
-    return get_total_literals(m) + get_max_literals(m) * 2 + estimate_scratch_size(m);
+    return get_total_literals(m) + get_max_literals(m) * 2 +
+           estimate_scratch_size(m, scratch_overhead_percent);
 }
 
 static std::size_t get_available_memory()
@@ -177,7 +179,7 @@ void write_literals::apply(module& m) const
     // Sort module to get better liveness analysis
     m.sort();
     std::size_t available  = max_memory == 0 ? get_available_memory() : max_memory;
-    std::size_t total_used = get_total_memory(m);
+    std::size_t total_used = get_total_memory(m, scratch_overhead_percent);
     std::unordered_set<instruction_ref> copy_literals =
         find_copy_literals(m, extra_needed(available, total_used));
 

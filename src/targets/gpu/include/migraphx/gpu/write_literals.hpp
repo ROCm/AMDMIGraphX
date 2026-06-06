@@ -35,6 +35,10 @@ namespace gpu {
 struct MIGRAPHX_GPU_EXPORT write_literals
 {
     std::size_t max_memory = 0;
+    // Percentage to pad the scratch-memory estimate by. Memory coloring is NP-hard and the
+    // liveness-based estimate is incomplete without the scheduler, so the estimate is inflated to
+    // avoid exceeding max_memory after compilation.
+    std::size_t scratch_overhead_percent = 50;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(module& m) const;

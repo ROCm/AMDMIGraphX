@@ -23,11 +23,14 @@
  */
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/memory_coloring.hpp>
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m, migraphx::gpu::write_literals p = {})
@@ -286,6 +289,115 @@ TEST_CASE(memory_limit_copies_largest_literals)
             {add_gpu_literal(m2, small, 1), add_host_copy(m2, big, 2), add_host_copy(m2, big, 3)});
     }
     EXPECT(m1 == m2);
+}
+
+// Build a module of bare hip::allocate buffers with controlled live ranges to exercise memory
+// coloring. Each entry is {start, end, nelems}: the allocation is live over [start, end). To make
+// the conflicts survive the topological sort that write_literals performs, every allocation is
+// anchored to a scalar "spine" chain (via reduce_sum + add) at both its start and end time. The
+// spine forces a linear order, so each buffer is genuinely live across [start, end) regardless of
+// how the module is sorted. An optional literal is appended so write_literals has data to place.
+static migraphx::module make_interval_module(const std::vector<std::array<std::size_t, 3>>& ivals,
+                                             std::size_t lit_floats)
+{
+    std::size_t steps = 0;
+    for(const auto& iv : ivals)
+        steps = std::max(steps, iv[1]);
+
+    migraphx::module m;
+    auto spine = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1}});
+    std::vector<migraphx::instruction_ref> allocs(ivals.size());
+    auto anchor = [&](migraphx::instruction_ref a) {
+        auto r = m.add_instruction(migraphx::make_op("reduce_sum", {{"axes", {0}}}), a);
+        spine  = m.add_instruction(migraphx::make_op("add"), spine, r);
+    };
+    for(std::size_t t = 0; t <= steps; t++)
+    {
+        for(std::size_t i : migraphx::range(ivals.size()))
+            if(ivals[i][1] == t)
+                anchor(allocs[i]); // end anchor: last use of the buffer
+        for(std::size_t i : migraphx::range(ivals.size()))
+            if(ivals[i][0] == t)
+            {
+                allocs[i] = m.add_instruction(
+                    migraphx::make_op("hip::allocate",
+                                      {{"shape",
+                                        migraphx::to_value(migraphx::shape{
+                                            migraphx::shape::float_type, {ivals[i][2]}})}}));
+                anchor(allocs[i]); // start anchor: first use of the buffer
+            }
+    }
+    std::vector<migraphx::instruction_ref> outs{spine};
+    outs.push_back(m.add_literal(
+        migraphx::generate_literal(migraphx::shape{migraphx::shape::float_type, {lit_floats}}, 1)));
+    m.add_return(outs);
+    return m;
+}
+
+struct coloring_result
+{
+    std::size_t scratch     = 0; // bytes of the scratch buffer memory coloring produced
+    std::size_t gpu_literal = 0; // bytes of literals left in GPU memory
+    bool literal_on_host    = false;
+};
+
+static coloring_result
+run_write_literals_and_color(const std::vector<std::array<std::size_t, 3>>& ivals,
+                             std::size_t lit_floats,
+                             std::size_t max_memory,
+                             std::size_t overhead)
+{
+    auto m = make_interval_module(ivals, lit_floats);
+    migraphx::run_passes(m,
+                         {migraphx::gpu::write_literals{.max_memory               = max_memory,
+                                                        .scratch_overhead_percent = overhead},
+                          migraphx::memory_coloring{"hip::allocate"},
+                          migraphx::dead_code_elimination{}});
+    coloring_result r;
+    auto scratch = m.get_parameter("scratch");
+    if(scratch != m.end())
+        r.scratch = scratch->get_shape().bytes();
+    for(auto ins : migraphx::iterator_for(m))
+    {
+        if(ins->name() != "gpu::literal")
+            continue;
+        if(ins->get_operator().to_value()["host"].to<bool>())
+            r.literal_on_host = true;
+        else
+            r.gpu_literal += ins->get_shape().bytes();
+    }
+    return r;
+}
+
+// write_literals estimates the scratch memory from a liveness peak, then inflates it by
+// scratch_overhead_percent because memory coloring is NP-hard and may use more than that lower
+// bound. This test demonstrates why the padding is needed: the five buffers below have an
+// interference graph that is the path b0-b1-b2-b3-b4, so no three are ever live at once (peak = 2
+// buffers = 4096 bytes), but the greedy coloring packs them into 3 buffers = 6144 bytes.
+//
+// With scratch_overhead_percent = 0 the pass trusts the 4096-byte estimate, decides a 512-byte
+// literal fits on the GPU, and the compiled program then needs 6144 + 512 > max_memory. The default
+// 50% pad raises the estimate to 6144 bytes, so the pass moves the literal to host and the program
+// stays within max_memory.
+TEST_CASE(scratch_overhead_accounts_for_coloring)
+{
+    std::size_t sz = 512; // floats per buffer (2048 bytes); peak = 2, coloring uses 3
+    std::vector<std::array<std::size_t, 3>> ivals = {
+        {0, 2, sz}, {1, 3, sz}, {2, 4, sz}, {3, 5, sz}, {4, 5, sz}};
+    std::size_t lit_floats = 128;  // 512-byte literal
+    std::size_t max_memory = 6400; // between the 4096-byte peak and the 6144-byte colored size
+
+    auto no_pad = run_write_literals_and_color(ivals, lit_floats, max_memory, 0);
+    // The unpadded estimate underprovisions: the literal stays on the GPU and the program needs
+    // more than max_memory once coloring actually runs.
+    EXPECT(not no_pad.literal_on_host);
+    EXPECT(no_pad.scratch + no_pad.gpu_literal > max_memory);
+
+    auto padded = run_write_literals_and_color(ivals, lit_floats, max_memory, 50);
+    // The 50% pad accounts for the coloring overhead, so the pass moves the literal to host and the
+    // program fits within max_memory.
+    EXPECT(padded.literal_on_host);
+    EXPECT(padded.scratch + padded.gpu_literal <= max_memory);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

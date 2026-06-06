@@ -25,13 +25,14 @@
 #define MIGRAPHX_GUARD_RTGLIB_SAT_OPS_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/requires.hpp>
 #include <type_traits>
 #include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class T>
+template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
 constexpr T add_sat(T a, T b) noexcept
 {
     T c;
@@ -50,7 +51,7 @@ constexpr T add_sat(T a, T b) noexcept
     return std::numeric_limits<T>::max();
 }
 
-template <class T>
+template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
 constexpr T sub_sat(T a, T b) noexcept
 {
     T c;
@@ -69,7 +70,7 @@ constexpr T sub_sat(T a, T b) noexcept
     return std::numeric_limits<T>::min();
 }
 
-template <class T>
+template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
 constexpr T mul_sat(T a, T b) noexcept
 {
     T c;

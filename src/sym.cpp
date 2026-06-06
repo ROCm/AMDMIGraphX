@@ -2189,7 +2189,7 @@ expr parse(const std::string& str)
 
 static migraphx::value sym_scalar_to_value(const sym::scalar& sv)
 {
-    return std::visit([](auto x) -> migraphx::value { return migraphx::to_value(x); }, sv);
+    return visit([](auto x) -> migraphx::value { return migraphx::to_value(x); }, sv);
 }
 
 static sym::scalar value_to_sym_scalar(const migraphx::value& v)

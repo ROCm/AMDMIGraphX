@@ -70,7 +70,7 @@ struct torch_kit : kit<torch_kit>
             "contiguous",
             "contiguous",
             "convolution",
-            "deconvolution",
+            "convolution_backwards",
             "dequantizelinear",
             "gather",
             "gathernd",

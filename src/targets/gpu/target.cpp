@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
+#include <migraphx/fast_mm.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
@@ -123,16 +124,18 @@ struct pipeline_factory
             dead_code_elimination{},
             eliminate_identity{},
             dead_code_elimination{},
-            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(),
+            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(*get_context()) and
+                            gpu::gfx_has_fp8fnuz_intrinsics(*get_context()),
                         fp8_ocp_to_fnuz{}),
-            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics() and gpu::gfx_has_fp8fnuz_intrinsics(),
+            enable_pass(not gpu::gfx_has_fp8ocp_intrinsics(*get_context()) and
+                            gpu::gfx_has_fp8fnuz_intrinsics(*get_context()),
                         dead_code_elimination{}),
-            simplify_qdq{.use_mx_quant = gpu::gfx_has_mx_intrinsics()},
+            simplify_qdq{.use_mx_quant = gpu::gfx_has_mx_intrinsics(*get_context())},
             enable_pass(not mlir_enabled(), rewrite_quantization{}),
             dead_code_elimination{},
             rewrite_rnn{},
             dead_code_elimination{},
-            eliminate_data_type_for_gpu{.disable_64bit = options.fast_math},
+            eliminate_data_type_for_gpu{.disable_64bit = options.fast_math, .ctx = get_context()},
             rewrite_resize{.affine_only = true},
             dead_code_elimination{},
             simplify_reshapes{.enable_gather_rewrite = true},
@@ -151,6 +154,9 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
+        auto gfx_name = get_context()->get_current_device().get_gfx_name();
+        const bool missing_fp32_mma =
+            starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
         return {
             rewrite_convolution{},
             dead_code_elimination{},
@@ -159,6 +165,8 @@ struct pipeline_factory
             layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
+            dead_code_elimination{},
+            enable_pass(missing_fp32_mma and options.fast_math, fast_mm{}),
             dead_code_elimination{},
             prefuse_ops{get_context()},
             dead_code_elimination{},
@@ -247,7 +255,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 {
     auto& ctx = any_cast<context>(gctx);
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
-    ctx.load_problem_cache();
+    ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
 
     pipeline_factory p{&gctx, options};
 
@@ -266,13 +274,33 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
 std::string target::name() const { return "gpu"; }
 
-migraphx::context target::get_context() const { return context(gpu::get_device_id()); }
+migraphx::context target::get_context() const
+{
+    if(is_cross_compile())
+        return context(gpu_arch, gpu_num_cu, gpu_num_chiplets);
+    return context(gpu::get_device_id());
+}
 
-argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
+argument target::copy_to(const argument& arg) const
+{
+    if(is_cross_compile())
+        MIGRAPHX_THROW("Cannot copy data in cross-compilation mode");
+    return gpu::to_gpu(arg);
+}
 
-argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }
+argument target::copy_from(const argument& arg) const
+{
+    if(is_cross_compile())
+        MIGRAPHX_THROW("Cannot copy data in cross-compilation mode");
+    return gpu::from_gpu(arg);
+}
 
-argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
+argument target::allocate(const shape& s) const
+{
+    if(is_cross_compile())
+        MIGRAPHX_THROW("Cannot allocate GPU memory in cross-compilation mode");
+    return gpu::allocate_gpu(s);
+}
 
 MIGRAPHX_REGISTER_TARGET(target);
 

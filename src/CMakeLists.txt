@@ -147,6 +147,7 @@ add_library(migraphx
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp
+    fast_mm.cpp
     value.cpp
     verify_args.cpp
 )
@@ -220,7 +221,6 @@ register_migraphx_ops(
     gather
     gathernd
     get_tuple_elem
-    gqa_rotary_embedding
     greater
     group
     gru

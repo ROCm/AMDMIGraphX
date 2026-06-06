@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,18 +68,13 @@ struct unary : op_name<Derived>
     {
         check_shapes{inputs, static_cast<const Derived&>(*this), true}.has(1);
         auto s = inputs.at(0);
-        if(s.dynamic() or s.scalar())
-        {
+        // scalar and range-based dynamic pass through; static and symbolic re-pack the
+        // same way (drop broadcast strides, otherwise preserve permutation via with_lens).
+        if(s.scalar() or (s.dynamic() and not s.symbolic()))
             return s;
-        }
-        else if(s.broadcasted())
-        {
-            return {s.type(), s.lens()};
-        }
-        else
-        {
-            return s.with_lens(s.lens());
-        }
+        if(s.broadcasted())
+            return s.symbolic() ? shape{s.type(), s.dyn_dims()} : shape{s.type(), s.lens()};
+        return s.symbolic() ? s.with_lens(s.dyn_dims()) : s.with_lens(s.lens());
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

@@ -114,6 +114,11 @@ struct MIGRAPHX_EXPORT program
 
     void finalize();
 
+    // Attach `t` and finalize an already-lowered program (e.g. one loaded from
+    // an .mxr) without running compile passes that would mutate the lowered
+    // instructions.
+    void finalize(const target& t);
+
     void perf_report(std::ostream& os,
                      std::size_t n,
                      parameter_map params,

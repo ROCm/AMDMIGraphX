@@ -2083,7 +2083,10 @@ static expr call_function(const std::string& name, const std::vector<expr>& args
             MIGRAPHX_CALL_FUNC(ceil),
         };
 #undef MIGRAPHX_CALL_FUNC
-    return functions.at(name)(args);
+    auto it = functions.find(name);
+    if(it == functions.end())
+        MIGRAPHX_THROW("Unknown sym function: " + name);
+    return it->second(args);
 }
 
 static expr parse_number(sym_parser& p)

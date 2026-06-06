@@ -251,42 +251,39 @@ struct slice
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
-        if(inputs.size() == 1)
-        {
-            auto input_shape    = inputs[0];
-            auto set_attributes = get_set_attributes();
-            if(set_attributes != all_set)
-            {
-                MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
-            }
-            // NOTE: make sure to update how normalization works here if this type of slicing is
-            // changed to be allowed
-            if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-                   return not input_shape.dyn_dims()[axis].is_fixed();
-               }))
-            {
-                MIGRAPHX_THROW(
-                    "SLICE 1_arg: slicing is not allowed on non-fixed dynamic input axis ");
-            }
-            if(input_shape.dynamic())
-            {
-                return shape{
-                    input_shape.type(),
-                    lens_calc(input_shape.min_lens(), this->starts, this->ends, this->axes),
-                    lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes),
-                    {}};
-            }
-            else
-            {
-                return shape{input_shape.type(),
-                             lens_calc(input_shape.lens(), this->starts, this->ends, this->axes),
-                             input_shape.strides()};
-            }
-        }
-        else
-        {
+        if(inputs.size() != 1)
             return compute_two_or_more(inputs);
+
+        auto input_shape    = inputs[0];
+        auto set_attributes = get_set_attributes();
+        if(set_attributes != all_set)
+            MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
+
+        // TODO: support slicing non-fixed symbolic dims (output dim would be
+        // a sym::expr derived from starts/ends and the symbolic axis bound).
+        if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+               return not input_shape.dyn_dims()[axis].is_fixed();
+           }))
+        {
+            MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on non-fixed dynamic input axis ");
         }
+
+        auto new_lens = lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes);
+
+        if(not input_shape.dynamic())
+            return shape{input_shape.type(), new_lens, input_shape.strides()};
+
+        auto dds = input_shape.dyn_dims();
+        for(auto axis : this->axes)
+        {
+            dds[axis] = input_shape.symbolic()
+                            ? shape::dynamic_dimension{sym::lit(new_lens[axis])}
+                            : shape::dynamic_dimension{new_lens[axis], new_lens[axis]};
+        }
+
+        if(input_shape.symbolic())
+            return shape{input_shape.type(), dds, input_shape.dyn_strides()};
+        return shape{input_shape.type(), dds};
     }
 
     /**

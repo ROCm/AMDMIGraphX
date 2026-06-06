@@ -213,7 +213,7 @@ void verify_instructions(const program& prog,
         try
         {
             log::info() << "Verify: " << ins.name();
-            log::info() << p;
+            std::cout << p << std::endl;
             verify_program(ins.name(), p, t, options, vo, create_param_map(p, false), tols);
         }
         catch(...)
@@ -354,7 +354,7 @@ void verify_bisected_program(const program& p,
     }
     if(failed > 0)
     {
-        log::error() << "Failure starts at: " << failed;
+        std::cout << "Failure starts at: " << failed << std::endl;
     }
 }
 

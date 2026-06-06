@@ -21,42 +21,26 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
-#define MIGRAPHX_GUARD_RTGLIB_NONZERO_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/op/nonzero.hpp>
-#include <migraphx/gpu/miopen.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/make_op.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-
-struct context;
-
-struct hip_nonzero
+template <migraphx::shape::type_t DType>
+struct test_channelwise_conv_padding_5x5 : verify_program<test_channelwise_conv_padding_5x5<DType>>
 {
-    op::nonzero op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
+    migraphx::program create_program() const
     {
-        return migraphx::reflect(self.op, f);
+        migraphx::program p;
+        auto* mm     = p.get_main_module();
+        auto input   = mm->add_parameter("x", migraphx::shape{DType, {1, 8, 12, 12}});
+        auto weights = mm->add_parameter("w", migraphx::shape{DType, {8, 1, 5, 5}});
+        mm->add_instruction(
+            migraphx::make_op("convolution", {{"group", 8}, {"padding", {2, 2}}}), input, weights);
+        return p;
     }
-
-    std::string name() const { return "gpu::nonzero"; }
-    shape compute_shape(std::vector<shape> inputs) const;
-    argument
-    compute(context& ctx, const shape& output_shape, const std::vector<argument>& args) const;
-    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
-    {
-        return {shapes.size() - 1};
-    }
+    std::string section() const { return "conv"; }
 };
-
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-
-#endif
+template struct test_channelwise_conv_padding_5x5<migraphx::shape::float_type>;
+template struct test_channelwise_conv_padding_5x5<migraphx::shape::half_type>;

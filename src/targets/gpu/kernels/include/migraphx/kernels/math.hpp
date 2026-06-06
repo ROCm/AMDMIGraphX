@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,6 +54,11 @@ constexpr auto to_native(T x)
 
 constexpr migraphx::half to_native(__half x) { return bit_cast<migraphx::half>(x); }
 
+template <class T>
+constexpr auto to_hip(T x)
+{ return x; }
+constexpr __half to_hip(migraphx::half x) { return bit_cast<__half>(x); }
+
 template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
 __device__ auto wrap(F f, T x, Ts... xs)
 {
@@ -76,7 +81,7 @@ __device__ auto wrap(F f, T x, Ts... xs)
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_LIFT_IMPL(type, ...) \
-    [](type x, auto... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(x, xs...))
+    [](type x, auto... xs) MIGRAPHX_RETURNS((__VA_ARGS__)(math::to_hip(x), math::to_hip(xs)...))
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_LIFT(...) MIGRAPHX_DEVICE_MATH_LIFT_IMPL(__VA_ARGS__)
@@ -113,13 +118,12 @@ __device__ auto wrap(F f, T x, Ts... xs)
 #define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname)                    \
     template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
     auto __device__ name(type x, Ts... xs) -> type                     \
-    {                                                                  \
-        return fname(x, xs...);                                        \
-    }
+    { return fname(math::to_hip(x), math::to_hip(xs)...); }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname) \
-    inline auto __device__ name(type x, type y) -> type { return fname(x, y); }
+    inline auto __device__ name(type x, type y) -> type    \
+    { return fname(math::to_hip(x), math::to_hip(y)); }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_HALF2(name, fname)                                           \
@@ -189,8 +193,18 @@ MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::fmaxf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::fminf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::__hmax)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::__hmin)
+// Use clang's elementwise builtins so the back-end emits the HW v_max_f16 /
+// v_min_f16 instructions. HIP's ::__hmax / ::__hmin do explicit NaN handling
+// (4 branches each) which the compiler can't lower back to the HW op, so they
+// generate a v_cmp + v_cndmask chain (~6 scalar ops) per fp16 max.
+inline auto __device__ max(migraphx::half x, migraphx::half y) -> migraphx::half
+{
+    return __builtin_elementwise_max(static_cast<_Float16>(x), static_cast<_Float16>(y));
+}
+inline auto __device__ min(migraphx::half x, migraphx::half y) -> migraphx::half
+{
+    return __builtin_elementwise_min(static_cast<_Float16>(x), static_cast<_Float16>(y));
+}
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>() and is_integral<T>{})>
 constexpr auto abs(const T& a)
@@ -273,6 +287,35 @@ MIGRAPHX_DEVICE_MATH_VEC(isinf)
 MIGRAPHX_DEVICE_MATH_VEC(isnan)
 MIGRAPHX_DEVICE_MATH_VEC(log)
 MIGRAPHX_DEVICE_MATH_VEC(log2)
+// Packed half2 max/min: lower to v_pk_max_f16 / v_pk_min_f16 via the
+// elementwise builtin. Must come before MIGRAPHX_DEVICE_MATH_VEC(max/min) so
+// the half2 overload is more specific than the generic vec_transform fallback.
+inline auto __device__ max(migraphx::vec<migraphx::half, 2> x, migraphx::vec<migraphx::half, 2> y)
+    -> migraphx::vec<migraphx::half, 2>
+{
+    using half2_native = __attribute__((ext_vector_type(2))) _Float16;
+    half2_native xn;
+    half2_native yn;
+    __builtin_memcpy(&xn, &x, sizeof(xn));
+    __builtin_memcpy(&yn, &y, sizeof(yn));
+    half2_native rn = __builtin_elementwise_max(xn, yn);
+    migraphx::vec<migraphx::half, 2> r;
+    __builtin_memcpy(&r, &rn, sizeof(r));
+    return r;
+}
+inline auto __device__ min(migraphx::vec<migraphx::half, 2> x, migraphx::vec<migraphx::half, 2> y)
+    -> migraphx::vec<migraphx::half, 2>
+{
+    using half2_native = __attribute__((ext_vector_type(2))) _Float16;
+    half2_native xn;
+    half2_native yn;
+    __builtin_memcpy(&xn, &x, sizeof(xn));
+    __builtin_memcpy(&yn, &y, sizeof(yn));
+    half2_native rn = __builtin_elementwise_min(xn, yn);
+    migraphx::vec<migraphx::half, 2> r;
+    __builtin_memcpy(&r, &rn, sizeof(r));
+    return r;
+}
 MIGRAPHX_DEVICE_MATH_VEC(max)
 MIGRAPHX_DEVICE_MATH_VEC(min)
 MIGRAPHX_DEVICE_MATH_VEC(mod)
@@ -311,7 +354,17 @@ MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, sqrt, ::h2sqrt)
 template <class T, class U>
 constexpr auto convert(U v)
 {
-    return vec_transform(v)([](auto x) -> T { return static_cast<T>(x); });
+    return vec_transform(v)([](auto x) -> T {
+        using x_type = remove_cv_t<remove_reference_t<decltype(x)>>;
+        // Clang rejects a direct static_cast between _Float16 (half) and
+        // __bf16 (bf16); bounce that one pair through float. Every other
+        // conversion is a plain static_cast.
+        if constexpr((is_same<T, migraphx::half>{} and is_same<x_type, migraphx::bf16>{}) or
+                     (is_same<T, migraphx::bf16>{} and is_same<x_type, migraphx::half>{}))
+            return static_cast<T>(static_cast<float>(x));
+        else
+            return static_cast<T>(x);
+    });
 }
 
 template <class T, class U>

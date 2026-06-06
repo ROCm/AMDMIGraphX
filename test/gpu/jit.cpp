@@ -35,7 +35,6 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
-#include <migraphx_kernels.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(

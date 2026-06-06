@@ -147,10 +147,6 @@ if(NOT MIGRAPHX_USE_COMPOSABLEKERNEL)
             ${CMAKE_CURRENT_SOURCE_DIR}/jit/ck_gemm_softmax_gemm.cpp)
 endif()
 
-if(MIGRAPHX_USE_MIOPEN)
-    set(MIOPEN_SRCS abs.cpp)
-endif()
-
 add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
@@ -180,15 +176,12 @@ add_library(migraphx_gpu
     lrn.cpp
     mlir.cpp
     no_device.cpp
-    nonzero.cpp
     pack_args.cpp
     prefuse_ops.cpp
     prepare_mlir.cpp
     prepare_reduce.cpp
-    perfdb.cpp
     pooling.cpp
     problem_cache.cpp
-    rnn_variable_seq_lens.cpp
     rocblas.cpp
     schedule_model.cpp
     sync_device.cpp
@@ -197,8 +190,16 @@ add_library(migraphx_gpu
     topk.cpp
     write_literals.cpp
     ${JIT_GPU_SRCS}
-    ${MIOPEN_SRCS}
 )
+
+if(MIGRAPHX_USE_MIOPEN)
+    target_sources(migraphx_gpu
+        PRIVATE
+            abs.cpp
+            perfdb.cpp)
+endif()
+
+enable_static_init(migraphx_gpu)
 
 set_target_properties(migraphx_gpu PROPERTIES EXPORT_NAME gpu)
 migraphx_generate_export_header(migraphx_gpu)
@@ -212,8 +213,6 @@ endfunction()
 register_migraphx_gpu_ops(hip_
     fixed_pad
     loop
-    nonzero
-    prefix_scan_sum
     topk
 )
 if (MIGRAPHX_USE_MIOPEN)
@@ -228,10 +227,6 @@ register_migraphx_gpu_ops(miopen_
     contiguous
 )
 endif()
-register_op(migraphx_gpu
-    HEADER migraphx/gpu/rnn_variable_seq_lens.hpp
-    OPERATORS gpu::hip_rnn_var_sl_shift_sequence gpu::hip_rnn_var_sl_shift_output gpu::hip_rnn_var_sl_last_output
-    INCLUDES migraphx/gpu/context.hpp)
 if(MIGRAPHX_USE_ROCBLAS)
     register_op(migraphx_gpu
         HEADER migraphx/gpu/gemm.hpp
@@ -398,7 +393,7 @@ if(NOT MIGRAPHX_USE_MIOPEN AND NOT MIGRAPHX_USE_ROCBLAS)
 else()
     target_link_libraries(migraphx_gpu PRIVATE migraphx_device)
 endif()
-target_link_libraries(migraphx_gpu PRIVATE migraphx_kernels)
+target_link_libraries(migraphx_gpu PRIVATE $<BUILD_INTERFACE:migraphx_kernels>)
 
 # Link HSA runtime for chiplet query (Linux only)
 if(NOT WIN32)

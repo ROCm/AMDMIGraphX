@@ -42,7 +42,20 @@ struct leaky_relu : unary<leaky_relu>
         return pack(f(self.alpha, "alpha"));
     }
 
-    std::string point_op() const { return "${function:where}(${0} > 0, ${0}, ${alpha} * ${0})"; }
+    // For 0 <= alpha <= 1 (the common case), `max(x, alpha*x)` is equivalent
+    // to the where-based form but compiles to a packed v_pk_mul_f16 +
+    // v_pk_max_f16 pair on gfx12 fp16, vs the where form which generates a
+    // v_cmp + v_cndmask chain (10× more ops on long vectors).
+    // The `static_cast<decltype(${0})>(${alpha})` cast keeps alpha in the
+    // operand's type so the multiply stays in fp16 instead of getting
+    // promoted to fp32 via the double literal.
+    std::string point_op() const
+    {
+        return alpha >= 0.0f and alpha <= 1.0f
+                   ? "${function:max}(${0}, static_cast<decltype(${0})>(${alpha}) * ${0})"
+                   : "${function:where}(${0} > 0, ${0}, "
+                     "static_cast<decltype(${0})>(${alpha}) * ${0})";
+    }
 
     std::string name() const { return "leaky_relu"; }
 

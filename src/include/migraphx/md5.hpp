@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,27 +21,20 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_DEVICE_PREFIX_SCAN_SUM_HPP
-#define MIGRAPHX_GUARD_DEVICE_PREFIX_SCAN_SUM_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_MD5_HPP
+#define MIGRAPHX_GUARD_RTGLIB_MD5_HPP
 
-#include <migraphx/argument.hpp>
-#include <migraphx/gpu/device/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <string>
+#include <string_view>
+#include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
-namespace device {
 
-void MIGRAPHX_DEVICE_EXPORT prefix_scan_sum(hipStream_t stream,
-                                            const argument& result,
-                                            const argument& arg,
-                                            int32_t axis,
-                                            bool exclusive,
-                                            bool reverse);
+/// Compute the MD5 digest of a string and return it as a lowercase hex string.
+std::string MIGRAPHX_EXPORT md5(const std::string_view& str);
 
-} // namespace device
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_DEVICE_PREFIX_SCAN_SUM_HPP
+
+#endif

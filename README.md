@@ -127,6 +127,17 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
     Otherwise, you need to set `-DCMAKE_PREFIX_PATH=$your_loc` to configure CMake.
 
+    The default build type is `Release`. To build MIGraphX in debug mode, pass
+    `-DCMAKE_BUILD_TYPE=Debug` when configuring CMake:
+
+    ```bash
+    CXX=/opt/rocm/llvm/bin/clang++ cmake .. \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DGPU_TARGETS=$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
+    ```
+
+    For optimized binaries with debug symbols, use `-DCMAKE_BUILD_TYPE=RelWithDebInfo`.
+
 5. Build MIGraphX source code:
 
     ```cpp
@@ -200,6 +211,22 @@ target_link_libraries(myApp migraphx::c)
 ```
 
 Where `myApp` is the CMake target in your project.
+
+## Other Dockerfiles
+
+Alternative Dockerfiles are available under `tools/docker/`:
+
+* `tools/docker/ubuntu_2404.dockerfile` — Ubuntu 24.04 with ROCm 7.1.1
+* `tools/docker/ubuntu_2204.dockerfile` — Ubuntu 22.04 with ROCm 6.4.2
+
+To build with one of these, use the `-f` flag. For example:
+
+```bash
+docker build -t migraphx:2404 -f tools/docker/ubuntu_2404.dockerfile .
+```
+
+Then follow the same `docker run` and build steps described in the
+[Use Docker](#use-docker) section.
 
 ## Building for development
 

@@ -30,6 +30,7 @@
 #include <migraphx/utility_operators.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/hash.hpp>
+#include <migraphx/sat_ops.hpp>
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
@@ -56,6 +57,13 @@ scalar scalar_max(const scalar& a, const scalar& b)
     return scalar_invoke_common([](auto x, auto y) { return x > y ? x : y; }, a, b);
 }
 
+// Interval bounds use saturating integer arithmetic (add_sat/sub_sat/mul_sat
+// from sat_ops.hpp): endpoints can be the int64 extrema (an unbounded variable
+// defaults to [int64_min, int64_max]), so ordinary +, -, * would overflow --
+// which is UB and, for an open bound, semantically wrong (2 * "unbounded above"
+// is still unbounded above). Floating-point bounds need no saturation: they
+// overflow to +/-inf, which is the representable unbounded value.
+
 // Evaluate f at the four corners of a x b and return the enclosing interval.
 template <class F>
 static interval corner_extrema(F f, interval a, interval b)
@@ -72,19 +80,37 @@ bool interval::valid() const { return max >= min; }
 
 interval operator+(interval a, interval b)
 {
-    auto f = [](auto x, auto y) { return x + y; };
+    auto f = [](auto x, auto y) {
+        if constexpr(std::is_integral<decltype(x)>{})
+            return add_sat(x, y);
+        else
+            return x + y;
+    };
     return {scalar_invoke_common(f, a.min, b.min), scalar_invoke_common(f, a.max, b.max)};
 }
 
 interval operator-(interval a, interval b)
 {
-    auto f = [](auto x, auto y) { return x - y; };
+    auto f = [](auto x, auto y) {
+        if constexpr(std::is_integral<decltype(x)>{})
+            return sub_sat(x, y);
+        else
+            return x - y;
+    };
     return {scalar_invoke_common(f, a.min, b.max), scalar_invoke_common(f, a.max, b.min)};
 }
 
 interval operator*(interval a, interval b)
 {
-    return corner_extrema([](auto x, auto y) { return x * y; }, a, b);
+    return corner_extrema(
+        [](auto x, auto y) {
+            if constexpr(std::is_integral<decltype(x)>{})
+                return mul_sat(x, y);
+            else
+                return x * y;
+        },
+        a,
+        b);
 }
 
 interval operator/(interval a, interval b)
@@ -1019,16 +1045,24 @@ static auto call_associative(std::string name, Eval eval)
 
 expr operator+(expr ex, expr ey)
 {
-    return call_associative("+", [](auto x, auto y) { return x + y; })(std::move(ex),
-                                                                       std::move(ey));
+    return call_associative("+", [](auto x, auto y) {
+        if constexpr(std::is_integral<decltype(x)>{})
+            return add_sat(x, y);
+        else
+            return x + y;
+    })(std::move(ex), std::move(ey));
 }
 
 expr operator-(expr ex, expr ey) { return std::move(ex) + (-std::move(ey)); }
 
 expr operator*(expr ex, expr ey)
 {
-    return call_associative("*", [](auto x, auto y) { return x * y; })(std::move(ex),
-                                                                       std::move(ey));
+    return call_associative("*", [](auto x, auto y) {
+        if constexpr(std::is_integral<decltype(x)>{})
+            return mul_sat(x, y);
+        else
+            return x * y;
+    })(std::move(ex), std::move(ey));
 }
 
 expr operator/(expr ex, expr ey)

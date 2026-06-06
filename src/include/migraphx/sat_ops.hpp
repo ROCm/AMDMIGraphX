@@ -24,8 +24,50 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_SAT_OPS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_SAT_OPS_HPP
 
+#include <migraphx/config.hpp>
 #include <type_traits>
 #include <limits>
+
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+template <class T>
+constexpr T add_sat(T a, T b) noexcept
+{
+    T c;
+    if(not __builtin_add_overflow(a, b, &c))
+    {
+        return c;
+    }
+    if constexpr(std::is_unsigned<T>{})
+    {
+        return std::numeric_limits<T>::max();
+    }
+    else if(b < 0)
+    {
+        return std::numeric_limits<T>::min();
+    }
+    return std::numeric_limits<T>::max();
+}
+
+template <class T>
+constexpr T sub_sat(T a, T b) noexcept
+{
+    T c;
+    if(not __builtin_sub_overflow(a, b, &c))
+    {
+        return c;
+    }
+    if constexpr(std::is_unsigned<T>{})
+    {
+        return (a < b) ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
+    }
+    else if(b < 0)
+    {
+        return std::numeric_limits<T>::max();
+    }
+    return std::numeric_limits<T>::min();
+}
 
 template <class T>
 constexpr T mul_sat(T a, T b) noexcept
@@ -45,5 +87,8 @@ constexpr T mul_sat(T a, T b) noexcept
     }
     return std::numeric_limits<T>::max();
 }
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
 #endif

@@ -243,4 +243,49 @@ TEST_CASE(existing_allocation)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(memory_limit_copies_some_literals)
+{
+    migraphx::shape small{migraphx::shape::float_type, {2}};
+    migraphx::shape big{migraphx::shape::float_type, {10000}};
+
+    migraphx::module m1;
+    {
+        m1.add_return(
+            {add_literal(m1, small, 1), add_literal(m1, small, 2), add_literal(m1, big, 3)});
+    }
+    // The literals total ~40KB; this limit only fits the small ones on the GPU, so the pass
+    // copies the single large literal (the last one) to the host and keeps the rest on the GPU.
+    run_pass(m1, {.max_memory = 160000});
+
+    migraphx::module m2;
+    {
+        m2.add_return({add_gpu_literal(m2, small, 1),
+                       add_gpu_literal(m2, small, 2),
+                       add_host_copy(m2, big, 3)});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(memory_limit_copies_largest_literals)
+{
+    migraphx::shape small{migraphx::shape::float_type, {2}};
+    migraphx::shape big{migraphx::shape::float_type, {10000}};
+
+    migraphx::module m1;
+    {
+        m1.add_return(
+            {add_literal(m1, small, 1), add_literal(m1, big, 2), add_literal(m1, big, 3)});
+    }
+    // Only one large literal fits on the GPU at this limit. The pass walks literals from the end,
+    // so it copies the two large literals to the host and keeps the small one on the GPU.
+    run_pass(m1, {.max_memory = 160000});
+
+    migraphx::module m2;
+    {
+        m2.add_return(
+            {add_gpu_literal(m2, small, 1), add_host_copy(m2, big, 2), add_host_copy(m2, big, 3)});
+    }
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

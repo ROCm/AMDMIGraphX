@@ -31,12 +31,13 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/hash.hpp>
 #include <migraphx/sat_ops.hpp>
+#include <migraphx/stringutils.hpp>
+
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <functional>
 #include <limits>
-#include <map>
 #include <numeric>
 #include <optional>
 #include <sstream>

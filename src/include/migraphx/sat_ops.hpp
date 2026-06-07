@@ -35,7 +35,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
 constexpr T add_sat(T a, T b) noexcept
 {
-    T c;
+    T c = 0;
     if(not __builtin_add_overflow(a, b, &c))
     {
         return c;
@@ -54,7 +54,7 @@ constexpr T add_sat(T a, T b) noexcept
 template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
 constexpr T sub_sat(T a, T b) noexcept
 {
-    T c;
+    T c = 0;
     if(not __builtin_sub_overflow(a, b, &c))
     {
         return c;
@@ -73,7 +73,7 @@ constexpr T sub_sat(T a, T b) noexcept
 template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
 constexpr T mul_sat(T a, T b) noexcept
 {
-    T c;
+    T c = 0;
     if(not __builtin_mul_overflow(a, b, &c))
     {
         return c;

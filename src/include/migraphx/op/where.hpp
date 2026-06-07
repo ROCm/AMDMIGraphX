@@ -56,7 +56,8 @@ struct where
         {
             if(s1 == s2)
                 return s1;
-            MIGRAPHX_THROW("WHERE: dynamic input shapes must be the same");
+            MIGRAPHX_THROW("WHERE: dynamic input shapes must be the same but given " +
+                           to_string(s1) + " and " + to_string(s2));
         }
 
         // Compare two static (or two symbolic) shapes, returning a standard shape

@@ -316,7 +316,11 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
             }
         }
     }
-    this->finalize();
+    auto& contexts = this->impl->contexts;
+
+    if(not std::any_of(
+           contexts.begin(), contexts.end(), [](const auto& c) { return is_cross_compiling(c); }))
+        this->finalize();
 }
 
 void program::compile(const target& t, compile_options options)
@@ -350,7 +354,8 @@ void program::compile(const target& t, compile_options options)
             MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
                            std::to_string(index));
         }
-        mod->finalize(this->impl->contexts);
+        if(not is_cross_compiling(this->impl->contexts.front()))
+            mod->finalize(this->impl->contexts);
     }
 }
 
@@ -358,6 +363,16 @@ void program::finalize()
 {
     auto* mm = this->get_main_module();
     mm->finalize(this->impl->contexts);
+}
+
+void program::finalize(const target& t)
+{
+    if(not this->is_compiled())
+    {
+        this->impl->targets  = {t};
+        this->impl->contexts = {t.get_context()};
+    }
+    this->finalize();
 }
 
 template <class T>
@@ -644,7 +659,7 @@ std::vector<argument> program::eval(const parameter_map& params,
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
-        contexts.front().wait_for(exec_env.queue);
+        contexts.front().set_queue(exec_env.queue);
     }
 
     // When MIGRAPHX_TRACE_EVAL is set, overwrite any user-provided trace callback with our trace
@@ -697,7 +712,7 @@ std::vector<argument> program::eval(const parameter_map& params,
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
-        contexts.front().finish_on(exec_env.queue);
+        contexts.front().restore_queue();
     }
 
     return ret;

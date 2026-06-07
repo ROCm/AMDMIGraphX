@@ -122,6 +122,7 @@ bool gfx_has_mx_intrinsics(const context& ctx)
 }
 
 #if MIGRAPHX_USE_HIPBLASLT
+
 static bool gfx_default_rocblas_impl(const std::string& gfx_name)
 {
     return ((string_value_of(MIGRAPHX_SET_GEMM_PROVIDER{}) == "hipblaslt")

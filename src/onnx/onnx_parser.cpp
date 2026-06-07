@@ -364,7 +364,6 @@ parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto
         // backup instructions in parent mod
         auto pt  = parser.parse_tensor(f);
         auto lit = mod->add_literal(pt);
-         
         if(parser.use_debug_symbols)
             mod->add_debug_symbols(lit, {f.name()});
 

@@ -139,31 +139,31 @@ struct MIGRAPHX_EXPORT interval
     interval& operator/=(interval b) { return *this = *this / b; }
     interval& operator%=(interval b) { return *this = *this % b; }
 
-    friend interval operator+(interval a, interval b);
-    friend interval operator-(interval a, interval b);
-    friend interval operator*(interval a, interval b);
-    friend interval operator/(interval a, interval b);
-    friend interval operator%(interval a, interval b);
-    friend interval operator-(interval a);
-    friend bool operator<(interval a, interval b);
-    friend bool operator<=(interval a, interval b);
-    friend bool operator>(interval a, interval b);
-    friend bool operator>=(interval a, interval b);
-    friend bool operator==(const interval& a, const interval& b);
-    friend bool operator!=(const interval& a, const interval& b);
-    friend interval sin(interval x);
-    friend interval cos(interval x);
-    friend interval tan(interval x);
-    friend interval exp(interval x);
-    friend interval log(interval x);
-    friend interval sqrt(interval x);
-    friend interval abs(interval x);
-    friend interval floor(interval x);
-    friend interval ceil(interval x);
-    friend interval pow(interval x, interval y);
-    friend interval min(interval x, interval y);
-    friend interval max(interval x, interval y);
-    friend std::ostream& operator<<(std::ostream& os, const interval& i);
+    MIGRAPHX_EXPORT friend interval operator+(interval a, interval b);
+    MIGRAPHX_EXPORT friend interval operator-(interval a, interval b);
+    MIGRAPHX_EXPORT friend interval operator*(interval a, interval b);
+    MIGRAPHX_EXPORT friend interval operator/(interval a, interval b);
+    MIGRAPHX_EXPORT friend interval operator%(interval a, interval b);
+    MIGRAPHX_EXPORT friend interval operator-(interval a);
+    MIGRAPHX_EXPORT friend bool operator<(interval a, interval b);
+    MIGRAPHX_EXPORT friend bool operator<=(interval a, interval b);
+    MIGRAPHX_EXPORT friend bool operator>(interval a, interval b);
+    MIGRAPHX_EXPORT friend bool operator>=(interval a, interval b);
+    MIGRAPHX_EXPORT friend bool operator==(const interval& a, const interval& b);
+    MIGRAPHX_EXPORT friend bool operator!=(const interval& a, const interval& b);
+    MIGRAPHX_EXPORT friend interval sin(interval x);
+    MIGRAPHX_EXPORT friend interval cos(interval x);
+    MIGRAPHX_EXPORT friend interval tan(interval x);
+    MIGRAPHX_EXPORT friend interval exp(interval x);
+    MIGRAPHX_EXPORT friend interval log(interval x);
+    MIGRAPHX_EXPORT friend interval sqrt(interval x);
+    MIGRAPHX_EXPORT friend interval abs(interval x);
+    MIGRAPHX_EXPORT friend interval floor(interval x);
+    MIGRAPHX_EXPORT friend interval ceil(interval x);
+    MIGRAPHX_EXPORT friend interval pow(interval x, interval y);
+    MIGRAPHX_EXPORT friend interval min(interval x, interval y);
+    MIGRAPHX_EXPORT friend interval max(interval x, interval y);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const interval& i);
 };
 
 struct op_def
@@ -208,15 +208,15 @@ class MIGRAPHX_EXPORT expr
     std::set<scalar> eval_optimals() const;
     std::set<std::size_t> eval_optimals_uint() const;
 
-    friend expr operator+(expr ex, expr ey);
-    friend expr operator-(expr ex, expr ey);
-    friend expr operator*(expr ex, expr ey);
-    friend expr operator/(expr ex, expr ey);
-    friend expr operator%(expr ex, expr ey);
-    friend expr operator-(expr e);
-    friend bool operator==(const expr& a, const expr& b);
-    friend bool operator!=(const expr& a, const expr& b);
-    friend std::ostream& operator<<(std::ostream& os, const expr& e);
+    MIGRAPHX_EXPORT friend expr operator+(expr ex, expr ey);
+    MIGRAPHX_EXPORT friend expr operator-(expr ex, expr ey);
+    MIGRAPHX_EXPORT friend expr operator*(expr ex, expr ey);
+    MIGRAPHX_EXPORT friend expr operator/(expr ex, expr ey);
+    MIGRAPHX_EXPORT friend expr operator%(expr ex, expr ey);
+    MIGRAPHX_EXPORT friend expr operator-(expr e);
+    MIGRAPHX_EXPORT friend bool operator==(const expr& a, const expr& b);
+    MIGRAPHX_EXPORT friend bool operator!=(const expr& a, const expr& b);
+    MIGRAPHX_EXPORT friend std::ostream& operator<<(std::ostream& os, const expr& e);
 
 #define MIGRAPHX_SYM_DEFINE_OP(binary, assign)                                    \
     expr& operator assign(expr ey) { return *this = *this binary std::move(ey); } \

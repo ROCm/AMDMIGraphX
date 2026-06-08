@@ -33,6 +33,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <bitset>
 #include <queue>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -363,21 +364,51 @@ bool instruction::is_undefined() const
     }
 }
 
+static bool can_eval_impl(const instruction& ins,
+                          std::unordered_map<const instruction*, bool>& cache)
+{
+    auto it = cache.find(&ins);
+    if(it != cache.end())
+        return it->second;
+    bool result = false;
+    if(ins.name() == "@literal")
+    {
+        result = true;
+    }
+    else if(is_context_free(ins.get_operator()))
+    {
+        result = std::all_of(ins.inputs().begin(), ins.inputs().end(), [&](auto arg) {
+            return can_eval_impl(*arg, cache);
+        });
+    }
+    cache.emplace(&ins, result);
+    return result;
+}
+
+static argument eval_impl(const instruction& ins,
+                          std::unordered_map<const instruction*, argument>& cache)
+{
+    if(ins.name() == "@literal")
+        return ins.get_literal().get_argument();
+    if(not is_context_free(ins.get_operator()))
+        return {};
+    auto it = cache.find(&ins);
+    if(it != cache.end())
+        return it->second;
+    std::vector<argument> args;
+    std::transform(ins.inputs().begin(),
+                   ins.inputs().end(),
+                   std::back_inserter(args),
+                   [&](auto arg) { return eval_impl(*arg, cache); });
+    auto result = ins.normalized_operator().compute(ins.get_shape(), args);
+    cache.emplace(&ins, result);
+    return result;
+}
+
 bool instruction::can_eval() const
 {
-    if(op.name() == "@literal")
-    {
-        return true;
-    }
-    else if(is_context_free(op))
-    {
-        return std::all_of(
-            this->inputs().begin(), this->inputs().end(), [](auto arg) { return arg->can_eval(); });
-    }
-    else
-    {
-        return false;
-    }
+    std::unordered_map<const instruction*, bool> cache;
+    return can_eval_impl(*this, cache);
 }
 
 argument instruction::eval(bool check_eval) const
@@ -390,12 +421,8 @@ argument instruction::eval(bool check_eval) const
     {
         if(check_eval and not this->can_eval())
             return {};
-        std::vector<argument> args;
-        std::transform(this->inputs().begin(),
-                       this->inputs().end(),
-                       std::back_inserter(args),
-                       [](auto arg) { return arg->eval(false); });
-        return normalized_operator().compute(result, args);
+        std::unordered_map<const instruction*, argument> cache;
+        return eval_impl(*this, cache);
     }
     return {};
 }

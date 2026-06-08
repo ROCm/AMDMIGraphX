@@ -31,6 +31,7 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/memory_coloring.hpp>
+#include <numeric>
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m, migraphx::gpu::write_literals p = {})
@@ -300,9 +301,10 @@ TEST_CASE(memory_limit_copies_largest_literals)
 static migraphx::module make_interval_module(const std::vector<std::array<std::size_t, 3>>& ivals,
                                              std::size_t lit_floats)
 {
-    std::size_t steps = 0;
-    for(const auto& iv : ivals)
-        steps = std::max(steps, iv[1]);
+    std::size_t steps = std::accumulate(
+        ivals.begin(), ivals.end(), std::size_t{0}, [](std::size_t acc, const auto& iv) {
+            return std::max(acc, iv[1]);
+        });
 
     migraphx::module m;
     auto spine = m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1}});

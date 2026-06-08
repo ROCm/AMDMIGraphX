@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <memory>
+#include <string>
 
 #include <migraphx/program.hpp>
 
@@ -54,6 +55,7 @@ namespace nvinfer1
         std::vector<migraphx::instruction_ref> getInputArguments() const noexcept;
 
         LayerType mType;
+        std::string mName;
         std::shared_ptr<migraphx::program> mProgram;
         migraphx::module* mModule = nullptr;
         std::vector<Tensor_impl*> mInputs;

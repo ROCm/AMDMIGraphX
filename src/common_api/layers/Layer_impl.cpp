@@ -33,13 +33,13 @@ LayerType Layer_impl::getType() const noexcept
 
 void Layer_impl::setName(char const* name) noexcept 
 {
-    pass_warning("TODO! implement me!", true);
+    if(name != nullptr)
+        mName = name;
 }
 
 char const* Layer_impl::getName() const noexcept 
 {
-    pass_warning("TODO! implement me!", true);
-    return nullptr;
+    return mName.c_str();
 }
 
 int32_t Layer_impl::getNbInputs() const noexcept 

@@ -1259,10 +1259,10 @@ TEST_CASE(cmp_stride_ordering_4d)
     auto c  = var("c", {1, 512});
     auto h  = var("h", {1, 256});
     auto w  = var("w", {1, 256});
-    auto s0 = c * h * w;
-    auto s1 = h * w;
-    auto s2 = w;
-    auto s3 = lit(1);
+    auto s0        = c * h * w;
+    auto s1        = h * w;
+    const auto& s2 = w;
+    auto s3        = lit(1);
     EXPECT(strict_less(s0, s1) == std::optional<bool>{false});
     EXPECT(strict_less(s1, s2) == std::optional<bool>{false});
     EXPECT(strict_less(s2, s3) == std::optional<bool>{false});
@@ -1306,10 +1306,10 @@ TEST_CASE(cmp_strides_after_conv)
 {
     auto h     = var("h", {7, 128});
     auto w     = var("w", {2, 128});
-    auto new_h = (h - 3) / 2 + 1;
-    auto s0    = new_h * w;
-    auto s1    = w;
-    auto s2    = lit(1);
+    auto new_h     = (h - 3) / 2 + 1;
+    auto s0        = new_h * w;
+    const auto& s1 = w;
+    auto s2        = lit(1);
     EXPECT(strict_less(s1, s0) == std::optional<bool>{true});
     EXPECT(strict_less(s2, s1) == std::optional<bool>{true});
 }
@@ -1387,10 +1387,10 @@ TEST_CASE(cmp_transitivity_strides)
     auto c  = var("c", {2, 512});
     auto h  = var("h", {2, 256});
     auto w  = var("w", {2, 256});
-    auto s0 = c * h * w;
-    auto s1 = h * w;
-    auto s2 = w;
-    auto s3 = lit(1);
+    auto s0        = c * h * w;
+    auto s1        = h * w;
+    const auto& s2 = w;
+    auto s3        = lit(1);
     EXPECT(strict_less(s1, s0) == std::optional<bool>{true});
     EXPECT(strict_less(s2, s1) == std::optional<bool>{true});
     EXPECT(strict_less(s3, s2) == std::optional<bool>{true});

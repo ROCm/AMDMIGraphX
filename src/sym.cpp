@@ -31,7 +31,6 @@
 #include <migraphx/float_equal.hpp>
 #include <migraphx/hash.hpp>
 #include <migraphx/sat_ops.hpp>
-#include <migraphx/stringutils.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -163,8 +162,8 @@ interval operator%(interval, interval b)
     auto max_abs = std::max(std::abs(b_lo), std::abs(b_hi));
     if(std::holds_alternative<int64_t>(b.min) and std::holds_alternative<int64_t>(b.max))
     {
-        auto m = static_cast<int64_t>(max_abs);
-        return {int64_t{-m}, m};
+        int64_t m = max_abs;
+        return {-m, m};
     }
     return {-max_abs, max_abs};
 }
@@ -308,8 +307,8 @@ static std::size_t hash_scalar(scalar s)
 {
     return visit(
         [](auto x) -> std::size_t {
-            using T = std::decay_t<decltype(x)>;
-            if constexpr(std::is_floating_point<T>{})
+            using t = std::decay_t<decltype(x)>;
+            if constexpr(std::is_floating_point<t>{})
             {
                 int64_t i = x;
                 if(float_equal(x, i))
@@ -642,28 +641,35 @@ static variable_node combine_variables(const std::vector<const variable_node*>& 
 static expr combine_symbols(const std::vector<expr>& group)
 {
     const expr& rep = group.front();
-    return std::visit(overloaded{[&](const variable_node&) {
-                                     std::vector<const variable_node*> vs;
-                                     vs.reserve(group.size());
-                                     for(const auto& e : group)
-                                         vs.push_back(std::get_if<variable_node>(&get_node(e)));
-                                     return expr(combine_variables(vs));
-                                 },
-                                 [&](const literal_node&) { return rep; },
-                                 [&](const op_node& o) {
-                                     std::vector<expr> children;
-                                     children.reserve(rep.children().size());
-                                     for(std::size_t i = 0; i < rep.children().size(); ++i)
-                                     {
-                                         std::vector<expr> column;
-                                         column.reserve(group.size());
-                                         for(const auto& e : group)
-                                             column.push_back(e.children()[i]);
-                                         children.push_back(combine_symbols(column));
-                                     }
-                                     return expr(op_node{o.op}, std::move(children));
-                                 }},
-                      get_node(rep));
+    return std::visit(
+        overloaded{[&](const variable_node&) {
+                       std::vector<const variable_node*> vs;
+                       vs.reserve(group.size());
+                       std::transform(group.begin(),
+                                      group.end(),
+                                      std::back_inserter(vs),
+                                      [](const expr& e) {
+                                          return std::get_if<variable_node>(&get_node(e));
+                                      });
+                       return expr(combine_variables(vs));
+                   },
+                   [&](const literal_node&) { return rep; },
+                   [&](const op_node& o) {
+                       std::vector<expr> children;
+                       children.reserve(rep.children().size());
+                       for(std::size_t i = 0; i < rep.children().size(); ++i)
+                       {
+                           std::vector<expr> column;
+                           column.reserve(group.size());
+                           std::transform(group.begin(),
+                                          group.end(),
+                                          std::back_inserter(column),
+                                          [&](const expr& e) { return e.children()[i]; });
+                           children.push_back(combine_symbols(column));
+                       }
+                       return expr(op_node{o.op}, std::move(children));
+                   }},
+        get_node(rep));
 }
 
 static expr normalize_add(const op_def* op, std::vector<expr> args)
@@ -1497,15 +1503,11 @@ eval_interval_impl(const expr& e,
         },
         // Structural interval, intersected with the monotone-corner evaluation
         // when the subtree is monotone in each free variable.
-        [&](const expr& sub, const op_node& op, std::vector<interval> args) -> interval {
+        [&](const expr& sub, const op_node& op, const std::vector<interval>& args) -> interval {
             auto structural = generic_eval_auto_apply(sub, op, args);
             auto mono       = try_monotone_interval(sub, lookup, cache);
-            interval result;
-            if(not mono)
-            {
-                result = structural;
-            }
-            else
+            interval result = structural;
+            if(mono)
             {
                 auto tighter_min = [](scalar s, scalar t) { return scalar_less(s, t) ? t : s; };
                 auto tighter_max = [](scalar s, scalar t) { return scalar_less(t, s) ? t : s; };
@@ -1654,7 +1656,7 @@ static scalar eval_impl(const expr& root, F lookup)
 {
     return generic_eval<scalar>(root, [&](const expr& e) -> std::optional<scalar> {
         if(auto v = lookup(e))
-            return *v;
+            return v;
         return std::visit(
             overloaded{[](const literal_node& n) -> std::optional<scalar> { return n.val; },
                        [](const variable_node& n) -> std::optional<scalar> {
@@ -2201,7 +2203,7 @@ static sym::scalar value_to_sym_scalar(const migraphx::value& v)
     if(v.is_float())
         return sym::scalar{v.get_float()};
     if(const auto* u = v.if_uint64())
-        return sym::scalar(*u);
+        return sym::scalar{*u};
     return sym::scalar{v.get_int64()};
 }
 

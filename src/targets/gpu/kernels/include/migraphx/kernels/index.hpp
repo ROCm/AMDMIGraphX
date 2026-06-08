@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -50,10 +50,10 @@ inline __device__ __attribute__((const)) index_int compute_global_size()
 #ifdef MIGRAPHX_NGLOBAL
     return MIGRAPHX_NGLOBAL;
 #else
-    // This actually works even when global is not divisible by local size.
-    // This doesnt actually do a multiplication. Instead it calls a device
-    // function to get the global size, which is why it works.
-    return blockDim.x * gridDim.x; // NOLINT
+    // Each blockDim.d * gridDim.d pair is lowered to a device intrinsic that returns
+    // the true global size for that dimension, so this works even when global is not
+    // divisible by local size.
+    return blockDim.x * gridDim.x * blockDim.y * gridDim.y * blockDim.z * gridDim.z; // NOLINT
 #endif
 }
 
@@ -70,7 +70,7 @@ inline __device__ __attribute__((const)) index_int compute_local_size()
     return MIGRAPHX_NLOCAL;
 #else
     // Returns block size. For the non-uniform block it returns the size of the non-uniform block.
-    return __ockl_get_local_size(0); // NOLINT
+    return __ockl_get_local_size(0) * __ockl_get_local_size(1) * __ockl_get_local_size(2); // NOLINT
 #endif
 }
 
@@ -79,9 +79,10 @@ inline __device__ __attribute__((const)) index_int compute_max_local_size()
 #ifdef MIGRAPHX_LOCAL
     return MIGRAPHX_NLOCAL;
 #else
-    // Returns the block size. When workgrop has non-uniform block, this returns size of the uniform
+    // Returns the block size. When workgroup has non-uniform block, this returns size of the uniform
     // block.
-    return __ockl_get_enqueued_local_size(0); // NOLINT
+    return __ockl_get_enqueued_local_size(0) * __ockl_get_enqueued_local_size(1) *
+           __ockl_get_enqueued_local_size(2); // NOLINT
 #endif
 }
 
@@ -306,8 +307,11 @@ struct index
 #endif
 inline __device__ __attribute__((const)) index make_index()
 {
-    return index{
-        blockIdx.x * compute_max_local_size() + threadIdx.x, threadIdx.x, blockIdx.x}; // NOLINT
+    index_int flat_local =
+        threadIdx.z * blockDim.y * blockDim.x + threadIdx.y * blockDim.x + threadIdx.x; // NOLINT
+    index_int flat_group =
+        blockIdx.z * gridDim.y * gridDim.x + blockIdx.y * gridDim.x + blockIdx.x; // NOLINT
+    return index{flat_group * compute_max_local_size() + flat_local, flat_local, flat_group};
 }
 
 struct per_block

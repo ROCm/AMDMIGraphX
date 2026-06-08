@@ -213,15 +213,20 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
         [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
     srcs.emplace_back("main.cpp", content);
 
-    if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
+    bool non_uniform = (options.global % options.local != 0) or
+                       (options.global_y % options.local_y != 0) or
+                       (options.global_z % options.local_z != 0);
+    if(non_uniform and hip_accept_non_uniform_wg())
         options.emplace_param("-fno-offload-uniform-block");
     else
-        assert(options.global % options.local == 0);
+        assert(not non_uniform);
     if(hip_workaround_broken_deduction_guide())
         options.emplace_param("-DMIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE");
 
-    options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(options.global));
-    options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(options.local));
+    options.emplace_param("-DMIGRAPHX_NGLOBAL=" +
+                          std::to_string(options.global * options.global_y * options.global_z));
+    options.emplace_param("-DMIGRAPHX_NLOCAL=" +
+                          std::to_string(options.local * options.local_y * options.local_z));
     options.emplace_param("-DMIGRAPHX_WAVEFRONTSIZE=" +
                           std::to_string(ctx.get_current_device().get_wavefront_size()));
     const auto& warnings = compiler_warnings();

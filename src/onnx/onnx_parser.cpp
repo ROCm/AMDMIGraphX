@@ -858,61 +858,64 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
+// Fallback for a dim with no name and no value. default_dyn_dim_value supplies the bounds.
+shape::dynamic_dimension onnx_parser::resolve_default_dim(const std::string& name, int axis) const
+{
+    if(not use_symbolic_shapes)
+        return default_dyn_dim_value;
+    auto iv = default_dyn_dim_value.get_interval();
+    // A single-value default is a constant, so emit it as a literal.
+    if(default_dyn_dim_value.is_fixed())
+        return shape::dynamic_dimension{sym::lit(iv.min)};
+    // A ranged default is dynamic: name it "<input>_d<axis>" (onnxruntime's scheme for
+    // unnamed dims) so each unknown axis becomes its own symbol.
+    return shape::dynamic_dimension{
+        sym::var(name + "_d" + std::to_string(axis),
+                 {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)})};
+}
+
 shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
     auto&& tensor_dims = t.tensor_type().shape().dim();
-    // Fallback for a dim with no name and no value. default_dyn_dim_value supplies the bounds.
-    auto resolve_default = [&](int axis) -> shape::dynamic_dimension {
-        if(not use_symbolic_shapes)
-            return default_dyn_dim_value;
-        auto iv = default_dyn_dim_value.get_interval();
-        // A single-value default is a constant, so emit it as a literal.
-        if(default_dyn_dim_value.is_fixed())
-            return shape::dynamic_dimension{sym::lit(iv.min)};
-        // A ranged default is dynamic: name it "<input>_d<axis>" (onnxruntime's scheme for
-        // unnamed dims) so each unknown axis becomes its own symbol.
-        return shape::dynamic_dimension{
-            sym::var(name + "_d" + std::to_string(axis),
-                     {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)})};
-    };
-    auto parse_dim = [&](const auto& d, int axis) -> shape::dynamic_dimension {
-        if(d.has_dim_param())
-        {
-            const auto& dim_param = d.dim_param();
-            if(use_symbolic_shapes)
+    transform(
+        tensor_dims,
+        range(tensor_dims.size()),
+        std::back_inserter(dynamic_dims),
+        [&](const auto& d, int axis) -> shape::dynamic_dimension {
+            if(d.has_dim_param())
             {
-                const auto& bounds = contains(dim_params, dim_param) ? dim_params.at(dim_param)
-                                                                     : default_dyn_dim_value;
-                auto iv            = bounds.get_interval();
-                return shape::dynamic_dimension{sym::var(
-                    dim_param, {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)})};
+                const auto& dim_param = d.dim_param();
+                if(use_symbolic_shapes)
+                {
+                    const auto& bounds = contains(dim_params, dim_param) ? dim_params.at(dim_param)
+                                                                         : default_dyn_dim_value;
+                    auto iv            = bounds.get_interval();
+                    return shape::dynamic_dimension{sym::var(
+                        dim_param, {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)})};
+                }
+                if(contains(dim_params, dim_param))
+                {
+                    return dim_params.at(dim_param);
+                }
             }
-            if(contains(dim_params, dim_param))
+            if(d.has_dim_value())
             {
-                return dim_params.at(dim_param);
+                if(static_cast<int>(d.dim_value()) <= 0)
+                {
+                    return resolve_default_dim(name, axis);
+                }
+                if(use_symbolic_shapes)
+                {
+                    return shape::dynamic_dimension{sym::lit(d.dim_value())};
+                }
+                std::size_t tmp = d.dim_value();
+                return {tmp, tmp};
             }
-        }
-        if(d.has_dim_value())
-        {
-            if(static_cast<int>(d.dim_value()) <= 0)
-            {
-                return resolve_default(axis);
-            }
-            if(use_symbolic_shapes)
-            {
-                return shape::dynamic_dimension{sym::lit(d.dim_value())};
-            }
-            std::size_t tmp = d.dim_value();
-            return {tmp, tmp};
-        }
-        return resolve_default(axis);
-    };
-    dynamic_dims.reserve(tensor_dims.size());
-    for(int axis = 0; axis < tensor_dims.size(); ++axis)
-        dynamic_dims.push_back(parse_dim(tensor_dims[axis], axis));
+            return resolve_default_dim(name, axis);
+        });
 
     if(dynamic_dims.empty())
     {

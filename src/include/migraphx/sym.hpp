@@ -61,7 +61,7 @@ namespace std {
 template <>
 struct hash<migraphx::sym::expr>
 {
-    std::size_t operator()(const migraphx::sym::expr& e) const;
+    MIGRAPHX_EXPORT std::size_t operator()(const migraphx::sym::expr& e) const;
 };
 } // namespace std
 
@@ -265,7 +265,7 @@ expr arg(T x)
         return lit(static_cast<double>(x));
 }
 
-expr call_op(const op_def* op, std::vector<expr> args);
+MIGRAPHX_EXPORT expr call_op(const op_def* op, std::vector<expr> args);
 
 template <class Eval, class EvalInterval>
 expr call_op(std::string name,

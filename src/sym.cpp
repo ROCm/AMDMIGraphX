@@ -373,7 +373,7 @@ using node_variant = std::variant<literal_node, variable_node, op_node>;
 
 static std::size_t hash_node(const node_variant& nv)
 {
-    return std::visit([](const auto& x) { return x.hash(); }, nv);
+    return std::visit([](const auto& x) { return hash_value(x); }, nv);
 }
 
 struct expr::impl
@@ -523,8 +523,8 @@ static term extract_term(const expr& e)
 {
     if(e.name() == "literal")
     {
-        const auto* n = std::get_if<literal_node>(&get_node(e));
-        return {n->val, {}};
+        const auto& n = std::get<literal_node>(get_node(e));
+        return {n.val, {}};
     }
     if(e.name() == "*")
     {
@@ -534,9 +534,9 @@ static term extract_term(const expr& e)
                                [](term t, const expr& child) {
                                    if(child.name() == "literal")
                                    {
-                                       const auto* n = std::get_if<literal_node>(&get_node(child));
+                                       const auto& n = std::get<literal_node>(get_node(child));
                                        t.coeff       = scalar_invoke_common(
-                                           [](auto x, auto y) { return x * y; }, t.coeff, n->val);
+                                           [](auto x, auto y) { return x * y; }, t.coeff, n.val);
                                    }
                                    else
                                    {
@@ -581,7 +581,7 @@ static bool interval_struct_equal(const interval& a, const interval& b)
 // Canonicalize a constraint set: sort structurally and drop duplicates, so the
 // set of assertions has a single representation regardless of insertion order.
 // This is what lets variable_node's positional operator==/hash stay correct
-// under metadata merging (option B1).
+// under metadata merging.
 static void normalize_constraints(std::vector<interval>& cs)
 {
     std::stable_sort(cs.begin(), cs.end(), interval_struct_less);
@@ -738,9 +738,8 @@ static expr normalize_mul(const op_def* op, std::vector<expr> args)
             return scalar_invoke_common([](auto x, auto y) { return x * y; }, acc, v);
         },
         [](const expr& a) {
-            const auto* n = std::get_if<literal_node>(&get_node(a));
-            assert(n != nullptr); // partitioned to the literal tail above
-            return n->val;
+            // partitioned to the literal tail above, so get<> is guaranteed valid
+            return std::get<literal_node>(get_node(a)).val;
         });
 
     if(is_zero(coeff))
@@ -798,16 +797,16 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     // 0 / x == 0
     if(num.name() == "literal")
     {
-        const auto* n = std::get_if<literal_node>(&get_node(num));
-        if(is_zero(n->val))
-            return lit(n->val);
+        const auto& n = std::get<literal_node>(get_node(num));
+        if(is_zero(n.val))
+            return lit(n.val);
     }
 
     // x / 1 == x
     if(den.name() == "literal")
     {
-        const auto* n = std::get_if<literal_node>(&get_node(den));
-        if(is_one(n->val))
+        const auto& n = std::get<literal_node>(get_node(den));
+        if(is_one(n.val))
             return num;
     }
 
@@ -873,8 +872,8 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
 
         if(new_den.name() == "literal")
         {
-            const auto* n = std::get_if<literal_node>(&get_node(new_den));
-            if(is_one(n->val))
+            const auto& n = std::get<literal_node>(get_node(new_den));
+            if(is_one(n.val))
                 return new_num;
         }
         return new_num / new_den;
@@ -883,10 +882,10 @@ static expr normalize_div(const op_def* op, std::vector<expr> args)
     // Distribute over sum: (a*k + b*k) / k when all terms are divisible
     if(num.name() == "+" and den.name() == "literal")
     {
-        const auto* d = std::get_if<literal_node>(&get_node(den));
-        if(std::holds_alternative<int64_t>(d->val))
+        const auto& d = std::get<literal_node>(get_node(den));
+        if(std::holds_alternative<int64_t>(d.val))
         {
-            auto dv = std::get<int64_t>(d->val);
+            auto dv = std::get<int64_t>(d.val);
             bool all_divisible =
                 std::all_of(num.children().begin(), num.children().end(), [&](const expr& child) {
                     auto t = extract_term(child);
@@ -1255,8 +1254,8 @@ const std::vector<expr>& expr::children() const
 
 // apply signature is (const expr& e, const op_node& op, std::vector<R> args).
 // The expr is passed so a custom apply can re-examine the subtree shape (e.g.
-// for monotonicity-based interval tightening). The default _auto_apply
-// overloads ignore it.
+// for monotonicity-based interval tightening). The default
+// generic_eval_auto_apply overloads ignore it.
 
 static scalar
 generic_eval_auto_apply(const expr&, const op_node& op, const std::vector<scalar>& args)
@@ -2291,7 +2290,7 @@ void migraphx_from_value(const migraphx::value& v, sym::expr& e)
         {
             constraints = migraphx::from_value<std::vector<interval>>(v.at("constraints"));
             // Keep the canonical sorted+deduped form so a deserialized node
-            // compares equal to an equivalently-constructed one (option B1).
+            // compares equal to an equivalently-constructed one.
             normalize_constraints(constraints);
         }
         std::set<scalar> optimals;

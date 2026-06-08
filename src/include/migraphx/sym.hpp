@@ -51,7 +51,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 struct value;
 
 namespace sym {
-class expr;
+class MIGRAPHX_EXPORT expr;
 } // namespace sym
 
 } // namespace MIGRAPHX_INLINE_NS

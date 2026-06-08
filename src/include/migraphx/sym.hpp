@@ -113,8 +113,8 @@ R scalar_invoke_common(F f, const Ts&... xs)
     return f(to<double>(xs)...);
 }
 
-scalar scalar_min(const scalar& a, const scalar& b);
-scalar scalar_max(const scalar& a, const scalar& b);
+MIGRAPHX_EXPORT scalar scalar_min(const scalar& a, const scalar& b);
+MIGRAPHX_EXPORT scalar scalar_max(const scalar& a, const scalar& b);
 
 template <std::size_t N, class F>
 auto unpack_container(F f)
@@ -318,7 +318,7 @@ MIGRAPHX_EXPORT std::optional<bool>
 strict_less(const expr& a, const expr& b, interval default_bounds = {});
 
 // Pattern matching rewrite DSL
-expr pvar(int id);
+MIGRAPHX_EXPORT expr pvar(int id);
 
 struct rewrite_rule
 {

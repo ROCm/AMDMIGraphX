@@ -41,11 +41,11 @@ struct code_object_op
     value::binary code_object{};
     std::string symbol_name = "";
     std::size_t global      = 0;
-    std::size_t global_y    = 0;
-    std::size_t global_z    = 0;
+    std::size_t global_y    = 1;
+    std::size_t global_z    = 1;
     std::size_t local       = 0;
-    std::size_t local_y     = 0;
-    std::size_t local_z     = 0;
+    std::size_t local_y     = 1;
+    std::size_t local_z     = 1;
     std::vector<shape> expected_inputs{};
     shape output{};
     std::int64_t output_arg = -1;
@@ -61,7 +61,7 @@ struct code_object_op
                     f(self.global_z, "global_z"),
                     f(self.local, "local"),
                     f(self.local_y, "local_y"),
-                    f(self.local_y, "local_z"),
+                    f(self.local_z, "local_z"),
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
                     f(self.output_arg, "output_arg"));

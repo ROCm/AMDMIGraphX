@@ -38,11 +38,11 @@ struct context;
 struct hip_compile_options
 {
     std::size_t global;
-    std::size_t global_y;
-    std::size_t global_z;
+    std::size_t global_y = 1;
+    std::size_t global_z = 1;
     std::size_t local;
-    std::size_t local_y;
-    std::size_t local_z;
+    std::size_t local_y = 1;
+    std::size_t local_z = 1;
     std::vector<shape> inputs;
     shape output;
     std::string kernel_name                    = "kernel";

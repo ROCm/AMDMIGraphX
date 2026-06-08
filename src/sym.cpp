@@ -30,6 +30,7 @@
 #include <migraphx/utility_operators.hpp>
 #include <migraphx/float_equal.hpp>
 #include <migraphx/hash.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/sat_ops.hpp>
 
 #include <algorithm>
@@ -594,19 +595,19 @@ static void normalize_constraints(std::vector<interval>& cs)
 // over the whole set at once, so the result does not depend on the set's order.
 static interval resolve_constraints(const std::vector<interval>& cs)
 {
-    scalar imin = cs.front().min;
-    scalar imax = cs.front().max;
-    scalar hmin = cs.front().min;
-    scalar hmax = cs.front().max;
-    for(std::size_t i = 1; i < cs.size(); ++i)
-    {
-        imin = scalar_max(imin, cs[i].min);
-        imax = scalar_min(imax, cs[i].max);
-        hmin = scalar_min(hmin, cs[i].min);
-        hmax = scalar_max(hmax, cs[i].max);
-    }
-    interval intersection{imin, imax};
-    return intersection.valid() ? intersection : interval{hmin, hmax};
+    assert(not cs.empty());
+    // Intersection ([max mins, min maxs]) and convex hull ([min mins, max maxs])
+    // folded together in one pass.
+    auto intersection = std::accumulate(
+        cs.begin() + 1, cs.end(), cs.front(), [](interval acc, const interval& c) {
+            return interval{scalar_max(acc.min, c.min), scalar_min(acc.max, c.max)};
+        });
+    if(intersection.valid())
+        return intersection;
+    return std::accumulate(
+        cs.begin() + 1, cs.end(), cs.front(), [](interval acc, const interval& c) {
+            return interval{scalar_min(acc.min, c.min), scalar_max(acc.max, c.max)};
+        });
 }
 
 // The variable's effective interval, or nullopt when it carries no constraints.
@@ -623,6 +624,8 @@ static std::optional<interval> variable_interval(const variable_node& n)
 // intersect-vs-hull resolution is deferred to read time (resolve_constraints).
 static variable_node combine_variables(const std::vector<const variable_node*>& vs)
 {
+    assert(not vs.empty());
+    assert(std::none_of(vs.begin(), vs.end(), [](const variable_node* v) { return v == nullptr; }));
     variable_node r;
     r.name = vs.front()->name;
     for(const auto* v : vs)
@@ -653,18 +656,21 @@ static expr combine_symbols(const std::vector<expr>& group)
                    },
                    [&](const literal_node&) { return rep; },
                    [&](const op_node& o) {
+                       auto indices = range(rep.children().size());
                        std::vector<expr> children;
                        children.reserve(rep.children().size());
-                       for(std::size_t i = 0; i < rep.children().size(); ++i)
-                       {
-                           std::vector<expr> column;
-                           column.reserve(group.size());
-                           std::transform(group.begin(),
-                                          group.end(),
-                                          std::back_inserter(column),
-                                          [&](const expr& e) { return e.children()[i]; });
-                           children.push_back(combine_symbols(column));
-                       }
+                       // Recurse position-wise: combine the i-th child across the
+                       // whole group, for each child position.
+                       std::transform(
+                           indices.begin(), indices.end(), std::back_inserter(children), [&](auto i) {
+                               std::vector<expr> column;
+                               column.reserve(group.size());
+                               std::transform(group.begin(),
+                                              group.end(),
+                                              std::back_inserter(column),
+                                              [&](const expr& e) { return e.children()[i]; });
+                               return combine_symbols(column);
+                           });
                        return expr(op_node{o.op}, std::move(children));
                    }},
         get_node(rep));
@@ -694,14 +700,17 @@ static expr normalize_add(const op_def* op, std::vector<expr> args)
                 std::accumulate(first, last, scalar{int64_t{0}}, [](scalar c, const term& t) {
                     return scalar_invoke_common([](auto x, auto y) { return x + y; }, c, t.coeff);
                 });
+            // Combine each base position across all terms in the group (n-ary).
+            auto indices = range(first->bases.size());
             acc.bases.reserve(first->bases.size());
-            for(std::size_t i = 0; i < first->bases.size(); ++i)
-            {
-                std::vector<expr> column;
-                for(auto it = first; it != last; ++it)
-                    column.push_back(it->bases[i]);
-                acc.bases.push_back(combine_symbols(column));
-            }
+            std::transform(
+                indices.begin(), indices.end(), std::back_inserter(acc.bases), [&](auto i) {
+                    std::vector<expr> column;
+                    std::transform(first, last, std::back_inserter(column), [&](const term& t) {
+                        return t.bases[i];
+                    });
+                    return combine_symbols(column);
+                });
             merged.push_back(std::move(acc));
         },
         [](const term& a, const term& b) {
@@ -1766,7 +1775,8 @@ static std::vector<optimal_sample> combine_optimals(const op_node& op,
     if(args.empty())
         return {{{}, op.op->eval({})}};
 
-    std::vector<std::pair<std::unordered_map<expr, scalar>, std::vector<scalar>>> partial;
+    using partial_sample = std::pair<std::unordered_map<expr, scalar>, std::vector<scalar>>;
+    std::vector<partial_sample> partial;
     partial.reserve(args.front().size());
     std::transform(args.front().begin(),
                    args.front().end(),
@@ -1775,26 +1785,35 @@ static std::vector<optimal_sample> combine_optimals(const op_node& op,
                        return std::make_pair(s.bindings, std::vector<scalar>{s.value});
                    });
 
-    for(std::size_t i = 1; i < args.size(); ++i)
+    // Fold each remaining child into the running set of partials: cross every
+    // partial with every sample of the child, keeping only the pairs whose
+    // bindings agree on shared variables.
+    auto bindings_compatible = [](const std::unordered_map<expr, scalar>& a,
+                                  const std::unordered_map<expr, scalar>& b) {
+        return std::all_of(b.begin(), b.end(), [&](const auto& kv) {
+            auto it = a.find(kv.first);
+            return it == a.end() or it->second == kv.second;
+        });
+    };
+    for(const auto& child : range(args.begin() + 1, args.end()))
     {
-        std::vector<std::pair<std::unordered_map<expr, scalar>, std::vector<scalar>>> next;
+        std::vector<partial_sample> next;
         for(const auto& base : partial)
         {
-            for(const auto& s : args[i])
-            {
-                bool compat =
-                    std::all_of(s.bindings.begin(), s.bindings.end(), [&](const auto& kv) {
-                        auto it = base.first.find(kv.first);
-                        return it == base.first.end() or it->second == kv.second;
-                    });
-                if(not compat)
-                    continue;
-                auto new_bindings = base.first;
-                new_bindings.insert(s.bindings.begin(), s.bindings.end());
-                auto new_values = base.second;
-                new_values.push_back(s.value);
-                next.emplace_back(std::move(new_bindings), std::move(new_values));
-            }
+            transform_if(
+                child.begin(),
+                child.end(),
+                std::back_inserter(next),
+                [&](const optimal_sample& s) {
+                    return bindings_compatible(base.first, s.bindings);
+                },
+                [&](const optimal_sample& s) {
+                    auto new_bindings = base.first;
+                    new_bindings.insert(s.bindings.begin(), s.bindings.end());
+                    auto new_values = base.second;
+                    new_values.push_back(s.value);
+                    return partial_sample{std::move(new_bindings), std::move(new_values)};
+                });
         }
         partial = std::move(next);
     }

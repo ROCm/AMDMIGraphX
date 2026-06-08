@@ -310,6 +310,14 @@ struct MIGRAPHX_EXPORT shape
     std::size_t elements() const;
 
     /*!
+     * Return the number of elements as a symbolic expression. Works for any
+     * shape kind: for static shapes returns a literal; for symbolic shapes
+     * returns the product of the symbolic dimension expressions. Throws for
+     * range-only dynamic shapes.
+     */
+    sym::expr sym_elements() const;
+
+    /*!
      * Return the number of total bytes used for storage of the tensor data; includes subshapes.
      * For dynamic shape, returns the maximum number of bytes presuming a packed shape.
      */
@@ -467,9 +475,7 @@ struct MIGRAPHX_EXPORT shape
 
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
-    shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map) const;
-    // Collapse a fully-fixed shape to a static one; throws on non-fixed dimensions.
-    shape to_static() const;
+    shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map = {}) const;
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -70,7 +70,8 @@ struct binary : op_name<Derived>
             .same_dims();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
-        if(s0.dynamic() or s1.dynamic())
+        // Range-based dynamic (or mixed dynamic/static) inputs only support strict equality.
+        if((s0.dynamic() or s1.dynamic()) and not(s0.symbolic() and s1.symbolic()))
         {
             if(s0 == s1)
                 return s0;
@@ -86,10 +87,15 @@ struct binary : op_name<Derived>
         }
         else if(s0.broadcasted() != s1.broadcasted())
         {
+            if(s0.symbolic())
+                return s0.broadcasted() ? s1.with_lens(s0.dyn_dims()) : s0.with_lens(s0.dyn_dims());
             return s0.broadcasted() ? s1.with_lens(s0.lens()) : s0.with_lens(s0.lens());
         }
         else
         {
+            if(s0.symbolic())
+                return shape::from_permutation(
+                    s0.type(), s0.dyn_dims(), find_permutation({s0, s1}));
             return shape::from_permutation(s0.type(), s0.lens(), find_permutation({s0, s1}));
         }
     }

@@ -67,7 +67,9 @@ struct scatternd_op : op_name<Derived>
             if(not index_shape.dyn_dims().back().is_fixed())
             {
                 MIGRAPHX_THROW(
-                    "GATHERND: last dimension of indices tensor must be fixed (min=max)");
+                    "ScatterND: last dimension of indices tensor must be fixed (min=max) "
+                    "but is " +
+                    to_string(index_shape.dyn_dims().back()));
             }
             k = index_shape.dyn_dims().back().get_interval().min;
         }
@@ -129,9 +131,8 @@ struct scatternd_op : op_name<Derived>
                     std::vector<std::size_t> indices_idx(q, 0);
                     std::copy(
                         updates_idx.begin(), updates_idx.begin() + (q - 1), indices_idx.begin());
-                    auto index_start = indices.begin() +
-                                       indices_shape.index(indices_idx.begin(), indices_idx.end());
-                    auto index_end = index_start + k;
+                    auto index_start = indices.begin_at(indices_idx);
+                    auto index_end   = index_start + k;
 
                     std::vector<std::size_t> out_idx(r, 0);
                     std::copy(index_start, index_end, out_idx.begin());

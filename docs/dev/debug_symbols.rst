@@ -32,7 +32,7 @@ flag on ``onnx_options``. Example usage with the C++ API:
     int main(int argc, char** argv)
     {
         migraphx::onnx_options options;
-        options.use_debug_symbols = true;
+        options.set_use_debug_symbols = true;
         auto prog = migraphx::parse_onnx("conv_transpose_test.onnx", options);
     }
 
@@ -41,8 +41,8 @@ The same flag can be enabled from the ``migraphx-driver`` tool with the
 
 .. code-block:: bash
 
-    <migraphx_driver> read <path_to_model.onnx> --debug-symbols
-    <migraphx_driver> compile <path_to_model.onnx> --debug-symbols
+    migraphx-driver read <path_to_model.onnx> --debug-symbols
+    migraphx-driver compile <path_to_model.onnx> --debug-symbols
 
 When enabled, the ONNX parser inserts the parsed ONNX node name into each
 resultant MIGraphX instruction. The text after the ``#`` in the IR listing is
@@ -121,6 +121,8 @@ Debug symbols can also be attached manually when adding instructions through
 the Python API:
 
 .. code-block:: python
+
+    import migraphx
 
     p = migraphx.program()
     mm = p.get_main_module()

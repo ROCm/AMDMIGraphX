@@ -645,37 +645,35 @@ static expr combine_symbols(const std::vector<expr>& group)
 {
     const expr& rep = group.front();
     return std::visit(
-        overloaded{[&](const variable_node&) {
-                       std::vector<const variable_node*> vs;
-                       vs.reserve(group.size());
-                       std::transform(
-                           group.begin(), group.end(), std::back_inserter(vs), [](const expr& e) {
-                               return std::get_if<variable_node>(&get_node(e));
-                           });
-                       return expr(combine_variables(vs));
-                   },
-                   [&](const literal_node&) { return rep; },
-                   [&](const op_node& o) {
-                       auto indices = range(rep.children().size());
-                       std::vector<expr> children;
-                       children.reserve(rep.children().size());
-                       // Recurse position-wise: combine the i-th child across the
-                       // whole group, for each child position.
-                       std::transform(indices.begin(),
-                                      indices.end(),
-                                      std::back_inserter(children),
-                                      [&](auto i) {
-                                          std::vector<expr> column;
-                                          column.reserve(group.size());
-                                          std::transform(
-                                              group.begin(),
-                                              group.end(),
-                                              std::back_inserter(column),
-                                              [&](const expr& e) { return e.children()[i]; });
-                                          return combine_symbols(column);
-                                      });
-                       return expr(op_node{o.op}, std::move(children));
-                   }},
+        overloaded{
+            [&](const variable_node&) {
+                std::vector<const variable_node*> vs;
+                vs.reserve(group.size());
+                std::transform(
+                    group.begin(), group.end(), std::back_inserter(vs), [](const expr& e) {
+                        return std::get_if<variable_node>(&get_node(e));
+                    });
+                return expr(combine_variables(vs));
+            },
+            [&](const literal_node&) { return rep; },
+            [&](const op_node& o) {
+                auto indices = range(rep.children().size());
+                std::vector<expr> children;
+                children.reserve(rep.children().size());
+                // Recurse position-wise: combine the i-th child across the
+                // whole group, for each child position.
+                std::transform(
+                    indices.begin(), indices.end(), std::back_inserter(children), [&](auto i) {
+                        std::vector<expr> column;
+                        column.reserve(group.size());
+                        std::transform(group.begin(),
+                                       group.end(),
+                                       std::back_inserter(column),
+                                       [&](const expr& e) { return e.children()[i]; });
+                        return combine_symbols(column);
+                    });
+                return expr(op_node{o.op}, std::move(children));
+            }},
         get_node(rep));
 }
 

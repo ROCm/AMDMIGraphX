@@ -598,8 +598,8 @@ static interval resolve_constraints(const std::vector<interval>& cs)
     assert(not cs.empty());
     // Intersection ([max mins, min maxs]) and convex hull ([min mins, max maxs])
     // folded together in one pass.
-    auto intersection = std::accumulate(
-        cs.begin() + 1, cs.end(), cs.front(), [](interval acc, const interval& c) {
+    auto intersection =
+        std::accumulate(cs.begin() + 1, cs.end(), cs.front(), [](interval acc, const interval& c) {
             return interval{scalar_max(acc.min, c.min), scalar_min(acc.max, c.max)};
         });
     if(intersection.valid())
@@ -661,16 +661,19 @@ static expr combine_symbols(const std::vector<expr>& group)
                        children.reserve(rep.children().size());
                        // Recurse position-wise: combine the i-th child across the
                        // whole group, for each child position.
-                       std::transform(
-                           indices.begin(), indices.end(), std::back_inserter(children), [&](auto i) {
-                               std::vector<expr> column;
-                               column.reserve(group.size());
-                               std::transform(group.begin(),
+                       std::transform(indices.begin(),
+                                      indices.end(),
+                                      std::back_inserter(children),
+                                      [&](auto i) {
+                                          std::vector<expr> column;
+                                          column.reserve(group.size());
+                                          std::transform(
+                                              group.begin(),
                                               group.end(),
                                               std::back_inserter(column),
                                               [&](const expr& e) { return e.children()[i]; });
-                               return combine_symbols(column);
-                           });
+                                          return combine_symbols(column);
+                                      });
                        return expr(op_node{o.op}, std::move(children));
                    }},
         get_node(rep));

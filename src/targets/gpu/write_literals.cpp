@@ -86,7 +86,7 @@ static std::size_t
 estimate_scratch_size(const module& m, std::size_t overhead_percent, std::size_t alignment = 32)
 {
     std::size_t scratch_size = 0;
-    liveness(m, [&](instruction_ref ins, auto live_set) {
+    liveness(m, [&](instruction_ref ins, const auto& live_set) {
         std::size_t n =
             transform_accumulate(live_set.begin(),
                                  live_set.end(),
@@ -159,13 +159,10 @@ static std::size_t extra_needed(std::size_t available, std::size_t used)
 static std::unordered_set<instruction_ref> find_copy_literals(const module& m, std::ptrdiff_t n)
 {
     std::unordered_set<instruction_ref> result;
-    auto rp = reverse(m);
-    for(auto rins : iterator_for(rp))
+    for(auto ins : reverse_iterator_for(m))
     {
         if(n <= 0)
             break;
-        // The base iterator is one ahead, so we need to use the previous iterator
-        auto ins = std::prev(rins.base());
         if(ins->name() != "@literal")
             continue;
         result.insert(ins);

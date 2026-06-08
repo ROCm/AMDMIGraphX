@@ -364,67 +364,54 @@ bool instruction::is_undefined() const
     }
 }
 
-static bool can_eval_impl(const instruction& ins,
-                          std::unordered_map<const instruction*, bool>& cache)
-{
-    auto it = cache.find(&ins);
-    if(it != cache.end())
-        return it->second;
-    bool result = false;
-    if(ins.name() == "@literal")
-    {
-        result = true;
-    }
-    else if(is_context_free(ins.get_operator()))
-    {
-        result = std::all_of(ins.inputs().begin(), ins.inputs().end(), [&](auto arg) {
-            return can_eval_impl(*arg, cache);
-        });
-    }
-    cache.emplace(&ins, result);
-    return result;
-}
-
-static argument eval_impl(const instruction& ins,
-                          std::unordered_map<const instruction*, argument>& cache)
-{
-    if(ins.name() == "@literal")
-        return ins.get_literal().get_argument();
-    if(not is_context_free(ins.get_operator()))
-        return {};
-    auto it = cache.find(&ins);
-    if(it != cache.end())
-        return it->second;
-    std::vector<argument> args;
-    std::transform(ins.inputs().begin(),
-                   ins.inputs().end(),
-                   std::back_inserter(args),
-                   [&](auto arg) { return eval_impl(*arg, cache); });
-    auto result = ins.normalized_operator().compute(ins.get_shape(), args);
-    cache.emplace(&ins, result);
-    return result;
-}
-
 bool instruction::can_eval() const
 {
+    if(op.name() == "@literal")
+        return true;
+    if(not is_context_free(op))
+        return false;
     std::unordered_map<const instruction*, bool> cache;
-    return can_eval_impl(*this, cache);
+    return fix<bool>([&](auto self, const instruction& ins) -> bool {
+        auto it = cache.find(&ins);
+        if(it != cache.end())
+            return it->second;
+        bool result = false;
+        if(ins.name() == "@literal")
+            result = true;
+        else if(is_context_free(ins.get_operator()))
+            result = std::all_of(
+                ins.inputs().begin(), ins.inputs().end(), [&](auto arg) { return self(*arg); });
+        cache.emplace(&ins, result);
+        return result;
+    })(*this);
 }
 
 argument instruction::eval(bool check_eval) const
 {
     if(op.name() == "@literal")
-    {
         return this->get_literal().get_argument();
-    }
-    if(is_context_free(op))
-    {
-        if(check_eval and not this->can_eval())
+    if(not is_context_free(op))
+        return {};
+    if(check_eval and not this->can_eval())
+        return {};
+    std::unordered_map<const instruction*, argument> cache;
+    return fix<argument>([&](auto self, const instruction& ins) -> argument {
+        if(ins.name() == "@literal")
+            return ins.get_literal().get_argument();
+        if(not is_context_free(ins.get_operator()))
             return {};
-        std::unordered_map<const instruction*, argument> cache;
-        return eval_impl(*this, cache);
-    }
-    return {};
+        auto it = cache.find(&ins);
+        if(it != cache.end())
+            return it->second;
+        std::vector<argument> args;
+        std::transform(ins.inputs().begin(),
+                       ins.inputs().end(),
+                       std::back_inserter(args),
+                       [&](auto arg) { return self(*arg); });
+        auto result = ins.normalized_operator().compute(ins.get_shape(), args);
+        cache.emplace(&ins, result);
+        return result;
+    })(*this);
 }
 
 void instruction::finalize(context& ctx)

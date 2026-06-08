@@ -645,12 +645,10 @@ static expr combine_symbols(const std::vector<expr>& group)
         overloaded{[&](const variable_node&) {
                        std::vector<const variable_node*> vs;
                        vs.reserve(group.size());
-                       std::transform(group.begin(),
-                                      group.end(),
-                                      std::back_inserter(vs),
-                                      [](const expr& e) {
-                                          return std::get_if<variable_node>(&get_node(e));
-                                      });
+                       std::transform(
+                           group.begin(), group.end(), std::back_inserter(vs), [](const expr& e) {
+                               return std::get_if<variable_node>(&get_node(e));
+                           });
                        return expr(combine_variables(vs));
                    },
                    [&](const literal_node&) { return rep; },

@@ -96,7 +96,9 @@ struct gather
         auto check_index_range = [](auto in_index, auto axis_dim_size) {
             if(in_index < 0 or in_index >= axis_dim_size)
             {
-                MIGRAPHX_THROW("Gather: Out of bounds index detected");
+                MIGRAPHX_THROW("Gather: Out of bounds index detected: index " +
+                               to_string(in_index) + " not in range [0, " +
+                               to_string(axis_dim_size) + ")");
             }
         };
 

@@ -354,7 +354,7 @@ static bool is_type_packed_int4(const onnx::TensorProto& t)
 }
 
 static std::unordered_map<std::string, instruction_ref>
-parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
+parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
@@ -364,6 +364,8 @@ parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto&
         // backup instructions in parent mod
         auto pt  = parser.parse_tensor(f);
         auto lit = mod->add_literal(pt);
+        if(parser.use_debug_symbols)
+            mod->add_debug_symbols(lit, {f.name()});
 
         if(is_type_packed_int4(f))
             lit = mod->add_instruction(migraphx::make_op("unpack_int4"), lit);
@@ -583,7 +585,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     }
 
     std::unordered_map<std::string, instruction_ref> mod_insts =
-        parse_intializer(*this, mod, graph);
+        parse_initializer(*this, mod, graph);
 
     mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 

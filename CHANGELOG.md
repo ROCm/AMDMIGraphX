@@ -26,7 +26,7 @@ Full documentation for MIGraphX is available at
 * Added per-channel scale/zero-point support for `QLinearConv` operator.
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
-* Added deduplication of gather ops which from the same constant embedding data vectors. (#4727)
+* Added horizontal fusion of gather ops that read the same constant embedding table into a single batched gather. (#4727)
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
 

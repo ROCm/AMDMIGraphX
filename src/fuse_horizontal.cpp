@@ -61,10 +61,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class Finder>
 static void apply_horizontal_finder(module& m, const Finder& finder)
 {
-    // Collect all candidate instructions and build position map
+    // Collect all candidate instructions and build position map.  Skip dead
+    // instructions (no outputs): a finder leaves the originals it replaced in
+    // place until the next dead_code_elimination pass, and those stale ops must
+    // not be re-fused by a subsequent finder.
     std::vector<instruction_ref> candidates;
     copy_if(iterator_for(m), std::back_inserter(candidates), [&](auto ins) {
-        return finder.is_candidate(ins);
+        return not ins->outputs().empty() and finder.is_candidate(ins);
     });
     std::unordered_map<instruction_ref, std::size_t> pos;
     std::size_t p = 0;
@@ -119,6 +122,108 @@ static void fuse_horizontal_ops(module& m, Finders&&... finders)
 {
     each_args([&](auto&& finder) { apply_horizontal_finder(m, finder); }, finders...);
 }
+
+// ---------------------------------------------------------------------------
+// Same-table gather horizontal fusion
+//
+// Candidates: gather(axis=0) with 2D constant embedding table, non-scalar index
+//             (same predicate as the cross-table fusion below)
+// Grouping:   by (table instruction, index type, index trailing dims) so only
+//             gathers reading the *same* table are merged
+// Fusion:     concatenate the indices, single batched gather, slice rows back.
+//             No index offset adjustment is needed since the table is shared.
+// ---------------------------------------------------------------------------
+
+struct same_table_gather_horizontal_fusion
+{
+    std::size_t min_group_size() const { return 2; }
+
+    bool is_candidate(instruction_ref ins) const
+    {
+        if(ins->name() != "gather")
+            return false;
+
+        if(ins->get_operator().to_value()["axis"].to<int>() != 0)
+            return false;
+
+        auto data = ins->inputs().at(0);
+        auto idx  = ins->inputs().at(1);
+
+        // Embedding must be a 2D constant: {num_rows, embedding_dim}
+        if(data->get_shape().lens().size() != 2)
+            return false;
+        if(not data->can_eval())
+            return false;
+
+        // Index must not be scalar
+        if(idx->get_shape().scalar() or idx->get_shape().lens().empty())
+            return false;
+
+        return true;
+    }
+
+    auto group_key(instruction_ref ins) const
+    {
+        auto data        = ins->inputs().at(0);
+        auto idx         = ins->inputs().at(1);
+        auto idx_type    = idx->get_shape().type();
+        const auto& lens = idx->get_shape().lens();
+        // Trailing index dims (all except first) — must match for concat on axis 0.
+        // Keying on the data instruction itself restricts grouping to one table.
+        std::vector<std::size_t> trailing(lens.begin() + 1, lens.end());
+        return std::make_tuple(data, idx_type, std::move(trailing));
+    }
+
+    std::vector<instruction_ref>
+    fuse(module& m, const std::vector<instruction_ref>& gathers, instruction_ref insert_pt) const
+    {
+        auto data = gathers.front()->inputs().at(0);
+        assert(data->get_shape().lens().size() == 2);
+
+        // Concatenate the per-gather indices into a single index tensor.
+        std::vector<instruction_ref> idx_inputs(gathers.size());
+        std::transform(gathers.begin(), gathers.end(), idx_inputs.begin(), [](auto g) {
+            return g->inputs().at(1);
+        });
+        auto concat_idx =
+            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), idx_inputs);
+
+        // Single batched gather over the shared table.
+        auto batched_gather =
+            m.insert_instruction(insert_pt, make_op("gather", {{"axis", 0}}), data, concat_idx);
+
+        // Slice boundaries from the cumulative index sizes (inclusive partial
+        // sum gives end offsets; shift right and prepend 0 for start offsets).
+        std::vector<std::size_t> slice_ends(gathers.size());
+        transform_partial_sum(
+            gathers.begin(), gathers.end(), slice_ends.begin(), std::plus<>{}, [](auto g) {
+                return g->inputs().at(1)->get_shape().lens().front();
+            });
+
+        std::vector<std::size_t> slice_starts(gathers.size());
+        slice_starts[0] = 0;
+        std::copy(slice_ends.begin(), std::prev(slice_ends.end()), slice_starts.begin() + 1);
+
+        // Slice results back — one per original gather.
+        std::vector<instruction_ref> results;
+        results.reserve(gathers.size());
+        migraphx::for_each(
+            slice_starts.begin(),
+            slice_starts.end(),
+            slice_ends.begin(),
+            [&](auto start, auto end) {
+                results.push_back(m.insert_instruction(
+                    insert_pt,
+                    make_op("slice",
+                            {{"axes", std::vector<int64_t>{0}},
+                             {"starts", std::vector<int64_t>{static_cast<int64_t>(start)}},
+                             {"ends", std::vector<int64_t>{static_cast<int64_t>(end)}}}),
+                    batched_gather));
+            });
+
+        return results;
+    }
+};
 
 // ---------------------------------------------------------------------------
 // Cross-embedding gather horizontal fusion
@@ -284,7 +389,9 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    fuse_horizontal_ops(m, gather_horizontal_fusion{});
+    // Collapse same-table gathers first (strictly more aggressive); any sibling
+    // gathers left across *different* tables then fall through to cross-table.
+    fuse_horizontal_ops(m, same_table_gather_horizontal_fusion{}, gather_horizontal_fusion{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

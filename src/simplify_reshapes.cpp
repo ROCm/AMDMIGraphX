@@ -559,9 +559,16 @@ struct find_slice_shape_transforms
             return;
         new_desc.simplify();
 
-        // Optimizes shape transforms if the slice cant be optimized
+        // Bail to the safe path if rebasing onto the slice input is unsafe:
+        // either the sliced axis splits into multiple dst axes, or the rebase
+        // changed the output shape on a sliced axis
         if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-               return new_desc.get_dst_axes_from_src(axis).size() != 1;
+               if(new_desc.get_dst_axes_from_src(axis).size() != 1)
+                   return true;
+               auto dst_axis = new_desc.get_dst_axes_from_src(axis).front();
+               return new_desc.lens()[dst_axis] * slice->get_shape().lens()[axis] !=
+                      ins->get_shape().lens()[dst_axis] *
+                          slice->inputs().front()->get_shape().lens()[axis];
            }))
         {
             auto opt_ops = desc.generate();

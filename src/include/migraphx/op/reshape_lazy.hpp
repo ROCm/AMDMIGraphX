@@ -56,7 +56,9 @@ struct reshape_lazy
             dyn_dims.cbegin(), dyn_dims.cend(), [](const auto& dd) { return not dd.is_fixed(); });
         if(num_not_fixed != 1)
         {
-            MIGRAPHX_THROW("reshape_lazy: Only supports one non-fixed dynamic_dimension");
+            MIGRAPHX_THROW(
+                "reshape_lazy: Only supports one non-fixed dynamic_dimension but input {" +
+                to_string_range(dyn_dims) + "} has " + to_string(num_not_fixed));
         }
         // track number of fixed elements in input and output
         std::size_t num_dims_ele = 1;
@@ -145,7 +147,9 @@ struct reshape_lazy
         check_shapes{inputs, *this, true}.has(1);
         auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
         if(n_neg_dims > 1)
-            MIGRAPHX_THROW("reshape_lazy: Dimensions for reshape_lazy can only have one -1 dim");
+            MIGRAPHX_THROW("reshape_lazy: Dimensions for reshape_lazy can only have one -1 dim but "
+                           "given {" +
+                           to_string_range(dims) + "} with " + to_string(n_neg_dims) + " -1 dims");
         const auto& s0 = inputs[0];
         if(s0.dynamic())
         {

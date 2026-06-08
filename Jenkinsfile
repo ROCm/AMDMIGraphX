@@ -85,7 +85,7 @@ def cmake_build = { bconf ->
         export MIGRAPHX_GPU_DEBUG=${gpu_debug}
         export CXX=${compiler}
         export CXXFLAGS='-Werror'
-        rocminfo
+        /opt/rocm/bin/rocminfo
         env
         rm -rf build
         mkdir build

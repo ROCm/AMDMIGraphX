@@ -11,6 +11,7 @@
 #include "layers/ConstantLayer_impl.hpp"
 #include "layers/GatherLayer_impl.hpp"
 #include "layers/ElementWiseLayer_impl.hpp"
+#include "layers/MatrixMultiplyLayer_impl.hpp"
 
 namespace nvinfer1
 {
@@ -175,8 +176,8 @@ IRaggedSoftMaxLayer* NvNetworkDefinition_impl::addRaggedSoftMax(ITensor& input, 
 IMatrixMultiplyLayer* NvNetworkDefinition_impl::addMatrixMultiply(
     ITensor& input0, MatrixOperation op0, ITensor& input1, MatrixOperation op1) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	mLayers.push_back(std::make_unique<MatrixMultiplyLayer_impl>(input0, op0, input1, op1, mProgram));
+	return dynamic_cast<IMatrixMultiplyLayer*>(mLayers.back().get());
 }
 
 IConstantLayer* NvNetworkDefinition_impl::addConstant(Dims const& dimensions, Weights weights) noexcept

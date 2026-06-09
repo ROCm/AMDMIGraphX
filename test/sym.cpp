@@ -926,13 +926,12 @@ TEST_CASE(eval_uint_symbol_map_compound)
     EXPECT(e.eval_uint({{e, 42}}) == 42);
 }
 
-TEST_CASE(eval_uint_symbol_map_partial)
+TEST_CASE(eval_uint_symbol_map_scaled)
 {
     auto x = var("x");
     auto e = x * lit(2);
     // Map x to 7, so x*2 = 14
-    auto inner = lit(7) * lit(2);
-    EXPECT(inner.eval_uint({}) == 14);
+    EXPECT(e.eval_uint({{x, 7}}) == 14);
 }
 
 // ---- subs tests ----

@@ -215,7 +215,16 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
         return info;
 
     // cppcheck-suppress migraphx-RedundantCast
-    const auto* raw  = static_cast<const char*>(bin->m_binaries);
+    const auto* raw = static_cast<const char*>(bin->m_binaries);
+
+    // Verify the binary is actually loadable as a hip module before using it
+    {
+        hipModule_t raw_m = nullptr;
+        if(hipModuleLoadData(&raw_m, raw) != hipSuccess)
+            return info;
+        hipModuleUnload(raw_m);
+    }
+
     info.code_object = value::binary(raw, bin->m_binarySize);
     info.symbol_name = (bin->m_pKernelName != nullptr) ? bin->m_pKernelName : "main";
 

@@ -70,7 +70,7 @@ struct loop
         mod_out_shapes.erase(mod_out_shapes.begin());
 
         if(mod_out_shapes.size() < dep_param_num)
-            MIGRAPHX_THROW("Missing output shape for dependency parameter");
+            MIGRAPHX_THROW("LOOP: missing output shapes for dependency parameters");
 
         std::vector<shape> ins_out_shapes(mod_out_shapes.begin(),
                                           mod_out_shapes.begin() + dep_param_num);

@@ -23,6 +23,7 @@
  */
 #include <migraphx/sym.hpp>
 #include <migraphx/serialize.hpp>
+#include <cmath>
 #include <limits>
 #include <sstream>
 #include <test.hpp>
@@ -464,6 +465,49 @@ TEST_CASE(sqrt_interval)
     auto e      = sqrt(var("x"));
     auto result = e.eval_interval({{var("x"), interval{4.0, 9.0}}});
     EXPECT(result == (interval{2.0, 3.0}));
+}
+
+TEST_CASE(sqrt_interval_negative_min_is_nan)
+{
+    // A negative lower endpoint is out of sqrt's domain -> NaN interval.
+    auto result = sqrt(interval{-1.0, 4.0});
+    EXPECT(std::isnan(migraphx::sym::to<double>(result.min)));
+    EXPECT(std::isnan(migraphx::sym::to<double>(result.max)));
+}
+
+TEST_CASE(sqrt_interval_fully_negative_is_nan)
+{
+    auto result = sqrt(interval{int64_t{-9}, int64_t{-4}});
+    EXPECT(std::isnan(migraphx::sym::to<double>(result.min)));
+    EXPECT(std::isnan(migraphx::sym::to<double>(result.max)));
+}
+
+TEST_CASE(sqrt_interval_zero_min_ok)
+{
+    // Zero is in domain; result must be a real interval, not NaN.
+    auto result = sqrt(interval{0.0, 9.0});
+    EXPECT(result == (interval{0.0, 3.0}));
+}
+
+TEST_CASE(log_interval_negative_min_is_nan)
+{
+    auto result = log(interval{-1.0, 4.0});
+    EXPECT(std::isnan(migraphx::sym::to<double>(result.min)));
+    EXPECT(std::isnan(migraphx::sym::to<double>(result.max)));
+}
+
+TEST_CASE(log_interval_zero_min_is_nan)
+{
+    // log is undefined at 0 (-> -inf), so a zero endpoint is out of domain.
+    auto result = log(interval{0.0, 4.0});
+    EXPECT(std::isnan(migraphx::sym::to<double>(result.min)));
+    EXPECT(std::isnan(migraphx::sym::to<double>(result.max)));
+}
+
+TEST_CASE(log_interval_positive_ok)
+{
+    auto result = log(interval{1.0, 1.0});
+    EXPECT(result == (interval{0.0, 0.0}));
 }
 
 TEST_CASE(variable_constraint_interval)

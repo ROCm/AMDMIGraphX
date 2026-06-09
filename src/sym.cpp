@@ -264,13 +264,28 @@ interval tan(interval x)
 
 interval exp(interval x) { return {std::exp(to<double>(x.min)), std::exp(to<double>(x.max))}; }
 
-interval log(interval x) { return {std::log(to<double>(x.min)), std::log(to<double>(x.max))}; }
+static interval nan_interval()
+{
+    auto nan = std::numeric_limits<double>::quiet_NaN();
+    return {nan, nan};
+}
+
+interval log(interval x)
+{
+    // log is defined only for strictly positive inputs; any endpoint <= 0 is
+    // out of domain, so the result is not representable as a real interval.
+    if(to<double>(x.min) <= 0.0 or to<double>(x.max) <= 0.0)
+        return nan_interval();
+    return {std::log(to<double>(x.min)), std::log(to<double>(x.max))};
+}
 
 interval sqrt(interval x)
 {
-    auto lo = std::sqrt(std::max(0.0, to<double>(x.min)));
-    auto hi = std::sqrt(std::max(0.0, to<double>(x.max)));
-    return {lo, hi};
+    // sqrt is defined only for non-negative inputs; a negative endpoint is out
+    // of domain, so the result is not representable as a real interval.
+    if(to<double>(x.min) < 0.0 or to<double>(x.max) < 0.0)
+        return nan_interval();
+    return {std::sqrt(to<double>(x.min)), std::sqrt(to<double>(x.max))};
 }
 
 interval abs(interval x)

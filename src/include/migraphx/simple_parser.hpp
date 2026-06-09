@@ -216,8 +216,7 @@ parser_action<std::decay_t<F>> action(F&& f)
 template <class F1, class F2>
 auto operator|(parser_action<F1> a, parser_action<F2> b)
 {
-    return action(
-        [a = std::move(a), b = std::move(b)](auto& p) { return p.first_of(a, b); });
+    return action([a = std::move(a), b = std::move(b)](auto& p) { return p.first_of(a, b); });
 }
 
 template <class F>

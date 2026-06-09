@@ -28,6 +28,7 @@
 #include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/serialize.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -86,23 +87,40 @@ struct concat_compiler : compiler<concat_compiler>
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
-        options.inputs      = inputs;
-        options.output      = inputs.back();
-        auto concat_axis       = v.at("axis").to<std::size_t>();
-        options.virtual_inputs = normalize(inputs, concat_axis);
+        const std::size_t kernel_axis = v.at("axis").to<std::size_t>();
+        const std::size_t num_concat =
+            v.get("num_concat_inputs", inputs.size());
+        std::vector<shape> concat_shapes;
+        concat_shapes.assign(inputs.begin(),
+                             inputs.begin() + std::min(num_concat, inputs.size()));
+        shape output_shape = v.contains("output_shape") ? from_value<shape>(v.at("output_shape"))
+                                                        : inputs.back();
+
+        options.inputs   = inputs;
+        options.output   = output_shape;
         options.kernel_name = v.get("kernel", "concat_kernel");
+
+        // normalize() rewrites axis into reduced-dim space; kernel concat<Axis> uses full tensors.
+        std::size_t fast_axis = kernel_axis;
+        std::vector<shape> norm_concat = normalize(concat_shapes, fast_axis);
         const bool any_dynamic =
-            std::any_of(options.virtual_inputs.begin(),
-                        options.virtual_inputs.end(),
+            std::any_of(concat_shapes.begin(), concat_shapes.end(),
                         [](const shape& x) { return x.dynamic(); });
-        auto axis = any_dynamic ? concat_axis : find_fast_axis(options.virtual_inputs);
-        auto op_names       = v.at("ops").to_vector<std::string>();
-        auto args           = v.at("args");
+        auto axis = any_dynamic ? kernel_axis : find_fast_axis(norm_concat);
+        // virtual_inputs must match inputs for compile_hip_code_object unless empty
+        options.virtual_inputs = {};
+
+        auto op_names = v.at("ops").to_vector<std::string>();
+        auto args     = v.at("args");
+        // Output-alias path (precompile_op): operand shapes differ from the output buffer on
+        // the concat axis, so vectorization must be disabled to avoid half2/scalar mismatches.
+        const bool has_output_alias = num_concat < inputs.size();
         vectorize vec{};
-        if(not any_dynamic and axis != concat_axis)
-            vec = vectorize::elements(ctx, axis, options.virtual_inputs);
-        const auto& out_vs        = options.virtual_inputs.back();
-        const std::size_t nelem   = out_vs.dynamic() ? out_vs.element_space() : out_vs.elements();
+        if(not any_dynamic and not has_output_alias and axis != kernel_axis)
+            vec = vectorize::elements(ctx, axis, norm_concat);
+
+        const std::size_t nelem =
+            output_shape.dynamic() ? output_shape.element_space() : output_shape.elements();
         auto nelements_per_op     = nelem / op_names.size();
         options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
         options.emplace_param("-Wno-float-equal");
@@ -131,7 +149,7 @@ struct concat_compiler : compiler<concat_compiler>
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"transformers", make_transformer_args(vec)},
                                        {"preamble", v.get("preamble", std::string{})},
-                                       {"axis", std::to_string(concat_axis)}});
+                                       {"axis", std::to_string(kernel_axis)}});
         return compile_hip_code_object(ctx, src, options);
     }
 
@@ -187,7 +205,9 @@ struct concat_compiler : compiler<concat_compiler>
         }
         else if(op.name() == "concat")
         {
-            auto concat_inputs = ins->inputs().size() - 1;
+            std::size_t concat_inputs = ins->inputs().size();
+            if(ins->name() == "gpu::precompile_op")
+                concat_inputs -= 1;
             if(not ins->module_inputs().empty())
             {
                 auto* pm      = ins->module_inputs().front();
@@ -200,6 +220,8 @@ struct concat_compiler : compiler<concat_compiler>
             v["ops"]                                              = mod_names;
             std::unordered_map<std::string, std::size_t> mod_args = {{"op::id{}", 1}};
             v["args"]                                             = mod_args;
+            v["num_concat_inputs"]                                = concat_inputs;
+            v["output_shape"]                                     = to_value(ins->get_shape());
         }
         return compile_op(ctx, to_shapes(ins->inputs()), v);
     }

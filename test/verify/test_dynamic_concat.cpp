@@ -26,6 +26,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/shape.hpp>
+#include <migraphx/generate.hpp>
 
 struct test_dynamic_concat_axis0 : verify_program<test_dynamic_concat_axis0>
 {
@@ -48,6 +50,33 @@ struct test_dynamic_concat_axis0 : verify_program<test_dynamic_concat_axis0>
         return {{"X", migraphx::shape{migraphx::shape::float_type, {2, 2}}},
                 {"Y", migraphx::shape{migraphx::shape::float_type, {3, 2}}},
                 {"Z", migraphx::shape{migraphx::shape::float_type, {1, 2}}}};
+    }
+};
+
+// KV-cache style: dynamic past + static present concatenated on axis 2 (half_type).
+struct test_dynamic_concat_kv_cache_axis2 : verify_program<test_dynamic_concat_kv_cache_axis2>
+{
+    migraphx::program create_program() const
+    {
+        using migraphx::sym::var;
+        auto psl = var("psl", {1, 64});
+        using dd = migraphx::shape::dynamic_dimension;
+
+        migraphx::shape past_shape{migraphx::shape::half_type, {dd{1, 1}, dd{5, 5}, dd{psl}, dd{64, 64}}};
+        migraphx::shape current_shape{migraphx::shape::half_type, {1, 5, 1, 64}};
+
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        auto past_key   = mm->add_parameter("past_key_values.0.key", past_shape);
+        auto current_key = mm->add_literal(migraphx::generate_literal(current_shape));
+        mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), past_key, current_key);
+        return p;
+    }
+
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"past_key_values.0.key",
+                 migraphx::shape{migraphx::shape::half_type, {1, 5, 1, 64}}}};
     }
 };
 

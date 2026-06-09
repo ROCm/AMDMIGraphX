@@ -23,12 +23,16 @@
  */
 
 #include <migraphx/gpu/lowering.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/program.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/sym.hpp>
 #include <test.hpp>
 #include <pointwise.hpp>
@@ -100,6 +104,43 @@ TEST_CASE(dynamic_concat_gpu_lowering)
         }
     }
     EXPECT(found);
+}
+
+// Mimics KV-cache concat: dynamic past_key + static current along axis 2 (half_type).
+TEST_CASE(dynamic_concat_kv_cache_axis2_eval)
+{
+    using migraphx::sym::var;
+    auto psl = var("psl", {1, 64});
+    using dd = migraphx::shape::dynamic_dimension;
+
+    migraphx::shape past_shape{migraphx::shape::half_type, {dd{1, 1}, dd{5, 5}, dd{psl}, dd{64, 64}}};
+    migraphx::shape current_shape{migraphx::shape::half_type, {1, 5, 1, 64}};
+    migraphx::shape out_dyn_shape{migraphx::shape::half_type, {dd{1, 1}, dd{5, 5}, dd{psl + 1}, dd{64, 64}}};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto past_key =
+        mm->add_parameter("past_key_values.0.key", past_shape);
+    auto current_key = mm->add_literal(migraphx::generate_literal(current_shape));
+    auto concat =
+        mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), past_key, current_key);
+    mm->add_return({concat});
+
+    p.compile(migraphx::make_target("gpu"));
+
+    migraphx::shape past_static{migraphx::shape::half_type, {1, 5, 1, 64}};
+    migraphx::shape out_static{migraphx::shape::half_type, {1, 5, 2, 64}};
+    auto past_arg  = migraphx::gpu::to_gpu(migraphx::generate_argument(past_static));
+    auto out_arg   = migraphx::gpu::allocate_gpu(out_static);
+
+    migraphx::parameter_map params;
+    params["past_key_values.0.key"] = past_arg;
+    params["main:#output_0"]        = out_arg;
+
+    auto results = p.eval(params);
+    EXPECT(results.size() == 1);
+    auto host_out = migraphx::gpu::from_gpu(results.front());
+    EXPECT(host_out.get_shape().lens() == out_static.lens());
 }
 
 TEST_CASE(symbolic_concat_gpu_lowering)

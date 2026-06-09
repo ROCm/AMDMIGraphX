@@ -171,6 +171,7 @@ int main(int argc, const char* argv[])
          "test_dynamic_ref_gemm<3, 24>",
          "test_dynamic_ref_gemm<2, 16>",
          "test_dynamic_concat_axis0",
+         "test_dynamic_concat_kv_cache_axis2",
          "test_symbolic_concat_axis0_gpu"});
     rv.disable_test_for("gpu",
                         {

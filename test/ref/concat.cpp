@@ -26,6 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 
@@ -173,6 +174,30 @@ TEST_CASE(concat_dyn_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(migraphx::verify::verify_rms_range(result.get_shape().lens(),
                                               std::vector<std::size_t>({6, 2})));
+}
+
+TEST_CASE(concat_kv_cache_axis2_dyn_test)
+{
+    using migraphx::sym::var;
+    auto psl = var("psl", {1, 64});
+    using dd = migraphx::shape::dynamic_dimension;
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape past_shape{migraphx::shape::half_type, {dd{1, 1}, dd{5, 5}, dd{psl}, dd{64, 64}}};
+    migraphx::shape current_shape{migraphx::shape::half_type, {1, 5, 1, 64}};
+
+    auto past_key    = mm->add_parameter("past_key", past_shape);
+    auto current_key = mm->add_literal(migraphx::generate_literal(current_shape));
+    mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), past_key, current_key);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::shape past_static{migraphx::shape::half_type, {1, 5, 1, 64}};
+    auto past_arg = migraphx::generate_argument(past_static);
+    migraphx::parameter_map params{{"past_key", past_arg}};
+    auto result = p.eval(params).back();
+
+    EXPECT(result.get_shape().lens() == std::vector<std::size_t>({1, 5, 2, 64}));
 }
 
 TEST_CASE(concat_symbolic_dyn_test)

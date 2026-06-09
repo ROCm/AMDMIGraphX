@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -560,8 +560,7 @@ TEST_CASE(resize_fail_test_8)
     auto a0 = mm->add_literal(migraphx::literal{s, data});
     migraphx::shape::dynamic_dimension dd{4, 4};
     migraphx::shape size_input{migraphx::shape::int32_type, {dd}};
-    std::vector<int> size_values = {1, 1, 5, 8};
-    auto a1                      = mm->add_parameter("Y", size_input);
+    auto a1 = mm->add_parameter("Y", size_input);
 
     // a0 = input data
     // a1 = sizes of output

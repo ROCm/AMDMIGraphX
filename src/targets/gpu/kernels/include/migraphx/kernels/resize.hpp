@@ -32,6 +32,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/bit.hpp>
 #include <migraphx/kernels/algorithm.hpp>
+#include <migraphx/kernels/ranges.hpp>
 
 namespace migraphx {
 
@@ -141,6 +142,24 @@ struct interp_params
     float weight; // interpolation weight (0.0 to 1.0)
 };
 
+// Cubic interpolation parameters for one dimension (4 neighbors)
+struct cubic_params
+{
+    array<index_int, 4> indices;
+    array<float, 4> weights;
+};
+
+// Cubic kernel function (Keys bicubic)
+MIGRAPHX_DEVICE_CONSTEXPR float cubic_kernel(float s, float a)
+{
+    float abs_s = migraphx::abs(s);
+    if(abs_s < 1.0f)
+        return (a + 2.0f) * abs_s * abs_s * abs_s - (a + 3.0f) * abs_s * abs_s + 1.0f;
+    if(abs_s < 2.0f)
+        return a * abs_s * abs_s * abs_s - 5.0f * a * abs_s * abs_s + 8.0f * a * abs_s - 4.0f * a;
+    return 0.0f;
+}
+
 template <class CoordOp>
 MIGRAPHX_DEVICE_CONSTEXPR interp_params
 compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx, float scale)
@@ -163,6 +182,36 @@ compute_interp_params_1d(index_int in_len, index_int out_len, index_int out_idx,
     float frac     = clamped_coord - float(base);
 
     return {base, next, frac};
+}
+
+// Compute cubic interpolation parameters for a single dimension
+template <class CoordOp>
+MIGRAPHX_DEVICE_CONSTEXPR cubic_params compute_cubic_params_1d(
+    index_int in_len, index_int out_len, index_int out_idx, float scale, float cubic_a)
+{
+    cubic_params result{};
+
+    if(in_len == 0)
+    {
+        result.indices = {0, 0, 0, 0};
+        result.weights = {0.0f, 0.0f, 0.0f, 0.0f};
+        return result;
+    }
+
+    float coord = CoordOp{}(in_len, out_len, out_idx, scale);
+    // Use signed arithmetic to avoid underflow when base is 0 and we compute base-1
+    diff_int base_i = migraphx::floor(coord);
+
+    for(diff_int i = 0; i < 4; ++i)
+    {
+        diff_int pos      = base_i - 1 + i;
+        float t           = coord - float(pos);
+        result.weights[i] = cubic_kernel(t, cubic_a);
+        // Clamp to valid range [0, in_len-1]
+        result.indices[i] = max(diff_int{0}, min(pos, static_cast<diff_int>(in_len - 1)));
+    }
+
+    return result;
 }
 
 // Resize nearest kernel
@@ -225,6 +274,88 @@ __device__ void resize_linear(Input input, Output output, Scales scales)
             }
 
             acc += w * migraphx::convert<float>(input[in_multi]);
+        }
+
+        output[out_idx] = implicit_conversion(acc);
+    });
+}
+
+// Resize cubic kernel
+// Uses separable bicubic interpolation with 4 neighbors per dimension
+template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
+__device__ void resize_cubic(Input input, Output output, Scales scales, float cubic_coeff)
+{
+    auto idx            = make_index();
+    auto in_shape       = input.get_shape();
+    auto out_shape      = output.get_shape();
+    constexpr auto ndim = get_shape_c<Input>{}.lens.size();
+
+    idx.global_stride(out_shape.elements(), [&](auto out_idx) {
+        auto out_multi = out_shape.multi(out_idx);
+
+        // Precompute cubic interpolation parameters for each dimension
+        array<cubic_params, ndim> params{};
+        for(index_int d = 0; d < ndim; ++d)
+        {
+            params[d] = compute_cubic_params_1d<CoordOp>(
+                in_shape.lens[d], out_shape.lens[d], out_multi[d], scales[d], cubic_coeff);
+        }
+
+        // Count dimensions that need interpolation (scale != 1.0)
+        auto active_count =
+            count_if(scales.begin(), scales.end(), [](auto scale) { return scale != 1.0f; });
+        MIGRAPHX_ASSERT(active_count < 32);
+
+        array<index_int, ndim> active_dims{};
+        auto r = range(ndim);
+        copy_if(r.begin(), r.end(), active_dims.begin(), [&](auto d) { return scales[d] != 1.0f; });
+
+        // Initialize in_multi: for non-interpolated dimensions, use output index directly
+        // (since input and output sizes are the same for those dimensions)
+        array<index_int, ndim> in_multi{};
+        for(index_int d = 0; d < ndim; ++d)
+        {
+            if(scales[d] == 1.0f)
+            {
+                in_multi[d] = out_multi[d];
+            }
+            else
+            {
+                in_multi[d] = params[d].indices[0];
+            }
+        }
+
+        // Build combo shape: 4 for interpolated dims, 1 otherwise
+        auto combo_lens =
+            array_transform(scales)([](auto scale) -> index_int { return scale == 1.0f ? 1 : 4; });
+
+        index_int total_combos = combo_lens.product();
+        float acc              = 0.0f;
+
+        for(index_int combo = 0; combo < total_combos; ++combo)
+        {
+            auto combo_multi = combo_lens.multi(combo);
+
+            // 2. Compute the combined weight as a product of per-dimension weights
+            float w = inner_product(
+                active_dims.begin(),
+                active_dims.begin() + active_count,
+                active_dims.begin(),
+                1.0f,
+                [](float a, float b) { return a * b; },
+                [&](index_int d, index_int) { return params[d].weights[combo_multi[d]]; });
+
+            // 3. Set in_multi for each active dimension from the neighbor indices
+            for(index_int i = 0; i < active_count; ++i)
+            {
+                index_int d = active_dims[i];
+                in_multi[d] = params[d].indices[combo_multi[d]];
+            }
+
+            if(migraphx::abs(w) > 1e-10f)
+            {
+                acc += w * migraphx::convert<float>(input[in_multi]);
+            }
         }
 
         output[out_idx] = implicit_conversion(acc);

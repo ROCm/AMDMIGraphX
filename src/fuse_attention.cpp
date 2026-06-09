@@ -31,7 +31,6 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
-#include <queue>
 #include <optional>
 
 namespace migraphx {
@@ -137,6 +136,59 @@ inline auto pointwise_inputs()
     };
 }
 
+// find attention blocks that have been quantized and undo them
+struct find_quant_attention
+{
+    auto matcher() const
+    {
+        auto gemm1 =
+            match::name("dequantizelinear")(match::arg(0)(match::name("quant_dot").bind("qgemm1")))
+                .bind("deq1");
+        auto softmax = match::softmax_input(match::skip(match::name("convert"))(gemm1));
+        auto probs   = match::name("quantizelinear")(
+            match::arg(0)(match::skip(match::name("convert"))(softmax)));
+        auto gemm2 = match::name("quant_dot")(match::arg(0)(probs)).bind("qgemm2");
+        return match::name("dequantizelinear")(match::arg(0)(gemm2)).bind("deq2");
+    }
+
+    // both inputs are quantizelinear
+    static bool can_dequantize_gemm(instruction_ref qgemm)
+    {
+        return qgemm->inputs().at(0)->name() == "quantizelinear" and
+               qgemm->inputs().at(1)->name() == "quantizelinear";
+    }
+
+    // removes the q/dq pairs from attention block gemms
+    static void dequantize_gemm(module& m, instruction_ref qgemm, instruction_ref deq)
+    {
+        auto a            = qgemm->inputs().at(0)->inputs().front();
+        auto b            = qgemm->inputs().at(1)->inputs().front();
+        auto compute_type = b->get_shape().type();
+        if(a->get_shape().type() != compute_type)
+            a = m.insert_instruction(deq, make_op("convert", {{"target_type", compute_type}}), a);
+        instruction_ref dot = m.insert_instruction(deq, make_op("dot"), a, b);
+        if(compute_type != deq->get_shape().type())
+            dot = m.insert_instruction(
+                deq, make_op("convert", {{"target_type", deq->get_shape().type()}}), dot);
+        m.replace_instruction(deq, dot);
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m     = mpm.get_module();
+        auto qgemm1 = r.instructions["qgemm1"];
+        auto deq1   = r.instructions["deq1"];
+        auto qgemm2 = r.instructions["qgemm2"];
+        auto deq2   = r.instructions["deq2"];
+
+        if(can_dequantize_gemm(qgemm1) and can_dequantize_gemm(qgemm2))
+        {
+            dequantize_gemm(m, qgemm1, deq1);
+            dequantize_gemm(m, qgemm2, deq2);
+        }
+    }
+};
+
 struct find_attention
 {
     std::size_t* counter;
@@ -166,6 +218,21 @@ struct find_attention
     get_attn_instructions(module& m, instruction_ref gemm1, instruction_ref gemm2) const
     {
         auto attn_inss = find_instructions_between(gemm1, gemm2, &m);
+
+        // Pull in evaluable constants so MLIR can detect causal masks.
+        auto expand = fix([&](auto self, auto ins) {
+            for(auto input : ins->inputs())
+            {
+                if(not contains(attn_inss, input) and input->can_eval())
+                {
+                    attn_inss.insert(input);
+                    self(input);
+                }
+            }
+        });
+        auto starts = attn_inss;
+        for(auto ins : starts)
+            expand(ins);
 
         std::vector<instruction_ref> sorted_inss(attn_inss.begin(), attn_inss.end());
         std::sort(
@@ -229,8 +296,14 @@ struct find_attention
         std::unordered_map<instruction_ref, instruction_ref> map_mm_to_mattn;
         m_attn.fuse(attn_inss, &map_mm_to_mattn);
 
-        // Define outputs based on instructions that are used elsewhere in the graph
-        auto required_outputs = find_outputs(attn_inss);
+        // Define outputs based on instructions that are used elsewhere in the graph.
+        // Remove evaluable constants from the output list.
+        auto all_outputs = find_outputs(attn_inss);
+        std::vector<instruction_ref> required_outputs;
+        std::copy_if(all_outputs.begin(),
+                     all_outputs.end(),
+                     std::back_inserter(required_outputs),
+                     [](auto i) { return not i->can_eval(); });
 
         assert(not required_outputs.empty());
 
@@ -762,7 +835,7 @@ struct find_kv_cache_attention
     auto matcher() const
     {
         static const std::unordered_set<std::string> skip_set = {
-            "multibroadcast", "reshape", "unsqueeze"};
+            "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze"};
 
         auto keys =
             match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
@@ -770,17 +843,24 @@ struct find_kv_cache_attention
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
         auto queries = match::name("slice");
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
-        auto scale   = match::name("mul")(match::any_arg(0, 1)(gemm1));
+        auto gemm1_maybe_cvt = match::skip(match::name("convert"))(gemm1);
+        auto scale           = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
         auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
-        auto attn_scores       = match::any_of(scale, gemm1);
+        auto attn_scores       = match::any_of(scale, gemm1_maybe_cvt);
         auto causal_mask =
             match::name("where")(match::arg(0)(broadcasted_const), match::arg(2)(attn_scores));
+        auto conv_grtr         = match::name("convert")(match::arg(0)(match::name("greater")));
+        auto local_window_comp = match::skip(match::name(skip_set))(conv_grtr);
+        auto local_window_mask =
+            match::name("where")(match::arg(0)(match::any_of(local_window_comp, broadcasted_const)),
+                                 match::arg(2)(match::any_of(causal_mask, scale, gemm1_maybe_cvt)));
         auto greater = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
         auto conv_greater =
             match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
-        auto bc_greater         = match::name("multibroadcast")(match::arg(0)(conv_greater));
-        auto mask               = match::name("where")(match::arg(0)(bc_greater),
-                                         match::arg(2)(match::any_of(causal_mask, scale, gemm1)));
+        auto bc_greater = match::name("multibroadcast")(match::arg(0)(conv_greater));
+        auto mask       = match::name("where")(
+            match::arg(0)(bc_greater),
+            match::arg(2)(match::any_of(local_window_mask, causal_mask, scale, gemm1_maybe_cvt)));
         auto attn_probabilities = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(mask)));
         auto values =
@@ -807,10 +887,6 @@ struct find_kv_cache_attention
     std::vector<instruction_ref>
     get_attn_instructions(module& m, instruction_ref start, instruction_ref end) const
     {
-        std::queue<instruction_ref> inputs;
-        std::unordered_set<instruction_ref> inss;
-        inputs.push(end);
-
         static const std::unordered_set<std::string> valid_attn_ops = {"softmax",
                                                                        "broadcast",
                                                                        "dot",
@@ -822,30 +898,46 @@ struct find_kv_cache_attention
                                                                        "reshape",
                                                                        "reduce_sum",
                                                                        "reduce_max",
-                                                                       "broadcast",
                                                                        "multibroadcast",
                                                                        "@literal",
-                                                                       "unsqueeze"};
+                                                                       "unsqueeze",
+                                                                       "squeeze"};
 
         auto is_valid_attn_op = [&](auto i) {
             return i->get_operator().attributes().get("pointwise", false) or
-                   contains(valid_attn_ops, i->get_operator().name()) or i == start or i == end;
+                   contains(valid_attn_ops, i->get_operator().name());
         };
 
-        while(not inputs.empty())
-        {
-            auto current_inp = inputs.front();
-            inputs.pop();
-
-            if(is_valid_attn_op(current_inp) and inss.insert(current_inp).second and
-               current_inp != start)
+        // Start with instructions on data-dependency paths from start to end.
+        auto inss = find_instructions_between(start, end, &m);
+        // Expand by walking inputs of instructions already in the set.
+        // An input is added when it is a valid attention op and all of
+        // its outputs are already in the set. This pulls in constants,
+        // broadcasts, and side inputs that feed exclusively into the
+        // attention, while excluding ops with external consumers.
+        auto expand = fix([&](auto self, auto ins) {
+            for(auto input : ins->inputs())
             {
-                for(auto i : current_inp->inputs())
+                if(contains(inss, input))
+                    continue;
+                if(not is_valid_attn_op(input))
+                    continue;
+                if(input->can_eval() or std::all_of(input->outputs().begin(),
+                                                    input->outputs().end(),
+                                                    [&](auto o) { return contains(inss, o); }))
                 {
-                    inputs.push(i);
+                    inss.insert(input);
+                    self(input);
                 }
             }
+        });
+        // Copy inss since we will be modifying it
+        auto starts = inss;
+        for(auto ins : starts)
+        {
+            expand(ins);
         }
+
         std::vector<instruction_ref> sorted_inss(inss.begin(), inss.end());
         std::sort(
             sorted_inss.begin(), sorted_inss.end(), [&](instruction_ref x, instruction_ref y) {
@@ -938,6 +1030,11 @@ void fuse_attention::apply(module_pass_manager& mpm) const
     // Only fuse plain attention when requested
     if(attn_enabled)
     {
+        // remove quantization from attention blocks so they can be fused; rocMLIR currently does
+        // not support fp8 attention
+        match::find_matches(mpm, find_quant_attention{});
+        mpm.run_pass(dead_code_elimination{});
+
         match::find_matches(mpm, find_attention{.counter = &counter});
         mpm.get_module().sort();
         mpm.run_pass(dead_code_elimination{});

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -45,7 +45,6 @@ static auto reducesum_variable_axes_test_base(const std::string& file, size_t ax
                                     axes_data.data());
 
     auto result = p.eval(pm).back();
-    std::vector<float> result_vector;
     result.visit([&](auto output) { ret.first.assign(output.begin(), output.end()); });
     ret.second = result.get_shape();
 

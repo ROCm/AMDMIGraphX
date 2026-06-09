@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,7 @@ struct onnx_options
     /// Default dynamic dimension size (if both default_dim_value and default_dyn_dim_value set
     /// parser throws)
     shape::dynamic_dimension default_dyn_dim_value = {1, 1};
+    bool default_set                               = false;
     /// Explicitly specify the dims of an input
     std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims = {};
     /// Explicitly specify a symbolic named parameter dimension
@@ -58,6 +59,8 @@ struct onnx_options
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     /// Use dynamic output for operators when available
     bool use_dyn_output = false;
+    /// Parse in ONNX node names as debug symbols
+    bool use_debug_symbols = false;
     /// Path to use for the external data if it is stored at different location compared to onnx
     /// file
     std::string external_data_path = "";

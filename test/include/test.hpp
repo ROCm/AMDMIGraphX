@@ -43,7 +43,37 @@
 #ifndef MIGRAPHX_GUARD_TEST_TEST_HPP
 #define MIGRAPHX_GUARD_TEST_TEST_HPP
 
+#if defined(__has_builtin) && !defined(CPPCHECK)
+#if __has_builtin(__builtin_LINE) && __has_builtin(__builtin_FILE) && \
+    __has_builtin(__builtin_FUNCTION)
+// NOLINTNEXTLINE
+#define TEST_HAS_BUILT_IN_SOURCE_LOCATION 1
+#else
+// NOLINTNEXTLINE
+#define TEST_HAS_BUILT_IN_SOURCE_LOCATION 0
+#endif
+#else
+// NOLINTNEXTLINE
+#define TEST_HAS_BUILT_IN_SOURCE_LOCATION 0
+#endif
+
 namespace test {
+
+#if TEST_HAS_BUILT_IN_SOURCE_LOCATION
+struct source_location
+{
+    const char* function = __builtin_FUNCTION();
+    const char* file     = __builtin_FILE();
+    int line             = __builtin_LINE();
+};
+#else
+struct source_location
+{
+    const char* function = "";
+    const char* file     = "";
+    int line             = 0;
+};
+#endif
 
 template <int N>
 struct rank : rank<N - 1>
@@ -105,7 +135,7 @@ struct nop
 {
     static std::string as_string() { return ""; }
     template <class T>
-    static auto call(T&& x)
+    static T call(T&& x)
     {
         return static_cast<T&&>(x);
     }
@@ -226,20 +256,25 @@ template <class T, class Operator>
 lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator);
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_BINARY_OPERATOR(op, name)                                        \
-    template <class V>                                                             \
-    auto operator op(V&& rhs2) const                                               \
-    {                                                                              \
-        return make_expression(*this, std::forward<V>(rhs2), name{}); /* NOLINT */ \
+#define TEST_EXPR_BINARY_OPERATOR(op, name)                                                  \
+    template <class V>                                                                       \
+    friend auto operator op(self_t lhs2, V&& rhs2) /* NOLINT */                              \
+    {                                                                                        \
+        return make_expression(std::move(lhs2), std::forward<V>(rhs2), name{}); /* NOLINT */ \
     }
 
 // NOLINTNEXTLINE
-#define TEST_EXPR_UNARY_OPERATOR(op, name) \
-    auto operator op() const { return make_lhs_expression(lhs, name{}); /* NOLINT */ }
+#define TEST_EXPR_UNARY_OPERATOR(op, name)                                      \
+    friend auto operator op(self_t self) /* NOLINT */                           \
+    {                                                                           \
+        return make_lhs_expression(static_cast<decltype(self.lhs)&&>(self.lhs), \
+                                   name{}); /* NOLINT */                        \
+    }
 
 template <class T, class U, class Operator>
 struct expression
 {
+    using self_t = expression;
     T lhs;
     U rhs;
 
@@ -282,8 +317,9 @@ lhs_expression<T, Operator> make_lhs_expression(T&& lhs, Operator)
 template <class T, class Operator>
 struct lhs_expression
 {
+    using self_t = lhs_expression;
     T lhs;
-    explicit lhs_expression(T e) : lhs(std::move(e)) {}
+    explicit lhs_expression(T e) : lhs(static_cast<T&&>(e)) {}
 
     friend std::ostream& operator<<(std::ostream& s, const lhs_expression& self)
     {
@@ -361,15 +397,9 @@ auto make_function(const std::string& name, F f)
 struct capture
 {
     template <class T>
-    auto operator->*(const T& x) const
+    auto operator->*(T&& x) const
     {
-        return make_lhs_expression(x);
-    }
-
-    template <class T, class Operator>
-    auto operator->*(const lhs_expression<T, Operator>& x) const
-    {
-        return x;
+        return make_lhs_expression(std::forward<T>(x));
     }
 };
 
@@ -410,16 +440,42 @@ inline std::atomic<int>& failures()
 
 inline void report_failure(int n = 1) { failures() += n; }
 
+struct failed
+{
+    failed(source_location ploc = source_location{}) : loc(ploc) {}
+
+    failed(const failed&)            = delete;
+    failed& operator=(const failed&) = delete;
+
+    ~failed()
+    {
+        report_failure();
+        if(loc.function != nullptr and *loc.function != 0)
+            std::cout << loc.function << std::endl;
+        if(loc.file != nullptr and *loc.file != 0)
+            std::cout << loc.file << ":" << loc.line << ":" << std::endl;
+        std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset;
+        std::cout << ss.str() << std::endl;
+    }
+
+    source_location loc;
+    std::ostringstream ss;
+
+    template <class T>
+    failed& operator<<(const T& x)
+    {
+        ss << x;
+        return *this;
+    }
+};
+
 template <class T, class F>
-void failed(const T& x, const char* msg, const char* func, const char* file, int line, F f)
+void check_predicate(const T& x, const char* msg, F f, source_location loc = source_location{})
 {
     if(not bool(x.value()))
     {
-        report_failure();
-        std::cout << func << std::endl;
-        std::cout << file << ":" << line << ":" << std::endl;
-        std::cout << color::bold << color::fg_red << "    FAILED: " << color::reset << msg << " "
-                  << "[ " << x << " ]" << std::endl;
+        failed(loc) << msg << " "
+                    << "[ " << x << " ]";
         f();
     }
 }
@@ -918,18 +974,18 @@ inline void run(int argc, const char* argv[])
 #endif
 
 // NOLINTNEXTLINE
-#define CHECK(...) \
-    test::failed(  \
-        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, TEST_PRETTY_FUNCTION, __FILE__, __LINE__, [] {})
+#define TEST_SOURCE_LOCATION \
+    test::source_location { TEST_PRETTY_FUNCTION, __FILE__, __LINE__ }
 
 // NOLINTNEXTLINE
-#define EXPECT(...)                         \
-    test::failed(TEST_CAPTURE(__VA_ARGS__), \
-                 #__VA_ARGS__,              \
-                 TEST_PRETTY_FUNCTION,      \
-                 __FILE__,                  \
-                 __LINE__,                  \
-                 &test::fail)
+#define CHECK(...) \
+    test::check_predicate(TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, [] {}, TEST_SOURCE_LOCATION)
+
+// NOLINTNEXTLINE
+#define EXPECT(...)        \
+    test::check_predicate( \
+        TEST_CAPTURE(__VA_ARGS__), #__VA_ARGS__, &test::fail, TEST_SOURCE_LOCATION)
+
 // NOLINTNEXTLINE
 #define STATUS(...) EXPECT((__VA_ARGS__) == 0)
 

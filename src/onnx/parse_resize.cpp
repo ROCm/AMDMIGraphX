@@ -94,6 +94,7 @@ struct parse_resize : op_parser<parse_resize>
         std::string get_nearest_mode() const { return r_attr.nearest_mode; }
         std::string get_coord_trans_mode() const { return r_attr.coord_t_mode; }
         std::string get_mode() const { return r_attr.mode; }
+        float get_cubic_coeff() const { return r_attr.cubic_coeff_a; }
 
         void set_scales_sizes_arg(instruction_ref ref) { scales_sizes_arg = ref; }
 
@@ -216,11 +217,12 @@ struct parse_resize : op_parser<parse_resize>
         void set_mode(const onnx_parser::attribute_map& attr)
         {
             if(contains(attr, "mode"))
-            { // TODO: Add support for cubic mode
+            {
                 auto mode = attr.at("mode").s();
-                if(mode != "nearest" and mode != "linear")
+                if(mode != "nearest" and mode != "linear" and mode != "cubic")
                 {
-                    MIGRAPHX_THROW("PARSE_RESIZE: only nearest and linear modes are supported!");
+                    MIGRAPHX_THROW(
+                        "PARSE_RESIZE: only nearest, linear, and cubic modes are supported!");
                 }
                 r_attr.mode = mode;
             }
@@ -265,20 +267,26 @@ struct parse_resize : op_parser<parse_resize>
         void set_aspect_ratio_policy(const onnx_parser::attribute_map& attr,
                                      const std::vector<instruction_ref>& args) const
         {
-            // TODO: Add support for this instead of keeping it as a check
-            if(contains(attr, "keep_aspect_ratio_policy"))
+            // 1. Attribute introduced in opset 18; not present in opset <= 17.
+            // 2.'stretch' is the opset-18 default and matches the existing per-axis
+            // semantics, so accept it as a no-op.
+            if(not contains(attr, "keep_aspect_ratio_policy") or
+               attr.at("keep_aspect_ratio_policy").s() == "stretch")
+                return;
+
+            // TODO: Add support for 'not_larger' and 'not_smaller' policies.
+            shape last_arg_shape     = args.back()->get_shape();
+            size_t last_arg_elements = last_arg_shape.elements();
+            // Check if the last arg is 'sizes' input.
+            // This attribute is only relevant if 'sizes' input is used.
+            // The shape constraints for 'sizes' are below:
+            if(last_arg_shape.type() == shape::int64_type and
+               (last_arg_elements == args.front()->get_shape().ndim() or
+                (is_axes_used() and last_arg_elements == r_attr.axes.size())))
             {
-                shape last_arg_shape     = args.back()->get_shape();
-                size_t last_arg_elements = last_arg_shape.elements();
-                // Check if the last arg is 'sizes' input.
-                // This attribute is only relevant if 'sizes' input is used.
-                // The shape constraints for 'sizes' are below:
-                if(last_arg_shape.type() == shape::int64_type and
-                   (last_arg_elements == args.front()->get_shape().ndim() or
-                    (is_axes_used() and last_arg_elements == r_attr.axes.size())))
-                {
-                    MIGRAPHX_THROW("PARSE_RESIZE: keep_aspect_ratio_policy is not supported!");
-                }
+                MIGRAPHX_THROW("PARSE_RESIZE: keep_aspect_ratio_policy=\"" +
+                               attr.at("keep_aspect_ratio_policy").s() +
+                               "\" is not supported (only \"stretch\" is accepted)");
             }
         }
 
@@ -398,6 +406,42 @@ struct parse_resize : op_parser<parse_resize>
             resize.get_scales_sizes_arg());
     }
 
+    static instruction_ref handle_cubic_mode(const op_desc&,
+                                             const onnx_parser::node_info& info,
+                                             resize_args& resize,
+                                             instruction_ref& args_0)
+    {
+        // Emit resize operation with cubic mode - the JIT kernel handles the interpolation
+        if(resize.is_constant_scale_input() and not args_0->get_shape().dynamic())
+        {
+            if(resize.is_sizes_input)
+            {
+                return info.add_instruction(
+                    make_op("resize",
+                            {{"sizes", resize.out_lens},
+                             {"mode", resize.get_mode()},
+                             {"coordinate_transformation_mode", resize.get_coord_trans_mode()},
+                             {"cubic_coeff_a", resize.get_cubic_coeff()}}),
+                    args_0);
+            }
+            return info.add_instruction(
+                make_op("resize",
+                        {{"scales", resize.vec_scale},
+                         {"mode", resize.get_mode()},
+                         {"coordinate_transformation_mode", resize.get_coord_trans_mode()},
+                         {"cubic_coeff_a", resize.get_cubic_coeff()}}),
+                args_0);
+        }
+        // Otherwise emit 2-input resize for dynamic case
+        return info.add_instruction(
+            make_op("resize",
+                    {{"mode", resize.get_mode()},
+                     {"coordinate_transformation_mode", resize.get_coord_trans_mode()},
+                     {"cubic_coeff_a", resize.get_cubic_coeff()}}),
+            args_0,
+            resize.get_scales_sizes_arg());
+    }
+
     static void set_resize_attributes(const onnx_parser::node_info& info,
                                       const std::vector<instruction_ref>& args,
                                       resize_args& resize)
@@ -479,10 +523,13 @@ struct parse_resize : op_parser<parse_resize>
         {
             return handle_nearest_neighbor(info, resize, args[0]);
         }
-        // linear mode
-        else
+        else if(resize.get_mode() == "linear")
         {
             return handle_linear_mode(opd, info, resize, args[0]);
+        }
+        else
+        {
+            return handle_cubic_mode(opd, info, resize, args[0]);
         }
     }
 };

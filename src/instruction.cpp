@@ -31,6 +31,8 @@
 #include <migraphx/iterator.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/pmr/unordered_map.hpp>
+#include <array>
 #include <bitset>
 #include <queue>
 #include <unordered_map>
@@ -370,7 +372,13 @@ bool instruction::can_eval() const
         return true;
     if(not is_context_free(op))
         return false;
-    std::unordered_map<const instruction*, bool> cache;
+#if MIGRAPHX_HAS_PMR
+    std::array<char, 1024> storage;
+    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+    pmr::unordered_map<const instruction*, bool> cache(&resource);
+#else
+    pmr::unordered_map<const instruction*, bool> cache;
+#endif
     return fix<bool>([&](auto self, const instruction& ins) -> bool {
         auto it = cache.find(&ins);
         if(it != cache.end())
@@ -394,7 +402,13 @@ argument instruction::eval(bool check_eval) const
         return {};
     if(check_eval and not this->can_eval())
         return {};
-    std::unordered_map<const instruction*, argument> cache;
+#if MIGRAPHX_HAS_PMR
+    std::array<char, 1024> storage;
+    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+    pmr::unordered_map<const instruction*, argument> cache(&resource);
+#else
+    pmr::unordered_map<const instruction*, argument> cache;
+#endif
     return fix<argument>([&](auto self, const instruction& ins) -> argument {
         if(ins.name() == "@literal")
             return ins.get_literal().get_argument();

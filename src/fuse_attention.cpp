@@ -24,6 +24,7 @@
  */
 #include "migraphx/env.hpp"
 #include "migraphx/errors.hpp"
+#include "migraphx/op/builder/insert.hpp"
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -958,6 +959,7 @@ struct find_kv_cache_attention
         // With rotary: cur_k = slice(rotary_embedding(qk_combined, pos, cos, sin))
         auto rotary =
             match::name("rotary_embedding")(match::arg(0)(match::any().bind("qk_combined")),
+                                            match::arg(1)(match::any().bind("pos_ids")),
                                             match::arg(2)(match::any().bind("cos_cache")),
                                             match::arg(3)(match::any().bind("sin_cache")))
                 .bind("rotary");
@@ -1105,7 +1107,7 @@ struct find_kv_cache_attention
         auto v           = r.instructions["v"];
         auto past_k      = r.instructions["past_key"];
         auto past_v      = r.instructions["past_val"];
-        auto slk         = r.instructions["slk"];
+        // auto slk         = r.instructions["slk"];
 
         auto kv_num_heads = past_k->get_shape().lens()[1];
         auto num_heads    = qk_combined->get_shape().lens()[1] - kv_num_heads;
@@ -1121,32 +1123,7 @@ struct find_kv_cache_attention
                     {{"axes", {1}}, {"starts", {num_heads}}, {"ends", {num_heads + kv_num_heads}}}),
             qk_combined);
 
-        std::cout << "q: " << std::endl;
-        q->debug_print();
-        std::cout << "k: " << std::endl;
-        k->debug_print();
-        std::cout << "v: " << std::endl;
-        v->debug_print();
-        std::cout << "past_key: " << std::endl;
-        past_k->debug_print();
-        std::cout << "past_val: " << std::endl;
-        past_v->debug_print();
-        std::cout << "slk: " << std::endl;
-        slk->debug_print();
-        // std::cout << "cos_cache: " << std::endl;
-        // cos_cache->debug_print();
-        // std::cout << "sin_cache: " << std::endl;
-        // sin_cache->debug_print();
-        // std::cout << "rotary: " << std::endl;
-        // rotary->debug_print();
-        std::cout << "queries: " << std::endl;
-        queries->debug_print();
-        std::cout << "pres_k: " << std::endl;
-        pres_k->debug_print();
-        std::cout << "pres_v: " << std::endl;
-        pres_v->debug_print();
-
-        std::vector<instruction_ref> ck_appendkv_inputs{q, past_k, k, past_v, v, slk};
+        std::vector<instruction_ref> ck_appendkv_inputs{q, past_k, k, past_v, v, r.instructions["pos_ids"]};
 
         int rotary_type = 0;
         if(has_rotary)
@@ -1164,6 +1141,11 @@ struct find_kv_cache_attention
         auto q_out = m.insert_instruction(pres_k, make_op("get_tuple_elem", {{"index", 0}}), ck_appendkv);
         auto k_out = m.insert_instruction(pres_k, make_op("get_tuple_elem", {{"index", 1}}), ck_appendkv);
         auto v_out = m.insert_instruction(pres_k, make_op("get_tuple_elem", {{"index", 2}}), ck_appendkv);
+        q_out->debug_print();
+        k_out->debug_print();
+
+        auto qk_out = m.insert_instruction(pres_k, make_op("concat", {{"axis", 1}}), {q_out, k});
+        q_out = m.insert_instruction(pres_k, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qk_out);
 
         m.replace_instruction(queries, q_out);
         m.replace_instruction(pres_k, k_out);
@@ -1177,12 +1159,24 @@ struct find_kv_cache_attention
         auto reshape  = r.result;
         // TODO: Need to pay attention when inserting ck_appendkv, the output of that needs to
         // replace the inputs of the attention
-        insert_ck_appendkv(mpm, r);
+        if(not enabled(MIGRAPHX_ENABLE_CK{}))
+        {
+        }
+        else
+        {
+            auto [q_out, k_out, v_out] = insert_ck_appendkv(mpm, r);
+        }
         dead_code_elimination{}.apply(mpm.get_module());
         std::cout << mpm.get_module() << std::endl;
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
+        std::cout << "attn_inss: " << std::endl;
+        for(auto ins : attn_inss)
+        {
+            std::cout << "ins: " << ins->name() << std::endl;
+            ins->debug_print();
+        }
 
         // Add captured instructions to new submodule
         module m_attn;
@@ -1243,6 +1237,8 @@ struct find_kv_cache_attention
                                                 {mpm_attn});
 
         mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
+        std::cout << "mpm.get_module(): " << std::endl;
+        std::cout << mpm.get_module() << std::endl;
     }
 };
 

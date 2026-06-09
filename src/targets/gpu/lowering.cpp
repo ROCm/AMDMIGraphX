@@ -114,6 +114,7 @@ struct miopen_apply
         add_select_module_op();
         add_reshape_lazy_op();
         add_concat_past_present_op();
+        add_ck_tile_appendkv_op();
         add_scan_slice_op();
         add_fill_op();
         add_dyn_slice_op();
@@ -554,6 +555,17 @@ struct miopen_apply
                                             make_op("gpu::precompile_op",
                                                     {{"op", to_value(ins->get_operator())},
                                                      {"output_shape", to_value(ins->get_shape())}}),
+                                            ins->inputs());
+        });
+    }
+
+    void add_ck_tile_appendkv_op()
+    {
+        apply_map.emplace("ck_tile_appendkv", [=](instruction_ref ins) {
+            return mod->replace_instruction(ins,
+                                            make_op("gpu::precompile_op",
+                                                    {{"op", to_value(ins->get_operator())},
+                                                     {"additional_args", 0}}),
                                             ins->inputs());
         });
     }

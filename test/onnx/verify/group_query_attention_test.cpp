@@ -32,148 +32,153 @@ TEST_CASE(group_query_attention_decode_local_test)
 {
     auto p = read_onnx("group_query_attention_decode_local_test.onnx");
     std::cout << "Hello" << std::endl;
-    p.compile(migraphx::make_target("gpu"));
+    migraphx::compile_options options;
+    options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), options);
     std::cout << p << std::endl;
 
-//     migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 1, 96}};
-//     std::vector<float> qkv_data = {
-//         6.153,  7.545,  -0.804, -6.835, -6.139, 2.956,  6.716,  6.893,  7.473,  -9.716, -3.429,
-//         -4.660, 7.343,  -3.562, 9.919,  -7.503, 4.383,  -2.274, 1.762,  -6.985, 4.702,  -5.070,
-//         5.009,  6.450,  -2.873, 0.363,  0.052,  -9.278, 1.541,  -2.714, 0.147,  -5.890, -5.202,
-//         -9.477, 1.640,  9.588,  8.967,  -2.795, -8.801, 7.888,  -7.699, -6.706, -7.154, 6.284,
-//         -5.744, -5.343, 4.492,  -8.902, 1.595,  0.696,  5.202,  1.360,  -0.066, -1.406, -5.225,
-//         -4.940, 6.140,  2.266,  -6.849, -7.607, 0.914,  0.885,  9.477,  -7.357, 8.032,  9.065,
-//         -5.225, 6.465,  0.300,  -9.999, -0.089, 6.549,  -8.623, -7.224, 7.020,  -5.164, -8.470,
-//         -9.049, 0.766,  -8.397, 2.805,  7.043,  2.467,  8.405,  0.738,  -3.961, -4.948, 7.460,
-//         2.534,  -4.354, -5.608, 2.411,  -7.487, -0.264, -7.888, 0.128};
+    migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 1, 96}};
+    std::vector<float> qkv_data = {
+        6.153,  7.545,  -0.804, -6.835, -6.139, 2.956,  6.716,  6.893,  7.473,  -9.716, -3.429,
+        -4.660, 7.343,  -3.562, 9.919,  -7.503, 4.383,  -2.274, 1.762,  -6.985, 4.702,  -5.070,
+        5.009,  6.450,  -2.873, 0.363,  0.052,  -9.278, 1.541,  -2.714, 0.147,  -5.890, -5.202,
+        -9.477, 1.640,  9.588,  8.967,  -2.795, -8.801, 7.888,  -7.699, -6.706, -7.154, 6.284,
+        -5.744, -5.343, 4.492,  -8.902, 1.595,  0.696,  5.202,  1.360,  -0.066, -1.406, -5.225,
+        -4.940, 6.140,  2.266,  -6.849, -7.607, 0.914,  0.885,  9.477,  -7.357, 8.032,  9.065,
+        -5.225, 6.465,  0.300,  -9.999, -0.089, 6.549,  -8.623, -7.224, 7.020,  -5.164, -8.470,
+        -9.049, 0.766,  -8.397, 2.805,  7.043,  2.467,  8.405,  0.738,  -3.961, -4.948, 7.460,
+        2.534,  -4.354, -5.608, 2.411,  -7.487, -0.264, -7.888, 0.128};
 
-//     migraphx::shape key_value_shape{migraphx::shape::float_type, {1}};
-//     std::vector<float> key_value_data = {0};
+    migraphx::shape key_value_shape{migraphx::shape::float_type, {1}};
+    std::vector<float> key_value_data = {0};
 
-//     migraphx::shape past_key_values_shape{migraphx::shape::half_type, {1, 2, 10, 16}};
-//     std::vector<float> past_key_values_data(past_key_values_shape.elements(), 1);
+    migraphx::shape past_key_values_shape{migraphx::shape::half_type, {1, 2, 10, 16}};
+    std::vector<float> past_key_values_data(past_key_values_shape.elements(), 1);
 
-//     migraphx::shape slk_shape{migraphx::shape::int32_type, {1, 1}};
-//     std::vector<int> slk_data = {8};
+    migraphx::shape slk_shape{migraphx::shape::int32_type, {1, 1}};
+    std::vector<int> slk_data = {8};
 
-//     migraphx::literal qkv{qkv_shape, qkv_data};
-//     migraphx::literal key{key_value_shape, key_value_data};
-//     migraphx::literal value{key_value_shape, key_value_data};
-//     migraphx::literal past_key_values_key{past_key_values_shape, past_key_values_data};
-//     migraphx::literal past_key_values_value{past_key_values_shape, past_key_values_data};
-//     migraphx::literal seqlens_k{slk_shape, slk_data};
+    migraphx::literal qkv{qkv_shape, qkv_data};
+    migraphx::literal key{key_value_shape, key_value_data};
+    migraphx::literal value{key_value_shape, key_value_data};
+    migraphx::literal past_key_values_key{past_key_values_shape, past_key_values_data};
+    migraphx::literal past_key_values_value{past_key_values_shape, past_key_values_data};
+    migraphx::literal seqlens_k{slk_shape, slk_data};
 
-//     migraphx::parameter_map pp;
-//     pp["qkv"]                   = qkv.get_argument();
-//     pp["key"]                   = key.get_argument();
-//     pp["value"]                 = value.get_argument();
-//     pp["past_key_values_key"]   = past_key_values_key.get_argument();
-//     pp["past_key_values_value"] = past_key_values_value.get_argument();
-//     pp["seqlens_k"]             = seqlens_k.get_argument();
+    migraphx::parameter_map pp;
+    pp["qkv"]                   = qkv.get_argument();
+    pp["key"]                   = key.get_argument();
+    pp["value"]                 = value.get_argument();
+    pp["past_key_values_key"]   = past_key_values_key.get_argument();
+    pp["past_key_values_value"] = past_key_values_value.get_argument();
+    pp["seqlens_k"]             = seqlens_k.get_argument();
 
-//     auto outputs       = p.eval(pp);
-//     const auto& result = outputs.front();
-//     std::vector<float> result_vector;
-//     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
-//     const auto& pres_key = outputs.at(1);
-//     std::vector<float> pres_key_vector;
-//     pres_key.visit([&](auto output) { pres_key_vector.assign(output.begin(), output.end()); });
-//     const auto& pres_val = outputs.back();
-//     std::vector<float> pres_val_vector;
-//     pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
+    auto outputs       = p.eval(pp);
+    const auto& result = outputs.front();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    const auto& pres_key = outputs.at(1);
+    std::vector<float> pres_key_vector;
+    pres_key.visit([&](auto output) { pres_key_vector.assign(output.begin(), output.end()); });
+    const auto& pres_val = outputs.back();
+    std::vector<float> pres_val_vector;
+    pres_val.visit([&](auto output) { pres_val_vector.assign(output.begin(), output.end()); });
 
-//     std::vector<float> gold   = {1,        1,         1,        1,       1,        1,        1,
-//                                  1,        1,         1,        1,       1,        1,        1,
-//                                  1,        1,         2.80469,  7.04297, 2.4668,   8.39844,  0.737793,
-//                                  -3.96094, -4.94531,  7.45703,  2.5332,  -4.35156, -5.60547, 2.41016,
-//                                  -7.48438, -0.263916, -7.88672, 0.12793};
-//     std::vector<float> gold_k = {
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        2.49609,  -2.77344, 8.78906,   3.30469,  14.7031,  2.54492,  -13.2812,
-//         16.7812,  -12.8906, -16.1719, -5.51172, 15.8672,   3.21875,  -8.13281, -4.30859, -1.01172,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         -4.53906, -1.56934, 12.0469,  8.96094,  -0.979492, -2.28906, -14.6953, 2.41797,  7.73047,
-//         2.96094,  -1.64844, -6.24609, 0.847168, -0.520508, 4.25391,  -12.2891, 1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1};
-//     std::vector<float> gold_v = {
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        8.03125,  9.0625,   -5.22266,  6.46484,  0.299805, -9.99219, -0.0889893,
-//         6.54688,  -8.61719, -7.22266, 7.01953,  -5.16016,  -8.46875, -9.04688, 0.765625, -8.39062,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         2.80469,  7.04297,  2.4668,   8.39844,  0.737793,  -3.96094, -4.94531, 7.45703,  2.5332,
-//         -4.35156, -5.60547, 2.41016,  -7.48438, -0.263916, -7.88672, 0.12793,  1,        1,
-//         1,        1,        1,        1,        1,         1,        1,        1,        1,
-//         1,        1,        1,        1,        1};
+    std::vector<float> gold   = {1,        1,         1,        1,       1,        1,        1,
+                                 1,        1,         1,        1,       1,        1,        1,
+                                 1,        1,         2.80469,  7.04297, 2.4668,   8.39844,  0.737793,
+                                 -3.96094, -4.94531,  7.45703,  2.5332,  -4.35156, -5.60547, 2.41016,
+                                 -7.48438, -0.263916, -7.88672, 0.12793};
+    std::vector<float> gold_k = {
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        2.49609,  -2.77344, 8.78906,   3.30469,  14.7031,  2.54492,  -13.2812,
+        16.7812,  -12.8906, -16.1719, -5.51172, 15.8672,   3.21875,  -8.13281, -4.30859, -1.01172,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        -4.53906, -1.56934, 12.0469,  8.96094,  -0.979492, -2.28906, -14.6953, 2.41797,  7.73047,
+        2.96094,  -1.64844, -6.24609, 0.847168, -0.520508, 4.25391,  -12.2891, 1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1};
+    std::vector<float> gold_v = {
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        8.03125,  9.0625,   -5.22266,  6.46484,  0.299805, -9.99219, -0.0889893,
+        6.54688,  -8.61719, -7.22266, 7.01953,  -5.16016,  -8.46875, -9.04688, 0.765625, -8.39062,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        2.80469,  7.04297,  2.4668,   8.39844,  0.737793,  -3.96094, -4.94531, 7.45703,  2.5332,
+        -4.35156, -5.60547, 2.41016,  -7.48438, -0.263916, -7.88672, 0.12793,  1,        1,
+        1,        1,        1,        1,        1,         1,        1,        1,        1,
+        1,        1,        1,        1,        1};
 
-//     EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
-//                                                          migraphx::verify::expected{gold}));
-//     EXPECT(migraphx::verify::verify_range_with_tolerance(pres_key_vector,
-//                                                          migraphx::verify::expected{gold_k}));
-//     EXPECT(migraphx::verify::verify_range_with_tolerance(pres_val_vector,
-//                                                          migraphx::verify::expected{gold_v}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
+                                                         migraphx::verify::expected{gold}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(pres_key_vector,
+                                                         migraphx::verify::expected{gold_k}));
+    EXPECT(migraphx::verify::verify_range_with_tolerance(pres_val_vector,
+                                                         migraphx::verify::expected{gold_v}));
 }
 
 TEST_CASE(group_query_attention_prefill_local_test)
 {
     auto p = read_onnx("group_query_attention_prefill_local_test.onnx");
-    p.compile(migraphx::make_target("ref"));
+    migraphx::compile_options options;
+    options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), options);
+    std::cout << p << std::endl;
 
     migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 8, 96}};
     std::vector<float> qkv_data = {
@@ -399,19 +404,33 @@ TEST_CASE(group_query_attention_prefill_local_test)
         1,         1,         1,         1,          1,        1,         1,        1,
         1,         1,         1,         1,          1,        1,         1,        1};
 
-    std::cout << "Hello" << std::endl;
-    EXPECT(migraphx::verify::verify_range_with_tolerance(result_vector,
+    std::cout << "Result vector" << std::endl;
+    std::cout << migraphx::to_string_range(result_vector) << std::endl;
+    std::cout << "Gold" << std::endl;
+    std::cout << migraphx::to_string_range(gold) << std::endl;
+    CHECK(migraphx::verify::verify_range_with_tolerance(result_vector,
                                                          migraphx::verify::expected{gold}));
-    EXPECT(migraphx::verify::verify_range_with_tolerance(pres_key_vector,
+    std::cout << "Present key vector" << std::endl;
+    std::cout << migraphx::to_string_range(pres_key_vector) << std::endl;
+    std::cout << "Pres key gold" << std::endl;
+    std::cout << migraphx::to_string_range(gold_k) << std::endl;
+    CHECK(migraphx::verify::verify_range_with_tolerance(pres_key_vector,
                                                          migraphx::verify::expected{gold_k}));
-    EXPECT(migraphx::verify::verify_range_with_tolerance(pres_val_vector,
+    std::cout << "Present val vector" << std::endl;
+    std::cout << migraphx::to_string_range(pres_val_vector) << std::endl;
+    std::cout << "Pres val gold" << std::endl;
+    std::cout << migraphx::to_string_range(gold_v) << std::endl;
+    CHECK(migraphx::verify::verify_range_with_tolerance(pres_val_vector,
                                                          migraphx::verify::expected{gold_v}));
 }
 
 TEST_CASE(group_query_attention_decode_test)
 {
     auto p = read_onnx("group_query_attention_decode_test.onnx");
-    p.compile(migraphx::make_target("ref"));
+    migraphx::compile_options options;
+    options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), options);
+    std::cout << p << std::endl;
 
     migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 1, 96}};
     std::vector<float> qkv_data = {
@@ -551,7 +570,10 @@ TEST_CASE(group_query_attention_decode_test)
 TEST_CASE(group_query_attention_prefill_test)
 {
     auto p = read_onnx("group_query_attention_prefill_test.onnx");
-    p.compile(migraphx::make_target("ref"));
+    migraphx::compile_options options;
+    options.offload_copy = true;
+    p.compile(migraphx::make_target("gpu"), options);
+    std::cout << p << std::endl;
 
     migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 8, 96}};
     std::vector<float> qkv_data = {

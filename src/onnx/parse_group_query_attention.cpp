@@ -31,6 +31,9 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK);
+
 namespace onnx {
 
 struct parse_group_query_attention : op_parser<parse_group_query_attention>
@@ -134,15 +137,25 @@ struct parse_group_query_attention : op_parser<parse_group_query_attention>
             auto pos_ids = args.at(5);
             if(sequence_length > 1)
             {
-                pos_ids =
-                    info.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
+                pos_ids = info.add_literal(literal{shape{pos_ids->get_shape().type(), {1}}, {0}});
             }
-            qk = info.add_instruction(
-                make_op("rotary_embedding", {{"interleaved", rotary_interleaved}}),
-                qk,
-                pos_ids,
-                args.at(7),
-                args.at(8));
+            if(not enabled(MIGRAPHX_ENABLE_CK{}))
+            {
+                qk = op::builder::add("rotary_embedding",
+                                      *info.mod,
+                                      {qk, pos_ids, args.at(7), args.at(8)},
+                                      {{"interleaved", rotary_interleaved}})
+                         .at(0);
+            }
+            else
+            {
+                qk = info.add_instruction(
+                    make_op("rotary_embedding", {{"interleaved", rotary_interleaved}}),
+                    qk,
+                    pos_ids,
+                    args.at(7),
+                    args.at(8));
+            }
         }
 
         auto q = info.add_instruction(

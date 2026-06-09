@@ -197,6 +197,7 @@ struct pipeline_factory
 
     std::vector<pass> backend_pipeline() const
     {
+        std::size_t max_memory = get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
         return {
             auto_contiguous{},
             dead_code_elimination{},
@@ -225,7 +226,7 @@ struct pipeline_factory
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{},
+            write_literals{.max_memory = max_memory},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},

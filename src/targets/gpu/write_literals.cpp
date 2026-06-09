@@ -21,16 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <cstddef>
 #include <migraphx/gpu/write_literals.hpp>
-#include <migraphx/iterator_for.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/liveness.hpp>
 #include <migraphx/algorithm.hpp>
+#include <cstddef>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

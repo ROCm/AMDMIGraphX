@@ -22,15 +22,16 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/write_literals.hpp>
-#include <migraphx/module.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/generate.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/generate.hpp>
-#include <migraphx/value.hpp>
-#include <migraphx/pass_manager.hpp>
-#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/memory_coloring.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/value.hpp>
 #include <numeric>
 #include <test.hpp>
 

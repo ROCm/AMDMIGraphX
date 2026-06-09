@@ -24,7 +24,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
 
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/config.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

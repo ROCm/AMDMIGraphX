@@ -383,14 +383,14 @@ bool instruction::can_eval() const
         auto it = cache.find(&ins);
         if(it != cache.end())
             return it->second;
-        bool result = false;
+        bool evaluable = false;
         if(ins.name() == "@literal")
-            result = true;
+            evaluable = true;
         else if(is_context_free(ins.get_operator()))
-            result = std::all_of(
+            evaluable = std::all_of(
                 ins.inputs().begin(), ins.inputs().end(), [&](auto arg) { return self(*arg); });
-        cache.emplace(&ins, result);
-        return result;
+        cache.emplace(&ins, evaluable);
+        return evaluable;
     })(*this);
 }
 
@@ -422,9 +422,9 @@ argument instruction::eval(bool check_eval) const
                        ins.inputs().end(),
                        std::back_inserter(args),
                        [&](auto arg) { return self(*arg); });
-        auto result = ins.normalized_operator().compute(ins.get_shape(), args);
-        cache.emplace(&ins, result);
-        return result;
+        auto value = ins.normalized_operator().compute(ins.get_shape(), args);
+        cache.emplace(&ins, value);
+        return value;
     })(*this);
 }
 

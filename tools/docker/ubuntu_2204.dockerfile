@@ -20,11 +20,9 @@ RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     apt-utils \
     build-essential \
-    #clang-format-10 \
     cmake \
     curl \
     doxygen \
-    #g++-7 \
     gdb \
     git \
     lcov \
@@ -59,7 +57,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     rm -rf /var/lib/apt/lists/*
 
 
-# add this for roctracer dependancies
+# add this for roctracer dependencies
 RUN pip3 install CppHeaderParser
 
 # Workaround broken rocm packages

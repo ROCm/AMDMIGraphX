@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -174,10 +174,37 @@ struct tuple : tuple_detail::tuple_base<Ts...>
     friend constexpr bool operator>=(const tuple& x, const tuple& y) { return not(x < y); }
 };
 
+template <class T>
+struct is_tuple : false_type
+{
+};
+
+template <class... Ts>
+struct is_tuple<tuple<Ts...>> : true_type
+{
+};
+
 template <class... Ts>
 constexpr tuple<Ts...> make_tuple(Ts... xs)
 {
     return {xs...};
+}
+
+// zip tuples of the same arity
+template <class T, class... Ts>
+constexpr auto tuple_transform(T x, Ts... xs)
+{
+    return [=](auto f) {
+        return sequence(x.size(), [&](auto... is) { return make_tuple(f(x[is], xs[is]...)...); });
+    };
+}
+
+// Build a tuple with one element per index: the callback runs for each index implied
+// by the length n, and n is fixed at compile time
+template <class N, class F>
+constexpr auto generate_tuple(N n, F f)
+{
+    return sequence(n, [&](auto... is) { return make_tuple(f(is)...); });
 }
 
 } // namespace migraphx

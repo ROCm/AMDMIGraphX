@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,6 +56,7 @@ struct marker;
  */
 struct MIGRAPHX_EXPORT program
 {
+
     program();
 
     explicit program(module m);
@@ -79,6 +80,8 @@ struct MIGRAPHX_EXPORT program
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
 
+    int get_program_file_version() const;
+
     std::size_t total_instructions() const;
 
     std::vector<argument> eval(const parameter_map& params,
@@ -95,6 +98,8 @@ struct MIGRAPHX_EXPORT program
 
     context& get_context() const;
 
+    void clear_context();
+
     instruction_ref validate() const;
 
     target_assignments get_target_assignments(const std::vector<target>& targets,
@@ -108,6 +113,11 @@ struct MIGRAPHX_EXPORT program
     bool is_compiled() const;
 
     void finalize();
+
+    // Attach `t` and finalize an already-lowered program (e.g. one loaded from
+    // an .mxr) without running compile passes that would mutate the lowered
+    // instructions.
+    void finalize(const target& t);
 
     void perf_report(std::ostream& os,
                      std::size_t n,
@@ -165,6 +175,9 @@ struct MIGRAPHX_EXPORT program
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
+    // program file version is for the data structure or format of the MXR file. Version should be
+    // bumped if any changes occur to the format of the MXR file.
+    static constexpr int program_file_version = 8;
 };
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

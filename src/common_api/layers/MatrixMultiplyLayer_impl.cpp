@@ -82,7 +82,7 @@ void MatrixMultiplyLayer_impl::build() noexcept
             return mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {axis}}}), arg);
         }
         case MatrixOperation::kNONE:
-        default: return arg;
+            return arg;
         }
     };
 

@@ -559,9 +559,16 @@ struct find_slice_shape_transforms
             return;
         new_desc.simplify();
 
-        // Optimizes shape transforms if the slice cant be optimized
+        // Bail to the safe path if rebasing onto the slice input is unsafe:
+        // either the sliced axis splits into multiple dst axes, or the rebase
+        // changed the output shape on a sliced axis
         if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-               return new_desc.get_dst_axes_from_src(axis).size() != 1;
+               if(new_desc.get_dst_axes_from_src(axis).size() != 1)
+                   return true;
+               auto dst_axis = new_desc.get_dst_axes_from_src(axis).front();
+               return new_desc.lens()[dst_axis] * slice->get_shape().lens()[axis] !=
+                      ins->get_shape().lens()[dst_axis] *
+                          slice->inputs().front()->get_shape().lens()[axis];
            }))
         {
             auto opt_ops = desc.generate();
@@ -593,7 +600,7 @@ struct find_nop_reshapes
     auto matcher() const
     {
         // clang-format off
-        static const std::unordered_set<std::string> names = {
+        static const std::unordered_set<std::string> shape_names = {
             "flatten",
             "reshape",
             "contiguous",
@@ -608,14 +615,18 @@ struct find_nop_reshapes
             "slice",
             "step",
             "transpose",
+        };
+        static const std::unordered_set<std::string> lens_names = {
             "reduce_mean",
             "reduce_max",
             "reduce_min",
             "reduce_sum",
             "reduce_prod",
         };
-
-       return match::name(names)(match::same_shape(match::arg(0)));
+        // clang-format on
+        auto shape_match = match::name(shape_names)(match::same_shape(match::arg(0)));
+        auto lens_match  = match::name(lens_names)(match::same_lens(match::arg(0)));
+        return match::any_of(shape_match, lens_match);
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -1241,8 +1252,7 @@ struct find_gather
         if(dlens.empty())
             return;
 
-        const std::size_t axis_index = 
-            tune_axis(dlens.size(), gather_op.axis, gather_op.name());
+        const std::size_t axis_index = tune_axis(dlens.size(), gather_op.axis, gather_op.name());
         const auto axis_len = dlens.at(axis_index);
         if(axis_len == 0)
             return;
@@ -1368,17 +1378,13 @@ struct find_reshape_cont
         auto lens = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());
 
-        if(in_ins->get_shape() != ins->get_shape())
+        if(in_ins->get_shape().lens() != ins->get_shape().lens())
         {
             return;
         }
 
-        if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
-               return i->get_shape().standard();
-           }))
-        {
+        if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
             return;
-        }
 
         auto out_lens = ins->get_shape().lens();
         std::vector<int64_t> out_dims(out_lens.begin(), out_lens.end());

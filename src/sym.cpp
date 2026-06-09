@@ -26,6 +26,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/stringutils.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -1125,9 +1126,12 @@ expr var(const std::string& name, interval bounds, std::set<int64_t> optimals)
     auto bmin = to<int64_t>(bounds.min);
     auto bmax = to<int64_t>(bounds.max);
     if(bmin > bmax)
-        MIGRAPHX_THROW("sym::var: variable interval must satisfy min <= max");
+        MIGRAPHX_THROW("sym::var: variable '" + name +
+                       "' interval must satisfy min <= max but got [" + to_string(bmin) + ", " +
+                       to_string(bmax) + "]");
     if(bmin < 1)
-        MIGRAPHX_THROW("sym::var: variable interval must satisfy min >= 1");
+        MIGRAPHX_THROW("sym::var: variable '" + name +
+                       "' interval must satisfy min >= 1 but got min=" + to_string(bmin));
     return {std::make_shared<expr::impl>(make_symbol(name, bmin, bmax, std::move(optimals)))};
 }
 

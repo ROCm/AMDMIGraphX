@@ -138,7 +138,7 @@ struct stream_model
         typename = private_te_constraints<PrivateDetailTypeErasedT>,
         typename = typename std::enable_if<
             not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, stream_model>{}>::type>
-    stream_model& operator=(PrivateDetailTypeErasedT&& value)
+    stream_model& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();

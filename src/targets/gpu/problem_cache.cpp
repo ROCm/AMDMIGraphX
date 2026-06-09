@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/file_buffer.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 
 namespace migraphx {
@@ -43,7 +44,7 @@ void problem_cache::load()
         return;
     if(not fs::exists(pc_path))
     {
-        std::cout << "Problem cache not found. Creating new file.\n";
+        log::info() << "Problem cache not found. Creating new file.";
         save();
         return;
     }

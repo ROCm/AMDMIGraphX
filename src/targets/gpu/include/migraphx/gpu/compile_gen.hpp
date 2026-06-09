@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,7 +36,6 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct shape;
 struct operation;
 
 namespace gpu {
@@ -96,7 +95,7 @@ std::string make_transformer_args(const Ts&... xs)
 std::string
 generate_pointwise(const module& pm, const std::string& name, bool always_return_tuple = false);
 
-std::string generate_reduce(module m, const std::string& name);
+MIGRAPHX_GPU_EXPORT std::string generate_reduce(module m, const std::string& name);
 
 std::string generate_name_from_ops(const module& m, const std::string& postname = "");
 

@@ -31,8 +31,9 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/erase.hpp>
 #include <migraphx/config.hpp>
-#include <string>
+#include <set>
 #include <unordered_set>
+#include <string>
 #include <utility>
 
 namespace migraphx {
@@ -55,6 +56,17 @@ MIGRAPHX_EXPORT bool is_interdependent(const std::vector<instruction_ref>& instr
                                        instruction_ref root);
 MIGRAPHX_EXPORT std::unordered_set<instruction_ref>
 find_instructions_between(instruction_ref start, instruction_ref end, const_module_ref m);
+
+/**
+ * Return instructions reachable from `ends` by traversing their inputs until reaching any
+ * of `starts` (which are excluded).
+ * Used to collect instructions added between known inputs (`starts`) and outputs (`ends`).
+ * `starts`: inputs to parser/builder.
+ * `ends`: instructions returned by parser/builder.
+ */
+MIGRAPHX_EXPORT std::vector<instruction_ref>
+get_added_instructions(const std::vector<instruction_ref>& starts,
+                       const std::vector<instruction_ref>& ends);
 
 struct MIGRAPHX_EXPORT instruction
 {
@@ -94,6 +106,14 @@ struct MIGRAPHX_EXPORT instruction
 
     /// Where this instruction is used as an input to another instruction
     const std::vector<instruction_ref>& outputs() const;
+
+    const std::set<std::string>& get_debug_symbols() const;
+
+    /// Avoid using directly because module will not track number of debug symbols
+    void add_debug_symbols(const std::set<std::string>& symbols);
+
+    /// Avoid using directly because module will not track number of debug symbols
+    void remove_debug_symbols();
 
     MIGRAPHX_EXPORT friend bool operator==(const instruction& x, const instruction& y);
 
@@ -188,6 +208,7 @@ struct MIGRAPHX_EXPORT instruction
     std::vector<instruction_ref> output;
     std::vector<instruction_ref> arguments;
     std::vector<module_ref> module_args;
+    std::set<std::string> debug_symbols;
     literal lit;
     bool normalized       = false;
     std::size_t target_id = 0;

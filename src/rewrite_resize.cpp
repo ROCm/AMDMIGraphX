@@ -127,6 +127,8 @@ static instruction_ref rewrite_nearest_resize(module& m,
     auto nearest_op = op::resize::get_nearest_op(nearest_mode);
     auto idx_op     = op::resize::get_original_idx_op(coord_trans_mode);
 
+    // Use standard strides for index computation since reshape will make input contiguous
+    auto std_in_s = in_s.as_standard();
     shape_for_each(out_s, [&](const auto& out_idx_v, size_t out_idx) {
         std::vector<size_t> in_idx(out_idx_v.size());
         for(std::size_t ii = 0; ii < in_lens.size(); ++ii)
@@ -135,7 +137,7 @@ static instruction_ref rewrite_nearest_resize(module& m,
             in_idx[ii]   = nearest_op(in_lens[ii], idx_val);
         }
 
-        ind[out_idx] = in_s.index(in_idx);
+        ind[out_idx] = std_in_s.index(in_idx);
     });
 
     auto rsp = m.insert_instruction(

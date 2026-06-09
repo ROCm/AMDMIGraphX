@@ -197,7 +197,8 @@ struct pipeline_factory
 
     std::vector<pass> backend_pipeline() const
     {
-        std::size_t max_memory = get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
+        std::size_t max_memory =
+            get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
         return {
             auto_contiguous{},
             dead_code_elimination{},

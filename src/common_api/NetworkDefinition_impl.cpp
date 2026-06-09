@@ -12,6 +12,7 @@
 #include "layers/GatherLayer_impl.hpp"
 #include "layers/ElementWiseLayer_impl.hpp"
 #include "layers/MatrixMultiplyLayer_impl.hpp"
+#include "layers/SliceLayer_impl.hpp"
 
 namespace nvinfer1
 {
@@ -219,8 +220,8 @@ IPluginV3Layer* NvNetworkDefinition_impl::addPluginV3(ITensor* const* inputs, in
 
 ISliceLayer* NvNetworkDefinition_impl::addSlice(ITensor& input, Dims const& start, Dims const& size, Dims const& stride) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr; 
+	mLayers.push_back(std::make_unique<SliceLayer_impl>(input, start, size, stride, mProgram));
+	return dynamic_cast<ISliceLayer*>(mLayers.back().get());
 }
 
 void NvNetworkDefinition_impl::setName(char const* name) noexcept
@@ -566,11 +567,22 @@ void NvNetworkDefinition_impl::build() noexcept
 	}
 
 	// Phase 2: build the regular layers. Body layers now target the loop
-	// submodule; everything else targets the main module.
+	// submodule; everything else targets the main module. Constant layers are
+	// built first: they have no layer inputs, and other layers (e.g. an
+	// ISliceLayer in kFILL mode) may consume a constant that was added after
+	// them, so their instruction must already exist.
 	std::for_each(mLayers.begin(), mLayers.end(),
 		[](auto& layer)
 		{
-			layer->build();
+			if(layer->getType() == LayerType::kCONSTANT)
+				layer->build();
+		}
+	);
+	std::for_each(mLayers.begin(), mLayers.end(),
+		[](auto& layer)
+		{
+			if(layer->getType() != LayerType::kCONSTANT)
+				layer->build();
 		}
 	);
 

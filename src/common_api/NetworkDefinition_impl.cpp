@@ -13,6 +13,7 @@
 #include "layers/ElementWiseLayer_impl.hpp"
 #include "layers/MatrixMultiplyLayer_impl.hpp"
 #include "layers/SliceLayer_impl.hpp"
+#include "layers/ShuffleLayer_impl.hpp"
 
 namespace nvinfer1
 {
@@ -112,8 +113,8 @@ IUnaryLayer* NvNetworkDefinition_impl::addUnary(ITensor& input, UnaryOperation o
 
 IShuffleLayer* NvNetworkDefinition_impl::addShuffle(ITensor& input) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	mLayers.push_back(std::make_unique<ShuffleLayer_impl>(input, mProgram));
+	return dynamic_cast<IShuffleLayer*>(mLayers.back().get());
 }
 
 int32_t NvNetworkDefinition_impl::getNbLayers() const noexcept

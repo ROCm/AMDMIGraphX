@@ -192,7 +192,58 @@ void sparsifyMatMulKernelWeights(nvinfer1::INetworkDefinition& network, std::vec
             shuffleL2O.insert({l, l->getOutput(0)});
             break;
         }
-        default: break;
+
+        // !!MGX!! this is for eliminate warning messages
+        case nvinfer1::LayerType::kCONVOLUTION:
+        case nvinfer1::LayerType::kCAST:
+        case nvinfer1::LayerType::kACTIVATION:
+        case nvinfer1::LayerType::kPOOLING:
+        case nvinfer1::LayerType::kLRN:
+        case nvinfer1::LayerType::kSCALE:
+        case nvinfer1::LayerType::kSOFTMAX:
+        case nvinfer1::LayerType::kDECONVOLUTION:
+        case nvinfer1::LayerType::kCONCATENATION:
+        case nvinfer1::LayerType::kELEMENTWISE:
+        case nvinfer1::LayerType::kPLUGIN:
+        case nvinfer1::LayerType::kUNARY:
+        case nvinfer1::LayerType::kPADDING:
+        case nvinfer1::LayerType::kREDUCE:
+        case nvinfer1::LayerType::kTOPK:
+        case nvinfer1::LayerType::kGATHER:
+        case nvinfer1::LayerType::kRAGGED_SOFTMAX:
+        case nvinfer1::LayerType::kIDENTITY:
+        case nvinfer1::LayerType::kPLUGIN_V2:
+        case nvinfer1::LayerType::kSLICE:
+        case nvinfer1::LayerType::kSHAPE:
+        case nvinfer1::LayerType::kPARAMETRIC_RELU:
+        case nvinfer1::LayerType::kRESIZE:
+        case nvinfer1::LayerType::kTRIP_LIMIT:
+        case nvinfer1::LayerType::kRECURRENCE:
+        case nvinfer1::LayerType::kITERATOR:
+        case nvinfer1::LayerType::kLOOP_OUTPUT:
+        case nvinfer1::LayerType::kSELECT:
+        case nvinfer1::LayerType::kFILL:
+        case nvinfer1::LayerType::kQUANTIZE:
+        case nvinfer1::LayerType::kDEQUANTIZE:
+        case nvinfer1::LayerType::kCONDITION:
+        case nvinfer1::LayerType::kCONDITIONAL_INPUT:
+        case nvinfer1::LayerType::kCONDITIONAL_OUTPUT:
+        case nvinfer1::LayerType::kSCATTER:
+        case nvinfer1::LayerType::kEINSUM:
+        case nvinfer1::LayerType::kASSERTION:
+        case nvinfer1::LayerType::kONE_HOT:
+        case nvinfer1::LayerType::kNON_ZERO:
+        case nvinfer1::LayerType::kGRID_SAMPLE:
+        case nvinfer1::LayerType::kNMS:
+        case nvinfer1::LayerType::kREVERSE_SEQUENCE:
+        case nvinfer1::LayerType::kNORMALIZATION:
+        case nvinfer1::LayerType::kPLUGIN_V3:
+        case nvinfer1::LayerType::kSQUEEZE:
+        case nvinfer1::LayerType::kUNSQUEEZE:
+        case nvinfer1::LayerType::kCUMULATIVE:
+        case nvinfer1::LayerType::kDYNAMIC_QUANTIZE:
+        break;
+        // default: break;
         }
     };
     int32_t const nbLayers = network.getNbLayers();

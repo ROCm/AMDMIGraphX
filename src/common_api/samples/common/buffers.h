@@ -190,7 +190,8 @@ class DeviceFree
 public:
     void operator()(void* ptr) const
     {
-        hipFree(ptr);
+        // !!MGX!! this is for eliminate warning messages
+        (void)hipFree(ptr);
     }
 };
 

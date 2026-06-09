@@ -198,7 +198,9 @@ private:
         case Severity::kWARNING: return "[W] ";
         case Severity::kINFO: return "[I] ";
         case Severity::kVERBOSE: return "[V] ";
-        default: assert(0); return "";
+        
+        // !!MGX!! this is for eliminate warning messages
+        // default: assert(0); return "";
         }
     }
 
@@ -462,7 +464,9 @@ private:
         case Severity::kWARNING: return "[W] ";
         case Severity::kINFO: return "[I] ";
         case Severity::kVERBOSE: return "[V] ";
-        default: assert(0); return "";
+
+        // !!MGX!! this is for eliminate warning messages
+        // default: assert(0); return "";
         }
     }
 
@@ -477,7 +481,9 @@ private:
         case TestResult::kPASSED: return "PASSED";
         case TestResult::kFAILED: return "FAILED";
         case TestResult::kWAIVED: return "WAIVED";
-        default: assert(0); return "";
+        
+        // !!MGX!! this is for eliminate warning messages
+        // default: assert(0); return "";
         }
     }
 

@@ -245,10 +245,10 @@ struct BuildEnvironment
     BuildEnvironment(BuildEnvironment&& other) = delete;
     BuildEnvironment(bool isSafe, bool versionCompatible, int32_t DLACore, std::string const& tempdir,
         nvinfer1::TempfileControlFlags tempfileControls, std::string const& leanDLLPath = "",
-        std::string const& cmdline = "")
+        std::string const& cmdline_ = "")                                                       // !!MGX!! this is for eliminate warning messages
         : engine(isSafe, versionCompatible, DLACore, tempdir, tempfileControls, leanDLLPath)
         , kernelText(false, false, -1, "", tempfileControls, "")
-        , cmdline(cmdline)
+        , cmdline(cmdline_)                                                                     // !!MGX!! this is for eliminate warning messages
     {
     }
 

@@ -70,8 +70,9 @@ template <typename T>
 void dumpBuffer(void const* buffer, std::string const& separator, std::ostream& os, nvinfer1::Dims const& dims,
     nvinfer1::Dims const& strides, int32_t vectorDim, int32_t spv);
 
-void dumpInt4Buffer(void const* buffer, std::string const& separator, std::ostream& os, Dims const& dims,
-    Dims const& strides, int32_t vectorDim, int32_t spv);
+// !!MGX!! this is for eliminate warning messages
+void dumpInt4Buffer(void const* buffer, std::string const& separator, std::ostream& os, nvinfer1::Dims const& dims,
+    nvinfer1::Dims const& strides, int32_t vectorDim, int32_t spv);
 
 void loadFromFile(std::string const& fileName, char* dst, size_t size);
 

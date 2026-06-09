@@ -15,6 +15,13 @@
  * limitations under the License.
  */
 
+// !!MGX!! this is for eliminate warning messages
+#define ENABLE_UNIFIED_BUILDER 0
+#define CUDA_VERSION 0
+#define ENABLE_ASAN 0
+#define CUDART_VERSION 0
+#define SANITIZER_BUILD 0
+
 #ifndef TENSORRT_COMMON_H
 #define TENSORRT_COMMON_H
 #include <migraphx/common_api/NvInfer.h>        // #include "NvInfer.h"
@@ -64,7 +71,8 @@
 #define ENABLE_DLA_API 1
 #endif
 
-using namespace nvinfer1;
+// !!MGX!! this is for eliminate warning messages
+// using namespace nvinfer1;
 
 #define CHECK_RETURN_W_MSG(status, val, errMsg)                                                                        \
     do                                                                                                                 \
@@ -105,15 +113,16 @@ using namespace nvinfer1;
 #undef CHECK
 #define CHECK(status) CHECK_WITH_STREAM(status, std::cerr)
 
-constexpr long double operator"" _GiB(long double val)
+// !!MGX!! this is for eliminate warning messages
+constexpr long double operator""_GiB(long double val)
 {
     return val * (1 << 30);
 }
-constexpr long double operator"" _MiB(long double val)
+constexpr long double operator""_MiB(long double val)
 {
     return val * (1 << 20);
 }
-constexpr long double operator"" _KiB(long double val)
+constexpr long double operator""_KiB(long double val)
 {
     return val * (1 << 10);
 }
@@ -274,7 +283,9 @@ public:
     };
     ~TypedHostMemory() noexcept override
     {
-        delete[](ElemType*) mData;
+        // !!MGX!! this is for eliminate warning messages
+        // delete[](ElemType*) mData;
+        delete[] raw();
     }
     ElemType* raw() noexcept
     {
@@ -827,6 +838,9 @@ public:
         mMs = 0.F;
     }
 
+    // !!MGX!! this is for eliminate warning messages
+    virtual ~TimerBase() = default;
+
 protected:
     float mMs{0.0F};
 };
@@ -840,7 +854,8 @@ public:
         CHECK(hipEventCreate(&mStart));
         CHECK(hipEventCreate(&mStop));
     }
-    ~GpuTimer()
+    // !!MGX!! this is for eliminate warning messages
+    ~GpuTimer() override
     {
         CHECK(hipEventDestroy(mStart));
         CHECK(hipEventDestroy(mStop));

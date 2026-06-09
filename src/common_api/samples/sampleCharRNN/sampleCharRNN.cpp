@@ -51,7 +51,9 @@
 using namespace nvinfer1;
 using samplesCommon::SampleUniquePtr;
 
-const std::string gSampleName = "TensorRT.sample_char_rnn";
+// !!MGX!! this is for eliminate warning messages
+// const std::string gSampleName = "TensorRT.sample_char_rnn";
+static const char* const gSampleName = "TensorRT.sample_char_rnn";
 
 static const std::array<int, 4> INDICES{0, 1, 2, 3};
 
@@ -697,8 +699,9 @@ void SampleCharRNNBase::constructNetwork(SampleUniquePtr<nvinfer1::IBuilder>& bu
 
     // Transpose FC weights since TensorFlow's weights are transposed when compared to TensorRT
     ASSERT(transposeSubBuffers(
-        (void*) mWeightMap[mParams.weightNames.FCW_NAME].values, mParams.hiddenSize, mParams.vocabSize));
-
+        // !!MGX!! this is for eliminate warning messages
+        // (void*) mWeightMap[mParams.weightNames.FCW_NAME].values, mParams.hiddenSize, mParams.vocabSize));
+        const_cast<void*>(mWeightMap[mParams.weightNames.FCW_NAME].values), mParams.hiddenSize, mParams.vocabSize));
     // add Constant layers for fully connected weights
     auto fcwts = network->addConstant(
         nvinfer1::Dims2(mParams.vocabSize, mParams.hiddenSize), mWeightMap[mParams.weightNames.FCW_NAME]);

@@ -18,6 +18,8 @@
 #ifndef TRT_SAMPLE_OPTIONS_H
 #define TRT_SAMPLE_OPTIONS_H
 
+// !!MGX!! this is for eliminate warning messages
+#define ENABLE_UNIFIED_BUILDER 0
 
 #include <array>
 #include <iostream>
@@ -167,7 +169,9 @@ public:
 
     bool isDisabled()
     {
-        return bytes == kDISABLE && percent == kDISABLE;
+        // !!MGX!! this is for eliminate warning messages
+        // return bytes == kDISABLE && percent == kDISABLE;
+        return bytes == kDISABLE && static_cast<int64_t>(percent) == kDISABLE;
     }
 };
 

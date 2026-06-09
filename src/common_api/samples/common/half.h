@@ -289,7 +289,8 @@ class half;
 /// ~~~~
 namespace literal
 {
-half operator"" _h(long double);
+// !!MGX!! this is for eliminate warning messages
+half operator""_h(long double);
 }
 #endif
 
@@ -801,6 +802,7 @@ uint16 float2half_impl(double value, true_type)
     return hbits;
 }
 
+
 /// Convert non-IEEE floating point to half-precision.
 /// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
 /// \tparam T source type (builtin floating point type)
@@ -810,7 +812,9 @@ template <std::float_round_style R, typename T>
 uint16 float2half_impl(T value, ...)
 {
     uint16 hbits = static_cast<unsigned>(builtin_signbit(value)) << 15;
-    if (value == T())
+    // !!MGX!! this is for eliminate warning messages
+    //if (value == T())
+    if (std::fpclassify(value) == FP_ZERO)
         return hbits;
     if (builtin_isnan(value))
         return hbits | 0x7FFF;
@@ -849,6 +853,15 @@ uint16 float2half_impl(T value, ...)
     else if (R == std::round_toward_neg_infinity)
         hbits += frac < T();
     return hbits;
+}
+
+// !!MGX!! explicit false_type overload to avoid -Wclass-varargs: without this, bool_type<false>
+// (a class type) would be passed through the variadic '...' parameter when T is e.g. long double.
+// Overload resolution prefers this over '...' so the class type never hits the ellipsis path.
+template <std::float_round_style R, typename T>
+uint16 float2half_impl(T value, false_type)
+{
+    return float2half_impl<R>(value, 0); // forward to variadic overload with a plain int tag
 }
 
 /// Convert floating point to half-precision.
@@ -1394,7 +1407,9 @@ class half
     friend struct std::hash<half>;
 #endif
 #if HALF_ENABLE_CPP11_USER_LITERALS
-    friend half literal::operator"" _h(long double);
+    // !!MGX!! this is for eliminate warning messages
+    // friend half literal::operator"" _h(long double);
+    friend half literal::operator""_h(long double);
 #endif
 
 public:
@@ -1553,7 +1568,8 @@ public:
 
 private:
     /// Rounding mode to use
-    static const std::float_round_style round_style = (std::float_round_style)(HALF_ROUND_STYLE);
+    // !!MGX!! this is for eliminate warning messages
+    static const std::float_round_style round_style = static_cast<std::float_round_style>(HALF_ROUND_STYLE);
 
     /// Constructor.
     /// \param bits binary representation to set half to
@@ -1571,7 +1587,9 @@ namespace literal
 /// to rather involved conversions.
 /// \param value literal value
 /// \return half with given value (if representable)
-inline half operator"" _h(long double value)
+// !!MGX!! this is for eliminate warning messages
+// inline half operator"" _h(long double value)
+inline half operator""_h(long double value)
 {
     return half(detail::binary, detail::float2half<half::round_style>(value));
 }
@@ -2155,10 +2173,12 @@ struct functions
     {
         int m = arg.data_ & 0x7FFF, e = -14;
         if (m >= 0x7C00 || !m)
-            return *exp = 0, arg;
+            // !!MGX!! this is for eliminate warning messages
+            return static_cast<void>( *exp = 0 ), arg;
         for (; m < 0x400; m <<= 1, --e)
             ;
-        return *exp = e + (m >> 10), half(binary, (arg.data_ & 0x8000) | 0x3800 | (m & 0x3FF));
+        // !!MGX!! this is for eliminate warning messages
+        return static_cast<void>( *exp = e + (m >> 10) ), half(binary, (arg.data_ & 0x8000) | 0x3800 | (m & 0x3FF));
     }
 
     /// Decompression implementation.
@@ -2169,9 +2189,11 @@ struct functions
     {
         uint32_t e = arg.data_ & 0x7FFF;
         if (e >= 0x6400)
-            return *iptr = arg, half(binary, arg.data_ & (0x8000U | -(e > 0x7C00)));
+            // !!MGX!! this is for eliminate warning messages
+            return static_cast<void>(*iptr = arg), half(binary, arg.data_ & (0x8000U | -(e > 0x7C00)));
         if (e < 0x3C00)
-            return iptr->data_ = arg.data_ & 0x8000, arg;
+            // !!MGX!! this is for eliminate warning messages
+            return static_cast<void>(iptr->data_ = arg.data_ & 0x8000), arg;
         e >>= 10;
         uint32_t mask = (1 << (25 - e)) - 1, m = arg.data_ & mask;
         iptr->data_ = arg.data_ & ~mask;
@@ -2308,7 +2330,9 @@ struct functions
         if (isnan(from))
             return from;
         long double lfrom = static_cast<long double>(from);
-        if (builtin_isnan(to) || lfrom == to)
+        // !!MGX!! this is for eliminate warning messages
+        // if (builtin_isnan(to) || lfrom == to)
+        if (builtin_isnan(to) || (!(lfrom < to) && !(lfrom > to)))
             return half(static_cast<float>(to));
         if (!(from.data_ & 0x7FFF))
             return half(binary, (static_cast<detail::uint16>(builtin_signbit(to)) << 15) + 1);
@@ -2609,7 +2633,8 @@ struct binary_specialized<half, half>
 /// \tparam T destination type
 /// \tparam U source type
 /// \tparam R rounding mode to use
-template <typename T, typename U, std::float_round_style R = (std::float_round_style)(HALF_ROUND_STYLE)>
+// !!MGX!! this is for eliminate warning messages
+template <typename T, typename U, std::float_round_style R = static_cast<std::float_round_style>(HALF_ROUND_STYLE)>
 struct half_caster
 {
 };

@@ -66,11 +66,13 @@ struct quant_dot
         supported_types.insert(shape::float_type);
         if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_DOT: only supports int8_t, uint8_t, float, and fp8");
+            MIGRAPHX_THROW("QUANT_DOT: only supports int8_t, uint8_t, float, and fp8, but given " +
+                           a.type_string());
         }
         if(not std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.ndim() >= 2; }))
         {
-            MIGRAPHX_THROW("QUANT_DOT: dot only accepts >= 2D operands");
+            MIGRAPHX_THROW("QUANT_DOT: dot only accepts >= 2D operands, but given A " +
+                           to_string(a) + " and B " + to_string(b));
         }
 
         auto out_type = (inputs.size() == 4 or contains(fp8_types{}.get(), t)) ? shape::float_type

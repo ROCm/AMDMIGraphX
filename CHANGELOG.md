@@ -28,6 +28,7 @@ Full documentation for MIGraphX is available at
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
+* Added documentation for using debug symbols (#4945).
 
 ### Changed
 

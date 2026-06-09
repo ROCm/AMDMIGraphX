@@ -167,7 +167,7 @@ static std::unordered_set<instruction_ref> find_copy_literals(const module& m, s
         if(ins->name() != "@literal")
             continue;
         result.insert(ins);
-        n -= ins->get_shape().bytes();
+        n -= std::ptrdiff_t(ins->get_shape().bytes());
     }
     return result;
 }

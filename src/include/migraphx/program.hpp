@@ -120,8 +120,6 @@ struct MIGRAPHX_EXPORT program
 
     void finalize();
 
-    void lower_literals_and_finalize(const target& t);
-
     void perf_report(std::ostream& os,
                      std::size_t n,
                      parameter_map params,
@@ -184,6 +182,19 @@ struct MIGRAPHX_EXPORT program
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
 };
+
+/// Copy the program and replace external-weight parameters with literals read
+/// from base_dir, producing a self-contained program suitable for saving as an
+/// MXR. The target is used to lower the baked literals for the device (e.g. the
+/// equivalent of write_literals + finalize).
+///
+/// Requires that the program's external_weight_map is non-empty (populated by
+/// a producer such as the ONNX parser when external_weights_as_parameters is
+/// enabled).
+MIGRAPHX_EXPORT program create_program_with_weights(const program& prog,
+                                                    const std::string& base_dir,
+                                                    const target& t);
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

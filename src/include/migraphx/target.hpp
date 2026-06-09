@@ -246,6 +246,11 @@ struct target
                  private_detail_te_default_allocate(char(0),
                                                     std::declval<PrivateDetailTypeErasedT>(),
                                                     std::declval<const shape&>()),
+                 private_detail_te_default_lower_baked_literals(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<module&>(),
+                     std::declval<context&>()),
                  void());
 
     template <class PrivateDetailTypeErasedT>

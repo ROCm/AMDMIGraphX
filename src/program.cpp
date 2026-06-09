@@ -43,6 +43,8 @@
 #include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/filesystem.hpp>
+#include <migraphx/file_buffer.hpp>
 
 #include <iostream>
 #include <queue>
@@ -371,51 +373,48 @@ void program::finalize()
     mm->finalize(this->impl->contexts);
 }
 
-void program::lower_literals_and_finalize(const target& t)
+program create_program_with_weights(const program& prog,
+                                    const std::string& base_dir,
+                                    const target& t)
 {
-    if(not this->is_compiled())
-        return;
+    program result(prog);
+    const auto& weight_map = result.get_external_weight_map();
+    if(weight_map.empty())
+        MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: program has no external weight map");
 
-    auto* mm = this->get_main_module();
+    auto* mm = result.get_main_module();
 
-    std::vector<instruction_ref> literal_refs;
-    for(auto ins : iterator_for(*mm))
+    // Generic step: replace each external-weight @param with the corresponding
+    // @literal. Any target-specific cleanup (e.g. lifting @literal to
+    // hip::hip_copy_literal, dropping now-redundant hip::copy_to_gpu copies,
+    // finalizing against the target's context) is delegated to the target via
+    // target::lower_baked_literals.
+    std::vector<instruction_ref> params_to_remove;
+    for(const auto& entry : weight_map)
     {
-        if(ins->name() == "@literal")
-            literal_refs.push_back(ins);
-    }
-    if(literal_refs.empty())
-        return;
+        const auto& name = entry.first;
+        const auto& info = entry.second;
 
-    // Determine the write_literals pass name for this target
-    auto& ctx   = this->impl->contexts.front();
-    auto passes = t.get_passes(ctx, compile_options{});
-    bool has_write_literals =
-        std::any_of(passes.begin(), passes.end(), [](const pass& p) {
-            return contains(p.name(), "write_literals");
-        });
-    if(not has_write_literals)
-        return;
+        auto param_ins = mm->get_parameter(name);
+        if(param_ins == mm->end())
+            MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: parameter \"" + name +
+                           "\" not found in program");
 
-    // Count existing hip_copy_literal instructions to avoid ID collisions
-    std::size_t n = 0;
-    for(auto ins : iterator_for(*mm))
-    {
-        if(ins->name() == "hip::hip_copy_literal")
-            n++;
-    }
+        auto s   = param_ins->get_shape();
+        auto raw = read_buffer(fs::path{base_dir} / info.filename, info.offset, info.nbytes);
 
-    // Replace each @literal with hip_copy_literal using unique IDs
-    for(auto ins : literal_refs)
-    {
-        std::string id = mm->name() + ":@literal:" + std::to_string(n);
-        value v;
-        v["literal"] = migraphx::to_value(ins->get_literal());
-        v["id"]      = id;
-        mm->replace_instruction(ins, make_op("hip::hip_copy_literal", v));
-        ins->finalize(this->impl->contexts[ins->get_target_id()]);
-        n++;
+        auto lit_ins = mm->add_literal(literal{s, raw.data()});
+        mm->replace_instruction(param_ins, lit_ins);
+        params_to_remove.push_back(param_ins);
     }
+    for(auto ins : params_to_remove)
+        mm->remove_instruction(ins);
+
+    if(result.is_compiled())
+        t.lower_baked_literals(*mm, result.get_context());
+
+    result.set_external_weight_map({});
+    return result;
 }
 
 template <class T>

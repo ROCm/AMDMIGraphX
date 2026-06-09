@@ -78,6 +78,9 @@
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -212,6 +215,58 @@ argument target::copy_to(const argument& arg) const { return gpu::to_gpu(arg); }
 argument target::copy_from(const argument& arg) const { return gpu::from_gpu(arg); }
 
 argument target::allocate(const shape& s) const { return gpu::allocate_gpu(s); }
+
+void target::lower_baked_literals(module& m, migraphx::context& ctx) const
+{
+    // Collect bare @literal instructions left over from a post-compile bake
+    // step (e.g. create_program_with_weights inserting external weights).
+    std::vector<instruction_ref> literal_refs;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "@literal")
+            literal_refs.push_back(ins);
+    }
+    if(literal_refs.empty())
+        return;
+
+    // Pick up where the original write_literals pass left off so the IDs
+    // for hip::hip_copy_literal don't collide with the ones already in the
+    // module (one per existing hip::hip_copy_literal instruction).
+    std::size_t n = 0;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() == "hip::hip_copy_literal")
+            n++;
+    }
+
+    for(auto ins : literal_refs)
+    {
+        std::string id = m.name() + ":@literal:" + std::to_string(n);
+        value v;
+        v["literal"] = migraphx::to_value(ins->get_literal());
+        v["id"]      = id;
+
+        // Remember any downstream hip::copy_to_gpu before the rewrite so we
+        // can drop it once the literal is already producing a GPU buffer.
+        auto outputs = ins->outputs();
+        std::vector<instruction_ref> stale_copies;
+        for(auto out : outputs)
+        {
+            if(out->name() == "hip::copy_to_gpu")
+                stale_copies.push_back(out);
+        }
+
+        auto new_ins = m.replace_instruction(ins, make_op("hip::hip_copy_literal", v));
+        new_ins->finalize(ctx);
+
+        for(auto copy_ins : stale_copies)
+        {
+            m.replace_instruction(copy_ins, new_ins);
+            m.remove_instruction(copy_ins);
+        }
+        n++;
+    }
+}
 
 MIGRAPHX_REGISTER_TARGET(target);
 

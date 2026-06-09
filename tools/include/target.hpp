@@ -95,6 +95,19 @@ struct target
      * @return Allocated argument in the target.
      */
     argument allocate(const shape& s) const;
+    /**
+     * @brief Lower @literal instructions that were inserted into a module
+     * after the normal compile pipeline has already run (e.g. by
+     * create_program_with_weights). Implementations should turn the bare
+     * literals into whatever target-specific op they would normally produce
+     * during compile (and finalize them against the supplied context). The
+     * default is a no-op for targets that consume @literal directly (e.g.
+     * the reference interpreter).
+     *
+     * @param m   Module to mutate in place
+     * @param ctx Context to finalize newly-emitted instructions against
+     */
+    void lower_baked_literals(module& m, context& ctx) const;
 };
 
 #else
@@ -122,6 +135,11 @@ template <class T>
 supported_segments target_find_supported(T&, const_module_ref, support_metric)
 {
     return {};
+}
+
+template <class T>
+void target_lower_baked_literals(T&, module&, context&)
+{
 }
 
 <%
@@ -153,7 +171,12 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
                    s       = 'const shape&',
                    returns = 'argument',
                    const   = True,
-                   default = 'target_allocate')) %>
+                   default = 'target_allocate'),
+           virtual('lower_baked_literals',
+                   m       = 'module&',
+                   ctx     = 'context&',
+                   const   = True,
+                   default = 'target_lower_baked_literals')) %>
 
 #endif
 

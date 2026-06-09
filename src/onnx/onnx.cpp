@@ -24,10 +24,6 @@
 #include <migraphx/onnx/onnx_parser.hpp>
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/logger.hpp>
-#include <migraphx/filesystem.hpp>
-#include <migraphx/file_buffer.hpp>
-#include <migraphx/literal.hpp>
-#include <migraphx/instruction.hpp>
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
@@ -122,64 +118,6 @@ program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options
 const std::vector<std::string>& get_onnx_operators()
 {
     static std::vector<std::string> result = onnx::get_op_parsers();
-    return result;
-}
-
-program create_program_with_weights(const program& prog,
-                                    const std::string& base_dir,
-                                    const target& t)
-{
-    program result(prog);
-    const auto& weight_map = result.get_external_weight_map();
-    if(weight_map.empty())
-        MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: program has no external weight map");
-
-    auto* mm = result.get_main_module();
-
-    std::vector<instruction_ref> copies_to_remove;
-    std::vector<instruction_ref> params_to_remove;
-    for(const auto& entry : weight_map)
-    {
-        const auto& name = entry.first;
-        const auto& info = entry.second;
-
-        auto param_ins = mm->get_parameter(name);
-        if(param_ins == mm->end())
-            MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: parameter \"" + name +
-                           "\" not found in program");
-
-        auto s   = param_ins->get_shape();
-        auto raw = read_buffer(fs::path{base_dir} / info.filename, info.offset, info.nbytes);
-
-        auto lit_ins = mm->add_literal(literal{s, raw.data()});
-
-        // If param feeds into hip::copy_to_gpu (offload_copy), replace the copy
-        // instruction instead so downstream ops receive the GPU literal directly.
-        auto outputs = param_ins->outputs();
-        auto copy_it = std::find_if(outputs.begin(), outputs.end(), [](instruction_ref ins) {
-            return ins->name() == "hip::copy_to_gpu";
-        });
-
-        if(copy_it != outputs.end())
-        {
-            mm->replace_instruction(*copy_it, lit_ins);
-            copies_to_remove.push_back(*copy_it);
-        }
-        else
-        {
-            mm->replace_instruction(param_ins, lit_ins);
-        }
-        params_to_remove.push_back(param_ins);
-    }
-
-    // Remove copies first (they reference params), then params
-    for(auto ins : copies_to_remove)
-        mm->remove_instruction(ins);
-    for(auto ins : params_to_remove)
-        mm->remove_instruction(ins);
-
-    result.lower_literals_and_finalize(t);
-    result.set_external_weight_map({});
     return result;
 }
 

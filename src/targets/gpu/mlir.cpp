@@ -48,7 +48,7 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 5
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 6
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK
@@ -1374,6 +1374,14 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     return tc;
 }
 
+bool mlir_lds_usage_fits_arch(int64_t gemm_o, const std::string& arch, shape::type_t elem_type)
+{
+    static mlir_program prog;
+    static std::mutex mutex;
+    const std::lock_guard<std::mutex> lock(mutex);
+    return mlirMIGraphXLDSUsageFitsArch(gemm_o, arch.c_str(), prog.make_type(elem_type));
+}
+
 void dump_mlir_to_mxr(module m,
                       const std::vector<instruction_ref>& inputs,
                       const fs::path& location)
@@ -1430,6 +1438,11 @@ insert_mlir(module& m, instruction_ref, code_object_op co, const std::vector<ins
 tuning_config get_tuning_config_mlir(const context&, module, const std::vector<shape>&, bool)
 {
     return {};
+}
+
+bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t)
+{
+    return false;
 }
 // NOLINTEND(performance-unnecessary-value-param)
 

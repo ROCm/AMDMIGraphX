@@ -37,7 +37,6 @@
 #include <migraphx/match/softmax.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <optional>
-#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -250,6 +249,34 @@ const auto& reshaper_names()
 bool is_fusable_input_op(const std::string& name)
 {
     return contains(reshaper_names(), name) or contains({"slice"}, name);
+}
+
+instruction_ref strip_layout_ops(instruction_ref ins)
+{
+    while(contains(reshaper_names(), ins->name()) and ins->inputs().size() == 1)
+        ins = ins->inputs().front();
+    return ins;
+}
+
+// Only one mlir_op input may feed from the first gemm
+bool single_chain_input_to_second_gemm(instruction_ref first_gemm_ins,
+                                         const std::vector<instruction_ref>& second_mlir_inputs)
+{
+    const auto chain_anchor = strip_layout_ops(first_gemm_ins);
+    bool found_chain        = false;
+    for(instruction_ref input : second_mlir_inputs)
+    {
+        if(strip_layout_ops(input) == chain_anchor)
+        {
+            if(found_chain)
+                return false;
+            found_chain = true;
+            continue;
+        }
+        if(reaches(first_gemm_ins, input))
+            return false;
+    }
+    return found_chain;
 }
 
 std::tuple<instruction_ref, std::vector<operation>>
@@ -858,7 +885,7 @@ struct find_mlir_fused_geg_ops
         if(ins->module_inputs().empty())
             return false;
 
-        auto tag = ins->module_inputs().front()->get_tag();
+        const auto& tag = ins->module_inputs().front()->get_tag();
         return tag == "standalone_dot" or tag == "standalone_convolution" or
                tag == "dot_pointwise" or tag == "conv_pointwise";
     }
@@ -869,15 +896,18 @@ struct find_mlir_fused_geg_ops
     {
         auto shape_a1 = first_inputs.front()->get_shape();
         auto shape_b1 = first_inputs.back()->get_shape();
-        auto shape_a2 = second_inputs.front()->get_shape();
         auto shape_b2 = second_inputs.back()->get_shape();
+
+        if(shape_a1.ndim() < 2 or shape_b1.ndim() < 2 or shape_b2.ndim() < 2)
+            return false;
 
         // gemm0: (m x k) @ (k x n) -> (m x n)
         // gemm1: (m x n) @ (n x g) -> (m x g)
-        std::int64_t m = shape_a1.lens()[shape_a1.lens().size() - 2];
-        std::int64_t n = shape_b1.lens().back();
-        std::int64_t k = shape_a1.lens().back();
-        std::int64_t g = shape_b2.lens().back();
+        const auto& lens_a1 = shape_a1.lens();
+        std::int64_t m      = lens_a1[lens_a1.size() - 2];
+        std::int64_t n      = shape_b1.lens().back();
+        std::int64_t k      = lens_a1.back();
+        std::int64_t g      = shape_b2.lens().back();
 
         // skip if any dimension is 0 (extraction failed)
         if(m == 0 or n == 0 or k == 0 or g == 0)
@@ -889,30 +919,13 @@ struct find_mlir_fused_geg_ops
         // Fusion is detrimental when k or g are relatively large
 
         const double threshold = 1000.0;
-
-        // calculate average differences for m being large
-        double m_minus_n        = m - n;
-        double m_minus_k        = m - k;
-        double m_minus_g        = m - g;
-        double m_avg_difference = (m_minus_n + m_minus_k + m_minus_g) / 3.0;
-
-        // calculate average differences for n being large
-        double n_minus_m        = n - m;
-        double n_minus_k        = n - k;
-        double n_minus_g        = n - g;
-        double n_avg_difference = (n_minus_m + n_minus_k + n_minus_g) / 3.0;
-
-        // calculate average differences for k being large (detrimental case)
-        double k_minus_m        = k - m;
-        double k_minus_n        = k - n;
-        double k_minus_g        = k - g;
-        double k_avg_difference = (k_minus_m + k_minus_n + k_minus_g) / 3.0;
-
-        // calculate average differences for g being large (detrimental case)
-        double g_minus_m        = g - m;
-        double g_minus_n        = g - n;
-        double g_minus_k        = g - k;
-        double g_avg_difference = (g_minus_m + g_minus_n + g_minus_k) / 3.0;
+        auto avg_lead          = [](double lead, double o1, double o2, double o3) {
+            return ((lead - o1) + (lead - o2) + (lead - o3)) / 3.0;
+        };
+        double m_avg_difference = avg_lead(m, n, k, g);
+        double n_avg_difference = avg_lead(n, m, k, g);
+        double k_avg_difference = avg_lead(k, m, n, g);
+        double g_avg_difference = avg_lead(g, m, n, k);
 
         // fusion is good if m or n is significantly larger than others
         if(m_avg_difference > threshold or n_avg_difference > threshold)
@@ -966,37 +979,35 @@ struct find_mlir_fused_geg_ops
            not is_gemm_supported(second_gemm, true))
             return;
 
-        // TODO
-        // only one input to second_gemm should depend on first_gemm
-        // auto second_gemm_inputs = second_gemm_ins->inputs();
-        // if(std::any_of(second_gemm_inputs.begin(), second_gemm_inputs.end(), [&](const auto& i) {
-        //        return i != first_gemm_ins and reaches(first_gemm_ins, i);
-        //    }))
-        //     return;
+        if(not single_chain_input_to_second_gemm(first_gemm_ins, second_gemm_ins->inputs()))
+            return;
 
         // check heuristic to determine if fusion should proceed
-        if(not check_heuristic(first_gemm->inputs(), second_gemm->inputs()))
+        const auto& second_gemm_inputs = second_gemm->inputs();
+        if(not check_heuristic(first_gemm->inputs(), second_gemm_inputs))
             return;
+        if(not mlir_lds_usage_fits_arch(second_gemm_inputs.back()->get_shape().lens().back(),
+                                        gfx_name,
+                                        second_gemm->get_shape().type()))
+            return;
+
+        // the first mlir_op must have a single user in the parent module
+        if(first_gemm_ins->outputs().size() > 1)
+            return;
+
+        // check if the second mlir_op has multiple users in the parent module
+        bool second_gemm_has_multi_outs = second_gemm_ins->outputs().size() > 1;
 
         std::unordered_map<instruction_ref, instruction_ref> map_ins;
         std::string module_name = first_submod->name() + "_" + second_submod->name() + "_geg";
         module_ref mm           = mpm.create_module(module_name);
         mm->set_bypass();
-        fuse_input_ops(mm, first_gemm_ins->inputs(), &map_ins);
-
-        // check if the first submodule's output is used multiple times
-        // the first submodule always has exactly one output, since we do not match on
-        // get_tuple_elem however, the result of the pointwise operation may have multiple outputs
-        if(first_gemm_ins->outputs().size() > 1)
-            return;
-
-        // check if the second submodule has intermediates returned
-        bool second_gemm_has_multi_outs = second_gemm_ins->outputs().size() > 1;
 
         // fuse the first submodule into the new module
         fuse_input_ops(mm, first_gemm_ins->inputs(), &map_ins);
         auto first_rins = mm->fuse(*first_submod, first_gemm_ins->inputs(), &map_ins);
         // first_rins has exactly one element (the single output of the first submodule)
+        assert(first_rins.size() == 1);
         map_ins[first_gemm_ins] = first_rins.front();
 
         // fuse the second submodule into the new module
@@ -1004,6 +1015,10 @@ struct find_mlir_fused_geg_ops
         auto second_rins = mm->fuse(*second_submod, second_gemm_ins->inputs(), &map_ins);
         // second_rins contains the outputs of the second submodule (may be multiple if
         // dot_pointwise/conv_pointwise with multi-outs)
+        if(second_gemm_has_multi_outs)
+            assert(second_rins.size() == 2);
+        else
+            assert(second_rins.size() == 1);
         map_ins[second_gemm_ins] = second_rins.front();
 
         // if second submodule has multi-outs, second_rins already contains [pointwise, gemm]
@@ -1615,11 +1630,12 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
 
     // GEG fusion runs after standalone gemm and gemm->pointwise fusions, since it combines them
-    if (not enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{})) {
-        bool ceg_fusion_enabled = enabled(MIGRAPHX_ENABLE_MLIR_CEG_FUSION{});
-        match::find_matches(mpm,
-            find_mlir_fused_geg_ops{.ceg_mode = ceg_fusion_enabled,
-                                    .gfx_name  = device_name});
+    if(not enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+    {
+        match::find_matches(
+            mpm,
+            find_mlir_fused_geg_ops{.ceg_mode = enabled(MIGRAPHX_ENABLE_MLIR_CEG_FUSION{}),
+                                    .gfx_name = device_name});
         mpm.run_pass(dead_code_elimination{});
     }
 

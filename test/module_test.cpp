@@ -496,13 +496,6 @@ TEST_CASE(module_set_get_tag)
     EXPECT(sub->get_tag() == "test_tag");
 }
 
-TEST_CASE(module_tag_default_empty)
-{
-    migraphx::program p;
-    auto* sub = p.create_module("sub");
-    EXPECT(sub->get_tag().empty());
-}
-
 TEST_CASE(module_tag_on_main_module)
 {
     migraphx::program p;

@@ -25,6 +25,8 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/device_name.hpp>
+#include <migraphx/gpu/mlir.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/op/common.hpp>
@@ -36,6 +38,7 @@
 #include <test.hpp>
 #include <pointwise.hpp>
 #include <reduce.hpp>
+#include <optional>
 #include <utility>
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MLIR_INPUT_FUSION);
@@ -1846,7 +1849,7 @@ TEST_CASE(dot_add_dot)
         auto x    = mm->add_parameter("x", s3);
         auto y    = mm->add_parameter("y", s4);
         auto dot1 = mm->add_instruction(
-            migraphx::make_op("dot"), a, b); // {1024,4}, m + 1000 > avg (n, k, gemmO)
+            migraphx::make_op("dot"), a, b); // {1024,4}; m=1024 makes m_avg_difference > 1000
         auto add =
             add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add")); // {1024,4}
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);            // {1024,2}
@@ -1993,7 +1996,7 @@ TEST_CASE(dot_mul_dot)
         auto x    = mm->add_parameter("x", s3);
         auto y    = mm->add_parameter("y", s4);
         auto dot1 = mm->add_instruction(
-            migraphx::make_op("dot"), a, b); // {1024,4}, m + 1000 > avg (n, k, gemmO)
+            migraphx::make_op("dot"), a, b); // {1024,4}; m=1024 makes m_avg_difference > 1000
         auto mul =
             add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("mul")); // {1024,4}
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), mul, y);            // {1024,2}
@@ -2978,7 +2981,7 @@ TEST_CASE(dot_dot_pointwise_geg)
 }
 
 TEST_CASE(dot_add_relu_dot_add_relu)
-// criteoterabyte use case
+// Criteo-style terabyte model: dot -> add/relu -> dot -> add/relu
 {
     migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
     migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
@@ -2994,7 +2997,7 @@ TEST_CASE(dot_add_relu_dot_add_relu)
         auto y    = mm->add_parameter("y", s4);
         auto z    = mm->add_parameter("z", s5);
         auto dot1 = mm->add_instruction(
-            migraphx::make_op("dot"), a, b); // {1024,4}, m + 1000 > avg (n, k, gemmO)
+            migraphx::make_op("dot"), a, b); // {1024,4}; m=1024 makes m_avg_difference > 1000
         auto pw1 =
             add_pointwise(p1, "main:pointwise0", {dot1, x}, [=](auto* pm, const auto& inputs) {
                 auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
@@ -3122,6 +3125,74 @@ TEST_CASE(dyn_dot)
         mm->add_return({fused});
     }
     EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_add_dot_two_chain_inputs_no_geg)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
+        // Both dot operands depend on the first gemm chain; shapes are (1024,4) @ (4,1024).
+        auto add_t =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), add);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, add_t);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    std::stringstream ss;
+    ss << p1;
+    EXPECT(ss.str().find("geg") == std::string::npos);
+}
+
+TEST_CASE(dot_add_dot_lds_too_large_no_geg)
+{
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+
+    const auto arch = migraphx::gpu::get_device_name();
+    std::optional<std::size_t> blocking_g;
+    for(std::size_t g = 512; g <= 1340; g += 64)
+    {
+        if(not migraphx::gpu::mlir_lds_usage_fits_arch(
+               g, arch, migraphx::shape::type_t::half_type))
+        {
+            blocking_g = g;
+            break;
+        }
+    }
+    if(not blocking_g.has_value())
+        return;
+
+    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {*blocking_g, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    std::stringstream ss;
+    ss << p1;
+    EXPECT(ss.str().find("geg") == std::string::npos);
 }
 
 TEST_CASE(dyn_conv)

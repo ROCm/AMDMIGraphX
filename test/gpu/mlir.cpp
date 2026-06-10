@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -853,6 +854,17 @@ module {
         migraphx::interpolate_string(mlir_output, {{"attrs", get_attrs()}});
     CHECK(encode(s) == encode(mlir_output_with_attrs));
     // Don't verify here. Tests with a verify test instead.
+}
+
+TEST_CASE(mlir_lds_usage_fits_arch)
+{
+    const auto arch = migraphx::gpu::get_device_name();
+    EXPECT(migraphx::gpu::mlir_lds_usage_fits_arch(
+        64, arch, migraphx::shape::type_t::half_type));
+    EXPECT(not migraphx::gpu::mlir_lds_usage_fits_arch(
+        8192, arch, migraphx::shape::type_t::half_type));
+    EXPECT(not migraphx::gpu::mlir_lds_usage_fits_arch(
+        0, arch, migraphx::shape::type_t::half_type));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

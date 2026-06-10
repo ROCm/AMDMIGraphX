@@ -14,6 +14,7 @@
 #include "layers/MatrixMultiplyLayer_impl.hpp"
 #include "layers/SliceLayer_impl.hpp"
 #include "layers/ShuffleLayer_impl.hpp"
+#include "layers/ActivationLayer_impl.hpp"
 
 namespace nvinfer1
 {
@@ -70,8 +71,8 @@ void NvNetworkDefinition_impl::markOutput(ITensor& tensor) noexcept
 
 IActivationLayer* NvNetworkDefinition_impl::addActivation(ITensor& input, ActivationType type) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	mLayers.push_back(std::make_unique<ActivationLayer_impl>(input, type, mProgram));
+	return dynamic_cast<IActivationLayer*>(mLayers.back().get());
 }
 
 ILRNLayer* NvNetworkDefinition_impl::addLRN(ITensor& input, int64_t window, float alpha, float beta, float k) noexcept

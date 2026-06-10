@@ -30,11 +30,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// RDNA architectures (gfx10xx and newer) natively execute in wave32 mode, while
-// GCN/CDNA architectures (gfx9 and older) use wave64. The wavefront size selects
-// device-specific code paths (e.g. DPP row_bcast cross-lane ops, which only exist
-// on wave64 GCN/CDNA and are illegal on GFX10+), so cross-compilation must report
-// the same size a physical device would.
+// RDNA architectures use wave32
 static int arch_wavefront_size(const std::string& arch_name)
 {
     const auto gfx = get_gfx_name(arch_name);

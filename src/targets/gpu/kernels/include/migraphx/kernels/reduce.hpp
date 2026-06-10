@@ -668,6 +668,116 @@ struct block_tile
     }
 };
 
+/// Computes a tile of consecutive outputs per workgroup for strided
+/// reductions. OutTile lanes cover adjacent outputs so the strided input is
+/// read coalesced like the lane algorithm, while the remaining lanes
+/// parallelize each reduction, combined per output through lds. This provides
+/// enough parallelism when there are too few outputs for the lane algorithm.
+template <index_int OutTile>
+struct block_strided
+{
+    template <class Slicer>
+    struct reducer : reducer_base<reducer<Slicer>>
+    {
+        index idx;
+        Slicer slice;
+
+        constexpr auto seg_lanes() const { return idx.nlocal() / _c<OutTile>; }
+        __device__ auto seg_id() const { return idx.local / OutTile; }
+
+        template <class N, class F>
+        __device__ void seg_stride(N n, F f) const
+        {
+            index::for_stride<true>(seg_id(), n, seg_lanes(), f);
+        }
+
+        template <class T, index_int N, class Size>
+        struct inner_storage : inner_storage_tag
+        {
+            using type = T;
+            array<T, N> arr;
+            constexpr Size rsize() const { return {}; }
+            template <class U, class V>
+            constexpr auto& operator()(U, V d) const
+            {
+                return arr[d];
+            }
+            template <class U, class V>
+            constexpr auto& operator()(U, V d)
+            {
+                return arr[d];
+            }
+        };
+
+        template <class Op, class T, class Read, class N, class... Ts>
+        __device__ auto reduce_impl(Op op, T init, Read read, N n, Ts&&... xs) const
+        {
+            MIGRAPHX_ASSERT(idx.max_nlocal() == idx.nlocal());
+            auto g     = [&](auto j, auto d) { return final_reduce(read(xs(j, d)...), op); };
+            using type = decltype(index::invoke_loop(g, 0, _c<0>));
+            __shared__ uninitialized_buffer<type, decltype(idx.max_nlocal()){}> buffer;
+            // Wait for any previous reduction to finish reading the buffer
+            __syncthreads();
+            auto x = type(init);
+            seg_stride(n, [&](auto j, auto d) { x = op(x, index::invoke_loop(g, j, d)); });
+            buffer[idx.local] = x;
+            __syncthreads();
+            auto y = type(init);
+            for(index_int k = 0; k < seg_lanes(); k++)
+            {
+                y = op(y, buffer[idx.local % OutTile + k * OutTile]);
+            }
+            return y;
+        }
+
+        template <class F>
+        __device__ void outer(F f) const
+        {
+            if(idx.local < OutTile)
+                f();
+        }
+
+        template <class F, class N, class... Ts>
+        __device__ void inner_void_impl(F f, N n, Ts&&... xs) const
+        {
+            seg_stride(n, [&](auto j, auto d) { f(xs(j, d)...); });
+        }
+
+        template <class R, class F, class N, class... Ts>
+        __device__ auto inner_impl(F f, N n, Ts&&... xs) const
+        {
+            using max_iterations = decltype(index::max_stride_iterations(n, seg_lanes()));
+            inner_storage<R, max_iterations{}, N> storage;
+            seg_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
+            return storage;
+        }
+    };
+
+    template <class Slicer>
+    static __device__ auto make(index idx, Slicer slicer)
+    {
+        return reducer<Slicer>{{}, idx, slicer};
+    }
+
+    template <class Output, class F>
+    static __device__ void run(F f)
+    {
+        auto idx                 = make_index();
+        constexpr auto nelements = get_shape_c<Output>{}.elements();
+        constexpr auto ngroups   = (nelements + _c<OutTile> - _c<1>) / _c<OutTile>;
+        idx.global_stride(ngroups * idx.nlocal(), [&](auto i) {
+            const auto group = i / idx.nlocal();
+            // The last group is padded by clamping to the last output, the
+            // extra lanes just recompute it
+            index_int elem = group * OutTile + idx.local % OutTile;
+            if(elem >= nelements)
+                elem = nelements - 1;
+            const auto out_idx = get_shape_c<Output>{}.multi(elem);
+            f(out_idx, make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
+        });
+    }
+};
+
 template <unsigned int SubWaveSize>
 struct subwave
 {

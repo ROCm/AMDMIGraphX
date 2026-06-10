@@ -624,7 +624,7 @@ TEST_CASE(same_table_gathers_single_no_rewrite)
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
         auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {2}});
         auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx);
-        m1.add_instruction(pass_op{}, g);
+        m1.add_return({g});
     }
     auto m2 = m1;
     run_pass(m1);
@@ -1015,7 +1015,7 @@ TEST_CASE(same_table_gathers_no_rewrite_scalar_index)
 
         auto sum1 = m1.add_instruction(migraphx::make_op("add"), g1, g2);
         auto sum2 = m1.add_instruction(migraphx::make_op("add"), sum1, g3);
-        m1.add_instruction(pass_op{}, sum2);
+        m1.add_return({sum2});
     }
     auto m2 = m1;
     run_pass(m1);

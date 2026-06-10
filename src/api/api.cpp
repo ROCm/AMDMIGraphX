@@ -145,6 +145,26 @@ static auto to_objptr_vector(const U* x, std::size_t n)
 
 static target get_target(const std::string& name) { return make_target(name); }
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+
+static target
+get_target_with_options(const std::string& name, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return make_target(name);
+    std::string soptions = options_json;
+    std::vector<char> buffer(soptions.size() * 2);
+    std::vsnprintf(buffer.data(), buffer.size(), soptions.c_str(), vlist);
+    return make_target(name, from_json_string(convert_to_json(std::string(buffer.data()))));
+}
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
 static void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
 static void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
@@ -159,11 +179,13 @@ static void set_file_format(file_options& options, const char* format) { options
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
+    options.default_set       = true;
 }
 
 static void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimension& dd)
 {
     options.default_dyn_dim_value = dd;
+    options.default_set           = true;
 }
 
 static void set_default_loop_iterations(onnx_options& options, int64_t value)
@@ -184,11 +206,6 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 static void set_use_debug_symbols(onnx_options& options, bool value)
 {
     options.use_debug_symbols = value;
-}
-
-static void set_external_weights_as_parameters(onnx_options& options, bool value)
-{
-    options.external_weights_as_parameters = value;
 }
 
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
@@ -1348,6 +1365,21 @@ extern "C" migraphx_status migraphx_target_create(migraphx_target_t* target, con
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_target_create_with_options(migraphx_target_t* target,
+                                                               const char* name,
+                                                               const char* options_json,
+                                                               ...)
+{
+    va_list vlist;
+    va_start(vlist, options_json);
+    auto api_error_result = migraphx::try_([&] {
+        *target = object_cast<migraphx_target_t>(allocate<migraphx::target>(
+            migraphx::get_target_with_options((name), (options_json), (vlist))));
+    });
+    va_end(vlist);
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_program_parameter_shapes_destroy(
     migraphx_program_parameter_shapes_t program_parameter_shapes)
 {
@@ -2116,34 +2148,6 @@ migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
         migraphx::set_use_debug_symbols((onnx_options->object), (value));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_onnx_options_set_external_weights_as_parameters(
-    migraphx_onnx_options_t onnx_options, bool value)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(onnx_options == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
-        migraphx::set_external_weights_as_parameters((onnx_options->object), (value));
-    });
-    return api_error_result;
-}
-
-extern "C" migraphx_status migraphx_create_program_with_weights(
-    migraphx_program_t* out,
-    const_migraphx_program_t prog,
-    const char* base_dir,
-    migraphx_target_t target)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(prog == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter prog: Null pointer");
-        if(target == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter target: Null pointer");
-        *out = allocate<migraphx_program_t>(
-            migraphx::create_program_with_weights((prog->object), (base_dir), (target->object)));
     });
     return api_error_result;
 }

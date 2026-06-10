@@ -2078,7 +2078,22 @@ TEST_CASE(reorder_shape_symbolic)
     std::vector<int64_t> perm = {2, 0, 1};
     auto reordered            = migraphx::reorder_shape(s, perm);
     EXPECT(reordered.symbolic());
-    EXPECT(reordered.dyn_dims().size() == s.dyn_dims().size());
+    std::vector<dd> expected_dims = {dd{lit(4)}, dd{n}, dd{c}};
+    EXPECT(reordered.dyn_dims() == expected_dims);
+    EXPECT(reordered.dyn_strides()[0] == s.dyn_strides()[2]);
+    EXPECT(reordered.dyn_strides()[1] == s.dyn_strides()[0]);
+    EXPECT(reordered.dyn_strides()[2] == s.dyn_strides()[1]);
+}
+
+TEST_CASE(reorder_shape_dyn)
+{
+    migraphx::shape s{migraphx::shape::float_type, {1, 4, 8}, {4, 4, 8}, {{}, {}, {}}};
+    std::vector<int64_t> perm = {2, 0, 1};
+    auto reordered            = migraphx::reorder_shape(s, perm);
+    EXPECT(reordered.dynamic());
+    EXPECT(not reordered.symbolic());
+    std::vector<dd> expected_dims = {{8, 8}, {1, 4}, {4, 4}};
+    EXPECT(reordered.dyn_dims() == expected_dims);
 }
 
 TEST_CASE(find_permutation_symbolic_stride_ordering_reversal)
@@ -2371,6 +2386,36 @@ TEST_CASE(shape_is_compatible_lens_symbolic_same)
     migraphx::shape s1{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}}};
     migraphx::shape s2{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}, dd{lit(4)}}};
     EXPECT(migraphx::shape::is_compatible_lens(s1, s2));
+}
+
+TEST_CASE(shape_is_compatible_symbolic_diff_strides)
+{
+    auto n = var("n", {1, 8});
+    migraphx::shape actual{
+        migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}}, {n, n, lit(1)}};
+    migraphx::shape expected{
+        migraphx::shape::float_type, {dd{lit(1)}, dd{lit(1)}, dd{n}}, {lit(1), lit(1), lit(1)}};
+    EXPECT(actual != expected);
+    EXPECT(migraphx::shape::is_compatible(actual, expected));
+}
+
+TEST_CASE(shape_is_compatible_symbolic_diff_dims)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 16});
+    migraphx::shape actual{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    migraphx::shape expected{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
+    EXPECT(actual != expected);
+    EXPECT(not migraphx::shape::is_compatible(actual, expected));
+}
+
+TEST_CASE(shape_is_compatible_lens_symbolic_diff)
+{
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{lit(1)}, dd{n}, dd{lit(3)}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{lit(1)}, dd{m}, dd{lit(3)}}};
+    EXPECT(not migraphx::shape::is_compatible_lens(s1, s2));
 }
 
 TEST_CASE(shape_is_compatible_lens_static_vs_symbolic)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -154,7 +154,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->ndim() != n)
-                MIGRAPHX_THROW(prefix() + "Only " + std::to_string(n) + "d supported");
+                MIGRAPHX_THROW(prefix() + "Only " + to_string(n) + "d supported but given " +
+                               to_string(begin->ndim()) + "d");
         }
         return *this;
     }
@@ -169,8 +170,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->ndim() > n)
-                MIGRAPHX_THROW(prefix() + "Shape must have at most " + std::to_string(n) +
-                               " dimensions");
+                MIGRAPHX_THROW(prefix() + "Shape must have at most " + to_string(n) +
+                               " dimensions but has " + to_string(begin->ndim()));
         }
         return *this;
     }
@@ -185,8 +186,8 @@ struct check_shapes
         if(begin != end)
         {
             if(begin->ndim() < n)
-                MIGRAPHX_THROW(prefix() + "Shape must have at least " + std::to_string(n) +
-                               " dimensions");
+                MIGRAPHX_THROW(prefix() + "Shape must have at least " + to_string(n) +
+                               " dimensions but has " + to_string(begin->ndim()));
         }
         return *this;
     }

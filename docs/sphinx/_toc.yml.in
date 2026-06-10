@@ -36,6 +36,8 @@ subtrees:
           - file: dev/pass
           - file: dev/matchers
           - file: dev/tools
+          - file: dev/debug_symbols
+            title: Using debug symbols
   
   - caption: Examples
     entries: 

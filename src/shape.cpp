@@ -372,6 +372,13 @@ struct shape_impl
         return compute_elements<std::size_t>(m_lens);
     }
 
+    sym::expr sym_elements() const
+    {
+        if(not m_dyn_dims.empty() and not all_dims_symbolic())
+            MIGRAPHX_THROW("SHAPE: sym_elements() called on a range-only dynamic shape");
+        return compute_elements<sym::expr>(sym_dims());
+    }
+
     std::size_t get_index(size_t i) const
     {
         std::size_t result = 0;
@@ -652,6 +659,8 @@ std::size_t shape::ndim() const
 }
 
 std::size_t shape::elements() const { return impl->elements(); }
+
+sym::expr shape::sym_elements() const { return impl->sym_elements(); }
 
 std::size_t shape::bytes() const
 {
@@ -986,13 +995,6 @@ shape shape::to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_
         return s.eval_uint(symbol_map);
     });
     return {type(), static_lens, static_strides};
-}
-
-shape shape::to_static() const
-{
-    if(not this->is_fixed())
-        MIGRAPHX_THROW("SHAPE: to_static() requires fully-fixed dimensions");
-    return this->to_static(std::unordered_map<sym::expr, std::size_t>{});
 }
 
 std::size_t shape::element_space() const { return impl->element_space(); }

@@ -30,6 +30,7 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
+#include <migraphx/reflect.hpp>
 #include "test.hpp"
 
 // MIGRAPHX_TRACE_EVAL is process-cached on first read; set in main() before
@@ -43,6 +44,13 @@ struct test_target
         void finish() const {}
     };
     migraphx::context ctx = context{};
+
+    template <class Self, class F>
+    static auto reflect(Self&, F)
+    {
+        return migraphx::pack();
+    }
+
     std::string name() const { return "test"; }
     std::vector<migraphx::pass> get_passes(migraphx::context&,
                                            const migraphx::compile_options&) const

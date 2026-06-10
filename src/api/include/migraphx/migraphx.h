@@ -332,6 +332,11 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_target_assign_to(migraphx_target_t ou
 MIGRAPHX_C_EXPORT migraphx_status migraphx_target_create(migraphx_target_t* target,
                                                          const char* name);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_target_create_with_options(migraphx_target_t* target,
+                                                                      const char* name,
+                                                                      const char* options_json,
+                                                                      ...);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_program_parameter_shapes_destroy(
     migraphx_program_parameter_shapes_t program_parameter_shapes);
 
@@ -564,15 +569,6 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value);
-
-MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_weights_as_parameters(
-    migraphx_onnx_options_t onnx_options, bool value);
-
-MIGRAPHX_C_EXPORT migraphx_status migraphx_create_program_with_weights(
-    migraphx_program_t* out,
-    const_migraphx_program_t prog,
-    const char* base_dir,
-    migraphx_target_t target);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);

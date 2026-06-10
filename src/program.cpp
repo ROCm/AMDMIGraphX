@@ -176,6 +176,8 @@ program::get_external_weight_map() const
     return impl->external_weight_map;
 }
 
+int program::get_program_file_version() const { return program_file_version; }
+
 std::size_t program::size() const { return impl->modules.size(); }
 
 std::vector<shape> program::get_output_shapes() const
@@ -329,7 +331,11 @@ void program::compile(const std::vector<target>& targets, std::vector<compile_op
             }
         }
     }
-    this->finalize();
+    auto& contexts = this->impl->contexts;
+
+    if(not std::any_of(
+           contexts.begin(), contexts.end(), [](const auto& c) { return is_cross_compiling(c); }))
+        this->finalize();
 }
 
 void program::compile(const target& t, compile_options options)
@@ -363,7 +369,8 @@ void program::compile(const target& t, compile_options options)
             MIGRAPHX_THROW("Dangling reference in module " + mod->name() + " from instruction " +
                            std::to_string(index));
         }
-        mod->finalize(this->impl->contexts);
+        if(not is_cross_compiling(this->impl->contexts.front()))
+            mod->finalize(this->impl->contexts);
     }
 }
 
@@ -371,6 +378,16 @@ void program::finalize()
 {
     auto* mm = this->get_main_module();
     mm->finalize(this->impl->contexts);
+}
+
+void program::finalize(const target& t)
+{
+    if(not this->is_compiled())
+    {
+        this->impl->targets  = {t};
+        this->impl->contexts = {t.get_context()};
+    }
+    this->finalize();
 }
 
 program create_program_with_weights(const program& prog,
@@ -701,7 +718,7 @@ std::vector<argument> program::eval(const parameter_map& params,
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
-        contexts.front().wait_for(exec_env.queue);
+        contexts.front().set_queue(exec_env.queue);
     }
 
     // When MIGRAPHX_TRACE_EVAL is set, overwrite any user-provided trace callback with our trace
@@ -754,7 +771,7 @@ std::vector<argument> program::eval(const parameter_map& params,
     if(exec_env.async)
     {
         assert(contexts.size() == 1);
-        contexts.front().finish_on(exec_env.queue);
+        contexts.front().restore_queue();
     }
 
     return ret;
@@ -774,16 +791,10 @@ static std::string get_migraphx_version()
     return ss.str();
 }
 
-/*
-program file version is for the data structure or format of the MXR file. Version should be bumped
-if any changes occur to the format of the MXR file.
-*/
-const int program_file_version = 9;
-
 value program::to_value() const
 {
     value result;
-    result["version"]          = program_file_version;
+    result["version"]          = get_program_file_version();
     result["migraphx_version"] = get_migraphx_version();
     result["targets"]          = migraphx::to_value(this->impl->targets);
     result["contexts"]         = migraphx::to_value(this->impl->contexts);

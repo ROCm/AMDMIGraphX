@@ -95,6 +95,19 @@ struct target
      * @return Allocated argument in the target.
      */
     argument allocate(const shape& s) const;
+    /**
+     * @brief Lower @literal instructions that were inserted into a module
+     * after the normal compile pipeline has already run (e.g. by
+     * create_program_with_weights). Implementations should turn the bare
+     * literals into whatever target-specific op they would normally produce
+     * during compile (and finalize them against the supplied context). The
+     * default is a no-op for targets that consume @literal directly (e.g.
+     * the reference interpreter).
+     *
+     * @param m   Module to mutate in place
+     * @param ctx Context to finalize newly-emitted instructions against
+     */
+    void lower_baked_literals(module& m, context& ctx) const;
 };
 
 #else
@@ -124,6 +137,25 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
     return {};
 }
 
+template <class T>
+void target_lower_baked_literals(T&, module&, context&)
+{
+}
+
+template <class T>
+value to_value_target(const T& x)
+{
+    return migraphx::to_value(x);
+}
+
+template <class T>
+void from_value_target(T& x, const value& v)
+{
+    if(not(v.is_object() or (v.empty() and v.is_array())))
+        MIGRAPHX_THROW("Value is not an object");
+    return migraphx::from_value(v, x);
+}
+
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
@@ -143,6 +175,12 @@ struct MIGRAPHX_EXPORT target
     argument copy_from(const argument& input) const;
     // (optional)
     argument allocate(const shape& s) const;
+    // (optional)
+    void lower_baked_literals(module& m, context& ctx) const;
+    // (optional)
+    value to_value() const;
+    // (optional)
+    void from_value(const value& v);
 };
 
 #else
@@ -213,6 +251,53 @@ struct target
         return target_allocate(private_detail_te_self, s);
     }
 
+    template <class T>
+    static auto private_detail_te_default_lower_baked_literals(char,
+                                                               T&& private_detail_te_self,
+                                                               module& m,
+                                                               context& ctx)
+        -> decltype(private_detail_te_self.lower_baked_literals(m, ctx))
+    {
+        private_detail_te_self.lower_baked_literals(m, ctx);
+    }
+
+    template <class T>
+    static void private_detail_te_default_lower_baked_literals(float,
+                                                               T&& private_detail_te_self,
+                                                               module& m,
+                                                               context& ctx)
+    {
+        target_lower_baked_literals(private_detail_te_self, m, ctx);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_to_value(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.to_value())
+    {
+        return private_detail_te_self.to_value();
+    }
+
+    template <class T>
+    static value private_detail_te_default_to_value(float, T&& private_detail_te_self)
+    {
+        return to_value_target(private_detail_te_self);
+    }
+
+    template <class T>
+    static auto
+    private_detail_te_default_from_value(char, T&& private_detail_te_self, const value& v)
+        -> decltype(private_detail_te_self.from_value(v))
+    {
+        private_detail_te_self.from_value(v);
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_from_value(float, T&& private_detail_te_self, const value& v)
+    {
+        from_value_target(private_detail_te_self, v);
+    }
+
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
     {
@@ -251,6 +336,11 @@ struct target
                      std::declval<PrivateDetailTypeErasedT>(),
                      std::declval<module&>(),
                      std::declval<context&>()),
+                 private_detail_te_default_to_value(char(0),
+                                                    std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_from_value(char(0),
+                                                      std::declval<PrivateDetailTypeErasedT>(),
+                                                      std::declval<const value&>()),
                  void());
 
     template <class PrivateDetailTypeErasedT>
@@ -278,7 +368,7 @@ struct target
               typename = private_te_constraints<PrivateDetailTypeErasedT>,
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, target>{}>::type>
-    target& operator=(PrivateDetailTypeErasedT && value)
+    target& operator=(PrivateDetailTypeErasedT&& value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -367,6 +457,24 @@ struct target
         return (*this).private_detail_te_get_handle().allocate(s);
     }
 
+    void lower_baked_literals(module& m, context& ctx) const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().lower_baked_literals(m, ctx);
+    }
+
+    value to_value() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().to_value();
+    }
+
+    void from_value(const value& v)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().from_value(v);
+    }
+
     friend bool is_shared(const target& private_detail_x, const target& private_detail_y)
     {
         return private_detail_x.private_detail_te_handle_mem_var ==
@@ -388,6 +496,9 @@ struct target
         virtual argument copy_to(const argument& input) const                                   = 0;
         virtual argument copy_from(const argument& input) const                                 = 0;
         virtual argument allocate(const shape& s) const                                         = 0;
+        virtual void lower_baked_literals(module& m, context& ctx) const                        = 0;
+        virtual value to_value() const                                                          = 0;
+        virtual void from_value(const value& v)                                                 = 0;
     };
 
     template <typename PrivateDetailTypeErasedT>
@@ -450,6 +561,25 @@ struct target
         {
 
             return private_detail_te_default_allocate(char(0), private_detail_te_value, s);
+        }
+
+        void lower_baked_literals(module& m, context& ctx) const override
+        {
+
+            private_detail_te_default_lower_baked_literals(
+                char(0), private_detail_te_value, m, ctx);
+        }
+
+        value to_value() const override
+        {
+
+            return private_detail_te_default_to_value(char(0), private_detail_te_value);
+        }
+
+        void from_value(const value& v) override
+        {
+
+            private_detail_te_default_from_value(char(0), private_detail_te_value, v);
         }
 
         PrivateDetailTypeErasedT private_detail_te_value;

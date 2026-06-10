@@ -65,6 +65,7 @@ struct marker;
  */
 struct MIGRAPHX_EXPORT program
 {
+
     program();
 
     explicit program(module m);
@@ -87,6 +88,8 @@ struct MIGRAPHX_EXPORT program
     instruction_ref get_parameter(std::string name) const;
 
     std::unordered_map<std::string, shape> get_parameter_shapes() const;
+
+    int get_program_file_version() const;
 
     std::size_t total_instructions() const;
 
@@ -119,6 +122,11 @@ struct MIGRAPHX_EXPORT program
     bool is_compiled() const;
 
     void finalize();
+
+    // Attach `t` and finalize an already-lowered program (e.g. one loaded from
+    // an .mxr) without running compile passes that would mutate the lowered
+    // instructions.
+    void finalize(const target& t);
 
     void perf_report(std::ostream& os,
                      std::size_t n,
@@ -181,6 +189,9 @@ struct MIGRAPHX_EXPORT program
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
+    // program file version is for the data structure or format of the MXR file. Version should be
+    // bumped if any changes occur to the format of the MXR file.
+    static constexpr int program_file_version = 9;
 };
 
 /// Copy the program and replace external-weight parameters with literals read

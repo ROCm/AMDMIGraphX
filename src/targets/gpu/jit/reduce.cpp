@@ -204,11 +204,9 @@ find_strided_tile(context& ctx, std::size_t relements, std::size_t block_size)
 static optional<reduce_tile> find_reduce_tile(const std::vector<shape>& inputs,
                                               std::size_t noutputs,
                                               const shape& reduce_output_shape,
-                                              const std::vector<std::size_t>& reduce_lens,
-                                              // Below this the cache absorbs the
-                                              // repeated reads without tiling
-                                              std::size_t min_tile = 4)
+                                              const std::vector<std::size_t>& reduce_lens)
 {
+    const std::size_t min_tile  = 2;
     const std::size_t max_tile  = 16;
     const std::size_t min_bytes = 8388608; // 8MB
     // The loads can only be reused from cache when the reduction reads are
@@ -481,11 +479,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         optional<reduce_tile> tile = nullopt;
         if(assign == "assign_none" and
            (algo == "block_tile" or (algo == "block" and not v.contains("algo"))))
-            tile = find_reduce_tile(options.virtual_inputs,
-                                    noutputs,
-                                    reduce_output_shape,
-                                    reduction_shape.lens(),
-                                    v.contains("algo") ? 2 : 4);
+            tile = find_reduce_tile(
+                options.virtual_inputs, noutputs, reduce_output_shape, reduction_shape.lens());
         if(algo == "block_tile")
             algo = "block";
         bool no_vectorize = v.get("no_vectorize", false);
@@ -505,7 +500,8 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 else if(tile.has_value())
                 {
                     // Smaller workgroups keep the reused loads resident in cache
-                    block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
+                    auto max_block = tile->size == 2 ? 512 : 256;
+                    block_size = v.get("block_size", compute_block_size(ctx, relements, max_block));
                     algo       = "block_tile<" + std::to_string(tile->axis) + ", " +
                            std::to_string(tile->size) + ">";
                     nelements /= tile->size;
@@ -641,8 +637,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         virtual_inputs.pop_back();
         auto reduction_shape = virtual_inputs.back();
         virtual_inputs.pop_back();
-        if(find_reduce_tile(
-               virtual_inputs, noutputs, reduce_output_shape, reduction_shape.lens(), 2)
+        if(find_reduce_tile(virtual_inputs, noutputs, reduce_output_shape, reduction_shape.lens())
                .has_value())
         {
             for(auto block_size : {64, 128, 256, 512})

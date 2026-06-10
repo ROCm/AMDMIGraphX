@@ -49,6 +49,7 @@
 #include <sstream>
 #include <fstream>
 #include <algorithm>
+#include <exception>
 #include <set>
 #include <unordered_map>
 #include <utility>
@@ -484,6 +485,34 @@ static bool is_compatible_shape(const shape& actual, const shape& expected)
 }
 #endif
 
+namespace {
+// Logs the debug symbols of the instruction currently being evaluated, but only if the stack is
+// being unwound by an exception thrown from that evaluation. This lets a runtime failure be traced
+// back to its originating ONNX node (debug symbols are the parsed node names) without catching or
+// modifying the exception, so its original throw location and propagation are left untouched for
+// debuggers and the driver.
+struct log_debug_symbols_on_throw
+{
+    instruction_ref ins;
+    int uncaught = std::uncaught_exceptions();
+
+    ~log_debug_symbols_on_throw()
+    {
+        if(std::uncaught_exceptions() <= uncaught or ins->get_debug_symbols().empty())
+            return;
+        try
+        {
+            log::error() << "Exception thrown while evaluating instruction '" << ins->name()
+                         << "' with debug symbols: "
+                         << join_strings(ins->get_debug_symbols(), ", ");
+        }
+        catch(...) // a destructor must not throw while the stack is unwinding
+        {
+        }
+    }
+};
+} // namespace
+
 template <class F>
 static std::vector<argument> generic_eval(const module* mod,
                                           std::vector<context>& ctx,
@@ -500,6 +529,8 @@ static std::vector<argument> generic_eval(const module* mod,
 #ifndef NDEBUG
         results.emplace(ins, argument{});
 #endif
+        // Report the failing instruction's debug symbols if its evaluation throws.
+        log_debug_symbols_on_throw symbol_log_guard{ins};
         const auto& name = ins->name();
         if(name == "@literal")
         {

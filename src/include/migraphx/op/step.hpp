@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 
@@ -55,10 +56,8 @@ struct step
     std::string name() const { return "step"; }
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1);
+        check_shapes{inputs, *this, true}.has(1);
         const auto& input = inputs.at(0);
-        auto in_lens = input.lens();
-        auto t       = input.type();
 
         if(axes.size() != steps.size())
         {
@@ -67,27 +66,31 @@ struct step
                            "}.");
         }
 
-        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) { return axis >= in_lens.size(); }))
+        if(std::any_of(axes.begin(), axes.end(), [&](auto axis) { return axis >= input.ndim(); }))
         {
             MIGRAPHX_THROW("STEP: axis value is out of range!");
         }
 
-        auto lens    = in_lens;
-        auto strides = input.strides();
+        auto unified  = shape::to_dynamic({input}).front();
+        auto dds      = unified.dyn_dims();
+        auto dstrides = unified.symbolic() ? unified.dyn_strides() : std::vector<sym::expr>{};
         for(auto i : range(axes.size()))
         {
-            auto axis  = axes[i];
-            auto step  = steps[i];
-            lens[axis] = (in_lens[axis] + step - 1) / step;
-            strides[axis] *= step;
+            auto s       = static_cast<std::size_t>(steps[i]);
+            dds[axes[i]] = (dds[axes[i]] + (s - 1)) / s;
+            if(unified.symbolic())
+                dstrides[axes[i]] = dstrides[axes[i]] * sym::lit(s);
         }
-
-        return {t, lens, strides};
+        if(not input.dynamic())
+            return shape{input.type(), dds, dstrides}.to_static();
+        if(unified.symbolic())
+            return shape{input.type(), dds, dstrides};
+        return shape{input.type(), dds};
     }
 
-    argument compute(shape output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        return args[0].reshape(output_shape);
+        return args[0].reshape(dyn_out.computed_shape);
     }
 
     std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }

@@ -247,6 +247,36 @@ def argmin_select_last_index_test():
 
 
 @onnx_test()
+def array_feature_extractor_2d_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('Y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('Z', TensorProto.FLOAT, [3, 2])
+
+    node = onnx.helper.make_node(
+        'ArrayFeatureExtractor',
+        inputs=['X', 'Y'],
+        outputs=['Z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def array_feature_extractor_3d_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [2, 3, 4])
+    y = helper.make_tensor_value_info('Y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('Z', TensorProto.FLOAT, [2, 3, 2])
+
+    node = onnx.helper.make_node(
+        'ArrayFeatureExtractor',
+        inputs=['X', 'Y'],
+        outputs=['Z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def asin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -11338,6 +11368,20 @@ def nonzero_int_test():
 
 
 @onnx_test()
+def nonzero_large_test():
+    rows, cols = 32, 32
+    x = helper.make_tensor_value_info('data', TensorProto.BOOL, [rows, cols])
+    y = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                      [2, rows * cols])
+
+    node = onnx.helper.make_node('NonZero',
+                                 inputs=['data'],
+                                 outputs=['indices'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def onehot_static_test():
     axis_value = 0
     depth = np.array([3])
@@ -12414,6 +12458,43 @@ def qlinearconv_scale_1D_test():
     )
     return ([node], [x], [out],
             [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y])
+
+
+@onnx_test()
+def qlinearconv_perchannel_weightbias_test():
+    np.random.seed(42)
+
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 3, 224, 224])
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.0186])
+    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.UINT8, [], [114])
+
+    out_channels = 64
+    wt_data = np.random.randint(-128, 127, size=(out_channels, 3, 7, 7)).astype(np.int8)
+    wt = from_array(wt_data, 'W')
+    sc_wt_data = np.random.uniform(0.0001, 0.01, size=(out_channels,)).astype(np.float32)
+    sc_wt = from_array(sc_wt_data, 'W_scale')
+    zero_pt_wt_data = np.zeros((out_channels,), dtype=np.int8)
+    zero_pt_wt = from_array(zero_pt_wt_data, 'W_zero_point')
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.0312])
+    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [], [128])
+
+    bias_data = np.random.randint(-10000, 10000, size=(out_channels,)).astype(np.int32)
+    bias = from_array(bias_data, 'B')
+
+    out = helper.make_tensor_value_info('Y', TensorProto.UINT8, [1, 64, 112, 112])
+
+    node = onnx.helper.make_node(
+        'QLinearConv',
+        inputs=['X', 'X_scale', 'X_zero_point', 'W', 'W_scale', 'W_zero_point',
+                'Y_scale', 'Y_zero_point', 'B'],
+        outputs=['Y'],
+        kernel_shape=[7, 7],
+        pads=[3, 3, 3, 3],
+        strides=[2, 2],
+    )
+    return ([node], [x], [out],
+            [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y, bias])
 
 
 @onnx_test()
@@ -14211,6 +14292,9 @@ def resize_upsample_pc_test():
 
 @onnx_test()
 def resize_aspect_ratio_err_test():
+    # The 'stretch' policy is now accepted as a no-op (matches pre-Resize-18
+    # semantics already implemented). This negative test exercises a policy
+    # value that is still unsupported.
     sizes = np.array([1, 1, 3, 5], dtype=np.int64)
     size_tensor = helper.make_tensor(name='sizes',
                                       data_type=TensorProto.INT64,
@@ -14225,8 +14309,32 @@ def resize_aspect_ratio_err_test():
                                  outputs=['Y'],
                                  coordinate_transformation_mode='asymmetric',
                                  mode='nearest',
-                                 keep_aspect_ratio_policy='stretch',
+                                 keep_aspect_ratio_policy='not_larger',
                                  nearest_mode='ceil')
+
+    return ([node], [X], [Y], [size_tensor])
+
+
+@onnx_test()
+def resize_aspect_ratio_stretch_test():
+    # 'stretch' is the Resize-18 default and matches pre-18 per-axis semantics.
+    # ORT injects it for opset-18 exports, so the parser must accept it as a no-op.
+    sizes = np.array([1, 1, 4, 8], dtype=np.int64)
+    size_tensor = helper.make_tensor(name='sizes',
+                                     data_type=TensorProto.INT64,
+                                     dims=sizes.shape,
+                                     vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 8])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'sizes'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 keep_aspect_ratio_policy='stretch',
+                                 nearest_mode='floor')
 
     return ([node], [X], [Y], [size_tensor])
 
@@ -15171,6 +15279,36 @@ def scatternd_dyn_test():
                                  outputs=['output'])
 
     return ([node], [data, indices, updates], [output])
+
+
+@onnx_test()
+def scatternd_nonpacked_indices_test():
+    n = 16
+
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, n])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [n])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, n])
+
+    raw_indices = np.zeros((2, n), dtype=np.int64)
+    raw_indices[1, :] = np.arange(n - 1, -1, -1, dtype=np.int64)
+    raw_indices_init = helper.make_tensor(name='raw_indices',
+                                          data_type=TensorProto.INT64,
+                                          dims=raw_indices.shape,
+                                          vals=raw_indices.flatten())
+
+    transpose_node = onnx.helper.make_node('Transpose',
+                                           inputs=['raw_indices'],
+                                           outputs=['indices'],
+                                           perm=[1, 0])
+    scatter_node = onnx.helper.make_node(
+        'ScatterND',
+        inputs=['data', 'indices', 'updates'],
+        outputs=['output'])
+
+    return ([transpose_node, scatter_node], [data, updates], [output],
+            [raw_indices_init])
 
 
 @onnx_test()
@@ -18691,7 +18829,6 @@ def where_dyn_test():
 
 @onnx_test()
 def where_mixed_test():
-    # mixture of static and dynamic input shapes is not supported
     c = helper.make_tensor_value_info('c', TensorProto.BOOL, [None, 2, 2])
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 2, 2])
@@ -19463,3 +19600,70 @@ def scan_arg_shapes_mismatch_test():
     )
     return ([node], [init_state, scan_ins1,
                      scan_ins2], [final_state, scan_outs])
+
+
+@onnx_test()
+def qlinearmatmul_2D_perchannel_test():
+    a = helper.make_tensor_value_info('A', TensorProto.UINT8, [1, 2048])
+    sc_a = helper.make_tensor('A_scale', TensorProto.FLOAT, [], [0.06])
+    zero_pt_a = helper.make_tensor('A_zero_point', TensorProto.UINT8, [], [30])
+
+    np.random.seed(42)
+    b_data = np.random.randint(0, 96, size=[2048, 1000], dtype=np.uint8)
+    b = from_array(b_data, 'B')
+    sc_b_data = (np.random.rand(1000) * 0.001).astype(np.float32)
+    sc_b = from_array(sc_b_data, 'B_scale')
+    zero_pt_b_data = np.random.randint(0, 96, size=[1000], dtype=np.uint8)
+    zero_pt_b = from_array(zero_pt_b_data, 'B_zero_point')
+
+    sc_c = helper.make_tensor('C_scale', TensorProto.FLOAT, [], [0.18])
+    zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.UINT8, [], [65])
+
+    c = helper.make_tensor_value_info('C', TensorProto.UINT8, [1, 1000])
+
+    node = onnx.helper.make_node(
+        'QLinearMatMul',
+        inputs=[
+            'A', 'A_scale', 'A_zero_point', 'B', 'B_scale', 'B_zero_point',
+            'C_scale', 'C_zero_point'
+        ],
+        outputs=['C'],
+    )
+    return ([node], [a], [c],
+            [sc_a, zero_pt_a, b, sc_b, zero_pt_b, sc_c, zero_pt_c])
+
+
+@onnx_test()
+def qlinearmatmul_N_D_perchannel_test():
+    np.random.seed(123)
+
+    a = helper.make_tensor_value_info('A', TensorProto.UINT8, [2, 3, 4])
+
+    sc_a_data = (np.random.rand(2, 3, 1) * 0.01 + 0.005).astype(np.float32)
+    sc_a = from_array(sc_a_data, 'A_scale')
+    zp_a_data = np.random.randint(100, 150, (2, 3, 1)).astype(np.uint8)
+    zero_pt_a = from_array(zp_a_data, 'A_zero_point')
+
+    b_data = np.random.randint(0, 256, (2, 4, 5)).astype(np.uint8)
+    b = from_array(b_data, 'B')
+
+    sc_b_data = (np.random.rand(2, 1, 5) * 0.01 + 0.005).astype(np.float32)
+    sc_b = from_array(sc_b_data, 'B_scale')
+    zp_b_data = np.random.randint(100, 150, (2, 1, 5)).astype(np.uint8)
+    zero_pt_b = from_array(zp_b_data, 'B_zero_point')
+
+    sc_c = helper.make_tensor('C_scale', TensorProto.FLOAT, [], [0.1])
+    zero_pt_c = helper.make_tensor('C_zero_point', TensorProto.UINT8, [], [128])
+
+    c = helper.make_tensor_value_info('C', TensorProto.UINT8, [2, 3, 5])
+
+    node = onnx.helper.make_node(
+        'QLinearMatMul',
+        inputs=[
+            'A', 'A_scale', 'A_zero_point', 'B', 'B_scale', 'B_zero_point',
+            'C_scale', 'C_zero_point'
+        ],
+        outputs=['C'],
+    )
+    return ([node], [a], [c],
+            [sc_a, zero_pt_a, b, sc_b, zero_pt_b, sc_c, zero_pt_c])

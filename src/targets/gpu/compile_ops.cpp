@@ -34,10 +34,14 @@
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/op/identity.hpp>
+#include <migraphx/builtin.hpp>
+#include <migraphx/load_save.hpp>
+#include <migraphx/filesystem.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,6 +50,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
 
 struct precompile_op
 {
@@ -249,6 +254,32 @@ struct compiled_result
         cr.replace.trace(os, cr.ins);
         return os;
     }
+
+    program make_program() const
+    {
+        program bench_prog;
+        auto* mm = bench_prog.get_main_module();
+
+        std::vector<instruction_ref> bench_ins_inputs;
+        std::transform(ins->inputs().begin(),
+                       ins->inputs().end(),
+                       std::back_inserter(bench_ins_inputs),
+                       [&](const auto& arg) {
+                           return mm->add_parameter(std::to_string(bench_ins_inputs.size()),
+                                                    arg->get_shape());
+                       });
+        auto bench_ins =
+            mm->add_instruction(ins->get_operator(), bench_ins_inputs, ins->module_inputs());
+        mm->add_return({bench_ins});
+        replace.replace(*mm, bench_ins);
+        run_passes(*mm,
+                   {
+                       eliminate_identity{},
+                       dead_code_elimination{},
+                       memory_coloring{"hip::allocate"},
+                   });
+        return bench_prog;
+    }
 };
 
 struct compile_plan
@@ -306,7 +337,8 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or solutions.size() == 1)
+                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or ctx->is_cross_compile() or
+                   solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
@@ -409,33 +441,11 @@ struct compile_plan
                            on that which would insert all the compiled code objects, prefills etc.
                            necessary to run candidate code object
                            */
-                           program bench_prog;
-                           auto* bench_mm = bench_prog.get_main_module();
-                           std::vector<instruction_ref> bench_ins_inputs;
-
-                           std::transform(cr->ins->inputs().begin(),
-                                          cr->ins->inputs().end(),
-                                          std::back_inserter(bench_ins_inputs),
-                                          [&](const auto& arg) {
-                                              return bench_mm->add_parameter(
-                                                  std::to_string(bench_ins_inputs.size()),
-                                                  arg->get_shape());
-                                          });
-                           auto bench_ins = bench_mm->add_instruction(
-                               cr->ins->get_operator(), bench_ins_inputs, cr->ins->module_inputs());
-                           bench_mm->add_return({bench_ins});
-                           cr->replace.replace(*bench_mm, bench_ins);
-                           // do dead code elimination
-                           run_passes(*bench_mm,
-                                      {
-                                          eliminate_identity{},
-                                          dead_code_elimination{},
-                                          memory_coloring{"hip::allocate"},
-                                      });
+                           auto bench_prog = cr->make_program();
                            if(trace_level > 2)
                                std::cout << bench_prog << std::endl;
                            auto t = time_program(*ctx,
-                                                 bench_prog,
+                                                 std::move(bench_prog),
                                                  cr->replace.fill_map,
                                                  /* bundle */ 10,
                                                  /* nrun */ 20);
@@ -467,6 +477,28 @@ struct compile_plan
         const auto& cr = benchmark();
         cr.replace.replace(m, cr.ins);
     }
+
+    void save_binaries(const fs::path& mxr_dir) const
+    {
+        if(not config.has_value())
+            return;
+        for(auto i : range(results.size()))
+        {
+            if(not results[i].has_value())
+                continue;
+            const auto& solution     = config->solutions[i];
+            auto bench_prog          = results[i]->make_program();
+            auto* mm                 = bench_prog.get_main_module();
+            std::string comment_text = preop.name() + " problem=" + to_string(config->problem) +
+                                       " solution=" + to_string(solution);
+            mm->add_instruction(builtin::comment{comment_text}, {});
+            auto problem_hash = std::hash<std::string>{}(to_string(config->problem));
+            auto mxr_file     = mxr_dir / (preop.name() + "_" + std::to_string(i) + "_" +
+                                       std::to_string(problem_hash) + ".mxr");
+            log::info() << "Saving benchmark binary: " << mxr_file;
+            save(bench_prog, mxr_file.string());
+        }
+    }
 };
 
 template <class F>
@@ -496,7 +528,7 @@ struct compile_manager
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
-    void compile(module& m)
+    void compile(module& m, bool is_root)
     {
         std::vector<std::function<void()>> compiles;
         for(auto& cp : cps)
@@ -505,12 +537,37 @@ struct compile_manager
         }
         par_compile(compiles.size(), [&](auto i) { compiles[i](); });
 
-        // Replace and/or benchmark
+        static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
+        bool dump_mxr              = not mxr_path.empty();
+
+        if(dump_mxr)
+        {
+            fs::create_directories(fs::path(mxr_path));
+        }
+
         for(const auto& cp : cps)
         {
             if(cp.results.empty())
                 continue;
-            cp.replace(m);
+            if(dump_mxr and cp.results.size() > 1)
+            {
+                cp.save_binaries(fs::path(mxr_path));
+            }
+            else
+            {
+                cp.replace(m);
+            }
+        }
+
+        // Only throw on the root module so that submodules (which are processed
+        // first by the pass manager and may legitimately have no precompile ops
+        // or no multi-solution candidates) don't abort compilation before the
+        // root module has had a chance to dump its benchmark MXR files.
+        if(dump_mxr and is_root)
+        {
+            MIGRAPHX_THROW(
+                "Benchmark MXR files dumped to " + mxr_path +
+                ". Run the MXR files to create a problem cache, then recompile with the cache.");
         }
 
         // Remove compile_plan already executed
@@ -521,8 +578,10 @@ struct compile_manager
     }
 };
 
-void compile_ops::apply(module& m) const
+void compile_ops::apply(module_pass_manager& mpm) const
 {
+    bool is_root = &mpm.get_module() == mpm.get_root_module();
+    auto& m      = mpm.get_module();
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
     // Find all precompile ops
@@ -534,9 +593,9 @@ void compile_ops::apply(module& m) const
         cm.add_plan(ctx, preop, ins, &m);
     }
     cm.update_configs();
-    cm.compile(m);
+    cm.compile(m, is_root);
     // Compile already tuned configs
-    cm.compile(m);
+    cm.compile(m, is_root);
     assert(cm.cps.empty());
 }
 

@@ -41,9 +41,7 @@ static migraphx::instruction_ref add_arg_reduce(migraphx::module& m,
                                                 const std::string& op_name,
                                                 int axis)
 {
-    auto reduce_axis_size = x->get_shape().lens().at(axis);
-    auto indices =
-        m.add_instruction(migraphx::make_op("gpu::make_indices", {{"size", reduce_axis_size}}));
+    auto indices = m.add_instruction(migraphx::make_op("gpu::make_indices"), {x});
     auto ar = m.add_instruction(
         migraphx::make_op(
             "gpu::arg_reduce",

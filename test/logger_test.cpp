@@ -655,6 +655,7 @@ TEST_CASE(logger_concurrent_set_severity)
             migraphx::log::set_severity(migraphx::log::severity::error, sink_id);
             std::this_thread::sleep_for(1ms);
             migraphx::log::set_severity(migraphx::log::severity::info, sink_id);
+            std::this_thread::sleep_for(1ms);
         }
     });
 

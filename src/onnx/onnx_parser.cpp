@@ -37,7 +37,11 @@
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/logger.hpp>
 #include <onnx.pb.h>
+#include <iomanip>
+#include <set>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -54,7 +58,7 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
         std::transform(dyn_dims.cbegin(),
                        dyn_dims.cend(),
                        std::back_inserter(dims),
-                       [](const auto& d) { return d.max; });
+                       [](const auto& d) { return d.get_interval().max; });
         return {shape_type, dims};
     }
     return {shape_type, dyn_dims};
@@ -257,6 +261,31 @@ void onnx_parser::parse_undefined(module* mod, const std::string& name)
     }
 }
 
+static void warn_unresolved_dim_params(const onnx_parser& parser, const onnx::GraphProto& graph)
+{
+    if(parser.default_set)
+        return;
+    std::set<std::string> unresolved;
+    for(const auto& input : graph.input())
+    {
+        if(contains(parser.map_input_dims, input.name()) or
+           contains(parser.map_dyn_input_dims, input.name()))
+            continue;
+        for(const auto& d : input.type().tensor_type().shape().dim())
+        {
+            if(d.has_dim_param() and not contains(parser.dim_params, d.dim_param()))
+                unresolved.insert(d.dim_param());
+        }
+    }
+    if(unresolved.empty())
+        return;
+    log::warn() << "Model has unbound symbolic dimension(s): "
+                << join_strings(std::move(unresolved), ", ") << ". These default to "
+                << parser.default_dyn_dim_value << " and may cause unexpected behavior. "
+                << "Try setting `--dim-param @<name> <value>` or `--input-dim @<input> <dims>` "
+                   "if program compilation fails.";
+}
+
 void onnx_parser::parse_from(std::istream& is, std::string name)
 {
     auto* mm         = prog.get_main_module();
@@ -273,6 +302,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
 
         if(model.has_graph())
         {
+            warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
         }
     }
@@ -293,6 +323,7 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
 
         if(model.has_graph())
         {
+            warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
         }
     }
@@ -317,40 +348,13 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-/**
- * Get the instructions added by the parser not in `args`.
- * Does a DFS through inputs of result up to the instructions `args`.
- */
-static std::vector<instruction_ref>
-get_added_instructions(const std::vector<instruction_ref>& args,
-                       const std::vector<instruction_ref>& result)
-{
-    // Print instructions added by the parser not in args
-    std::vector<instruction_ref> added_instructions;
-    // Set for checking added_instructions faster
-    std::unordered_set<instruction_ref> visit_set;
-    fix([&](auto self, const auto& r) {
-        for(auto ins : r)
-        {
-            if(contains(args, ins))
-                continue;
-            if(contains(visit_set, ins))
-                continue;
-            self(ins->inputs());
-            added_instructions.push_back(ins);
-            visit_set.insert(ins);
-        }
-    })(result);
-    return added_instructions;
-}
-
 static bool is_type_packed_int4(const onnx::TensorProto& t)
 {
     return t.data_type() == onnx::TensorProto::INT4 or t.data_type() == onnx::TensorProto::UINT4;
 }
 
 static std::unordered_map<std::string, instruction_ref>
-parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
+parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
@@ -360,6 +364,8 @@ parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto&
         // backup instructions in parent mod
         auto pt  = parser.parse_tensor(f);
         auto lit = mod->add_literal(pt);
+        if(parser.use_debug_symbols)
+            mod->add_debug_symbols(lit, {f.name()});
 
         if(is_type_packed_int4(f))
             lit = mod->add_instruction(migraphx::make_op("unpack_int4"), lit);
@@ -545,6 +551,23 @@ static bool check_sorted(const onnx::GraphProto& graph,
     return true;
 }
 
+static void set_return_ins_debug_symbols(module* mod,
+                                         const std::vector<std::string>& prog_output_names,
+                                         instruction_ref ret_ins)
+{
+    int num_width = std::to_string(prog_output_names.size() - 1).size();
+    std::set<std::string> output_symbols;
+    for(auto i : range(prog_output_names.size()))
+    {
+        std::ostringstream oss;
+        oss << "@output_";
+        oss << std::setw(num_width) << std::setfill('0') << i;
+        oss << ":" << prog_output_names[i];
+        output_symbols.insert(oss.str());
+    }
+    mod->add_debug_symbols(ret_ins, output_symbols);
+}
+
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
@@ -562,7 +585,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     }
 
     std::unordered_map<std::string, instruction_ref> mod_insts =
-        parse_intializer(*this, mod, graph);
+        parse_initializer(*this, mod, graph);
 
     mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 
@@ -659,8 +682,11 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     if(not inlining)
     {
         // add the return instuction
-        mod->add_return(output_ins);
-
+        auto ret_ins = mod->add_return(output_ins);
+        if(use_debug_symbols)
+        {
+            set_return_ins_debug_symbols(mod, prog_output_names, ret_ins);
+        }
         // Remove instructions added in module (this is turned off for subgraph inlining)
         erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
     }
@@ -771,9 +797,10 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     switch(t.data_type())
     {
-    case onnx::TensorProto::BOOL: return create_literal(shape::bool_type, dims, t.int32_data());
+    case onnx::TensorProto::BOOL:
+        return create_literal(shape::bool_type, dims, t.int32_data());
 
-    // INT4 or UINT4 operate as 8-bit buffers:
+        // INT4 or UINT4 operate as 8-bit buffers:
     case onnx::TensorProto::INT4: return create_literal(shape::int8_type, dims, t.int32_data());
     case onnx::TensorProto::UINT4: return create_literal(shape::uint8_type, dims, t.int32_data());
 

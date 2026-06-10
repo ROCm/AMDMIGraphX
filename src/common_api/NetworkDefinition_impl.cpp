@@ -15,6 +15,7 @@
 #include "layers/SliceLayer_impl.hpp"
 #include "layers/ShuffleLayer_impl.hpp"
 #include "layers/ActivationLayer_impl.hpp"
+#include "layers/ConcatenationLayer_impl.hpp"
 
 namespace nvinfer1
 {
@@ -96,8 +97,9 @@ ISoftMaxLayer* NvNetworkDefinition_impl::addSoftMax(ITensor& input) noexcept
 
 IConcatenationLayer* NvNetworkDefinition_impl::addConcatenation(ITensor* const* inputs, int32_t nbInputs) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	std::vector<ITensor*> inputVec(inputs, inputs + nbInputs);
+	mLayers.push_back(std::make_unique<ConcatenationLayer_impl>(inputVec, 0, mProgram));
+	return dynamic_cast<IConcatenationLayer*>(mLayers.back().get());
 }
 
 IElementWiseLayer* NvNetworkDefinition_impl::addElementWise(ITensor& input1, ITensor& input2, ElementWiseOperation op) noexcept

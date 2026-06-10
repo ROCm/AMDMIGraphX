@@ -27,6 +27,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/make_op.hpp>
 #include <string>
@@ -75,8 +76,11 @@ struct mlss_conv_op
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        // when has_bias is true, inputs.size() == 3
-        // so this calls compute_shape with [activation, weight]
+        // Inputs are [activation, weight] plus an optional [bias] when has_bias.
+        const std::size_t expected = has_bias ? 3 : 2;
+        check_shapes{inputs, *this}.has(expected).same_type();
+        // The bias does not affect the output shape, so only the
+        // [activation, weight] pair is forwarded to the conv op.
         return conv_op.compute_shape({inputs.at(0), inputs.at(1)});
     }
 };

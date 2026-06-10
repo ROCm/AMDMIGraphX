@@ -41,7 +41,7 @@ jobs:
         id: image_hash
         run: |
           # NOTE: Changes to the following imagetag line must also be reflected in perf-test.yaml to keep behavior consistent (https://github.com/ROCm/migraphx-benchmark/blob/main/.github/workflows/perf-test.yml)
-          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
+          echo "imagetag=hip-clang-${{hashFiles('**/hip-clang.docker', '**/*requirements.txt', '**/requirements-py.txt', '**/install_build_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
           echo "imagetag_sles=hip-clang-${{hashFiles('**/tools/docker/sles.docker', '**/*requirements.txt','**/requirements-py.txt', '**/install_prereqs.sh', '**/rbuild.ini')}}" >> $GITHUB_OUTPUT
 
       - name: Check if image is built already

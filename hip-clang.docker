@@ -1,76 +1,123 @@
-FROM ubuntu:22.04
+# MIGraphX CI build image (TheRock amdrocm-* packages, ROCm 7.13, Ubuntu 24.04).
+#
+# Built and published by .github/workflows/ci.yaml and consumed by the tidy,
+# cppcheck and format jobs. The ROCm toolchain comes from TheRock's "amdrocm-*"
+# packages (installed via tools/install_build_prereqs.sh) and the MIGraphX
+# third-party dependencies are prebuilt into PREFIX (/usr/local) so the CI jobs
+# only need to configure and build.
 
+FROM ubuntu:24.04
+
+# Install location for the prebuilt MIGraphX dependencies.
 ARG PREFIX=/usr/local
+# ROCm release version for TheRock versioned package names (e.g. amdrocm-runtime7.13).
+ARG ROCM_VERSION=7.13
+# GPU architecture family (e.g. gfx942); empty installs the fat (all-architecture)
+# device code, which lets the image run on any GPU in CI.
+ARG GPU_ARCH=""
 
-# Support multiarch
-RUN dpkg --add-architecture i386
+# Fail a piped command if any stage fails (needed for the key-dearmor pipe below).
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Install rocm key
-RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
-    mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg && \
-    apt-get clean && \
+# pip on Ubuntu 24.04 is externally managed; allow system-wide installs.
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+# Install prerequisites needed to fetch and dearmor the ROCm signing key.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates gnupg2 curl && \
     rm -rf /var/lib/apt/lists/*
 
+# Register TheRock ROCm apt repository and its signing key.
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings && \
+    curl -fsSL https://repo.amd.com/rocm/packages/gpg/rocm.gpg | \
+        gpg --dearmor | tee /etc/apt/keyrings/amdrocm.gpg > /dev/null && \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages-multi-arch/ubuntu2404 stable main" \
+        > /etc/apt/sources.list.d/rocm.list
 
-# Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/7.2.3/ jammy main > /etc/apt/sources.list.d/rocm.list'
+# Install the ROCm toolchain + MIGraphX build prerequisites via the shared script.
+# No --gpu is passed, so the fat (all-architecture) device code is installed.
+RUN --mount=type=bind,source=tools/install_build_prereqs.sh,target=/tmp/install_build_prereqs.sh \
+    /tmp/install_build_prereqs.sh \
+        --rocm-version ${ROCM_VERSION} \
+        ${GPU_ARCH:+--gpu ${GPU_ARCH}} && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# From docs.amd.com for installing rocm. Needed to install properly
-RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
+# TheRock installs into a versioned root (/opt/rocm/core-<ver>). Expose the
+# conventional /opt/rocm/{bin,lib,llvm,...} layout that CI jobs and rbuild.ini
+# reference via the hard-coded /opt/rocm/llvm/bin/clang++ path.
+RUN for d in bin lib libexec include share llvm amdgcn; do \
+        ln -snf core-${ROCM_VERSION}/$d /opt/rocm/$d; \
+    done && \
+    echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf && \
+    echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf && \
+    ldconfig
+ENV ROCM_PATH=/opt/rocm
+ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
 
-# Install dependencies
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    apt-utils \
-    build-essential \
-    cmake \
-    gdb \
-    git \
-    lcov \
-    pkg-config \
-    python3 \
-    python3-dev \
-    python3-pip \
-    python3-full \
-    software-properties-common \
-    wget \
-    rocm-device-libs \
-    hip-dev \
-    libnuma-dev \
-    miopen-hip \
-    rocblas \
-    zlib1g-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# tools/format.py expects clang-format and git-clang-format under
+# /opt/rocm/llvm/bin, which TheRock does not ship; provide them from the distro.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends clang-format && \
+    rm -rf /var/lib/apt/lists/* && \
+    ln -snf "$(command -v clang-format)" /opt/rocm/llvm/bin/clang-format && \
+    ln -snf "$(command -v git-clang-format)" /opt/rocm/llvm/bin/git-clang-format
 
-# Workaround broken rocm packages
-RUN ln -s /opt/rocm-* /opt/rocm
-RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
-RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
-RUN ldconfig
-
-# Workaround broken miopen cmake files
-RUN sed -i 's,;/usr/lib/x86_64-linux-gnu/librt.so,,g' /opt/rocm/lib/cmake/miopen/miopen-targets.cmake
-
-# Workaround for distributions running cmake < 3.25
-RUN sed -i -e 's/^block/if(COMMAND block)\nblock/g' -e 's/^endblock/endblock\(\)\nendif/g' /opt/rocm/lib/cmake/hipblaslt/hipblaslt-config.cmake
-
+# Set locale
+RUN locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Install yapf
+# Install yapf (used by tools/format.py for Python files)
 RUN pip3 install yapf==0.28.0
 
-# Install doc requirements
+# Install doc requirements. --ignore-installed avoids pip trying (and failing)
+# to uninstall distro-managed Python packages such as Pygments (pulled in by gdb)
+# on Ubuntu 24.04's externally-managed Python.
 ADD docs/sphinx/requirements.txt /doc-requirements.txt
-RUN pip3 install -r /doc-requirements.txt
+RUN pip3 install --ignore-installed -r /doc-requirements.txt
 
-# Install dependencies
+# Prebuild the MIGraphX third-party dependencies (protobuf, half, oneDNN,
+# composable_kernel, rocMLIR, cppcheck, ccache, ...) into PREFIX so the CI jobs
+# can configure and build without fetching them.
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
+RUN cd / && rbuild prepare -d ${PREFIX} -s develop
 
-COPY ./tools/install_prereqs.sh /
-COPY ./tools/requirements-py.txt /
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
+# Install onnxruntime Python test requirements (built against the prepared protobuf)
+ADD tools/requirements-py.txt /requirements-py.txt
+RUN CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON" pip3 install -r /requirements-py.txt && \
+    rm /requirements-py.txt
 
+# TheRock's clang-tidy (LLVM 23) analyzes correctly but aborts during static
+# destructor teardown (a double free in libclang-cpp), so its process exit code
+# is an unreliable pass/fail signal. ROCMClangTidy.cmake turns any non-zero exit
+# into a FATAL_ERROR, which would break the `tidy` CI job. Wrap clang-tidy and
+# re-derive status from the diagnostics, matching MIGraphX's warnings-as-errors
+# tidy policy: any diagnostic (or hard error) fails, everything else passes.
+COPY <<'EOF' /opt/rocm/llvm/bin/clang-tidy.wrapper
+#!/usr/bin/env bash
+set -o pipefail
+real="$(dirname "$0")/clang-tidy.real"
+output="$("$real" "$@" 2>&1)"
+status=$?
+# Strip ANSI color codes (present when clang-tidy runs with --use-color) so the
+# diagnostic check below is reliable, then drop the teardown crash banner and
+# backtrace so they do not pollute the log. stdout/stderr interleaving means the
+# crash lines can arrive in any order, so drop each known noise line explicitly.
+clean="$(printf '%s\n' "$output" \
+    | sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' \
+    | grep -vE \
+    '^[[:space:]]*#[0-9]+[[:space:]]+0x|^PLEASE submit a bug report|^Stack dump:|^[0-9]+\.[[:space:]].*[Pp]rogram arguments|^[[:space:]]*Optimized build\.|^free\(\): |^malloc\(\): |corrupted')"
+printf '%s\n' "$clean"
+if printf '%s\n' "$clean" | grep -qE ': (warning|error):'; then
+    exit 1
+fi
+if [ "$status" -lt 128 ]; then
+    exit "$status"
+fi
+exit 0
+EOF
+RUN mv /opt/rocm/llvm/bin/clang-tidy /opt/rocm/llvm/bin/clang-tidy.real && \
+    mv /opt/rocm/llvm/bin/clang-tidy.wrapper /opt/rocm/llvm/bin/clang-tidy && \
+    chmod +x /opt/rocm/llvm/bin/clang-tidy

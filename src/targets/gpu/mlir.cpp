@@ -1440,10 +1440,7 @@ tuning_config get_tuning_config_mlir(const context&, module, const std::vector<s
     return {};
 }
 
-bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t)
-{
-    return false;
-}
+bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t) { return false; }
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif

@@ -859,12 +859,11 @@ module {
 TEST_CASE(mlir_lds_usage_fits_arch)
 {
     const auto arch = migraphx::gpu::get_device_name();
-    EXPECT(migraphx::gpu::mlir_lds_usage_fits_arch(
-        64, arch, migraphx::shape::type_t::half_type));
+    EXPECT(migraphx::gpu::mlir_lds_usage_fits_arch(64, arch, migraphx::shape::type_t::half_type));
     EXPECT(not migraphx::gpu::mlir_lds_usage_fits_arch(
         8192, arch, migraphx::shape::type_t::half_type));
-    EXPECT(not migraphx::gpu::mlir_lds_usage_fits_arch(
-        0, arch, migraphx::shape::type_t::half_type));
+    EXPECT(
+        not migraphx::gpu::mlir_lds_usage_fits_arch(0, arch, migraphx::shape::type_t::half_type));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -3139,8 +3139,7 @@ TEST_CASE(dot_add_dot_two_chain_inputs_no_geg)
         auto b    = mm->add_parameter("b", s2);
         auto x    = mm->add_parameter("x", s3);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        auto add =
-            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
         // Both dot operands depend on the first gemm chain; shapes are (1024,4) @ (4,1024).
         auto add_t =
             mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), add);
@@ -3162,8 +3161,7 @@ TEST_CASE(dot_add_dot_lds_too_large_no_geg)
     std::optional<std::size_t> blocking_g;
     for(std::size_t g = 512; g <= 1340; g += 64)
     {
-        if(not migraphx::gpu::mlir_lds_usage_fits_arch(
-               g, arch, migraphx::shape::type_t::half_type))
+        if(not migraphx::gpu::mlir_lds_usage_fits_arch(g, arch, migraphx::shape::type_t::half_type))
         {
             blocking_g = g;
             break;
@@ -3184,8 +3182,7 @@ TEST_CASE(dot_add_dot_lds_too_large_no_geg)
         auto x    = mm->add_parameter("x", s3);
         auto y    = mm->add_parameter("y", s4);
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        auto add =
-            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
+        auto add  = add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);
         mm->add_return({dot2});
     }

@@ -260,7 +260,7 @@ instruction_ref strip_layout_ops(instruction_ref ins)
 
 // Only one mlir_op input may feed from the first gemm
 bool single_chain_input_to_second_gemm(instruction_ref first_gemm_ins,
-                                         const std::vector<instruction_ref>& second_mlir_inputs)
+                                       const std::vector<instruction_ref>& second_mlir_inputs)
 {
     const auto chain_anchor = strip_layout_ops(first_gemm_ins);
     bool found_chain        = false;
@@ -942,8 +942,9 @@ struct find_mlir_fused_geg_ops
     /*
      * Matches:
      * gpu::mlir_op(standalone_dot/standalone_convolution/dot_pointwise/conv_pointwise) <binds to
-     * "first_gemm_based_op"> -> gpu::mlir_op(standalone_dot/standalone_convolution/dot_pointwise/conv_pointwise)
-     * <matcher result, binds to "second_gemm_op">
+     * "first_gemm_based_op"> ->
+     * gpu::mlir_op(standalone_dot/standalone_convolution/dot_pointwise/conv_pointwise) <matcher
+     * result, binds to "second_gemm_op">
      */
     auto matcher() const
     {
@@ -975,8 +976,7 @@ struct find_mlir_fused_geg_ops
         // check if both gemms exist and are supported on this architecture
         if(first_gemm == first_submod->end() or second_gemm == second_submod->end())
             return;
-        if(not is_gemm_supported(first_gemm) or
-           not is_gemm_supported(second_gemm, true))
+        if(not is_gemm_supported(first_gemm) or not is_gemm_supported(second_gemm, true))
             return;
 
         if(not single_chain_input_to_second_gemm(first_gemm_ins, second_gemm_ins->inputs()))

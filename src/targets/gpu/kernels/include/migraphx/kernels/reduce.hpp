@@ -618,6 +618,56 @@ struct block_large
     }
 };
 
+/// Computes all the outputs along the tiled axis in the same workgroup. The
+/// inputs that are broadcast along the tiled axis are read for every output,
+/// so processing the tile in one workgroup lets those reads hit the cache
+/// instead of streaming from memory once per output.
+template <index_int Axis, index_int N>
+struct block_tile
+{
+    template <class Slicer>
+    static __device__ auto make(index idx, Slicer slicer)
+    {
+        return block::make(idx, slicer);
+    }
+
+    template <class Output>
+    static constexpr auto get_tiled_shape()
+    {
+        constexpr auto s = get_shape_c<Output>{};
+        static_assert(Axis < s.lens.size(), "Tile axis is out of bounds");
+        static_assert(s.lens[Axis] % N == 0, "Tile size must evenly divide the tiled axis");
+        constexpr auto lens = transform_i(s.lens, [](index_int x, index_int i) -> index_int {
+            if(i == Axis)
+                return x / N;
+            return x;
+        });
+        return make_shape(lens, s.strides);
+    }
+
+    template <class Output, class F>
+    static __device__ void run(F f)
+    {
+        auto idx                   = make_index();
+        constexpr auto tiled_shape = get_tiled_shape<Output>();
+        constexpr auto nelements   = tiled_shape.elements();
+        idx.global_stride(nelements * idx.nlocal(), [&](auto i) {
+            auto out_idx = tiled_shape.multi(i / idx.nlocal());
+            out_idx[Axis] *= N;
+            for(index_int n = 0; n < N; n++)
+            {
+                // The lds buffer in block_reduce is reused on each iteration,
+                // so wait until all threads have read the previous result
+                if(n > 0)
+                    __syncthreads();
+                f(out_idx,
+                  make(idx, [&](auto input) { return reduce_slice<Output>(input, out_idx); }));
+                out_idx[Axis]++;
+            }
+        });
+    }
+};
+
 template <unsigned int SubWaveSize>
 struct subwave
 {

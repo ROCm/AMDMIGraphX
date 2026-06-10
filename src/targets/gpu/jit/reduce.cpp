@@ -145,6 +145,68 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
     return wavefront_size;
 }
 
+struct reduce_tile
+{
+    std::size_t axis = 0;
+    std::size_t size = 1;
+};
+
+/// Find a non-reduced axis where most of the input bytes are broadcast, so all
+/// the outputs along that axis read the same data. Computing such outputs in
+/// the same workgroup lets the broadcast input be loaded from cache instead of
+/// being streamed from memory once per output.
+static optional<reduce_tile> find_reduce_tile(const std::vector<shape>& inputs,
+                                              std::size_t noutputs,
+                                              const shape& reduce_output_shape,
+                                              // Below this the cache absorbs the
+                                              // repeated reads without tiling
+                                              std::size_t min_tile = 4)
+{
+    const std::size_t max_tile  = 16;
+    const std::size_t min_bytes = 8388608; // 8MB
+    // Sum the memory footprint of the inputs that are broadcast(or not) along the axis,
+    // skipping the output shapes since they are only written once per element
+    auto axis_bytes = [&](std::size_t axis, bool broadcast) {
+        return transform_accumulate(inputs.begin(),
+                                    inputs.end() - noutputs,
+                                    std::size_t{0},
+                                    std::plus<>{},
+                                    [&](const shape& input) -> std::size_t {
+                                        if((input.strides()[axis] == 0) == broadcast)
+                                            return input.bytes();
+                                        return 0;
+                                    });
+    };
+    using candidate    = std::pair<std::size_t, reduce_tile>;
+    auto get_candidate = [&](std::size_t axis) -> optional<candidate> {
+        auto extent = reduce_output_shape.lens()[axis];
+        if(extent < min_tile)
+            return nullopt;
+        auto tile = extent / split_dim(extent, max_tile);
+        if(tile < min_tile or tile > max_tile)
+            return nullopt;
+        auto saved = axis_bytes(axis, true);
+        if(saved < min_bytes)
+            return nullopt;
+        // The non-broadcast inputs are re-read once per output in the tile, so
+        // tiling should only be done when the broadcast bytes dominate
+        if(saved < axis_bytes(axis, false) * 4)
+            return nullopt;
+        return candidate{saved, reduce_tile{axis, tile}};
+    };
+    auto is = range(reduce_output_shape.lens().size());
+    std::vector<optional<candidate>> candidates;
+    std::transform(is.begin(), is.end(), std::back_inserter(candidates), get_candidate);
+    auto it = std::max_element(candidates.begin(),
+                               candidates.end(),
+                               by(std::less<>{}, [](const optional<candidate>& c) -> std::size_t {
+                                   return c.has_value() ? c->first : 0;
+                               }));
+    if(it == candidates.end() or not it->has_value())
+        return nullopt;
+    return (*it)->second;
+}
+
 /// This will adjust the input shapes so a partial reduction is done per workgroup.
 /// This is done by splitting the reduction axis so each split group becomes
 /// part of the batch. So if we want to do a split redution of a tensor
@@ -344,6 +406,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto nelements = reduce_output_shape.elements();
         auto algo =
             v.get("algo", get_reduce_algo(ctx, options.virtual_inputs, reduction_shape.lens()));
+        optional<reduce_tile> tile = nullopt;
+        if(assign == "assign_none" and
+           (algo == "block_tile" or (algo == "block" and not v.contains("algo"))))
+            tile = find_reduce_tile(
+                options.virtual_inputs, noutputs, reduce_output_shape, v.contains("algo") ? 2 : 4);
+        if(algo == "block_tile")
+            algo = "block";
         bool no_vectorize = v.get("no_vectorize", false);
         if(algo == "block" or algo == "wave")
         {
@@ -352,10 +421,20 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             auto relements = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
-                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
+                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 1024));
                 assert(block_size > 0);
                 if(relements >= (block_size - 1) * 256)
+                {
                     algo = "block_large";
+                }
+                else if(tile.has_value())
+                {
+                    // Smaller workgroups keep the reused loads resident in cache
+                    block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
+                    algo       = "block_tile<" + std::to_string(tile->axis) + ", " +
+                           std::to_string(tile->size) + ">";
+                    nelements /= tile->size;
+                }
                 options.set_launch_params(
                     v, compute_global_for(ctx, nelements * block_size, 256), block_size);
             }
@@ -441,6 +520,20 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 tc.solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
         }
         tc.solutions.push_back({{"algo", "lane"}});
+        auto finputs        = flatten(shapes);
+        auto noutputs       = finputs.size() - shapes.size() + 1;
+        auto virtual_inputs = finputs;
+        virtual_inputs.push_back(get_reduced_shape(get_input_shape(finputs), axes));
+        virtual_inputs.push_back(get_output_shape(get_input_shape(finputs), axes));
+        virtual_inputs           = reduce_dims(normalize_permutation(virtual_inputs));
+        auto reduce_output_shape = virtual_inputs.back();
+        virtual_inputs.pop_back();
+        virtual_inputs.pop_back();
+        if(find_reduce_tile(virtual_inputs, noutputs, reduce_output_shape, 2).has_value())
+        {
+            for(auto block_size : {64, 128, 256, 512})
+                tc.solutions.push_back({{"algo", "block_tile"}, {"block_size", block_size}});
+        }
         return tc;
     }
 };

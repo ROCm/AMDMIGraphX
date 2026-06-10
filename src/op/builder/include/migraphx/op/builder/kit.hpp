@@ -45,7 +45,7 @@ struct kit : auto_register<register_kit_action, T>
         return get_op_builder_if(op_builder);
     }
 
-    op_builder_if with_common(op_builder_if obi, common_options coptions = {}) const
+    op_builder_if with_common(const op_builder_if& obi, common_options coptions = {}) const
     {
         return op_builder_if{[=](module& m,
                                  instruction_ref ins,

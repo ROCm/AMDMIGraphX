@@ -83,6 +83,42 @@ struct parse_fused_matmul : op_parser<parse_fused_matmul>
         return info.add_instruction(make_op("transpose", {{"permutation", perm}}), x);
     }
 
+    struct attributes
+    {
+        float alpha        = 1.0f;
+        bool trans_a       = false;
+        bool trans_b       = false;
+        bool trans_batch_a = false;
+        bool trans_batch_b = false;
+    };
+
+    static attributes parse_attributes(const onnx_parser& parser,
+                                       const onnx_parser::node_info& info)
+    {
+        attributes attrs;
+        if(contains(info.attributes, "alpha"))
+        {
+            attrs.alpha = parser.parse_value(info.attributes.at("alpha")).at<float>();
+        }
+        if(contains(info.attributes, "transA"))
+        {
+            attrs.trans_a = parser.parse_value(info.attributes.at("transA")).at<bool>();
+        }
+        if(contains(info.attributes, "transB"))
+        {
+            attrs.trans_b = parser.parse_value(info.attributes.at("transB")).at<bool>();
+        }
+        if(contains(info.attributes, "transBatchA"))
+        {
+            attrs.trans_batch_a = parser.parse_value(info.attributes.at("transBatchA")).at<bool>();
+        }
+        if(contains(info.attributes, "transBatchB"))
+        {
+            attrs.trans_batch_b = parser.parse_value(info.attributes.at("transBatchB")).at<bool>();
+        }
+        return attrs;
+    }
+
     instruction_ref parse(const op_desc& /*opd*/,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
@@ -94,32 +130,12 @@ struct parse_fused_matmul : op_parser<parse_fused_matmul>
                            std::to_string(args.size()));
         }
 
-        float alpha        = 1.0f;
-        bool trans_a       = false;
-        bool trans_b       = false;
-        bool trans_batch_a = false;
-        bool trans_batch_b = false;
-
-        if(contains(info.attributes, "alpha"))
-        {
-            alpha = parser.parse_value(info.attributes.at("alpha")).at<float>();
-        }
-        if(contains(info.attributes, "transA"))
-        {
-            trans_a = parser.parse_value(info.attributes.at("transA")).at<bool>();
-        }
-        if(contains(info.attributes, "transB"))
-        {
-            trans_b = parser.parse_value(info.attributes.at("transB")).at<bool>();
-        }
-        if(contains(info.attributes, "transBatchA"))
-        {
-            trans_batch_a = parser.parse_value(info.attributes.at("transBatchA")).at<bool>();
-        }
-        if(contains(info.attributes, "transBatchB"))
-        {
-            trans_batch_b = parser.parse_value(info.attributes.at("transBatchB")).at<bool>();
-        }
+        const auto attrs         = parse_attributes(parser, info);
+        const float alpha        = attrs.alpha;
+        const bool trans_a       = attrs.trans_a;
+        const bool trans_b       = attrs.trans_b;
+        const bool trans_batch_a = attrs.trans_batch_a;
+        const bool trans_batch_b = attrs.trans_batch_b;
 
         auto a0 = args[0];
         auto a1 = args[1];

@@ -43,6 +43,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+// NOLINTNEXTLINE(readability-function-size)
 mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
                                              const std::vector<std::size_t>& act_lens,
                                              const std::vector<std::size_t>& wt_lens,
@@ -68,55 +69,55 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
         MIGRAPHX_THROW("mlss_conv: mlssCreateContext failed for " + gfx_name);
     }
 
-    std::uint32_t n    = act_lens[0];
-    std::uint32_t c    = act_lens[1];
-    std::uint32_t h    = act_lens[2];
-    std::uint32_t w    = act_lens[3];
-    std::uint32_t k    = wt_lens[0];
-    std::uint32_t r    = wt_lens[2];
-    std::uint32_t s    = wt_lens[3];
-    std::uint32_t outH = out_lens[2];
-    std::uint32_t outW = out_lens[3];
+    std::uint32_t n     = act_lens[0];
+    std::uint32_t c     = act_lens[1];
+    std::uint32_t h     = act_lens[2];
+    std::uint32_t w     = act_lens[3];
+    std::uint32_t k     = wt_lens[0];
+    std::uint32_t r     = wt_lens[2];
+    std::uint32_t s     = wt_lens[3];
+    std::uint32_t out_h = out_lens[2];
+    std::uint32_t out_w = out_lens[3];
 
-    std::uint32_t dilationX = dilation.size() > 1 ? static_cast<std::uint32_t>(dilation[1]) : 1;
-    std::uint32_t dilationY = dilation.size() > 0 ? static_cast<std::uint32_t>(dilation[0]) : 1;
+    std::uint32_t dilation_x = dilation.size() > 1 ? static_cast<std::uint32_t>(dilation[1]) : 1;
+    std::uint32_t dilation_y = dilation.size() > 0 ? static_cast<std::uint32_t>(dilation[0]) : 1;
 
-    std::uint32_t startPadY = padding.size() > 0 ? static_cast<std::uint32_t>(padding[0]) : 0;
-    std::uint32_t startPadX = padding.size() > 1 ? static_cast<std::uint32_t>(padding[1]) : 0;
-    std::uint32_t endPadY   = padding.size() > 2 ? static_cast<std::uint32_t>(padding[2]) : 0;
-    std::uint32_t endPadX   = padding.size() > 3 ? static_cast<std::uint32_t>(padding[3]) : 0;
-    std::uint32_t outPadX   = 0;
-    std::uint32_t outPadY   = 0;
+    std::uint32_t start_pad_y = padding.size() > 0 ? static_cast<std::uint32_t>(padding[0]) : 0;
+    std::uint32_t start_pad_x = padding.size() > 1 ? static_cast<std::uint32_t>(padding[1]) : 0;
+    std::uint32_t end_pad_y   = padding.size() > 2 ? static_cast<std::uint32_t>(padding[2]) : 0;
+    std::uint32_t end_pad_x   = padding.size() > 3 ? static_cast<std::uint32_t>(padding[3]) : 0;
+    std::uint32_t out_pad_x   = 0;
+    std::uint32_t out_pad_y   = 0;
 
-    std::uint32_t convStrideY   = stride.size() > 0 ? static_cast<std::uint32_t>(stride[0]) : 1;
-    std::uint32_t convStrideX   = stride.size() > 1 ? static_cast<std::uint32_t>(stride[1]) : 1;
-    std::uint32_t inputStrideX  = 1;
-    std::uint32_t inputStrideY  = 1;
-    std::uint32_t filterStrideX = 1;
-    std::uint32_t filterStrideY = 1;
+    std::uint32_t conv_stride_y   = stride.size() > 0 ? static_cast<std::uint32_t>(stride[0]) : 1;
+    std::uint32_t conv_stride_x   = stride.size() > 1 ? static_cast<std::uint32_t>(stride[1]) : 1;
+    std::uint32_t input_stride_x  = 1;
+    std::uint32_t input_stride_y  = 1;
+    std::uint32_t filter_stride_x = 1;
+    std::uint32_t filter_stride_y = 1;
 
-    std::uint32_t groups      = group;
-    MLSSbool mlss_has_bias    = has_bias_flag;
-    MLSSbool crossCorrelation = false;
-    MLSSbool backward         = false;
+    std::uint32_t groups       = group;
+    MLSSbool mlss_has_bias     = has_bias_flag;
+    MLSSbool cross_correlation = false;
+    MLSSbool backward          = false;
 
     // Tensor strides (NCHW)
-    std::uint32_t dNStride = c * h * w;
-    std::uint32_t dHStride = w;
-    std::uint32_t dCStride = h * w;
-    std::uint32_t fKStride = c * r * s;
-    std::uint32_t fCStride = r * s;
-    std::uint32_t fRStride = s;
-    std::uint32_t fSStride = 1;
-    std::uint32_t oNStride = k * outH * outW;
-    std::uint32_t oHStride = outW;
-    std::uint32_t oKStride = outH * outW;
-    std::uint32_t dOffset  = 0;
-    std::uint32_t oOffset  = 0;
-    std::uint32_t fOffset  = 0;
-    std::uint32_t bOffset  = 0;
+    std::uint32_t d_n_stride = c * h * w;
+    std::uint32_t d_h_stride = w;
+    std::uint32_t d_c_stride = h * w;
+    std::uint32_t f_k_stride = c * r * s;
+    std::uint32_t f_c_stride = r * s;
+    std::uint32_t f_r_stride = s;
+    std::uint32_t f_s_stride = 1;
+    std::uint32_t o_n_stride = k * out_h * out_w;
+    std::uint32_t o_h_stride = out_w;
+    std::uint32_t o_k_stride = out_h * out_w;
+    std::uint32_t d_offset   = 0;
+    std::uint32_t o_offset   = 0;
+    std::uint32_t f_offset   = 0;
+    std::uint32_t b_offset   = 0;
 
-    MLSSenum dataType  = (dtype == shape::half_type) ? MLSS_FLOAT16 : MLSS_FLOAT32;
+    MLSSenum data_type = (dtype == shape::half_type) ? MLSS_FLOAT16 : MLSS_FLOAT32;
     MLSSenum precision = MLSS_PRECISION_FLOAT16_ADD_FLOAT32;
 
     // Map MIGraphX mlss_activation_mode to AMDMLSS MLSSActivationFunctionFlag.
@@ -143,41 +144,41 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_K, &k);
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_S, &s);
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_R, &r);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTW, &outW);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTH, &outH);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DILATIONX, &dilationX);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DILATIONY, &dilationY);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_STARTPADX, &startPadX);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_STARTPADY, &startPadY);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ENDPADX, &endPadX);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ENDPADY, &endPadY);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTPADX, &outPadX);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTPADY, &outPadY);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_CONVSTRIDEX, &convStrideX);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_CONVSTRIDEY, &convStrideY);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_INPUTSTRIDEX, &inputStrideX);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_INPUTSTRIDEY, &inputStrideY);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FILTERSTRIDEX, &filterStrideX);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FILTERSTRIDEY, &filterStrideY);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTW, &out_w);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTH, &out_h);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DILATIONX, &dilation_x);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DILATIONY, &dilation_y);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_STARTPADX, &start_pad_x);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_STARTPADY, &start_pad_y);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ENDPADX, &end_pad_x);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ENDPADY, &end_pad_y);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTPADX, &out_pad_x);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OUTPADY, &out_pad_y);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_CONVSTRIDEX, &conv_stride_x);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_CONVSTRIDEY, &conv_stride_y);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_INPUTSTRIDEX, &input_stride_x);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_INPUTSTRIDEY, &input_stride_y);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FILTERSTRIDEX, &filter_stride_x);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FILTERSTRIDEY, &filter_stride_y);
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_GROUPS, &groups);
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_HASBIAS, &mlss_has_bias);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_CROSSCORRELATION, &crossCorrelation);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_CROSSCORRELATION, &cross_correlation);
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_BACKWARD, &backward);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DNSTRIDE, &dNStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DHSTRIDE, &dHStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DCSTRIDE, &dCStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FKSTRIDE, &fKStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FCSTRIDE, &fCStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FRSTRIDE, &fRStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FSSTRIDE, &fSStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ONSTRIDE, &oNStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OHSTRIDE, &oHStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OKSTRIDE, &oKStride);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DOFFSET, &dOffset);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OOFFSET, &oOffset);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FOFFSET, &fOffset);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_BOFFSET, &bOffset);
-    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DATATYPE, &dataType);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DNSTRIDE, &d_n_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DHSTRIDE, &d_h_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DCSTRIDE, &d_c_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FKSTRIDE, &f_k_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FCSTRIDE, &f_c_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FRSTRIDE, &f_r_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FSSTRIDE, &f_s_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ONSTRIDE, &o_n_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OHSTRIDE, &o_h_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OKSTRIDE, &o_k_stride);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DOFFSET, &d_offset);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_OOFFSET, &o_offset);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_FOFFSET, &f_offset);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_BOFFSET, &b_offset);
+    mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_DATATYPE, &data_type);
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_PRECISION, &precision);
     mlssSetParameterByEnum(&mlss_ctx, op_name, MLSS_ATTR_CONV_ACTIVATION, &activation);
 
@@ -222,7 +223,7 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
         hipModule_t raw_m = nullptr;
         if(hipModuleLoadData(&raw_m, raw) != hipSuccess)
             return info;
-        hipModuleUnload(raw_m);
+        (void)hipModuleUnload(raw_m);
     }
 
     info.code_object = value::binary(raw, bin->m_binarySize);

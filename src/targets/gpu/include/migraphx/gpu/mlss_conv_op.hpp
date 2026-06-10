@@ -27,6 +27,8 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/operation.hpp>
+#include <migraphx/make_op.hpp>
 #include <string>
 #include <vector>
 
@@ -53,46 +55,29 @@ enum class mlss_activation_mode : uint8_t
 // compiler (jit/mlss_conv.cpp) which converts it into a code_object_op.
 struct mlss_conv_op
 {
-    std::vector<std::size_t> padding{};
-    std::vector<std::size_t> stride{1, 1};
-    std::vector<std::size_t> dilation{1, 1};
-    std::size_t group = 1;
+    operation conv_op = make_op("convolution");
     bool has_bias     = false;
     // The cast is needed (enum class → uint8_t isn't implicit)
     // cppcheck-suppress migraphx-RedundantCast
     uint8_t activation_mode = static_cast<uint8_t>(mlss_activation_mode::identity);
     float activation_alpha  = 0.0f;
-    shape output{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.padding, "padding"),
-                    f(self.stride, "stride"),
-                    f(self.dilation, "dilation"),
-                    f(self.group, "group"),
+        return pack(f(self.conv_op, "conv_op"),
                     f(self.has_bias, "has_bias"),
                     f(self.activation_mode, "activation_mode"),
-                    f(self.activation_alpha, "activation_alpha"),
-                    f(self.output, "output"));
+                    f(self.activation_alpha, "activation_alpha"));
     }
 
     std::string name() const { return "gpu::mlss_conv"; }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        std::size_t expected = has_bias ? 3 : 2;
-        if(inputs.size() > expected)
-            return inputs.back();
-        return output;
-    }
-
-    std::vector<std::size_t> output_alias(const std::vector<shape>& inputs) const
-    {
-        std::size_t expected = has_bias ? 3 : 2;
-        if(inputs.size() > expected)
-            return {inputs.size() - 1};
-        return {};
+        // when has_bias is true, inputs.size() == 3
+        // so this calls compute_shape with [activation, weight]
+        return conv_op.compute_shape({inputs.at(0), inputs.at(1)});
     }
 };
 

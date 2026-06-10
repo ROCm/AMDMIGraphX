@@ -72,19 +72,21 @@ static bool insert_mlss_conv(module& m,
                              instruction_ref act_ins,
                              instruction_ref wt_ins,
                              instruction_ref bias_ins, // end() if no bias
-                             const shape& output_shape,
-                             const std::vector<std::size_t>& cur_padding,
-                             const std::vector<std::size_t>& cur_stride,
-                             const std::vector<std::size_t>& cur_dilation,
-                             std::size_t cur_group,
+                             const operation& conv_op,
                              bool has_bias,
                              uint8_t act_mode,
                              float act_alpha)
 {
-    const auto act_lens = act_ins->get_shape().lens();
-    const auto wt_lens  = wt_ins->get_shape().lens();
-    const auto out_lens = output_shape.lens();
-    const auto dtype    = act_ins->get_shape().type();
+    const auto act_lens  = act_ins->get_shape().lens();
+    const auto wt_lens   = wt_ins->get_shape().lens();
+    const auto& out_lens = replace_ins->get_shape().lens();
+    const auto dtype     = act_ins->get_shape().type();
+
+    const auto conv_val     = conv_op.to_value();
+    const auto cur_padding  = conv_val.get("padding", std::vector<std::size_t>{});
+    const auto cur_stride   = conv_val.get("stride", std::vector<std::size_t>{});
+    const auto cur_dilation = conv_val.get("dilation", std::vector<std::size_t>{});
+    const auto cur_group    = conv_val.get("group", std::size_t{1});
 
     // mlss_conv is 2D NCHW only — the kernel args, stride math, and
     // query_mlss_conv_binary all index [0..3]. A 3D/5D conv that slips past
@@ -116,14 +118,10 @@ static bool insert_mlss_conv(module& m,
         return false;
 
     mlss_conv_op op;
-    op.padding          = cur_padding;
-    op.stride           = cur_stride;
-    op.dilation         = cur_dilation;
-    op.group            = cur_group;
+    op.conv_op          = conv_op;
     op.has_bias         = has_bias;
     op.activation_mode  = act_mode;
     op.activation_alpha = act_alpha;
-    op.output           = output_shape;
 
     std::vector<instruction_ref> args = {act_ins, wt_ins};
     if(has_bias)
@@ -169,15 +167,6 @@ struct find_mlss_conv
         if(ins->get_shape().type() != dtype)
             return;
 
-        const auto& op_val = ins->get_operator().to_value();
-        auto get_vec       = [&](const std::string& key) -> std::vector<std::size_t> {
-            return op_val.get(key, std::vector<std::size_t>{});
-        };
-        const auto cur_padding  = get_vec("padding");
-        const auto cur_stride   = get_vec("stride");
-        const auto cur_dilation = get_vec("dilation");
-        const auto cur_group    = op_val.get("group", std::size_t{1});
-
         auto& m = mpm.get_module();
         insert_mlss_conv(m,
                          ctx,
@@ -185,11 +174,7 @@ struct find_mlss_conv
                          act_ins,
                          wt_ins,
                          m.end(),
-                         ins->get_shape(),
-                         cur_padding,
-                         cur_stride,
-                         cur_dilation,
-                         cur_group,
+                         ins->get_operator(),
                          false,
                          static_cast<uint8_t>(mlss_activation_mode::identity),
                          0.0f);
@@ -237,15 +222,6 @@ struct find_mlss_conv_bias
         if(conv_ins->get_shape().type() != dtype)
             return;
 
-        const auto& op_val = conv_ins->get_operator().to_value();
-        auto get_vec       = [&](const std::string& key) -> std::vector<std::size_t> {
-            return op_val.get(key, std::vector<std::size_t>{});
-        };
-        const auto cur_padding  = get_vec("padding");
-        const auto cur_stride   = get_vec("stride");
-        const auto cur_dilation = get_vec("dilation");
-        const auto cur_group    = op_val.get("group", std::size_t{1});
-
         auto& m = mpm.get_module();
         if(not insert_mlss_conv(m,
                                 ctx,
@@ -253,11 +229,7 @@ struct find_mlss_conv_bias
                                 act_ins,
                                 wt_ins,
                                 bias_ins,
-                                add_ins->get_shape(),
-                                cur_padding,
-                                cur_stride,
-                                cur_dilation,
-                                cur_group,
+                                conv_ins->get_operator(),
                                 true,
                                 static_cast<uint8_t>(mlss_activation_mode::identity),
                                 0.0f))
@@ -314,15 +286,6 @@ struct find_mlss_conv_bias_relu
         if(conv_ins->get_shape().type() != dtype)
             return;
 
-        const auto& op_val = conv_ins->get_operator().to_value();
-        auto get_vec       = [&](const std::string& key) -> std::vector<std::size_t> {
-            return op_val.get(key, std::vector<std::size_t>{});
-        };
-        const auto cur_padding  = get_vec("padding");
-        const auto cur_stride   = get_vec("stride");
-        const auto cur_dilation = get_vec("dilation");
-        const auto cur_group    = op_val.get("group", std::size_t{1});
-
         auto& m = mpm.get_module();
         if(not insert_mlss_conv(m,
                                 ctx,
@@ -330,11 +293,7 @@ struct find_mlss_conv_bias_relu
                                 act_ins,
                                 wt_ins,
                                 bias_ins,
-                                relu_ins->get_shape(),
-                                cur_padding,
-                                cur_stride,
-                                cur_dilation,
-                                cur_group,
+                                conv_ins->get_operator(),
                                 true,
                                 static_cast<uint8_t>(mlss_activation_mode::relu),
                                 0.0f))
@@ -393,15 +352,6 @@ struct find_mlss_conv_bias_leaky_relu
         if(conv_ins->get_shape().type() != dtype)
             return;
 
-        const auto& op_val = conv_ins->get_operator().to_value();
-        auto get_vec       = [&](const std::string& key) -> std::vector<std::size_t> {
-            return op_val.get(key, std::vector<std::size_t>{});
-        };
-        const auto cur_padding  = get_vec("padding");
-        const auto cur_stride   = get_vec("stride");
-        const auto cur_dilation = get_vec("dilation");
-        const auto cur_group    = op_val.get("group", std::size_t{1});
-
         const auto& lrelu_val = lrelu_ins->get_operator().to_value();
         float alpha           = lrelu_val.get("alpha", 0.0f);
 
@@ -412,11 +362,7 @@ struct find_mlss_conv_bias_leaky_relu
                                 act_ins,
                                 wt_ins,
                                 bias_ins,
-                                lrelu_ins->get_shape(),
-                                cur_padding,
-                                cur_stride,
-                                cur_dilation,
-                                cur_group,
+                                conv_ins->get_operator(),
                                 true,
                                 static_cast<uint8_t>(mlss_activation_mode::leaky_relu),
                                 alpha))

@@ -24,8 +24,8 @@
 
 find_package(hip REQUIRED)
 
+# MIGRAPHX_USE_AMDMLSS is resolved to a plain boolean at the top-level CMakeLists.
 if(MIGRAPHX_USE_AMDMLSS)
-    find_package(amdmlss REQUIRED CONFIG)
     message(STATUS "MIGraphX is using AMDMLSS")
 else()
     message(STATUS "MIGraphX is not using AMDMLSS")
@@ -242,7 +242,6 @@ add_library(migraphx_gpu
     topk.cpp
     write_literals.cpp
     fuse_mlss.cpp
-    mlss_mha_op.cpp
     mlss_conv_op.cpp
     ${JIT_GPU_SRCS}
 )

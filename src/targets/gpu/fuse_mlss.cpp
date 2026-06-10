@@ -28,6 +28,7 @@
 #include <migraphx/env.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/matcher.hpp>
+#include <migraphx/make_op.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
 #include <migraphx/gpu/mlss_conv_op.hpp>
 #ifdef MIGRAPHX_USE_AMDMLSS
@@ -117,11 +118,11 @@ static bool insert_mlss_conv(module& m,
     if(info.empty())
         return false;
 
-    mlss_conv_op op;
-    op.conv_op          = conv_op;
-    op.has_bias         = has_bias;
-    op.activation_mode  = act_mode;
-    op.activation_alpha = act_alpha;
+    auto op = make_op("gpu::mlss_conv",
+                      {{"conv_op", to_value(conv_op)},
+                       {"has_bias", has_bias},
+                       {"activation_mode", act_mode},
+                       {"activation_alpha", act_alpha}});
 
     std::vector<instruction_ref> args = {act_ins, wt_ins};
     if(has_bias)

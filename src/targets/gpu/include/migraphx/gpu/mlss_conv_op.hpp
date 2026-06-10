@@ -27,9 +27,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/shape.hpp>
-#include <migraphx/check_shapes.hpp>
-#include <migraphx/operation.hpp>
-#include <migraphx/make_op.hpp>
 #include <string>
 #include <vector>
 
@@ -50,39 +47,6 @@ enum class mlss_activation_mode : uint8_t
     scaled_tanh = 3,
     relu        = 4,
     last        = relu,
-};
-
-// Intermediate op inserted by fuse_mlss. Carries conv metadata for the JIT
-// compiler (jit/mlss_conv.cpp) which converts it into a code_object_op.
-struct mlss_conv_op
-{
-    operation conv_op = make_op("convolution");
-    bool has_bias     = false;
-    // The cast is needed (enum class → uint8_t isn't implicit)
-    // cppcheck-suppress migraphx-RedundantCast
-    uint8_t activation_mode = static_cast<uint8_t>(mlss_activation_mode::identity);
-    float activation_alpha  = 0.0f;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.conv_op, "conv_op"),
-                    f(self.has_bias, "has_bias"),
-                    f(self.activation_mode, "activation_mode"),
-                    f(self.activation_alpha, "activation_alpha"));
-    }
-
-    std::string name() const { return "gpu::mlss_conv"; }
-
-    shape compute_shape(std::vector<shape> inputs) const
-    {
-        // Inputs are [activation, weight] plus an optional [bias] when has_bias.
-        const std::size_t expected = has_bias ? 3 : 2;
-        check_shapes{inputs, *this}.has(expected).same_type();
-        // The bias does not affect the output shape, so only the
-        // [activation, weight] pair is forwarded to the conv op.
-        return conv_op.compute_shape({inputs.at(0), inputs.at(1)});
-    }
 };
 
 // Binary info returned by the AMDMLSS API query.

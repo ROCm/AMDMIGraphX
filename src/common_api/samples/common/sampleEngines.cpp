@@ -101,7 +101,10 @@ std::map<std::string, float> readScalesFromCalibrationCache(std::string const& c
             // Scales should be stored in calibration cache as 32-bit floating numbers encoded as 32-bit integers
             int32_t scalesAsInt = std::stoi(line.substr(colonPos + 2, 8), nullptr, 16);
             auto const tensorName = line.substr(0, colonPos);
-            tensorScales[tensorName] = *reinterpret_cast<float*>(&scalesAsInt);
+            // !!MGX!! this is for eliminate warning messages - -Wundefined-reinterpret-cast
+            // tensorScales[tensorName] = *reinterpret_cast<float*>(&scalesAsInt);
+            float result;
+            std::memcpy(&result, &scalesAsInt, sizeof(result));
         }
     }
     cache.close();
@@ -765,10 +768,11 @@ bool setupNetworkAndConfig(BuildOptions const& build, SystemOptions const& sys, 
         if (isDynamicInput)
         {
             hasDynamicShapes = true;
-            for (size_t i = 0; i < build.optProfiles.size(); i++)
+            // !!MGX!! this is for eliminate warning messages - rename inner variable to avoid shadowing outer variable
+            for (size_t j = 0; j < build.optProfiles.size(); j++)
             {
-                auto const& optShapes = build.optProfiles[i];
-                auto profile = profiles[i];
+                auto const& optShapes = build.optProfiles[j];
+                auto profile = profiles[j];
                 auto const tensorName = input->getName();
                 auto shape = findPlausible(optShapes, tensorName);
                 ShapeRange shapes{};
@@ -821,7 +825,7 @@ bool setupNetworkAndConfig(BuildOptions const& build, SystemOptions const& sys, 
                     SMP_RETVAL_IF_FALSE(profile->setShapeValuesV2(tensorName, OptProfileSelector::kMAX,
                                             profileDims.data(), static_cast<int>(profileDims.size())),
                         "Error in set shape values MAX", false, err);
-                    sample::gLogInfo << "Set input shape tensor " << tensorName << " for optimization profile " << i
+                    sample::gLogInfo << "Set input shape tensor " << tensorName << " for optimization profile " << j
                                      << " to:"
                                      << " MIN=" << shapes[static_cast<size_t>(OptProfileSelector::kMIN)]
                                      << " OPT=" << shapes[static_cast<size_t>(OptProfileSelector::kOPT)]
@@ -841,7 +845,7 @@ bool setupNetworkAndConfig(BuildOptions const& build, SystemOptions const& sys, 
                     SMP_RETVAL_IF_FALSE(
                         profile->setDimensions(tensorName, OptProfileSelector::kMAX, toDims(profileDims)),
                         "Error in set dimensions to profile MAX", false, err);
-                    sample::gLogInfo << "Set shape of input tensor " << tensorName << " for optimization profile " << i
+                    sample::gLogInfo << "Set shape of input tensor " << tensorName << " for optimization profile " << j
                                      << " to:"
                                      << " MIN=" << shapes[static_cast<size_t>(OptProfileSelector::kMIN)]
                                      << " OPT=" << shapes[static_cast<size_t>(OptProfileSelector::kOPT)]
@@ -1323,8 +1327,9 @@ bool networkToSerializedEngine(
 
     if (build.timingCacheMode == TimingCacheMode::kGLOBAL)
     {
-        auto timingCache = config->getTimingCache();
-        samplesCommon::updateTimingCacheFile(gLogger.getTRTLogger(), build.timingCacheFile, timingCache, builder);
+        // !!MGX!! this is for eliminate warning messages - rename inner variable to avoid shadowing outer variable
+        auto timingCache_inner = config->getTimingCache();
+        samplesCommon::updateTimingCacheFile(gLogger.getTRTLogger(), build.timingCacheFile, timingCache_inner, builder);
     }
 
     return true;
@@ -1862,7 +1867,8 @@ void* initConsistencyCheckerLibrary()
 #if !defined(_WIN32)
 struct DllDeleter
 {
-    void operator()(void* handle)
+    // !!MGX!! this is for eliminate warning messages - -Wunused-member-function
+    [[maybe_unused]] void operator()(void* handle)
     {
         if (handle != nullptr)
         {
@@ -1870,8 +1876,9 @@ struct DllDeleter
         }
     }
 };
-const std::unique_ptr<void, DllDeleter> safeRuntimeLibrary{initSafeRuntime()};
-const std::unique_ptr<void, DllDeleter> consistencyCheckerLibrary{initConsistencyCheckerLibrary()};
+// !!MGX!! this is for eliminate warning messages - -Wglobal-constructors warning
+[[clang::no_destroy]] const std::unique_ptr<void, DllDeleter> safeRuntimeLibrary{initSafeRuntime()};
+[[clang::no_destroy]] const std::unique_ptr<void, DllDeleter> consistencyCheckerLibrary{initConsistencyCheckerLibrary()};
 #endif
 } // namespace
 

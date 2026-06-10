@@ -167,7 +167,8 @@ public:
     {
         if (mGraphExec)
         {
-            hipGraphExecDestroy(mGraphExec);
+            // !!MGX!! this is for eliminate warning messages - ignoring 'nodiscard'
+            (void)hipGraphExecDestroy(mGraphExec);
         }
     }
 
@@ -208,7 +209,8 @@ public:
             mGraph = nullptr;
         }
         // Clean up any CUDA error.
-        hipGetLastError();
+        // !!MGX!! this is for eliminate warning messages - ignoring 'nodiscard'
+        (void)hipGetLastError();
         sample::gLogWarning << "The CUDA graph capture on the stream has failed." << std::endl;
     }
 

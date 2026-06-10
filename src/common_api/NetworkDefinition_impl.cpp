@@ -16,6 +16,7 @@
 #include "layers/ShuffleLayer_impl.hpp"
 #include "layers/ActivationLayer_impl.hpp"
 #include "layers/ConcatenationLayer_impl.hpp"
+#include "layers/TopKLayer_impl.hpp"
 
 namespace nvinfer1
 {
@@ -162,8 +163,8 @@ IReduceLayer* NvNetworkDefinition_impl::addReduce(
 
 ITopKLayer* NvNetworkDefinition_impl::addTopK(ITensor& input, TopKOperation op, int32_t k, uint32_t reduceAxes) noexcept
 {
-	pass_warning("TODO! implement me!", true);
-	return nullptr;
+	mLayers.push_back(std::make_unique<TopKLayer_impl>(input, op, k, reduceAxes, mProgram));
+	return dynamic_cast<ITopKLayer*>(mLayers.back().get());
 }
 
 IGatherLayer* NvNetworkDefinition_impl::addGather(ITensor& data, ITensor& indices, int32_t axis) noexcept

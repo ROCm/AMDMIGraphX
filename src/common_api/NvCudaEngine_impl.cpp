@@ -3,6 +3,9 @@
 //
 
 #include <migraphx/ranges.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/builtin.hpp>
 
 #include "migraphx/common_api/NvInfer.h"
 #include "NvCudaEngine_impl.hpp"
@@ -12,6 +15,57 @@
 namespace nvinfer1
 {
 
+namespace
+{
+    // Try to read the parameter name of a @param instruction; return "" otherwise.
+    std::string param_name_of(migraphx::instruction_ref ins)
+    {
+        if(ins->name() != "@param")
+            return {};
+        return migraphx::any_cast<migraphx::builtin::param>(ins->get_operator()).parameter;
+    }
+
+    // Determine which parameters of the compiled program are network outputs.
+    //
+    // The substring "output" heuristic alone is not reliable: callers may name an
+    // output anything (e.g. an ITopKLayer produces "values"/"indices"). After
+    // compilation MIGraphX materializes each output into a parameter buffer that is
+    // the write destination - i.e. the LAST argument of an instruction feeding the
+    // module's @return (or a parameter returned directly). Input parameters are only
+    // ever read and never appear in that trailing output-buffer position.
+    std::set<std::string> compute_output_names(const migraphx::program& program)
+    {
+        std::set<std::string> outputs;
+        const auto* mm = program.get_main_module();
+        if(mm == nullptr or mm->begin() == mm->end())
+            return outputs;
+
+        auto ret = std::prev(mm->end());
+        if(ret->name() != "@return")
+            return outputs;
+
+        for(auto arg : ret->inputs())
+        {
+            // A parameter returned directly (identity passthrough).
+            auto direct = param_name_of(arg);
+            if(not direct.empty())
+            {
+                outputs.insert(direct);
+                continue;
+            }
+            // Otherwise the output buffer is the producing instruction's last argument.
+            const auto& sub = arg->inputs();
+            if(not sub.empty())
+            {
+                auto dst = param_name_of(sub.back());
+                if(not dst.empty())
+                    outputs.insert(dst);
+            }
+        }
+        return outputs;
+    }
+}  // namespace
+
 NvCudaEngine_impl::NvCudaEngine_impl(void* logger, int32_t version) noexcept
 {
     pass_warning("TODO! implement me!", false);
@@ -19,7 +73,7 @@ NvCudaEngine_impl::NvCudaEngine_impl(void* logger, int32_t version) noexcept
 }
 
 NvCudaEngine_impl::NvCudaEngine_impl(const std::shared_ptr<migraphx::program>& program) noexcept
-    : mProgram(program), mTensorNames{program->get_parameter_names()}  
+    : mProgram(program), mTensorNames{program->get_parameter_names()}, mOutputNames{compute_output_names(*program)}
 {
     pass_warning("TODO! implement me!", false);
     mImpl = this;
@@ -155,7 +209,13 @@ bool NvCudaEngine_impl::isShapeInferenceIO(char const* tensorName) const noexcep
 
 TensorIOMode NvCudaEngine_impl::getTensorIOMode(char const* tensorName) const noexcept
 {
-    return migraphx::contains(std::string(tensorName), "output") ? TensorIOMode::kOUTPUT : TensorIOMode::kINPUT;
+    const std::string name{tensorName};
+    // A parameter is an output if it was detected as a network output of the
+    // compiled program, or (as a fallback) its name carries the default
+    // "#output_N" / "output" binding token.
+    if(mOutputNames.count(name) != 0 or migraphx::contains(name, "output"))
+        return TensorIOMode::kOUTPUT;
+    return TensorIOMode::kINPUT;
 }
 
 int32_t NvCudaEngine_impl::getTensorBytesPerComponent(char const* tensorName) const noexcept

@@ -5,11 +5,11 @@
 
 namespace nvinfer1
 {
-    class TopKLayer_impl : public ITopKLayer, public apiv::VTopKLayer, public Layer_impl
+    class TopKLayer_impl : public ITopKLayer, public apiv::VTopKLayer, virtual public Layer_impl
     {
     public:
         TopKLayer_impl() noexcept;
-        // TopKLayer_impl(ITensor& input, int k, TopKOperation op, const std::shared_ptr<migraphx::program>& program) noexcept;
+        TopKLayer_impl(ITensor& input, TopKOperation op, int32_t k, uint32_t reduceAxes, const std::shared_ptr<migraphx::program>& program) noexcept;
         ~TopKLayer_impl() override;
 
         // public API
@@ -21,6 +21,11 @@ namespace nvinfer1
         uint32_t getReduceAxes() const noexcept override;
 
         void build() noexcept override;
+
+    private:
+        TopKOperation mOp{TopKOperation::kMAX};
+        int32_t mK{1};
+        uint32_t mReduceAxes{0};
     };
 } // namespace nvinfer1 
 

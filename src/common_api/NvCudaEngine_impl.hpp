@@ -2,6 +2,8 @@
 #define NV_CUDA_ENGINE_IMPL_H
 
 #include <vector>
+#include <set>
+#include <string>
 #include <migraphx/program.hpp>
 #include "migraphx/common_api/NvInferRuntime.h"
 
@@ -87,6 +89,7 @@ namespace nvinfer1
     private:
         std::shared_ptr<migraphx::program> mProgram;
         std::vector<std::string> mTensorNames;
+        std::set<std::string> mOutputNames;
     };
 } // ns:nvinfer1
 

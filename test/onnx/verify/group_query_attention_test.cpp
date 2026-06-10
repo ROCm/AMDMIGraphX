@@ -32,10 +32,10 @@ TEST_CASE(group_query_attention_decode_local_test)
 {
     auto p = read_onnx("group_query_attention_decode_local_test.onnx");
     std::cout << "Hello" << std::endl;
+    std::cout << p << std::endl;
     migraphx::compile_options options;
     options.offload_copy = true;
     p.compile(migraphx::make_target("gpu"), options);
-    std::cout << p << std::endl;
 
     migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 1, 96}};
     std::vector<float> qkv_data = {
@@ -570,10 +570,10 @@ TEST_CASE(group_query_attention_decode_test)
 TEST_CASE(group_query_attention_prefill_test)
 {
     auto p = read_onnx("group_query_attention_prefill_test.onnx");
+    std::cout << p << std::endl;
     migraphx::compile_options options;
     options.offload_copy = true;
     p.compile(migraphx::make_target("gpu"), options);
-    std::cout << p << std::endl;
 
     migraphx::shape qkv_shape{migraphx::shape::half_type, {1, 8, 96}};
     std::vector<float> qkv_data = {

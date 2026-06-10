@@ -965,7 +965,13 @@ struct find_kv_cache_attention
                 .bind("rotary");
         // Without rotary: cur_k = slice(qk_combined) where qk_combined = slice(transposed_qkv)
         auto no_rotary_qk = match::name("slice").bind("qk_combined");
-        auto cur_k = match::name("slice")(match::arg(0)(match::any_of(rotary, no_rotary_qk)));
+        // Decomposed (op_builder) rotary: the builder's final instruction is a plain add
+        // (add(mul(in, cos), mul(rotated, signs*sin))). Match that terminal add directly,
+        // without inspecting its inputs, so the non-CK graph is recognized too. Do NOT bind
+        // "rotary" here so apply() takes the no-appendkv branch.
+        auto rotary_builder_add = match::name("add").bind("qk_combined");
+        auto cur_k = match::name("slice")(
+            match::arg(0)(match::any_of(rotary, rotary_builder_add, no_rotary_qk)));
 
         auto keys =
             match::skip(match::name(skip_set))(
@@ -1141,8 +1147,6 @@ struct find_kv_cache_attention
         auto q_out = m.insert_instruction(pres_k, make_op("get_tuple_elem", {{"index", 0}}), ck_appendkv);
         auto k_out = m.insert_instruction(pres_k, make_op("get_tuple_elem", {{"index", 1}}), ck_appendkv);
         auto v_out = m.insert_instruction(pres_k, make_op("get_tuple_elem", {{"index", 2}}), ck_appendkv);
-        q_out->debug_print();
-        k_out->debug_print();
 
         auto qk_out = m.insert_instruction(pres_k, make_op("concat", {{"axis", 1}}), {q_out, k});
         q_out = m.insert_instruction(pres_k, make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {num_heads}}}), qk_out);
@@ -1155,11 +1159,12 @@ struct find_kv_cache_attention
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+        std::cout << "apply fuse_attention" << std::endl;
         auto total_sl = r.instructions["total_sl"];
         auto reshape  = r.result;
         // TODO: Need to pay attention when inserting ck_appendkv, the output of that needs to
         // replace the inputs of the attention
-        if(not enabled(MIGRAPHX_ENABLE_CK{}))
+        if(not contains(r.instructions, "rotary"))
         {
         }
         else
@@ -1171,12 +1176,6 @@ struct find_kv_cache_attention
 
         // Capture all instructions part of the attention op
         auto attn_inss = get_attn_instructions(mpm.get_module(), total_sl, reshape);
-        std::cout << "attn_inss: " << std::endl;
-        for(auto ins : attn_inss)
-        {
-            std::cout << "ins: " << ins->name() << std::endl;
-            ins->debug_print();
-        }
 
         // Add captured instructions to new submodule
         module m_attn;
@@ -1237,8 +1236,6 @@ struct find_kv_cache_attention
                                                 {mpm_attn});
 
         mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
-        std::cout << "mpm.get_module(): " << std::endl;
-        std::cout << mpm.get_module() << std::endl;
     }
 };
 

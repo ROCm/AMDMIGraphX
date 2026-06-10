@@ -170,8 +170,7 @@ void program::set_external_weight_map(
     impl->external_weight_map = std::move(weight_map);
 }
 
-const std::unordered_map<std::string, external_data_info>&
-program::get_external_weight_map() const
+const std::unordered_map<std::string, external_data_info>& program::get_external_weight_map() const
 {
     return impl->external_weight_map;
 }
@@ -390,9 +389,8 @@ void program::finalize(const target& t)
     this->finalize();
 }
 
-program create_program_with_weights(const program& prog,
-                                    const std::string& base_dir,
-                                    const target& t)
+program
+create_program_with_weights(const program& prog, const std::string& base_dir, const target& t)
 {
     program result(prog);
     const auto& weight_map = result.get_external_weight_map();
@@ -406,7 +404,6 @@ program create_program_with_weights(const program& prog,
     // hip::hip_copy_literal, dropping now-redundant hip::copy_to_gpu copies,
     // finalizing against the target's context) is delegated to the target via
     // target::lower_baked_literals.
-    std::vector<instruction_ref> params_to_remove;
     for(const auto& entry : weight_map)
     {
         const auto& name = entry.first;
@@ -417,15 +414,21 @@ program create_program_with_weights(const program& prog,
             MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: parameter \"" + name +
                            "\" not found in program");
 
-        auto s   = param_ins->get_shape();
-        auto raw = read_buffer(fs::path{base_dir} / info.filename, info.offset, info.nbytes);
+        const auto& s = param_ins->get_shape();
+        auto raw      = read_buffer(fs::path{base_dir} / info.filename, info.offset, info.nbytes);
+
+        // The flat on-disk buffer is copied element-for-element into the literal, so the
+        // parameter must have a standard layout whose byte size matches the file region.
+        assert(s.standard());
+        if(raw.size() != s.bytes())
+            MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: weight \"" + name + "\" file size " +
+                           std::to_string(raw.size()) + " does not match parameter size " +
+                           std::to_string(s.bytes()));
 
         auto lit_ins = mm->add_literal(literal{s, raw.data()});
         mm->replace_instruction(param_ins, lit_ins);
-        params_to_remove.push_back(param_ins);
+        mm->remove_instruction(param_ins);
     }
-    for(auto ins : params_to_remove)
-        mm->remove_instruction(ins);
 
     if(result.is_compiled())
         t.lower_baked_literals(*mm, result.get_context());
@@ -988,9 +991,9 @@ void program::from_value(const value& v)
         for(const auto& entry : v.at("external_weight_map"))
         {
             external_data_info info;
-            info.filename = entry.at("file").to<std::string>();
-            info.offset   = entry.at("off").to<std::size_t>();
-            info.nbytes   = entry.at("len").to<std::size_t>();
+            info.filename                              = entry.at("file").to<std::string>();
+            info.offset                                = entry.at("off").to<std::size_t>();
+            info.nbytes                                = entry.at("len").to<std::size_t>();
             impl->external_weight_map[entry.get_key()] = std::move(info);
         }
     }

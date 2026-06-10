@@ -27,7 +27,6 @@
 #include <migraphx/config.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/program.hpp>
-#include <migraphx/onnx.hpp>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <onnx.pb.h>
@@ -53,8 +52,8 @@ struct onnx_parser
         attribute_map attributes{};
         std::size_t num_outputs = 1;
         // unique identifier for MIGX, not given ONNX node name
-        std::string name        = "";
-        module* mod             = nullptr;
+        std::string name = "";
+        module* mod      = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,

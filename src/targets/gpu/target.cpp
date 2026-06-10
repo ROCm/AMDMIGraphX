@@ -298,26 +298,18 @@ argument target::allocate(const shape& s) const
 
 void target::lower_baked_literals(module& m, migraphx::context& ctx) const
 {
-    // Collect bare @literal instructions left over from a post-compile bake
-    // step (e.g. create_program_with_weights inserting external weights).
+    // Continue hip_copy_literal ids past those already emitted so they don't collide.
     std::vector<instruction_ref> literal_refs;
+    std::size_t n = 0;
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
             literal_refs.push_back(ins);
+        else if(ins->name() == "hip::hip_copy_literal")
+            n++;
     }
     if(literal_refs.empty())
         return;
-
-    // Pick up where the original write_literals pass left off so the IDs
-    // for hip::hip_copy_literal don't collide with the ones already in the
-    // module (one per existing hip::hip_copy_literal instruction).
-    std::size_t n = 0;
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "hip::hip_copy_literal")
-            n++;
-    }
 
     for(auto ins : literal_refs)
     {
@@ -328,7 +320,7 @@ void target::lower_baked_literals(module& m, migraphx::context& ctx) const
 
         // Remember any downstream hip::copy_to_gpu before the rewrite so we
         // can drop it once the literal is already producing a GPU buffer.
-        auto outputs = ins->outputs();
+        const auto& outputs = ins->outputs();
         std::vector<instruction_ref> stale_copies;
         for(auto out : outputs)
         {

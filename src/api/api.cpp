@@ -190,7 +190,7 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
     for(const auto& [name, dd] : symbols)
     {
         auto iv = dd.get_interval();
-        std::set<int64_t> optimals;
+        std::set<sym::scalar> optimals;
         for(auto o : dd.get_optimals())
             optimals.insert(static_cast<int64_t>(o));
         bindings.emplace(sym::parse(name),

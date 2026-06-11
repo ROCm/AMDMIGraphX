@@ -417,7 +417,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                  for(const auto& [name, dd] : symbols)
                  {
                      auto iv = dd.get_interval();
-                     std::set<std::int64_t> optimals;
+                     std::set<migraphx::sym::scalar> optimals;
                      for(auto o : dd.get_optimals())
                          optimals.insert(static_cast<std::int64_t>(o));
                      bindings.emplace(migraphx::sym::parse(name),

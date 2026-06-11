@@ -33,6 +33,7 @@
 #include <migraphx/register_op.hpp>
 #include <hip/hip_runtime_api.h>
 #include <algorithm>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <string>
@@ -61,23 +62,53 @@ static argument pack_outputs(const std::vector<argument>& outputs)
     return argument(outputs);
 }
 
+// MIGraphX launches its code-object kernels with hipExtModuleLaunchKernel, which
+// passes the arguments as a packed buffer tagged with HIP_LAUNCH_PARAM_BUFFER_*
+// sentinels (kernel.cpp). Recover the buffer and its size from a captured node's
+// `extra` array; returns false for any other argument-passing scheme.
+static bool parse_packed_args(void** extra, char*& buffer, std::size_t& size)
+{
+    if(extra == nullptr)
+        return false;
+    buffer        = nullptr;
+    bool has_size = false;
+    for(std::size_t i = 0; i < 16 and extra[i] != HIP_LAUNCH_PARAM_END; i += 2)
+    {
+        if(extra[i] == HIP_LAUNCH_PARAM_BUFFER_POINTER)
+            buffer = static_cast<char*>(extra[i + 1]);
+        else if(extra[i] == HIP_LAUNCH_PARAM_BUFFER_SIZE)
+        {
+            size     = *static_cast<std::size_t*>(extra[i + 1]);
+            has_size = true;
+        }
+        else
+            return false;
+    }
+    return buffer != nullptr and has_size;
+}
+
 // Records the work of a submodule into a HIP graph the first time it is run and
 // then replays the instantiated graph on every subsequent run. This amortizes
 // the per-launch CPU overhead of issuing many kernels/library calls. Construct
 // via make_op("hip::graph").
 struct hip_graph
 {
-    // Runtime-only state, owned through a shared_ptr so the const compute() can
-    // mutate the captured graph through the pointer.
     struct graph_state
     {
         hip_graph_ptr graph     = nullptr;
         hip_graph_exec_ptr exec = nullptr;
         bool captured           = false;
         std::vector<argument> outputs{};
-        // Buffer addresses baked into the captured graph (the input args). The
-        // graph is re-recorded and the executable patched when any of them move.
-        std::vector<const void*> input_ptrs{};
+        // Input buffer addresses baked into `graph` (used to remap when an input
+        // moves) and the addresses currently programmed into `exec` (used to
+        // detect a move).
+        std::vector<const void*> recorded_ptrs{};
+        std::vector<const void*> applied_ptrs{};
+        // The captured graph is entirely kernel nodes whose arguments are packed
+        // buffers, so a moved input can be patched into `exec` directly instead
+        // of re-recording the graph.
+        bool patchable = false;
+        std::vector<hipGraphNode_t> kernel_nodes{};
     };
 
     // Created in finalize() rather than at construction: operation handles are
@@ -115,6 +146,79 @@ struct hip_graph
     void finalize(context&, const shape&, const std::vector<shape>&)
     {
         state = std::make_shared<graph_state>();
+    }
+
+    // True when every node of the captured graph is a kernel node whose arguments
+    // are an extra-packed buffer we can rewrite. Both MIGraphX code-object kernels
+    // and rocBLAS/hipBLASLt library kernels are captured this way (their args come
+    // back through `extra` with `kernelParams` null), so this covers them; it
+    // returns false only for non-kernel nodes (e.g. memcpy/memset) or the
+    // kernelParams launch style, which fall back to re-recording. Caches the node
+    // handles for later patching.
+    bool collect_kernel_nodes() const
+    {
+        std::size_t num = 0;
+        if(hipGraphGetNodes(state->graph.get(), nullptr, &num) != hipSuccess)
+            return false;
+        std::vector<hipGraphNode_t> nodes(num);
+        if(num > 0 and hipGraphGetNodes(state->graph.get(), nodes.data(), &num) != hipSuccess)
+            return false;
+        for(auto node : nodes)
+        {
+            hipGraphNodeType type{};
+            if(hipGraphNodeGetType(node, &type) != hipSuccess or type != hipGraphNodeTypeKernel)
+                return false;
+            hipKernelNodeParams params{};
+            if(hipGraphKernelNodeGetParams(node, &params) != hipSuccess)
+                return false;
+            char* buffer      = nullptr;
+            std::size_t bytes = 0;
+            if(params.kernelParams != nullptr or not parse_packed_args(params.extra, buffer, bytes))
+                return false;
+        }
+        state->kernel_nodes = std::move(nodes);
+        return true;
+    }
+
+    // Rewrite each kernel node's argument buffer, remapping any pointer that falls
+    // within an input buffer's old range to the new buffer (preserving offsets),
+    // and program it into the executable graph.
+    void patch_kernel_nodes(const std::vector<argument>& args) const
+    {
+        for(auto node : state->kernel_nodes)
+        {
+            hipKernelNodeParams params{};
+            check_hip(hipGraphKernelNodeGetParams(node, &params), "hipGraphKernelNodeGetParams");
+            char* buffer      = nullptr;
+            std::size_t bytes = 0;
+            parse_packed_args(params.extra, buffer, bytes);
+            std::vector<char> patched(buffer, buffer + bytes);
+            for(std::size_t off = 0; off + sizeof(char*) <= bytes; off += sizeof(char*))
+            {
+                char* p = nullptr;
+                std::memcpy(&p, patched.data() + off, sizeof(char*));
+                for(std::size_t i = 0; i < state->recorded_ptrs.size(); ++i)
+                {
+                    const auto* base = static_cast<const char*>(state->recorded_ptrs[i]);
+                    if(p >= base and p < base + args[i].get_shape().bytes())
+                    {
+                        char* np = args[i].data() + (p - base);
+                        std::memcpy(patched.data() + off, &np, sizeof(char*));
+                        break;
+                    }
+                }
+            }
+            std::size_t sz      = bytes;
+            void* extra[]       = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
+                                   patched.data(),
+                                   HIP_LAUNCH_PARAM_BUFFER_SIZE,
+                                   &sz,
+                                   HIP_LAUNCH_PARAM_END};
+            params.extra        = extra;
+            params.kernelParams = nullptr;
+            check_hip(hipGraphExecKernelNodeSetParams(state->exec.get(), node, &params),
+                      "hipGraphExecKernelNodeSetParams");
+        }
     }
 
     argument compute(context& ctx,
@@ -161,28 +265,39 @@ struct hip_graph
             hipGraphExec_t exec = nullptr;
             check_hip(hipGraphInstantiate(&exec, state->graph.get(), nullptr, nullptr, 0),
                       "hipGraphInstantiate");
-            state->exec       = hip_graph_exec_ptr{exec};
-            state->input_ptrs = ptrs;
-            state->captured   = true;
+            state->exec          = hip_graph_exec_ptr{exec};
+            state->recorded_ptrs = ptrs;
+            state->applied_ptrs  = ptrs;
+            state->patchable     = collect_kernel_nodes();
+            state->captured      = true;
         }
-        else if(ptrs != state->input_ptrs)
+        else if(ptrs != state->applied_ptrs)
         {
-            // An input buffer moved: re-record with the new addresses and patch
-            // the executable graph in place. If the topology cannot be updated
-            // (it should not change), re-instantiate from scratch.
-            record();
-            hipGraphNode_t error_node       = nullptr;
-            hipGraphExecUpdateResult result = hipGraphExecUpdateError;
-            auto status =
-                hipGraphExecUpdate(state->exec.get(), state->graph.get(), &error_node, &result);
-            if(status != hipSuccess or result != hipGraphExecUpdateSuccess)
+            // An input buffer moved. Patch the new addresses into the executable
+            // graph node-by-node when possible; otherwise re-record and let
+            // hipGraphExecUpdate patch it (falling back to re-instantiate if the
+            // topology cannot be updated).
+            if(state->patchable)
             {
-                hipGraphExec_t exec = nullptr;
-                check_hip(hipGraphInstantiate(&exec, state->graph.get(), nullptr, nullptr, 0),
-                          "hipGraphInstantiate");
-                state->exec = hip_graph_exec_ptr{exec};
+                patch_kernel_nodes(args);
             }
-            state->input_ptrs = ptrs;
+            else
+            {
+                record();
+                hipGraphNode_t error_node       = nullptr;
+                hipGraphExecUpdateResult result = hipGraphExecUpdateError;
+                auto status =
+                    hipGraphExecUpdate(state->exec.get(), state->graph.get(), &error_node, &result);
+                if(status != hipSuccess or result != hipGraphExecUpdateSuccess)
+                {
+                    hipGraphExec_t exec = nullptr;
+                    check_hip(hipGraphInstantiate(&exec, state->graph.get(), nullptr, nullptr, 0),
+                              "hipGraphInstantiate");
+                    state->exec = hip_graph_exec_ptr{exec};
+                }
+                state->recorded_ptrs = ptrs;
+            }
+            state->applied_ptrs = ptrs;
         }
 
         check_hip(hipGraphLaunch(state->exec.get(), stream), "hipGraphLaunch");

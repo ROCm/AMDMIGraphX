@@ -47,20 +47,33 @@ RUN mkdir --parents --mode=0755 /etc/apt/keyrings && \
 # of system packages (passes --whl to the prereqs script).
 ARG USE_WHL=""
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
-RUN --mount=type=bind,source=tools/install_build_prereqs.sh,target=/tmp/install_build_prereqs.sh \
-    /tmp/install_build_prereqs.sh \
+
+COPY tools/install_prereqs.sh /tmp/install_prereqs.sh
+RUN chmod +x /tmp/install_prereqs.sh && \
+    /tmp/install_prereqs.sh \
         --rocm-version ${ROCM_VERSION} \
         ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
         ${USE_WHL:+--whl} && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Point at TheRock's versioned ROCm root and put its tools on PATH.
-ENV ROCM_PATH=/opt/rocm/core-${ROCM_VERSION}
-ENV PATH=/opt/rocm/core-${ROCM_VERSION}/bin:/opt/rocm/core-${ROCM_VERSION}/llvm/bin:$PATH
+# Additional packages
+RUN python3 -m pip install --index-url https://repo.amd.com/rocm/whl-multi-arch \
+    "torch==2.11.0+rocm${ROCM_VERSION}.0" \
+    "torchvision==0.26.0+rocm${ROCM_VERSION}.0" \
+    "torchaudio==2.11.0+rocm${ROCM_VERSION}.0"
+
+RUN python3 -m pip install onnxruntime clang-format==22.1.5
 
 # Set locale
 RUN locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8
 
 ENV LC_ALL=C.UTF-8
-ENV LANG=C.UTF-8
+
+# Setup ubsan environment to printstacktrace
+ENV UBSAN_OPTIONS=print_stacktrace=1
+# Disable odr detection since its broken with shared libraries
+# See: https://github.com/google/sanitizers/issues/1017
+ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
+RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
+

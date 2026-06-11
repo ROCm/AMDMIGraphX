@@ -36,10 +36,11 @@ RUN mkdir --parents --mode=0755 /etc/apt/keyrings && \
 
 # Install the ROCm toolchain + MIGraphX build prerequisites via the shared script.
 # No --gpu is passed, so the fat (all-architecture) device code is installed.
-RUN --mount=type=bind,source=tools/install_build_prereqs.sh,target=/tmp/install_build_prereqs.sh \
-    /tmp/install_build_prereqs.sh \
-        --rocm-version ${ROCM_VERSION} \
-        ${GPU_ARCH:+--gpu ${GPU_ARCH}} && \
+COPY tools/install_prereqs.sh /tmp/install_prereqs.sh
+RUN chmod +x /tmp/install_prereqs.sh && \
+    /tmp/install_prereqs.sh \
+    --rocm-version ${ROCM_VERSION} \
+    ${GPU_ARCH:+--gpu ${GPU_ARCH}} && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # TheRock installs into a versioned root (/opt/rocm/core-<ver>). Expose the
@@ -51,16 +52,6 @@ RUN for d in bin lib libexec include share llvm amdgcn; do \
     echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf && \
     echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf && \
     ldconfig
-ENV ROCM_PATH=/opt/rocm
-ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
-
-# tools/format.py expects clang-format and git-clang-format under
-# /opt/rocm/llvm/bin, which TheRock does not ship; provide them from the distro.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends clang-format && \
-    rm -rf /var/lib/apt/lists/* && \
-    ln -snf "$(command -v clang-format)" /opt/rocm/llvm/bin/clang-format && \
-    ln -snf "$(command -v git-clang-format)" /opt/rocm/llvm/bin/git-clang-format
 
 # Set locale
 RUN locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8
@@ -68,7 +59,7 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 # Install yapf (used by tools/format.py for Python files)
-RUN pip3 install yapf==0.28.0
+RUN pip3 install yapf==0.28.0 clang-format==22.1.5
 
 # Install doc requirements. --ignore-installed avoids pip trying (and failing)
 # to uninstall distro-managed Python packages such as Pygments (pulled in by gdb)
@@ -89,35 +80,3 @@ ADD tools/requirements-py.txt /requirements-py.txt
 RUN CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON" pip3 install -r /requirements-py.txt && \
     rm /requirements-py.txt
 
-# TheRock's clang-tidy (LLVM 23) analyzes correctly but aborts during static
-# destructor teardown (a double free in libclang-cpp), so its process exit code
-# is an unreliable pass/fail signal. ROCMClangTidy.cmake turns any non-zero exit
-# into a FATAL_ERROR, which would break the `tidy` CI job. Wrap clang-tidy and
-# re-derive status from the diagnostics, matching MIGraphX's warnings-as-errors
-# tidy policy: any diagnostic (or hard error) fails, everything else passes.
-COPY <<'EOF' /opt/rocm/llvm/bin/clang-tidy.wrapper
-#!/usr/bin/env bash
-set -o pipefail
-real="$(dirname "$0")/clang-tidy.real"
-output="$("$real" "$@" 2>&1)"
-status=$?
-# Strip ANSI color codes (present when clang-tidy runs with --use-color) so the
-# diagnostic check below is reliable, then drop the teardown crash banner and
-# backtrace so they do not pollute the log. stdout/stderr interleaving means the
-# crash lines can arrive in any order, so drop each known noise line explicitly.
-clean="$(printf '%s\n' "$output" \
-    | sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g' \
-    | grep -vE \
-    '^[[:space:]]*#[0-9]+[[:space:]]+0x|^PLEASE submit a bug report|^Stack dump:|^[0-9]+\.[[:space:]].*[Pp]rogram arguments|^[[:space:]]*Optimized build\.|^free\(\): |^malloc\(\): |corrupted')"
-printf '%s\n' "$clean"
-if printf '%s\n' "$clean" | grep -qE ': (warning|error):'; then
-    exit 1
-fi
-if [ "$status" -lt 128 ]; then
-    exit "$status"
-fi
-exit 0
-EOF
-RUN mv /opt/rocm/llvm/bin/clang-tidy /opt/rocm/llvm/bin/clang-tidy.real && \
-    mv /opt/rocm/llvm/bin/clang-tidy.wrapper /opt/rocm/llvm/bin/clang-tidy && \
-    chmod +x /opt/rocm/llvm/bin/clang-tidy

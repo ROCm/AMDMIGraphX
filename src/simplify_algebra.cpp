@@ -461,9 +461,9 @@ struct find_dot_mul
     }
 };
 
-auto fusable_split(const std::string& name)
+static auto fusable_split(std::string name)
 {
-    return match::make_basic_pred_matcher([&](instruction_ref ins) {
+    return match::make_basic_pred_matcher([name = std::move(name)](instruction_ref ins) {
         return all_of(ins->outputs(), [&](instruction_ref slice) {
             if(slice->name() != "slice")
                 return true;
@@ -482,7 +482,9 @@ struct find_mul_add
 {
     auto matcher() const
     {
-        auto slice_1 = match::none_of(match::name("slice")(match::arg(0)(fusable_split("add"))));
+        auto add_input = match::arg(0)(fusable_split("add"));
+        auto add_slice = match::name("slice")(add_input);
+        auto slice_1   = match::none_of(add_slice);
         return match::name("mul")(match::either_arg(0, 1)(
             match::name("add")(
                 match::either_arg(0, 1)(
@@ -516,7 +518,8 @@ struct find_slice_add_mul
 {
     auto matcher() const
     {
-        auto slice_1 = match::name("slice")(match::arg(0)(fusable_split("add")));
+        auto add_input = match::arg(0)(fusable_split("add"));
+        auto slice_1   = match::name("slice")(add_input);
         return match::name("mul")(match::either_arg(0, 1)(
             match::name("add")(
                 match::either_arg(0, 1)(

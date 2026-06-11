@@ -149,6 +149,9 @@ struct same_table_gather_horizontal_fusion
         auto data = ins->inputs().at(0);
         auto idx  = ins->inputs().at(1);
 
+        if(idx->get_shape().lens().front() < 4)
+            return false;
+
         // Embedding must be a 2D constant: {num_rows, embedding_dim}
         if(data->get_shape().lens().size() != 2)
             return false;

@@ -196,8 +196,8 @@ struct MIGRAPHX_EXPORT program
 
 /// Copy the program and replace external-weight parameters with literals read
 /// from base_dir, producing a self-contained program suitable for saving as an
-/// MXR. The target is used to lower the baked literals for the device (e.g. the
-/// equivalent of write_literals + finalize).
+/// MXR. The target lowers the baked literals to its device representation (the
+/// baked literals are materialized when the program is loaded or run, not here).
 ///
 /// Requires that the program's external_weight_map is non-empty (populated by
 /// a producer such as the ONNX parser when external_weights_as_parameters is

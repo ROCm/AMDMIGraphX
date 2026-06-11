@@ -308,30 +308,22 @@ void target::lower_baked_literals(module& m) const
         if(ins->name() == "@literal")
             literal_refs.push_back(ins);
     }
-    if(literal_refs.empty())
-        return;
 
     for(auto ins : literal_refs)
     {
-        // gpu::literal owns its device buffer per-instruction (populated during
-        // finalize), so unlike the old id-keyed hip::hip_copy_literal there is no
-        // shared preallocation map and no risk of colliding with literals that were
-        // already emitted when the template was compiled.
-        //
-        // We deliberately do not finalize here: gpu::literal serializes only its host
-        // data (not the device buffer), so finalizing now would upload every weight to
-        // the GPU just to discard it on save. The buffer is materialized when the
-        // program is actually run -- program::from_value finalizes on load, and any
-        // in-process run must finalize first.
+        // We deliberately do not finalize here: gpu::literal serializes only its
+        // host data (not the device buffer), so finalizing now would upload every
+        // weight to the GPU just to discard it on save. The buffer is materialized
+        // when the program is actually run -- program::from_value finalizes on
+        // load, and any in-process run must finalize first.
         value v;
         v["data"] = migraphx::to_value(ins->get_literal().get_argument());
         v["host"] = false;
 
         // Remember any downstream hip::copy_to_gpu before the rewrite so we
         // can drop it once the literal is already producing a GPU buffer.
-        const auto& outputs = ins->outputs();
         std::vector<instruction_ref> stale_copies;
-        for(auto out : outputs)
+        for(auto out : ins->outputs())
         {
             if(out->name() == "hip::copy_to_gpu")
                 stale_copies.push_back(out);

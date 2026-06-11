@@ -1,8 +1,8 @@
 """
 Simple GPU validation test for create_program_with_weights.
 
-Tests that write_literals + finalize correctly lowers baked @literal
-instructions to hip_copy_literal on a GPU-compiled program.
+Tests that baking lowers the inserted @literal instructions to gpu::literal
+on a GPU-compiled program (without finalizing during the bake).
 
 Steps:
   1. Generate a tiny model with external weights (matmul)

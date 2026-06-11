@@ -263,6 +263,13 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
         pipelines = {
             p.dynamic_shapes_pipeline(),
             p.required_pipeline(),
+            {
+                optimize_module{},
+                dead_code_elimination{},
+                rewrite_reduce{}, 
+                rewrite_topk{}, 
+                dead_code_elimination{}
+            },
             p.fusion_pipeline(),
             p.backend_pipeline(),
         };

@@ -412,6 +412,13 @@ function(enable_static_init LIB)
     endif()
 endfunction()
 
+function(migraphx_add_version_resource LIB COMPANY DESCRIPTION)
+    get_target_property(_type ${LIB} TYPE)
+    if(NOT _type STREQUAL "STATIC_LIBRARY")
+        rocm_add_version_resource(${LIB} "${COMPANY}" "${DESCRIPTION}")
+    endif()
+endfunction()
+
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin)

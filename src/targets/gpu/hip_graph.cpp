@@ -32,6 +32,7 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/register_op.hpp>
 #include <hip/hip_runtime_api.h>
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <string>
@@ -74,6 +75,9 @@ struct hip_graph
         hip_graph_exec_ptr exec = nullptr;
         bool captured           = false;
         std::vector<argument> outputs{};
+        // Buffer addresses baked into the captured graph (the input args). The
+        // graph is re-recorded and the executable patched when any of them move.
+        std::vector<const void*> input_ptrs{};
     };
 
     // Created in finalize() rather than at construction: operation handles are
@@ -134,23 +138,51 @@ struct hip_graph
         if(stream == nullptr)
             return pack_outputs(run(sub, params));
 
-        if(not state->captured)
-        {
+        // Record the submodule's kernels into a fresh graph using the current
+        // buffers. Capturing does not execute the kernels: they are added to the
+        // graph and the returned arguments are views into stable buffers that get
+        // filled when the instantiated graph is launched below.
+        auto record = [&] {
             check_hip(hipStreamBeginCapture(stream, hipStreamCaptureModeThreadLocal),
                       "hipStreamBeginCapture");
-            // Recording does not execute the submodule: the kernels are added to
-            // the graph and the returned arguments are views into stable
-            // (preallocated) buffers that get filled when the instantiated graph
-            // is launched below.
             state->outputs   = run(sub, params);
             hipGraph_t graph = nullptr;
             check_hip(hipStreamEndCapture(stream, &graph), "hipStreamEndCapture");
-            state->graph        = hip_graph_ptr{graph};
+            state->graph = hip_graph_ptr{graph};
+        };
+
+        std::vector<const void*> ptrs(args.size());
+        std::transform(
+            args.begin(), args.end(), ptrs.begin(), [](const argument& a) { return a.data(); });
+
+        if(not state->captured)
+        {
+            record();
             hipGraphExec_t exec = nullptr;
             check_hip(hipGraphInstantiate(&exec, state->graph.get(), nullptr, nullptr, 0),
                       "hipGraphInstantiate");
-            state->exec     = hip_graph_exec_ptr{exec};
-            state->captured = true;
+            state->exec       = hip_graph_exec_ptr{exec};
+            state->input_ptrs = ptrs;
+            state->captured   = true;
+        }
+        else if(ptrs != state->input_ptrs)
+        {
+            // An input buffer moved: re-record with the new addresses and patch
+            // the executable graph in place. If the topology cannot be updated
+            // (it should not change), re-instantiate from scratch.
+            record();
+            hipGraphNode_t error_node       = nullptr;
+            hipGraphExecUpdateResult result = hipGraphExecUpdateError;
+            auto status =
+                hipGraphExecUpdate(state->exec.get(), state->graph.get(), &error_node, &result);
+            if(status != hipSuccess or result != hipGraphExecUpdateSuccess)
+            {
+                hipGraphExec_t exec = nullptr;
+                check_hip(hipGraphInstantiate(&exec, state->graph.get(), nullptr, nullptr, 0),
+                          "hipGraphInstantiate");
+                state->exec = hip_graph_exec_ptr{exec};
+            }
+            state->input_ptrs = ptrs;
         }
 
         check_hip(hipGraphLaunch(state->exec.get(), stream), "hipGraphLaunch");

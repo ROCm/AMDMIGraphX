@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added YOLO26 object detection example notebook.
 * Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).
 * Added a dedicated logger for MIGraphX.
@@ -28,6 +29,7 @@ Full documentation for MIGraphX is available at
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
+* Added documentation for using debug symbols (#4945).
 
 ### Changed
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -174,6 +174,18 @@ Iterator adjacent_for_each(Iterator first, Iterator last, F f)
         f(*first, *next);
 
     return last;
+}
+
+template <class Iterator, class F>
+F for_each_iterator(Iterator first, Iterator last, F f)
+{
+    while(first != last)
+    {
+        auto it = first;
+        first++;
+        f(it);
+    }
+    return f;
 }
 
 /// Like std::for_each but can pass in another range like std::transform

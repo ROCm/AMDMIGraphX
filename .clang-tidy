@@ -6,7 +6,7 @@ CheckOptions:
   - key:             bugprone-unused-return-value.AllowCastToVoid
     value:           true
   - key:             cppcoreguidelines-macro-usage.AllowedRegexp
-    value:           'DEBUG|ASSERT|ASSUME|UNREACHABLE|FALLTHROUGH|DEPRECATED|STRINGIZE|_HAS_|_THROW|_REQUIRES|_DECLARE_|_VISIT_|_REGISTER_|_GENERATE_|_DETAIL_|_TIDY_|_MANAGE_PTR|_MATCHER|DEVICE_SHARED|_WORKAROUND_|_PP_'
+    value:           'DEBUG|ASSERT|ASSUME|UNREACHABLE|FALLTHROUGH|DEPRECATED|STRINGIZE|_HAS_|_THROW|_REQUIRES|_DECLARE_|_DEFINE_|_VISIT_|_REGISTER_|_GENERATE_|_DETAIL_|_TIDY_|_MANAGE_PTR|_MATCHER|DEVICE_SHARED|_WORKAROUND_|_PP_'
   - key:             modernize-loop-convert.MinConfidence
     value:           risky   
   - key:             modernize-loop-convert.NamingStyle

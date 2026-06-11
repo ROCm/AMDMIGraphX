@@ -177,16 +177,28 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
-static sym::expr make_sym_var(const char* name, size_t min, size_t max)
+// Parse an expression string and bind each provided symbol name to the bounds/optimals
+// carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
+static shape::dynamic_dimension make_symbolic_dynamic_dimension(
+    const char* expression,
+    const std::unordered_map<std::string, shape::dynamic_dimension>& symbols)
 {
-    return sym::var(name, {static_cast<int64_t>(min), static_cast<int64_t>(max)});
-}
-
-static sym::expr make_sym_var(const char* name, size_t min, size_t max, std::set<size_t> optimals)
-{
-    std::set<int64_t> sym_optimals(optimals.begin(), optimals.end());
-    return sym::var(
-        name, {static_cast<int64_t>(min), static_cast<int64_t>(max)}, std::move(sym_optimals));
+    auto e = sym::parse(expression);
+    if(e.empty())
+        MIGRAPHX_THROW("migraphx_dynamic_dimension: symbolic expression is empty");
+    std::unordered_map<sym::expr, sym::expr> bindings;
+    for(const auto& [name, dd] : symbols)
+    {
+        auto iv = dd.get_interval();
+        std::set<int64_t> optimals;
+        for(auto o : dd.get_optimals())
+            optimals.insert(static_cast<int64_t>(o));
+        bindings.emplace(sym::parse(name),
+                         sym::var(name,
+                                  {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},
+                                  std::move(optimals)));
+    }
+    return shape::dynamic_dimension{e.subs(bindings)};
 }
 
 static void set_default_dim_value(onnx_options& options, size_t value)
@@ -219,11 +231,6 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 static void set_use_debug_symbols(onnx_options& options, bool value)
 {
     options.use_debug_symbols = value;
-}
-
-static void set_use_symbolic_shapes(onnx_options& options, bool value)
-{
-    options.use_symbolic_shapes = value;
 }
 
 static void

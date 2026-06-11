@@ -35,6 +35,8 @@
 #include <array>
 #include <utility>
 #include <vector>
+#include <string>
+#include <unordered_map>
 #include <cassert>
 #include <iostream>
 
@@ -91,13 +93,13 @@ std::string compute_type_name()
 
     name = __PRETTY_FUNCTION__;
 
-    auto begin  = name.find(parameter_name) + sizeof(parameter_name);
-#if(defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
+    auto begin = name.find(parameter_name) + sizeof(parameter_name);
+#if (defined(__GNUC__) && !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 7)
     auto length = name.find_last_of(",") - begin;
 #else
     auto length = name.find_first_of("];", begin) - begin;
 #endif
-    name        = name.substr(begin, length);
+    name = name.substr(begin, length);
 #endif
     return name;
 }
@@ -604,80 +606,6 @@ struct optimals : MIGRAPHX_HANDLE_BASE(optimals)
 };
 
 /**
- * @brief Symbolic expression used to describe symbolic dynamic dimensions.
- */
-struct sym_expr : MIGRAPHX_HANDLE_BASE(sym_expr)
-{
-    sym_expr() {}
-
-    MIGRAPHX_HANDLE_CONSTRUCTOR(sym_expr)
-
-    static sym_expr var(const std::string& name, size_t min, size_t max)
-    {
-        sym_expr e;
-        e.make_handle(&migraphx_sym_expr_create_var, name.c_str(), min, max);
-        return e;
-    }
-
-    static sym_expr var(const std::string& name, size_t min, size_t max, const optimals& opts)
-    {
-        sym_expr e;
-        e.make_handle(
-            &migraphx_sym_expr_create_var_optimals, name.c_str(), min, max, opts.get_handle_ptr());
-        return e;
-    }
-
-    static sym_expr literal(int64_t value)
-    {
-        sym_expr e;
-        e.make_handle(&migraphx_sym_expr_create_literal, value);
-        return e;
-    }
-
-    static sym_expr parse(const std::string& s)
-    {
-        sym_expr e;
-        e.make_handle(&migraphx_sym_expr_create_parse, s.c_str());
-        return e;
-    }
-
-    std::string to_string() const
-    {
-        std::array<char, 1024> out_str;
-        call(&migraphx_sym_expr_to_string, out_str.data(), out_str.size(), this->get_handle_ptr());
-        return {out_str.data()};
-    }
-
-    friend sym_expr operator+(const sym_expr& a, const sym_expr& b)
-    {
-        migraphx_sym_expr_t out;
-        call(&migraphx_sym_expr_add, &out, a.get_handle_ptr(), b.get_handle_ptr());
-        return {out, own{}};
-    }
-
-    friend sym_expr operator-(const sym_expr& a, const sym_expr& b)
-    {
-        migraphx_sym_expr_t out;
-        call(&migraphx_sym_expr_sub, &out, a.get_handle_ptr(), b.get_handle_ptr());
-        return {out, own{}};
-    }
-
-    friend sym_expr operator*(const sym_expr& a, const sym_expr& b)
-    {
-        migraphx_sym_expr_t out;
-        call(&migraphx_sym_expr_mul, &out, a.get_handle_ptr(), b.get_handle_ptr());
-        return {out, own{}};
-    }
-
-    friend sym_expr operator/(const sym_expr& a, const sym_expr& b)
-    {
-        migraphx_sym_expr_t out;
-        call(&migraphx_sym_expr_div, &out, a.get_handle_ptr(), b.get_handle_ptr());
-        return {out, own{}};
-    }
-};
-
-/**
  * @brief Dynamic dimension object.
  * @details minimum, maximum, and optimal dimensions
  */
@@ -696,10 +624,10 @@ struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
             &migraphx_dynamic_dimension_create_min_max_optimals, min, max, opts.get_handle_ptr());
     }
 
-    dynamic_dimension(const sym_expr& expr) // NOLINT(google-explicit-constructor)
-    {
-        this->make_handle(&migraphx_dynamic_dimension_create_symbolic, expr.get_handle_ptr());
-    }
+    /// Build a symbolic dimension by parsing an expression string and binding each named
+    /// symbol to the bounds/optimals supplied as range dynamic_dimensions.
+    dynamic_dimension(const std::string& expression,
+                      const std::unordered_map<std::string, dynamic_dimension>& symbols);
 
     bool is_fixed() const
     {
@@ -727,6 +655,33 @@ struct dynamic_dimension : MIGRAPHX_CONST_HANDLE_BASE(dynamic_dimension)
         return not(x == y);
     }
 };
+
+/**
+ * Maps symbol names to the bounds/optimals used when building a symbolic dynamic_dimension.
+ */
+struct symbol_bounds : MIGRAPHX_HANDLE_BASE(symbol_bounds)
+{
+    MIGRAPHX_HANDLE_CONSTRUCTOR(symbol_bounds)
+
+    symbol_bounds() { this->make_handle(&migraphx_symbol_bounds_create); }
+
+    void add(const std::string& name, const dynamic_dimension& dd)
+    {
+        call(
+            &migraphx_symbol_bounds_add, this->get_handle_ptr(), name.c_str(), dd.get_handle_ptr());
+    }
+};
+
+inline dynamic_dimension::dynamic_dimension(
+    const std::string& expression,
+    const std::unordered_map<std::string, dynamic_dimension>& symbols)
+{
+    symbol_bounds bounds;
+    for(const auto& [name, dd] : symbols)
+        bounds.add(name, dd);
+    this->make_handle(
+        &migraphx_dynamic_dimension_create_symbolic, expression.c_str(), bounds.get_handle_ptr());
+}
 
 /**
  * Container to hold dynamic_dimension objects.
@@ -1523,11 +1478,6 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     void set_use_debug_symbols(bool value = true)
     {
         call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
-    }
-
-    void set_use_symbolic_shapes(bool value = true)
-    {
-        call(&migraphx_onnx_options_set_use_symbolic_shapes, this->get_handle_ptr(), value);
     }
 
     void set_dim_param(const std::string& name, const dynamic_dimension& dd)

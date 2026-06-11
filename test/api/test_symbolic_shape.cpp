@@ -28,12 +28,12 @@
 
 TEST_CASE(create_symbolic_dynamic_dimension)
 {
-    migraphx::dynamic_dimension sym{migraphx::sym_expr::var("n", 1, 4)};
+    migraphx::dynamic_dimension sym("n", {{"n", migraphx::dynamic_dimension{1, 4}}});
     EXPECT(sym.is_symbolic());
     EXPECT(not sym.is_fixed());
 
-    migraphx::optimals opts{1, 2, 4};
-    migraphx::dynamic_dimension sym_opt{migraphx::sym_expr::var("n", 1, 4, opts)};
+    migraphx::dynamic_dimension sym_opt(
+        "n", {{"n", migraphx::dynamic_dimension{1, 4, migraphx::optimals{1, 2, 4}}}});
     EXPECT(sym_opt.is_symbolic());
 
     migraphx::dynamic_dimension range{1, 4};
@@ -43,18 +43,17 @@ TEST_CASE(create_symbolic_dynamic_dimension)
 
 TEST_CASE(symbolic_expression_compose)
 {
-    auto n = migraphx::sym_expr::var("n", 1, 8);
-    migraphx::dynamic_dimension product{n * migraphx::sym_expr::literal(3)};
+    migraphx::dynamic_dimension product("n * 3", {{"n", migraphx::dynamic_dimension{1, 8}}});
     EXPECT(product.is_symbolic());
 
-    migraphx::dynamic_dimension parsed{migraphx::sym_expr::parse("n + 1")};
+    migraphx::dynamic_dimension parsed("n + 1", {{"n", migraphx::dynamic_dimension{1, 8}}});
     EXPECT(parsed.is_symbolic());
 }
 
 TEST_CASE(create_symbolic_dynamic_shape)
 {
     migraphx::dynamic_dimensions dyn_dims(
-        migraphx::dynamic_dimension{migraphx::sym_expr::var("n", 1, 4)},
+        migraphx::dynamic_dimension{"n", {{"n", migraphx::dynamic_dimension{1, 4}}}},
         migraphx::dynamic_dimension{3, 3});
     migraphx::shape s{migraphx_shape_float_type, dyn_dims};
     EXPECT(s.dynamic());
@@ -62,44 +61,13 @@ TEST_CASE(create_symbolic_dynamic_shape)
     EXPECT(not s.dyn_dims()[1].is_symbolic());
 }
 
-TEST_CASE(parse_onnx_symbolic_dim_param)
-{
-    migraphx::onnx_options options;
-    options.set_use_symbolic_shapes();
-    options.set_dim_param("dim0", migraphx::dynamic_dimension{1, 8});
-    options.set_dim_param("dim1", migraphx::dynamic_dimension{2, 16});
-
-    auto p      = read_onnx("dim_param_test.onnx", options);
-    auto shapes = p.get_parameter_shapes();
-    auto input  = shapes["0"];
-    EXPECT(input.dynamic());
-    auto dd = input.dyn_dims();
-    EXPECT(dd[0].is_symbolic());
-    EXPECT(dd[1].is_symbolic());
-}
-
 TEST_CASE(parse_onnx_symbolic_dyn_input)
 {
     migraphx::onnx_options options;
     migraphx::dynamic_dimensions dyn_dims(
-        migraphx::dynamic_dimension{migraphx::sym_expr::var("n", 1, 8)},
-        migraphx::dynamic_dimension{migraphx::sym_expr::var("m", 2, 16)});
+        migraphx::dynamic_dimension{"n", {{"n", migraphx::dynamic_dimension{1, 8}}}},
+        migraphx::dynamic_dimension{"m", {{"m", migraphx::dynamic_dimension{2, 16}}}});
     options.set_dyn_input_parameter_shape("0", dyn_dims);
-
-    auto p      = read_onnx("dim_param_test.onnx", options);
-    auto shapes = p.get_parameter_shapes();
-    auto input  = shapes["0"];
-    EXPECT(input.dynamic());
-    auto dd = input.dyn_dims();
-    EXPECT(dd[0].is_symbolic());
-    EXPECT(dd[1].is_symbolic());
-}
-
-TEST_CASE(parse_onnx_symbolic_default_dyn_dim)
-{
-    migraphx::onnx_options options;
-    options.set_use_symbolic_shapes();
-    options.set_default_dyn_dim_value(migraphx::dynamic_dimension{1, 8});
 
     auto p      = read_onnx("dim_param_test.onnx", options);
     auto shapes = p.get_parameter_shapes();

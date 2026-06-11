@@ -403,41 +403,33 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
     py::enum_<migraphx::shape::type_t>(shape_cls, "type_t")
         MIGRAPHX_SHAPE_VISIT_TYPES(MIGRAPHX_PYTHON_GENERATE_SHAPE_ENUM);
 
-    auto sym = m.def_submodule("sym", "Symbolic expressions for dynamic dimensions");
-    py::class_<migraphx::sym::expr>(sym, "expr")
-        .def("__add__",
-             [](const migraphx::sym::expr& a, const migraphx::sym::expr& b) { return a + b; })
-        .def("__sub__",
-             [](const migraphx::sym::expr& a, const migraphx::sym::expr& b) { return a - b; })
-        .def("__mul__",
-             [](const migraphx::sym::expr& a, const migraphx::sym::expr& b) { return a * b; })
-        .def("__truediv__",
-             [](const migraphx::sym::expr& a, const migraphx::sym::expr& b) { return a / b; })
-        .def("__repr__", [](const migraphx::sym::expr& e) { return e.to_string(); });
-
-    sym.def(
-        "var",
-        [](const std::string& name,
-           std::size_t min,
-           std::size_t max,
-           std::set<std::int64_t> optimals) {
-            return migraphx::sym::var(
-                name,
-                {static_cast<std::int64_t>(min), static_cast<std::int64_t>(max)},
-                std::move(optimals));
-        },
-        py::arg("name"),
-        py::arg("min"),
-        py::arg("max"),
-        py::arg("optimals") = std::set<std::int64_t>{});
-    sym.def("lit", &migraphx::sym::lit, py::arg("value"));
-    sym.def("parse", &migraphx::sym::parse, py::arg("expression"));
-
     py::class_<migraphx::shape::dynamic_dimension>(shape_cls, "dynamic_dimension")
         .def(py::init<>())
         .def(py::init<std::size_t, std::size_t>())
         .def(py::init<std::size_t, std::size_t, std::set<std::size_t>>())
-        .def(py::init<migraphx::sym::expr>())
+        .def(py::init([](const std::string& expression,
+                         const std::unordered_map<std::string, migraphx::shape::dynamic_dimension>&
+                             symbols) {
+                 auto e = migraphx::sym::parse(expression);
+                 if(e.empty())
+                     throw std::runtime_error("dynamic_dimension: symbolic expression is empty");
+                 std::unordered_map<migraphx::sym::expr, migraphx::sym::expr> bindings;
+                 for(const auto& [name, dd] : symbols)
+                 {
+                     auto iv = dd.get_interval();
+                     std::set<std::int64_t> optimals;
+                     for(auto o : dd.get_optimals())
+                         optimals.insert(static_cast<std::int64_t>(o));
+                     bindings.emplace(migraphx::sym::parse(name),
+                                      migraphx::sym::var(name,
+                                                         {static_cast<std::int64_t>(iv.min),
+                                                          static_cast<std::int64_t>(iv.max)},
+                                                         std::move(optimals)));
+                 }
+                 return migraphx::shape::dynamic_dimension{e.subs(bindings)};
+             }),
+             py::arg("expression"),
+             py::arg("symbols"))
         .def_property_readonly(
             "min", [](const migraphx::shape::dynamic_dimension& d) { return d.get_interval().min; })
         .def_property_readonly(
@@ -798,8 +790,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            bool print_program_on_error,
            int64_t max_loop_iterations,
            int64_t limit_max_iterations,
-           bool use_debug_symbols,
-           bool use_symbolic_shapes) {
+           bool use_debug_symbols) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -811,7 +802,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.max_loop_iterations    = max_loop_iterations;
             options.limit_max_iterations   = limit_max_iterations;
             options.use_debug_symbols      = use_debug_symbols;
-            options.use_symbolic_shapes    = use_symbolic_shapes;
             return migraphx::parse_onnx(filename, options);
         },
         "Parse onnx file",
@@ -827,8 +817,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("print_program_on_error") = false,
         py::arg("max_loop_iterations")    = 10,
         py::arg("limit_max_iterations")   = std::numeric_limits<uint16_t>::max(),
-        py::arg("use_debug_symbols")      = false,
-        py::arg("use_symbolic_shapes")    = false);
+        py::arg("use_debug_symbols")      = false);
 
     m.def(
         "parse_onnx_buffer",
@@ -842,8 +831,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            bool skip_unknown_operators,
            bool print_program_on_error,
            const std::string& external_data_path,
-           bool use_debug_symbols,
-           bool use_symbolic_shapes) {
+           bool use_debug_symbols) {
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
@@ -854,7 +842,6 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             options.print_program_on_error = print_program_on_error;
             options.external_data_path     = external_data_path;
             options.use_debug_symbols      = use_debug_symbols;
-            options.use_symbolic_shapes    = use_symbolic_shapes;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
@@ -869,8 +856,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("skip_unknown_operators") = false,
         py::arg("print_program_on_error") = false,
         py::arg("external_data_path")     = "",
-        py::arg("use_debug_symbols")      = false,
-        py::arg("use_symbolic_shapes")    = false);
+        py::arg("use_debug_symbols")      = false);
 
     m.def(
         "load",

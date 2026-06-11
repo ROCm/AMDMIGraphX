@@ -522,7 +522,8 @@ TEST_CASE(gather_horiz_no_fusion_dependent)
 // ---------------------------------------------------------------------------
 
 // 4 gathers on the SAME 2D constant table -> collapse into 1 batched gather
-// + 4 slices.  The table is read once instead of four times.
+// + 4 slices.  The table is read once instead of four times.  Each index has a
+// leading (batch) dim >= 4 so the small-batch early exit does not apply.
 TEST_CASE(same_table_gathers_basic)
 {
     migraphx::module m1;
@@ -530,10 +531,10 @@ TEST_CASE(same_table_gathers_basic)
         auto emb =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
 
-        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
-        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
-        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {1}});
-        auto idx4 = m1.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {4}});
+        auto idx4 = m1.add_parameter("idx4", {migraphx::shape::int32_type, {6}});
 
         auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
         auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
@@ -549,10 +550,10 @@ TEST_CASE(same_table_gathers_basic)
         auto emb =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
 
-        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
-        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
-        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {1}});
-        auto idx4 = m2.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
+        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {4}});
+        auto idx4 = m2.add_parameter("idx4", {migraphx::shape::int32_type, {6}});
 
         auto concat_idx =
             m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
@@ -561,13 +562,13 @@ TEST_CASE(same_table_gathers_basic)
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
 
         auto s1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
         auto s2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {5}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
         auto s3 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {5}}, {"ends", {6}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {13}}}), bg);
         auto s4 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {8}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {13}}, {"ends", {19}}}), bg);
 
         m2.add_return({s1, s2, s3, s4});
     }
@@ -582,8 +583,8 @@ TEST_CASE(same_table_gathers_two_siblings)
         auto emb =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 3}}, 0));
 
-        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
-        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
 
         auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
         auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
@@ -597,8 +598,8 @@ TEST_CASE(same_table_gathers_two_siblings)
         auto emb =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 3}}, 0));
 
-        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
-        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
 
         auto concat_idx = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
                                              std::vector<migraphx::instruction_ref>{idx1, idx2});
@@ -606,23 +607,24 @@ TEST_CASE(same_table_gathers_two_siblings)
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
 
         auto s1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
         auto s2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {5}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
 
         m2.add_return({s1, s2});
     }
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Single gather on the table -> no rewrite (need >= 2 siblings).
+// Single gather on the table -> no rewrite (need >= 2 siblings).  Batch dim is
+// >= 4 so the small-batch early exit does not mask the group-size check.
 TEST_CASE(same_table_gathers_single_no_rewrite)
 {
     migraphx::module m1;
     {
         auto emb =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
-        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {2}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {4}});
         auto g   = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx);
         m1.add_return({g});
     }
@@ -639,7 +641,7 @@ TEST_CASE(same_table_gathers_shared_index)
     {
         auto emb =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 0));
-        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {2}});
+        auto idx = m1.add_parameter("idx", {migraphx::shape::int32_type, {4}});
 
         auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx);
         auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx);
@@ -653,7 +655,7 @@ TEST_CASE(same_table_gathers_shared_index)
     {
         auto emb =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 0));
-        auto idx = m2.add_parameter("idx", {migraphx::shape::int32_type, {2}});
+        auto idx = m2.add_parameter("idx", {migraphx::shape::int32_type, {4}});
 
         auto concat_idx = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
                                              std::vector<migraphx::instruction_ref>{idx, idx, idx});
@@ -661,11 +663,11 @@ TEST_CASE(same_table_gathers_shared_index)
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
 
         auto s1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
         auto s2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), bg);
         auto s3 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {6}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {8}}, {"ends", {12}}}), bg);
 
         m2.add_return({s1, s2, s3});
     }
@@ -680,9 +682,9 @@ TEST_CASE(same_table_gathers_2d_indices)
         auto emb =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {7, 2}}, 0));
 
-        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2, 3}});
-        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {1, 3}});
-        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {4, 3}});
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {4, 3}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {5, 3}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {6, 3}});
 
         auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
         auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
@@ -697,9 +699,9 @@ TEST_CASE(same_table_gathers_2d_indices)
         auto emb =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {7, 2}}, 0));
 
-        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {2, 3}});
-        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {1, 3}});
-        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {4, 3}});
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {4, 3}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {5, 3}});
+        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {6, 3}});
 
         auto concat_idx =
             m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
@@ -708,11 +710,11 @@ TEST_CASE(same_table_gathers_2d_indices)
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
 
         auto s1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
         auto s2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
         auto s3 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {7}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {15}}}), bg);
 
         m2.add_return({s1, s2, s3});
     }
@@ -728,9 +730,9 @@ TEST_CASE(same_table_gathers_split_by_idx_type)
         auto emb =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 0));
 
-        auto idx32a = m1.add_parameter("idx32a", {migraphx::shape::int32_type, {2}});
-        auto idx32b = m1.add_parameter("idx32b", {migraphx::shape::int32_type, {3}});
-        auto idx64  = m1.add_parameter("idx64", {migraphx::shape::int64_type, {2}});
+        auto idx32a = m1.add_parameter("idx32a", {migraphx::shape::int32_type, {4}});
+        auto idx32b = m1.add_parameter("idx32b", {migraphx::shape::int32_type, {5}});
+        auto idx64  = m1.add_parameter("idx64", {migraphx::shape::int64_type, {4}});
 
         auto g_a = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx32a);
         auto g_b = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx32b);
@@ -745,9 +747,9 @@ TEST_CASE(same_table_gathers_split_by_idx_type)
         auto emb =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 0));
 
-        auto idx32a = m2.add_parameter("idx32a", {migraphx::shape::int32_type, {2}});
-        auto idx32b = m2.add_parameter("idx32b", {migraphx::shape::int32_type, {3}});
-        auto idx64  = m2.add_parameter("idx64", {migraphx::shape::int64_type, {2}});
+        auto idx32a = m2.add_parameter("idx32a", {migraphx::shape::int32_type, {4}});
+        auto idx32b = m2.add_parameter("idx32b", {migraphx::shape::int32_type, {5}});
+        auto idx64  = m2.add_parameter("idx64", {migraphx::shape::int64_type, {4}});
 
         auto concat_idx =
             m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
@@ -756,9 +758,9 @@ TEST_CASE(same_table_gathers_split_by_idx_type)
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
 
         auto s_a = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
         auto s_b = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {5}}}), bg);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
 
         // Lone int64 gather is left alone (group size = 1)
         auto g_c = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx64);
@@ -778,10 +780,10 @@ TEST_CASE(same_table_gathers_split_by_trailing_dims)
         auto emb =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 0));
 
-        auto idx_1d_a = m1.add_parameter("idx_1d_a", {migraphx::shape::int32_type, {2}});
-        auto idx_1d_b = m1.add_parameter("idx_1d_b", {migraphx::shape::int32_type, {3}});
-        auto idx_2d_a = m1.add_parameter("idx_2d_a", {migraphx::shape::int32_type, {2, 3}});
-        auto idx_2d_b = m1.add_parameter("idx_2d_b", {migraphx::shape::int32_type, {1, 3}});
+        auto idx_1d_a = m1.add_parameter("idx_1d_a", {migraphx::shape::int32_type, {4}});
+        auto idx_1d_b = m1.add_parameter("idx_1d_b", {migraphx::shape::int32_type, {5}});
+        auto idx_2d_a = m1.add_parameter("idx_2d_a", {migraphx::shape::int32_type, {4, 3}});
+        auto idx_2d_b = m1.add_parameter("idx_2d_b", {migraphx::shape::int32_type, {5, 3}});
 
         auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx_1d_a);
         auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx_1d_b);
@@ -797,10 +799,10 @@ TEST_CASE(same_table_gathers_split_by_trailing_dims)
         auto emb =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 0));
 
-        auto idx_1d_a = m2.add_parameter("idx_1d_a", {migraphx::shape::int32_type, {2}});
-        auto idx_1d_b = m2.add_parameter("idx_1d_b", {migraphx::shape::int32_type, {3}});
-        auto idx_2d_a = m2.add_parameter("idx_2d_a", {migraphx::shape::int32_type, {2, 3}});
-        auto idx_2d_b = m2.add_parameter("idx_2d_b", {migraphx::shape::int32_type, {1, 3}});
+        auto idx_1d_a = m2.add_parameter("idx_1d_a", {migraphx::shape::int32_type, {4}});
+        auto idx_1d_b = m2.add_parameter("idx_1d_b", {migraphx::shape::int32_type, {5}});
+        auto idx_2d_a = m2.add_parameter("idx_2d_a", {migraphx::shape::int32_type, {4, 3}});
+        auto idx_2d_b = m2.add_parameter("idx_2d_b", {migraphx::shape::int32_type, {5, 3}});
 
         // 1D group fuses first (anchor sees idx_1d_a)
         auto concat_idx_1d =
@@ -811,9 +813,9 @@ TEST_CASE(same_table_gathers_split_by_trailing_dims)
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx_1d);
 
         auto s1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg_1d);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_1d);
         auto s2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {5}}}), bg_1d);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_1d);
 
         // 2D group fuses next
         auto concat_idx_2d =
@@ -824,9 +826,9 @@ TEST_CASE(same_table_gathers_split_by_trailing_dims)
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx_2d);
 
         auto s3 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg_2d);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_2d);
         auto s4 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), bg_2d);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_2d);
 
         m2.add_return({s1, s2, s3, s4});
     }
@@ -845,10 +847,10 @@ TEST_CASE(same_table_gathers_multiple_tables)
         auto emb_b =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
 
-        auto idx_a1 = m1.add_parameter("idx_a1", {migraphx::shape::int32_type, {2}});
-        auto idx_a2 = m1.add_parameter("idx_a2", {migraphx::shape::int32_type, {2}});
-        auto idx_b1 = m1.add_parameter("idx_b1", {migraphx::shape::int32_type, {3}});
-        auto idx_b2 = m1.add_parameter("idx_b2", {migraphx::shape::int32_type, {1}});
+        auto idx_a1 = m1.add_parameter("idx_a1", {migraphx::shape::int32_type, {4}});
+        auto idx_a2 = m1.add_parameter("idx_a2", {migraphx::shape::int32_type, {5}});
+        auto idx_b1 = m1.add_parameter("idx_b1", {migraphx::shape::int32_type, {4}});
+        auto idx_b2 = m1.add_parameter("idx_b2", {migraphx::shape::int32_type, {5}});
 
         auto ga1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_a, idx_a1);
         auto gb1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_b, idx_b1);
@@ -866,10 +868,10 @@ TEST_CASE(same_table_gathers_multiple_tables)
         auto emb_b =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
 
-        auto idx_a1 = m2.add_parameter("idx_a1", {migraphx::shape::int32_type, {2}});
-        auto idx_a2 = m2.add_parameter("idx_a2", {migraphx::shape::int32_type, {2}});
-        auto idx_b1 = m2.add_parameter("idx_b1", {migraphx::shape::int32_type, {3}});
-        auto idx_b2 = m2.add_parameter("idx_b2", {migraphx::shape::int32_type, {1}});
+        auto idx_a1 = m2.add_parameter("idx_a1", {migraphx::shape::int32_type, {4}});
+        auto idx_a2 = m2.add_parameter("idx_a2", {migraphx::shape::int32_type, {5}});
+        auto idx_b1 = m2.add_parameter("idx_b1", {migraphx::shape::int32_type, {4}});
+        auto idx_b2 = m2.add_parameter("idx_b2", {migraphx::shape::int32_type, {5}});
 
         // Table A is fused first (anchor sees ga1)
         auto concat_idx_a =
@@ -880,9 +882,9 @@ TEST_CASE(same_table_gathers_multiple_tables)
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_a, concat_idx_a);
 
         auto sa1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg_a);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_a);
         auto sa2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), bg_a);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_a);
 
         // Table B is fused next
         auto concat_idx_b =
@@ -893,9 +895,9 @@ TEST_CASE(same_table_gathers_multiple_tables)
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_b, concat_idx_b);
 
         auto sb1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), bg_b);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_b);
         auto sb2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), bg_b);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_b);
 
         m2.add_return({sa1, sb1, sa2, sb2});
     }
@@ -1022,6 +1024,58 @@ TEST_CASE(same_table_gathers_no_rewrite_scalar_index)
     EXPECT(m1 == m2);
 }
 
+// Small-batch early exit: sibling gathers on the same constant table whose
+// index leading (batch) dim is < 4 are rejected by is_candidate, so the
+// same-table fusion does not fire.  Using only 3 gathers also keeps the
+// cross-table fusion (min group size 4) from kicking in, so the module is
+// left unchanged.
+TEST_CASE(same_table_gathers_no_rewrite_small_batch)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {2}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_return({g1, g2, g3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Mixed batch sizes on one table: only gathers with batch >= 4 are candidates.
+// Here a single gather clears the threshold, leaving a group of size 1, so no
+// fusion happens and the smaller-batch gathers are untouched as well.
+TEST_CASE(same_table_gathers_no_rewrite_mixed_batch_single_eligible)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {4}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_return({g1, g2, g3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 // Idempotence: rerunning the pass on the already-fused module changes nothing
 // (the merged gather is the only sibling on the table).
 TEST_CASE(same_table_gathers_idempotent)
@@ -1031,9 +1085,9 @@ TEST_CASE(same_table_gathers_idempotent)
         auto emb =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
 
-        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
-        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {3}});
-        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {1}});
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {4}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {5}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {6}});
 
         auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
         auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);

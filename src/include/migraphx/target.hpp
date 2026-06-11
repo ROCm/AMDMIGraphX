@@ -100,14 +100,14 @@ struct target
      * after the normal compile pipeline has already run (e.g. by
      * create_program_with_weights). Implementations should turn the bare
      * literals into whatever target-specific op they would normally produce
-     * during compile (and finalize them against the supplied context). The
-     * default is a no-op for targets that consume @literal directly (e.g.
-     * the reference interpreter).
+     * during compile. The newly-emitted instructions are not finalized here;
+     * they are materialized when the program is loaded or run. The default is
+     * a no-op for targets that consume @literal directly (e.g. the reference
+     * interpreter).
      *
      * @param m   Module to mutate in place
-     * @param ctx Context to finalize newly-emitted instructions against
      */
-    void lower_baked_literals(module& m, context& ctx) const;
+    void lower_baked_literals(module& m) const;
 };
 
 #else
@@ -138,7 +138,7 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 }
 
 template <class T>
-void target_lower_baked_literals(T&, module&, context&)
+void target_lower_baked_literals(T&, module&)
 {
 }
 
@@ -176,7 +176,7 @@ struct MIGRAPHX_EXPORT target
     // (optional)
     argument allocate(const shape& s) const;
     // (optional)
-    void lower_baked_literals(module& m, context& ctx) const;
+    void lower_baked_literals(module& m) const;
     // (optional)
     value to_value() const;
     // (optional)
@@ -252,22 +252,18 @@ struct target
     }
 
     template <class T>
-    static auto private_detail_te_default_lower_baked_literals(char,
-                                                               T&& private_detail_te_self,
-                                                               module& m,
-                                                               context& ctx)
-        -> decltype(private_detail_te_self.lower_baked_literals(m, ctx))
+    static auto
+    private_detail_te_default_lower_baked_literals(char, T&& private_detail_te_self, module& m)
+        -> decltype(private_detail_te_self.lower_baked_literals(m))
     {
-        private_detail_te_self.lower_baked_literals(m, ctx);
+        private_detail_te_self.lower_baked_literals(m);
     }
 
     template <class T>
-    static void private_detail_te_default_lower_baked_literals(float,
-                                                               T&& private_detail_te_self,
-                                                               module& m,
-                                                               context& ctx)
+    static void
+    private_detail_te_default_lower_baked_literals(float, T&& private_detail_te_self, module& m)
     {
-        target_lower_baked_literals(private_detail_te_self, m, ctx);
+        target_lower_baked_literals(private_detail_te_self, m);
     }
 
     template <class T>
@@ -332,10 +328,7 @@ struct target
                                                     std::declval<PrivateDetailTypeErasedT>(),
                                                     std::declval<const shape&>()),
                  private_detail_te_default_lower_baked_literals(
-                     char(0),
-                     std::declval<PrivateDetailTypeErasedT>(),
-                     std::declval<module&>(),
-                     std::declval<context&>()),
+                     char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<module&>()),
                  private_detail_te_default_to_value(char(0),
                                                     std::declval<PrivateDetailTypeErasedT>()),
                  private_detail_te_default_from_value(char(0),
@@ -457,10 +450,10 @@ struct target
         return (*this).private_detail_te_get_handle().allocate(s);
     }
 
-    void lower_baked_literals(module& m, context& ctx) const
+    void lower_baked_literals(module& m) const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().lower_baked_literals(m, ctx);
+        (*this).private_detail_te_get_handle().lower_baked_literals(m);
     }
 
     value to_value() const
@@ -496,7 +489,7 @@ struct target
         virtual argument copy_to(const argument& input) const                                   = 0;
         virtual argument copy_from(const argument& input) const                                 = 0;
         virtual argument allocate(const shape& s) const                                         = 0;
-        virtual void lower_baked_literals(module& m, context& ctx) const                        = 0;
+        virtual void lower_baked_literals(module& m) const                                      = 0;
         virtual value to_value() const                                                          = 0;
         virtual void from_value(const value& v)                                                 = 0;
     };
@@ -563,11 +556,10 @@ struct target
             return private_detail_te_default_allocate(char(0), private_detail_te_value, s);
         }
 
-        void lower_baked_literals(module& m, context& ctx) const override
+        void lower_baked_literals(module& m) const override
         {
 
-            private_detail_te_default_lower_baked_literals(
-                char(0), private_detail_te_value, m, ctx);
+            private_detail_te_default_lower_baked_literals(char(0), private_detail_te_value, m);
         }
 
         value to_value() const override

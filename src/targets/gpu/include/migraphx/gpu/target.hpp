@@ -58,7 +58,7 @@ struct MIGRAPHX_GPU_EXPORT target
     argument copy_to(const argument& arg) const;
     argument copy_from(const argument& arg) const;
     argument allocate(const shape& s) const;
-    void lower_baked_literals(module& m, migraphx::context& ctx) const;
+    void lower_baked_literals(module& m) const;
 };
 
 } // namespace gpu

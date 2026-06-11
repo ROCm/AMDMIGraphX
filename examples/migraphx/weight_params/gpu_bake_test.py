@@ -118,6 +118,10 @@ def main():
         assert "input" in baked_params, "'input' should still be a parameter"
         print("    Weight parameter successfully removed.")
 
+        # Baking does not finalize, so materialize device buffers before running
+        # in-process (a saved MXR is finalized automatically on load instead).
+        baked.finalize(gpu_target)
+
         # 6. Run inference (must provide all GPU buffers with offload_copy=False)
         print("\n[5] Running inference on GPU...")
         input_data = np.array([[1.0, 2.0, 3.0, 4.0]], dtype=np.float32)
@@ -152,6 +156,7 @@ def main():
         weights_dir2 = write_weights(os.path.join(tmp_dir, "weights2"), W_half)
 
         baked2 = migraphx.create_program_with_weights(prog, weights_dir2, gpu_target)
+        baked2.finalize(gpu_target)
         baked2_params = baked2.get_parameter_shapes()
         run_params2 = {}
         for pname, pshape in baked2_params.items():

@@ -100,14 +100,14 @@ struct target
      * after the normal compile pipeline has already run (e.g. by
      * create_program_with_weights). Implementations should turn the bare
      * literals into whatever target-specific op they would normally produce
-     * during compile (and finalize them against the supplied context). The
-     * default is a no-op for targets that consume @literal directly (e.g.
-     * the reference interpreter).
+     * during compile. The newly-emitted instructions are not finalized here;
+     * they are materialized when the program is loaded or run. The default is
+     * a no-op for targets that consume @literal directly (e.g. the reference
+     * interpreter).
      *
      * @param m   Module to mutate in place
-     * @param ctx Context to finalize newly-emitted instructions against
      */
-    void lower_baked_literals(module& m, context& ctx) const;
+    void lower_baked_literals(module& m) const;
 };
 
 #else
@@ -138,7 +138,7 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 }
 
 template <class T>
-void target_lower_baked_literals(T&, module&, context&)
+void target_lower_baked_literals(T&, module&)
 {
 }
 
@@ -188,7 +188,6 @@ void from_value_target(T& x, const value& v)
                       default = 'target_allocate'),
               virtual('lower_baked_literals',
                       m       = 'module&',
-                      ctx     = 'context&',
                       const   = True,
                       default = 'target_lower_baked_literals'),
               virtual('to_value', returns = 'value', const = True, default = 'to_value_target'),

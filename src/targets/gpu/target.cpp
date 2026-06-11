@@ -300,27 +300,32 @@ argument target::allocate(const shape& s) const
     return gpu::allocate_gpu(s);
 }
 
-void target::lower_baked_literals(module& m, migraphx::context& ctx) const
+void target::lower_baked_literals(module& m) const
 {
-    // Continue hip_copy_literal ids past those already emitted so they don't collide.
     std::vector<instruction_ref> literal_refs;
-    std::size_t n = 0;
     for(auto ins : iterator_for(m))
     {
         if(ins->name() == "@literal")
             literal_refs.push_back(ins);
-        else if(ins->name() == "hip::hip_copy_literal")
-            n++;
     }
     if(literal_refs.empty())
         return;
 
     for(auto ins : literal_refs)
     {
-        std::string id = m.name() + ":@literal:" + std::to_string(n);
+        // gpu::literal owns its device buffer per-instruction (populated during
+        // finalize), so unlike the old id-keyed hip::hip_copy_literal there is no
+        // shared preallocation map and no risk of colliding with literals that were
+        // already emitted when the template was compiled.
+        //
+        // We deliberately do not finalize here: gpu::literal serializes only its host
+        // data (not the device buffer), so finalizing now would upload every weight to
+        // the GPU just to discard it on save. The buffer is materialized when the
+        // program is actually run -- program::from_value finalizes on load, and any
+        // in-process run must finalize first.
         value v;
-        v["literal"] = migraphx::to_value(ins->get_literal());
-        v["id"]      = id;
+        v["data"] = migraphx::to_value(ins->get_literal().get_argument());
+        v["host"] = false;
 
         // Remember any downstream hip::copy_to_gpu before the rewrite so we
         // can drop it once the literal is already producing a GPU buffer.
@@ -332,15 +337,13 @@ void target::lower_baked_literals(module& m, migraphx::context& ctx) const
                 stale_copies.push_back(out);
         }
 
-        auto new_ins = m.replace_instruction(ins, make_op("hip::hip_copy_literal", v));
-        new_ins->finalize(ctx);
+        auto new_ins = m.replace_instruction(ins, make_op("gpu::literal", v));
 
         for(auto copy_ins : stale_copies)
         {
             m.replace_instruction(copy_ins, new_ins);
             m.remove_instruction(copy_ins);
         }
-        n++;
     }
 }
 

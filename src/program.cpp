@@ -400,10 +400,11 @@ create_program_with_weights(const program& prog, const std::string& base_dir, co
     auto* mm = result.get_main_module();
 
     // Generic step: replace each external-weight @param with the corresponding
-    // @literal. Any target-specific cleanup (e.g. lifting @literal to
-    // hip::hip_copy_literal, dropping now-redundant hip::copy_to_gpu copies,
-    // finalizing against the target's context) is delegated to the target via
-    // target::lower_baked_literals.
+    // @literal. Any target-specific cleanup (e.g. lifting @literal to a
+    // device-side op such as gpu::literal and dropping now-redundant
+    // hip::copy_to_gpu copies) is delegated to the target via
+    // target::lower_baked_literals. The baked literals are materialized when the
+    // program is loaded or run, not here.
     for(const auto& entry : weight_map)
     {
         const auto& name = entry.first;
@@ -431,7 +432,7 @@ create_program_with_weights(const program& prog, const std::string& base_dir, co
     }
 
     if(result.is_compiled())
-        t.lower_baked_literals(*mm, result.get_context());
+        t.lower_baked_literals(*mm);
 
     result.set_external_weight_map({});
     return result;

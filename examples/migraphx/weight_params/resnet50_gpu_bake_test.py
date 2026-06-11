@@ -129,6 +129,10 @@ def main():
     migraphx.save(baked_original, baked_orig_path)
     print(f"    Saved: {baked_orig_path}")
 
+    # Baking does not finalize; materialize device buffers before in-process run.
+    # (The saved MXR above is finalized automatically when it is loaded.)
+    baked_original.finalize(gpu_target)
+
     # Run with dummy input
     dummy_input = np.random.randn(1, 3, 224, 224).astype(np.float32)
     output_orig = run_on_gpu(baked_original, dummy_input)
@@ -143,6 +147,7 @@ def main():
     migraphx.save(baked_perturbed, baked_pert_path)
     print(f"    Saved: {baked_pert_path}")
 
+    baked_perturbed.finalize(gpu_target)
     output_pert = run_on_gpu(baked_perturbed, dummy_input)
     print(f"    Output: shape={output_pert.shape}, top-5 indices={np.argsort(output_pert[0])[-5:][::-1]}")
     print()

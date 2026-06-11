@@ -38,6 +38,8 @@ subtrees:
           - file: dev/tools
           - file: dev/debug_symbols
             title: Using debug symbols
+          - file: dev/weight_params
+            title: External weights as parameters
   
   - caption: Examples
     entries: 

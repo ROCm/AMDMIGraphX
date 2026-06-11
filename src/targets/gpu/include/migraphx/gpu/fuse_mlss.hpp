@@ -21,46 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
+#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
+#define MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/rank.hpp>
-#include <algorithm>
-#include <functional>
+#include <migraphx/gpu/context.hpp>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-template <class T>
-auto hash_value(rank<2>, const T& v) -> decltype(std::hash<T>{}(v))
-{
-    return std::hash<T>{}(v);
-}
+struct module_pass_manager;
 
-template <class T>
-auto hash_value(rank<1>, const T& v) -> decltype(v.hash())
-{
-    return v.hash();
-}
+namespace gpu {
 
-template <class T>
-auto hash_value(const T& v) -> decltype(hash_value(rank<2>{}, v))
+struct MIGRAPHX_GPU_EXPORT fuse_mlss
 {
-    return hash_value(rank<2>{}, v);
-}
+    context* ctx = nullptr;
+    // Force-enable conv fusion regardless of env-var configuration; used by tests
+    // so they don't have to mutate the process environment.
+    bool enable_conv = false;
+    std::string name() const { return "gpu::fuse_mlss"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
-template <class T>
-void hash_combine(std::size_t& seed, const T& v)
-{
-    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
-}
-
-template <class Iterator>
-void hash_range(std::size_t& seed, Iterator first, Iterator last)
-{
-    std::for_each(first, last, [&](const auto& x) { hash_combine(seed, x); });
-}
+} // namespace gpu
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
+#endif // MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP

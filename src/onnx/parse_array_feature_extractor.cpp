@@ -21,46 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/rank.hpp>
-#include <algorithm>
-#include <functional>
+#include <migraphx/onnx/op_parser.hpp>
+#include <migraphx/onnx/checks.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
+
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-template <class T>
-auto hash_value(rank<2>, const T& v) -> decltype(std::hash<T>{}(v))
+namespace onnx {
+struct parse_array_feature_extractor : op_parser<parse_array_feature_extractor>
 {
-    return std::hash<T>{}(v);
-}
+    std::vector<op_desc> operators() const { return {{"ArrayFeatureExtractor"}}; }
 
-template <class T>
-auto hash_value(rank<1>, const T& v) -> decltype(v.hash())
-{
-    return v.hash();
-}
+    instruction_ref parse(const op_desc& /*opd*/,
+                          const onnx_parser& /*parser*/,
+                          const onnx_parser::node_info& info,
+                          std::vector<instruction_ref> args) const
+    {
+        auto x      = info.make_contiguous(args[0]);
+        auto y      = info.make_contiguous(args[1]);
+        auto data_s = x->get_shape();
 
-template <class T>
-auto hash_value(const T& v) -> decltype(hash_value(rank<2>{}, v))
-{
-    return hash_value(rank<2>{}, v);
-}
+        auto axis = data_s.ndim() - 1;
+        auto op   = make_op("gather", {{"axis", axis}});
+        return info.add_instruction(op, x, y);
+    }
+};
 
-template <class T>
-void hash_combine(std::size_t& seed, const T& v)
-{
-    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
-}
-
-template <class Iterator>
-void hash_range(std::size_t& seed, Iterator first, Iterator last)
-{
-    std::for_each(first, last, [&](const auto& x) { hash_combine(seed, x); });
-}
-
+} // namespace onnx
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP

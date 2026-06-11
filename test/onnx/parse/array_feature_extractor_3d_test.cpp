@@ -21,46 +21,17 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP
 
-#include <migraphx/config.hpp>
-#include <migraphx/rank.hpp>
-#include <algorithm>
-#include <functional>
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
+#include <onnx_test.hpp>
 
-template <class T>
-auto hash_value(rank<2>, const T& v) -> decltype(std::hash<T>{}(v))
+TEST_CASE(array_feature_extractor_3d_test)
 {
-    return std::hash<T>{}(v);
-}
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_parameter("X", migraphx::shape{migraphx::shape::float_type, {2, 3, 4}});
+    auto y   = mm->add_parameter("Y", migraphx::shape{migraphx::shape::int64_type, {2}});
+    mm->add_instruction(migraphx::make_op("gather", {{"axis", 2}}), x, y);
 
-template <class T>
-auto hash_value(rank<1>, const T& v) -> decltype(v.hash())
-{
-    return v.hash();
+    auto prog = optimize_onnx("array_feature_extractor_3d_test.onnx");
+    EXPECT(p == prog);
 }
-
-template <class T>
-auto hash_value(const T& v) -> decltype(hash_value(rank<2>{}, v))
-{
-    return hash_value(rank<2>{}, v);
-}
-
-template <class T>
-void hash_combine(std::size_t& seed, const T& v)
-{
-    seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6u) + (seed >> 2u);
-}
-
-template <class Iterator>
-void hash_range(std::size_t& seed, Iterator first, Iterator last)
-{
-    std::for_each(first, last, [&](const auto& x) { hash_combine(seed, x); });
-}
-
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_HASH_HPP

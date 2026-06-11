@@ -247,6 +247,36 @@ def argmin_select_last_index_test():
 
 
 @onnx_test()
+def array_feature_extractor_2d_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('Y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('Z', TensorProto.FLOAT, [3, 2])
+
+    node = onnx.helper.make_node(
+        'ArrayFeatureExtractor',
+        inputs=['X', 'Y'],
+        outputs=['Z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def array_feature_extractor_3d_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [2, 3, 4])
+    y = helper.make_tensor_value_info('Y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('Z', TensorProto.FLOAT, [2, 3, 2])
+
+    node = onnx.helper.make_node(
+        'ArrayFeatureExtractor',
+        inputs=['X', 'Y'],
+        outputs=['Z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def asin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])

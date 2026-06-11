@@ -73,6 +73,7 @@
 #include <migraphx/gpu/fuse_ck.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
+#include <migraphx/gpu/hipgraphify.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
@@ -228,6 +229,8 @@ struct pipeline_factory
             promote_literals{},
             dead_code_elimination{},
             write_literals{.max_memory = max_memory},
+            hipgraphify{},
+            dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},

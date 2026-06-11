@@ -214,6 +214,8 @@ add_library(migraphx_gpu
     hip.cpp
     hipblaslt.cpp
     hip_gemm_impl.cpp
+    hip_graph.cpp
+    hipgraphify.cpp
     hsa_chiplet.cpp
     kernel.cpp
     lowering.cpp

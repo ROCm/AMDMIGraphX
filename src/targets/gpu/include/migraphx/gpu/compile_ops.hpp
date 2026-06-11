@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,7 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module;
+struct module_pass_manager;
 
 namespace gpu {
 
@@ -41,7 +41,7 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
     context* ctx         = nullptr;
     bool exhaustive_tune = false;
     std::string name() const { return "gpu::compile_ops"; }
-    void apply(module& m) const;
+    void apply(module_pass_manager& mpm) const;
 };
 
 } // namespace gpu

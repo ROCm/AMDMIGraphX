@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added YOLO26 object detection example notebook.
 * Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).
 * Added a dedicated logger for MIGraphX.
@@ -28,6 +29,7 @@ Full documentation for MIGraphX is available at
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
+* Added documentation for using debug symbols (#4945).
 
 ### Changed
 
@@ -48,6 +50,7 @@ Full documentation for MIGraphX is available at
 
 ### Resolved issues
 
+* Restored support for the documented flat {min,max,optimals} JSON format in migraphx-driver's --default-dyn-dim and --dyn-input-dim flags (#4926).
 * Fixed ONNX `Where` parsing for dynamic-shape inputs that require broadcasting (including mixed static and dynamic inputs), which previously threw `same_dims: where: Dimensions do not match` (#4925).
 * Fixed a regression in `simplify_algebra` where `find_conv_broadcast_input` could trigger `Dimensions do not match` for padded broadcast-convolution rewrites in no-interior spatial cases (#4738).
 * Fixed a bug with operators `pack_fp4`, `unpack_fp4`, and the `fuse_mlir` pass handling non-standard input shapes (#4560).
@@ -73,6 +76,7 @@ Full documentation for MIGraphX is available at
 * Improved `find_attention` to move evaluable constant inputs inside the operator, allowing rocMLIR to detect causal masks. (#4660)
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
+* Add matcher to `fuse_attention` that removes Q/DQ pairs from attention blocks (#4900).
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).

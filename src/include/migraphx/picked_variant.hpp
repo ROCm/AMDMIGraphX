@@ -67,16 +67,6 @@ constexpr std::variant<Ts...>&& as_variant(std::variant<Ts...>&& v)
     return std::move(v);
 }
 
-template <class Picker, class T, class = void>
-struct picker_applies : std::false_type
-{
-};
-template <class Picker, class T>
-struct picker_applies<Picker, T, std::void_t<decltype(Picker::apply(std::declval<T>()))>>
-    : std::true_type
-{
-};
-
 template <class Picker, class... Ts>
 struct picked_variant : std::variant<Ts...>
 {
@@ -84,8 +74,8 @@ struct picked_variant : std::variant<Ts...>
     using base_t::base_t; // inherit default, in_place_type, in_place_index ctors
 
     template <class T,
-              MIGRAPHX_REQUIRES(not std::is_base_of<base_t, std::decay_t<T>>{} and
-                                picker_applies<Picker, T>{})>
+              MIGRAPHX_REQUIRES(not std::is_base_of<base_t, std::decay_t<T>>{}),
+              class = decltype(Picker::apply(std::declval<T>()))>
     constexpr picked_variant(T&& x) : base_t(Picker::apply(std::forward<T>(x)))
     {
     }

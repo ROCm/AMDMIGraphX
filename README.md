@@ -158,7 +158,12 @@ Once completed, all prerequisites are in the `depend` folder and MIGraphX is in 
 
 ### Use Docker
 
-The easiest way to set up the development environment is to use Docker.  ROCm's underlying drivers and libraries known as "TheRock" now supports Multi-Arch, meaning it only  installs  packages designed for the GPU on the system.  Setting the `GPU_ARCH` will reduce the image size.  Not setting the `GPU_ARCH` will result in all arch's being installed which is great when the same docker image needs to be located on systems with various ROCm supported GPUs.
+The easiest way to set up the development environment is to use Docker. ROCm's
+underlying drivers and libraries, known as "TheRock", now support multi-arch
+packaging, meaning it only installs device-code packages for the GPU architecture
+present on the system. Setting `GPU_ARCH` reduces the image size; leaving it
+unset installs device code for all supported architectures, which is useful when
+the same Docker image needs to run on different ROCm-supported GPUs.
 
 1. With the Dockerfile, build a Docker image:
 

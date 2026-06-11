@@ -21,46 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <test.hpp>
-#include <migraphx/gpu/pack_args.hpp>
+#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
+#define MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
 
-template <class T>
-static std::size_t packed_sizes()
-{
-    return sizeof(T);
-}
+#include <migraphx/config.hpp>
+#include <migraphx/gpu/context.hpp>
 
-template <class T, class U, class... Ts>
-static std::size_t packed_sizes()
-{
-    return sizeof(T) + packed_sizes<U, Ts...>();
-}
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
 
-template <class... Ts>
-static std::size_t sizes()
-{
-    return migraphx::gpu::pack_args(std::vector<migraphx::gpu::kernel_argument>{Ts{}...}).size();
-}
+struct module_pass_manager;
 
-template <class... Ts>
-static std::size_t padding()
-{
-    EXPECT(sizes<Ts...>() >= packed_sizes<Ts...>());
-    return sizes<Ts...>() - packed_sizes<Ts...>();
-}
+namespace gpu {
 
-struct float_struct
+struct MIGRAPHX_GPU_EXPORT fuse_mlss
 {
-    float x, y;
+    context* ctx = nullptr;
+    // Force-enable conv fusion regardless of env-var configuration; used by tests
+    // so they don't have to mutate the process environment.
+    bool enable_conv = false;
+    std::string name() const { return "gpu::fuse_mlss"; }
+    void apply(module_pass_manager& mpm) const;
 };
 
-TEST_CASE(alignment_padding)
-{
-    EXPECT(padding<short, short>() == 0);
-    EXPECT(padding<float, float_struct>() == 0);
-    EXPECT(padding<short, float_struct>() == 2);
-    EXPECT(padding<short, int>() == 2);
-    EXPECT(padding<char, short, int, char>() == 1);
-}
+} // namespace gpu
 
-int main(int argc, const char* argv[]) { test::run(argc, argv); }
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP

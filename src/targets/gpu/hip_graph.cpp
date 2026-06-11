@@ -29,6 +29,7 @@
 #include <migraphx/module_ref.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/manage_ptr.hpp>
 #include <migraphx/register_op.hpp>
 #include <hip/hip_runtime_api.h>
 #include <functional>
@@ -40,6 +41,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+using hip_graph_ptr      = MIGRAPHX_MANAGE_PTR(hipGraph_t, hipGraphDestroy);
+using hip_graph_exec_ptr = MIGRAPHX_MANAGE_PTR(hipGraphExec_t, hipGraphExecDestroy);
 
 static void check_hip(hipError_t status, const char* what)
 {
@@ -58,38 +62,25 @@ static argument pack_outputs(const std::vector<argument>& outputs)
 
 // Records the work of a submodule into a HIP graph the first time it is run and
 // then replays the instantiated graph on every subsequent run. This amortizes
-// the per-launch CPU overhead of issuing many kernels/library calls.
-//
-// The captured graph and its instantiation are pure runtime state: they are
-// shared between value-semantic copies of the operator and are intentionally
-// excluded from reflect() so they are not serialized or compared. Construct via
-// make_op("hip::graph").
+// the per-launch CPU overhead of issuing many kernels/library calls. Construct
+// via make_op("hip::graph").
 struct hip_graph
 {
-    // Lazily populated, runtime-only state. Held behind a shared_ptr so that
-    // copies of the operator (made freely during compilation) all refer to the
-    // same captured graph, which is recorded on the first eval and reused after.
+    // Runtime-only state, owned through a shared_ptr so the const compute() can
+    // mutate the captured graph through the pointer.
     struct graph_state
     {
-        hipGraph_t graph    = nullptr;
-        hipGraphExec_t exec = nullptr;
-        bool captured       = false;
+        hip_graph_ptr graph     = nullptr;
+        hip_graph_exec_ptr exec = nullptr;
+        bool captured           = false;
         std::vector<argument> outputs{};
-
-        graph_state()                              = default;
-        graph_state(const graph_state&)            = delete;
-        graph_state& operator=(const graph_state&) = delete;
-        ~graph_state()
-        {
-            // Best-effort cleanup; destruction must not throw.
-            if(exec != nullptr)
-                (void)hipGraphExecDestroy(exec);
-            if(graph != nullptr)
-                (void)hipGraphDestroy(graph);
-        }
     };
 
-    std::shared_ptr<graph_state> state = std::make_shared<graph_state>();
+    // Created in finalize() rather than at construction: operation handles are
+    // copy-on-write, so a construction-time state would be shared by every copy
+    // of the operator made during compilation. finalize() runs once per
+    // instruction (after the handle is cloned), giving each its own state.
+    std::shared_ptr<graph_state> state{};
 
     // Indices of the inputs that the captured outputs are written into (and so
     // alias). The submodule writes each output into one of these passed-in
@@ -115,6 +106,11 @@ struct hip_graph
         if(out_shapes.size() == 1)
             return out_shapes.front();
         return shape(out_shapes);
+    }
+
+    void finalize(context&, const shape&, const std::vector<shape>&)
+    {
+        state = std::make_shared<graph_state>();
     }
 
     argument compute(context& ctx,
@@ -149,15 +145,15 @@ struct hip_graph
             state->outputs   = run(sub, params);
             hipGraph_t graph = nullptr;
             check_hip(hipStreamEndCapture(stream, &graph), "hipStreamEndCapture");
-            state->graph        = graph;
+            state->graph        = hip_graph_ptr{graph};
             hipGraphExec_t exec = nullptr;
-            check_hip(hipGraphInstantiate(&exec, graph, nullptr, nullptr, 0),
+            check_hip(hipGraphInstantiate(&exec, state->graph.get(), nullptr, nullptr, 0),
                       "hipGraphInstantiate");
-            state->exec     = exec;
+            state->exec     = hip_graph_exec_ptr{exec};
             state->captured = true;
         }
 
-        check_hip(hipGraphLaunch(state->exec, stream), "hipGraphLaunch");
+        check_hip(hipGraphLaunch(state->exec.get(), stream), "hipGraphLaunch");
         return pack_outputs(state->outputs);
     }
 };

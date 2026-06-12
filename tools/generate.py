@@ -56,8 +56,10 @@ def te_generate(input_path: Path, output_path: Path, do_format=True):
         f.write(maybe_format(te.run(input_path), do_format))
 
 
-def generate_api(header_path: Path, source_path: Path, do_format=True):
+def generate_api(output_dir: Path, do_format=True):
     runpy.run_path(str(migraphx_py_path))
+    header_path = output_dir / 'include/migraphx/migraphx.h'
+    source_path = output_dir / 'api.cpp'
     api_generate(work_dir / 'api/migraphx.h', header_path, do_format)
     print(f'Finished generating header {header_path}')
     api_generate(work_dir / 'api/api.cpp', source_path, do_format)
@@ -68,8 +70,7 @@ def generate_all(do_format=True):
     files = Path('include').absolute().iterdir()
     for f in [f for f in files if f.is_file()]:
         te_generate(f, src_dir / f'include/migraphx/{f.name}', do_format)
-    generate_api(src_dir / 'api/include/migraphx/migraphx.h',
-                 src_dir / 'api/api.cpp', do_format)
+    generate_api(src_dir / 'api', do_format)
 
 
 def main():
@@ -78,18 +79,18 @@ def main():
     parser.add_argument('--api-only',
                         action='store_true',
                         help='Only generate the C API files (migraphx.h and '
-                        'api.cpp) to the paths given by --api-header and '
-                        '--api-source instead of writing into the source tree')
-    parser.add_argument('--api-header',
+                        'api.cpp) under the directory given by '
+                        '--api-output-dir instead of writing into the source '
+                        'tree')
+    parser.add_argument('--api-output-dir',
                         type=Path,
-                        help='Output path for the generated migraphx.h header')
-    parser.add_argument('--api-source',
-                        type=Path,
-                        help='Output path for the generated api.cpp source')
+                        help='Base output directory for the generated C API '
+                        'files: migraphx.h is written under include/migraphx/ '
+                        'and api.cpp at the top level')
     args = parser.parse_args()
 
-    if args.api_only and not (args.api_header and args.api_source):
-        parser.error('--api-only requires --api-header and --api-source')
+    if args.api_only and not args.api_output_dir:
+        parser.error('--api-only requires --api-output-dir')
 
     global clang_format_path
     if args.clang_format:
@@ -99,7 +100,7 @@ def main():
         if args.api_only:
             # These files are only consumed by the compiler, so skip
             # clang-format; only `make generate` formats them for review.
-            generate_api(args.api_header, args.api_source, do_format=False)
+            generate_api(args.api_output_dir, do_format=False)
         else:
             if not clang_format_path.is_file():
                 print(f"{clang_format_path}: invalid path or not installed",

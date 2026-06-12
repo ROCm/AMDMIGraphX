@@ -64,15 +64,6 @@ MIGRAPHX_DEVICE_CONSTEXPR void cas(rank<1>, T& x, T y, Op op)
                                                  __MEMORY_SCOPE_DEVICE))
     {
     }
-    while(not __hip_atomic_compare_exchange_strong(address,
-                                                   &expected,
-                                                   bit_cast<storage>(op(bit_cast<T>(expected), y)),
-                                                   __ATOMIC_RELAXED,
-                                                   __ATOMIC_RELAXED,
-                                                   __HIP_MEMORY_SCOPE_AGENT))
-#endif
-    {
-    }
 }
 
 template <class T, index_int N, class Op>

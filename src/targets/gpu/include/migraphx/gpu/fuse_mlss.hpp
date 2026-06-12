@@ -21,38 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/cross_compile_device.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/stringutils.hpp>
-#include <algorithm>
+#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
+#define MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
+
+#include <migraphx/config.hpp>
+#include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct module_pass_manager;
+
 namespace gpu {
 
-// RDNA architectures use wave32
-static int arch_wavefront_size(const std::string& arch_name)
+struct MIGRAPHX_GPU_EXPORT fuse_mlss
 {
-    const auto gfx = get_gfx_name(arch_name);
-    if(starts_with(gfx, "gfx10") or starts_with(gfx, "gfx11") or starts_with(gfx, "gfx12"))
-        return 32;
-    return 64;
-}
-
-hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, std::size_t cu_count)
-{
-    hipDeviceProp_t props{};
-    auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
-    std::copy_n(arch_name.begin(), n, props.gcnArchName);
-    props.gcnArchName[n] = '\0';
-    props.warpSize       = arch_wavefront_size(arch_name);
-    // these are placeholders
-    props.maxThreadsPerMultiProcessor = 2048;
-    props.maxThreadsPerBlock          = 1024;
-    props.multiProcessorCount         = cu_count;
-    return props;
-}
+    context* ctx = nullptr;
+    // Force-enable conv fusion regardless of env-var configuration; used by tests
+    // so they don't have to mutate the process environment.
+    bool enable_conv = false;
+    std::string name() const { return "gpu::fuse_mlss"; }
+    void apply(module_pass_manager& mpm) const;
+};
 
 } // namespace gpu
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+#endif // MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP

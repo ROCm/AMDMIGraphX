@@ -32,7 +32,7 @@
 # or from Python wheels when --whl is supplied.
 #
 # Usage:
-#   install_build_prereqs.sh [--rocm-version <ver>] [--gpu <arch>] [--whl]
+#   install_prereqs.sh [--rocm-version <ver>] [--gpu <arch>] [--whl]
 #
 #   --rocm-version <ver>  ROCm release version used in versioned package names,
 #                         e.g. 7.13 -> amdrocm-developer-tools7.13
@@ -296,8 +296,8 @@ else
     pkg_install "${ROCM_PKGS[@]}"
 fi
 
-pip install setuptools wheel
+python3 -m pip install setuptools wheel
 
 # rbuild is used to build the MIGraphX third-party dependencies. This pip
 # install always runs, independent of the --whl flag.
-pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+python3 -m pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz

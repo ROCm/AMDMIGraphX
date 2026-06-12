@@ -75,13 +75,8 @@ ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Install yapf and clang-format (used by tools/format.py).
-RUN pip3 install yapf==0.28.0 clang-format==22.1.5
-
-# Install doc requirements. --ignore-installed avoids pip trying (and failing) to
-# uninstall distro-managed Python packages.
-ADD docs/sphinx/requirements.txt /doc-requirements.txt
-RUN pip3 install --ignore-installed -r /doc-requirements.txt
+# Install yapf (used by tools/format.py).
+RUN pip3 install yapf==0.28.0
 
 # Prebuild the MIGraphX third-party dependencies into PREFIX so builds can
 # configure and compile without fetching them.
@@ -90,9 +85,10 @@ ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 RUN cd / && rbuild prepare -d ${PREFIX} -s develop
 
-# Install onnxruntime Python test requirements (built against the prepared protobuf).
-ADD tools/requirements-py.txt /requirements-py.txt
-RUN CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON" pip3 install -r /requirements-py.txt && \
-    rm /requirements-py.txt
+# NOTE: tools/requirements-py.txt (onnx/numpy/pytest for the Python onnx tests)
+# is intentionally not installed here. The SLES base image ships Python 3.6,
+# which cannot satisfy those pins (e.g. numpy==1.21.6), and the SLES CI job only
+# builds the C++ tests/driver. This matches the legacy SLES behavior, which also
+# skipped requirements-py on SLES.
 
 RUN git config --global --add safe.directory '*'

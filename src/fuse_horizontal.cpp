@@ -123,11 +123,33 @@ static void fuse_horizontal_ops(module& m, Finders&&... finders)
     each_args([&](auto&& finder) { apply_horizontal_finder(m, finder); }, finders...);
 }
 
+// Slice a batched-gather result back into one row range per original gather,
+// using each gather's index batch (first index dim) as the row count.
+static std::vector<instruction_ref> slice_gather_rows(module& m,
+                                                      instruction_ref batched_gather,
+                                                      const std::vector<instruction_ref>& gathers,
+                                                      instruction_ref insert_pt)
+{
+    std::vector<instruction_ref> results;
+    results.reserve(gathers.size());
+    int64_t start = 0;
+    std::transform(gathers.begin(), gathers.end(), std::back_inserter(results), [&](auto g) {
+        auto end = start + static_cast<int64_t>(g->inputs().at(1)->get_shape().lens().front());
+        auto s   = m.insert_instruction(
+            insert_pt,
+            make_op("slice", {{"axes", {0}}, {"starts", {start}}, {"ends", {end}}}),
+            batched_gather);
+        start = end;
+        return s;
+    });
+    return results;
+}
+
 // ---------------------------------------------------------------------------
 // Same-table gather horizontal fusion
 //
-// Candidates: gather(axis=0) with 2D constant embedding table, non-scalar index
-//             (same predicate as the cross-table fusion below)
+// Candidates: gather(axis=0) with 2D constant embedding table and a non-scalar
+//             index whose first dim is >= min_index_batch (worthwhile batch)
 // Grouping:   by (table instruction, index type, index trailing dims) so only
 //             gathers reading the *same* table are merged
 // Fusion:     concatenate the indices, single batched gather, slice rows back.
@@ -136,6 +158,9 @@ static void fuse_horizontal_ops(module& m, Finders&&... finders)
 
 struct same_table_gather_horizontal_fusion
 {
+    // Minimum first index dim for the batched gather to be worthwhile.
+    static constexpr std::size_t min_index_batch = 4;
+
     std::size_t min_group_size() const { return 2; }
 
     bool is_candidate(instruction_ref ins) const
@@ -159,8 +184,8 @@ struct same_table_gather_horizontal_fusion
         if(idx->get_shape().scalar() or idx->get_shape().lens().empty())
             return false;
 
-        // Group size must be greater than 4 to get an appropriate trade off
-        if(idx->get_shape().lens().front() < 4)
+        // Require an index batch of at least min_index_batch to be worthwhile
+        if(idx->get_shape().lens().front() < min_index_batch)
             return false;
 
         return true;
@@ -172,6 +197,7 @@ struct same_table_gather_horizontal_fusion
         auto idx         = ins->inputs().at(1);
         auto idx_type    = idx->get_shape().type();
         const auto& lens = idx->get_shape().lens();
+        assert(not lens.empty());
         // Trailing index dims (all except first) — must match for concat on axis 0.
         // Keying on the data instruction itself restricts grouping to one table.
         std::vector<std::size_t> trailing(lens.begin() + 1, lens.end());
@@ -181,6 +207,7 @@ struct same_table_gather_horizontal_fusion
     std::vector<instruction_ref>
     fuse(module& m, const std::vector<instruction_ref>& gathers, instruction_ref insert_pt) const
     {
+        assert(gathers.size() >= min_group_size());
         auto data = gathers.front()->inputs().at(0);
         assert(data->get_shape().lens().size() == 2);
 
@@ -196,36 +223,7 @@ struct same_table_gather_horizontal_fusion
         auto batched_gather =
             m.insert_instruction(insert_pt, make_op("gather", {{"axis", 0}}), data, concat_idx);
 
-        // Slice boundaries from the cumulative index sizes (inclusive partial
-        // sum gives end offsets; shift right and prepend 0 for start offsets).
-        std::vector<std::size_t> slice_ends(gathers.size());
-        transform_partial_sum(
-            gathers.begin(), gathers.end(), slice_ends.begin(), std::plus<>{}, [](auto g) {
-                return g->inputs().at(1)->get_shape().lens().front();
-            });
-
-        std::vector<std::size_t> slice_starts(gathers.size());
-        slice_starts[0] = 0;
-        std::copy(slice_ends.begin(), std::prev(slice_ends.end()), slice_starts.begin() + 1);
-
-        // Slice results back — one per original gather.
-        std::vector<instruction_ref> results;
-        results.reserve(gathers.size());
-        migraphx::for_each(
-            slice_starts.begin(),
-            slice_starts.end(),
-            slice_ends.begin(),
-            [&](auto start, auto end) {
-                results.push_back(m.insert_instruction(
-                    insert_pt,
-                    make_op("slice",
-                            {{"axes", std::vector<int64_t>{0}},
-                             {"starts", std::vector<int64_t>{static_cast<int64_t>(start)}},
-                             {"ends", std::vector<int64_t>{static_cast<int64_t>(end)}}}),
-                    batched_gather));
-            });
-
-        return results;
+        return slice_gather_rows(m, batched_gather, gathers, insert_pt);
     }
 };
 
@@ -339,39 +337,7 @@ struct gather_horizontal_fusion
         auto batched_gather = m.insert_instruction(
             insert_pt, make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
 
-        // Compute slice boundaries using partial_sum of index sizes
-        std::vector<std::size_t> idx_sizes(gathers.size());
-        std::transform(gathers.begin(), gathers.end(), idx_sizes.begin(), [](auto g) {
-            return g->inputs().at(1)->get_shape().lens().front();
-        });
-
-        std::vector<std::size_t> slice_ends(gathers.size());
-        std::partial_sum(idx_sizes.begin(), idx_sizes.end(), slice_ends.begin());
-
-        // slice_starts = [0, slice_ends[0], slice_ends[1], ...]
-        std::vector<std::size_t> slice_starts(gathers.size());
-        slice_starts[0] = 0;
-        std::copy(slice_ends.begin(), std::prev(slice_ends.end()), slice_starts.begin() + 1);
-
-        // Slice results back — one per original gather
-        std::vector<instruction_ref> results;
-        results.reserve(gathers.size());
-
-        migraphx::for_each(
-            slice_starts.begin(),
-            slice_starts.end(),
-            slice_ends.begin(),
-            [&](auto start, auto end) {
-                results.push_back(m.insert_instruction(
-                    insert_pt,
-                    make_op("slice",
-                            {{"axes", std::vector<int64_t>{0}},
-                             {"starts", std::vector<int64_t>{static_cast<int64_t>(start)}},
-                             {"ends", std::vector<int64_t>{static_cast<int64_t>(end)}}}),
-                    batched_gather));
-            });
-
-        return results;
+        return slice_gather_rows(m, batched_gather, gathers, insert_pt);
     }
 };
 
@@ -393,8 +359,8 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    // Collapse same-table gathers first (strictly more aggressive); any sibling
-    // gathers left across *different* tables then fall through to cross-table.
+    // Collapse gathers that share the same table first; any sibling gathers left
+    // across *different* tables then fall through to cross-table fusion.
     fuse_horizontal_ops(m, same_table_gather_horizontal_fusion{}, gather_horizontal_fusion{});
 }
 

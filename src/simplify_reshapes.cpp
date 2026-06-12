@@ -1818,7 +1818,6 @@ struct find_flatten
                               flatten->inputs());
     }
 };
-
 } // namespace
 
 void simplify_reshapes::apply(module& m) const

@@ -28,6 +28,8 @@
 #include <migraphx/gpu/pack_args.hpp>
 #include <migraphx/pmr/vector.hpp>
 #include <hip/hip_runtime_api.h>
+#include <array>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <vector>
@@ -37,6 +39,16 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 struct kernel_impl;
+
+// MIGraphX launches kernels through hipExtModuleLaunchKernel, passing the
+// arguments as a packed buffer described by an `extra` config array of HIP
+// launch-param (tag, value) pairs terminated by a sentinel. These two functions
+// are the single definition of that layout: pack_kernel_config builds the array
+// (its element 3 aliases *size, which must outlive the array), and
+// unpack_kernel_config recovers the packed buffer and its size, returning false
+// for any other argument-passing scheme.
+MIGRAPHX_GPU_EXPORT std::array<void*, 5> pack_kernel_config(void* buffer, std::size_t* size);
+MIGRAPHX_GPU_EXPORT bool unpack_kernel_config(void** extra, char*& buffer, std::size_t& size);
 
 struct MIGRAPHX_GPU_EXPORT kernel
 {

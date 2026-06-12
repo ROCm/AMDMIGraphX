@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
+#include <migraphx/gpu/kernel.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/module.hpp>
@@ -80,34 +81,6 @@ leaf_buffers(const argument& a, std::vector<const void*>& ptrs, std::vector<std:
         if(sizes != nullptr)
             sizes->push_back(a.get_shape().bytes());
     }
-}
-
-// MIGraphX launches its code-object kernels with hipExtModuleLaunchKernel, which
-// passes the arguments as a packed buffer tagged with HIP_LAUNCH_PARAM_BUFFER_*
-// sentinels (kernel.cpp). Recover the buffer and its size from a captured node's
-// `extra` array; returns false for any other argument-passing scheme.
-static bool parse_packed_args(void** extra, char*& buffer, std::size_t& size)
-{
-    if(extra == nullptr)
-        return false;
-    buffer        = nullptr;
-    bool has_size = false;
-    // The config is a sequence of (tag, value) pairs terminated by
-    // HIP_LAUNCH_PARAM_END; the fixed cap guards against an unterminated array.
-    constexpr std::size_t max_tokens = 16;
-    for(std::size_t i = 0; i < max_tokens and extra[i] != HIP_LAUNCH_PARAM_END; i += 2)
-    {
-        if(extra[i] == HIP_LAUNCH_PARAM_BUFFER_POINTER)
-            buffer = static_cast<char*>(extra[i + 1]);
-        else if(extra[i] == HIP_LAUNCH_PARAM_BUFFER_SIZE)
-        {
-            size     = *static_cast<std::size_t*>(extra[i + 1]);
-            has_size = true;
-        }
-        else
-            return false;
-    }
-    return buffer != nullptr and has_size;
 }
 
 // One word in a kernel node's packed argument buffer that holds a graph-input
@@ -246,7 +219,8 @@ struct hip_graph
                 return false;
             char* buffer      = nullptr;
             std::size_t bytes = 0;
-            if(params.kernelParams != nullptr or not parse_packed_args(params.extra, buffer, bytes))
+            if(params.kernelParams != nullptr or
+               not unpack_kernel_config(params.extra, buffer, bytes))
                 return false;
 
             graph_node_patch np;
@@ -287,7 +261,7 @@ struct hip_graph
             char* buffer      = nullptr;
             std::size_t bytes = 0;
             // build_patch_plan already verified every node parses.
-            bool ok = parse_packed_args(params.extra, buffer, bytes);
+            bool ok = unpack_kernel_config(params.extra, buffer, bytes);
             assert(ok and buffer != nullptr);
             (void)ok;
             patched.assign(buffer, buffer + bytes);
@@ -298,12 +272,8 @@ struct hip_graph
                 const char* p = static_cast<const char*>(current_ptrs[slot.leaf]) + slot.ptr_offset;
                 std::memcpy(patched.data() + slot.offset, &p, sizeof(char*));
             }
-            void* extra[]       = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
-                                   patched.data(),
-                                   HIP_LAUNCH_PARAM_BUFFER_SIZE,
-                                   &bytes,
-                                   HIP_LAUNCH_PARAM_END};
-            params.extra        = extra;
+            auto extra          = pack_kernel_config(patched.data(), &bytes);
+            params.extra        = extra.data();
             params.kernelParams = nullptr;
             check_hip(hipGraphExecKernelNodeSetParams(state->exec.get(), np.node, &params),
                       "hipGraphExecKernelNodeSetParams");

@@ -81,6 +81,50 @@ kernel::kernel(const char* image, const std::string& name) : impl(std::make_shar
 
 bool kernel::empty() const { return impl == nullptr; }
 
+namespace {
+// HIP_LAUNCH_PARAM_* expand to C-style pointer casts (((void*)0x01) etc.) that
+// clang-tidy rejects, so the launch-config sentinels are named once here behind
+// that workaround; everything else refers to these constants.
+#ifdef MIGRAPHX_USE_CLANG_TIDY
+void* const launch_param_pointer = nullptr;
+void* const launch_param_size    = nullptr;
+void* const launch_param_end     = nullptr;
+#else
+void* const launch_param_pointer = HIP_LAUNCH_PARAM_BUFFER_POINTER;
+void* const launch_param_size    = HIP_LAUNCH_PARAM_BUFFER_SIZE;
+void* const launch_param_end     = HIP_LAUNCH_PARAM_END;
+#endif
+} // namespace
+
+std::array<void*, 5> pack_kernel_config(void* buffer, std::size_t* size)
+{
+    return {launch_param_pointer, buffer, launch_param_size, size, launch_param_end};
+}
+
+bool unpack_kernel_config(void** extra, char*& buffer, std::size_t& size)
+{
+    if(extra == nullptr)
+        return false;
+    buffer        = nullptr;
+    bool has_size = false;
+    // The config is a sequence of (tag, value) pairs terminated by the end
+    // sentinel; the fixed cap guards against an unterminated array.
+    constexpr std::size_t max_tokens = 16;
+    for(std::size_t i = 0; i < max_tokens and extra[i] != launch_param_end; i += 2)
+    {
+        if(extra[i] == launch_param_pointer)
+            buffer = static_cast<char*>(extra[i + 1]);
+        else if(extra[i] == launch_param_size)
+        {
+            size     = *static_cast<std::size_t*>(extra[i + 1]);
+            has_size = true;
+        }
+        else
+            return false;
+    }
+    return buffer != nullptr and has_size;
+}
+
 static void launch_kernel(hipFunction_t fun,
                           hipStream_t stream,
                           std::size_t global,
@@ -92,32 +136,10 @@ static void launch_kernel(hipFunction_t fun,
 {
     assert(global > 0);
     assert(local > 0);
-    void* config[] = {
-// HIP_LAUNCH_PARAM_* are macros that do horrible things
-#ifdef MIGRAPHX_USE_CLANG_TIDY
-        nullptr, kernargs, nullptr, &size, nullptr
-#else
-        HIP_LAUNCH_PARAM_BUFFER_POINTER,
-        kernargs,
-        HIP_LAUNCH_PARAM_BUFFER_SIZE,
-        &size,
-        HIP_LAUNCH_PARAM_END
-#endif
-    };
+    auto config = pack_kernel_config(kernargs, &size);
 
-    auto status = hipExtModuleLaunchKernel(fun,
-                                           global,
-                                           1,
-                                           1,
-                                           local,
-                                           1,
-                                           1,
-                                           0,
-                                           stream,
-                                           nullptr,
-                                           reinterpret_cast<void**>(&config),
-                                           start,
-                                           stop);
+    auto status = hipExtModuleLaunchKernel(
+        fun, global, 1, 1, local, 1, 1, 0, stream, nullptr, config.data(), start, stop);
     if(status != hipSuccess)
         MIGRAPHX_THROW("Failed to launch kernel: " + hip_error(status));
     if(stop != nullptr)

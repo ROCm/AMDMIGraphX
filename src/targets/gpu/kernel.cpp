@@ -26,6 +26,7 @@
 #include <migraphx/errors.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <cassert>
+#include <cstring>
 
 #ifdef _WIN32
 #include <hip/hip_ext.h>
@@ -81,6 +82,8 @@ kernel::kernel(const char* image, const std::string& name) : impl(std::make_shar
 
 bool kernel::empty() const { return impl == nullptr; }
 
+hipFunction_t kernel::get_function() const { return impl == nullptr ? nullptr : impl->fun; }
+
 namespace {
 // HIP_LAUNCH_PARAM_* expand to C-style pointer casts (((void*)0x01) etc.) that
 // clang-tidy rejects, so the launch-config sentinels are named once here behind
@@ -96,17 +99,18 @@ void* const launch_param_end     = HIP_LAUNCH_PARAM_END;
 #endif
 } // namespace
 
-std::array<void*, 5> pack_kernel_config(void* buffer, std::size_t* size)
+std::array<void*, 5> pack_kernel_config(char* buffer, std::size_t* size)
 {
     return {launch_param_pointer, buffer, launch_param_size, size, launch_param_end};
 }
 
-bool unpack_kernel_config(void** extra, char*& buffer, std::size_t& size)
+std::vector<char> unpack_kernel_config(void** extra)
 {
     if(extra == nullptr)
-        return false;
-    buffer        = nullptr;
-    bool has_size = false;
+        return {};
+    char* buffer     = nullptr;
+    std::size_t size = 0;
+    bool has_size    = false;
     // The config is a sequence of (tag, value) pairs terminated by the end
     // sentinel; the fixed cap guards against an unterminated array.
     constexpr std::size_t max_tokens = 16;
@@ -120,9 +124,48 @@ bool unpack_kernel_config(void** extra, char*& buffer, std::size_t& size)
             has_size = true;
         }
         else
-            return false;
+            return {};
     }
-    return buffer != nullptr and has_size;
+    if(buffer == nullptr or not has_size)
+        return {};
+    return {buffer, buffer + size};
+}
+
+std::vector<std::pair<std::size_t, char*>>
+unpack_kernel_config(void** extra, const std::map<std::size_t, kernel_argument_value>& kernel_args)
+{
+    auto buffer = unpack_kernel_config(extra);
+    std::vector<std::pair<std::size_t, char*>> pointers;
+    if(buffer.empty())
+        return pointers;
+    auto read_pointer = [&](std::size_t off) {
+        if(off + sizeof(char*) > buffer.size())
+            return;
+        char* p = nullptr;
+        std::memcpy(&p, buffer.data() + off, sizeof(char*));
+        pointers.emplace_back(off, p);
+    };
+    if(kernel_args.empty())
+    {
+        // The all-pointer launch path packs one device pointer per 8-byte word.
+        for(std::size_t off = 0; off + sizeof(char*) <= buffer.size(); off += sizeof(char*))
+            read_pointer(off);
+        return pointers;
+    }
+    // Replay the pack_args layout (code_object_op::finalize): a pointer slot has
+    // empty data (8 bytes, align 8); a scalar carries its own bytes and alignment.
+    std::size_t pos = 0;
+    for(const auto& [idx, v] : kernel_args)
+    {
+        bool is_pointer   = v.data.empty();
+        std::size_t align = is_pointer ? sizeof(char*) : v.align;
+        std::size_t size  = is_pointer ? sizeof(char*) : v.data.size();
+        pos += (align - (pos % align)) % align;
+        if(is_pointer)
+            read_pointer(pos);
+        pos += size;
+    }
+    return pointers;
 }
 
 static void launch_kernel(hipFunction_t fun,
@@ -136,7 +179,7 @@ static void launch_kernel(hipFunction_t fun,
 {
     assert(global > 0);
     assert(local > 0);
-    auto config = pack_kernel_config(kernargs, &size);
+    auto config = pack_kernel_config(static_cast<char*>(kernargs), &size);
 
     auto status = hipExtModuleLaunchKernel(
         fun, global, 1, 1, local, 1, 1, 0, stream, nullptr, config.data(), start, stop);

@@ -24,10 +24,13 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/reflect.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/module_ref.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/manage_ptr.hpp>
@@ -183,13 +186,17 @@ struct hip_graph
     }
 
     // Build the per-node patch plan: for every captured node, record the buffer
-    // slots that hold one of the movable-parameter addresses. A library kernel
-    // (rocBLAS/hipBLASLt/MIOpen) is fine -- if it does not consume a movable
-    // parameter, none of its words match and it gets no slots. Returns false (re-
-    // bind by re-recording) if any node holding arguments is not an extra-packed
-    // kernel node, since a movable parameter hidden in a buffer we cannot rewrite
-    // (a kernelParams launch or a memcpy/memset node) could not be patched.
-    bool build_patch_plan(const std::vector<argument>& args) const
+    // slots that hold a movable-parameter address. Each kernel node is correlated
+    // back to its gpu::code_object instruction by function handle so the node's
+    // kernel_args layout is known -- only the pointer slots are inspected, and the
+    // inlined scalar arguments are skipped (so a scalar cannot be mistaken for a
+    // moved pointer). A library kernel (rocBLAS/hipBLASLt/MIOpen) has no entry and
+    // falls back to scanning every word; if it does not consume a movable
+    // parameter none of its words match and it gets no slots. Returns false (re-
+    // bind by re-recording) for any node that is not an extra-packed kernel node,
+    // since a movable parameter hidden in a buffer we cannot rewrite (a
+    // kernelParams launch or a memcpy/memset node) could not be patched.
+    bool build_patch_plan(const std::vector<argument>& args, module_ref sub) const
     {
         std::size_t num = 0;
         if(hipGraphGetNodes(state->graph.get(), nullptr, &num) != hipSuccess)
@@ -202,6 +209,30 @@ struct hip_graph
         std::vector<std::size_t> in_sizes;
         movable_leaves(args, in_ptrs, &in_sizes);
         assert(in_ptrs.size() == in_sizes.size());
+
+        // Map each code-object kernel's function handle to its argument layout.
+        std::unordered_map<void*, const std::map<std::size_t, kernel_argument_value>*>
+            code_object_args;
+        for(auto ins : iterator_for(*sub))
+        {
+            if(ins->name() != "gpu::code_object")
+                continue;
+            const auto& cop = any_cast<code_object_op>(ins->get_operator());
+            code_object_args.emplace(static_cast<void*>(cop.k.get_function()), &cop.kernel_args);
+        }
+
+        // Record the slot if the pointer at `off` lands inside a movable input.
+        auto record_slot = [&](graph_node_patch& np, std::size_t off, char* p) {
+            for(std::size_t i = 0; i < in_ptrs.size(); ++i)
+            {
+                const auto* base = static_cast<const char*>(in_ptrs[i]);
+                if(p >= base and p < base + in_sizes[i])
+                {
+                    np.slots.push_back({off, i, static_cast<std::size_t>(p - base)});
+                    break;
+                }
+            }
+        };
 
         std::vector<graph_node_patch> patches;
         for(auto node : nodes)
@@ -217,26 +248,30 @@ struct hip_graph
             hipKernelNodeParams params{};
             if(hipGraphKernelNodeGetParams(node, &params) != hipSuccess)
                 return false;
-            char* buffer      = nullptr;
-            std::size_t bytes = 0;
-            if(params.kernelParams != nullptr or
-               not unpack_kernel_config(params.extra, buffer, bytes))
+            if(params.kernelParams != nullptr)
                 return false;
 
             graph_node_patch np;
-            np.node = node;
-            for(std::size_t off = 0; off + sizeof(char*) <= bytes; off += sizeof(char*))
+            np.node   = node;
+            auto cobj = code_object_args.find(params.func);
+            if(cobj != code_object_args.end())
             {
-                char* p = nullptr;
-                std::memcpy(&p, buffer + off, sizeof(char*));
-                for(std::size_t i = 0; i < in_ptrs.size(); ++i)
+                // Known code-object kernel: only its pointer slots can move.
+                for(const auto& [off, p] : unpack_kernel_config(params.extra, *cobj->second))
+                    record_slot(np, off, p);
+            }
+            else
+            {
+                // Library kernel: no layout, so treat every aligned word as a
+                // candidate pointer.
+                auto buf = unpack_kernel_config(params.extra);
+                if(buf.empty())
+                    return false;
+                for(std::size_t off = 0; off + sizeof(char*) <= buf.size(); off += sizeof(char*))
                 {
-                    const auto* base = static_cast<const char*>(in_ptrs[i]);
-                    if(p >= base and p < base + in_sizes[i])
-                    {
-                        np.slots.push_back({off, i, static_cast<std::size_t>(p - base)});
-                        break;
-                    }
+                    char* p = nullptr;
+                    std::memcpy(&p, buf.data() + off, sizeof(char*));
+                    record_slot(np, off, p);
                 }
             }
             if(not np.slots.empty())
@@ -253,26 +288,22 @@ struct hip_graph
     // into the executable graph. All other words are left untouched.
     void patch_kernel_nodes(const std::vector<const void*>& current_ptrs) const
     {
-        std::vector<char> patched; // reused across nodes
         for(const auto& np : state->patches)
         {
             hipKernelNodeParams params{};
             check_hip(hipGraphKernelNodeGetParams(np.node, &params), "hipGraphKernelNodeGetParams");
-            char* buffer      = nullptr;
-            std::size_t bytes = 0;
             // build_patch_plan already verified every node parses.
-            bool ok = unpack_kernel_config(params.extra, buffer, bytes);
-            assert(ok and buffer != nullptr);
-            (void)ok;
-            patched.assign(buffer, buffer + bytes);
+            auto buf = unpack_kernel_config(params.extra);
+            assert(not buf.empty());
             for(const auto& slot : np.slots)
             {
                 assert(slot.leaf < current_ptrs.size());
-                assert(slot.offset + sizeof(char*) <= bytes);
+                assert(slot.offset + sizeof(char*) <= buf.size());
                 const char* p = static_cast<const char*>(current_ptrs[slot.leaf]) + slot.ptr_offset;
-                std::memcpy(patched.data() + slot.offset, &p, sizeof(char*));
+                std::memcpy(buf.data() + slot.offset, &p, sizeof(char*));
             }
-            auto extra          = pack_kernel_config(patched.data(), &bytes);
+            std::size_t bytes   = buf.size();
+            auto extra          = pack_kernel_config(buf.data(), &bytes);
             params.extra        = extra.data();
             params.kernelParams = nullptr;
             check_hip(hipGraphExecKernelNodeSetParams(state->exec.get(), np.node, &params),
@@ -335,7 +366,7 @@ struct hip_graph
             // with no movable inputs the graph stays bound to stable buffers.
             if(not replace_inputs.empty())
             {
-                state->patchable = build_patch_plan(args);
+                state->patchable = build_patch_plan(args, sub);
                 movable_leaves(args, state->applied_ptrs, nullptr);
             }
             state->captured = true;

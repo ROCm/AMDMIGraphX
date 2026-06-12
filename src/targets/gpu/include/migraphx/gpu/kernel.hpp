@@ -30,8 +30,10 @@
 #include <hip/hip_runtime_api.h>
 #include <array>
 #include <cstddef>
+#include <map>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -41,14 +43,23 @@ namespace gpu {
 struct kernel_impl;
 
 // MIGraphX launches kernels through hipExtModuleLaunchKernel, passing the
-// arguments as a packed buffer described by an `extra` config array of HIP
-// launch-param (tag, value) pairs terminated by a sentinel. These two functions
-// are the single definition of that layout: pack_kernel_config builds the array
-// (its element 3 aliases *size, which must outlive the array), and
-// unpack_kernel_config recovers the packed buffer and its size, returning false
-// for any other argument-passing scheme.
-MIGRAPHX_GPU_EXPORT std::array<void*, 5> pack_kernel_config(void* buffer, std::size_t* size);
-MIGRAPHX_GPU_EXPORT bool unpack_kernel_config(void** extra, char*& buffer, std::size_t& size);
+// arguments as a packed byte buffer described by an `extra` config array of HIP
+// launch-param (tag, value) pairs terminated by a sentinel. The buffer is opaque
+// bytes -- a mix of pointer slots and inlined scalar arguments -- not an array of
+// pointers. These functions are the single definition of that layout:
+// pack_kernel_config builds the array (its element 3 aliases *size, which must
+// outlive the array), and unpack_kernel_config returns a copy of the packed
+// buffer (empty for any other argument-passing scheme).
+MIGRAPHX_GPU_EXPORT std::array<void*, 5> pack_kernel_config(char* buffer, std::size_t* size);
+MIGRAPHX_GPU_EXPORT std::vector<char> unpack_kernel_config(void** extra);
+
+// Interpret the packed buffer using a code_object_op's kernel_args layout (a
+// pointer slot has empty data, a scalar carries its bytes), returning the byte
+// offset and current value of each pointer-typed argument so the inlined scalars
+// are skipped. An empty kernel_args is the all-pointer launch path (every 8-byte
+// word is a pointer). Empty result for a non-packed argument scheme.
+MIGRAPHX_GPU_EXPORT std::vector<std::pair<std::size_t, char*>>
+unpack_kernel_config(void** extra, const std::map<std::size_t, kernel_argument_value>& kernel_args);
 
 struct MIGRAPHX_GPU_EXPORT kernel
 {
@@ -80,6 +91,10 @@ struct MIGRAPHX_GPU_EXPORT kernel
     }
 
     bool empty() const;
+
+    // The underlying HIP function handle, used to correlate a captured graph
+    // kernel node back to this kernel. Null when the kernel is empty.
+    hipFunction_t get_function() const;
 
     void launch(hipStream_t stream,
                 std::size_t global,

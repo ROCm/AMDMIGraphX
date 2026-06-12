@@ -122,7 +122,38 @@ struct multibroadcast
             }
             else
             {
-                // output_lens will not be set for 2+ input version
+                // All inputs are static. When output_dyn_dims is set (e.g. broadcast 1 -> 3 on an
+                // axis), we must not use compute_common_lens alone: it drops broadcast axes that are
+                // only present in output_dyn_dims (see multibroadcast with identical static inputs
+                // and symbolic out_dyn_dims).
+                if(not output_dyn_dims.empty())
+                {
+                    const bool all_symbolic =
+                        std::all_of(output_dyn_dims.begin(),
+                                    output_dyn_dims.end(),
+                                    [](const auto& d) { return d.is_symbolic(); });
+                    if(all_symbolic)
+                    {
+                        auto validate = [](const auto& in_dims, const auto& out_dims) {
+                            if(in_dims.size() > out_dims.size())
+                                MIGRAPHX_THROW(
+                                    "MULTIBROADCAST: input dimensions should <= output size");
+                            auto offset = out_dims.size() - in_dims.size();
+                            for(std::ptrdiff_t i = in_dims.size() - 1; i >= 0; --i)
+                            {
+                                if(out_dims[i + offset] != in_dims[i] and in_dims[i] != 1)
+                                    MIGRAPHX_THROW(
+                                        "MULTIBROADCAST: input shape {" +
+                                        to_string_range(in_dims) + "} cannot be broadcasted to {" +
+                                        to_string_range(out_dims) + "}!");
+                            }
+                        };
+                        auto s0_sym = s0.to_symbolic();
+                        validate(s0_sym.dyn_dims(), output_dyn_dims);
+                        return make_bcast_shape(s0_sym, output_dyn_dims);
+                    }
+                    return {t, output_dyn_dims};
+                }
                 auto bcast_lens = compute_common_lens(inputs);
                 return make_bcast_shape(s0, bcast_lens);
             }

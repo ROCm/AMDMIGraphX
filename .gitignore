@@ -100,3 +100,4 @@ docs/_toc.yml
 # Ignore CMake user presets
 CMakeUserPresets.json
 
+/tmp 

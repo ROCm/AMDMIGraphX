@@ -32,6 +32,7 @@
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/sat_ops.hpp>
 #include <migraphx/reshape_dims.hpp>
+#include <migraphx/sym.hpp>
 
 #include <algorithm>
 
@@ -98,39 +99,71 @@ struct reshape
 
         if(has_negative_dim_attr)
         {
-            // comparing the -1 dimension against the other dimensions
-
-            // accumulate the minimum and maximum elements in the dimensions before the -1 dimension
-            std::size_t min_cur_elements = 1;
-            std::size_t max_cur_elements = 1;
-            for(const auto& dd : output_dyn_dims)
+            if(s0.symbolic())
             {
-                auto dd_interval = dd.get_interval();
-                min_cur_elements = mul_sat(min_cur_elements, dd_interval.min);
-                max_cur_elements = mul_sat(max_cur_elements, dd_interval.max);
+                sym::expr den = sym::lit(1);
+                const auto nd = static_cast<std::size_t>(neg_dim_num);
+                for(std::size_t i = 0; i < output_dyn_dims.size(); ++i)
+                {
+                    if(i == nd)
+                        continue;
+                    const auto& dd = output_dyn_dims.at(i);
+                    if(dd.is_symbolic())
+                    {
+                        den = den * dd.sym_expr;
+                    }
+                    else
+                    {
+                        // Literal sizes in `dims` are int64_t; avoid sym::to<>{interval} here
+                        // because interval scalars can instantiate as unsigned long and trip
+                        // -Wc++11-narrowing inside sym::scalar's constexpr constructor.
+                        const std::int64_t di = dims.at(i);
+                        if(di <= 0)
+                            MIGRAPHX_THROW(
+                                "Reshape: symbolic input with -1 dim expected a positive literal "
+                                "output dimension at this axis");
+                        den = den * sym::lit(di);
+                    }
+                }
+                output_dyn_dims.at(nd) = shape::dynamic_dimension{s0.sym_elements() / den};
             }
-            // accumulate the elements in the input dimensions
-            std::size_t min_input_elements = 1;
-            std::size_t max_input_elements = 1;
-            for(const auto& dd : input_dyn_dims)
+            else
             {
-                auto dd_interval   = dd.get_interval();
-                min_input_elements = mul_sat(min_input_elements, dd_interval.min);
-                max_input_elements = mul_sat(max_input_elements, dd_interval.max);
+                // comparing the -1 dimension against the other dimensions
+
+                // accumulate the minimum and maximum elements in the dimensions before the -1
+                // dimension
+                std::size_t min_cur_elements = 1;
+                std::size_t max_cur_elements = 1;
+                for(const auto& dd : output_dyn_dims)
+                {
+                    auto dd_interval = dd.get_interval();
+                    min_cur_elements = mul_sat(min_cur_elements, dd_interval.min);
+                    max_cur_elements = mul_sat(max_cur_elements, dd_interval.max);
+                }
+                // accumulate the elements in the input dimensions
+                std::size_t min_input_elements = 1;
+                std::size_t max_input_elements = 1;
+                for(const auto& dd : input_dyn_dims)
+                {
+                    auto dd_interval   = dd.get_interval();
+                    min_input_elements = mul_sat(min_input_elements, dd_interval.min);
+                    max_input_elements = mul_sat(max_input_elements, dd_interval.max);
+                }
+
+                // maximum dimensions should never accumulate to zero
+                assert(max_cur_elements != 0);
+
+                std::size_t max_int = std::numeric_limits<std::size_t>::max();
+                // handle 0 dimension value (keep unknown lower bound)
+                std::size_t min_dim =
+                    (min_cur_elements == 0) ? 0 : min_input_elements / min_cur_elements;
+                // handle maximum dimension value (keep unknown upper bound)
+                std::size_t max_dim =
+                    (max_cur_elements == max_int) ? max_int : max_input_elements / max_cur_elements;
+                shape::dynamic_dimension x_dd   = {min_dim, max_dim};
+                output_dyn_dims.at(neg_dim_num) = x_dd;
             }
-
-            // maximum dimensions should never accumulate to zero
-            assert(max_cur_elements != 0);
-
-            std::size_t max_int = std::numeric_limits<std::size_t>::max();
-            // handle 0 dimension value (keep unknown lower bound)
-            std::size_t min_dim =
-                (min_cur_elements == 0) ? 0 : min_input_elements / min_cur_elements;
-            // handle maximum dimension value (keep unknown upper bound)
-            std::size_t max_dim =
-                (max_cur_elements == max_int) ? max_int : max_input_elements / max_cur_elements;
-            shape::dynamic_dimension x_dd   = {min_dim, max_dim};
-            output_dyn_dims.at(neg_dim_num) = x_dd;
         }
         return {s0.type(), output_dyn_dims};
     }
@@ -153,9 +186,6 @@ struct reshape
 
         if(n_neg_dims > 0)
         {
-            // std::cout << "input shape: " << inputs.front() << std::endl;
-            
-            // std::cout << "missing_dim = " << inputs.front().element_space() << " / " << std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>()) << std::endl;
             size_t missing_dim =
                 inputs.front().elements() /
                 std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
@@ -190,7 +220,6 @@ struct reshape
             MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
 
         const auto& s0 = inputs.front();
-        // std::cout << "s0: " << s0 << std::endl;
         if(inputs.size() == 1)
         {
             if(s0.dynamic())
@@ -212,12 +241,61 @@ struct reshape
     {
         if(args.size() == 1)
         {
-            argument result{dyn_out.computed_shape};
+            const auto& cs    = dyn_out.computed_shape;
+            const auto& in_sh = args[0].get_shape();
+            const auto n_neg  = std::count(dims.begin(), dims.end(), -1);
 
-            visit_all(result, args[0])([&](auto output, auto input) {
-                std::copy(input.begin(), input.end(), output.begin());
-            });
-            return result;
+            if(not cs.dynamic())
+            {
+                argument result{cs};
+
+                visit_all(result, args[0])([&](auto output, auto input) {
+                    std::copy(input.begin(), input.end(), output.begin());
+                });
+                return result;
+            }
+
+            if(not in_sh.dynamic())
+            {
+                shape out_st = static_compute_shape({in_sh}, n_neg);
+                argument result{out_st};
+                visit_all(result, args[0])([&](auto output, auto input) {
+                    std::copy(input.begin(), input.end(), output.begin());
+                });
+                return result;
+            }
+
+            if(in_sh.is_fixed())
+            {
+                shape in_st  = in_sh.to_static({});
+                shape out_st = static_compute_shape({in_st}, n_neg);
+                argument result{out_st};
+                auto in_arg = args[0].reshape(in_st);
+                visit_all(result, in_arg)([&](auto output, auto input) {
+                    std::copy(input.begin(), input.end(), output.begin());
+                });
+                return result;
+            }
+
+            try
+            {
+                shape in_st  = in_sh.to_static({});
+                shape out_st = static_compute_shape({in_st}, n_neg);
+                argument result{out_st};
+                auto in_arg = args[0].reshape(in_st);
+                visit_all(result, in_arg)([&](auto output, auto input) {
+                    std::copy(input.begin(), input.end(), output.begin());
+                });
+                return result;
+            }
+            catch(const std::exception&)
+            {
+            }
+
+            MIGRAPHX_THROW("reshape: cannot evaluate 1-arg reshape copy when both the computed "
+                           "output shape and input shape remain unresolved dynamic shapes; use a "
+                           "static input, fixed-interval dynamic input, or bound symbolic "
+                           "dimensions.");
         }
         else
         {

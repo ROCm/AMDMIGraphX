@@ -38,22 +38,20 @@ namespace device {
 static argument fixed_pad_base_impl(hipStream_t stream, const argument& result, const argument& arg)
 {
     index_int oelements = result.get_shape().elements();
-    auto ilens = arg.get_shape().lens();
-    std::cout << "ilens: ";
-    for(auto ilen : ilens)
-    {
-        std::cout << ilen << " ";
-    }
-    std::cout << std::endl;
     index_int ielements = arg.get_shape().elements();
+    if(oelements == 0)
+        return result;
     hip_visit_all(result, arg)([&](auto output, auto input) {
         gs_launch(stream, oelements)(
             [=](auto i) __device__ { output[output.get_shape().multi(i)] = 0; });
-        gs_launch(stream, ielements)([=](auto i) __device__ {
-            auto idx = input.get_shape().multi(i);
-            auto tmp = input[idx];
-            output[idx] = tmp;
-        });
+        if(ielements > 0)
+        {
+            gs_launch(stream, ielements)([=](auto i) __device__ {
+                auto idx = input.get_shape().multi(i);
+                auto tmp = input[idx];
+                output[idx] = tmp;
+            });
+        }
     });
     return result;
 }
@@ -63,6 +61,8 @@ fixed_pad_standard_impl(hipStream_t stream, const argument& result, const argume
 {
     index_int nelements = result.get_shape().elements();
     index_int ielements = arg.get_shape().elements();
+    if(nelements == 0)
+        return result;
     hip_pointer_visit_all(result, arg)([&](auto output, auto input) {
         gs_launch(stream, nelements)(
             [=](auto i) __device__ { output[i] = (i < ielements) ? input[i] : 0; });

@@ -2703,6 +2703,18 @@ TEST_CASE(multibroadcast_2in_static_dyn2)
                  a_shape);
 }
 
+TEST_CASE(multibroadcast_2in_static_identical_sym_out_dims)
+{
+    // Two static inputs + symbolic out_dyn_dims: must broadcast (e.g. 1 -> 3 on an axis), not
+    // collapse to compute_common_lens only (regression: KV-cache path seq became seq/3).
+    auto n = var("n", {2, 65});
+    migraphx::shape a{migraphx::shape::float_type, {1, 5, 1, 33, 64}};
+    std::vector<dd> out{dd{lit(1)}, dd{lit(5)}, dd{lit(3)}, dd{n}, dd{lit(64)}};
+    auto op      = migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}});
+    auto expected = op.compute_shape({a});
+    expect_shape(expected, op, a, a);
+}
+
 TEST_CASE(multibroadcast_2in_static_dyn_intersection0)
 {
     // dynamic_dimension.intersection for first dimension
@@ -4488,6 +4500,17 @@ TEST_CASE(reshape_dyn_1in_negative_1_dims_3)
     std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims = {{1, 4}, {4, 4}, {3, 3}, {2, 2}};
     migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
     expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 4, 3, 2}}}), input);
+}
+
+TEST_CASE(reshape_sym_1in_negative_one_preserves_symbol)
+{
+    auto n = var("n", {2, 65});
+    migraphx::shape input{migraphx::shape::half_type,
+                          {dd{lit(1)}, dd{lit(5)}, dd{lit(3)}, dd{n}, dd{lit(64)}}};
+    auto op = migraphx::make_op("reshape", {{"dims", std::vector<int64_t>{1, 15, -1, 64}}});
+    migraphx::shape out = op.compute_shape({input});
+    EXPECT(out.symbolic());
+    EXPECT(out.dyn_dims().at(2).sym_expr == n);
 }
 
 // note how non-fixed dynamic dimension on axis=0 goes to 2 from `dims` attribute

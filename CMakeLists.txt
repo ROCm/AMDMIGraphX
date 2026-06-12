@@ -434,12 +434,8 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
     # We target versioned names to match what install_rocm_packages.sh actually installs.
     # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
-    set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
-        "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
-    set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
-        "TheRock GPU arch(es) for per-GPU package dependencies. \
-Semicolon-separated list (e.g. gfx90a;gfx942;gfx950) for per-GPU deps, \
-or empty for device-all meta-package deps.")
+    # MIGRAPHX_THEROCK_ROCM_VERSION and MIGRAPHX_THEROCK_GPU_ARCH are declared and
+    # auto-populated by detect_package_backend() (cmake/DetectPackageBackend.cmake).
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
     if(MIGRAPHX_THEROCK_GPU_ARCH)
         # Collect per-GPU dependencies: one amdrocm-dnn/blas per arch

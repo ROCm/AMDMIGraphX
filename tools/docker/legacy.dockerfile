@@ -110,9 +110,9 @@ ADD rbuild.ini /rbuild.ini
 ENV ONNX_HOME=/.onnx
 RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
 
-COPY ./tools/install_prereqs.sh /
+COPY ./tools/install_prereqs_legacy.sh /
 COPY ./tools/requirements-py.txt /requirements-py.txt
-RUN /install_prereqs.sh /usr/local / && rm /install_prereqs.sh && rm /requirements-py.txt
+RUN /install_prereqs_legacy.sh /usr/local / && rm /install_prereqs_legacy.sh && rm /requirements-py.txt
 RUN test -f /usr/local/hash || exit 1
 
 # Install yapf

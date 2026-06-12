@@ -80,3 +80,4 @@ ADD tools/requirements-py.txt /requirements-py.txt
 RUN CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON" pip3 install -r /requirements-py.txt && \
     rm /requirements-py.txt
 
+RUN git config --global --add safe.directory '*'

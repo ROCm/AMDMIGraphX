@@ -293,6 +293,8 @@ else
     pkg_install "${ROCM_PKGS[@]}"
 fi
 
+pip install setuptools wheel
+
 # rbuild is used to build the MIGraphX third-party dependencies. This pip
 # install always runs, independent of the --whl flag.
 pip3 install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz

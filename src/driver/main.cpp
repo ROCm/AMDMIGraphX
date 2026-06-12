@@ -43,6 +43,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 #include <migraphx/env.hpp>
@@ -738,6 +739,7 @@ struct compiler
     bool to_fp8  = false;
     bool to_int8 = false;
     bool to_int4 = false;
+    std::string bake_weights = {};
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -763,6 +765,13 @@ struct compiler
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
+        ap(bake_weights,
+           {"--bake-weights"},
+           ap.help("Bake external-weight parameters with the raw weight files in the given "
+                   "directory into the compiled program, producing a self-contained model. "
+                   "Requires a template parsed with --weight-params (or loaded from such a "
+                   "template .mxr)."),
+           ap.metavar("<dir>"));
     }
 
     auto params(const program& p)
@@ -808,6 +817,11 @@ struct compiler
                 log::warn() << "Quantization options are ignored as the program is already "
                                "compiled.";
             }
+            if(not bake_weights.empty())
+            {
+                p = bake(p, ct.get_target());
+                l.save(p);
+            }
             return p;
         }
         auto t = ct.get_target();
@@ -841,8 +855,16 @@ struct compiler
         p.compile(t, co);
         auto r = c.record<std::chrono::milliseconds>();
         log::info() << "Compilation time: " << r << "ms";
+        if(not bake_weights.empty())
+            p = bake(p, t);
         l.save(p);
         return p;
+    }
+
+    program bake(const program& p, const target& t) const
+    {
+        log::info() << "Baking weights from " << bake_weights << " ...";
+        return migraphx::create_program_with_weights(p, bake_weights, t);
     }
 };
 

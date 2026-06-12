@@ -34,6 +34,10 @@ Treat tensorflow format as nhwc
 
 Skip unknown operators when parsing and continue to parse.
 
+.. option::  --weight-params
+
+Parse external-data initializers as parameters instead of literals, enabling runtime weight swapping. The external weight metadata is recorded on the program (and serialized into an ``.mxr``) so the weights can later be baked in with ``compile --bake-weights``.
+
 .. option::  --nchw
 
 Treat tensorflow format as nchw

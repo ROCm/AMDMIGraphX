@@ -196,15 +196,33 @@ CLI
 
 The ``migraphx-driver`` tool exposes the template-parsing step with the
 ``--weight-params`` flag. It sets ``external_weights_as_parameters`` so the
-parsed/compiled program keeps its external weights as parameters:
+parsed/compiled program keeps its external weights as parameters. Combined with
+``compile -o`` this is how you build and save a reusable template ``.mxr``:
 
 .. code-block:: bash
 
     migraphx-driver read model.onnx --weight-params
-    migraphx-driver compile model.onnx --weight-params
+    migraphx-driver compile model.onnx --weight-params --gpu -o template.mxr
 
-Baking a specific weight set and saving the resulting MXR is done
-programmatically through the C++ or Python APIs above.
+The ``compile`` command can also bake a weight set in the same step with
+``--bake-weights <dir>``. The input may be the ONNX model directly or a
+previously-saved template ``.mxr`` (which already carries the external weight
+map); the result is a self-contained program written to ``-o``:
+
+.. code-block:: bash
+
+    # Bake straight from the ONNX model.
+    migraphx-driver compile model.onnx --weight-params --gpu \
+        --bake-weights weights_v1 -o model_v1.mxr
+
+    # ...or stamp a weight set into an existing compiled template.
+    migraphx-driver compile template.mxr --gpu \
+        --bake-weights weights_v1 -o model_v1.mxr
+
+When the input is an already-compiled template, the driver skips compilation,
+bakes the weights from ``<dir>``, and saves the result. ``--bake-weights``
+requires that the program was parsed with ``--weight-params`` (so it has a
+non-empty external weight map); otherwise the driver errors.
 
 Weight Directory Layout
 -----------------------

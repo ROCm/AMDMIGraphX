@@ -56,8 +56,22 @@ weight sets (original and noise-perturbed) without any recompilation.
 
 ## CLI equivalent
 
-The MIGraphX driver also supports the template-parsing step via `--weight-params`:
+The MIGraphX driver supports the template-parsing step via `--weight-params`:
 
 ```bash
 migraphx-driver read model.onnx --weight-params
+migraphx-driver compile model.onnx --weight-params --gpu -o template.mxr
+```
+
+It can also bake a weight set during `compile` with `--bake-weights <dir>`,
+either straight from the ONNX model or from a previously-saved template `.mxr`:
+
+```bash
+# Bake from the ONNX model
+migraphx-driver compile model.onnx --weight-params --gpu \
+    --bake-weights test_model/weights_v1 -o model_v1.mxr
+
+# Or stamp a weight set into an existing compiled template
+migraphx-driver compile template.mxr --gpu \
+    --bake-weights test_model/weights_v1 -o model_v1.mxr
 ```

@@ -57,3 +57,7 @@ Quantize for int8
 .. option:: --fp8
 
 Quantize for Float8E4M3FNUZ type
+
+.. option::  --bake-weights [std::string]
+
+Bake external-weight parameters with the raw weight files in the given directory into the compiled program, producing a self-contained model. The input may be an ONNX model parsed with ``--weight-params`` or a previously-saved template ``.mxr``; the result is written to the path given by ``--output``. Requires the program to have a non-empty external weight map (otherwise the driver errors).

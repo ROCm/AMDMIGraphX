@@ -82,14 +82,6 @@ leaf_buffers(const argument& a, std::vector<const void*>& ptrs, std::vector<std:
     }
 }
 
-static std::vector<const void*> leaf_ptrs(const std::vector<argument>& args)
-{
-    std::vector<const void*> ptrs;
-    for(const auto& a : args)
-        leaf_buffers(a, ptrs, nullptr);
-    return ptrs;
-}
-
 // MIGraphX launches its code-object kernels with hipExtModuleLaunchKernel, which
 // passes the arguments as a packed buffer tagged with HIP_LAUNCH_PARAM_BUFFER_*
 // sentinels (kernel.cpp). Recover the buffer and its size from a captured node's
@@ -118,6 +110,26 @@ static bool parse_packed_args(void** extra, char*& buffer, std::size_t& size)
     return buffer != nullptr and has_size;
 }
 
+// One word in a kernel node's packed argument buffer that holds a graph-input
+// pointer: its byte offset in the buffer, which flattened graph-input leaf it
+// points into, and the offset within that leaf (nonzero for a viewed/sliced
+// input). A rebind rewrites exactly these words.
+struct graph_slot_patch
+{
+    std::size_t offset;
+    std::size_t leaf;
+    std::size_t ptr_offset;
+};
+
+// A captured code-object kernel node paired with the graph-input slots to rewrite
+// when an input moves. Nodes whose every argument is a stable internal allocation
+// have no slots and are omitted.
+struct graph_node_patch
+{
+    hipGraphNode_t node = nullptr;
+    std::vector<graph_slot_patch> slots{};
+};
+
 // Records the work of a submodule into a HIP graph the first time it is run and
 // then replays the instantiated graph on every subsequent run. This amortizes
 // the per-launch CPU overhead of issuing many kernels/library calls. Construct
@@ -130,17 +142,15 @@ struct hip_graph
         hip_graph_exec_ptr exec = nullptr;
         bool captured           = false;
         std::vector<argument> outputs{};
-        // Leaf buffer addresses (tuples flattened) baked into `graph`, with their
-        // sizes, used to remap a moved input; and the leaf addresses currently
-        // programmed into `exec`, used to detect a move.
-        std::vector<const void*> recorded_ptrs{};
-        std::vector<std::size_t> recorded_sizes{};
+        // Addresses of the movable (program-parameter) leaves currently programmed
+        // into `exec`, used to detect when a parameter buffer has moved. Empty when
+        // the op has no movable inputs, in which case nothing is ever re-bound.
         std::vector<const void*> applied_ptrs{};
-        // The captured graph is entirely kernel nodes whose arguments are packed
-        // buffers, so a moved input can be patched into `exec` directly instead
-        // of re-recording the graph.
+        // True when every captured node holding a movable-parameter pointer is an
+        // extra-packed kernel node we can rewrite; `patches` then lists, per such
+        // node, the slots to rewrite. False -> re-bind by re-recording.
         bool patchable = false;
-        std::vector<hipGraphNode_t> kernel_nodes{};
+        std::vector<graph_node_patch> patches{};
     };
 
     // Created in finalize() rather than at construction: operation handles are
@@ -154,11 +164,17 @@ struct hip_graph
     // buffers, so they have global lifetime and can be returned safely.
     std::vector<std::size_t> aliases{};
 
+    // Indices of the inputs whose buffer the caller can rebind between runs (the
+    // program parameters). Every other input is a fixed allocation/constant.
+    // hipgraphify fills this in; when it is empty the captured graph is bound to
+    // stable addresses and is replayed without ever inspecting its nodes.
+    std::vector<std::size_t> replace_inputs{};
+
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
         // The captured graph is runtime-only state and is excluded.
-        return pack(f(self.aliases, "aliases"));
+        return pack(f(self.aliases, "aliases"), f(self.replace_inputs, "replace_inputs"));
     }
 
     std::string name() const { return "hip::graph"; }
@@ -180,14 +196,32 @@ struct hip_graph
         state = std::make_shared<graph_state>();
     }
 
-    // True when every node of the captured graph is a kernel node whose arguments
-    // are an extra-packed buffer we can rewrite (how MIGraphX launches its
-    // code-object kernels, see kernel.cpp). Library kernels (rocBLAS/hipBLASLt/
-    // MIOpen) are typically captured the same way and so are covered too; it
-    // returns false for anything that isn't an extra-packed kernel node -- a
-    // non-kernel node (memcpy/memset) or a kernelParams-style launch -- which
-    // falls back to re-recording. Caches the node handles for later patching.
-    bool collect_kernel_nodes() const
+    // Flatten the movable (program-parameter) inputs to their leaf buffer
+    // addresses (and, if requested, sizes), in replace_inputs order. These are the
+    // only addresses that can change between runs.
+    void movable_leaves(const std::vector<argument>& args,
+                        std::vector<const void*>& ptrs,
+                        std::vector<std::size_t>* sizes) const
+    {
+        for(auto idx : replace_inputs)
+            leaf_buffers(args[idx], ptrs, sizes);
+    }
+
+    std::vector<const void*> movable_ptrs(const std::vector<argument>& args) const
+    {
+        std::vector<const void*> ptrs;
+        movable_leaves(args, ptrs, nullptr);
+        return ptrs;
+    }
+
+    // Build the per-node patch plan: for every captured node, record the buffer
+    // slots that hold one of the movable-parameter addresses. A library kernel
+    // (rocBLAS/hipBLASLt/MIOpen) is fine -- if it does not consume a movable
+    // parameter, none of its words match and it gets no slots. Returns false (re-
+    // bind by re-recording) if any node holding arguments is not an extra-packed
+    // kernel node, since a movable parameter hidden in a buffer we cannot rewrite
+    // (a kernelParams launch or a memcpy/memset node) could not be patched.
+    bool build_patch_plan(const std::vector<argument>& args) const
     {
         std::size_t num = 0;
         if(hipGraphGetNodes(state->graph.get(), nullptr, &num) != hipSuccess)
@@ -195,10 +229,21 @@ struct hip_graph
         std::vector<hipGraphNode_t> nodes(num);
         if(num > 0 and hipGraphGetNodes(state->graph.get(), nodes.data(), &num) != hipSuccess)
             return false;
+
+        std::vector<const void*> in_ptrs;
+        std::vector<std::size_t> in_sizes;
+        movable_leaves(args, in_ptrs, &in_sizes);
+
+        std::vector<graph_node_patch> patches;
         for(auto node : nodes)
         {
             hipGraphNodeType type{};
-            if(hipGraphNodeGetType(node, &type) != hipSuccess or type != hipGraphNodeTypeKernel)
+            if(hipGraphNodeGetType(node, &type) != hipSuccess)
+                return false;
+            // Empty nodes are capture bookkeeping; they carry no arguments.
+            if(type == hipGraphNodeTypeEmpty)
+                continue;
+            if(type != hipGraphNodeTypeKernel)
                 return false;
             hipKernelNodeParams params{};
             if(hipGraphKernelNodeGetParams(node, &params) != hipSuccess)
@@ -207,44 +252,55 @@ struct hip_graph
             std::size_t bytes = 0;
             if(params.kernelParams != nullptr or not parse_packed_args(params.extra, buffer, bytes))
                 return false;
+
+            graph_node_patch np;
+            np.node = node;
+            for(std::size_t off = 0; off + sizeof(char*) <= bytes; off += sizeof(char*))
+            {
+                char* p = nullptr;
+                std::memcpy(&p, buffer + off, sizeof(char*));
+                for(std::size_t i = 0; i < in_ptrs.size(); ++i)
+                {
+                    const auto* base = static_cast<const char*>(in_ptrs[i]);
+                    if(p >= base and p < base + in_sizes[i])
+                    {
+                        np.slots.push_back({off, i, static_cast<std::size_t>(p - base)});
+                        break;
+                    }
+                }
+            }
+            if(not np.slots.empty())
+                patches.push_back(std::move(np));
         }
-        state->kernel_nodes = std::move(nodes);
+
+        state->patches = std::move(patches);
         return true;
     }
 
-    // Rewrite each kernel node's argument buffer, remapping any pointer that falls
-    // within an input leaf buffer's old range to the new leaf buffer (preserving
-    // offsets), and program it into the executable graph.
+    // Apply the prebuilt plan: for each recorded node, copy its captured argument
+    // buffer, overwrite only the movable-parameter slots with the current
+    // parameter address (plus the captured within-buffer offset), and program it
+    // into the executable graph. All other words are left untouched.
     void patch_kernel_nodes(const std::vector<const void*>& current_ptrs) const
     {
-        assert(state->recorded_ptrs.size() == current_ptrs.size() and
-               state->recorded_sizes.size() == current_ptrs.size());
         std::vector<char> patched; // reused across nodes
-        for(auto node : state->kernel_nodes)
+        for(const auto& np : state->patches)
         {
             hipKernelNodeParams params{};
-            check_hip(hipGraphKernelNodeGetParams(node, &params), "hipGraphKernelNodeGetParams");
+            check_hip(hipGraphKernelNodeGetParams(np.node, &params), "hipGraphKernelNodeGetParams");
             char* buffer      = nullptr;
             std::size_t bytes = 0;
-            // collect_kernel_nodes already verified every cached node parses.
+            // build_patch_plan already verified every node parses.
             bool ok = parse_packed_args(params.extra, buffer, bytes);
             assert(ok and buffer != nullptr);
             (void)ok;
             patched.assign(buffer, buffer + bytes);
-            for(std::size_t off = 0; off + sizeof(char*) <= bytes; off += sizeof(char*))
+            for(const auto& slot : np.slots)
             {
-                char* p = nullptr;
-                std::memcpy(&p, patched.data() + off, sizeof(char*));
-                for(std::size_t i = 0; i < state->recorded_ptrs.size(); ++i)
-                {
-                    const auto* base = static_cast<const char*>(state->recorded_ptrs[i]);
-                    if(p >= base and p < base + state->recorded_sizes[i])
-                    {
-                        const char* np = static_cast<const char*>(current_ptrs[i]) + (p - base);
-                        std::memcpy(patched.data() + off, &np, sizeof(char*));
-                        break;
-                    }
-                }
+                assert(slot.leaf < current_ptrs.size());
+                assert(slot.offset + sizeof(char*) <= bytes);
+                const char* p = static_cast<const char*>(current_ptrs[slot.leaf]) + slot.ptr_offset;
+                std::memcpy(patched.data() + slot.offset, &p, sizeof(char*));
             }
             void* extra[]       = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
                                    patched.data(),
@@ -253,18 +309,9 @@ struct hip_graph
                                    HIP_LAUNCH_PARAM_END};
             params.extra        = extra;
             params.kernelParams = nullptr;
-            check_hip(hipGraphExecKernelNodeSetParams(state->exec.get(), node, &params),
+            check_hip(hipGraphExecKernelNodeSetParams(state->exec.get(), np.node, &params),
                       "hipGraphExecKernelNodeSetParams");
         }
-    }
-
-    // Snapshot the leaf buffers baked into the freshly recorded `graph`.
-    void record_buffers(const std::vector<argument>& args) const
-    {
-        state->recorded_ptrs.clear();
-        state->recorded_sizes.clear();
-        for(const auto& a : args)
-            leaf_buffers(a, state->recorded_ptrs, &state->recorded_sizes);
     }
 
     argument compute(context& ctx,
@@ -313,24 +360,28 @@ struct hip_graph
             check_hip(hipStreamEndCapture(stream, &graph), "hipStreamEndCapture");
             state->graph = hip_graph_ptr{graph};
         };
-        // The leaf buffers the captured graph is bound to. If any of them moved,
-        // the executable graph must be re-bound.
-        auto current_ptrs = leaf_ptrs(args);
+        // The movable-parameter leaves the captured graph is currently bound to.
+        // With no movable inputs this is empty and the graph is simply replayed.
+        auto current_ptrs = movable_ptrs(args);
 
         if(not state->captured)
         {
             record();
             instantiate();
-            record_buffers(args);
-            state->applied_ptrs = current_ptrs;
-            state->patchable    = collect_kernel_nodes();
-            state->captured     = true;
+            // Only scan the captured nodes when a parameter can actually move.
+            if(not replace_inputs.empty())
+            {
+                state->patchable    = build_patch_plan(args);
+                state->applied_ptrs = std::move(current_ptrs);
+            }
+            state->captured = true;
         }
-        else if(current_ptrs != state->applied_ptrs)
+        else if(not replace_inputs.empty() and current_ptrs != state->applied_ptrs)
         {
-            // Patch the new addresses into the executable graph node-by-node when
-            // possible; otherwise re-record and let hipGraphExecUpdate patch it
-            // (re-instantiating if the topology cannot be updated).
+            // A parameter moved. Patch the new addresses into the executable graph
+            // when every node holding one is rewritable; otherwise re-record and
+            // let hipGraphExecUpdate patch it (re-instantiating if the topology
+            // cannot be updated).
             if(state->patchable)
             {
                 patch_kernel_nodes(current_ptrs);
@@ -344,7 +395,6 @@ struct hip_graph
                     hipGraphExecUpdate(state->exec.get(), state->graph.get(), &error_node, &result);
                 if(status != hipSuccess or result != hipGraphExecUpdateSuccess)
                     instantiate();
-                record_buffers(args);
             }
             state->applied_ptrs = std::move(current_ptrs);
         }

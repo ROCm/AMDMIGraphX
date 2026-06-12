@@ -72,6 +72,16 @@ static bool is_capturable(instruction_ref ins)
 
 static bool is_allocation(instruction_ref ins) { return ins->name() == "hip::allocate"; }
 
+// An input whose buffer the caller can rebind between runs: it ultimately aliases
+// a program parameter. Allocations and constants keep a fixed address once
+// compiled, so only parameter-backed inputs can move (and with offload copy the
+// parameters are host-side, leaving the captured graph bound to stable buffers).
+static bool is_param_input(instruction_ref ins)
+{
+    auto roots = instruction::get_output_alias(ins, false);
+    return roots.size() == 1 and roots.front()->name() == "@param";
+}
+
 static void
 graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, std::size_t n)
 {
@@ -150,6 +160,14 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
 
     auto inputs = find_inputs(map_ins, &m, sub);
 
+    // Inputs the caller can rebind between runs (the program parameters). The op
+    // tracks only these to decide when to re-bind the captured graph; an empty
+    // list means the graph is bound to stable buffers and is just replayed.
+    std::vector<std::size_t> replace_inputs;
+    for(std::size_t i = 0; i < inputs.size(); ++i)
+        if(is_param_input(inputs[i]))
+            replace_inputs.push_back(i);
+
     // The captured outputs alias the kept output buffers, which are inputs to the
     // hip::graph op.
     std::vector<std::size_t> aliases;
@@ -168,8 +186,11 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     // directly; multiple outputs come back as a tuple unpacked with
     // get_tuple_elem.
     auto pos = std::next(run.back());
-    auto g =
-        m.insert_instruction(pos, make_op("hip::graph", {{"aliases", aliases}}), inputs, {sub});
+    auto g   = m.insert_instruction(
+        pos,
+        make_op("hip::graph", {{"aliases", aliases}, {"replace_inputs", replace_inputs}}),
+        inputs,
+        {sub});
     for(std::size_t i = 0; i < outputs.size(); ++i)
     {
         auto replacement = g;

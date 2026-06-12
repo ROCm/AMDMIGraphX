@@ -87,7 +87,8 @@ TEST_CASE(basic_capture)
         auto x0   = sub->add_parameter("x0", s);
         auto last = add_chain(*sub, x0, 4);
         sub->add_return({last});
-        auto g = mm->add_instruction(migraphx::make_op("hip::graph"), {x}, {sub});
+        auto g = mm->add_instruction(
+            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub});
         mm->add_return({g});
     }
 
@@ -139,7 +140,8 @@ TEST_CASE(split_by_sync)
         auto* sub0 = p2.create_module("main:hipgraph0");
         auto x0    = sub0->add_parameter("x0", s);
         sub0->add_return({add_chain(*sub0, x0, 4)});
-        auto g0    = mm->add_instruction(migraphx::make_op("hip::graph"), {x}, {sub0});
+        auto g0 = mm->add_instruction(
+            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
         auto sync  = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, g0);
         auto* sub1 = p2.create_module("main:hipgraph1");
         auto y0    = sub1->add_parameter("x0", s);
@@ -172,7 +174,8 @@ TEST_CASE(host_op_boundary)
         auto* sub0 = p2.create_module("main:hipgraph0");
         auto x0    = sub0->add_parameter("x0", s);
         sub0->add_return({add_chain(*sub0, x0, 4)});
-        auto g0    = mm->add_instruction(migraphx::make_op("hip::graph"), {x}, {sub0});
+        auto g0 = mm->add_instruction(
+            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
         auto h     = mm->add_instruction(host_op{}, g0);
         auto* sub1 = p2.create_module("main:hipgraph1");
         auto y0    = sub1->add_parameter("x0", s);
@@ -205,7 +208,8 @@ TEST_CASE(mixed_long_short)
         auto* sub0 = p2.create_module("main:hipgraph0");
         auto x0    = sub0->add_parameter("x0", s);
         sub0->add_return({add_chain(*sub0, x0, 5)});
-        auto g0   = mm->add_instruction(migraphx::make_op("hip::graph"), {x}, {sub0});
+        auto g0 = mm->add_instruction(
+            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
         auto sync = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, g0);
         auto d    = add_chain(*mm, sync, 2);
         mm->add_return({d});
@@ -233,7 +237,8 @@ TEST_CASE(min_partition_size_config)
         auto* sub = p2.create_module("main:hipgraph0");
         auto x0   = sub->add_parameter("x0", s);
         sub->add_return({add_chain(*sub, x0, 3)});
-        auto g = mm->add_instruction(migraphx::make_op("hip::graph"), {x}, {sub});
+        auto g = mm->add_instruction(
+            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub});
         mm->add_return({g});
     }
 
@@ -268,7 +273,8 @@ TEST_CASE(multi_output)
         auto sc2  = sub->add_instruction(unary_pass_op{}, sc1);
         auto sc3  = sub->add_instruction(unary_pass_op{}, sc2);
         sub->add_return({sc1, sc3});
-        auto g  = mm->add_instruction(migraphx::make_op("hip::graph"), {x}, {sub});
+        auto g = mm->add_instruction(
+            migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub});
         auto e0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), g);
         auto e1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), g);
         auto s1 = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, e0);

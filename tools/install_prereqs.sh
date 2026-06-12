@@ -210,9 +210,12 @@ case "$PKG_MGR" in
         DEV_SUFFIX="-devel"
         ;;
     zypper)
+        # The SLE15 base image only ships the limited SLE_BCI repo. clang, lcov
+        # and libomp-devel are not available there and are not needed on SLES:
+        # MIGraphX is built with the ROCm toolchain (/opt/rocm/llvm/bin/clang++)
+        # and its OpenMP runtime, and coverage (lcov) is not run on SLES.
         BUILD_PKGS=(
             bison
-            clang
             cmake
             curl
             flex
@@ -220,7 +223,6 @@ case "$PKG_MGR" in
             gcc-c++
             gdb
             git
-            lcov
             make
             pkg-config
             python3
@@ -228,7 +230,6 @@ case "$PKG_MGR" in
             python3-pip
             wget
             libnuma-devel
-            libomp-devel
             libopenssl-devel
             zlib-devel
         )

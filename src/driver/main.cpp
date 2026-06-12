@@ -121,7 +121,7 @@ struct logger_options
            ap.nargs(2));
         ap(log_to_cout,
            {"--cout"},
-           ap.help("Log to std::cout instead of the default std::cerr"),
+           ap.help("Send info logs to std::cout, keeping warnings and errors on std::cerr"),
            ap.set_value(true));
         ap.post_action([this](auto&&) { this->apply(); });
     }
@@ -130,7 +130,7 @@ struct logger_options
     {
         if(log_to_cout)
         {
-            migraphx::log::set_default_stream(std::cout);
+            migraphx::log::set_info_stream(std::cout);
         }
         if(not log_level.empty())
         {
@@ -1213,7 +1213,7 @@ int main(int argc, const char* argv[], const char* envp[])
 
         // Needed so that the first two lines printed follow the requested sink
         if(std::find(args.begin(), args.end(), "--cout") != args.end())
-            migraphx::log::set_default_stream(std::cout);
+            migraphx::log::set_info_stream(std::cout);
 
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");

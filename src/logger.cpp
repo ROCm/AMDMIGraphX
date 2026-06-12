@@ -98,15 +98,30 @@ static color severity_color(severity s)
     return color::reset;
 }
 
+// Write a single log record to the given output stream
+static void write_record(std::ostream& os, severity s, std::string_view msg, source_location loc)
+{
+    for(auto&& line : split_string(std::string{msg}, '\n'))
+    {
+        os << severity_color(s) << format_timestamp() << " [" << to_string(s) << "] ["
+           << loc.file_name() << ":" << loc.line() << "] " << line << color::reset << std::endl;
+    }
+}
+
 // Create a sink that writes to the given output stream
 static sink make_ostream_sink(std::ostream& os)
 {
     return [&os](severity s, std::string_view msg, source_location loc) {
-        for(auto&& line : split_string(std::string{msg}, '\n'))
-        {
-            os << severity_color(s) << format_timestamp() << " [" << to_string(s) << "] ["
-               << loc.file_name() << ":" << loc.line() << "] " << line << color::reset << std::endl;
-        }
+        write_record(os, s, msg, loc);
+    };
+}
+
+// Create a sink that keeps warnings and errors on std::cerr while routing less-severe messages
+// (info and more verbose) to info_os.
+static sink make_split_sink(std::ostream& info_os)
+{
+    return [&info_os](severity s, std::string_view msg, source_location loc) {
+        write_record(s <= severity::warn ? std::cerr : info_os, s, msg, loc);
     };
 }
 
@@ -214,11 +229,11 @@ size_t add_file_logger(std::string_view filename, severity level)
     return add_sink(make_file_sink(std::string(filename)), level);
 }
 
-void set_default_stream(std::ostream& os)
+void set_info_stream(std::ostream& os)
 {
     access_sinks([&](std::vector<std::optional<sink_entry>>& sinks) {
         if(not sinks.empty() and sinks[0].has_value())
-            sinks[0]->callback = make_ostream_sink(os);
+            sinks[0]->callback = make_split_sink(os);
     });
 }
 

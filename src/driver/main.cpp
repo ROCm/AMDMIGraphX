@@ -95,6 +95,7 @@ struct logger_options
 {
     std::string log_level;
     std::vector<std::string> log_files;
+    bool log_to_cout = false;
 
     void parse(migraphx::driver::argument_parser& ap)
     {
@@ -118,11 +119,19 @@ struct logger_options
            ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
            ap.append(),
            ap.nargs(2));
+        ap(log_to_cout,
+           {"--cout"},
+           ap.help("Log to std::cout instead of the default std::cerr"),
+           ap.set_value(true));
         ap.post_action([this](auto&&) { this->apply(); });
     }
 
     void apply() const
     {
+        if(log_to_cout)
+        {
+            migraphx::log::set_default_stream(std::cout);
+        }
         if(not log_level.empty())
         {
             auto level = parse_log_level_string(log_level);
@@ -1201,6 +1210,10 @@ int main(int argc, const char* argv[], const char* envp[])
             if(level)
                 migraphx::log::set_severity(*level);
         }
+
+        // Needed so that the first two lines printed follow the requested sink
+        if(std::find(args.begin(), args.end(), "--cout") != args.end())
+            migraphx::log::set_default_stream(std::cout);
 
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");

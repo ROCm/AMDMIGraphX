@@ -176,6 +176,7 @@ case "$PKG_MGR" in
             wget
             libnuma-dev
             libomp-dev
+            libtbb-dev
             libssl-dev
             zlib1g-dev
         )
@@ -202,6 +203,7 @@ case "$PKG_MGR" in
             wget
             numactl-devel
             libomp-devel
+            tbb-devel
             openssl-devel
             zlib-devel
         )

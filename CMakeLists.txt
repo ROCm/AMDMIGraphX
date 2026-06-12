@@ -127,6 +127,24 @@ endif()
 
 option(MIGRAPHX_USE_EIGEN "Enable Eigen for optimized ref GEMM" ON)
 
+set(MIGRAPHX_USE_AMDMLSS "AUTO" CACHE STRING
+    "Enable MIGraphX to use AMDMLSS: AUTO (use if found), ON (require), OFF (disable)")
+set_property(CACHE MIGRAPHX_USE_AMDMLSS PROPERTY STRINGS AUTO ON OFF)
+
+if(MIGRAPHX_USE_AMDMLSS STREQUAL "OFF")
+    set(MIGRAPHX_USE_AMDMLSS OFF)
+elseif(MIGRAPHX_USE_AMDMLSS STREQUAL "ON")
+    find_package(amdmlss REQUIRED CONFIG)
+    set(MIGRAPHX_USE_AMDMLSS ON)
+else()
+    find_package(amdmlss QUIET CONFIG)
+    if(amdmlss_FOUND)
+        set(MIGRAPHX_USE_AMDMLSS ON)
+    else()
+        set(MIGRAPHX_USE_AMDMLSS OFF)
+    endif()
+endif()
+
 include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)

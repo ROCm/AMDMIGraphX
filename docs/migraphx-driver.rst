@@ -105,6 +105,12 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Compiles on the CPU
    *  - --ref
       - Compiles on the reference implementation
+   *  - --gpu-arch
+      - Cross-compiles the ``gpu`` target for the given architecture (e.g. ``gfx942``) without requiring a physical device
+   *  - --gpu-num-cus
+      - Number of compute units to assume for cross-compilation (Default: 120, only used when ``--gpu-arch`` is set)
+   *  - --gpu-num-chiplets
+      - Number of chiplets (XCCs) to assume for cross-compilation (Default: 1, only used when ``--gpu-arch`` is set)
    *  - --enable-offload-copy
       - Enables implicit offload copying
    *  - --disable-fast-math

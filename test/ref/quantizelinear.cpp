@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -166,3 +166,29 @@ static void quantizelinear_fp8e5m2()
 }
 TEST_CASE_REGISTER(quantizelinear_fp8e5m2<migraphx::fp8::fp8e5m2fnuz>);
 TEST_CASE_REGISTER(quantizelinear_fp8e5m2<migraphx::fp8::fp8e5m2>);
+
+TEST_CASE(quantizelinear_nan_int8)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {6}};
+    const float nan       = std::numeric_limits<float>::quiet_NaN();
+    std::vector<float> xv = {nan, 1.0f, -1.0f, 127.0f, -200.0f, nan};
+    migraphx::shape ss{migraphx::shape::float_type, {6}};
+    std::vector<float> sv = {0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f};
+    migraphx::shape zs{migraphx::shape::int8_type, {6}};
+    std::vector<int8_t> zv = {0, 0, 0, 0, 0, 0};
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto x   = mm->add_literal(xs, xv);
+    auto s   = mm->add_literal(ss, sv);
+    auto z   = mm->add_literal(zs, zv);
+    mm->add_instruction(migraphx::make_op("quantizelinear"), x, s, z);
+
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<int8_t> results_vector(6);
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+
+    std::vector<int8_t> gold = {-128, 2, -2, 127, -128, -128};
+    EXPECT(results_vector == gold);
+}

@@ -159,7 +159,7 @@ struct same_table_gather_horizontal_fusion
         if(idx->get_shape().scalar() or idx->get_shape().lens().empty())
             return false;
 
-       if(idx->get_shape().lens().front() < 4)
+        if(idx->get_shape().lens().front() < 4)
             return false;
 
         return true;

@@ -24,6 +24,7 @@ Full documentation for MIGraphX is available at
 * Added build support for python 3.14 (#4754).
 * Added debug symbols for MIGraphX instructions such that parsed and compiled instructions can be tracked back to their ONNX origin node (#4626)
 * Added environment variable `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` to dump mxr files for benchmarking. (#4766)
+* Added FusedMatMul microsoft contrib operator. (#4806)
 * Added per-channel scale/zero-point support for `QLinearConv` operator.
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.

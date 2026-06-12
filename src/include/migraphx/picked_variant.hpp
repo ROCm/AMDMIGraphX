@@ -73,7 +73,9 @@ struct picked_variant : std::variant<Ts...>
     using base_t = std::variant<Ts...>;
     using base_t::base_t; // inherit default, in_place_type, in_place_index ctors
 
-    template <class T, MIGRAPHX_REQUIRES(not std::is_base_of<base_t, std::decay_t<T>>{})>
+    template <class T,
+              MIGRAPHX_REQUIRES(not std::is_base_of<base_t, std::decay_t<T>>{}),
+              class = decltype(Picker::apply(std::declval<T>()))>
     constexpr picked_variant(T&& x) : base_t(Picker::apply(std::forward<T>(x)))
     {
     }

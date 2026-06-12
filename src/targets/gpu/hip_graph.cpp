@@ -121,9 +121,8 @@ struct graph_slot_patch
     std::size_t ptr_offset;
 };
 
-// A captured code-object kernel node paired with the graph-input slots to rewrite
-// when an input moves. Nodes whose every argument is a stable internal allocation
-// have no slots and are omitted.
+// A captured kernel node and the buffer slots holding a movable-parameter pointer
+// to rewrite when that parameter moves.
 struct graph_node_patch
 {
     hipGraphNode_t node = nullptr;
@@ -146,6 +145,9 @@ struct hip_graph
         // into `exec`, used to detect when a parameter buffer has moved. Empty when
         // the op has no movable inputs, in which case nothing is ever re-bound.
         std::vector<const void*> applied_ptrs{};
+        // Reused buffer holding the current run's movable-leaf addresses so the
+        // per-eval move check does not allocate.
+        std::vector<const void*> scratch_ptrs{};
         // True when every captured node holding a movable-parameter pointer is an
         // extra-packed kernel node we can rewrite; `patches` then lists, per such
         // node, the slots to rewrite. False -> re-bind by re-recording.
@@ -207,13 +209,6 @@ struct hip_graph
             leaf_buffers(args[idx], ptrs, sizes);
     }
 
-    std::vector<const void*> movable_ptrs(const std::vector<argument>& args) const
-    {
-        std::vector<const void*> ptrs;
-        movable_leaves(args, ptrs, nullptr);
-        return ptrs;
-    }
-
     // Build the per-node patch plan: for every captured node, record the buffer
     // slots that hold one of the movable-parameter addresses. A library kernel
     // (rocBLAS/hipBLASLt/MIOpen) is fine -- if it does not consume a movable
@@ -233,6 +228,7 @@ struct hip_graph
         std::vector<const void*> in_ptrs;
         std::vector<std::size_t> in_sizes;
         movable_leaves(args, in_ptrs, &in_sizes);
+        assert(in_ptrs.size() == in_sizes.size());
 
         std::vector<graph_node_patch> patches;
         for(auto node : nodes)
@@ -321,6 +317,7 @@ struct hip_graph
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
+        assert(mods.size() == 1);
         module_ref sub = mods.front();
 
         // Build the parameter map and run the submodule. Only needed when
@@ -360,43 +357,49 @@ struct hip_graph
             check_hip(hipStreamEndCapture(stream, &graph), "hipStreamEndCapture");
             state->graph = hip_graph_ptr{graph};
         };
-        // The movable-parameter leaves the captured graph is currently bound to.
-        // With no movable inputs this is empty and the graph is simply replayed.
-        auto current_ptrs = movable_ptrs(args);
-
         if(not state->captured)
         {
             record();
             instantiate();
-            // Only scan the captured nodes when a parameter can actually move.
+            // Only inspect the captured nodes when a parameter can actually move;
+            // with no movable inputs the graph stays bound to stable buffers.
             if(not replace_inputs.empty())
             {
-                state->patchable    = build_patch_plan(args);
-                state->applied_ptrs = std::move(current_ptrs);
+                state->patchable = build_patch_plan(args);
+                movable_leaves(args, state->applied_ptrs, nullptr);
             }
             state->captured = true;
         }
-        else if(not replace_inputs.empty() and current_ptrs != state->applied_ptrs)
+        else if(not replace_inputs.empty())
         {
-            // A parameter moved. Patch the new addresses into the executable graph
-            // when every node holding one is rewritable; otherwise re-record and
-            // let hipGraphExecUpdate patch it (re-instantiating if the topology
-            // cannot be updated).
-            if(state->patchable)
+            // Re-bind only when a parameter buffer has moved since the last run.
+            // The current addresses go in a reused scratch buffer to keep the
+            // steady-state replay path allocation-free.
+            auto& current_ptrs = state->scratch_ptrs;
+            current_ptrs.clear();
+            movable_leaves(args, current_ptrs, nullptr);
+            if(current_ptrs != state->applied_ptrs)
             {
-                patch_kernel_nodes(current_ptrs);
+                // Patch the new addresses into the executable graph when every node
+                // holding one is rewritable; otherwise re-record and let
+                // hipGraphExecUpdate patch it (re-instantiating if the topology
+                // cannot be updated).
+                if(state->patchable)
+                {
+                    patch_kernel_nodes(current_ptrs);
+                }
+                else
+                {
+                    record();
+                    hipGraphNode_t error_node       = nullptr;
+                    hipGraphExecUpdateResult result = hipGraphExecUpdateError;
+                    auto status                     = hipGraphExecUpdate(
+                        state->exec.get(), state->graph.get(), &error_node, &result);
+                    if(status != hipSuccess or result != hipGraphExecUpdateSuccess)
+                        instantiate();
+                }
+                state->applied_ptrs = current_ptrs;
             }
-            else
-            {
-                record();
-                hipGraphNode_t error_node       = nullptr;
-                hipGraphExecUpdateResult result = hipGraphExecUpdateError;
-                auto status =
-                    hipGraphExecUpdate(state->exec.get(), state->graph.get(), &error_node, &result);
-                if(status != hipSuccess or result != hipGraphExecUpdateSuccess)
-                    instantiate();
-            }
-            state->applied_ptrs = std::move(current_ptrs);
         }
 
         check_hip(hipGraphLaunch(state->exec.get(), stream), "hipGraphLaunch");

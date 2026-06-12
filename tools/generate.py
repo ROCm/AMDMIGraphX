@@ -56,24 +56,20 @@ def te_generate(input_path: Path, output_path: Path, do_format=True):
         f.write(maybe_format(te.run(input_path), do_format))
 
 
-def generate_all(do_format=True):
-    files = Path('include').absolute().iterdir()
-    for f in [f for f in files if f.is_file()]:
-        te_generate(f, src_dir / f'include/migraphx/{f.name}', do_format)
-    runpy.run_path(str(migraphx_py_path))
-    api_generate(work_dir / 'api/migraphx.h',
-                 src_dir / 'api/include/migraphx/migraphx.h', do_format)
-    print('Finished generating header migraphx.h')
-    api_generate(work_dir / 'api/api.cpp', src_dir / 'api/api.cpp', do_format)
-    print('Finished generating source api.cpp')
-
-
 def generate_api(header_path: Path, source_path: Path, do_format=True):
     runpy.run_path(str(migraphx_py_path))
     api_generate(work_dir / 'api/migraphx.h', header_path, do_format)
     print(f'Finished generating header {header_path}')
     api_generate(work_dir / 'api/api.cpp', source_path, do_format)
     print(f'Finished generating source {source_path}')
+
+
+def generate_all(do_format=True):
+    files = Path('include').absolute().iterdir()
+    for f in [f for f in files if f.is_file()]:
+        te_generate(f, src_dir / f'include/migraphx/{f.name}', do_format)
+    generate_api(src_dir / 'api/include/migraphx/migraphx.h',
+                 src_dir / 'api/api.cpp', do_format)
 
 
 def main():
@@ -92,30 +88,24 @@ def main():
                         help='Output path for the generated api.cpp source')
     args = parser.parse_args()
 
+    if args.api_only and not (args.api_header and args.api_source):
+        parser.error('--api-only requires --api-header and --api-source')
+
     global clang_format_path
     if args.clang_format:
         clang_format_path = args.clang_format
 
-    # clang-format only affects the readability of the generated files, so it
-    # is optional in api-only mode where the output is just a build input.
-    do_format = clang_format_path.is_file()
-    if not do_format:
-        if not args.api_only:
-            print(f"{clang_format_path}: invalid path or not installed",
-                  file=sys.stderr)
-            return
-        print(f"{clang_format_path}: clang-format not found, generating "
-              "without formatting",
-              file=sys.stderr)
-
-    if args.api_only and not (args.api_header and args.api_source):
-        parser.error('--api-only requires --api-header and --api-source')
-
     try:
         if args.api_only:
-            generate_api(args.api_header, args.api_source, do_format)
+            # These files are only consumed by the compiler, so skip
+            # clang-format; only `make generate` formats them for review.
+            generate_api(args.api_header, args.api_source, do_format=False)
         else:
-            generate_all(do_format)
+            if not clang_format_path.is_file():
+                print(f"{clang_format_path}: invalid path or not installed",
+                      file=sys.stderr)
+                return
+            generate_all()
     except subprocess.CalledProcessError as ex:
         if ex.stdout:
             print(ex.stdout.decode('utf-8'))

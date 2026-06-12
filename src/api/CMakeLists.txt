@@ -27,27 +27,20 @@
 # output can be reviewed, but migraphx_c is built from a freshly generated copy
 # placed in the build directory instead of the checked-in src/api copies.
 find_package(Python 3 COMPONENTS Interpreter REQUIRED)
-find_program(CLANG_FORMAT clang-format PATHS /opt/rocm/llvm ENV HIP_PATH PATH_SUFFIXES bin)
 
 set(MIGRAPHX_API_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
 set(MIGRAPHX_API_GEN_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 set(MIGRAPHX_API_GEN_HEADER ${MIGRAPHX_API_GEN_INCLUDE_DIR}/migraphx/migraphx.h)
 set(MIGRAPHX_API_GEN_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/api.cpp)
 
-# clang-format only affects readability of the generated files, so it is
-# optional for the build; pass it along only when it is available.
-set(MIGRAPHX_API_FORMAT_ARG)
-if(CLANG_FORMAT)
-    set(MIGRAPHX_API_FORMAT_ARG -f ${CLANG_FORMAT})
-endif()
-
+# The build copy is only a compiler input, so it is generated without
+# clang-format; `make generate` still formats the reviewable source-tree copy.
 add_custom_command(
     OUTPUT ${MIGRAPHX_API_GEN_HEADER} ${MIGRAPHX_API_GEN_SOURCE}
     COMMAND ${Python_EXECUTABLE} ${MIGRAPHX_API_TOOLS_DIR}/generate.py
         --api-only
         --api-header ${MIGRAPHX_API_GEN_HEADER}
         --api-source ${MIGRAPHX_API_GEN_SOURCE}
-        ${MIGRAPHX_API_FORMAT_ARG}
     WORKING_DIRECTORY ${MIGRAPHX_API_TOOLS_DIR}
     DEPENDS
         ${MIGRAPHX_API_TOOLS_DIR}/generate.py
@@ -61,8 +54,8 @@ add_custom_command(
 
 add_custom_target(generate_api DEPENDS ${MIGRAPHX_API_GEN_HEADER} ${MIGRAPHX_API_GEN_SOURCE})
 
-# The non-generated public headers (e.g. migraphx.hpp) live alongside the
-# generated header so consumers get a complete include directory.
+# migraphx.hpp is hand-written (not generated); copy it next to the generated
+# migraphx.h so the build include directory is a complete public API.
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/include/migraphx/migraphx.hpp
     ${MIGRAPHX_API_GEN_INCLUDE_DIR}/migraphx/migraphx.hpp

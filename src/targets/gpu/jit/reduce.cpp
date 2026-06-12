@@ -407,8 +407,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 // prepare_reduce merges layernorm's two reductions into one. A split
                 // reduction (assign != none) already gets its parallelism from the
                 // split, so it is excluded too.
-                bool simple = assign == "assign_none" and
-                              inputs.back().elements() <= 2 * nelements;
+                bool simple = assign == "assign_none" and inputs.back().elements() <= 2 * nelements;
                 auto block_size =
                     v.get("block_size", reduce_block_size(ctx, relements, nelements, simple));
                 assert(block_size > 0);

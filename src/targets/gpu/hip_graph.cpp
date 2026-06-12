@@ -32,12 +32,13 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/register_op.hpp>
 #include <hip/hip_runtime_api.h>
-#include <algorithm>
+#include <cassert>
 #include <cstring>
 #include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -62,6 +63,33 @@ static argument pack_outputs(const std::vector<argument>& outputs)
     return argument(outputs);
 }
 
+// Append the leaf buffer pointer (and, if requested, its size) of each argument,
+// recursing into tuples. Tuple arguments have no single data pointer, and the
+// kernels consume their leaves, so the rebind logic tracks leaves.
+static void
+leaf_buffers(const argument& a, std::vector<const void*>& ptrs, std::vector<std::size_t>* sizes)
+{
+    if(a.get_shape().type() == shape::tuple_type)
+    {
+        for(const auto& sub : a.get_sub_objects())
+            leaf_buffers(sub, ptrs, sizes);
+    }
+    else
+    {
+        ptrs.push_back(a.data());
+        if(sizes != nullptr)
+            sizes->push_back(a.get_shape().bytes());
+    }
+}
+
+static std::vector<const void*> leaf_ptrs(const std::vector<argument>& args)
+{
+    std::vector<const void*> ptrs;
+    for(const auto& a : args)
+        leaf_buffers(a, ptrs, nullptr);
+    return ptrs;
+}
+
 // MIGraphX launches its code-object kernels with hipExtModuleLaunchKernel, which
 // passes the arguments as a packed buffer tagged with HIP_LAUNCH_PARAM_BUFFER_*
 // sentinels (kernel.cpp). Recover the buffer and its size from a captured node's
@@ -72,7 +100,10 @@ static bool parse_packed_args(void** extra, char*& buffer, std::size_t& size)
         return false;
     buffer        = nullptr;
     bool has_size = false;
-    for(std::size_t i = 0; i < 16 and extra[i] != HIP_LAUNCH_PARAM_END; i += 2)
+    // The config is a sequence of (tag, value) pairs terminated by
+    // HIP_LAUNCH_PARAM_END; the fixed cap guards against an unterminated array.
+    constexpr std::size_t max_tokens = 16;
+    for(std::size_t i = 0; i < max_tokens and extra[i] != HIP_LAUNCH_PARAM_END; i += 2)
     {
         if(extra[i] == HIP_LAUNCH_PARAM_BUFFER_POINTER)
             buffer = static_cast<char*>(extra[i + 1]);
@@ -99,10 +130,11 @@ struct hip_graph
         hip_graph_exec_ptr exec = nullptr;
         bool captured           = false;
         std::vector<argument> outputs{};
-        // Input buffer addresses baked into `graph` (used to remap when an input
-        // moves) and the addresses currently programmed into `exec` (used to
-        // detect a move).
+        // Leaf buffer addresses (tuples flattened) baked into `graph`, with their
+        // sizes, used to remap a moved input; and the leaf addresses currently
+        // programmed into `exec`, used to detect a move.
         std::vector<const void*> recorded_ptrs{};
+        std::vector<std::size_t> recorded_sizes{};
         std::vector<const void*> applied_ptrs{};
         // The captured graph is entirely kernel nodes whose arguments are packed
         // buffers, so a moved input can be patched into `exec` directly instead
@@ -149,12 +181,12 @@ struct hip_graph
     }
 
     // True when every node of the captured graph is a kernel node whose arguments
-    // are an extra-packed buffer we can rewrite. Both MIGraphX code-object kernels
-    // and rocBLAS/hipBLASLt library kernels are captured this way (their args come
-    // back through `extra` with `kernelParams` null), so this covers them; it
-    // returns false only for non-kernel nodes (e.g. memcpy/memset) or the
-    // kernelParams launch style, which fall back to re-recording. Caches the node
-    // handles for later patching.
+    // are an extra-packed buffer we can rewrite (how MIGraphX launches its
+    // code-object kernels, see kernel.cpp). Library kernels (rocBLAS/hipBLASLt/
+    // MIOpen) are typically captured the same way and so are covered too; it
+    // returns false for anything that isn't an extra-packed kernel node -- a
+    // non-kernel node (memcpy/memset) or a kernelParams-style launch -- which
+    // falls back to re-recording. Caches the node handles for later patching.
     bool collect_kernel_nodes() const
     {
         std::size_t num = 0;
@@ -181,18 +213,24 @@ struct hip_graph
     }
 
     // Rewrite each kernel node's argument buffer, remapping any pointer that falls
-    // within an input buffer's old range to the new buffer (preserving offsets),
-    // and program it into the executable graph.
-    void patch_kernel_nodes(const std::vector<argument>& args) const
+    // within an input leaf buffer's old range to the new leaf buffer (preserving
+    // offsets), and program it into the executable graph.
+    void patch_kernel_nodes(const std::vector<const void*>& current_ptrs) const
     {
+        assert(state->recorded_ptrs.size() == current_ptrs.size() and
+               state->recorded_sizes.size() == current_ptrs.size());
+        std::vector<char> patched; // reused across nodes
         for(auto node : state->kernel_nodes)
         {
             hipKernelNodeParams params{};
             check_hip(hipGraphKernelNodeGetParams(node, &params), "hipGraphKernelNodeGetParams");
             char* buffer      = nullptr;
             std::size_t bytes = 0;
-            parse_packed_args(params.extra, buffer, bytes);
-            std::vector<char> patched(buffer, buffer + bytes);
+            // collect_kernel_nodes already verified every cached node parses.
+            bool ok = parse_packed_args(params.extra, buffer, bytes);
+            assert(ok and buffer != nullptr);
+            (void)ok;
+            patched.assign(buffer, buffer + bytes);
             for(std::size_t off = 0; off + sizeof(char*) <= bytes; off += sizeof(char*))
             {
                 char* p = nullptr;
@@ -200,25 +238,33 @@ struct hip_graph
                 for(std::size_t i = 0; i < state->recorded_ptrs.size(); ++i)
                 {
                     const auto* base = static_cast<const char*>(state->recorded_ptrs[i]);
-                    if(p >= base and p < base + args[i].get_shape().bytes())
+                    if(p >= base and p < base + state->recorded_sizes[i])
                     {
-                        char* np = args[i].data() + (p - base);
+                        const char* np = static_cast<const char*>(current_ptrs[i]) + (p - base);
                         std::memcpy(patched.data() + off, &np, sizeof(char*));
                         break;
                     }
                 }
             }
-            std::size_t sz      = bytes;
             void* extra[]       = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
                                    patched.data(),
                                    HIP_LAUNCH_PARAM_BUFFER_SIZE,
-                                   &sz,
+                                   &bytes,
                                    HIP_LAUNCH_PARAM_END};
             params.extra        = extra;
             params.kernelParams = nullptr;
             check_hip(hipGraphExecKernelNodeSetParams(state->exec.get(), node, &params),
                       "hipGraphExecKernelNodeSetParams");
         }
+    }
+
+    // Snapshot the leaf buffers baked into the freshly recorded `graph`.
+    void record_buffers(const std::vector<argument>& args) const
+    {
+        state->recorded_ptrs.clear();
+        state->recorded_sizes.clear();
+        for(const auto& a : args)
+            leaf_buffers(a, state->recorded_ptrs, &state->recorded_sizes);
     }
 
     argument compute(context& ctx,
@@ -228,20 +274,33 @@ struct hip_graph
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        module_ref sub   = mods.front();
-        auto param_names = sub->get_parameter_names();
-        assert(param_names.size() == args.size());
-        std::unordered_map<std::string, argument> params;
-        for_each(param_names.begin(),
-                 param_names.end(),
-                 args.begin(),
-                 [&](const std::string& pname, const argument& a) { params[pname] = a; });
+        module_ref sub = mods.front();
+
+        // Build the parameter map and run the submodule. Only needed when
+        // (re-)recording or on the null-stream fallback -- never on the
+        // steady-state replay path -- so it stays off the hot path.
+        auto run_submodule = [&] {
+            auto param_names = sub->get_parameter_names();
+            assert(param_names.size() == args.size());
+            std::unordered_map<std::string, argument> params;
+            for_each(param_names.begin(),
+                     param_names.end(),
+                     args.begin(),
+                     [&](const std::string& pname, const argument& a) { params[pname] = a; });
+            return run(sub, params);
+        };
 
         hipStream_t stream = ctx.get_stream().get();
         // The legacy/null stream cannot be captured; fall back to a normal run.
         if(stream == nullptr)
-            return pack_outputs(run(sub, params));
+            return pack_outputs(run_submodule());
 
+        auto instantiate = [&] {
+            hipGraphExec_t exec = nullptr;
+            check_hip(hipGraphInstantiate(&exec, state->graph.get(), nullptr, nullptr, 0),
+                      "hipGraphInstantiate");
+            state->exec = hip_graph_exec_ptr{exec};
+        };
         // Record the submodule's kernels into a fresh graph using the current
         // buffers. Capturing does not execute the kernels: they are added to the
         // graph and the returned arguments are views into stable buffers that get
@@ -249,37 +308,32 @@ struct hip_graph
         auto record = [&] {
             check_hip(hipStreamBeginCapture(stream, hipStreamCaptureModeThreadLocal),
                       "hipStreamBeginCapture");
-            state->outputs   = run(sub, params);
+            state->outputs   = run_submodule();
             hipGraph_t graph = nullptr;
             check_hip(hipStreamEndCapture(stream, &graph), "hipStreamEndCapture");
             state->graph = hip_graph_ptr{graph};
         };
-
-        std::vector<const void*> ptrs(args.size());
-        std::transform(
-            args.begin(), args.end(), ptrs.begin(), [](const argument& a) { return a.data(); });
+        // The leaf buffers the captured graph is bound to. If any of them moved,
+        // the executable graph must be re-bound.
+        auto current_ptrs = leaf_ptrs(args);
 
         if(not state->captured)
         {
             record();
-            hipGraphExec_t exec = nullptr;
-            check_hip(hipGraphInstantiate(&exec, state->graph.get(), nullptr, nullptr, 0),
-                      "hipGraphInstantiate");
-            state->exec          = hip_graph_exec_ptr{exec};
-            state->recorded_ptrs = ptrs;
-            state->applied_ptrs  = ptrs;
-            state->patchable     = collect_kernel_nodes();
-            state->captured      = true;
+            instantiate();
+            record_buffers(args);
+            state->applied_ptrs = current_ptrs;
+            state->patchable    = collect_kernel_nodes();
+            state->captured     = true;
         }
-        else if(ptrs != state->applied_ptrs)
+        else if(current_ptrs != state->applied_ptrs)
         {
-            // An input buffer moved. Patch the new addresses into the executable
-            // graph node-by-node when possible; otherwise re-record and let
-            // hipGraphExecUpdate patch it (falling back to re-instantiate if the
-            // topology cannot be updated).
+            // Patch the new addresses into the executable graph node-by-node when
+            // possible; otherwise re-record and let hipGraphExecUpdate patch it
+            // (re-instantiating if the topology cannot be updated).
             if(state->patchable)
             {
-                patch_kernel_nodes(args);
+                patch_kernel_nodes(current_ptrs);
             }
             else
             {
@@ -289,15 +343,10 @@ struct hip_graph
                 auto status =
                     hipGraphExecUpdate(state->exec.get(), state->graph.get(), &error_node, &result);
                 if(status != hipSuccess or result != hipGraphExecUpdateSuccess)
-                {
-                    hipGraphExec_t exec = nullptr;
-                    check_hip(hipGraphInstantiate(&exec, state->graph.get(), nullptr, nullptr, 0),
-                              "hipGraphInstantiate");
-                    state->exec = hip_graph_exec_ptr{exec};
-                }
-                state->recorded_ptrs = ptrs;
+                    instantiate();
+                record_buffers(args);
             }
-            state->applied_ptrs = ptrs;
+            state->applied_ptrs = std::move(current_ptrs);
         }
 
         check_hip(hipGraphLaunch(state->exec.get(), stream), "hipGraphLaunch");

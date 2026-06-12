@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/param_utils.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <algorithm>
@@ -194,23 +195,14 @@ void hipgraphify::apply(module_pass_manager& mpm) const
     if(&m != mpm.get_root_module())
         return;
 
-    // Collect maximal contiguous runs of capturable instructions (read-only),
+    // Collect the qualifying maximal runs of capturable instructions (read-only),
     // then rewrite the module afterwards so iteration is not invalidated.
     std::vector<std::vector<instruction_ref>> runs;
-    std::vector<instruction_ref> current;
-    auto flush = [&] {
-        if(current.size() >= min_partition_size)
-            runs.push_back(current);
-        current.clear();
-    };
-    for(auto ins : iterator_for(m))
-    {
-        if(is_capturable(ins))
-            current.push_back(ins);
-        else
-            flush();
-    }
-    flush();
+    auto range = iterator_for(m);
+    group_find(range.begin(), range.end(), is_capturable, [&](auto start, auto last) {
+        if(static_cast<std::size_t>(std::distance(start, last)) >= min_partition_size)
+            runs.emplace_back(start, last);
+    });
 
     std::size_t n = 0;
     for(const auto& run : runs)

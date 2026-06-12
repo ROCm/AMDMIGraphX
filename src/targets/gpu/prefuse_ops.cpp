@@ -331,11 +331,16 @@ struct winograd_conv
     // false the weight is the half-transformed T = G*g [4, 3, K, C] and the
     // kernel only applies G^T (12 halves, best when the kernel is VALU-bound).
     bool full_transform = false;
+    // Output layout (permutation). Set to the layout layout_convolution chose
+    // for the convolution this op replaces, so winograd is a drop-in: same
+    // inputs, same output layout (e.g. NHWC in -> NHWC out). Defaults to NCHW.
+    std::vector<int64_t> output_layout = {0, 1, 2, 3};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.full_transform, "full_transform"));
+        return pack(f(self.full_transform, "full_transform"),
+                    f(self.output_layout, "output_layout"));
     }
 
     std::string name() const { return "gpu::winograd_conv"; }
@@ -349,7 +354,7 @@ struct winograd_conv
         // u_shape is [4 or 3, 3, K, C]; lens()[2] is K either way.
         auto K                            = u_shape.lens()[2];
         std::vector<std::size_t> out_lens = {x_lens[0], K, x_lens[2], x_lens[3]};
-        return shape{x_shape.type(), out_lens};
+        return shape::from_permutation(x_shape.type(), out_lens, output_layout);
     }
 };
 MIGRAPHX_REGISTER_OP(winograd_conv);
@@ -598,12 +603,15 @@ struct find_winograd_f23
         auto w_lens   = weights->get_shape().lens(); // [K, C, 3, 3]
         auto x_lens   = input->get_shape().lens();   // [N, C, H, W]
         const bool ft = winograd_f23_full_transform(w_lens[1], w_lens[0], x_lens[2], x_lens[3]);
+        // Match the output layout layout_convolution chose for this conv, so
+        // the op is a drop-in replacement (no surrounding transpose changes).
+        auto out_layout = find_permutation(ins->get_shape());
 
         literal w_lit{w_arg.get_shape(), w_arg.data()};
         auto u_lit = compute_winograd_weights_f23(w_lit, ft);
         auto u_ins = m.add_literal(u_lit);
 
-        m.replace_instruction(ins, winograd_conv{ft}, input, u_ins);
+        m.replace_instruction(ins, winograd_conv{ft, out_layout}, input, u_ins);
     }
 };
 
@@ -630,7 +638,10 @@ void prefuse_ops::apply(module_pass_manager& mpm) const
     // The F(2,3) winograd kernel uses gfx12 wave32 WMMA + the gfx12 buffer SRD
     // format, so it is gfx12-only. On gfx12 it is enabled by default and the
     // matcher's perf heuristic decides per-shape; MIGRAPHX_ENABLE_WINOGRAD
-    // forces it on for every eligible shape (heuristic bypass).
+    // forces it on for every eligible shape (heuristic bypass). Running here
+    // (after layout_convolution) means winograd inherits the layout that pass
+    // chose and replaces the convolution in place via its layout-matching
+    // compute_shape.
     const bool is_gfx12 = starts_with(device_name, "gfx12");
     if(enabled(MIGRAPHX_ENABLE_LAYERNORM_FUSION{}))
     {

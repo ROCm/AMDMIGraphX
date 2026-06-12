@@ -168,6 +168,14 @@ __device__ inline vec<half, 4> buffer_load_half4(__amdgpu_buffer_rsrc_t rsrc, in
     return bit_cast<vec<half, 4>>(v);
 }
 
+// Lane-indexed raw buffer load of 8 fp16 = 16 bytes (b128). OOB bytes return 0.
+// Used by the NHWC input load, where 8 contiguous channels are read at once.
+__device__ inline vec<half, 8> buffer_load_half8(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
+{
+    auto v = __builtin_amdgcn_raw_buffer_load_b128(rsrc, byte_offset, 0, 0);
+    return bit_cast<vec<half, 8>>(v);
+}
+
 // F(2x2, 3x3) Winograd transforms used inline by the WMMA path.
 // B^T (input):  | 1  0 -1  0 |     A^T (output): | 1  1  1  0 |
 //               | 0  1  1  0 |                   | 0  1 -1 -1 |
@@ -218,6 +226,30 @@ __device__ inline array<half, 16> winograd_input_transform_f23(const array<half,
     return v;
 }
 
+// Element-generic B^T d B input transform: same math as above but over an
+// arbitrary element type T. The NHWC load path uses T = vec<half, 8> so the
+// transform runs across the lane's 8 contiguous channels at once (the loads
+// already deliver them packed), avoiding the per-channel scalar transpose. Uses
+// C arrays of T (not the device array<>, whose vectorized ops can't hold a vec
+// element type); d and v may alias.
+template <class T>
+__device__ inline void winograd_input_transform_f23_vec(const T (&d)[16], T (&v)[16])
+{
+    T t[16];
+    repeat_c<4>([&](auto j) {
+        t[0 * 4 + j] = d[0 * 4 + j] - d[2 * 4 + j];
+        t[1 * 4 + j] = d[1 * 4 + j] + d[2 * 4 + j];
+        t[2 * 4 + j] = d[2 * 4 + j] - d[1 * 4 + j];
+        t[3 * 4 + j] = d[1 * 4 + j] - d[3 * 4 + j];
+    });
+    repeat_c<4>([&](auto i) {
+        v[i * 4 + 0] = t[i * 4 + 0] - t[i * 4 + 2];
+        v[i * 4 + 1] = t[i * 4 + 1] + t[i * 4 + 2];
+        v[i * 4 + 2] = t[i * 4 + 2] - t[i * 4 + 1];
+        v[i * 4 + 3] = t[i * 4 + 1] - t[i * 4 + 3];
+    });
+}
+
 // WMMA-based winograd F(2x2, 3x3) kernel for gfx12 wave32.
 //
 // Per WMMA call (16x16x16 fp16 -> fp32):
@@ -245,6 +277,7 @@ template <index_int NW,
           index_int KW,
           index_int SK,
           bool FT,
+          bool NHWC,
           class PostInput,
           class F,
           class Output,
@@ -435,50 +468,97 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         const half hzero       = half(0.0f);
         const bool hi[4]       = {v_hok0, v_hok1, v_hok2, v_hok3};
         const bool wj[4]       = {v_wok0, v_wok1, v_wok2, v_wok3};
-        auto load_d            = [&](index_int vc, index_int ci) {
-            const index_int c_in_block = vc * 16 + c_off + ci;
-            const index_int c          = c_base + c_in_block;
-            const bool active          = nt_active and (c < C);
-            const int32_t base_off     = n_off + static_cast<int32_t>(c * x_sh[1]) * sizeof(half);
-            const int32_t off          = active ? (base_off + hw_off) : oob_byte;
-            array<half, 16> d;
-            if(sw_b == 2)
-            {
-                repeat_c<4>([&](auto i) {
-                    const int32_t row_off = hi[i] ? off + static_cast<int>(i) * sh_b : oob_byte;
-                    auto row              = buffer_load_half4(x_rsrc, row_off);
-                    d[i * 4 + 0]          = wj[0] ? row.x : hzero;
-                    d[i * 4 + 1]          = wj[1] ? row.y : hzero;
-                    d[i * 4 + 2]          = wj[2] ? row.z : hzero;
-                    d[i * 4 + 3]          = wj[3] ? row.w : hzero;
-                });
-            }
-            else
-            {
-                repeat_c<4>([&](auto i) {
-                    repeat_c<4>([&](auto j) {
-                        const int32_t e_off = (hi[i] and wj[j]) ? off + static_cast<int>(i) * sh_b +
-                                                                      static_cast<int>(j) * sw_b
-                                                                : oob_byte;
-                        d[i * 4 + j]        = buffer_load_half(x_rsrc, e_off);
+        if constexpr(NHWC)
+        {
+            // NHWC: each lane loads its tile's 8 channels per spatial position
+            // with one b128 and runs the input transform vectorized over those
+            // 8 channels.
+            repeat_c<v_chunks>([&](auto vc_val) {
+                constexpr index_int vc  = vc_val;
+                const index_int c_start = c_base + vc * 16 + c_off;
+                const bool active       = nt_active and (c_start < C);
+                const int32_t base_off =
+                    n_off + static_cast<int32_t>(c_start * x_sh[1]) * sizeof(half) + hw_off;
+                const bool c_partial = (c_start + 8 > C);
+                vec<half, 8> d_vec[16];
+                repeat_c<4>([&](auto i_val) {
+                    constexpr int i = i_val;
+                    repeat_c<4>([&](auto j_val) {
+                        constexpr int j   = j_val;
+                        const bool ok     = active and hi[i] and wj[j];
+                        const int32_t off = ok ? base_off + i * sh_b + j * sw_b : oob_byte;
+                        auto v8           = buffer_load_half8(x_rsrc, off);
+                        // Last channel block may be partial: zero c >= C, which
+                        // would otherwise read the next pixel's channels.
+                        if(c_partial)
+                        {
+                            repeat_c<8>([&](auto ci) {
+                                if(c_start + index_int{ci} >= C)
+                                    v8[index_int{ci}] = hzero;
+                            });
+                        }
+                        d_vec[i * 4 + j] = v8;
                     });
                 });
-            }
-            return d;
-        };
-        array<array<array<half, 16>, 8>, v_chunks> d_buf;
-        repeat_c<v_chunks>([&](auto vc_val) {
-            constexpr index_int vc = vc_val;
-            repeat_c<8>([&](auto ci_val) { d_buf[vc][ci_val] = load_d(vc, ci_val); });
-        });
-        repeat_c<v_chunks>([&](auto vc_val) {
-            constexpr index_int vc = vc_val;
-            repeat_c<8>([&](auto ci_val) {
-                constexpr index_int ci = ci_val;
-                auto V                 = winograd_input_transform_f23(d_buf[vc][ci]);
-                repeat_c<16>([&](auto wp) { v_lane[vc][ci][wp] = V[wp]; });
+                vec<half, 8> V_vec[16];
+                winograd_input_transform_f23_vec(d_vec, V_vec);
+                repeat_c<8>([&](auto ci_val) {
+                    constexpr index_int ci = ci_val;
+                    repeat_c<16>([&](auto wp_val) {
+                        constexpr index_int wp = wp_val;
+                        v_lane[vc][ci][wp]     = V_vec[wp][index_int{ci}];
+                    });
+                });
             });
-        });
+        }
+        else
+        {
+            auto load_d = [&](index_int vc, index_int ci) {
+                const index_int c_in_block = vc * 16 + c_off + ci;
+                const index_int c          = c_base + c_in_block;
+                const bool active          = nt_active and (c < C);
+                const int32_t base_off = n_off + static_cast<int32_t>(c * x_sh[1]) * sizeof(half);
+                const int32_t off      = active ? (base_off + hw_off) : oob_byte;
+                array<half, 16> d;
+                if(sw_b == 2)
+                {
+                    repeat_c<4>([&](auto i) {
+                        const int32_t row_off = hi[i] ? off + static_cast<int>(i) * sh_b : oob_byte;
+                        auto row              = buffer_load_half4(x_rsrc, row_off);
+                        d[i * 4 + 0]          = wj[0] ? row.x : hzero;
+                        d[i * 4 + 1]          = wj[1] ? row.y : hzero;
+                        d[i * 4 + 2]          = wj[2] ? row.z : hzero;
+                        d[i * 4 + 3]          = wj[3] ? row.w : hzero;
+                    });
+                }
+                else
+                {
+                    repeat_c<4>([&](auto i) {
+                        repeat_c<4>([&](auto j) {
+                            const int32_t e_off =
+                                (hi[i] and wj[j])
+                                    ? off + static_cast<int>(i) * sh_b + static_cast<int>(j) * sw_b
+                                    : oob_byte;
+                            d[i * 4 + j] = buffer_load_half(x_rsrc, e_off);
+                        });
+                    });
+                }
+                return d;
+            };
+            array<array<array<half, 16>, 8>, v_chunks> d_buf;
+            repeat_c<v_chunks>([&](auto vc_val) {
+                constexpr index_int vc = vc_val;
+                repeat_c<8>([&](auto ci_val) { d_buf[vc][ci_val] = load_d(vc, ci_val); });
+            });
+            repeat_c<v_chunks>([&](auto vc_val) {
+                constexpr index_int vc = vc_val;
+                repeat_c<8>([&](auto ci_val) {
+                    constexpr index_int ci = ci_val;
+                    auto V                 = winograd_input_transform_f23(d_buf[vc][ci]);
+                    repeat_c<16>([&](auto wp) { v_lane[vc][ci][wp] = V[wp]; });
+                });
+            });
+        }
 
         // ---- weight loader (dual mode) ----
         // FT (full transform): the weight is the raw filter g [3, 3, K, C] (9
@@ -883,6 +963,80 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // converts to — NOT assumed to be fp16 — and each extra input is packed
     // at its own element type, so the result matches the slow path exactly.
     // Wider output types (fp32, etc.) fall through to the slow path.
+    if constexpr(NHWC)
+    {
+        // NHWC output (sk == 1): the 8 K values of a lane are contiguous, so
+        // pack them into one b128 store per output spatial position. K not a
+        // multiple of 8 (rare) falls back to scalar stores; K-OOB is masked.
+        // When the output is still NCHW (e.g. the standardized program output),
+        // fall through to the packed NCHW store below.
+        if(sk == 1)
+        {
+            const bool k_pack = (K % 8 == 0);
+            repeat_c<KW>([&](auto k_idx_val) {
+                constexpr int k_idx     = k_idx_val;
+                const index_int k_first = k_base + k_idx * BK + k_row_offset;
+                if(k_first >= K)
+                    return;
+                repeat_c<2>([&](auto i_val) {
+                    constexpr int i = i_val;
+                    const int h_out = static_cast<int>(2 * th_idx) + i;
+                    if(static_cast<unsigned>(h_out) >= H_out)
+                        return;
+                    repeat_c<2>([&](auto j_val) {
+                        constexpr int j = j_val;
+                        const int w_out = static_cast<int>(2 * tw_idx) + j;
+                        if(static_cast<unsigned>(w_out) >= W_out)
+                            return;
+                        const index_int oidx = i * 2 + j;
+                        const index_int off  = n_idx * sn + k_first * sk +
+                                              static_cast<index_int>(h_out) * sh +
+                                              static_cast<index_int>(w_out) * sw;
+                        if(k_pack)
+                        {
+                            vec<PostInput, 8> yv;
+                            repeat_c<8>([&](auto ki) {
+                                yv[index_int{ki}] =
+                                    static_cast<PostInput>(y[k_idx][oidx][index_int{ki}]);
+                            });
+                            // Build a vec<8> of each fused input over the 8 K (which
+                            // are contiguous in K), so f runs packed and returns one
+                            // vec<out_type, 8> for a single b128 store.
+                            auto in_vec8 = [&](const auto& inp) {
+                                vec<remove_reference_t<decltype(inp[array<index_int, 4>{}])>, 8> iv;
+                                repeat_c<8>([&](auto ki) {
+                                    iv[index_int{ki}] =
+                                        inp[array<index_int, 4>{n_idx,
+                                                                k_first + index_int{ki},
+                                                                static_cast<index_int>(h_out),
+                                                                static_cast<index_int>(w_out)}];
+                                });
+                                return iv;
+                            };
+                            *as_vec<8>(&out_data[off]) = f(yv, in_vec8(inputs)...);
+                        }
+                        else
+                        {
+                            repeat_c<8>([&](auto ki) {
+                                const index_int k = k_first + index_int{ki};
+                                if(k < K)
+                                {
+                                    const array<index_int, 4> oid{n_idx,
+                                                                  k,
+                                                                  static_cast<index_int>(h_out),
+                                                                  static_cast<index_int>(w_out)};
+                                    out_data[off + index_int{ki} * sk] = static_cast<out_type>(
+                                        f(static_cast<PostInput>(y[k_idx][oidx][index_int{ki}]),
+                                          inputs[oid]...));
+                                }
+                            });
+                        }
+                    });
+                });
+            });
+            return;
+        }
+    }
     constexpr bool packed_store_ok = sizeof(out_type) == 2;
     repeat_c<KW>([&](auto k_idx_val) {
         constexpr int k_idx         = k_idx_val;

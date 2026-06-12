@@ -2,7 +2,7 @@
 #
 # Built and published by .github/workflows/ci.yaml and consumed by the tidy,
 # cppcheck and format jobs. The ROCm toolchain comes from TheRock's "amdrocm-*"
-# packages (installed via tools/install_build_prereqs.sh) and the MIGraphX
+# packages (installed via tools/install_prereqs.sh) and the MIGraphX
 # third-party dependencies are prebuilt into PREFIX (/usr/local) so the CI jobs
 # only need to configure and build.
 

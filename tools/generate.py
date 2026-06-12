@@ -41,40 +41,81 @@ def clang_format(buffer, **kwargs):
                           **kwargs).stdout.decode('utf-8')
 
 
-def api_generate(input_path: Path, output_path: Path):
-    with open(output_path, 'w') as f:
-        f.write(clang_format(api.run(input_path)))
+def maybe_format(buffer, do_format=True):
+    return clang_format(buffer) if do_format else buffer
 
 
-def te_generate(input_path: Path, output_path: Path):
+def api_generate(input_path: Path, output_path: Path, do_format=True):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:
-        f.write(clang_format(te.run(input_path)))
+        f.write(maybe_format(api.run(input_path), do_format))
+
+
+def te_generate(input_path: Path, output_path: Path, do_format=True):
+    with open(output_path, 'w') as f:
+        f.write(maybe_format(te.run(input_path), do_format))
+
+
+def generate_all(do_format=True):
+    files = Path('include').absolute().iterdir()
+    for f in [f for f in files if f.is_file()]:
+        te_generate(f, src_dir / f'include/migraphx/{f.name}', do_format)
+    runpy.run_path(str(migraphx_py_path))
+    api_generate(work_dir / 'api/migraphx.h',
+                 src_dir / 'api/include/migraphx/migraphx.h', do_format)
+    print('Finished generating header migraphx.h')
+    api_generate(work_dir / 'api/api.cpp', src_dir / 'api/api.cpp', do_format)
+    print('Finished generating source api.cpp')
+
+
+def generate_api(header_path: Path, source_path: Path, do_format=True):
+    runpy.run_path(str(migraphx_py_path))
+    api_generate(work_dir / 'api/migraphx.h', header_path, do_format)
+    print(f'Finished generating header {header_path}')
+    api_generate(work_dir / 'api/api.cpp', source_path, do_format)
+    print(f'Finished generating source {source_path}')
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--clang-format', type=Path)
+    parser.add_argument('--api-only',
+                        action='store_true',
+                        help='Only generate the C API files (migraphx.h and '
+                        'api.cpp) to the paths given by --api-header and '
+                        '--api-source instead of writing into the source tree')
+    parser.add_argument('--api-header',
+                        type=Path,
+                        help='Output path for the generated migraphx.h header')
+    parser.add_argument('--api-source',
+                        type=Path,
+                        help='Output path for the generated api.cpp source')
     args = parser.parse_args()
 
     global clang_format_path
     if args.clang_format:
         clang_format_path = args.clang_format
 
-    if not clang_format_path.is_file():
-        print(f"{clang_format_path}: invalid path or not installed",
+    # clang-format only affects the readability of the generated files, so it
+    # is optional in api-only mode where the output is just a build input.
+    do_format = clang_format_path.is_file()
+    if not do_format:
+        if not args.api_only:
+            print(f"{clang_format_path}: invalid path or not installed",
+                  file=sys.stderr)
+            return
+        print(f"{clang_format_path}: clang-format not found, generating "
+              "without formatting",
               file=sys.stderr)
-        return
+
+    if args.api_only and not (args.api_header and args.api_source):
+        parser.error('--api-only requires --api-header and --api-source')
 
     try:
-        files = Path('include').absolute().iterdir()
-        for f in [f for f in files if f.is_file()]:
-            te_generate(f, src_dir / f'include/migraphx/{f.name}')
-        runpy.run_path(str(migraphx_py_path))
-        api_generate(work_dir / 'api/migraphx.h',
-                     src_dir / 'api/include/migraphx/migraphx.h')
-        print('Finished generating header migraphx.h')
-        api_generate(work_dir / 'api/api.cpp', src_dir / 'api/api.cpp')
-        print('Finished generating source api.cpp')
+        if args.api_only:
+            generate_api(args.api_header, args.api_source, do_format)
+        else:
+            generate_all(do_format)
     except subprocess.CalledProcessError as ex:
         if ex.stdout:
             print(ex.stdout.decode('utf-8'))

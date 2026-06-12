@@ -39,7 +39,7 @@ TEST_CASE(external_data_as_parameters_test)
     migraphx::onnx_options options;
     options.skip_unknown_operators         = true;
     options.external_weights_as_parameters = true;
-    auto prog = read_onnx("external_data_test.onnx", options);
+    auto prog                              = read_onnx("external_data_test.onnx", options);
 
     const auto& weight_map = prog.get_external_weight_map();
     EXPECT(not weight_map.empty());
@@ -61,7 +61,7 @@ TEST_CASE(create_program_with_weights_test)
     migraphx::onnx_options options;
     options.skip_unknown_operators         = true;
     options.external_weights_as_parameters = true;
-    auto template_prog = read_onnx("external_data_test.onnx", options);
+    auto template_prog                     = read_onnx("external_data_test.onnx", options);
 
     const auto& weight_map = template_prog.get_external_weight_map();
     EXPECT(not weight_map.empty());
@@ -70,8 +70,8 @@ TEST_CASE(create_program_with_weights_test)
     static auto files{::onnx_files()};
     static std::string base_dir = read_weight_files(files);
 
-    auto baked =
-        migraphx::create_program_with_weights(template_prog, base_dir, migraphx::make_target("ref"));
+    auto baked = migraphx::create_program_with_weights(
+        template_prog, base_dir, migraphx::make_target("ref"));
 
     // Baked program should have no external weight map
     EXPECT(baked.get_external_weight_map().empty());

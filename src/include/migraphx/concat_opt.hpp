@@ -132,7 +132,7 @@ struct concat_optimization
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>,
                                    concat_optimization>{}>::type>
-    concat_optimization& operator=(PrivateDetailTypeErasedT&& value)
+    concat_optimization& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();

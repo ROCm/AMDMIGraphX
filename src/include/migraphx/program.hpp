@@ -181,10 +181,8 @@ struct MIGRAPHX_EXPORT program
     void rename_module(const std::string& old_name, const std::string& new_name);
     void remove_unused_modules();
 
-    void set_external_weight_map(
-        std::unordered_map<std::string, external_data_info> weight_map);
-    const std::unordered_map<std::string, external_data_info>&
-    get_external_weight_map() const;
+    void set_external_weight_map(std::unordered_map<std::string, external_data_info> weight_map);
+    const std::unordered_map<std::string, external_data_info>& get_external_weight_map() const;
 
     private:
     void assign(const program& p);

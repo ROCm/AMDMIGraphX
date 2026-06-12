@@ -835,13 +835,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("use_debug_symbols")              = false,
         py::arg("external_weights_as_parameters") = false);
 
-    m.def(
-        "create_program_with_weights",
-        &migraphx::create_program_with_weights,
-        "Copy the program and bake in weights from base_dir, returning a self-contained program",
-        py::arg("program"),
-        py::arg("base_dir"),
-        py::arg("target"));
+    m.def("create_program_with_weights",
+          &migraphx::create_program_with_weights,
+          "Copy the program and bake in weights from base_dir, returning a self-contained program",
+          py::arg("program"),
+          py::arg("base_dir"),
+          py::arg("target"));
 
     m.def(
         "load",

@@ -513,17 +513,6 @@ TEST_CASE(gather_horiz_no_fusion_dependent)
     EXPECT(m1 == m2);
 }
 
-// ---------------------------------------------------------------------------
-// same_table_gather_horizontal_fusion
-//
-// Multiple gathers reading the *same* constant 2D table with compatible indices
-// collapse into a single batched gather + per-original slice (no index offset
-// adjustment, unlike the cross-table fusion above).
-// ---------------------------------------------------------------------------
-
-// 4 gathers on the SAME 2D constant table -> collapse into 1 batched gather
-// + 4 slices.  The table is read once instead of four times.  Each index has a
-// leading (batch) dim >= 4 so the small-batch early exit does not apply.
 TEST_CASE(same_table_gathers_basic)
 {
     migraphx::module m1;
@@ -575,7 +564,6 @@ TEST_CASE(same_table_gathers_basic)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Even 2 sibling gathers should be deduped (min_group_size is 2).
 TEST_CASE(same_table_gathers_two_siblings)
 {
     migraphx::module m1;
@@ -616,8 +604,6 @@ TEST_CASE(same_table_gathers_two_siblings)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Single gather on the table -> no rewrite (need >= 2 siblings).  Batch dim is
-// >= 4 so the small-batch early exit does not mask the group-size check.
 TEST_CASE(same_table_gathers_single_no_rewrite)
 {
     migraphx::module m1;
@@ -633,8 +619,6 @@ TEST_CASE(same_table_gathers_single_no_rewrite)
     EXPECT(m1 == m2);
 }
 
-// Two indices share the same parameter -> still rewritten (concat will have two
-// inputs that happen to be the same instruction).
 TEST_CASE(same_table_gathers_shared_index)
 {
     migraphx::module m1;
@@ -674,7 +658,6 @@ TEST_CASE(same_table_gathers_shared_index)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// 2D index tensors with matching trailing dims also fuse.
 TEST_CASE(same_table_gathers_2d_indices)
 {
     migraphx::module m1;
@@ -721,8 +704,6 @@ TEST_CASE(same_table_gathers_2d_indices)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Different index dtypes must not be grouped together.  int32 group fuses on
-// its own; the lone int64 gather is left alone (group size = 1).
 TEST_CASE(same_table_gathers_split_by_idx_type)
 {
     migraphx::module m1;
@@ -770,9 +751,6 @@ TEST_CASE(same_table_gathers_split_by_idx_type)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Indices with mismatching trailing dims belong to different groups.  The
-// 1D pair fuses into one batched gather, the 2D pair fuses into a second
-// independent batched gather, but they don't mix.
 TEST_CASE(same_table_gathers_split_by_trailing_dims)
 {
     migraphx::module m1;
@@ -835,9 +813,6 @@ TEST_CASE(same_table_gathers_split_by_trailing_dims)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Two separate constant tables, each with its own group of sibling gathers.
-// Each table gets deduped independently; with only 2 batched gathers left, the
-// cross-table fusion (min group size 4) does not kick in.
 TEST_CASE(same_table_gathers_multiple_tables)
 {
     migraphx::module m1;
@@ -904,7 +879,6 @@ TEST_CASE(same_table_gathers_multiple_tables)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Non-constant data -> is_candidate rejects on can_eval().
 TEST_CASE(same_table_gathers_no_rewrite_non_constant_data)
 {
     migraphx::module m1;
@@ -926,7 +900,6 @@ TEST_CASE(same_table_gathers_no_rewrite_non_constant_data)
     EXPECT(m1 == m2);
 }
 
-// 1D constant data -> is_candidate rejects (table is not 2D).
 TEST_CASE(same_table_gathers_no_rewrite_1d_data)
 {
     migraphx::module m1;
@@ -950,7 +923,6 @@ TEST_CASE(same_table_gathers_no_rewrite_1d_data)
     EXPECT(m1 == m2);
 }
 
-// 3D constant data -> is_candidate rejects (table is not 2D).
 TEST_CASE(same_table_gathers_no_rewrite_3d_data)
 {
     migraphx::module m1;
@@ -972,7 +944,6 @@ TEST_CASE(same_table_gathers_no_rewrite_3d_data)
     EXPECT(m1 == m2);
 }
 
-// gather axis != 0 -> is_candidate rejects.
 TEST_CASE(same_table_gathers_no_rewrite_axis_one)
 {
     migraphx::module m1;
@@ -996,7 +967,6 @@ TEST_CASE(same_table_gathers_no_rewrite_axis_one)
     EXPECT(m1 == m2);
 }
 
-// Scalar (0-D) index -> is_candidate rejects.
 TEST_CASE(same_table_gathers_no_rewrite_scalar_index)
 {
     migraphx::module m1;
@@ -1024,11 +994,6 @@ TEST_CASE(same_table_gathers_no_rewrite_scalar_index)
     EXPECT(m1 == m2);
 }
 
-// Small-batch early exit: sibling gathers on the same constant table whose
-// index leading (batch) dim is < 4 are rejected by is_candidate, so the
-// same-table fusion does not fire.  Using only 3 gathers also keeps the
-// cross-table fusion (min group size 4) from kicking in, so the module is
-// left unchanged.
 TEST_CASE(same_table_gathers_no_rewrite_small_batch)
 {
     migraphx::module m1;
@@ -1051,9 +1016,6 @@ TEST_CASE(same_table_gathers_no_rewrite_small_batch)
     EXPECT(m1 == m2);
 }
 
-// Mixed batch sizes on one table: only gathers with batch >= 4 are candidates.
-// Here a single gather clears the threshold, leaving a group of size 1, so no
-// fusion happens and the smaller-batch gathers are untouched as well.
 TEST_CASE(same_table_gathers_no_rewrite_mixed_batch_single_eligible)
 {
     migraphx::module m1;
@@ -1076,8 +1038,6 @@ TEST_CASE(same_table_gathers_no_rewrite_mixed_batch_single_eligible)
     EXPECT(m1 == m2);
 }
 
-// Idempotence: rerunning the pass on the already-fused module changes nothing
-// (the merged gather is the only sibling on the table).
 TEST_CASE(same_table_gathers_idempotent)
 {
     migraphx::module m1;

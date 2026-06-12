@@ -159,6 +159,7 @@ struct same_table_gather_horizontal_fusion
         if(idx->get_shape().scalar() or idx->get_shape().lens().empty())
             return false;
 
+        // Group size must be greater than 4 to get an appropriate trade off
         if(idx->get_shape().lens().front() < 4)
             return false;
 

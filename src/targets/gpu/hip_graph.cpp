@@ -70,22 +70,17 @@ static argument pack_outputs(const std::vector<argument>& outputs)
     return argument(outputs);
 }
 
-// Append the leaf buffer pointer (and, if requested, its size) of each argument,
-// recursing into tuples. Tuple arguments have no single data pointer, and the
-// kernels consume their leaves, so the rebind logic tracks leaves.
+// Append the leaf buffer pointer (and, if requested, its size) of `a`, flattening
+// any tuple into its leaves. A tuple argument has no single data pointer, and the
+// kernels consume its leaves, so the rebind logic tracks leaves.
 static void
 leaf_buffers(const argument& a, std::vector<const void*>& ptrs, std::vector<std::size_t>* sizes)
 {
-    if(a.get_shape().type() == shape::tuple_type)
+    for(const auto& leaf : flatten({a}))
     {
-        for(const auto& sub : a.get_sub_objects())
-            leaf_buffers(sub, ptrs, sizes);
-    }
-    else
-    {
-        ptrs.push_back(a.data());
+        ptrs.push_back(leaf.data());
         if(sizes != nullptr)
-            sizes->push_back(a.get_shape().bytes());
+            sizes->push_back(leaf.get_shape().bytes());
     }
 }
 
@@ -157,7 +152,7 @@ struct hip_graph
         }
         // Re-sync the executable graph after `g`'s nodes changed; returns false if
         // the topology cannot be updated in place and the exec must be rebuilt.
-        bool update(hipStream_t, hip_graph& g)
+        bool update(hip_graph& g)
         {
             hipGraphNode_t error_node       = nullptr;
             hipGraphExecUpdateResult result = hipGraphExecUpdateError;
@@ -476,7 +471,7 @@ struct hip_graph_op
                     patch_kernel_nodes(current_ptrs);
                 else
                     record();
-                if(not state->exec.update(stream, state->graph))
+                if(not state->exec.update(state->graph))
                     state->exec = state->graph.instantiate();
                 state->applied_ptrs = current_ptrs;
             }

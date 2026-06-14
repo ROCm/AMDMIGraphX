@@ -33,6 +33,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/register_op.hpp>
@@ -41,6 +42,7 @@
 #include <cassert>
 #include <cstring>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -70,18 +72,24 @@ static argument pack_outputs(const std::vector<argument>& outputs)
     return argument(outputs);
 }
 
-// Append the leaf buffer pointer (and, if requested, its size) of `a`, flattening
-// any tuple into its leaves. A tuple argument has no single data pointer, and the
-// kernels consume its leaves, so the rebind logic tracks leaves.
-static void
-leaf_buffers(const argument& a, std::vector<const void*>& ptrs, std::vector<std::size_t>* sizes)
+// The data pointer of each leaf argument (the buffers the kernels read/write).
+static std::vector<const void*> leaf_ptrs(const std::vector<argument>& leaves)
 {
-    for(const auto& leaf : flatten({a}))
-    {
-        ptrs.push_back(leaf.data());
-        if(sizes != nullptr)
-            sizes->push_back(leaf.get_shape().bytes());
-    }
+    std::vector<const void*> ptrs;
+    std::transform(leaves.begin(), leaves.end(), std::back_inserter(ptrs), [](const argument& a) {
+        return a.data();
+    });
+    return ptrs;
+}
+
+// The byte size of each leaf argument's buffer.
+static std::vector<std::size_t> leaf_sizes(const std::vector<argument>& leaves)
+{
+    std::vector<std::size_t> sizes;
+    std::transform(leaves.begin(), leaves.end(), std::back_inserter(sizes), [](const argument& a) {
+        return a.get_shape().bytes();
+    });
+    return sizes;
 }
 
 // True when `consumer` passes the buffer of its input `input` straight through
@@ -209,9 +217,6 @@ struct hip_graph_op
         // the captured graph, used to detect when a parameter buffer has moved.
         // Empty when the op has no movable inputs, so nothing is ever re-bound.
         std::vector<const void*> applied_ptrs{};
-        // Reused buffer holding the current run's movable-leaf addresses so the
-        // per-eval move check does not allocate.
-        std::vector<const void*> scratch_ptrs{};
         // True when every movable parameter is consumed only by code-object
         // kernels we can patch; `patches` then lists, per such node, the slots to
         // rewrite. False (a parameter reaches a library kernel) -> re-record.
@@ -262,15 +267,17 @@ struct hip_graph_op
         state = std::make_shared<graph_state>();
     }
 
-    // Flatten the movable (program-parameter) inputs to their leaf buffer
-    // addresses (and, if requested, sizes), in replace_inputs order. These are the
-    // only addresses that can change between runs.
-    void movable_leaves(const std::vector<argument>& args,
-                        std::vector<const void*>& ptrs,
-                        std::vector<std::size_t>* sizes) const
+    // The movable (program-parameter) inputs flattened to their leaf arguments, in
+    // replace_inputs order. A tuple has no single data pointer, so the rebind logic
+    // tracks its leaves; these are the only addresses that can change between runs.
+    std::vector<argument> movable_leaves(const std::vector<argument>& args) const
     {
-        for(auto idx : replace_inputs)
-            leaf_buffers(args[idx], ptrs, sizes);
+        std::vector<argument> leaves;
+        std::transform(replace_inputs.begin(),
+                       replace_inputs.end(),
+                       join_back_inserter(leaves),
+                       [&](std::size_t idx) { return flatten({args[idx]}); });
+        return leaves;
     }
 
     // Walk forward from a movable parameter through alias (view) ops, adding each
@@ -322,10 +329,9 @@ struct hip_graph_op
     // patch -- a library gemm/conv (see collect_param_code_objects).
     bool build_patch_plan(const std::vector<argument>& args, module_ref sub) const
     {
-        std::vector<const void*> in_ptrs;
-        std::vector<std::size_t> in_sizes;
-        movable_leaves(args, in_ptrs, &in_sizes);
-        assert(in_ptrs.size() == in_sizes.size());
+        auto leaves   = movable_leaves(args);
+        auto in_ptrs  = leaf_ptrs(leaves);
+        auto in_sizes = leaf_sizes(leaves);
 
         // The code-object kernels consuming a movable parameter, keyed by their
         // function handle so a captured node can be matched back to one.
@@ -448,19 +454,15 @@ struct hip_graph_op
             // with no movable inputs the graph stays bound to stable buffers.
             if(not replace_inputs.empty())
             {
-                state->patchable = build_patch_plan(args, sub);
-                movable_leaves(args, state->applied_ptrs, nullptr);
+                state->patchable    = build_patch_plan(args, sub);
+                state->applied_ptrs = leaf_ptrs(movable_leaves(args));
             }
             state->captured = true;
         }
         else if(not replace_inputs.empty())
         {
             // Re-bind only when a parameter buffer has moved since the last run.
-            // The current addresses go in a reused scratch buffer to keep the
-            // steady-state replay path allocation-free.
-            auto& current_ptrs = state->scratch_ptrs;
-            current_ptrs.clear();
-            movable_leaves(args, current_ptrs, nullptr);
+            auto current_ptrs = leaf_ptrs(movable_leaves(args));
             if(current_ptrs != state->applied_ptrs)
             {
                 // Re-bind the moved parameter by patching the captured graph's
@@ -473,7 +475,7 @@ struct hip_graph_op
                     record();
                 if(not state->exec.update(state->graph))
                     state->exec = state->graph.instantiate();
-                state->applied_ptrs = current_ptrs;
+                state->applied_ptrs = std::move(current_ptrs);
             }
         }
 

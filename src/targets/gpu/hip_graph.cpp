@@ -33,6 +33,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/algorithm.hpp>
 #include <migraphx/manage_ptr.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/register_op.hpp>
 #include <hip/hip_runtime_api.h>
@@ -93,9 +94,7 @@ leaf_buffers(const argument& a, std::vector<const void*>& ptrs, std::vector<std:
 // to flow to the consumer's own outputs.
 static bool aliases_input(instruction_ref consumer, instruction_ref input)
 {
-    auto idxs = consumer->get_operator().output_alias(to_shapes(consumer->inputs()));
-    return std::any_of(
-        idxs.begin(), idxs.end(), [&](std::size_t i) { return consumer->inputs().at(i) == input; });
+    return contains(instruction::get_output_alias(consumer, true), input);
 }
 
 // Thin RAII wrapper over the HIP graph C API: capture a stream into a graph,
@@ -208,9 +207,12 @@ struct hip_graph_op
         hip_graph::exec exec{};
         bool captured = false;
         std::vector<argument> outputs{};
-        // Addresses of the movable (program-parameter) leaves currently programmed
-        // into `exec`, used to detect when a parameter buffer has moved. Empty when
-        // the op has no movable inputs, in which case nothing is ever re-bound.
+        // The packed return value (single output or a tuple), cached so the replay
+        // path does not rebuild it each eval. Refreshed whenever `outputs` is.
+        argument result{};
+        // Addresses of the movable (program-parameter) leaves currently bound in
+        // the captured graph, used to detect when a parameter buffer has moved.
+        // Empty when the op has no movable inputs, so nothing is ever re-bound.
         std::vector<const void*> applied_ptrs{};
         // Reused buffer holding the current run's movable-leaf addresses so the
         // per-eval move check does not allocate.
@@ -295,7 +297,7 @@ struct hip_graph_op
                 if(consumer->name() == "gpu::code_object")
                 {
                     const auto& cop = any_cast<code_object_op>(consumer->get_operator());
-                    out.emplace(static_cast<void*>(cop.k.get_function()), &cop.kernel_args);
+                    out.emplace(cop.k.get_function(), &cop.kernel_args);
                 }
                 else if(starts_with(consumer->name(), "@"))
                 {
@@ -440,7 +442,8 @@ struct hip_graph_op
         // graph and the returned arguments are views into stable buffers that get
         // filled when the instantiated graph is launched below.
         auto record = [&] {
-            state->graph = hip_graph::capture(stream, [&] { state->outputs = run_submodule(); });
+            state->graph  = hip_graph::capture(stream, [&] { state->outputs = run_submodule(); });
+            state->result = pack_outputs(state->outputs);
         };
         if(not state->captured)
         {
@@ -480,7 +483,7 @@ struct hip_graph_op
         }
 
         state->exec.launch(stream);
-        return pack_outputs(state->outputs);
+        return state->result;
     }
 };
 

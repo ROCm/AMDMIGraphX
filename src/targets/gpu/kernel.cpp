@@ -160,6 +160,7 @@ unpack_kernel_config(void** extra, const std::map<std::size_t, kernel_argument_v
         bool is_pointer   = v.data.empty();
         std::size_t align = is_pointer ? sizeof(char*) : v.align;
         std::size_t size  = is_pointer ? sizeof(char*) : v.data.size();
+        assert(align != 0); // a scalar argument always carries a real alignment
         pos += (align - (pos % align)) % align;
         if(is_pointer)
             read_pointer(pos);

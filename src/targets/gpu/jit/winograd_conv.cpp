@@ -84,7 +84,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}, ${ft}, ${conv_cast}>(
+            winograd_conv_f23_wmma<${nw}, ${cb}, ${kw}, ${sk}, ${ft}, ${nhwc}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -126,6 +126,11 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const std::size_t bt         = 16 * nt_groups;
         const std::size_t block_size = nw * 32;
 
+        // NHWC input: the convolution input (first operand) has its channel
+        // axis innermost (stride 1). The kernel then reads channels coalesced.
+        const auto& x_shape = inputs.front();
+        const bool nhwc     = x_shape.lens().size() == 4 and x_shape.strides()[1] == 1;
+
         const auto& out_lens = out_s.lens();
         const auto N         = out_lens[0];
         const auto K         = out_lens[1];
@@ -150,6 +155,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"kw", std::to_string(kw)},
                                        {"sk", std::to_string(sk)},
                                        {"ft", v.get("full_transform", false) ? "true" : "false"},
+                                       {"nhwc", nhwc ? "true" : "false"},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"conv_cast", v.get("conv_cast", std::string{"half"})},
                                        {"preamble", v.get("preamble", std::string{})}});

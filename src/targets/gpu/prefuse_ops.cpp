@@ -477,11 +477,8 @@ static constexpr std::array<winograd_f23_shape, 10> winograd_f23_overrides{{
 //     transform-bound and lose.
 // A channel-collapsing conv (e.g. 512->8) keeps min(C,K) small, so it is not
 // caught by the large-channel rules and still wins ~2x as it should.
-static bool winograd_f23_profitable(std::size_t in_ch,
-                                    std::size_t out_ch,
-                                    std::size_t height,
-                                    std::size_t width,
-                                    bool        nhwc)
+static bool winograd_f23_profitable(
+    std::size_t in_ch, std::size_t out_ch, std::size_t height, std::size_t width, bool nhwc)
 {
     const auto spatial = std::min(height, width);
     const auto min_ch  = std::min(in_ch, out_ch);

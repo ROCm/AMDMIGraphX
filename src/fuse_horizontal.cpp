@@ -130,18 +130,31 @@ static std::vector<instruction_ref> slice_gather_rows(module& m,
                                                       const std::vector<instruction_ref>& gathers,
                                                       instruction_ref insert_pt)
 {
+    // Inclusive prefix sum of each gather's index batch (first index dim) gives
+    // the slice end offsets; shifting right and prepending 0 gives the starts.
+    std::vector<std::size_t> slice_ends(gathers.size());
+    transform_partial_sum(
+        gathers.begin(), gathers.end(), slice_ends.begin(), std::plus<>{}, [](auto g) {
+            return g->inputs().at(1)->get_shape().lens().front();
+        });
+
+    std::vector<std::size_t> slice_starts(gathers.size());
+    slice_starts[0] = 0;
+    std::copy(slice_ends.begin(), std::prev(slice_ends.end()), slice_starts.begin() + 1);
+
     std::vector<instruction_ref> results;
     results.reserve(gathers.size());
-    int64_t start = 0;
-    std::transform(gathers.begin(), gathers.end(), std::back_inserter(results), [&](auto g) {
-        auto end = start + static_cast<int64_t>(g->inputs().at(1)->get_shape().lens().front());
-        auto s   = m.insert_instruction(
-            insert_pt,
-            make_op("slice", {{"axes", {0}}, {"starts", {start}}, {"ends", {end}}}),
-            batched_gather);
-        start = end;
-        return s;
-    });
+    migraphx::for_each(
+        slice_starts.begin(), slice_starts.end(), slice_ends.begin(), [&](auto start, auto end) {
+            results.push_back(m.insert_instruction(
+                insert_pt,
+                make_op("slice",
+                        {{"axes", std::vector<int64_t>{0}},
+                         {"starts", std::vector<int64_t>{static_cast<int64_t>(start)}},
+                         {"ends", std::vector<int64_t>{static_cast<int64_t>(end)}}}),
+                batched_gather));
+        });
+
     return results;
 }
 

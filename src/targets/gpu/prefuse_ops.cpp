@@ -480,8 +480,26 @@ static constexpr std::array<winograd_f23_shape, 10> winograd_f23_overrides{{
 static bool winograd_f23_profitable(std::size_t in_ch,
                                     std::size_t out_ch,
                                     std::size_t height,
-                                    std::size_t width)
+                                    std::size_t width,
+                                    bool        nhwc)
 {
+    const auto spatial = std::min(height, width);
+    const auto min_ch  = std::min(in_ch, out_ch);
+    const auto max_ch  = std::max(in_ch, out_ch);
+
+    // NHWC layout gate. rocMLIR's channels-last convolution is heavily tuned
+    // and becomes the GEMM-bound winner once both channel counts are large:
+    // winograd's ~2.25x fewer MACs stop mattering (the kernel is not
+    // compute-bound) and its transform overhead/weight expansion can only tie
+    // or lose. Measured on gfx1201 fp16 (rigorous interleaved): 256ch@64 ~0.80x,
+    // and the large-channel band that wins in NCHW (min_ch>=224 at small spatial
+    // or out_ch in [288,384]) merely ties in NHWC. So gate the whole
+    // large-channel regime for NHWC -- this is layout-specific; NCHW still wins
+    // it and is unchanged. The override table below is NCHW-derived, so the NHWC
+    // gate is applied first.
+    if(nhwc and min_ch >= 224)
+        return false;
+
     auto ovr = std::find_if(
         winograd_f23_overrides.begin(), winograd_f23_overrides.end(), [&](const auto& o) {
             return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
@@ -490,9 +508,6 @@ static bool winograd_f23_profitable(std::size_t in_ch,
     if(ovr != winograd_f23_overrides.end())
         return ovr->use_winograd;
 
-    const auto spatial = std::min(height, width);
-    const auto min_ch  = std::min(in_ch, out_ch);
-    const auto max_ch  = std::max(in_ch, out_ch);
     if(in_ch < 16 and (max_ch > 16 or in_ch < 8))
         return false;
     if(in_ch * out_ch >= 700000)
@@ -580,8 +595,12 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     // off everywhere. Both are for benchmarking/debugging.
     if(enabled(MIGRAPHX_DISABLE_WINOGRAD{}))
         return false;
+    // Channels-last (NHWC) when the conv input's channel axis is innermost --
+    // the same test the kernel uses to pick its NHWC path. layout_convolution
+    // runs before this pass, so the strides already reflect the chosen layout.
+    const bool nhwc = ins->inputs().front()->get_shape().strides()[1] == 1;
     if(not enabled(MIGRAPHX_ENABLE_WINOGRAD{}) and
-       not winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3]))
+       not winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc))
         return false;
     return true;
 }

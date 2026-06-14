@@ -100,6 +100,20 @@ static bool aliases_input(instruction_ref consumer, instruction_ref input)
     return contains(instruction::get_output_alias(consumer, true), input);
 }
 
+// Bind the submodule's parameters (in order) to the op's input arguments.
+static std::unordered_map<std::string, argument> create_params(module_ref sub,
+                                                               const std::vector<argument>& args)
+{
+    auto param_names = sub->get_parameter_names();
+    assert(param_names.size() == args.size());
+    std::unordered_map<std::string, argument> params;
+    for_each(param_names.begin(),
+             param_names.end(),
+             args.begin(),
+             [&](const std::string& pname, const argument& a) { params[pname] = a; });
+    return params;
+}
+
 // Thin RAII wrapper over the HIP graph C API: capture a stream into a graph,
 // enumerate/patch its nodes, instantiate an executable graph, and launch/update
 // it. Graph and exec handles are shared so value-semantic copies share one graph.
@@ -196,6 +210,24 @@ struct graph_node_patch
 {
     hip_graph::node node{};
     std::vector<graph_slot_patch> slots{};
+
+    // Record a slot at byte offset `off` when the pointer `p` falls inside one of
+    // the movable input leaves (leaf i spans in_ptrs[i] .. in_ptrs[i]+in_sizes[i]).
+    void record_slot(std::size_t off,
+                     const char* p,
+                     const std::vector<const void*>& in_ptrs,
+                     const std::vector<std::size_t>& in_sizes)
+    {
+        auto indices = range(in_ptrs.size());
+        auto it      = std::find_if(indices.begin(), indices.end(), [&](auto i) {
+            const auto* base = static_cast<const char*>(in_ptrs[i]);
+            return p >= base and p < base + in_sizes[i];
+        });
+        if(it == indices.end())
+            return;
+        const auto* base = static_cast<const char*>(in_ptrs[*it]);
+        slots.push_back({off, static_cast<std::size_t>(*it), static_cast<std::size_t>(p - base)});
+    }
 };
 
 // Records the work of a submodule into a HIP graph the first time it is run and
@@ -222,6 +254,16 @@ struct hip_graph_op
         // rewrite. False (a parameter reaches a library kernel) -> re-record.
         bool patchable = false;
         std::vector<graph_node_patch> patches{};
+
+        // Capture `f`'s device work into a fresh graph and cache the packed result.
+        // `f` returns the submodule outputs; capturing only records the launches,
+        // so the buffers are filled when the instantiated graph is later launched.
+        template <class F>
+        void record(hipStream_t stream, F f)
+        {
+            graph  = hip_graph::capture(stream, [&] { outputs = f(); });
+            result = pack_outputs(outputs);
+        }
     };
 
     // Created in finalize() rather than at construction: operation handles are
@@ -345,19 +387,6 @@ struct hip_graph_op
                 return false;
         }
 
-        // Record the slot if the pointer at `off` lands inside a movable input.
-        auto record_slot = [&](graph_node_patch& np, std::size_t off, char* p) {
-            for(std::size_t i = 0; i < in_ptrs.size(); ++i)
-            {
-                const auto* base = static_cast<const char*>(in_ptrs[i]);
-                if(p >= base and p < base + in_sizes[i])
-                {
-                    np.slots.push_back({off, i, static_cast<std::size_t>(p - base)});
-                    break;
-                }
-            }
-        };
-
         std::vector<graph_node_patch> patches;
         for(const auto& node : state->graph.nodes())
         {
@@ -372,7 +401,7 @@ struct hip_graph_op
             graph_node_patch np;
             np.node = node;
             for(const auto& [off, p] : unpack_kernel_config(params.extra, *cobj->second))
-                record_slot(np, off, p);
+                np.record_slot(off, p, in_ptrs, in_sizes);
             if(not np.slots.empty())
                 patches.push_back(std::move(np));
         }
@@ -419,36 +448,17 @@ struct hip_graph_op
         assert(mods.size() == 1);
         module_ref sub = mods.front();
 
-        // Build the parameter map and run the submodule. Only needed when
-        // (re-)recording or on the null-stream fallback -- never on the
-        // steady-state replay path -- so it stays off the hot path.
-        auto run_submodule = [&] {
-            auto param_names = sub->get_parameter_names();
-            assert(param_names.size() == args.size());
-            std::unordered_map<std::string, argument> params;
-            for_each(param_names.begin(),
-                     param_names.end(),
-                     args.begin(),
-                     [&](const std::string& pname, const argument& a) { params[pname] = a; });
-            return run(sub, params);
-        };
-
         hipStream_t stream = ctx.get_stream().get();
         // The legacy/null stream cannot be captured; fall back to a normal run.
         if(stream == nullptr)
-            return pack_outputs(run_submodule());
+            return pack_outputs(run(sub, create_params(sub, args)));
 
-        // Record the submodule's kernels into a fresh graph using the current
-        // buffers. Capturing does not execute the kernels: they are added to the
-        // graph and the returned arguments are views into stable buffers that get
-        // filled when the instantiated graph is launched below.
-        auto record = [&] {
-            state->graph  = hip_graph::capture(stream, [&] { state->outputs = run_submodule(); });
-            state->result = pack_outputs(state->outputs);
-        };
+        // Capturing only records the kernel launches into the graph (it does not
+        // execute them); the returned arguments are views into stable buffers that
+        // get filled when the instantiated graph is launched below.
         if(not state->captured)
         {
-            record();
+            state->record(stream, [&] { return run(sub, create_params(sub, args)); });
             state->exec = state->graph.instantiate();
             // Only inspect the captured nodes when a parameter can actually move;
             // with no movable inputs the graph stays bound to stable buffers.
@@ -472,7 +482,7 @@ struct hip_graph_op
                 if(state->patchable)
                     patch_kernel_nodes(current_ptrs);
                 else
-                    record();
+                    state->record(stream, [&] { return run(sub, create_params(sub, args)); });
                 if(not state->exec.update(state->graph))
                     state->exec = state->graph.instantiate();
                 state->applied_ptrs = std::move(current_ptrs);

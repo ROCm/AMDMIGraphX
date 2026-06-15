@@ -279,11 +279,8 @@ __device__ void nms_filter_per_block(const index idx,
     for(index_int i = 0; i < NumBoxes; ++i)
     {
         if(output_idx >= max_output)
-        {
-            __syncthreads();
             break;
-        }
-        if(removed[i] == 0)
+        if(not removed[i])
         {
             if(idx.local == 0)
             {

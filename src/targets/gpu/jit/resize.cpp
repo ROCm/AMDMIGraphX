@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/transform_view.hpp>
@@ -47,7 +48,10 @@ extern "C" {
 MIGRAPHX_GLOBAL void resize(void* in_data, void* output)
 {
     make_tensors()(in_data, output)([](auto input, auto out) {
-        ${resize_func}<${coord_transform}, ${nearest_op}>(input, out, ${scales}${cubic_coeff_arg});
+        ${vectorize}(out)([&](auto outv) {
+            ${resize_func}<${coord_transform}, ${nearest_op}, ${axis}>(
+                input, out, outv, ${scales}${cubic_coeff_arg});
+        });
     });
 }
 
@@ -74,11 +78,22 @@ struct resize_compiler : compiler<resize_compiler>
 
         std::vector<int64_t> permutation;
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 1024));
         options.output         = inputs.back();
         options.inputs         = inputs;
         options.kernel_name    = "resize";
         options.virtual_inputs = normalize_permutation(inputs, &permutation);
+
+        std::string mode = v.get("mode", "nearest");
+
+        // Every mode vectorizes the output store along its fastest axis (the input is gathered,
+        // so only the output is vectorized). Pick the size/axis with the shared vectorize helper
+        // and launch one thread per vectorized element. Resize is faster with a width-4 store
+        // than the half2 default, so the candidate sizes are given explicitly.
+        auto vec = gen::vectorize::elements(gen::find_fast_axis(options.virtual_inputs.back()),
+                                            {options.virtual_inputs.back()},
+                                            {4, 2});
+        options.set_launch_params(
+            v, compute_global_for(ctx, inputs.back().elements() / vec.size, 1024));
 
         // Compute scales from shapes
         const auto& in_lens       = options.virtual_inputs.front().lens();
@@ -98,8 +113,6 @@ struct resize_compiler : compiler<resize_compiler>
             scales = reorder_dims(scales, permutation);
         }
 
-        // Get mode (nearest, linear, or cubic)
-        std::string mode        = v.get("mode", "nearest");
         std::string resize_func = "resize_" + mode;
 
         // Get coordinate transformation mode
@@ -122,6 +135,8 @@ struct resize_compiler : compiler<resize_compiler>
                                        {"nearest_op", nearest_op},
                                        {"scales", scales_to_string(scales)},
                                        {"resize_func", resize_func},
+                                       {"vectorize", vec.str()},
+                                       {"axis", std::to_string(vec.axis)},
                                        {"cubic_coeff_arg", cubic_coeff_arg}});
 
         return compile_hip_code_object(ctx, src, options);

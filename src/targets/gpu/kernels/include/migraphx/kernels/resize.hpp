@@ -33,6 +33,7 @@
 #include <migraphx/kernels/bit.hpp>
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/ranges.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 
 namespace migraphx {
 
@@ -116,24 +117,6 @@ struct nearest_round_prefer_ceil
     }
 };
 
-// Compute input indices for nearest neighbor mode
-template <class CoordOp, class NearestOp, class InShape, class OutShape, class Scales>
-MIGRAPHX_DEVICE_CONSTEXPR auto
-compute_nearest_idx(InShape in_shape, OutShape out_shape, index_int out_idx, const Scales& scales)
-{
-    auto out_multi      = out_shape.multi(out_idx);
-    constexpr auto ndim = InShape{}.lens.size();
-    array<index_int, ndim> in_multi{};
-
-    for(index_int i = 0; i < ndim; ++i)
-    {
-        auto coord  = CoordOp{}(in_shape.lens[i], out_shape.lens[i], out_multi[i], scales[i]);
-        in_multi[i] = NearestOp{}(in_shape.lens[i], coord);
-    }
-
-    return in_multi;
-}
-
 // Compute interpolation parameters for linear mode
 struct interp_params
 {
@@ -214,85 +197,117 @@ MIGRAPHX_DEVICE_CONSTEXPR cubic_params compute_cubic_params_1d(
     return result;
 }
 
-// Resize nearest kernel
-template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
-__device__ void resize_nearest(Input input, Output output, Scales scales)
+// Drive a resize over the (possibly vectorized) output `outv`, calling compute(out_multi) for
+// each output element. When the output is vectorized along `Axis` it produces a run of `Vn`
+// consecutive lanes per vectorized store; when it is scalar (Vn < 2) it writes one element.
+// The output is vectorized in the global wrapper with vectorize<Vn, Axis>() (identity when
+// Vn < 2), so this same driver serves every mode. The input is always gathered scalar-wise.
+template <index_int Axis, class Outv, class Compute>
+__device__ void resize_apply(Outv outv, Compute compute)
 {
-    auto idx       = make_index();
-    auto in_shape  = input.get_shape();
-    auto out_shape = output.get_shape();
-
-    idx.global_stride(out_shape.elements(), [&](auto out_idx) {
-        auto in_idx = compute_nearest_idx<CoordOp, NearestOp>(in_shape, out_shape, out_idx, scales);
-        output[out_idx] = input[in_idx];
+    auto idx               = make_index();
+    constexpr index_int vn = tensor_vec_size<Outv>();
+    const auto vshape      = outv.get_shape();
+    idx.global_stride(vshape.elements(), [&](auto vidx) {
+        auto vmulti = vshape.multi(vidx);
+        if constexpr(vn < 2)
+        {
+            outv[vidx] = implicit_conversion(compute(vmulti));
+        }
+        else
+        {
+            using out_type = vec_type<typename Outv::type>;
+            outv[vidx]     = generate_vec(_c<vn>, [&](auto lane) {
+                auto out_multi  = vmulti;
+                out_multi[Axis] = vmulti[Axis] * vn + lane;
+                return out_type(implicit_conversion(compute(out_multi)));
+            });
+        }
     });
 }
 
-// Resize linear kernel
-// Optimized to only iterate over 2^k corners where k is the number of dimensions
-// that actually need interpolation (i.e., where i0 != i1)
-template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
-__device__ void resize_linear(Input input, Output output, Scales scales)
+// Resize nearest kernel
+template <class CoordOp,
+          class NearestOp,
+          index_int Axis,
+          class Input,
+          class Output,
+          class Outv,
+          class Scales>
+__device__ void resize_nearest(Input input, Output out, Outv outv, Scales scales)
 {
-    auto idx            = make_index();
     auto in_shape       = input.get_shape();
-    auto out_shape      = output.get_shape();
+    auto out_shape      = out.get_shape();
     constexpr auto ndim = get_shape_c<Input>{}.lens.size();
+    resize_apply<Axis>(outv, [&](auto out_multi) {
+        array<index_int, ndim> in_multi{};
+        for(index_int i = 0; i < ndim; ++i)
+        {
+            auto coord  = CoordOp{}(in_shape.lens[i], out_shape.lens[i], out_multi[i], scales[i]);
+            in_multi[i] = NearestOp{}(in_shape.lens[i], coord);
+        }
+        return input[in_multi];
+    });
+}
 
-    idx.global_stride(out_shape.elements(), [&](auto out_idx) {
-        auto out_multi = out_shape.multi(out_idx);
-
-        // Precompute interpolation parameters for each dimension
+// Resize linear kernel.
+// Optimized to only iterate over 2^k corners where k is the number of dimensions that
+// actually need interpolation (i.e., where scale != 1).
+template <class CoordOp,
+          class NearestOp,
+          index_int Axis,
+          class Input,
+          class Output,
+          class Outv,
+          class Scales>
+__device__ void resize_linear(Input input, Output out, Outv outv, Scales scales)
+{
+    auto in_shape       = input.get_shape();
+    auto out_shape      = out.get_shape();
+    constexpr auto ndim = get_shape_c<Input>{}.lens.size();
+    resize_apply<Axis>(outv, [&](auto out_multi) {
         auto params = array_transform(in_shape.lens, out_shape.lens, out_multi, scales)(
             [](auto... xs) { return compute_interp_params_1d<CoordOp>(xs...); });
-
         index_int active_count =
             count_if(scales.begin(), scales.end(), [](auto scale) { return scale != 1.0f; });
         MIGRAPHX_ASSERT(active_count < 32);
-
-        // Initialize in_multi with non-interpolated dimensions (where i0 == i1)
         auto in_multi = array_transform(params)([](const interp_params& p) { return p.i0; });
-
-        // Accumulate over 2^active_count corners instead of 2^ndim
         const index_int corners = (1u << active_count);
         float acc               = 0.0f;
-
         for(index_int subset = 0; subset < corners; ++subset)
         {
             float w              = 1.0f;
             index_int active_bit = 0;
-
             for(index_int d = 0; d < ndim; ++d)
             {
                 if(scales[d] == 1.0f)
                     continue;
-                // This dimension needs interpolation
                 const bool use_high = get_bit(subset, active_bit);
                 w *= use_high ? params[d].weight : (1.0f - params[d].weight);
                 in_multi[d] = use_high ? params[d].i1 : params[d].i0;
                 ++active_bit;
             }
-
             acc += w * migraphx::convert<float>(input[in_multi]);
         }
-
-        output[out_idx] = implicit_conversion(acc);
+        return acc;
     });
 }
 
 // Resize cubic kernel
-// Uses separable bicubic interpolation with 4 neighbors per dimension
-template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
-__device__ void resize_cubic(Input input, Output output, Scales scales, float cubic_coeff)
+// Uses separable cubic interpolation with 4 neighbors per resized dimension.
+template <class CoordOp,
+          class NearestOp,
+          index_int Axis,
+          class Input,
+          class Output,
+          class Outv,
+          class Scales>
+__device__ void resize_cubic(Input input, Output out, Outv outv, Scales scales, float cubic_coeff)
 {
-    auto idx            = make_index();
     auto in_shape       = input.get_shape();
-    auto out_shape      = output.get_shape();
+    auto out_shape      = out.get_shape();
     constexpr auto ndim = get_shape_c<Input>{}.lens.size();
-
-    idx.global_stride(out_shape.elements(), [&](auto out_idx) {
-        auto out_multi = out_shape.multi(out_idx);
-
+    resize_apply<Axis>(outv, [&](auto out_multi) {
         // Precompute cubic interpolation parameters for each dimension
         array<cubic_params, ndim> params{};
         for(index_int d = 0; d < ndim; ++d)
@@ -315,14 +330,7 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
         array<index_int, ndim> in_multi{};
         for(index_int d = 0; d < ndim; ++d)
         {
-            if(scales[d] == 1.0f)
-            {
-                in_multi[d] = out_multi[d];
-            }
-            else
-            {
-                in_multi[d] = params[d].indices[0];
-            }
+            in_multi[d] = (scales[d] == 1.0f) ? out_multi[d] : params[d].indices[0];
         }
 
         // Build combo shape: 4 for interpolated dims, 1 otherwise
@@ -336,7 +344,7 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
         {
             auto combo_multi = combo_lens.multi(combo);
 
-            // 2. Compute the combined weight as a product of per-dimension weights
+            // Compute the combined weight as a product of per-dimension weights
             float w = inner_product(
                 active_dims.begin(),
                 active_dims.begin() + active_count,
@@ -345,7 +353,7 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
                 [](float a, float b) { return a * b; },
                 [&](index_int d, index_int) { return params[d].weights[combo_multi[d]]; });
 
-            // 3. Set in_multi for each active dimension from the neighbor indices
+            // Set in_multi for each active dimension from the neighbor indices
             for(index_int i = 0; i < active_count; ++i)
             {
                 index_int d = active_dims[i];
@@ -358,7 +366,7 @@ __device__ void resize_cubic(Input input, Output output, Scales scales, float cu
             }
         }
 
-        output[out_idx] = implicit_conversion(acc);
+        return acc;
     });
 }
 

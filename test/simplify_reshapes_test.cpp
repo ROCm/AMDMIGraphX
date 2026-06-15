@@ -34,6 +34,8 @@
 
 #include <test.hpp>
 
+#include <algorithm>
+
 static void run_pass(migraphx::module& m, bool enable_gather_slice_concat = false)
 {
     migraphx::run_passes(
@@ -5088,9 +5090,9 @@ struct gsc_params
     migraphx::instruction_ref indices;
 };
 
-static gsc_params add_data_indices_params(migraphx::module& m,
-                                          const std::vector<std::size_t>& data_lens,
-                                          const std::vector<std::size_t>& indices_lens)
+gsc_params add_data_indices_params(migraphx::module& m,
+                                   const std::vector<std::size_t>& data_lens,
+                                   const std::vector<std::size_t>& indices_lens)
 {
     auto data    = m.add_parameter("data", {migraphx::shape::float_type, data_lens});
     auto indices = m.add_parameter("indices", {migraphx::shape::int32_type, indices_lens});
@@ -5104,10 +5106,10 @@ struct gsc_inputs
     migraphx::instruction_ref gather;
 };
 
-static gsc_inputs add_gather_inputs(migraphx::module& m,
-                                    const std::vector<std::size_t>& data_lens,
-                                    const std::vector<std::size_t>& indices_lens,
-                                    int gather_axis)
+gsc_inputs add_gather_inputs(migraphx::module& m,
+                             const std::vector<std::size_t>& data_lens,
+                             const std::vector<std::size_t>& indices_lens,
+                             int gather_axis)
 {
     auto p = add_data_indices_params(m, data_lens, indices_lens);
     auto g =
@@ -5115,30 +5117,28 @@ static gsc_inputs add_gather_inputs(migraphx::module& m,
     return {p.data, p.indices, g};
 }
 
-static std::vector<migraphx::instruction_ref> add_unit_slices(migraphx::module& m,
-                                                              migraphx::instruction_ref g,
-                                                              int slice_axis,
-                                                              const std::vector<int>& rows)
+std::vector<migraphx::instruction_ref> add_unit_slices(migraphx::module& m,
+                                                       migraphx::instruction_ref g,
+                                                       int slice_axis,
+                                                       const std::vector<int>& rows)
 {
-    std::vector<migraphx::instruction_ref> slices;
-    slices.reserve(rows.size());
-    for(int r : rows)
-    {
-        slices.push_back(m.add_instruction(
+    std::vector<migraphx::instruction_ref> slices(rows.size());
+    std::transform(rows.begin(), rows.end(), slices.begin(), [&](int r) {
+        return m.add_instruction(
             migraphx::make_op("slice",
                               {{"axes", {slice_axis}}, {"starts", {r}}, {"ends", {r + 1}}}),
-            g));
-    }
+            g);
+    });
     return slices;
 }
 
-static migraphx::instruction_ref add_rewritten_run(migraphx::module& m,
-                                                   migraphx::instruction_ref indices,
-                                                   migraphx::instruction_ref data,
-                                                   int gather_axis,
-                                                   std::size_t batch_stride,
-                                                   const std::vector<std::int64_t>& target_dims,
-                                                   const std::vector<int32_t>& perm)
+migraphx::instruction_ref add_rewritten_run(migraphx::module& m,
+                                            migraphx::instruction_ref indices,
+                                            migraphx::instruction_ref data,
+                                            int gather_axis,
+                                            std::size_t batch_stride,
+                                            const std::vector<std::int64_t>& target_dims,
+                                            const std::vector<int32_t>& perm)
 {
     migraphx::shape ps{migraphx::shape::int32_type, {perm.size()}};
     auto perm_lit = m.add_literal(migraphx::literal{ps, perm});
@@ -5273,9 +5273,9 @@ TEST_CASE(gather_slice_concat_two_runs)
 
 TEST_CASE(gather_slice_concat_below_min_run_no_rewrite)
 {
-    // Only three slice-of-gather inputs - below the matcher's min_run of 4.
-    // The matcher still fires on the concat but apply() must early-return on
-    // total_slices < min_run and leave the IR untouched.
+    // Only three slice-of-gather inputs - below find_gather_slice_concat's min_run
+    // of 4. The matcher still fires on the concat but apply() forms no qualifying
+    // run and leaves the IR untouched.
     migraphx::module m1;
     {
         auto in     = add_gather_inputs(m1, {3, 5, 7}, {4, 2}, 1);

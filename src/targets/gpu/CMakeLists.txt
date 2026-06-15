@@ -225,7 +225,7 @@ add_library(migraphx_gpu
     lowering.cpp
     loop.cpp
     lrn.cpp
-    mlir.cpp
+    mlir_backend_loader.cpp
     no_device.cpp
     pack_args.cpp
     prefuse_ops.cpp
@@ -302,16 +302,13 @@ rocm_clang_tidy_check(migraphx_gpu)
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
 
 if(MIGRAPHX_ENABLE_MLIR)
-    # Find package rocMLIR
-    find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
-    message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
+    # The rocMLIR backend is no longer linked directly into migraphx_gpu.
+    # Instead it is split into dynamically loadable plugins (see mlir_plugins/)
+    # so multiple rocMLIR backends (legacy + Triton) can coexist in a single
+    # build and be selected at runtime via MIGRAPHX_MLIR_BACKEND. migraphx_gpu
+    # only keeps the MLIR code paths enabled and forwards to the loaded plugin
+    # through mlir_backend_loader.cpp.
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
-    # Make this private to avoid multiple inclusions of LLVM symbols.
-    target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
-    # Hide LLVM internals that come from rocMLIR.
-    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
-        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
-    endif()
 endif()
 
 if(MIGRAPHX_USE_HIPRTC)
@@ -454,6 +451,15 @@ endif()
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::ck_host)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
+endif()
+
+if(MIGRAPHX_ENABLE_MLIR)
+    # Build the dynamically loadable MLIR backend plugins. Each plugin links a
+    # different rocMLIR install (legacy rocMLIR vs rocmlirTriton) and is loaded
+    # on demand by mlir_backend_loader.cpp.
+    set(MIGRAPHX_GPU_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+    set(MIGRAPHX_GPU_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+    add_subdirectory(mlir_plugins)
 endif()
 
 add_subdirectory(driver)

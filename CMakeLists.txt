@@ -200,6 +200,7 @@ endif()
 rocm_enable_clang_tidy(
     CHECKS
         bugprone-*
+        -bugprone-std-namespace-modification
         cert-*
         clang-analyzer-*
         clang-diagnostic-*
@@ -278,6 +279,8 @@ rocm_enable_clang_tidy(
         -misc-macro-parentheses
         -misc-no-recursion
         -misc-override-with-different-visibility
+        -misc-use-internal-linkage
+        -modernize-avoid-c-style-cast
         -modernize-concat-nested-namespaces
         -modernize-pass-by-value
         -modernize-type-traits
@@ -285,11 +288,13 @@ rocm_enable_clang_tidy(
         -modernize-use-nodiscard
         -modernize-use-override
         -modernize-use-scoped-lock
+        -modernize-use-string-view
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-avoid-endl
         -performance-type-promotion-in-math-fn
         -performance-enum-size
+        -performance-use-std-move
         -readability-braces-around-statements
         -readability-container-size-empty
         -readability-avoid-nested-conditional-operator
@@ -303,6 +308,7 @@ rocm_enable_clang_tidy(
         -readability-redundant-parentheses
         -readability-redundant-string-init
         -readability-suspicious-call-argument
+        -readability-trailing-comma
         -readability-uppercase-literal-suffix
         -readability-use-concise-preprocessor-directives
         -*-avoid-c-arrays

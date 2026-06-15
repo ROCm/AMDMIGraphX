@@ -67,9 +67,9 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
 
 static std::set<sym::scalar> sym_optimals(const shape::dynamic_dimension& dd)
 {
-    if(not dd.optimals.has_value())
-        return {};
-    return {dd.optimals->begin(), dd.optimals->end()};
+    if(dd.optimals.has_value())
+        return {dd.optimals->begin(), dd.optimals->end()};
+    return {};
 }
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)

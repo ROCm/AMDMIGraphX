@@ -23,6 +23,7 @@
  */
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
+#include <migraphx/gpu/compile_gen.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/transform_view.hpp>
@@ -47,7 +48,7 @@ extern "C" {
 MIGRAPHX_GLOBAL void resize(void* in_data, void* output)
 {
     make_tensors()(in_data, output)([](auto input, auto out) {
-        ${resize_func}<${coord_transform}, ${nearest_op}>(input, out, ${scales}${cubic_coeff_arg});
+        ${resize_func}<${coord_transform}, ${nearest_op}${vec_targs}>(input, out, ${scales}${cubic_coeff_arg});
     });
 }
 
@@ -67,29 +68,6 @@ struct resize_compiler : compiler<resize_compiler>
                to_string_range(views::transform(scales, MIGRAPHX_LIFT(to_hex_float))) + ")";
     }
 
-    // Mirror find_vector_axis / find_vectorize_size in kernels/vectorize.hpp so the launch
-    // grid matches the vectorization the linear kernel applies along the fastest axis.
-    static std::size_t vectorize_size(const shape& s)
-    {
-        const auto& strides = s.strides();
-        const auto& lens    = s.lens();
-        std::size_t axis    = 0;
-        for(std::size_t i = 1; i < lens.size(); ++i)
-        {
-            if(strides[i] == 0)
-                continue;
-            if(strides[axis] == 0 or
-               std::make_pair(strides[i], lens[i]) < std::make_pair(strides[axis], lens[axis]))
-                axis = i;
-        }
-        if(lens.empty() or strides[axis] != 1)
-            return 1;
-        for(std::size_t n : {4, 2})
-            if(lens[axis] % n == 0)
-                return n;
-        return 1;
-    }
-
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         if(inputs.size() != 2)
@@ -102,13 +80,20 @@ struct resize_compiler : compiler<resize_compiler>
         options.kernel_name    = "resize";
         options.virtual_inputs = normalize_permutation(inputs, &permutation);
 
-        // The linear kernel writes a contiguous run of vec_size elements per thread, so
-        // launch one thread per vectorized element. Other modes are scalar (vec_size == 1).
-        std::size_t vec_size = (v.get("mode", "nearest") == "linear")
-                                   ? vectorize_size(options.virtual_inputs.back())
-                                   : 1;
+        std::string mode = v.get("mode", "nearest");
+
+        // The linear kernel vectorizes the output store along its fastest axis (the input is
+        // gathered, so only the output is vectorized). Pick the size/axis with the shared
+        // vectorize helper and launch one thread per vectorized element. Resize is faster with
+        // a width-4 store than the half2 default, so the candidate sizes are given explicitly.
+        // Other modes are scalar.
+        gen::vectorize vec{1, 0};
+        if(mode == "linear")
+            vec = gen::vectorize::elements(gen::find_fast_axis(options.virtual_inputs.back()),
+                                           {options.virtual_inputs.back()},
+                                           {4, 2});
         options.set_launch_params(
-            v, compute_global_for(ctx, inputs.back().elements() / vec_size, 1024));
+            v, compute_global_for(ctx, inputs.back().elements() / vec.size, 1024));
 
         // Compute scales from shapes
         const auto& in_lens       = options.virtual_inputs.front().lens();
@@ -128,9 +113,12 @@ struct resize_compiler : compiler<resize_compiler>
             scales = reorder_dims(scales, permutation);
         }
 
-        // Get mode (nearest, linear, or cubic)
-        std::string mode        = v.get("mode", "nearest");
+        // The linear kernel takes the vector axis and size as trailing template arguments;
+        // other modes use the plain signature.
         std::string resize_func = "resize_" + mode;
+        std::string vec_targs =
+            (mode == "linear") ? (", " + std::to_string(vec.axis) + ", " + std::to_string(vec.size))
+                               : "";
 
         // Get coordinate transformation mode
         std::string coord_transform =
@@ -152,6 +140,7 @@ struct resize_compiler : compiler<resize_compiler>
                                        {"nearest_op", nearest_op},
                                        {"scales", scales_to_string(scales)},
                                        {"resize_func", resize_func},
+                                       {"vec_targs", vec_targs},
                                        {"cubic_coeff_arg", cubic_coeff_arg}});
 
         return compile_hip_code_object(ctx, src, options);

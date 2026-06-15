@@ -264,44 +264,45 @@ MIGRAPHX_DEVICE_CONSTEXPR float resize_linear_value(
 }
 
 // Resize linear kernel.
-// Each thread produces a run of `vn` consecutive output elements along the fastest
-// (stride-1) output axis and writes them with a single vectorized store. This cuts the
-// number of threads (and the per-thread index setup) by `vn` and lets the compiler share
-// the coordinate math for the remaining axes across the run.
-template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
+// Each thread produces a run of `Vn` consecutive output elements along axis `Axis` (the
+// fastest output axis, chosen on the host) and writes them with a single vectorized store.
+// This cuts the number of threads (and per-thread index setup) by `Vn` and lets the compiler
+// share the coordinate math for the remaining axes across the run. The output is vectorized
+// with the shared `vectorize<Vn, Axis>()` transformer, which is the identity when Vn < 2.
+template <class CoordOp,
+          class NearestOp,
+          index_int Axis,
+          index_int Vn,
+          class Input,
+          class Output,
+          class Scales>
 __device__ void resize_linear(Input input, Output output, Scales scales)
 {
     auto idx       = make_index();
     auto in_shape  = input.get_shape();
     auto out_shape = output.get_shape();
-    using out_type = typename Output::type;
 
-    constexpr auto vaxis = find_vector_axis(get_shape_c<Output>{});
-    constexpr auto vn    = find_vectorize_size(
-        [&](auto i) { return is_vectorizable<i>(vaxis, get_shape_c<Output>{}); });
-
-    if constexpr(vn < 2)
-    {
-        idx.global_stride(out_shape.elements(), [&](auto out_idx) {
-            auto out_multi  = out_shape.multi(out_idx);
-            output[out_idx] = implicit_conversion(
-                resize_linear_value<CoordOp>(input, in_shape, out_shape, out_multi, scales));
+    vectorize<Vn, Axis>()(output)([&](auto outv) {
+        const auto vshape = outv.get_shape();
+        idx.global_stride(vshape.elements(), [&](auto vidx) {
+            auto vmulti = vshape.multi(vidx);
+            if constexpr(Vn < 2)
+            {
+                outv[vidx] = implicit_conversion(
+                    resize_linear_value<CoordOp>(input, in_shape, out_shape, vmulti, scales));
+            }
+            else
+            {
+                using out_type = typename Output::type;
+                outv[vidx]     = generate_vec(_c<Vn>, [&](auto lane) {
+                    auto out_multi  = vmulti;
+                    out_multi[Axis] = vmulti[Axis] * Vn + lane;
+                    return out_type(implicit_conversion(resize_linear_value<CoordOp>(
+                        input, in_shape, out_shape, out_multi, scales)));
+                });
+            }
         });
-    }
-    else
-    {
-        auto outv             = as_vec<vn>(output, vaxis);
-        const auto outv_shape = outv.get_shape();
-        idx.global_stride(outv_shape.elements(), [&](auto vidx) {
-            auto vmulti = outv_shape.multi(vidx);
-            outv[vidx]  = generate_vec(vn, [&](auto lane) {
-                auto out_multi   = vmulti;
-                out_multi[vaxis] = vmulti[vaxis] * vn + lane;
-                return out_type(implicit_conversion(
-                    resize_linear_value<CoordOp>(input, in_shape, out_shape, out_multi, scales)));
-            });
-        });
-    }
+    });
 }
 
 // Resize cubic kernel

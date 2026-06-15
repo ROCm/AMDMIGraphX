@@ -95,8 +95,7 @@ struct logger_options
 {
     std::string log_level;
     std::vector<std::string> log_files;
-    bool log_to_cout     = false;
-    bool cout_sink_added = false;
+    bool log_to_cout = false;
 
     void parse(migraphx::driver::argument_parser& ap)
     {
@@ -129,9 +128,6 @@ struct logger_options
 
     void add_cout_sink()
     {
-        if(cout_sink_added)
-            return;
-        cout_sink_added = true;
         migraphx::log::set_severity(
             migraphx::log::severity::warn); // sets the severity of default (stderr) sink to warn
         migraphx::log::add_sink(migraphx::log::make_io_sink(std::cout));
@@ -1213,22 +1209,11 @@ int main(int argc, const char* argv[], const char* envp[])
         logger_options log_opts;
         log_opts.parse(ap);
 
-        // Needed so that the first two lines printed follow the log level set
-        auto it = std::find(args.begin(), args.end(), "--log-level");
-        if(it != args.end() and std::next(it) != args.end())
-        {
-            auto level = logger_options::parse_log_level_string(*std::next(it));
-            if(level)
-                migraphx::log::set_severity(*level);
-        }
-
-        // Needed so that the first two lines printed follow the requested sink
-        if(std::find(args.begin(), args.end(), "--log-stdout") != args.end())
-            log_opts.add_cout_sink();
-
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
-        migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
+        ap.post_action([driver_invocation](auto&&) {
+            migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
+        });
 
         auto start_time = std::chrono::system_clock::now();
 

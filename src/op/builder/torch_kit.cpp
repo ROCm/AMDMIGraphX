@@ -78,11 +78,11 @@ struct torch_kit : kit<torch_kit>
     void apply() const
     {
         this->common_ops({
-            "ceil", "convert", "cos",   "cosh",        "div",     "dot",   "elu",     "equal",
-            "erf",  "exp",     "floor", "fmod",        "greater", "isinf", "isnan",   "leaky_relu",
-            "less", "log",     "log2",  "logical_and", "max",     "min",   "mul",
-            "neg",  "not",     "pow",   "recip",       "relu",    "rsqrt", "sigmoid", "sign",
-            "sin",  "sinh",    "sqrt",  "sub",         "tan",     "tanh",
+            "ceil", "convert", "cos",   "cosh",        "div",     "dot",     "elu",   "equal",
+            "erf",  "exp",     "floor", "fmod",        "greater", "isinf",   "isnan", "leaky_relu",
+            "less", "log",     "log2",  "logical_and", "max",     "min",     "mul",   "neg",
+            "not",  "pow",     "recip", "relu",        "rsqrt",   "sigmoid", "sign",  "sin",
+            "sinh", "sqrt",    "sub",   "tan",         "tanh",
         });
         this->common_ops({"where"}, {.common_type = false});
 

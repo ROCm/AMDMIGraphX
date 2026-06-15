@@ -48,7 +48,10 @@ extern "C" {
 MIGRAPHX_GLOBAL void resize(void* in_data, void* output)
 {
     make_tensors()(in_data, output)([](auto input, auto out) {
-        ${resize_func}<${coord_transform}, ${nearest_op}${vec_targs}>(input, out, ${scales}${cubic_coeff_arg});
+        ${vectorize}(out)([&](auto outv) {
+            ${resize_func}<${coord_transform}, ${nearest_op}, ${axis}>(
+                input, out, outv, ${scales}${cubic_coeff_arg});
+        });
     });
 }
 
@@ -82,16 +85,13 @@ struct resize_compiler : compiler<resize_compiler>
 
         std::string mode = v.get("mode", "nearest");
 
-        // The linear kernel vectorizes the output store along its fastest axis (the input is
-        // gathered, so only the output is vectorized). Pick the size/axis with the shared
-        // vectorize helper and launch one thread per vectorized element. Resize is faster with
-        // a width-4 store than the half2 default, so the candidate sizes are given explicitly.
-        // Other modes are scalar.
-        gen::vectorize vec{1, 0};
-        if(mode == "linear")
-            vec = gen::vectorize::elements(gen::find_fast_axis(options.virtual_inputs.back()),
-                                           {options.virtual_inputs.back()},
-                                           {4, 2});
+        // Every mode vectorizes the output store along its fastest axis (the input is gathered,
+        // so only the output is vectorized). Pick the size/axis with the shared vectorize helper
+        // and launch one thread per vectorized element. Resize is faster with a width-4 store
+        // than the half2 default, so the candidate sizes are given explicitly.
+        auto vec = gen::vectorize::elements(gen::find_fast_axis(options.virtual_inputs.back()),
+                                            {options.virtual_inputs.back()},
+                                            {4, 2});
         options.set_launch_params(
             v, compute_global_for(ctx, inputs.back().elements() / vec.size, 1024));
 
@@ -113,12 +113,7 @@ struct resize_compiler : compiler<resize_compiler>
             scales = reorder_dims(scales, permutation);
         }
 
-        // The linear kernel takes the vector axis and size as trailing template arguments;
-        // other modes use the plain signature.
         std::string resize_func = "resize_" + mode;
-        std::string vec_targs =
-            (mode == "linear") ? (", " + std::to_string(vec.axis) + ", " + std::to_string(vec.size))
-                               : "";
 
         // Get coordinate transformation mode
         std::string coord_transform =
@@ -140,7 +135,8 @@ struct resize_compiler : compiler<resize_compiler>
                                        {"nearest_op", nearest_op},
                                        {"scales", scales_to_string(scales)},
                                        {"resize_func", resize_func},
-                                       {"vec_targs", vec_targs},
+                                       {"vectorize", vec.str()},
+                                       {"axis", std::to_string(vec.axis)},
                                        {"cubic_coeff_arg", cubic_coeff_arg}});
 
         return compile_hip_code_object(ctx, src, options);

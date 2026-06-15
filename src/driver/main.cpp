@@ -95,7 +95,8 @@ struct logger_options
 {
     std::string log_level;
     std::vector<std::string> log_files;
-    bool log_to_cout = false;
+    bool log_to_cout     = false;
+    bool cout_sink_added = false;
 
     void parse(migraphx::driver::argument_parser& ap)
     {
@@ -120,17 +121,27 @@ struct logger_options
            ap.append(),
            ap.nargs(2));
         ap(log_to_cout,
-           {"--cout"},
+           {"--log-stdout"},
            ap.help("Send info logs to std::cout, keeping warnings and errors on std::cerr"),
            ap.set_value(true));
         ap.post_action([this](auto&&) { this->apply(); });
     }
 
-    void apply() const
+    void add_cout_sink()
+    {
+        if(cout_sink_added)
+            return;
+        cout_sink_added = true;
+        migraphx::log::set_severity(
+            migraphx::log::severity::warn); // sets the severity of default (stderr) sink to warn
+        migraphx::log::add_sink(migraphx::log::make_io_sink(std::cout));
+    }
+
+    void apply()
     {
         if(log_to_cout)
         {
-            migraphx::log::set_info_stream(std::cout);
+            add_cout_sink();
         }
         if(not log_level.empty())
         {
@@ -1212,8 +1223,8 @@ int main(int argc, const char* argv[], const char* envp[])
         }
 
         // Needed so that the first two lines printed follow the requested sink
-        if(std::find(args.begin(), args.end(), "--cout") != args.end())
-            migraphx::log::set_info_stream(std::cout);
+        if(std::find(args.begin(), args.end(), "--log-stdout") != args.end())
+            log_opts.add_cout_sink();
 
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");

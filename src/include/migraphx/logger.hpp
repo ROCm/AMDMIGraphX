@@ -99,12 +99,12 @@ MIGRAPHX_EXPORT void set_severity(severity level, size_t id = 0);
 MIGRAPHX_EXPORT size_t add_file_logger(std::string_view filename, severity level = severity::info);
 
 /**
- * @brief Routes informational output (info and more verbose) on the default sink (sink 0) to the
- * given stream while keeping warnings and errors on std::cerr.
+ * @brief Creates a sink that writes log records to the given output stream.
  *
- * @param os The output stream that info and more-verbose messages should be written to
+ * @param os The output stream to write to
+ * @return A sink that can be passed to add_sink
  */
-MIGRAPHX_EXPORT void set_info_stream(std::ostream& os);
+MIGRAPHX_EXPORT sink make_io_sink(std::ostream& os);
 
 template <severity Severity>
 struct print

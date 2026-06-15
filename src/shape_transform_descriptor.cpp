@@ -1291,8 +1291,60 @@ find_broadcasted_dims(const std::vector<dimension>& dimensions, std::size_t rank
     return broadcast_dims_map;
 }
 
+// Detach length-1 pieces of a split axis that an unsqueeze+transpose scattered
+// away from the axis's single real piece. Such a length-1 piece holds no data,
+// so reordering it is meaningless, but generate() would still emit a transpose
+// to put it back next to its sibling. Clearing its axis turns it into a plain
+// length-1 dimension that the rest of simplify() reabsorbs as a missing axis,
+// leaving an identity transform instead of a redundant transpose.
+//
+// Example: dimensions [{4,0}:1], [{0}:1, {1}], [{2}], [{3}], [{4,1}:229] (axis 4
+// split into the length-1 piece {4,0} and the real piece {4,1}). Detaching
+// {4,0} (axis -> {}) and renumbering {4,1} -> {4} removes the split. Contiguous
+// pieces are an ordinary reshape split and are left unchanged.
+static void detach_scattered_1_split_pieces(std::vector<dimension>& dimensions)
+{
+    std::unordered_map<const dimension::sub*, std::size_t> sub_pos;
+    for_each_subdimension(dimensions,
+                          range(std::numeric_limits<std::size_t>::max()),
+                          [&](const dimension::sub& s, std::size_t i) { sub_pos[&s] = i; });
+
+    auto axes_map = group_axes(dimensions);
+    std::set<std::size_t> detached;
+    for(auto&& p : axes_map)
+    {
+        auto& group = p.second;
+        if(group.size() < 2)
+            continue;
+        auto is_nonunit = [](const dimension::sub* s) { return s->len != 1; };
+        if(std::count_if(group.begin(), group.end(), is_nonunit) != 1)
+            continue;
+        std::sort(group.begin(), group.end(), by(std::less<>{}, [&](const dimension::sub* s) {
+                      return sub_pos.at(s);
+                  }));
+        auto contiguous = std::adjacent_find(group.begin(),
+                                             group.end(),
+                                             [&](const dimension::sub* a, const dimension::sub* b) {
+                                                 return sub_pos.at(a) + 1 != sub_pos.at(b);
+                                             }) == group.end();
+        if(contiguous)
+            continue;
+        for(auto* s : group)
+            if(s->len == 1)
+                s->axis.clear();
+        detached.insert(p.first);
+    }
+
+    for_each_subdimension(dimensions, [&](dimension::sub& s) {
+        if(s.axis.size() > 1 and contains(detached, s.axis.front()))
+            s.axis = {s.axis.front()};
+    });
+}
+
 void shape_transform_descriptor::simplify()
 {
+    detach_scattered_1_split_pieces(dimensions);
+
     for(auto& d : dimensions)
         d.simplify();
 

@@ -383,6 +383,49 @@ TEST_CASE(optimize_reshape_transpose_reshape_to_reshape)
                                               });
 }
 
+// A length-1 dimension inserted by an unsqueeze and then moved across other
+// dimensions by a transpose (and finally squeezed) only restrides a length-1
+// dimension, so the whole sequence is a no-op.
+TEST_CASE(optimize_unsqueeze_transpose_squeeze_separated_1)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {1, 2, 3, 4},
+               {
+                   make_op("unsqueeze", {{"axes", {3}}}),
+                   make_op("transpose", {{"permutation", {3, 0, 1, 2, 4}}}),
+                   make_op("squeeze", {{"axes", {1}}}),
+               }) == ops{});
+}
+
+// Same pattern at the PairFormer triangle-attention scores shape
+// [B, N_i, H, N_j, N_k]; the unsqueeze/transpose/squeeze around the QK gemm is a
+// no-op, so the transpose must not survive (which is what blocks attention
+// fusion when it does).
+TEST_CASE(optimize_unsqueeze_transpose_squeeze_attention_scores)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {1, 229, 4, 229, 229},
+               {
+                   make_op("unsqueeze", {{"axes", {4}}}),
+                   make_op("transpose", {{"permutation", {4, 0, 1, 2, 3, 5}}}),
+                   make_op("squeeze", {{"axes", {1}}}),
+               }) == ops{});
+}
+
+// A transpose that reorders non-unit dimensions is real and must be preserved.
+TEST_CASE(optimize_unsqueeze_transpose_squeeze_nonunit_kept)
+{
+    EXPECT(check_optimize_shape_transforms(
+               {2, 3},
+               {
+                   make_op("unsqueeze", {{"axes", {0}}}),
+                   make_op("transpose", {{"permutation", {0, 2, 1}}}),
+                   make_op("squeeze", {{"axes", {0}}}),
+               }) == ops{
+                         make_op("transpose", {{"permutation", {1, 0}}}),
+                     });
+}
+
 TEST_CASE(optimize_multibroadcast_transpose_reshape)
 {
     EXPECT(check_optimize_shape_transforms(

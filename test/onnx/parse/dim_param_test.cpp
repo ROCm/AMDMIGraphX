@@ -74,3 +74,61 @@ TEST_CASE(dim_param_symbolic_test)
     auto prog               = read_onnx("dim_param_test.onnx", opt);
     EXPECT(p == prog);
 }
+
+TEST_CASE(dim_param_symbolic_map_dyn_input_test)
+{
+    using migraphx::sym::var;
+    // With use_symbolic_shapes, a plain-range map_dyn_input_dims override takes its bounds from
+    // the override but its symbol name from the model's dim_param for each axis.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto input =
+        mm->add_parameter("0",
+                          migraphx::shape{migraphx::shape::float_type,
+                                          sym_dims({var("dim0", {3, 6}), var("dim1", {5, 10})})});
+    mm->add_return({input});
+
+    migraphx::onnx_options opt;
+    opt.use_symbolic_shapes     = true;
+    opt.map_dyn_input_dims["0"] = {{3, 6}, {5, 10}};
+    auto prog                   = read_onnx("dim_param_test.onnx", opt);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(dim_param_symbolic_map_dyn_input_optimals_test)
+{
+    using migraphx::sym::var;
+    // Optimals on the override are carried onto the synthesized symbol.
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter(
+        "0",
+        migraphx::shape{migraphx::shape::float_type,
+                        sym_dims({var("dim0", {1, 8}, {2, 4}), var("dim1", {5, 10})})});
+    mm->add_return({input});
+
+    migraphx::onnx_options opt;
+    opt.use_symbolic_shapes     = true;
+    opt.map_dyn_input_dims["0"] = {{1, 8, {2, 4}}, {5, 10}};
+    auto prog                   = read_onnx("dim_param_test.onnx", opt);
+    EXPECT(p == prog);
+}
+
+TEST_CASE(dim_param_symbolic_map_dyn_input_explicit_sym_test)
+{
+    using migraphx::sym::var;
+    // An override that is already symbolic is honored verbatim, keeping its own symbol names
+    // rather than being renamed to the model's dim_params.
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_parameter("0",
+                                   migraphx::shape{migraphx::shape::float_type,
+                                                   sym_dims({var("n", {1, 4}), var("m", {2, 8})})});
+    mm->add_return({input});
+
+    migraphx::onnx_options opt;
+    opt.use_symbolic_shapes     = true;
+    opt.map_dyn_input_dims["0"] = sym_dims({var("n", {1, 4}), var("m", {2, 8})});
+    auto prog                   = read_onnx("dim_param_test.onnx", opt);
+    EXPECT(p == prog);
+}

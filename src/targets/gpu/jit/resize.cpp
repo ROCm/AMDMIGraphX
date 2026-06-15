@@ -67,6 +67,29 @@ struct resize_compiler : compiler<resize_compiler>
                to_string_range(views::transform(scales, MIGRAPHX_LIFT(to_hex_float))) + ")";
     }
 
+    // Mirror find_vector_axis / find_vectorize_size in kernels/vectorize.hpp so the launch
+    // grid matches the vectorization the linear kernel applies along the fastest axis.
+    static std::size_t vectorize_size(const shape& s)
+    {
+        const auto& strides = s.strides();
+        const auto& lens    = s.lens();
+        std::size_t axis    = 0;
+        for(std::size_t i = 1; i < lens.size(); ++i)
+        {
+            if(strides[i] == 0)
+                continue;
+            if(strides[axis] == 0 or
+               std::make_pair(strides[i], lens[i]) < std::make_pair(strides[axis], lens[axis]))
+                axis = i;
+        }
+        if(lens.empty() or strides[axis] != 1)
+            return 1;
+        for(std::size_t n : {4, 2})
+            if(lens[axis] % n == 0)
+                return n;
+        return 1;
+    }
+
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         if(inputs.size() != 2)
@@ -74,11 +97,18 @@ struct resize_compiler : compiler<resize_compiler>
 
         std::vector<int64_t> permutation;
         hip_compile_options options;
-        options.set_launch_params(v, compute_global_for(ctx, inputs.back().elements(), 1024));
         options.output         = inputs.back();
         options.inputs         = inputs;
         options.kernel_name    = "resize";
         options.virtual_inputs = normalize_permutation(inputs, &permutation);
+
+        // The linear kernel writes a contiguous run of vec_size elements per thread, so
+        // launch one thread per vectorized element. Other modes are scalar (vec_size == 1).
+        std::size_t vec_size = (v.get("mode", "nearest") == "linear")
+                                   ? vectorize_size(options.virtual_inputs.back())
+                                   : 1;
+        options.set_launch_params(
+            v, compute_global_for(ctx, inputs.back().elements() / vec_size, 1024));
 
         // Compute scales from shapes
         const auto& in_lens       = options.virtual_inputs.front().lens();

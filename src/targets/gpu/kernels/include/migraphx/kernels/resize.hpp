@@ -33,6 +33,7 @@
 #include <migraphx/kernels/bit.hpp>
 #include <migraphx/kernels/algorithm.hpp>
 #include <migraphx/kernels/ranges.hpp>
+#include <migraphx/kernels/vectorize.hpp>
 
 namespace migraphx {
 
@@ -228,56 +229,79 @@ __device__ void resize_nearest(Input input, Output output, Scales scales)
     });
 }
 
-// Resize linear kernel
-// Optimized to only iterate over 2^k corners where k is the number of dimensions
-// that actually need interpolation (i.e., where i0 != i1)
+// Compute the linearly interpolated value for a single output element (given by out_multi).
+// Optimized to only iterate over 2^k corners where k is the number of dimensions that
+// actually need interpolation (i.e., where scale != 1).
+template <class CoordOp, class Input, class InShape, class OutShape, class Multi, class Scales>
+MIGRAPHX_DEVICE_CONSTEXPR float resize_linear_value(
+    Input input, InShape in_shape, OutShape out_shape, Multi out_multi, const Scales& scales)
+{
+    constexpr auto ndim = get_shape_c<Input>{}.lens.size();
+    auto params         = array_transform(in_shape.lens, out_shape.lens, out_multi, scales)(
+        [](auto... xs) { return compute_interp_params_1d<CoordOp>(xs...); });
+    index_int active_count =
+        count_if(scales.begin(), scales.end(), [](auto scale) { return scale != 1.0f; });
+    MIGRAPHX_ASSERT(active_count < 32);
+    auto in_multi           = array_transform(params)([](const interp_params& p) { return p.i0; });
+    const index_int corners = (1u << active_count);
+    float acc               = 0.0f;
+    for(index_int subset = 0; subset < corners; ++subset)
+    {
+        float w              = 1.0f;
+        index_int active_bit = 0;
+        for(index_int d = 0; d < ndim; ++d)
+        {
+            if(scales[d] == 1.0f)
+                continue;
+            const bool use_high = get_bit(subset, active_bit);
+            w *= use_high ? params[d].weight : (1.0f - params[d].weight);
+            in_multi[d] = use_high ? params[d].i1 : params[d].i0;
+            ++active_bit;
+        }
+        acc += w * migraphx::convert<float>(input[in_multi]);
+    }
+    return acc;
+}
+
+// Resize linear kernel.
+// Each thread produces a run of `vn` consecutive output elements along the fastest
+// (stride-1) output axis and writes them with a single vectorized store. This cuts the
+// number of threads (and the per-thread index setup) by `vn` and lets the compiler share
+// the coordinate math for the remaining axes across the run.
 template <class CoordOp, class NearestOp, class Input, class Output, class Scales>
 __device__ void resize_linear(Input input, Output output, Scales scales)
 {
-    auto idx            = make_index();
-    auto in_shape       = input.get_shape();
-    auto out_shape      = output.get_shape();
-    constexpr auto ndim = get_shape_c<Input>{}.lens.size();
+    auto idx       = make_index();
+    auto in_shape  = input.get_shape();
+    auto out_shape = output.get_shape();
+    using out_type = typename Output::type;
 
-    idx.global_stride(out_shape.elements(), [&](auto out_idx) {
-        auto out_multi = out_shape.multi(out_idx);
+    constexpr auto vaxis = find_vector_axis(get_shape_c<Output>{});
+    constexpr auto vn    = find_vectorize_size(
+        [&](auto i) { return is_vectorizable<i>(vaxis, get_shape_c<Output>{}); });
 
-        // Precompute interpolation parameters for each dimension
-        auto params = array_transform(in_shape.lens, out_shape.lens, out_multi, scales)(
-            [](auto... xs) { return compute_interp_params_1d<CoordOp>(xs...); });
-
-        index_int active_count =
-            count_if(scales.begin(), scales.end(), [](auto scale) { return scale != 1.0f; });
-        MIGRAPHX_ASSERT(active_count < 32);
-
-        // Initialize in_multi with non-interpolated dimensions (where i0 == i1)
-        auto in_multi = array_transform(params)([](const interp_params& p) { return p.i0; });
-
-        // Accumulate over 2^active_count corners instead of 2^ndim
-        const index_int corners = (1u << active_count);
-        float acc               = 0.0f;
-
-        for(index_int subset = 0; subset < corners; ++subset)
-        {
-            float w              = 1.0f;
-            index_int active_bit = 0;
-
-            for(index_int d = 0; d < ndim; ++d)
-            {
-                if(scales[d] == 1.0f)
-                    continue;
-                // This dimension needs interpolation
-                const bool use_high = get_bit(subset, active_bit);
-                w *= use_high ? params[d].weight : (1.0f - params[d].weight);
-                in_multi[d] = use_high ? params[d].i1 : params[d].i0;
-                ++active_bit;
-            }
-
-            acc += w * migraphx::convert<float>(input[in_multi]);
-        }
-
-        output[out_idx] = implicit_conversion(acc);
-    });
+    if constexpr(vn < 2)
+    {
+        idx.global_stride(out_shape.elements(), [&](auto out_idx) {
+            auto out_multi  = out_shape.multi(out_idx);
+            output[out_idx] = implicit_conversion(
+                resize_linear_value<CoordOp>(input, in_shape, out_shape, out_multi, scales));
+        });
+    }
+    else
+    {
+        auto outv             = as_vec<vn>(output, vaxis);
+        const auto outv_shape = outv.get_shape();
+        idx.global_stride(outv_shape.elements(), [&](auto vidx) {
+            auto vmulti = outv_shape.multi(vidx);
+            outv[vidx]  = generate_vec(vn, [&](auto lane) {
+                auto out_multi   = vmulti;
+                out_multi[vaxis] = vmulti[vaxis] * vn + lane;
+                return out_type(implicit_conversion(
+                    resize_linear_value<CoordOp>(input, in_shape, out_shape, out_multi, scales)));
+            });
+        });
+    }
 }
 
 // Resize cubic kernel

@@ -37,12 +37,9 @@
 
 namespace migraphx {
 
-// Coordinate transformation mode functors.
-// is_identity_unit is true when the transform maps an output index back to the same input
-// index at unit scale (so an unresized axis is a pass-through that can be gathered as a vector).
+// Coordinate transformation mode functors
 struct coord_transform_half_pixel
 {
-    static constexpr bool is_identity_unit = true;
     MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const
     {
         MIGRAPHX_ASSERT(scale > 0 or scale < 0);
@@ -52,7 +49,6 @@ struct coord_transform_half_pixel
 
 struct coord_transform_pytorch_half_pixel
 {
-    static constexpr bool is_identity_unit = true;
     MIGRAPHX_DEVICE_CONSTEXPR float
     operator()(index_int, index_int l_out, float idx, float scale) const
     {
@@ -63,7 +59,6 @@ struct coord_transform_pytorch_half_pixel
 
 struct coord_transform_align_corners
 {
-    static constexpr bool is_identity_unit = true;
     MIGRAPHX_DEVICE_CONSTEXPR float
     operator()(index_int l_in, index_int l_out, float idx, float) const
     {
@@ -73,7 +68,6 @@ struct coord_transform_align_corners
 
 struct coord_transform_asymmetric
 {
-    static constexpr bool is_identity_unit = true;
     MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const
     {
         MIGRAPHX_ASSERT(scale > 0 or scale < 0);
@@ -83,8 +77,6 @@ struct coord_transform_asymmetric
 
 struct coord_transform_tf_half_pixel_for_nn
 {
-    // Maps idx -> idx + 0.5 even at unit scale, so it is not a pass-through.
-    static constexpr bool is_identity_unit = false;
     MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const
     {
         MIGRAPHX_ASSERT(scale > 0 or scale < 0);
@@ -206,70 +198,57 @@ MIGRAPHX_DEVICE_CONSTEXPR cubic_params compute_cubic_params_1d(
 }
 
 // Drive a resize over the output `outv`, calling compute(in_shape, out_shape, out_multi, read)
-// for each output element; read(in_multi) gathers one input element. The output is vectorized
-// in the global wrapper with vectorize<Vn, Axis>() (identity when Vn < 2).
+// for each output element; read(in_multi) gathers one input element. The global wrapper applies
+// the vectorize<Vn, Axis>() arg transformer to both the input and the output (identity when
+// Vn < 2).
 //
-// When the vectorized axis is a pass-through (its input index equals its output index: same
-// length, identity coordinate transform, unit scale, contiguous), the input is vectorized along
-// it too, so each corner is read as one coalesced vec<T, Vn> load shared across the Vn lanes
-// (read returns a vector) instead of Vn scalar gathers. Otherwise each lane is gathered scalar.
-template <index_int Axis,
-          class CoordOp,
-          class Input,
-          class Output,
-          class Outv,
-          class Scales,
-          class Compute>
-__device__ void
-resize_apply(Input input, Output out, Outv outv, const Scales& scales, Compute compute)
+// The host vectorizes the input only when the fast axis is a genuine pass-through (its input
+// index equals its output index). So when the input arrives vectorized, each corner is read as
+// one coalesced vec<T, Vn> load shared across the Vn lanes (read returns a vector); otherwise
+// each lane is gathered scalar-wise and the output is filled lane-by-lane.
+template <index_int Axis, class Input, class Output, class Outv, class Compute>
+__device__ void resize_apply(Input input, Output out, Outv outv, Compute compute)
 {
-    auto idx                  = make_index();
-    constexpr index_int vn    = tensor_vec_size<Outv>();
-    constexpr auto in_s       = get_shape_c<Input>{};
-    constexpr auto out_s      = get_shape_c<Output>{};
-    constexpr bool vec_gather = vn >= 2 and CoordOp::is_identity_unit and
-                                in_s.lens[Axis] == out_s.lens[Axis] and in_s.strides[Axis] == 1;
+    auto idx                = make_index();
+    constexpr index_int ivn = tensor_vec_size<Input>(); // > 0 only for a pass-through fast axis
+    constexpr index_int ovn = tensor_vec_size<Outv>();
 
-    if constexpr(vec_gather)
+    if constexpr(ivn >= 2)
     {
-        // The runtime scale check folds to a constant; it guards the rare case of equal lengths
-        // with a non-unit scale, which would not actually be a pass-through.
-        if(scales[Axis] == 1.0f)
-        {
-            auto inputv        = as_vec<vn>(input, _c<Axis>);
-            const auto in_red  = inputv.get_shape();
-            const auto out_red = outv.get_shape();
-            auto read          = [&](auto in_multi) {
-                return __builtin_convertvector(inputv[in_multi], vec<float, vn>);
-            };
-            idx.global_stride(out_red.elements(), [&](auto vidx) {
-                auto vmulti = out_red.multi(vidx);
-                outv[vidx]  = implicit_conversion(compute(in_red, out_red, vmulti, read));
-            });
-            return;
-        }
+        const auto in_red  = input.get_shape();
+        const auto out_red = outv.get_shape();
+        auto read          = [&](auto in_multi) {
+            return __builtin_convertvector(input[in_multi], vec<float, ivn>);
+        };
+        idx.global_stride(out_red.elements(), [&](auto vidx) {
+            auto vmulti = out_red.multi(vidx);
+            outv[vidx]  = implicit_conversion(compute(in_red, out_red, vmulti, read));
+        });
     }
-
-    auto in_shape     = input.get_shape();
-    auto out_shape    = out.get_shape();
-    const auto vshape = outv.get_shape();
-    auto read         = [&](auto in_multi) { return migraphx::convert<float>(input[in_multi]); };
-    idx.global_stride(vshape.elements(), [&](auto vidx) {
-        auto vmulti = vshape.multi(vidx);
-        if constexpr(vn < 2)
-        {
-            outv[vidx] = implicit_conversion(compute(in_shape, out_shape, vmulti, read));
-        }
-        else
-        {
-            using out_type = vec_type<typename Outv::type>;
-            outv[vidx]     = generate_vec(_c<vn>, [&](auto lane) {
-                auto out_multi  = vmulti;
-                out_multi[Axis] = vmulti[Axis] * vn + lane;
-                return out_type(implicit_conversion(compute(in_shape, out_shape, out_multi, read)));
-            });
-        }
-    });
+    else
+    {
+        auto in_shape     = input.get_shape();
+        auto out_shape    = out.get_shape();
+        const auto vshape = outv.get_shape();
+        auto read = [&](auto in_multi) { return migraphx::convert<float>(input[in_multi]); };
+        idx.global_stride(vshape.elements(), [&](auto vidx) {
+            auto vmulti = vshape.multi(vidx);
+            if constexpr(ovn < 2)
+            {
+                outv[vidx] = implicit_conversion(compute(in_shape, out_shape, vmulti, read));
+            }
+            else
+            {
+                using out_type = vec_type<typename Outv::type>;
+                outv[vidx]     = generate_vec(_c<ovn>, [&](auto lane) {
+                    auto out_multi  = vmulti;
+                    out_multi[Axis] = vmulti[Axis] * ovn + lane;
+                    return out_type(
+                        implicit_conversion(compute(in_shape, out_shape, out_multi, read)));
+                });
+            }
+        });
+    }
 }
 
 // Resize nearest kernel
@@ -282,8 +261,8 @@ template <class CoordOp,
           class Scales>
 __device__ void resize_nearest(Input input, Output out, Outv outv, Scales scales)
 {
-    resize_apply<Axis, CoordOp>(
-        input, out, outv, scales, [&](auto in_shape, auto out_shape, auto out_multi, auto read) {
+    resize_apply<Axis>(
+        input, out, outv, [&](auto in_shape, auto out_shape, auto out_multi, auto read) {
             constexpr auto ndim = get_shape_c<Input>{}.lens.size();
             array<index_int, ndim> in_multi{};
             for(index_int i = 0; i < ndim; ++i)
@@ -308,8 +287,8 @@ template <class CoordOp,
           class Scales>
 __device__ void resize_linear(Input input, Output out, Outv outv, Scales scales)
 {
-    resize_apply<Axis, CoordOp>(
-        input, out, outv, scales, [&](auto in_shape, auto out_shape, auto out_multi, auto read) {
+    resize_apply<Axis>(
+        input, out, outv, [&](auto in_shape, auto out_shape, auto out_multi, auto read) {
             constexpr auto ndim = get_shape_c<Input>{}.lens.size();
             auto params         = array_transform(in_shape.lens, out_shape.lens, out_multi, scales)(
                 [](auto... xs) { return compute_interp_params_1d<CoordOp>(xs...); });
@@ -349,8 +328,8 @@ template <class CoordOp,
           class Scales>
 __device__ void resize_cubic(Input input, Output out, Outv outv, Scales scales, float cubic_coeff)
 {
-    resize_apply<Axis, CoordOp>(
-        input, out, outv, scales, [&](auto in_shape, auto out_shape, auto out_multi, auto read) {
+    resize_apply<Axis>(
+        input, out, outv, [&](auto in_shape, auto out_shape, auto out_multi, auto read) {
             constexpr auto ndim = get_shape_c<Input>{}.lens.size();
 
             // Precompute cubic interpolation parameters for each dimension

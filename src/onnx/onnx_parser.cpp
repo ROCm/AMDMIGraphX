@@ -933,12 +933,15 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                       const auto& dim_param = d->dim_param();
                       if(use_symbolic_shapes)
                       {
-                          // Override bounds win over the dim_params map.
-                          const auto& bounds = od != nullptr ? *od
-                                               : contains(dim_params, dim_param)
-                                                   ? dim_params.at(dim_param)
-                                                   : default_dyn_dim_value;
-                          auto iv            = bounds.get_interval();
+                          // Override bounds win over the dim_params map, falling back to default.
+                          shape::dynamic_dimension bounds;
+                          if(od != nullptr)
+                              bounds = *od;
+                          else if(contains(dim_params, dim_param))
+                              bounds = dim_params.at(dim_param);
+                          else
+                              bounds = default_dyn_dim_value;
+                          auto iv = bounds.get_interval();
                           return shape::dynamic_dimension{
                               sym::var(dim_param,
                                        {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},

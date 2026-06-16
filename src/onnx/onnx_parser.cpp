@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/type_traits.hpp>
@@ -621,6 +622,21 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         std::vector<instruction_ref> result;
         std::size_t output_num = node.output().size();
         std::string node_name  = node.op_type() + "_" + std::to_string(mod->size());
+        std::string debug_symbol;
+        if(this->use_debug_symbols)
+            debug_symbol = node.name().empty() ? "migx_uid:" + node_name : node.name();
+        auto guard = on_scope_fail([&]() noexcept {
+            if(debug_symbol.empty())
+                return;
+            try
+            {
+                log::debug() << "Exception thrown while parsing node '" << node.op_type()
+                             << "' with debug symbols: " << debug_symbol;
+            }
+            catch(...) // logging must not replace the original exception
+            {
+            }
+        });
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)
@@ -646,8 +662,6 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
         if(this->use_debug_symbols)
         {
-            std::string debug_symbol =
-                node.name().empty() ? std::string("migx_uid:") + node_name : node.name();
             for(auto ins : added_instructions)
             {
                 mod->add_debug_symbols(ins, {debug_symbol});

@@ -46,8 +46,34 @@ namespace nvinfer1
         char const* getName() const noexcept override;
 
         // build orchestration (invoked by NvNetworkDefinition_impl::build())
+        //
+        // The orchestrator drives a dependency-ordered fixpoint instead of a
+        // rigid set of phases, so chained loops (loop N feeding loop N+1) build
+        // in the right order:
+        //   assignModules() - create the body submodule and assign body layers
+        //                     to it. Pointer-only; safe before any instruction
+        //                     exists.
+        //   preBuild()      - once all boundary inputs are bound, create the
+        //                     submodule parameters and bind recurrence/iterator
+        //                     outputs so the body layers become buildable.
+        //   finalize()      - once the body back-edges and scan outputs are
+        //                     bound, emit the loop instruction and bind outputs.
+        void assignModules() noexcept;
         void preBuild() noexcept;
         void finalize() noexcept;
+
+        // True when every input that feeds a loop boundary (recurrence initial
+        // value, iterator data, trip count) has been bound, i.e. preBuild() may
+        // run.
+        bool preBuildReady() const noexcept;
+        // True when every value the body return depends on (recurrence
+        // back-edges and scan/last-value sources) has been bound, i.e.
+        // finalize() may run.
+        bool finalizeReady() const noexcept;
+
+        bool isPreBuilt() const noexcept { return mPreBuilt; }
+        bool isFinalized() const noexcept { return mFinalized; }
+        const migraphx::module* body() const noexcept { return mBody; }
 
     private:
         void markBodyLayers() noexcept;
@@ -63,6 +89,8 @@ namespace nvinfer1
         migraphx::module* mBody = nullptr;
         migraphx::instruction_ref mIterParam;
         migraphx::instruction_ref mCondParam;
+        bool mPreBuilt  = false;
+        bool mFinalized = false;
 
         std::vector<std::unique_ptr<Layer_impl>> mOwned;
         std::vector<TripLimitLayer_impl*> mTripLimits;

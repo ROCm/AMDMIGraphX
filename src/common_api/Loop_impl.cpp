@@ -74,9 +74,27 @@ char const* Loop_impl::getName() const noexcept
     return mName.c_str();
 }
 
+void Loop_impl::assignModules() noexcept
+{
+    // Create the body submodule and decide which regular layers belong to it.
+    // This is purely pointer bookkeeping (no instruction is dereferenced), so it
+    // is safe to run up front, before any layer or loop boundary input has been
+    // built. Doing it early lets the orchestrator gate body-layer builds on this
+    // loop's preBuild() regardless of build order.
+    if(mBody != nullptr)
+        return;
+    mBody = mProgram->create_module("loop_" + std::to_string(mIndex) + "_body");
+    markBodyLayers();
+}
+
 void Loop_impl::preBuild() noexcept
 {
-    mBody = mProgram->create_module("loop_" + std::to_string(mIndex) + "_body");
+    if(mPreBuilt)
+        return;
+    // assignModules() is normally called first by the orchestrator, but guard
+    // against direct callers so mBody is always valid here.
+    if(mBody == nullptr)
+        assignModules();
 
     // Submodule parameter order must be: iteration index, keep-going condition,
     // then one parameter per loop-carried dependency (recurrence). run_loop()
@@ -116,7 +134,7 @@ void Loop_impl::preBuild() noexcept
         }
     }
 
-    markBodyLayers();
+    mPreBuilt = true;
 }
 
 void Loop_impl::markBodyLayers() noexcept
@@ -219,8 +237,11 @@ bool Loop_impl::isOutputConsumed(const Tensor_impl* tensor) const noexcept
 
 void Loop_impl::finalize() noexcept
 {
+    if(mFinalized)
+        return;
     if(mBody == nullptr)
         return;
+    mFinalized = true;
 
     auto* mm           = mProgram->get_main_module();
     const int64_t trip = readTripCount();
@@ -287,25 +308,97 @@ void Loop_impl::finalize() noexcept
     }
 }
 
+namespace
+{
+    bool input_bound(const Layer_impl* layer, std::size_t index) noexcept
+    {
+        const auto& inputs = layer->inputTensors();
+        if(index >= inputs.size())
+            return false;
+        const auto* t = inputs[index];
+        return t != nullptr and t->isBound();
+    }
+} // namespace
+
+bool Loop_impl::preBuildReady() const noexcept
+{
+    // preBuild() reads the shape of each recurrence initial value, gathers from
+    // each iterator's source tensor and (via the loop instruction) the trip
+    // count. All of those producers must already be built.
+    for(auto* rec : mRecurrences)
+        if(not input_bound(rec, 0))
+            return false;
+    for(auto* it : mIterators)
+        if(not input_bound(it, 0))
+            return false;
+    for(auto* tl : mTripLimits)
+        if(not input_bound(tl, 0))
+            return false;
+    return true;
+}
+
+bool Loop_impl::finalizeReady() const noexcept
+{
+    // The body return wires up the recurrence back-edges and the loop-output
+    // sources, so those must be bound before finalize() can emit the return.
+    for(auto* rec : mRecurrences)
+    {
+        const auto& inputs = rec->inputTensors();
+        // A recurrence with a back-edge (input 1) must have it built; otherwise
+        // the body simply returns the recurrence parameter, which preBuild
+        // already bound.
+        if(inputs.size() > 1 and inputs.at(1) != nullptr and not inputs.at(1)->isBound())
+            return false;
+    }
+    for(auto* lo : mLoopOutputs)
+        if(not input_bound(lo, 0))
+            return false;
+    return true;
+}
+
+namespace
+{
+    // Try to fold a tensor to a single int64 at build time. Returns false when
+    // the producer is not a compile-time constant (e.g. a runtime input).
+    bool eval_scalar(const Tensor_impl* tensor, int64_t& out) noexcept
+    {
+        if(tensor == nullptr or not tensor->isBound())
+            return false;
+        try
+        {
+            auto arg = tensor->getInstruction()->eval();
+            if(arg.empty())
+                return false;
+            arg.visit([&](auto view) { out = static_cast<int64_t>(view.front()); });
+            return true;
+        }
+        catch(...)
+        {
+            return false;
+        }
+    }
+} // namespace
+
 int64_t Loop_impl::readTripCount() const noexcept
 {
-    if(mTripLimits.empty())
-        return 0;
-
+    // migraphx's loop needs a compile-time upper bound (max_iterations). The
+    // trip-limit tensor is often a runtime input (e.g. char-rnn's sequenceSize),
+    // which cannot be folded. TensorRT supplies the static bound separately via
+    // ILoopOutputLayer::setInput(1, maxSequenceSize) on a kCONCATENATE output, so
+    // fall back to that constant when the trip limit itself is not foldable.
     int64_t value = 0;
-    try
+    if(not mTripLimits.empty() and eval_scalar(mTripLimits.front()->inputTensors().at(0), value))
+        return value;
+
+    for(auto* lo : mLoopOutputs)
     {
-        auto ins = mTripLimits.front()->inputTensors().at(0)->getInstruction();
-        auto arg = ins->eval();
-        if(arg.empty())
-            return 0;
-        arg.visit([&](auto view) { value = static_cast<int64_t>(view.front()); });
+        if(lo->getLoopOutput() == LoopOutput::kLAST_VALUE)
+            continue;
+        const auto& inputs = lo->inputTensors();
+        if(inputs.size() > 1 and eval_scalar(inputs.at(1), value))
+            return value;
     }
-    catch(...)
-    {
-        value = 0;
-    }
-    return value;
+    return 0;
 }
 
 int Loop_impl::recurrenceIndex(const Tensor_impl* tensor) const noexcept

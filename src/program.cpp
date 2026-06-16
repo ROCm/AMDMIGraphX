@@ -502,7 +502,7 @@ static std::vector<argument> generic_eval(const module* mod,
         results.emplace(ins, argument{});
 #endif
         const auto& name = ins->name();
-        auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
+        auto guard       = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
         if(name == "@literal")
         {
             results.insert_or_assign(ins,

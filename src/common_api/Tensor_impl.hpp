@@ -42,6 +42,10 @@ namespace nvinfer1
         migraphx::instruction_ref getInstruction() const noexcept;
         void setInstruction(migraphx::instruction_ref ins) noexcept;
 
+        // True once this tensor has been wired to a concrete migraphx instruction
+        // (network inputs are bound at creation; layer outputs once built).
+        bool isBound() const noexcept { return mBound; }
+
     private:
         migraphx::instruction_ref mIns;
         std::string mName;

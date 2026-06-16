@@ -245,8 +245,8 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
                 migraphx::make_op("multibroadcast", {{"out_lens", in_b->get_shape().lens()}}),
                 bias_scale);
 
-            auto dquant_bias = info.add_instruction(
-                migraphx::make_op("dequantizelinear"), in_b, bcast_bias_scale);
+            auto dquant_bias =
+                info.add_instruction(migraphx::make_op("dequantizelinear"), in_b, bcast_bias_scale);
 
             conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
         }

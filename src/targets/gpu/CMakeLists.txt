@@ -464,13 +464,17 @@ if(MIGRAPHX_USE_AMDMLSS)
     target_link_libraries(migraphx_gpu PRIVATE amdmlss::amdmlss)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_AMDMLSS=1)
     if(WIN32)
-        # Copy amdmlss.dll next to migraphx_gpu after build so executables can find it.
         add_custom_command(TARGET migraphx_gpu POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     $<TARGET_FILE:amdmlss::amdmlss>
-                    $<TARGET_FILE_DIR:migraphx_gpu>
-            COMMENT "Copying amdmlss.dll to $<TARGET_FILE_DIR:migraphx_gpu>"
-            VERBATIM)
+                    $<TARGET_FILE_DIR:migraphx_gpu>)
+        add_custom_command(TARGET migraphx_gpu POST_BUILD
+            COMMAND "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:${CMAKE_COMMAND};-E;copy_if_different;$<PATH:REPLACE_EXTENSION,LAST_ONLY,$<TARGET_FILE:amdmlss::amdmlss>,.pdb>;$<TARGET_FILE_DIR:migraphx_gpu>>"
+            COMMAND_EXPAND_LISTS)
+        install(FILES "$<TARGET_FILE:amdmlss::amdmlss>"
+             DESTINATION ${CMAKE_INSTALL_BINDIR})
+        install(FILES "$<PATH:REPLACE_EXTENSION,LAST_ONLY,$<TARGET_FILE:amdmlss::amdmlss>,.pdb>"
+             DESTINATION ${CMAKE_INSTALL_BINDIR} OPTIONAL)
     endif()
 endif()
 

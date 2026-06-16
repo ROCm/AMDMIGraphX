@@ -239,8 +239,14 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
             auto bias_scale =
                 info.add_instruction(migraphx::make_op("mul"), bcast_scale_x, in_scale_w);
 
-            auto dquant_bias =
-                info.add_instruction(migraphx::make_op("dequantizelinear"), in_b, bias_scale);
+            // dequantizelinear requires the scale to match the bias dims. Broadcast handles
+            // per-tensor weight scale (scalar), it is a no-op for per-axis weight scale
+            auto bcast_bias_scale = info.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_lens", in_b->get_shape().lens()}}),
+                bias_scale);
+
+            auto dquant_bias = info.add_instruction(
+                migraphx::make_op("dequantizelinear"), in_b, bcast_bias_scale);
 
             conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
         }

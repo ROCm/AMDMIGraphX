@@ -626,10 +626,10 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         if(this->use_debug_symbols)
             debug_symbol = node.name().empty() ? "migx_uid:" + node_name : node.name();
         auto guard = on_scope_fail([&]() noexcept {
-            if(debug_symbol.empty())
-                return;
             try
             {
+                if(debug_symbol.empty())
+                    return;
                 log::debug() << "Exception thrown while parsing node '" << node.op_type()
                              << "' with debug symbols: " << debug_symbol;
             }

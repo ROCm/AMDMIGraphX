@@ -641,11 +641,11 @@ std::vector<instruction_ref> get_added_instructions(const std::vector<instructio
 
 void log_debug_symbols_on_exception(const instruction& ins) noexcept
 {
-    const auto& symbols = ins.get_debug_symbols();
-    if(symbols.empty())
-        return;
     try
     {
+        const auto& symbols = ins.get_debug_symbols();
+        if(symbols.empty())
+            return;
         log::debug() << "Exception thrown for instruction '" << ins.name()
                      << "' with debug symbols: " << join_strings(symbols, ", ");
     }

@@ -36,7 +36,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 template <class F>
 struct scope_fail_guard
 {
-    static_assert(std::is_nothrow_invocable_v<F&>, "scope_fail action must be noexcept");
+    static_assert(std::is_nothrow_invocable<F&>{}, "scope_fail action must be noexcept");
 
     F action;
     int uncaught = std::uncaught_exceptions();

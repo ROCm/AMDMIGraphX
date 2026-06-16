@@ -33,6 +33,7 @@ Full documentation for MIGraphX is available at
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
 * Added documentation for using debug symbols (#4945).
 * Added `--log-stdout` flag to migraphx-driver to log to stdout instead of stderr (#4959).
+* Added logging of debug symbols on exception thrown (#4978).
 
 ### Changed
 

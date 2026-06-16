@@ -1,0 +1,6 @@
+model_checkpoint_path: "model-20080"
+all_model_checkpoint_paths: "model-10040"
+all_model_checkpoint_paths: "model-12048"
+all_model_checkpoint_paths: "model-16064"
+all_model_checkpoint_paths: "model-18072"
+all_model_checkpoint_paths: "model-20080"

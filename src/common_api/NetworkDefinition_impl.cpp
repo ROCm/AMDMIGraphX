@@ -2,6 +2,9 @@
 #include "pass_warning.hpp"
 //
 
+#include <unordered_map>
+#include <unordered_set>
+
 #include <migraphx/instruction.hpp>
 
 #include "Helper.hpp"
@@ -564,37 +567,98 @@ std::vector<std::string> NvNetworkDefinition_impl::getOutputNames() const
 
 void NvNetworkDefinition_impl::build() noexcept
 {
-	// Phase 1: let each loop create its submodule + parameters, bind the
-	// recurrence/iterator outputs and redirect body layers into the submodule.
+	// The network is a DAG with two complications over a simple topological
+	// walk:
+	//   1. Loops: a loop's body layers can only be built after the loop's
+	//      submodule + parameters exist (preBuild), and the loop instruction can
+	//      only be emitted after the body's back-edges/outputs are built
+	//      (finalize). Chained loops (one loop feeding the next) therefore
+	//      interleave: loop[i+1] cannot preBuild until loop[i] has finalized.
+	//   2. ISliceLayer (kFILL) reads a fill constant that it does not list as a
+	//      regular input, so constants must be materialised before consumers.
+	//
+	// Rather than fixed phases we drive a dependency-ordered fixpoint: keep
+	// building whatever has become ready (its inputs are bound) until nothing
+	// changes. assignModules() runs up front for every loop so body layers know
+	// their target submodule before we start, independent of build order.
 	for(auto& loop : mLoops)
-	{
-		loop->preBuild();
-	}
+		loop->assignModules();
 
-	// Phase 2: build the regular layers. Body layers now target the loop
-	// submodule; everything else targets the main module. Constant layers are
-	// built first: they have no layer inputs, and other layers (e.g. an
-	// ISliceLayer in kFILL mode) may consume a constant that was added after
-	// them, so their instruction must already exist.
-	std::for_each(mLayers.begin(), mLayers.end(),
-		[](auto& layer)
-		{
-			if(layer->getType() == LayerType::kCONSTANT)
-				layer->build();
-		}
-	);
-	std::for_each(mLayers.begin(), mLayers.end(),
-		[](auto& layer)
-		{
-			if(layer->getType() != LayerType::kCONSTANT)
-				layer->build();
-		}
-	);
-
-	// Phase 3: emit the loop instructions and bind the loop outputs.
+	// Map a loop body submodule back to the loop that owns it, so a body layer's
+	// build can be gated on that loop having been preBuilt.
+	std::unordered_map<const migraphx::module*, Loop_impl*> body_owner;
 	for(auto& loop : mLoops)
+		if(loop->body() != nullptr)
+			body_owner.emplace(loop->body(), loop.get());
+
+	std::unordered_set<Layer_impl*> built;
+
+	auto layer_ready = [&](Layer_impl* layer) -> bool
 	{
-		loop->finalize();
+		if(built.count(layer) != 0)
+			return false;
+		// A body layer must wait for its loop's parameters (preBuild) before it
+		// can emit into the submodule; constants in particular have no inputs and
+		// would otherwise be built into the body too early.
+		if(auto* mod = layer->getAssignedModule())
+		{
+			auto it = body_owner.find(mod);
+			if(it != body_owner.end() and not it->second->isPreBuilt())
+				return false;
+		}
+		for(auto* input : layer->inputTensors())
+			if(input == nullptr or not input->isBound())
+				return false;
+		return true;
+	};
+
+	auto build_ready_layers = [&]() -> bool
+	{
+		bool progress = false;
+		// Build ready constants first so consumers that reference a constant
+		// outside their regular inputs (ISliceLayer kFILL) find it bound.
+		for(auto& layer : mLayers)
+		{
+			if(layer->getType() == LayerType::kCONSTANT and layer_ready(layer.get()))
+			{
+				layer->build();
+				built.insert(layer.get());
+				progress = true;
+			}
+		}
+		for(auto& layer : mLayers)
+		{
+			if(layer->getType() != LayerType::kCONSTANT and layer_ready(layer.get()))
+			{
+				layer->build();
+				built.insert(layer.get());
+				progress = true;
+			}
+		}
+		return progress;
+	};
+
+	bool progress = true;
+	while(progress)
+	{
+		progress = build_ready_layers();
+
+		for(auto& loop : mLoops)
+		{
+			if(not loop->isPreBuilt() and loop->preBuildReady())
+			{
+				loop->preBuild();
+				progress = true;
+			}
+		}
+		for(auto& loop : mLoops)
+		{
+			if(loop->isPreBuilt() and not loop->isFinalized() and loop->finalizeReady())
+			{
+				loop->finalize();
+				progress = true;
+			}
+		}
 	}
 
 	// Phase 4: turn the marked output tensors into the program's return.

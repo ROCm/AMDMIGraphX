@@ -23,6 +23,7 @@
  */
 #include <migraphx/layout_convolution.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/matcher.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/permutation.hpp>
@@ -113,6 +114,28 @@ void transform_convolutions(module& m, const layout_convolution& lc)
     }
 }
 
+struct find_concat_layout
+{
+    auto matcher() const
+    {
+        return match::name("layout")(match::arg(0)(match::name("concat").bind("concat")));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        auto layout_op = ins->get_operator();
+        auto concat = mr.instructions["concat"];
+        auto inputs = concat->inputs();
+        auto new_inputs = inputs;
+        std::transform(inputs.begin(), inputs.end(), new_inputs.begin(), [&](instruction_ref input) {
+            return m.insert_instruction(concat, layout_op, input);
+        });
+
+        m.replace_instruction(concat, concat->get_operator(), new_inputs);
+    }
+};
+
 void remove_layout(module& m)
 {
     for(auto ins : iterator_for(m))
@@ -135,8 +158,12 @@ void layout_convolution::apply(module_pass_manager& mpm) const
     mpm.run_pass(dead_code_elimination{});
     mpm.run_pass(eliminate_contiguous{"contiguous"});
     mpm.run_pass(dead_code_elimination{});
+    match::find_matches(mpm.get_module(), find_concat_layout{});
+    mpm.run_pass(dead_code_elimination{});
     remove_layout(mpm.get_module());
     mpm.run_pass(dead_code_elimination{});
+    // std::cout << "layout_convolution:\n";
+    // mpm.get_module().debug_print();
 }
 
 } // namespace MIGRAPHX_INLINE_NS

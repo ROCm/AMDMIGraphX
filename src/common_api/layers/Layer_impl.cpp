@@ -23,7 +23,6 @@ Layer_impl::Layer_impl(LayerType type, const std::shared_ptr<migraphx::program>&
 
 Layer_impl::~Layer_impl() 
 {
-    pass_warning("TODO! implement me!", false);
 }
 
 LayerType Layer_impl::getType() const noexcept 

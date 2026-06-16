@@ -12,7 +12,6 @@ namespace nvinfer1
 ConstantLayer_impl::ConstantLayer_impl() noexcept
     : Layer_impl{LayerType::kCONSTANT, nullptr}, mDimensions{}, mWeights{DataType::kFLOAT, nullptr, 0}
 {
-    pass_warning("TODO! implement me!", false);
     IConstantLayer::mLayer = static_cast<VLayer*>(static_cast<Layer_impl*>(this));
     IConstantLayer::mImpl = this;
 }
@@ -25,6 +24,10 @@ ConstantLayer_impl::ConstantLayer_impl(Dims const& dimensions, Weights weights, 
     mOutputs.emplace_back(std::make_unique<Tensor_impl>());
 }
 
+ConstantLayer_impl::~ConstantLayer_impl()
+{
+}
+
 void ConstantLayer_impl::build() noexcept
 {
     auto* mm = getModule();
@@ -33,11 +36,6 @@ void ConstantLayer_impl::build() noexcept
     mInstructions.push_back(mm->add_literal(s, buff));
   
     mOutputs[0]->setInstruction(mInstructions.back());
-}
-
-ConstantLayer_impl::~ConstantLayer_impl()
-{
-    pass_warning("TODO! implement me!", false);
 }
 
 void ConstantLayer_impl::setWeights(Weights weights) noexcept

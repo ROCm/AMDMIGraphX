@@ -26,13 +26,11 @@ namespace nvinfer1
 
 NvNetworkDefinition_impl::NvNetworkDefinition_impl(NetworkDefinitionCreationFlags flags, IBuilder& builder) noexcept : mBuilder{builder}
 {
-	pass_warning("TODO! implement me!", false);
 	mImpl = this;
 }
 
 NvNetworkDefinition_impl::~NvNetworkDefinition_impl()
 {
-	pass_warning("TODO! implement me!", false);
 }
 
 const migraphx::program* NvNetworkDefinition_impl::getProgram() const

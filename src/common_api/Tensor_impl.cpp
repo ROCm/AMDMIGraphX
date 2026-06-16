@@ -22,7 +22,6 @@ Tensor_impl::Tensor_impl(migraphx::instruction_ref ins) noexcept
 
 Tensor_impl::~Tensor_impl()
 {
-    pass_warning("TODO! implement me!", false);
 }
 
 migraphx::instruction_ref Tensor_impl::getInstruction() const noexcept

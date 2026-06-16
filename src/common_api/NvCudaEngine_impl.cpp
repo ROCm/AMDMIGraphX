@@ -68,20 +68,17 @@ namespace
 
 NvCudaEngine_impl::NvCudaEngine_impl(void* logger, int32_t version) noexcept
 {
-    pass_warning("TODO! implement me!", false);
     mImpl = this;
 }
 
 NvCudaEngine_impl::NvCudaEngine_impl(const std::shared_ptr<migraphx::program>& program) noexcept
     : mProgram(program), mTensorNames{program->get_parameter_names()}, mOutputNames{compute_output_names(*program)}
 {
-    pass_warning("TODO! implement me!", false);
     mImpl = this;
 }
 
 NvCudaEngine_impl::~NvCudaEngine_impl()
 {
-    pass_warning("TODO! implement me!", false);
 }
 
 ICudaEngine* NvCudaEngine_impl::getPImpl() noexcept

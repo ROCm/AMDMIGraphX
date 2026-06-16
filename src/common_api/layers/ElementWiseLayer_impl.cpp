@@ -31,7 +31,6 @@ ElementWiseLayer_impl::ElementWiseLayer_impl(ITensor& input1, ITensor& input2, E
 
 ElementWiseLayer_impl::~ElementWiseLayer_impl()
 {
-    pass_warning("TODO! implement me!", false);
 }
 
 // public API

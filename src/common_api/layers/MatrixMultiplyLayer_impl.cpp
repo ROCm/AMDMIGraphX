@@ -33,7 +33,6 @@ MatrixMultiplyLayer_impl::MatrixMultiplyLayer_impl(ITensor& input0, MatrixOperat
 
 MatrixMultiplyLayer_impl::~MatrixMultiplyLayer_impl()
 {
-    pass_warning("TODO! implement me!", false);
 }
 
 // public API

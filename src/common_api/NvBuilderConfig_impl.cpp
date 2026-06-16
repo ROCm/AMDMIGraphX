@@ -11,13 +11,11 @@ namespace nvinfer1
     NvBuilderConfig_impl::NvBuilderConfig_impl() noexcept
         : mBldrFlags{0}
     {
-        pass_warning("TODO! implement me!", false);
         mImpl = this;
     }
 
     NvBuilderConfig_impl::~NvBuilderConfig_impl()
     {
-        pass_warning("TODO! implement me!", false);
     }
 
     void NvBuilderConfig_impl::setAvgTimingIterations(int32_t avgTiming) noexcept

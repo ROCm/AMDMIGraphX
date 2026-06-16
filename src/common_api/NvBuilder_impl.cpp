@@ -23,13 +23,11 @@ namespace nvinfer1
 NvBuilder_impl::NvBuilder_impl(void* logger, int32_t version) noexcept
     :  mPluginRegistry(nullptr), mNetworkDefinition(nullptr)
 {
-    pass_warning("TODO! implement me!", false);
     mImpl = this;
 }
 
 NvBuilder_impl::~NvBuilder_impl()
 {
-    pass_warning("TODO! implement me!", false);
 }
 
 bool NvBuilder_impl::platformHasFastFp16() const noexcept

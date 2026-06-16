@@ -30,7 +30,6 @@ GatherLayer_impl::GatherLayer_impl(ITensor& data, ITensor& indices, int32_t axis
 
 GatherLayer_impl::~GatherLayer_impl()
 {
-    pass_warning("TODO! implement me!", false);
 }
 
 void GatherLayer_impl::build() noexcept

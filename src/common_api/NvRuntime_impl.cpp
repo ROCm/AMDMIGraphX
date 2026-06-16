@@ -14,13 +14,11 @@ namespace nvinfer1
 
 NvRuntime_impl::NvRuntime_impl(void* logger, int32_t version) noexcept
 {
-    pass_warning("TODO! implement me!", false);
     mImpl = this;
 }
 
 NvRuntime_impl::~NvRuntime_impl()
 {
-    pass_warning("TODO! implement me!", false);
 }
 
 // public API

@@ -22,7 +22,6 @@ NvExecutionContext_impl::NvExecutionContext_impl(const std::shared_ptr<migraphx:
 
 NvExecutionContext_impl::~NvExecutionContext_impl()
 {
-    pass_warning("TODO! implement me!", false);
 }
 
 IExecutionContext* NvExecutionContext_impl::getPImpl() noexcept

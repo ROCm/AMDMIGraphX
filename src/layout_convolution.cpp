@@ -123,14 +123,15 @@ struct find_concat_layout
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins = mr.result;
-        auto layout_op = ins->get_operator();
-        auto concat = mr.instructions["concat"];
-        auto inputs = concat->inputs();
+        auto ins        = mr.result;
+        auto layout_op  = ins->get_operator();
+        auto concat     = mr.instructions["concat"];
+        auto inputs     = concat->inputs();
         auto new_inputs = inputs;
-        std::transform(inputs.begin(), inputs.end(), new_inputs.begin(), [&](instruction_ref input) {
-            return m.insert_instruction(concat, layout_op, input);
-        });
+        std::transform(
+            inputs.begin(), inputs.end(), new_inputs.begin(), [&](instruction_ref input) {
+                return m.insert_instruction(concat, layout_op, input);
+            });
 
         m.replace_instruction(concat, concat->get_operator(), new_inputs);
     }

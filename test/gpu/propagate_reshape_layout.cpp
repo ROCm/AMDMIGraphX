@@ -51,12 +51,12 @@ TEST_CASE(propagate_permutation)
         auto t = m1.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r);
         // post-eliminate_contiguous state: a standardizing gpu::contiguous feeds reshape_lazy
-        auto alloc = m1.add_instruction(migraphx::make_op(
-            "allocate",
-            {{"shape",
-              migraphx::to_value(migraphx::shape{migraphx::shape::float_type,
-                                                 t->get_shape().lens()})}}));
-        auto c  = m1.add_instruction(migraphx::make_op("gpu::contiguous"), t, alloc);
+        auto alloc = m1.add_instruction(
+            migraphx::make_op("allocate",
+                              {{"shape",
+                                migraphx::to_value(migraphx::shape{migraphx::shape::float_type,
+                                                                   t->get_shape().lens()})}}));
+        auto c = m1.add_instruction(migraphx::make_op("gpu::contiguous"), t, alloc);
         auto rl =
             m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {1, 16, 256, 256}}}), c);
         m1.add_return({rl});
@@ -99,13 +99,12 @@ TEST_CASE(no_permutation_noop)
     auto create = [] {
         migraphx::module m;
         auto x = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
-        auto t =
-            m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
-        auto alloc = m.add_instruction(migraphx::make_op(
-            "allocate",
-            {{"shape",
-              migraphx::to_value(migraphx::shape{migraphx::shape::float_type,
-                                                 t->get_shape().lens()})}}));
+        auto t = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
+        auto alloc = m.add_instruction(
+            migraphx::make_op("allocate",
+                              {{"shape",
+                                migraphx::to_value(migraphx::shape{migraphx::shape::float_type,
+                                                                   t->get_shape().lens()})}}));
         auto c  = m.add_instruction(migraphx::make_op("gpu::contiguous"), t, alloc);
         auto rl = m.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {6, 4}}}), c);
         m.add_return({rl});

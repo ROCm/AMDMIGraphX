@@ -27,5 +27,4 @@ target_link_libraries(commonapi PUBLIC hiprtc::hiprtc migraphx_onnx)
 install(TARGETS commonapi LIBRARY DESTINATION lib)
 install(DIRECTORY ../include/migraphx/common_api DESTINATION include/migraphx)
 
-add_subdirectory(samples)
 add_subdirectory(layers)

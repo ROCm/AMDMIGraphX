@@ -47,6 +47,11 @@ namespace nvinfer1
         void setModule(migraphx::module* mod) noexcept;
         migraphx::module* getModule() const noexcept;
 
+        // The explicitly assigned module, or nullptr when the layer targets the
+        // main module. Unlike getModule() this does not fall back to main, so the
+        // build orchestrator can tell loop-body layers apart from main layers.
+        migraphx::module* getAssignedModule() const noexcept { return mModule; }
+
         // Accessors used by the loop facade to inspect the layer graph.
         const std::vector<Tensor_impl*>& inputTensors() const noexcept { return mInputs; }
         Tensor_impl* outputTensor(int32_t index) const noexcept { return mOutputs.at(index).get(); }

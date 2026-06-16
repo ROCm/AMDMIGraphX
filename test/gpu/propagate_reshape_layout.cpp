@@ -99,7 +99,8 @@ TEST_CASE(no_permutation_noop)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
-        auto t = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
+        auto t =
+            m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
         auto alloc = m1.add_instruction(
             migraphx::make_op("allocate",
                               {{"shape",

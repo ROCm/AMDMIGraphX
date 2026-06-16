@@ -21,38 +21,48 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/cross_compile_device.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/stringutils.hpp>
-#include <algorithm>
+#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_DIM_LIKE_HPP
+#define MIGRAPHX_GUARD_MIGRAPHLIB_DIM_LIKE_HPP
+
+#include <cstdint>
+#include <ostream>
+#include <type_traits>
+
+#include <migraphx/config.hpp>
+#include <migraphx/picked_variant.hpp>
+#include <migraphx/requires.hpp>
+#include <migraphx/shape.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-// RDNA architectures use wave32
-static int arch_wavefront_size(const std::string& arch_name)
+struct value;
+
+// Routes any integral type through int64_t so call sites don't need casts.
+struct dim_like_picker
 {
-    const auto gfx = get_gfx_name(arch_name);
-    if(starts_with(gfx, "gfx10") or starts_with(gfx, "gfx11") or starts_with(gfx, "gfx12"))
-        return 32;
-    return 64;
+    template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
+    static int64_t apply(T v)
+    {
+        return static_cast<int64_t>(v);
+    }
+
+    static shape::dynamic_dimension apply(shape::dynamic_dimension d) { return d; }
+};
+
+// A dim attribute entry that may be either a plain int64_t or a dynamic_dimension.
+using dim_like = picked_variant<dim_like_picker, int64_t, shape::dynamic_dimension>;
+
+inline std::ostream& operator<<(std::ostream& os, const dim_like& d)
+{
+    visit([&](const auto& x) { os << x; }, d);
+    return os;
 }
 
-hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, std::size_t cu_count)
-{
-    hipDeviceProp_t props{};
-    auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
-    std::copy_n(arch_name.begin(), n, props.gcnArchName);
-    props.gcnArchName[n] = '\0';
-    props.warpSize       = arch_wavefront_size(arch_name);
-    // these are placeholders
-    props.maxThreadsPerMultiProcessor = 2048;
-    props.maxThreadsPerBlock          = 1024;
-    props.multiProcessorCount         = cu_count;
-    return props;
-}
+MIGRAPHX_EXPORT void migraphx_to_value(value& v, const dim_like& d);
+MIGRAPHX_EXPORT void migraphx_from_value(const value& v, dim_like& d);
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
+
+#endif

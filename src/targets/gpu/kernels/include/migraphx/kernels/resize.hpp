@@ -37,7 +37,7 @@
 
 namespace migraphx {
 
-// Coordinate transformation mode functors
+// Coordinate transformation mode functions
 struct coord_transform_half_pixel
 {
     MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const
@@ -84,7 +84,7 @@ struct coord_transform_tf_half_pixel_for_nn
     }
 };
 
-// Nearest mode functors
+// Nearest mode functions
 struct nearest_floor
 {
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const

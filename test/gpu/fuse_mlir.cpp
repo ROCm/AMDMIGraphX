@@ -23,6 +23,7 @@
  */
 #include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/fuse_pointwise_reduce.hpp>
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device_name.hpp>
@@ -63,6 +64,18 @@ static void run_pass(migraphx::program& p, migraphx::gpu::fuse_mlir fm = {})
     fm.ctx          = &ctx;
     fm.enable_extra = true;
     migraphx::run_passes(p, {fm, migraphx::dead_code_elimination{}});
+}
+
+static void run_fusion_passes(migraphx::program& p, migraphx::gpu::fuse_mlir fm = {})
+{
+    static migraphx::gpu::context ctx;
+    fm.ctx          = &ctx;
+    fm.enable_extra = true;
+    migraphx::run_passes(p,
+                         {migraphx::fuse_pointwise_reduce{},
+                          migraphx::dead_code_elimination{},
+                          fm,
+                          migraphx::dead_code_elimination{}});
 }
 
 template <class F>
@@ -1881,6 +1894,119 @@ TEST_CASE(dot_add_dot)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dot_add_dot_split_reduce)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);
+        auto rsum = add_reduce(p1,
+                               "main:split_reduce0",
+                               {dot2},
+                               {1},
+                               "assign_none",
+                               single_reduce("reduce_sum"));
+        mm->add_return({rsum});
+    }
+    std::cout << "p1:" << std::endl;
+    p1.debug_print();
+    run_pass(p1);
+    std::cout << "p1 after run_pass:" << std::endl;
+    p1.debug_print();
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto x   = mm->add_parameter("x", s3);
+        auto y   = mm->add_parameter("y", s4);
+        auto dot_op =
+            migraphx::make_op("gpu::mlir_op", {{"op", migraphx::to_value(migraphx::make_op("dot"))}});
+        auto fused =
+            add_mlir(p2,
+                     "mlir_main:pointwise0_mlir_dot1_geg_main:split_reduce0",
+                     {a, b, x, y},
+                     [=](auto* pm, const auto& inputs) {
+                         auto dot1 =
+                             pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                         auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                         auto rsum = pm->add_instruction(
+                             migraphx::make_op("reduce_sum", {{"axes", {1}}}), dot2);
+                         return std::make_tuple(dot_op, rsum);
+                     });
+        mm->add_return({fused});
+    }
+    if(not migraphx::enabled(MIGRAPHX_ENABLE_MLIR_REDUCE_FUSION{}))
+        return;
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dot_add_dot_fused_reduce)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1024, 3}};
+    migraphx::shape s2{migraphx::shape::half_type, {3, 4}};
+    migraphx::shape s3{migraphx::shape::half_type, {1024, 4}};
+    migraphx::shape s4{migraphx::shape::half_type, {4, 2}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto add =
+            add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);
+        auto rsum =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), dot2);
+        mm->add_return({rsum});
+    }
+    std::cout << "p1:" << std::endl;
+    p1.debug_print();
+    run_fusion_passes(p1);
+    std::cout << "p1 after run_fusion_passes:" << std::endl;
+    p1.debug_print();
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto a   = mm->add_parameter("a", s1);
+        auto b   = mm->add_parameter("b", s2);
+        auto x   = mm->add_parameter("x", s3);
+        auto y   = mm->add_parameter("y", s4);
+        auto geg =
+            add_mlir(p2,
+                     "mlir_main:pointwise0_mlir_dot1_geg",
+                     {a, b, x, y},
+                     [=](auto* pm, const auto& inputs) {
+                         auto dot1 =
+                             pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                         auto add  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                         auto dot2 = pm->add_instruction(migraphx::make_op("dot"), add, inputs[3]);
+                         return std::make_tuple(dot2->get_operator(), dot2);
+                     });
+        auto rsum = add_reduce(p2, "main:reduce_sum0", {geg}, {1}, single_reduce("reduce_sum"));
+        mm->add_return({rsum});
+    }
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(dot_add_dot_abc_f32)
 // MLIR currently only supports (A*B)*C GEG patterns
 {
@@ -3184,6 +3310,169 @@ TEST_CASE(dot_add_dot_lds_too_large_no_geg)
         auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
         auto add  = add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("add"));
         auto dot2 = mm->add_instruction(migraphx::make_op("dot"), add, y);
+        mm->add_return({dot2});
+    }
+    run_pass(p1);
+    std::stringstream ss;
+    ss << p1;
+    EXPECT(ss.str().find("geg") == std::string::npos);
+}
+
+namespace {
+
+migraphx::instruction_ref
+add_dlrm_mlp(migraphx::program& p,
+             migraphx::shape::type_t dt,
+             std::size_t m,
+             std::size_t k,
+             std::size_t n,
+             std::size_t g)
+{
+    auto* mm = p.get_main_module();
+    auto a   = mm->add_parameter("a", migraphx::shape{dt, {m, k}});
+    auto b   = mm->add_parameter("b", migraphx::shape{dt, {k, n}});
+    auto x   = mm->add_parameter("x", migraphx::shape{dt, {m, n}});
+    auto y   = mm->add_parameter("y", migraphx::shape{dt, {n, g}});
+    auto z   = mm->add_parameter("z", migraphx::shape{dt, {m, g}});
+    auto dot1 =
+        mm->add_instruction(migraphx::make_op("dot"), a, b); // m x k @ k x n -> m x n
+    auto pw1 =
+        add_pointwise(p, "main:pointwise0", {dot1, x}, [=](auto* pm, const auto& inputs) {
+            auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+            return pm->add_instruction(migraphx::make_op("relu"), add);
+        });
+    auto dot2 = mm->add_instruction(migraphx::make_op("dot"), pw1, y); // m x n @ n x g -> m x g
+    return add_pointwise(p, "main:pointwise1", {dot2, z}, [=](auto* pm, const auto& inputs) {
+        auto add = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+        return pm->add_instruction(migraphx::make_op("relu"), add);
+    });
+}
+
+migraphx::instruction_ref add_dlrm_mlp_mlir(migraphx::program& p,
+                                            const std::string& name,
+                                            migraphx::shape::type_t dt,
+                                            std::size_t m,
+                                            std::size_t k,
+                                            std::size_t n,
+                                            std::size_t g)
+{
+    auto* mm = p.get_main_module();
+    auto a   = mm->add_parameter("a", migraphx::shape{dt, {m, k}});
+    auto b   = mm->add_parameter("b", migraphx::shape{dt, {k, n}});
+    auto x   = mm->add_parameter("x", migraphx::shape{dt, {m, n}});
+    auto y   = mm->add_parameter("y", migraphx::shape{dt, {n, g}});
+    auto z   = mm->add_parameter("z", migraphx::shape{dt, {m, g}});
+    return add_mlir(p,
+                    name,
+                    {a, b, x, y, z},
+                    [=](auto* pm, const auto& inputs) {
+                        auto dot1  = pm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                        auto add1  = pm->add_instruction(migraphx::make_op("add"), dot1, inputs[2]);
+                        auto relu1 = pm->add_instruction(migraphx::make_op("relu"), add1);
+                        auto dot2  = pm->add_instruction(migraphx::make_op("dot"), relu1, inputs[3]);
+                        auto add2  = pm->add_instruction(migraphx::make_op("add"), dot2, inputs[4]);
+                        auto relu2 = pm->add_instruction(migraphx::make_op("relu"), add2);
+                        return std::make_tuple(relu2->get_operator(), relu2);
+                    });
+}
+
+} // namespace
+
+TEST_CASE(dlrm_bottom_mlp_geg)
+// DLRM bottom MLP family: m x 13 @ 13 x 512 -> m x 512, then m x 512 @ 512 x 256.
+// Use large m so GEG heuristic allows fusion (small m + skinny k is rejected).
+{
+    constexpr std::size_t m = 98304;
+    constexpr std::size_t k = 13;
+    constexpr std::size_t n = 512;
+    constexpr std::size_t g = 256;
+    migraphx::program p1;
+    {
+        auto out = add_dlrm_mlp(p1, migraphx::shape::float_type, m, k, n, g);
+        p1.get_main_module()->add_return({out});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto fused = add_dlrm_mlp_mlir(
+            p2, "mlir_main:pointwise0_mlir_main:pointwise1_geg", migraphx::shape::float_type, m, k, n, g);
+        p2.get_main_module()->add_return({fused});
+    }
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(dlrm_bottom_mlp_small_m_no_geg)
+// Same geometry as production bottom MLP but small m: m*k < n*g so heuristic rejects.
+{
+    constexpr std::size_t m = 2048;
+    constexpr std::size_t k = 13;
+    constexpr std::size_t n = 512;
+    constexpr std::size_t g = 256;
+    migraphx::program p;
+    {
+        auto out = add_dlrm_mlp(p, migraphx::shape::float_type, m, k, n, g);
+        p.get_main_module()->add_return({out});
+    }
+    run_pass(p);
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    std::stringstream ss;
+    ss << p;
+    EXPECT(ss.str().find("geg") == std::string::npos);
+}
+
+TEST_CASE(dlrm_interaction_mlp_no_geg)
+// DLRM interaction MLP: k is large vs n (k/n ~ 0.81); relational heuristic rejects GEG.
+{
+    constexpr std::size_t m = 2048;
+    constexpr std::size_t k = 415;
+    constexpr std::size_t n = 512;
+    constexpr std::size_t g = 512;
+    migraphx::program p1;
+    {
+        auto out = add_dlrm_mlp(p1, migraphx::shape::float_type, m, k, n, g);
+        p1.get_main_module()->add_return({out});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto fused = add_dlrm_mlp_mlir(
+            p2, "mlir_main:pointwise0_mlir_main:pointwise1_geg", migraphx::shape::float_type, m, k, n, g);
+        p2.get_main_module()->add_return({fused});
+    }
+    if(migraphx::enabled(MIGRAPHX_DISABLE_MLIR_GEG_FUSION{}))
+        return;
+    std::stringstream ss1;
+    ss1 << p1;
+    std::stringstream ss2;
+    ss2 << p2;
+    EXPECT(ss1.str().find("geg") == std::string::npos);
+    EXPECT(ss2.str().find("geg") == std::string::npos);
+}
+
+TEST_CASE(agentmodel_shape_no_geg)
+// Agentmodel GEG shape family (m=168, g=1648): heuristic rejects large g.
+{
+    constexpr std::size_t m = 168;
+    constexpr std::size_t k = 128;
+    constexpr std::size_t n = 816;
+    constexpr std::size_t g = 1648;
+    migraphx::shape s1{migraphx::shape::float_type, {m, k}};
+    migraphx::shape s2{migraphx::shape::float_type, {k, n}};
+    migraphx::shape s3{migraphx::shape::float_type, {m, n}};
+    migraphx::shape s4{migraphx::shape::float_type, {n, g}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto a    = mm->add_parameter("a", s1);
+        auto b    = mm->add_parameter("b", s2);
+        auto x    = mm->add_parameter("x", s3);
+        auto y    = mm->add_parameter("y", s4);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto mul  = add_pointwise(p1, "main:pointwise0", {dot1, x}, single_pointwise("mul"));
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), mul, y);
         mm->add_return({dot2});
     }
     run_pass(p1);

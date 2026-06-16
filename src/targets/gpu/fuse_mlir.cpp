@@ -913,6 +913,29 @@ struct find_mlir_fused_geg_ops
         if(m == 0 or n == 0 or k == 0 or g == 0)
             return false;
 
+        // Reject-before-dominance: huge m (e.g. DLRM batch) otherwise always satisfies the
+        // m/n-lead branch below, so k/g "detrimental" checks never run.
+
+        // First GEMM contraction volume vs second GEMM output pairing volume (same units as a
+        // MAC-count ratio up to m,n): when m*k < n*g, the first matmul moves too little mass
+        // relative to the second contraction for fused launch to pay off (dlrm bottom at small m).
+        // No fixed m or k thresholds — rocm_tools cases like m=k=n=g keep m*k >= n*g at equality.
+        const double mk = static_cast<double>(m) * static_cast<double>(k);
+        const double ng = static_cast<double>(n) * static_cast<double>(g);
+        if(mk < ng)
+            return false;
+
+        // First GEMM is "wide" vs shared inner width n (k comparable to n): interaction-MLP
+        // family; rocm_tools shapes keep k << n (e.g. 128/8192).
+        constexpr std::int64_t n_min_for_kn_ratio = 256;
+        constexpr double kn_reject_ratio         = 0.62;
+        if(n >= n_min_for_kn_ratio)
+        {
+            const double kn = static_cast<double>(k) / static_cast<double>(n);
+            if(kn > kn_reject_ratio)
+                return false;
+        }
+
         // Experimental results show fusion is beneficial when:
         // 1. m is relatively larger than other dimensions (avg difference > 1000)
         // 2. n is relatively larger than other dimensions (avg difference > 1000)

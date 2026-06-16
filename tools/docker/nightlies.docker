@@ -1,0 +1,105 @@
+# MIGraphX build image using TheRock NIGHTLY multi-arch packages (amdrocm-*).
+#
+# Unlike hip-clang.docker (which uses the stable, signed TheRock repo at
+# repo.amd.com), this image pulls from TheRock's nightly multi-arch package
+# index at rocm.nightlies.amd.com. Nightly builds are from the latest ROCm code,
+# are UNSIGNED, and may be unstable. See:
+#   https://github.com/ROCm/TheRock/blob/main/RELEASES.md#installing-on-debian-based-systems-ubuntu-debian-etc
+#
+# Build args:
+#   ROCM_VERSION  ROCm release version for versioned package names (e.g. 7.14).
+#                 Leave empty (default) to auto-detect it from the registered
+#                 nightly repo; set it only to pin/override a specific version.
+#   RELEASE_ID    Nightly release directory in the form YYYYMMDD-<action-run-id>.
+#                 Find the latest at:
+#                   https://rocm.nightlies.amd.com/packages-multi-arch/deb/
+#   GPU_ARCH      GPU architecture family (e.g. gfx942); empty installs the fat
+#                 (all-architecture) device code so the image runs on any GPU
+#   PREFIX        Install location for the prebuilt MIGraphX dependencies
+#
+# Build (from the repo root, which is the build context). ROCM_VERSION is
+# auto-detected from the repo, so usually only RELEASE_ID needs to be set:
+#   docker build -f tools/docker/nightlies.docker \
+#       --build-arg RELEASE_ID=20260615-27516899413 \
+#       -t migraphx-therock-nightly .
+
+FROM ubuntu:24.04
+
+# Install location for the prebuilt MIGraphX dependencies.
+ARG PREFIX=/usr/local
+# ROCm release version for TheRock versioned package names (e.g. amdrocm-runtime7.14).
+# Empty => auto-detected from the nightly repo (the version is encoded in the
+# amdrocm-runtime<ver> package name). Set explicitly to pin a specific version.
+ARG ROCM_VERSION=""
+# Nightly release directory (YYYYMMDD-<action-run-id>). Override with the latest
+# from https://rocm.nightlies.amd.com/packages-multi-arch/deb/ when rebuilding.
+ARG RELEASE_ID=20260615-27516899413
+# GPU architecture family (e.g. gfx942); empty installs the fat (all-architecture)
+# device code, which lets the image run on any GPU in CI.
+ARG GPU_ARCH=""
+
+# pip on Ubuntu 24.04 is externally managed; allow system-wide installs.
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+# Register TheRock nightly multi-arch apt repository. Nightly packages are
+# UNSIGNED, so the repo is added with [trusted=yes] (no signing key).
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    echo "deb [trusted=yes] https://rocm.nightlies.amd.com/packages-multi-arch/deb/${RELEASE_ID} stable main" \
+        > /etc/apt/sources.list.d/rocm-multiarch-nightly.list && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install the ROCm toolchain + MIGraphX build prerequisites via the shared script.
+# The ROCm version is auto-detected from the registered nightly repo (it is
+# encoded in the amdrocm-runtime<ver> package name) unless ROCM_VERSION is set
+# explicitly. No --gpu is passed by default, so the fat (all-architecture)
+# device code is installed. The /opt/rocm/{bin,lib,llvm,...} layout that CI jobs
+# and rbuild.ini reference (e.g. /opt/rocm/llvm/bin/clang++) is then exposed from
+# the versioned root (/opt/rocm/core-<ver>).
+COPY tools/install_prereqs.sh /tmp/install_prereqs.sh
+RUN set -eu; \
+    chmod +x /tmp/install_prereqs.sh; \
+    apt-get update; \
+    if [ -z "${ROCM_VERSION}" ]; then \
+        ROCM_VERSION="$(apt-cache search --names-only '^amdrocm-runtime[0-9.]+$' \
+            | awk '{print $1}' | sed 's/amdrocm-runtime//' | sort -V | tail -1)"; \
+    fi; \
+    test -n "${ROCM_VERSION}"; \
+    echo "Using ROCm version ${ROCM_VERSION}"; \
+    /tmp/install_prereqs.sh --rocm-version "${ROCM_VERSION}" ${GPU_ARCH:+--gpu ${GPU_ARCH}}; \
+    for d in bin lib libexec include share llvm amdgcn; do \
+        ln -snf "core-${ROCM_VERSION}/$d" "/opt/rocm/$d"; \
+    done; \
+    echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf; \
+    echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf; \
+    ldconfig; \
+    apt-get clean; rm -rf /var/lib/apt/lists/*
+
+# Set locale
+RUN locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+
+# Install yapf and clang-format (used by tools/format.py)
+RUN pip3 install yapf==0.28.0 clang-format==22.1.5
+
+# Install doc requirements. --ignore-installed avoids pip trying (and failing)
+# to uninstall distro-managed Python packages such as Pygments (pulled in by gdb)
+# on Ubuntu 24.04's externally-managed Python.
+ADD docs/sphinx/requirements.txt /doc-requirements.txt
+RUN pip3 install --ignore-installed -r /doc-requirements.txt
+
+# Prebuild the MIGraphX third-party dependencies (protobuf, half, oneDNN,
+# composable_kernel, rocMLIR, cppcheck, ccache, ...) into PREFIX so the CI jobs
+# can configure and build without fetching them.
+ADD dev-requirements.txt /dev-requirements.txt
+ADD requirements.txt /requirements.txt
+ADD rbuild.ini /rbuild.ini
+RUN cd / && rbuild prepare -d ${PREFIX} -s develop
+
+# Install onnxruntime Python test requirements (built against the prepared protobuf)
+ADD tools/requirements-py.txt /requirements-py.txt
+RUN CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON" pip3 install -r /requirements-py.txt && \
+    rm /requirements-py.txt
+
+RUN git config --global --add safe.directory '*'

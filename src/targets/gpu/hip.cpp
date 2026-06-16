@@ -27,6 +27,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/contiguous.hpp>
+#include <migraphx/gpu/device/generate_random.hpp>
 #if MIGRAPHX_USE_MIOPEN
 #include <miopen/miopen.h>
 #endif
@@ -299,6 +300,19 @@ void gpu_fill(context& ctx, const argument& dst, int value)
     {
         for(const auto& arg : dst.get_sub_objects())
             gpu_fill(ctx, arg, value);
+    }
+}
+
+void gpu_generate_random(context& ctx, const argument& dst, unsigned long seed)
+{
+    if(dst.get_sub_objects().empty())
+    {
+        device::generate_random(ctx.get_stream().get(), dst, seed);
+    }
+    else
+    {
+        for(const auto& arg : dst.get_sub_objects())
+            gpu_generate_random(ctx, arg, seed);
     }
 }
 

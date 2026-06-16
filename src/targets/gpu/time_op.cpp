@@ -122,10 +122,18 @@ double time_program(const context& ictx,
         if(shape.type() != migraphx::shape::tuple_type)
             id = shape.type_string() + migraphx::shape::to_sizes_string({shape.as_standard()});
 
+        // fill_map inputs need specific values (host fill); the rest are generated
+        // on the GPU to skip the host PRNG + H2D copy per candidate.
         if(contains(fill_map, id))
+        {
             param_map[name] = to_gpu(fill_argument(shape, fill_map.at(id)));
+        }
         else
-            param_map[name] = to_gpu(generate_argument(shape, seed++, random_mode::random));
+        {
+            auto dev_arg = allocate_gpu(shape);
+            gpu_generate_random(gctx, dev_arg, seed++);
+            param_map[name] = dev_arg;
+        }
     }
     auto run = [&] { p.eval_with_context(ctx_vec, param_map); };
     return time_loop(gctx, bundle, nruns, run);

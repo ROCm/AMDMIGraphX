@@ -50,6 +50,8 @@ namespace nvinfer1
         migraphx::instruction_ref mIns;
         std::string mName;
         bool mBound = false;
+        DataType mType = DataType::kFLOAT;
+        bool mTypeSet = false;
     };
 }
 

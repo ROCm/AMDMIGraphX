@@ -61,13 +61,18 @@ Dims Tensor_impl::getDimensions() const noexcept
 
 void Tensor_impl::setType(DataType type) noexcept
 {
-    pass_warning("TODO! implement me!", true);
+    mType    = type;
+    mTypeSet = true;
 }
 
 DataType Tensor_impl::getType() const noexcept
 {
-    pass_warning("TODO! implement me!", true);
-    return DataType::kFLOAT;
+    // Once the tensor is wired into the graph its data type is whatever the
+    // producing instruction yields; otherwise fall back to any type the caller
+    // explicitly requested via setType().
+    if(mBound)
+        return helper::toDataType(mIns->get_shape().type());
+    return mType;
 }
 
 bool Tensor_impl::setDynamicRange(float min, float max) noexcept

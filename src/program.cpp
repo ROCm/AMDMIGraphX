@@ -502,19 +502,6 @@ static std::vector<argument> generic_eval(const module* mod,
         results.emplace(ins, argument{});
 #endif
         const auto& name = ins->name();
-        if(name == "@return")
-        {
-            std::vector<argument> prog_outputs;
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           std::back_inserter(prog_outputs),
-                           [&](instruction_ref i) {
-                               assert(results.find(i) != results.end());
-                               return results[i];
-                           });
-
-            return prog_outputs;
-        }
         auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
         if(name == "@literal")
         {
@@ -540,10 +527,28 @@ static std::vector<argument> generic_eval(const module* mod,
                     return param;
                 }));
         }
-        else if(name == "@outline" or name == "@comment")
+        else if(name == "@outline")
         {
             results.insert_or_assign(
                 ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+        }
+        else if(name == "@comment")
+        {
+            results.insert_or_assign(
+                ins, trace(ins, [&] { return argument{ins->get_shape(), nullptr}; }));
+        }
+        else if(name == "@return")
+        {
+            std::vector<argument> prog_outputs;
+            std::transform(ins->inputs().begin(),
+                           ins->inputs().end(),
+                           std::back_inserter(prog_outputs),
+                           [&](instruction_ref i) {
+                               assert(results.find(i) != results.end());
+                               return results[i];
+                           });
+
+            return prog_outputs;
         }
         else
         {

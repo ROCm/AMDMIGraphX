@@ -133,9 +133,6 @@ struct onnx_parser
                      const std::string& name,
                      const std::vector<shape::dynamic_dimension>& override_dims) const;
     shape parse_type(const onnx::TypeProto& t, const std::vector<std::size_t>& input_dims) const;
-    shape::dynamic_dimension
-    resolve_dim(const shape::dynamic_dimension& bounds, const std::string& name, int axis) const;
-    shape::dynamic_dimension resolve_default_dim(const std::string& name, int axis) const;
     std::string to_string(const onnx::AttributeProto& attr) const;
 };
 

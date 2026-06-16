@@ -877,29 +877,81 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-// Build an unnamed axis's dynamic_dimension from its bounds.
-shape::dynamic_dimension onnx_parser::resolve_dim(const shape::dynamic_dimension& bounds,
-                                                  const std::string& name,
-                                                  int axis) const
+static shape::dynamic_dimension make_symbol(const std::string& sym_name,
+                                            const shape::dynamic_dimension& bounds)
 {
-    if(not use_symbolic_shapes)
-        return bounds;
     auto iv = bounds.get_interval();
-    // A fixed bound is a constant, so emit it as a literal.
-    if(bounds.is_fixed())
-        return shape::dynamic_dimension{sym::lit(iv.min)};
-    // A ranged bound becomes a per-axis symbol "<input>_d<axis>" (onnxruntime's scheme
-    // for unnamed dims).
     return shape::dynamic_dimension{
-        sym::var(name + "_d" + std::to_string(axis),
+        sym::var(sym_name,
                  {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},
                  sym_optimals(bounds))};
 }
 
-// Fallback for a dim with no name and no value. default_dyn_dim_value supplies the bounds.
-shape::dynamic_dimension onnx_parser::resolve_default_dim(const std::string& name, int axis) const
+static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
+                                            const shape::dynamic_dimension& bounds,
+                                            const std::string& name,
+                                            int axis)
 {
-    return resolve_dim(default_dyn_dim_value, name, axis);
+    if(not parser.use_symbolic_shapes)
+        return bounds;
+    // A fixed bound is a constant, so emit it as a literal.
+    if(bounds.is_fixed())
+        return shape::dynamic_dimension{sym::lit(bounds.get_interval().min)};
+    // A ranged bound becomes a per-axis symbol "<input>_d<axis>" (onnxruntime's scheme
+    // for unnamed dims).
+    return make_symbol(name + "_d" + std::to_string(axis), bounds);
+}
+
+static shape::dynamic_dimension
+resolve_default_dim(const onnx_parser& parser, const std::string& name, int axis)
+{
+    return resolve_dim(parser, parser.default_dyn_dim_value, name, axis);
+}
+
+static shape::dynamic_dimension dim_param_bounds(const onnx_parser& parser,
+                                                 const std::string& dim_param,
+                                                 const shape::dynamic_dimension* override_dim)
+{
+    if(override_dim != nullptr)
+        return *override_dim;
+    if(contains(parser.dim_params, dim_param))
+        return parser.dim_params.at(dim_param);
+    return parser.default_dyn_dim_value;
+}
+
+static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
+                                            const onnx::TensorShapeProto::Dimension* model_dim,
+                                            const shape::dynamic_dimension* override_dim,
+                                            const std::string& name,
+                                            int axis)
+{
+    // An already-symbolic override carries its own symbol; keep it.
+    if(override_dim != nullptr and override_dim->is_symbolic())
+        return *override_dim;
+    if(model_dim != nullptr and model_dim->has_dim_param())
+    {
+        const auto& dim_param = model_dim->dim_param();
+        if(parser.use_symbolic_shapes)
+            return make_symbol(dim_param, dim_param_bounds(parser, dim_param, override_dim));
+        if(override_dim != nullptr)
+            return *override_dim;
+        if(contains(parser.dim_params, dim_param))
+            return parser.dim_params.at(dim_param);
+    }
+    // An override replaces a model dim_value entirely.
+    if(override_dim != nullptr)
+        return resolve_dim(parser, *override_dim, name, axis);
+    if(model_dim != nullptr and model_dim->has_dim_value())
+    {
+        // A non-positive dim_value is unspecified, so fall back to the default.
+        if(static_cast<int>(model_dim->dim_value()) <= 0)
+            return resolve_default_dim(parser, name, axis);
+        if(parser.use_symbolic_shapes)
+            return shape::dynamic_dimension{sym::lit(model_dim->dim_value())};
+        std::size_t tmp = model_dim->dim_value();
+        return {tmp, tmp};
+    }
+    return resolve_default_dim(parser, name, axis);
 }
 
 shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name) const
@@ -924,48 +976,8 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
               [&](std::size_t axis) -> shape::dynamic_dimension {
                   const shape::dynamic_dimension* od =
                       axis < override_dims.size() ? &override_dims[axis] : nullptr;
-                  // An already-symbolic override carries its own symbol; keep it.
-                  if(od != nullptr and od->is_symbolic())
-                      return *od;
                   const auto* d = axis < tensor_dims.size() ? &tensor_dims[axis] : nullptr;
-                  if(d != nullptr and d->has_dim_param())
-                  {
-                      const auto& dim_param = d->dim_param();
-                      if(use_symbolic_shapes)
-                      {
-                          // Override bounds win over the dim_params map, falling back to default.
-                          shape::dynamic_dimension bounds;
-                          if(od != nullptr)
-                              bounds = *od;
-                          else if(contains(dim_params, dim_param))
-                              bounds = dim_params.at(dim_param);
-                          else
-                              bounds = default_dyn_dim_value;
-                          auto iv = bounds.get_interval();
-                          return shape::dynamic_dimension{
-                              sym::var(dim_param,
-                                       {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},
-                                       sym_optimals(bounds))};
-                      }
-                      if(od != nullptr)
-                          return *od;
-                      if(contains(dim_params, dim_param))
-                          return dim_params.at(dim_param);
-                  }
-                  // An override replaces a model dim_value entirely.
-                  if(od != nullptr)
-                      return resolve_dim(*od, name, axis);
-                  if(d != nullptr and d->has_dim_value())
-                  {
-                      // A non-positive dim_value is unspecified, so fall back to the default.
-                      if(static_cast<int>(d->dim_value()) <= 0)
-                          return resolve_default_dim(name, axis);
-                      if(use_symbolic_shapes)
-                          return shape::dynamic_dimension{sym::lit(d->dim_value())};
-                      std::size_t tmp = d->dim_value();
-                      return {tmp, tmp};
-                  }
-                  return resolve_default_dim(name, axis);
+                  return map_dyn_dim(*this, d, od, name, axis);
               });
 
     if(dynamic_dims.empty())

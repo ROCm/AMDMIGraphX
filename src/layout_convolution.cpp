@@ -130,6 +130,8 @@ struct find_concat_layout
         auto new_inputs = inputs;
         std::transform(
             inputs.begin(), inputs.end(), new_inputs.begin(), [&](instruction_ref input) {
+                if(input->get_shape().broadcasted())
+                    return input;
                 return m.insert_instruction(concat, layout_op, input);
             });
 

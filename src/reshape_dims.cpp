@@ -30,20 +30,28 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 template <class Iterator>
-static auto compute_end_dim(Iterator start, Iterator last, std::size_t dim)
+static Iterator compute_end_dim(Iterator start, Iterator last, const sym::expr& dim)
 {
-    std::size_t x = 1;
-    auto it       = std::find_if(start, last, [&](auto i) {
+    auto x             = sym::lit(std::int64_t{1});
+    bool indeterminate = false;
+    auto it            = std::find_if(start, last, [&](const auto& i) {
         x *= i;
-        return x >= dim;
+        auto x_lt = sym::strict_less(x, dim);
+        if(not x_lt.has_value())
+        {
+            indeterminate = true;
+            return true;
+        }
+        return not *x_lt;
     });
-    if(x != dim)
+    if(indeterminate or x != dim)
         return start;
     return it;
 }
 
-template <class OptionalPair>
-static OptionalPair try_merge_pairs(OptionalPair p2, OptionalPair p1)
+static optional<std::pair<sym::expr, sym::expr>>
+try_merge_pairs(optional<std::pair<sym::expr, sym::expr>> p2,
+                optional<std::pair<sym::expr, sym::expr>> p1)
 {
     if(not p1.has_value())
         return nullopt;
@@ -54,17 +62,19 @@ static OptionalPair try_merge_pairs(OptionalPair p2, OptionalPair p1)
     auto stride1  = p1->second;
     auto stride2  = p2->second;
     auto elements = dim1 * dim2;
+    auto zero     = sym::lit(std::int64_t{0});
     // Transposed
-    if(stride2 > stride1)
+    auto order = sym::strict_less(stride1, stride2);
+    if(not order.has_value() or *order)
         return nullopt;
     // Broadcasted check to avoid division by zero
-    if(stride2 == 0)
+    if(stride2 == zero)
     {
-        if(stride1 == 0)
-            return {{elements, 0}};
+        if(stride1 == zero)
+            return {{elements, zero}};
         return nullopt;
     }
-    if(stride1 % stride2 != 0)
+    if(stride1 % stride2 != zero)
         return nullopt;
     auto space = (stride1 * dim1 + stride2 * dim2 - stride1) / stride2;
     // Nonpacked
@@ -74,10 +84,10 @@ static OptionalPair try_merge_pairs(OptionalPair p2, OptionalPair p1)
 }
 
 template <class DimIterator, class StrideIterator>
-static optional<std::size_t> merge_strides(DimIterator dim_start,
-                                           DimIterator dim_last,
-                                           StrideIterator stride_start,
-                                           StrideIterator stride_last)
+static optional<sym::expr> merge_strides(DimIterator dim_start,
+                                         DimIterator dim_last,
+                                         StrideIterator stride_start,
+                                         StrideIterator stride_last)
 {
     if(dim_start == dim_last)
         return nullopt;
@@ -107,23 +117,28 @@ static auto can_strides_merge(DimIterator dim_start,
     return merge_strides(dim_start, dim_last, stride_start, stride_last).has_value();
 }
 
-optional<shape> reshape_dims(const shape& input,
-                             const std::vector<std::size_t>& rdims,
-                             reshape_dims_options options)
+optional<shape>
+reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_dims_options options)
 {
+    const std::vector<shape::dynamic_dimension> rdds(rdims.begin(), rdims.end());
+
     if(input.standard())
-        return shape{input.type(), rdims};
+        return shape{input.type(), rdds};
 
     // Broadcasts have ambiguous permutations (multiple axes share stride 0), so
     // for non-lazy reshape fall back to a standard layout. Sliced (non-packed)
     // inputs still propagate the permutation via the algorithm + with_lens below.
     if(not options.lazy and input.broadcasted())
-        return shape{input.type(), rdims};
+        return shape{input.type(), rdds};
 
-    const auto& idims    = input.lens();
-    const auto& istrides = input.strides();
+    std::vector<sym::expr> idims(input.dyn_dims().size());
+    std::transform(input.dyn_dims().begin(),
+                   input.dyn_dims().end(),
+                   idims.begin(),
+                   [](const auto& dd) { return dd.sym_expr; });
+    const auto istrides = input.dyn_strides();
 
-    std::vector<std::size_t> rstrides;
+    std::vector<sym::expr> rstrides;
     std::size_t i = 0;
     std::size_t r = 0;
     while(i < idims.size() and r < rdims.size())
@@ -134,37 +149,49 @@ optional<shape> reshape_dims(const shape& input,
         {
             rstrides.push_back(istrides[i]);
         }
-        // squeeze
-        else if(rdim > idim)
+        else
         {
-            auto start = idims.begin() + i;
-            auto it    = compute_end_dim(start, idims.end(), rdim);
-            if(it == start)
+            // == handled above; an unprovable ordering bails.
+            auto rdim_gt = sym::strict_less(idim, rdim);
+            auto rdim_lt = sym::strict_less(rdim, idim);
+            if(not rdim_gt.has_value() or not rdim_lt.has_value())
                 return nullopt;
-            auto n = it - start;
-            assert((i + n) <= istrides.size());
-            if(options.lazy and
-               not can_strides_merge(
-                   start, it + 1, istrides.begin() + i, istrides.begin() + i + n + 1))
+            // squeeze
+            if(*rdim_gt)
+            {
+                auto start = idims.begin() + i;
+                auto it    = compute_end_dim(start, idims.end(), rdim);
+                if(it == start)
+                    return nullopt;
+                auto n = it - start;
+                assert((i + n) <= istrides.size());
+                if(options.lazy and
+                   not can_strides_merge(
+                       start, it + 1, istrides.begin() + i, istrides.begin() + i + n + 1))
+                    return nullopt;
+                i += n;
+                rstrides.push_back(istrides[i]);
+            }
+            // unsqueeze
+            else if(*rdim_lt)
+            {
+                auto start = rdims.begin() + r;
+                auto it    = compute_end_dim(start, rdims.end(), idim);
+                if(it == start)
+                    return nullopt;
+                auto n = it - start;
+                assert((r + n) <= rdims.size());
+                auto stride = istrides[i] * idim;
+                std::for_each(start, it + 1, [&](auto dim) {
+                    stride /= dim;
+                    rstrides.push_back(stride);
+                });
+                r += n;
+            }
+            else
+            {
                 return nullopt;
-            i += n;
-            rstrides.push_back(istrides[i]);
-        }
-        // unsqueeze
-        else // if(rdim < idim)
-        {
-            auto start = rdims.begin() + r;
-            auto it    = compute_end_dim(start, rdims.end(), idim);
-            if(it == start)
-                return nullopt;
-            auto n = it - start;
-            assert((r + n) <= rdims.size());
-            auto stride = istrides[i] * idim;
-            std::for_each(start, it + 1, [&](auto dim) {
-                stride /= dim;
-                rstrides.push_back(stride);
-            });
-            r += n;
+            }
         }
         i++;
         r++;
@@ -176,7 +203,7 @@ optional<shape> reshape_dims(const shape& input,
         auto stride = rstrides.back();
         for(auto d : range(rdims.begin() + rstrides.size(), rdims.end()))
         {
-            if(d != 1)
+            if(d != sym::lit(std::int64_t{1}))
                 return nullopt;
             rstrides.push_back(stride);
         }
@@ -185,11 +212,11 @@ optional<shape> reshape_dims(const shape& input,
     if(rdims.size() != rstrides.size())
         return nullopt;
 
-    auto result = shape{input.type(), rdims, rstrides};
+    auto result = shape{input.type(), rdds, rstrides};
     if(options.lazy or result.packed())
         return result;
     // TODO: Add as_packed to shape class
-    return result.with_lens(result.type(), result.lens());
+    return result.with_lens(result.type(), result.dyn_dims());
 }
 
 } // namespace MIGRAPHX_INLINE_NS

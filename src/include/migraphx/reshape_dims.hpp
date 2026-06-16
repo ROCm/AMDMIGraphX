@@ -27,6 +27,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/sym.hpp>
 #include <vector>
 
 namespace migraphx {
@@ -39,9 +40,9 @@ struct reshape_dims_options
     bool lazy = false;
 };
 
-MIGRAPHX_EXPORT optional<shape> reshape_dims(const shape& input,
-                                             const std::vector<std::size_t>& rdims,
-                                             reshape_dims_options options);
+// nullopt when the layout can't be proven; the caller falls back to standard.
+MIGRAPHX_EXPORT optional<shape>
+reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_dims_options options);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

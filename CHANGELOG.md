@@ -24,12 +24,15 @@ Full documentation for MIGraphX is available at
 * Added build support for python 3.14 (#4754).
 * Added debug symbols for MIGraphX instructions such that parsed and compiled instructions can be tracked back to their ONNX origin node (#4626)
 * Added environment variable `MIGRAPHX_GPU_DUMP_BENCHMARK_MXR` to dump mxr files for benchmarking. (#4766)
+* Added FusedMatMul microsoft contrib operator. (#4806)
 * Added per-channel scale/zero-point support for `QLinearConv` operator.
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
+* Added horizontal fusion of gather ops that read the same constant embedding table into a single batched gather. (#4727)
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
 * Added documentation for using debug symbols (#4945).
+* Added `--log-stdout` flag to migraphx-driver to log to stdout instead of stderr (#4959).
 
 ### Changed
 

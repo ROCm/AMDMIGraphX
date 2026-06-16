@@ -96,23 +96,20 @@ TEST_CASE(propagate_permutation)
 // permutation to propagate, so the pass must leave the graph unchanged.
 TEST_CASE(no_permutation_noop)
 {
-    auto create = [] {
-        migraphx::module m;
-        auto x = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
-        auto t = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
-        auto alloc = m.add_instruction(
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+        auto t = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), x);
+        auto alloc = m1.add_instruction(
             migraphx::make_op("allocate",
                               {{"shape",
                                 migraphx::to_value(migraphx::shape{migraphx::shape::float_type,
                                                                    t->get_shape().lens()})}}));
-        auto c  = m.add_instruction(migraphx::make_op("gpu::contiguous"), t, alloc);
-        auto rl = m.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {6, 4}}}), c);
-        m.add_return({rl});
-        return m;
-    };
-
-    auto m1 = create();
-    auto m2 = create();
+        auto c  = m1.add_instruction(migraphx::make_op("gpu::contiguous"), t, alloc);
+        auto rl = m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {6, 4}}}), c);
+        m1.add_return({rl});
+    }
+    migraphx::module m2 = m1;
     run_pass(m1);
     EXPECT(m1 == m2);
 }

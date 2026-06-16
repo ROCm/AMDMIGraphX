@@ -240,11 +240,12 @@ mlss_conv_binary_info query_mlss_conv_binary(const context& ctx,
     if(mlssGetBinaries(mlss_ctx, &binaries, &num_binaries) != MLSS_SUCCESS or num_binaries == 0)
         return info;
 
-    // Find first non-relocatable binary
+    // Find first non-relocatable binary whose entry point is named "main"
     const MLSSbinary* bin = nullptr;
     for(MLSSsize i = 0; i < num_binaries; ++i)
     {
-        if(not binaries[i].m_isRelocatable)
+        if(not binaries[i].m_isRelocatable and binaries[i].m_pKernelName != nullptr and
+           std::string(binaries[i].m_pKernelName) == "main")
         {
             bin = &binaries[i];
             break;

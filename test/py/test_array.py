@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -80,7 +80,7 @@ def run(p):
     return p.run(params)
 
 
-def test_shape(shape):
+def _test_shape(shape):
     data = list(range(nelements(shape)))
     m = create_buffer('f', data, shape)
     a = migraphx.argument(m)
@@ -90,8 +90,8 @@ def test_shape(shape):
 
 def test_input():
     if sys.version_info >= (3, 0):
-        test_shape([4])
-        test_shape([2, 3])
+        _test_shape([4])
+        _test_shape([2, 3])
     else:
         data = list(range(4))
         m = create_buffer('f', data, [4])

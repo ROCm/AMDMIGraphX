@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@
 import migraphx, array, tempfile, sys
 
 
-def test_conv_relu(format):
+def _test_conv_relu(format):
     p1 = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
     print(p1)
 
@@ -39,6 +39,12 @@ def test_conv_relu(format):
 
         assert s1 == s2
         assert p1.sort() == p2.sort()
+
+def test_conv_relu_msgpack():
+    _test_conv_relu('msgpack')
+
+def test_conv_relu_json():
+    _test_conv_relu('json')
 
 def test_save_load_buffer():
     p1 = migraphx.parse_onnx("conv_relu_maxpool_test.onnx")
@@ -76,6 +82,6 @@ def test_load_save_arg():
 
 if __name__ == "__main__":
     test_load_save_arg()
-    test_conv_relu('msgpack')
-    test_conv_relu('json')
+    test_conv_relu_msgpack()
+    test_conv_relu_json()
     test_save_load_buffer()

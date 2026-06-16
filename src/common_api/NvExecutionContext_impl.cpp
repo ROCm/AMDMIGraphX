@@ -231,8 +231,23 @@ IGpuAllocator* NvExecutionContext_impl::getTemporaryStorageAllocator() const noe
 
 bool NvExecutionContext_impl::enqueueV3(hipStream_t stream) noexcept
 {
-    pass_warning("TODO! implement me!", true);
-    return false;
+    // Asynchronous counterpart of executeV2(). Where executeV2() calls
+    // program::eval() with a default (synchronous) execution environment,
+    // enqueueV3() must only *enqueue* the work on the caller's HIP stream and
+    // return without blocking, so the host can queue follow-up work (e.g. the
+    // device->host output copy in the sample) on the same stream.
+    //
+    // migraphx expresses this through execution_environment{queue, async=true}:
+    //   - queue: an any_ptr wrapping the hipStream_t. It must be typed so the
+    //     gpu context's queue.get<hipStream_t>() type-check matches; the
+    //     templated any_ptr ctor records exactly that type name.
+    //   - async=true: migraphx makes its own stream wait_for() the caller's
+    //     stream before launching and, when done, has the caller's stream
+    //     finish_on() migraphx's completion event. The kernels are launched but
+    //     not waited on here, preserving asynchronous semantics.
+    migraphx::execution_environment exec_env{migraphx::any_ptr{stream}, true};
+    mProgram->eval(mParamMap, exec_env);
+    return true;
 }
 
 void NvExecutionContext_impl::setPersistentCacheLimit(size_t size) noexcept

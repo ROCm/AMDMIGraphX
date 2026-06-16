@@ -1985,11 +1985,6 @@ void simplify_reshapes::apply(module& m) const
     {
         match::find_matches(m, find_gather{});
     }
-    if(enable_gather_slice_concat)
-    {
-        match::find_matches(m, find_gather_slice_concat{});
-        return;
-    }
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_nop_reshapes{},
@@ -1997,6 +1992,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshape_cont{},
                             find_slice_shape_transforms{},
                             find_nested_shape_transforms{},
+                            find_gather_slice_concat{},
                             find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_reshape{},

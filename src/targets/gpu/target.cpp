@@ -137,7 +137,7 @@ struct pipeline_factory
             eliminate_data_type_for_gpu{.disable_64bit = options.fast_math, .ctx = get_context()},
             rewrite_resize{.affine_only = true},
             dead_code_elimination{},
-            simplify_reshapes{.enable_gather_rewrite = true, .enable_gather_slice_concat = true},
+            simplify_reshapes{.enable_gather_rewrite = true},
             eliminate_identity{},
             eliminate_pad{},
             dead_code_elimination{},

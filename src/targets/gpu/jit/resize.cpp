@@ -122,6 +122,12 @@ struct resize_compiler : compiler<resize_compiler>
         // axis is a genuine pass-through (its input index equals its output index): equal length,
         // unit scale, contiguous, and an identity-at-unit-scale coordinate transform. Otherwise
         // the input transformer is the identity and the input is gathered scalar-wise.
+        //
+        // The mode list below is exactly the coord_transform_* function objects in
+        // kernels/resize.hpp whose operator() maps idx -> idx at unit scale (every mode except
+        // tf_half_pixel_for_nn); keep it in sync if a coordinate transform is added or changed. An
+        // omission is safe (it just falls back to a scalar gather), but listing a non-identity mode
+        // would be incorrect.
         const bool axis_passthrough =
             in_lens[vec.axis] == out_lens[vec.axis] and in_strides[vec.axis] == 1 and
             float_equal(scales[vec.axis], 1.0f) and

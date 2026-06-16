@@ -37,7 +37,7 @@
 
 namespace migraphx {
 
-// Coordinate transformation mode functions
+// Coordinate transformation mode function objects
 struct coord_transform_half_pixel
 {
     MIGRAPHX_DEVICE_CONSTEXPR float operator()(index_int, index_int, float idx, float scale) const
@@ -84,7 +84,7 @@ struct coord_transform_tf_half_pixel_for_nn
     }
 };
 
-// Nearest mode functions
+// Nearest mode function objects
 struct nearest_floor
 {
     MIGRAPHX_DEVICE_CONSTEXPR index_int operator()(index_int d_in, float val) const
@@ -210,19 +210,18 @@ template <index_int Axis, class Input, class Output, class Outv, class Compute>
 __device__ void resize_apply(Input input, Output out, Outv outv, Compute compute)
 {
     auto idx                = make_index();
-    constexpr index_int ivn = tensor_vec_size<Input>(); // > 0 only for a pass-through fast axis
+    constexpr index_int ivn = tensor_vec_size<Input>(); // >= 2 only for a pass-through fast axis
     constexpr index_int ovn = tensor_vec_size<Outv>();
+    // Reading a vectorized input gathers a vec<float, ivn>; a scalar input gathers a float.
+    auto read = [&](auto in_multi) { return migraphx::convert<float>(input[in_multi]); };
 
     if constexpr(ivn >= 2)
     {
-        const auto in_red  = input.get_shape();
-        const auto out_red = outv.get_shape();
-        auto read          = [&](auto in_multi) {
-            return __builtin_convertvector(input[in_multi], vec<float, ivn>);
-        };
-        idx.global_stride(out_red.elements(), [&](auto vidx) {
-            auto vmulti = out_red.multi(vidx);
-            outv[vidx]  = implicit_conversion(compute(in_red, out_red, vmulti, read));
+        const auto in_shape  = input.get_shape();
+        const auto out_shape = outv.get_shape();
+        idx.global_stride(out_shape.elements(), [&](auto vidx) {
+            auto vmulti = out_shape.multi(vidx);
+            outv[vidx]  = implicit_conversion(compute(in_shape, out_shape, vmulti, read));
         });
     }
     else
@@ -230,7 +229,6 @@ __device__ void resize_apply(Input input, Output out, Outv outv, Compute compute
         auto in_shape     = input.get_shape();
         auto out_shape    = out.get_shape();
         const auto vshape = outv.get_shape();
-        auto read = [&](auto in_multi) { return migraphx::convert<float>(input[in_multi]); };
         idx.global_stride(vshape.elements(), [&](auto vidx) {
             auto vmulti = vshape.multi(vidx);
             if constexpr(ovn < 2)
@@ -239,6 +237,10 @@ __device__ void resize_apply(Input input, Output out, Outv outv, Compute compute
             }
             else
             {
+                // outv is `out` vectorized by ovn along Axis, so the lane index reconstructs
+                // the real output coordinate.
+                static_assert(get_shape_c<Outv>{}.lens[Axis] * ovn ==
+                              get_shape_c<Output>{}.lens[Axis]);
                 using out_type = vec_type<typename Outv::type>;
                 outv[vidx]     = generate_vec(_c<ovn>, [&](auto lane) {
                     auto out_multi  = vmulti;
@@ -263,14 +265,10 @@ __device__ void resize_nearest(Input input, Output out, Outv outv, Scales scales
 {
     resize_apply<Axis>(
         input, out, outv, [&](auto in_shape, auto out_shape, auto out_multi, auto read) {
-            constexpr auto ndim = get_shape_c<Input>{}.lens.size();
-            array<index_int, ndim> in_multi{};
-            for(index_int i = 0; i < ndim; ++i)
-            {
-                auto coord =
-                    CoordOp{}(in_shape.lens[i], out_shape.lens[i], out_multi[i], scales[i]);
-                in_multi[i] = NearestOp{}(in_shape.lens[i], coord);
-            }
+            auto in_multi = array_transform(in_shape.lens, out_shape.lens, out_multi, scales)(
+                [](auto l_in, auto l_out, auto o, auto s) {
+                    return NearestOp{}(l_in, CoordOp{}(l_in, l_out, o, s));
+                });
             return read(in_multi);
         });
 }

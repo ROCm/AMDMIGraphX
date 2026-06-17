@@ -303,7 +303,7 @@ void gpu_fill(context& ctx, const argument& dst, int value)
     }
 }
 
-void gpu_generate_random(context& ctx, const argument& dst, unsigned long seed)
+static void fill_random(context& ctx, const argument& dst, unsigned long seed)
 {
     if(dst.get_sub_objects().empty())
     {
@@ -312,8 +312,15 @@ void gpu_generate_random(context& ctx, const argument& dst, unsigned long seed)
     else
     {
         for(const auto& arg : dst.get_sub_objects())
-            gpu_generate_random(ctx, arg, seed);
+            fill_random(ctx, arg, seed);
     }
+}
+
+argument gpu_generate_random(context& ctx, const shape& s, unsigned long seed)
+{
+    auto result = allocate_gpu(s);
+    fill_random(ctx, result, seed);
+    return result;
 }
 
 void store_preallocated_param(context& ctx, const std::string& id, const argument& a)

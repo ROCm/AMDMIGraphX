@@ -25,7 +25,6 @@
 #include <test.hpp>
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
 #include <vector>
 #include <migraphx/argument.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -34,17 +33,33 @@
 static std::vector<float> gpu_random(const migraphx::shape& s, unsigned long seed)
 {
     migraphx::gpu::context ctx{};
-    auto dev = migraphx::gpu::allocate_gpu(s);
-    migraphx::gpu::gpu_generate_random(ctx, dev, seed);
+    auto dev = migraphx::gpu::gpu_generate_random(ctx, s, seed);
     ctx.finish();
     std::vector<float> v;
     migraphx::gpu::from_gpu(dev).visit([&](auto out) { v.assign(out.begin(), out.end()); });
     return v;
 }
 
+static std::vector<uint8_t> gpu_random_bytes(const migraphx::shape& s, unsigned long seed)
+{
+    migraphx::gpu::context ctx{};
+    auto dev = migraphx::gpu::gpu_generate_random(ctx, s, seed);
+    ctx.finish();
+    auto host     = migraphx::gpu::from_gpu(dev);
+    const auto* p = reinterpret_cast<const uint8_t*>(host.data());
+    std::vector<uint8_t> bytes(host.get_shape().bytes());
+    std::copy(p, p + bytes.size(), bytes.begin());
+    return bytes;
+}
+
 static bool in_unit_range(const std::vector<float>& v)
 {
     return std::all_of(v.begin(), v.end(), [](float x) { return x >= -1.0f and x < 1.0f; });
+}
+
+static bool any_nonzero(const std::vector<uint8_t>& v)
+{
+    return std::any_of(v.begin(), v.end(), [](uint8_t b) { return b != 0; });
 }
 
 TEST_CASE(seed_controls_output)
@@ -66,25 +81,52 @@ TEST_CASE(half_type_is_supported)
     EXPECT(in_unit_range(v));
 }
 
+TEST_CASE(all_computable_types_are_filled)
+{
+    // Every computable type: byte-level check for fill, seed determinism, and
+    // seed dependence (type-agnostic, covers bool/half/bf16/fp8/ints/double).
+    const std::vector<migraphx::shape::type_t> types = {migraphx::shape::bool_type,
+                                                        migraphx::shape::half_type,
+                                                        migraphx::shape::float_type,
+                                                        migraphx::shape::double_type,
+                                                        migraphx::shape::bf16_type,
+                                                        migraphx::shape::int8_type,
+                                                        migraphx::shape::uint8_type,
+                                                        migraphx::shape::int32_type,
+                                                        migraphx::shape::int64_type,
+                                                        migraphx::shape::fp8e4m3fn_type,
+                                                        migraphx::shape::fp8e5m2_type};
+    for(auto t : types)
+    {
+        migraphx::shape s{t, {4096}};
+        auto a = gpu_random_bytes(s, 1234);
+        auto b = gpu_random_bytes(s, 1234);
+        auto c = gpu_random_bytes(s, 5678);
+        EXPECT(a.size() == s.bytes());
+        EXPECT(a == b);         // deterministic per seed
+        EXPECT(a != c);         // seed controls output
+        EXPECT(any_nonzero(a)); // buffer actually filled
+    }
+}
+
 TEST_CASE(empty_shape_is_noop)
 {
     migraphx::gpu::context ctx{};
-    auto dev = migraphx::gpu::allocate_gpu(migraphx::shape{migraphx::shape::float_type, {0}});
-    migraphx::gpu::gpu_generate_random(ctx, dev, 0); // must not launch / crash
+    // Must not launch / crash for a zero-element shape.
+    auto dev = migraphx::gpu::gpu_generate_random(ctx, {migraphx::shape::float_type, {0}}, 0);
     ctx.finish();
     EXPECT(dev.get_shape().elements() == 0);
 }
 
 TEST_CASE(tuple_fills_every_sub_buffer)
 {
-    // Allocate from a tuple *shape* (one buffer split into sub-object views, like
-    // the time_op path) and check every sub-buffer is reached by the recursion.
+    // A tuple shape is one buffer split into sub-object views (like the time_op
+    // path); check every sub-buffer is reached by the recursion.
     migraphx::gpu::context ctx{};
     migraphx::shape tuple_shape{
         std::vector<migraphx::shape>{migraphx::shape{migraphx::shape::float_type, {2, 8}},
                                      migraphx::shape{migraphx::shape::half_type, {3, 5}}}};
-    auto dev = migraphx::gpu::allocate_gpu(tuple_shape);
-    migraphx::gpu::gpu_generate_random(ctx, dev, 99);
+    auto dev = migraphx::gpu::gpu_generate_random(ctx, tuple_shape, 99);
     ctx.finish();
 
     auto subs = migraphx::gpu::from_gpu(dev).get_sub_objects();
@@ -102,15 +144,8 @@ TEST_CASE(non_computable_type_is_filled)
 {
     // fp4x2 has no visitor; generation must fall back to a raw byte fill instead
     // of throwing "cannot be visited" (the old host path generated uint8 bytes).
-    migraphx::gpu::context ctx{};
-    auto dev = migraphx::gpu::allocate_gpu(migraphx::shape{migraphx::shape::fp4x2_type, {64}});
-    migraphx::gpu::gpu_generate_random(ctx, dev, 1);
-    ctx.finish();
-
-    auto host = migraphx::gpu::from_gpu(dev);
-    std::vector<uint8_t> bytes(host.get_shape().bytes());
-    std::memcpy(bytes.data(), host.data(), bytes.size());
-    EXPECT(std::any_of(bytes.begin(), bytes.end(), [](uint8_t b) { return b != 0; }));
+    auto bytes = gpu_random_bytes(migraphx::shape{migraphx::shape::fp4x2_type, {64}}, 1);
+    EXPECT(any_nonzero(bytes));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

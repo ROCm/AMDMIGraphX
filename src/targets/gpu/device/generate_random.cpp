@@ -53,8 +53,8 @@ void generate_random(hipStream_t stream, const argument& result, unsigned long s
         visit_all(result)([&](auto out) {
             using type   = typename decltype(out)::value_type;
             auto* output = device_cast(out.data());
-            gs_launch(stream, s.element_space())([=](auto i) __device__ {
-                auto z    = splitmix64(seed + static_cast<unsigned long>(i) * golden_ratio_step);
+            gs_launch(stream, s.element_space())([=](unsigned long i) __device__ {
+                auto z    = splitmix64(seed + i * golden_ratio_step);
                 output[i] = normalize<type>(z, random_mode::random);
             });
         });
@@ -63,8 +63,8 @@ void generate_random(hipStream_t stream, const argument& result, unsigned long s
     {
         // Non-computable types (e.g. fp4x2) have no visitor: fill raw bytes.
         auto* output = reinterpret_cast<uint8_t*>(result.data());
-        gs_launch(stream, s.bytes())([=](auto i) __device__ {
-            auto z    = splitmix64(seed + static_cast<unsigned long>(i) * golden_ratio_step);
+        gs_launch(stream, s.bytes())([=](unsigned long i) __device__ {
+            auto z    = splitmix64(seed + i * golden_ratio_step);
             output[i] = normalize<uint8_t>(z, random_mode::random);
         });
     }

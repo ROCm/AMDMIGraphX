@@ -130,9 +130,7 @@ double time_program(const context& ictx,
         }
         else
         {
-            auto dev_arg = allocate_gpu(shape);
-            gpu_generate_random(gctx, dev_arg, seed++);
-            param_map[name] = dev_arg;
+            param_map[name] = gpu_generate_random(gctx, shape, seed++);
         }
     }
     auto run = [&] { p.eval_with_context(ctx_vec, param_map); };

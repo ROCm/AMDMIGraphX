@@ -61,7 +61,7 @@ MIGRAPHX_GPU_EXPORT argument get_preallocation(context& ctx, const std::string& 
 
 MIGRAPHX_GPU_EXPORT void gpu_fill(context& ctx, const argument& dst, int value = 0);
 
-MIGRAPHX_GPU_EXPORT void gpu_generate_random(context& ctx, const argument& dst, unsigned long seed);
+MIGRAPHX_GPU_EXPORT argument gpu_generate_random(context& ctx, const shape& s, unsigned long seed);
 
 MIGRAPHX_GPU_EXPORT std::shared_ptr<void>
 write_to_gpu(const void* x, std::size_t sz, bool host = false);

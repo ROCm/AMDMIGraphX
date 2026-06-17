@@ -1859,7 +1859,7 @@ struct find_slice_squeeze
         }
 
         auto op = op_ins->get_operator();
-        if(not op.attributes().contains("pointwise"))
+        if(find_op_shape_transform_op::is_reduce(op_ins))
         {
             auto v = op.to_value();
             if(v.contains("axes"))

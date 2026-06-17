@@ -63,14 +63,18 @@ struct fused_reduce
         if(not sm->bypass())
             MIGRAPHX_THROW("fused_reduce: bypass flag is not set");
         auto names = sm->get_parameter_names();
-        check_shapes{inputs, *this}.has(names.size()).same_ndims();
+        check_shapes{inputs, *this, true}.has(names.size()).same_ndims();
         std::sort(names.begin(), names.end());
         auto shapes = sm->get_parameter_shapes();
         // Check dimension matches for each input
         if(not equal(names, inputs, [&](const auto& name, const auto& input) {
-               return shapes.at(name).lens() == input.lens();
+               auto s = shapes.at(name);
+               return shape::same_lens(input, s);
            }))
             MIGRAPHX_THROW("Input dimension does not match the submodule.");
+
+        if(sm->get_output_shapes().front().dynamic())
+            return sm->get_output_shapes().front();
 
         return shape::from_permutation(sm->get_output_shapes().front().type(),
                                        sm->get_output_shapes().front().lens(),
@@ -118,8 +122,19 @@ static void create_reduce_modules(module_pass_manager& mpm)
 
         rm->add_return(rm->fuse({ins}));
         auto v = ins->get_operator().to_value();
+
+        // handle argmin/argmax
+        std::vector<std::int64_t> axes;
+        if(v.contains("axes"))
+        {
+            axes = v["axes"].to_vector<std::int64_t>();
+        }
+        else if(v.contains("axis"))
+        {
+            axes = {v["axis"].to<std::int64_t>()};
+        }
         mpm.get_module().replace_instruction(
-            ins, make_op("fused_reduce", {{"axes", v["axes"]}}), ins->inputs(), {rm});
+            ins, make_op("fused_reduce", {{"axes", axes}}), ins->inputs(), {rm});
     }
 }
 
@@ -398,6 +413,13 @@ struct reduce_reshape : rewrite_reshapes_base
         auto outs = sm->fuse(*oldm, inputs, nullptr, transform_op([&](const operation& sop) {
             if(contains(sop.name(), "reduce"))
                 return make_op(sop.name(), {{"axes", axes}});
+            // handle argmin/argmax
+            if(sop.name() == "argmin" or sop.name() == "argmax")
+            {
+                auto v    = sop.to_value();
+                v["axis"] = axes.front();
+                return make_op(sop.name(), v);
+            }
             if(sop.name() == "multibroadcast")
                 return make_op("multibroadcast", {{"out_lens", dims}});
             assert(sop.name() == "pointwise");

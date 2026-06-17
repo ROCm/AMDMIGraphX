@@ -135,9 +135,16 @@ bool mlir_attention_enabled(context* ctx)
         return false;
     if(specific_op<rejected>("attention"))
         return false;
-    // Enable attention by default for mi300
-    if(ctx != nullptr and starts_with(ctx->get_current_device().get_gfx_name(), "gfx94"))
-        return true;
+    if(ctx != nullptr)
+    {
+        // Enable attention by default for mi300/350
+        const auto supported_prefixes = {"gfx94", "gfx95"};
+        const auto& device_name       = ctx->get_current_device().get_gfx_name();
+        if(std::any_of(supported_prefixes.begin(),
+                       supported_prefixes.end(),
+                       [&](const char* prefix) { return starts_with(device_name, prefix); }))
+            return true;
+    }
     return specific_op<requested>("attention");
 #else
     return false;
@@ -177,7 +184,7 @@ struct mlir_op
     // Check if the shape can be created from a transpose/broadcast/slice
     static bool is_mlir_compatible(const shape& s)
     {
-        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1)
+        if(s.standard() or s.packed() or s.scalar() or s.ndim() == 1 or s.dynamic())
             return true;
         auto ns = reorder_shape(s, find_permutation(s));
         std::vector<std::size_t> stride_ratios;
@@ -201,8 +208,8 @@ struct mlir_op
 
     shape compute_shape(const std::vector<shape>& inputs, const std::vector<module_ref>& mods) const
     {
-        module_ref mod = mods[0];
-        check_shapes{inputs, *this}.has_at_least(1);
+        const_module_ref mod = mods[0];
+        check_shapes{inputs, *this, true}.has_at_least(1);
         if(mods.size() != 1)
             MIGRAPHX_THROW("should have one submodule.");
 
@@ -319,6 +326,8 @@ auto is_mlir_dot(mlir_mode mode)
             return false;
         if(ins->name() != "dot" and ins->name() != "quant_dot")
             return false;
+        if(ins->get_shape().dynamic())
+            return true;
         // dot operation where (FP8 * FP8 = FP8) is not available in MLIR. rocBLAS/hipBLASLt should
         // have the support for it.
         if(contains(fp8_types{}.get(), ins->get_shape().type()))
@@ -355,12 +364,13 @@ auto is_mlir_conv(mlir_mode mode)
             return false;
         if(ins->name() != "convolution" and ins->name() != "quant_convolution")
             return false;
+        if(ins->get_shape().dynamic())
+            return true;
+
         auto input = ins->inputs().front()->get_shape();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
-        // Avoid MLIR assertion: Index < Length && "Invalid index!"
-        if(ins->get_shape().lens().size() != 4 and group > 1)
-            return false;
+
         std::set<shape::type_t> supported_types = fp8_types{}.get();
         supported_types.insert(shape::int8_type);
         if(contains(supported_types, input.type()))
@@ -394,15 +404,11 @@ auto is_mlir_conv_backwards(mlir_mode mode)
                input.type()))
             return false;
 
-        auto w = ins->inputs().at(1)->get_shape();
-        // currently handle on 2D conv_backwards in MLIR
-        if(w.lens().size() != 4)
-            return false;
-
+        auto w     = ins->inputs().at(1)->get_shape();
         value v    = ins->get_operator().to_value();
         auto group = v.at("group").to<int>();
-        // currently handle only group == 1
-        return (group == 1);
+
+        return (w.lens().size() == 4 or not(group > 1));
     });
 }
 
@@ -545,7 +551,6 @@ bool is_pointwise_op_supported_by_mlir(const instruction& i)
 bool is_reduce_op_supported_by_mlir(const instruction& i)
 {
     using type_t                                      = shape::type_t;
-    const auto& name                                  = i.name();
     const auto result_type                            = i.get_shape().type();
     const std::initializer_list<type_t> allowed_types = {type_t::float_type,
                                                          type_t::half_type,
@@ -977,7 +982,7 @@ struct find_mlir_fused_geg_ops
 };
 
 template <auto Matcher>
-struct find_mlir_standalone_op
+struct find_mlir_standalone_op : match::supports_dynamic_shapes
 {
     mlir_mode mode       = mlir_mode::none;
     std::size_t* counter = nullptr;
@@ -1535,14 +1540,21 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
         find_mlir_fused_ops{.conv_mode = get_mode("fused_convolution", mlir_mode::fast),
                             .dot_mode  = get_mode("fused_dot", mlir_mode::fast)});
 
+    // gfx12 lacks an accurate half version of MIOpen convolution_backwards path, so
+    // always route it through rocMLIR regardless of MIOpen availability or user
+    // env-var overrides.
+    mlir_mode conv_backwards_mode =
+        get_mode("convolution_backwards", MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all);
+    if(starts_with(device_name, "gfx12"))
+    {
+        conv_backwards_mode = mlir_mode::all;
+    }
+
     match::find_matches(
         mpm,
         find_mlir_standalone_conv_op{.mode    = get_mode("convolution", mlir_mode::fast),
                                      .counter = &counter},
-        find_mlir_standalone_conv_backwards_op{
-            .mode    = get_mode("convolution_backwards",
-                             MIGRAPHX_USE_MIOPEN ? mlir_mode::none : mlir_mode::all),
-            .counter = &counter},
+        find_mlir_standalone_conv_backwards_op{.mode = conv_backwards_mode, .counter = &counter},
         find_mlir_standalone_dot_op{.mode = get_mode("dot", mlir_mode::fast), .counter = &counter});
 
     mpm.run_pass(dead_code_elimination{});

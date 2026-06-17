@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,8 +24,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
-#include <migraphx/common.hpp>
-#include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,57 +37,6 @@ struct parse_matmul : op_parser<parse_matmul>
         return {{"MatMul", "dot"},
                 {"MatMulInteger", "quant_dot"},
                 {"MatMulIntegerToFloat", "quant_dot_scaled"}};
-    }
-
-    static void broadcast_dimensions(const onnx_parser::node_info& info,
-                                     const std::vector<size_t>& s0_lens,
-                                     const std::vector<size_t>& s1_lens,
-                                     const instruction_ref& a0,
-                                     const instruction_ref& a1,
-                                     instruction_ref& ba0,
-                                     instruction_ref& ba1)
-    {
-        // try broadcasting if dimensions other than last two do not match
-        if(not std::equal(
-               s0_lens.rbegin() + 2, s0_lens.rend(), s1_lens.rbegin() + 2, s1_lens.rend()))
-        {
-            auto l0_it = s0_lens.begin() + s0_lens.size() - 2;
-            std::vector<std::size_t> l0_broadcasted_lens(s0_lens.begin(), l0_it);
-            auto l1_it = s1_lens.begin() + s1_lens.size() - 2;
-            std::vector<std::size_t> l1_broadcasted_lens(s1_lens.begin(), l1_it);
-            auto output_lens = compute_broadcasted_lens(l0_broadcasted_lens, l1_broadcasted_lens);
-            l0_broadcasted_lens = output_lens;
-            l0_broadcasted_lens.insert(l0_broadcasted_lens.end(), l0_it, s0_lens.end());
-            l1_broadcasted_lens = output_lens;
-            l1_broadcasted_lens.insert(l1_broadcasted_lens.end(), l1_it, s1_lens.end());
-            if(s0_lens != l0_broadcasted_lens)
-            {
-                ba0 = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", l0_broadcasted_lens}}), a0);
-            }
-            if(s1_lens != l1_broadcasted_lens)
-            {
-                ba1 = info.add_instruction(
-                    make_op("multibroadcast", {{"out_lens", l1_broadcasted_lens}}), a1);
-            }
-        }
-    }
-
-    // Convert to half prior to a shift to ensure we preserve accuracy here then
-    // convert back to int8
-    static instruction_ref add_int8_shift(const onnx_parser::node_info& info,
-                                          const instruction_ref& offset_op,
-                                          instruction_ref& unshifted_input)
-    {
-        auto unshifted_input_half = info.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}),
-            unshifted_input);
-
-        auto input_shifted_half = info.add_common_op("add", unshifted_input_half, offset_op);
-
-        return info.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::int8_type}}),
-            input_shifted_half);
     }
 
     static bool is_symmetric_zero_point(instruction_ref zp)
@@ -108,8 +56,7 @@ struct parse_matmul : op_parser<parse_matmul>
         return all_zeros;
     }
 
-    static instruction_ref set_scale_arg(const onnx_parser::node_info& info,
-                                         const std::vector<instruction_ref>& args,
+    static instruction_ref set_scale_arg(const std::vector<instruction_ref>& args,
                                          const instruction_ref& mat_input,
                                          const int index)
     {
@@ -134,14 +81,6 @@ struct parse_matmul : op_parser<parse_matmul>
         {
             MIGRAPHX_THROW("PARSE_QUANT_DOT_SCALED: Scales shape must be scalar or 1-D tensor");
         }
-
-        if(scale_shape.scalar())
-        {
-            scale_arg   = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
-            scale_shape = scale_arg->get_shape();
-        }
-
-        scale_arg = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), scale_arg);
 
         return scale_arg;
     }
@@ -208,39 +147,6 @@ struct parse_matmul : op_parser<parse_matmul>
         return input;
     }
 
-    static void shift_input_and_bias(const onnx_parser::node_info& info,
-                                     const instruction_ref& offset_op,
-                                     const bool has_bias,
-                                     instruction_ref& input,
-                                     instruction_ref& input_bias)
-    {
-        input = add_int8_shift(info, offset_op, input);
-        if(has_bias)
-        {
-            input_bias = add_int8_shift(info, offset_op, input_bias);
-        }
-        else
-        {
-            input_bias = input;
-        }
-    }
-
-    static void handle_scaled_transposes(const onnx_parser::node_info& info,
-                                         instruction_ref& scale,
-                                         instruction_ref& zp,
-                                         bool no_zp)
-    {
-        if(no_zp)
-        {
-            scale = info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale);
-        }
-        else
-        {
-            scale = info.add_instruction(make_op("transpose", {{"permutation", {0, 1}}}), scale);
-            zp    = info.add_instruction(make_op("transpose", {{"permutation", {1, 0}}}), zp);
-        }
-    }
-
     static instruction_ref handle_dequantized(const onnx_parser::node_info& info,
                                               const instruction_ref& a0,
                                               const instruction_ref& scale_a0,
@@ -249,23 +155,21 @@ struct parse_matmul : op_parser<parse_matmul>
     {
         instruction_ref dequantized_op;
 
-        if(no_zp)
+        std::vector<instruction_ref> dq_args{a0, scale_a0};
+        if(not no_zp)
         {
-            auto bc_scale_a0 = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
-            dequantized_op = info.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0);
+            dq_args.push_back(zp_a0);
         }
-        else
-        {
-            auto bc_scale_a0 = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), scale_a0);
 
-            auto bc_zp_a0 = info.add_instruction(
-                make_op("multibroadcast", {{"out_lens", a0->get_shape().lens()}}), zp_a0);
+        // obtaining axis parameter for the dequant op-builder
+        const auto& lens     = a0->get_shape().lens();
+        const auto scale_len = scale_a0->get_shape().lens().at(0);
+        const auto rit       = std::find(lens.rbegin(), lens.rend(), scale_len);
+        const int axis       = (rit != lens.rend()) ? static_cast<int>(lens.rend() - rit - 1) : 1;
 
-            dequantized_op =
-                info.add_instruction(make_op("dequantizelinear"), a0, bc_scale_a0, bc_zp_a0);
-        }
+        dequantized_op =
+            op::builder::add("dequantizelinear", *info.mod, dq_args, {{"axis", axis}}).at(0);
+
         return dequantized_op;
     }
 
@@ -279,62 +183,16 @@ struct parse_matmul : op_parser<parse_matmul>
                                                 const instruction_ref& scaled_bias,
                                                 const bool has_scale_bias)
     {
-
-        instruction_ref unsq_zp_a0;
-        instruction_ref unsq_zp_a1;
-
-        bool a0_has_no_zp = (a0 == zp_a0);
-        bool a1_has_no_zp = (a1 == zp_a1);
-
-        if(not a0_has_no_zp)
-        {
-            unsq_zp_a0 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), zp_a0);
-            if(zp_a0->get_shape().scalar())
-            {
-                unsq_zp_a0 =
-                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), unsq_zp_a0);
-            }
-        }
-
-        if(not a1_has_no_zp)
-        {
-            unsq_zp_a1 = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), zp_a1);
-            if(zp_a1->get_shape().scalar())
-            {
-                unsq_zp_a1 =
-                    info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), unsq_zp_a1);
-            }
-        }
-
-        auto dq_a0 = handle_dequantized(info, a0, scale_a0, unsq_zp_a0, a0_has_no_zp);
-        auto dq_a1 = handle_dequantized(info, a1, scale_a1, unsq_zp_a1, a1_has_no_zp);
-        auto res   = info.add_instruction(make_op("dot"), dq_a0, dq_a1);
+        auto dq_a0 = handle_dequantized(info, a0, scale_a0, zp_a0, (a0 == zp_a0));
+        auto dq_a1 = handle_dequantized(info, a1, scale_a1, zp_a1, (a1 == zp_a1));
+        auto res   = op::builder::add("dot", *info.mod, {dq_a0, dq_a1}).at(0);
 
         // Handle case of the bias after scaling
         if(has_scale_bias)
-            res = info.add_common_op("sub", res, scaled_bias);
+            res =
+                op::builder::insert_common_op(*info.mod, info.mod->end(), "sub", res, scaled_bias);
 
         return res;
-    }
-
-    static void handle_uint8_input(const onnx_parser::node_info& info,
-                                   const bool has_bias,
-                                   const instruction_ref& offset_op,
-                                   instruction_ref& arg,
-                                   instruction_ref& bias_arg)
-    {
-        auto arg_type = arg->get_shape().type();
-        // always convert uint8 to int8 to avoid rollover
-        if(arg_type == migraphx::shape::uint8_type)
-        {
-            shift_input_and_bias(info, offset_op, has_bias, arg, bias_arg);
-        }
-
-        // subtract bias from result after conversion
-        if(has_bias)
-        {
-            bias_arg = info.add_common_op("sub", arg, bias_arg);
-        }
     }
 
     instruction_ref parse(const op_desc& opd,
@@ -354,12 +212,12 @@ struct parse_matmul : op_parser<parse_matmul>
         if(s0.ndim() == 1)
         {
             is_a_prepended = true;
-            a0             = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), args[0]);
+            a0 = op::builder::add("unsqueeze", *info.mod, {args[0]}, {{"axes", {0}}}).at(0);
         }
         if(s1.ndim() == 1)
         {
             is_b_appended = true;
-            a1            = info.add_instruction(make_op("unsqueeze", {{"axes", {1}}}), args[1]);
+            a1 = op::builder::add("unsqueeze", *info.mod, {args[1]}, {{"axes", {1}}}).at(0);
         }
 
         auto is_quant_dot        = opd.op_name == "quant_dot";
@@ -373,27 +231,10 @@ struct parse_matmul : op_parser<parse_matmul>
                 MIGRAPHX_THROW(op_name + ": dynamic inputs not supported");
             }
 
-            auto s0_dds = a0->get_shape().to_dynamic().dyn_dims();
-            auto s1_dds = a1->get_shape().to_dynamic().dyn_dims();
-
-            if(not std::equal(
-                   s0_dds.rbegin() + 2, s0_dds.rend(), s1_dds.rbegin() + 2, s1_dds.rend()))
-            {
-                auto broadcasted_a0 = info.add_instruction(make_op("broadcast_for_dot"), a0, a1);
-                auto broadcasted_a1 = info.add_instruction(make_op("broadcast_for_dot"), a1, a0);
-                dot_res =
-                    info.add_instruction(make_op(opd.op_name), broadcasted_a0, broadcasted_a1);
-            }
-            else
-            {
-                dot_res = info.add_instruction(make_op(opd.op_name), a0, a1);
-            }
+            dot_res = op::builder::add(opd.op_name, *info.mod, {a0, a1}).at(0);
         }
         else
         {
-            auto s0_lens        = a0->get_shape().lens();
-            auto s1_lens        = a1->get_shape().lens();
-
             if(is_dot and args.size() > 2)
             {
                 MIGRAPHX_THROW(op_name + ": Bias Args not supported");
@@ -413,8 +254,8 @@ struct parse_matmul : op_parser<parse_matmul>
             {
                 a0_zp_index = 4;
                 a1_zp_index = 5;
-                scale_a0    = set_scale_arg(info, args, a0, 2);
-                scale_a1    = set_scale_arg(info, args, a1, 3);
+                scale_a0    = set_scale_arg(args, a0, 2);
+                scale_a1    = set_scale_arg(args, a1, 3);
                 if(scale_a0->get_shape().type() != scale_a1->get_shape().type())
                 {
                     MIGRAPHX_THROW(op_name + ": Scales must be the same type");
@@ -448,13 +289,13 @@ struct parse_matmul : op_parser<parse_matmul>
             if((is_quant_dot and ((a0_type == migraphx::shape::uint8_type) or
                                   (a1_type == migraphx::shape::uint8_type))))
             {
-                auto offset_op = info.add_literal(
-                    migraphx::literal{migraphx::shape{migraphx::shape::half_type}, {-128}});
-                handle_uint8_input(info, has_ba0, offset_op, a0, ba0);
-                handle_uint8_input(info, has_ba1, offset_op, a1, ba1);
-            }
+                auto unpack2 = [](auto&& v) { return std::make_pair(v[0], v[1]); };
 
-            broadcast_dimensions(info, s0_lens, s1_lens, a0, a1, ba0, ba1);
+                std::tie(a0, ba0) = unpack2(
+                    op::builder::add("bias_uint8", *info.mod, {a0, ba0}, {{"has_bias", has_ba0}}));
+                std::tie(a1, ba1) = unpack2(
+                    op::builder::add("bias_uint8", *info.mod, {a1, ba1}, {{"has_bias", has_ba1}}));
+            }
 
             // Apply the scale to dequantize input to then perform a simple dot
             // after the zero points are applied otherwise get a int32 output from the quantized
@@ -466,7 +307,7 @@ struct parse_matmul : op_parser<parse_matmul>
             }
             else
             {
-                dot_res = info.add_instruction(make_op(opd.op_name), ba0, ba1);
+                dot_res = op::builder::add(opd.op_name, *info.mod, {a0, a1, ba0, ba1}).at(0);
             }
         }
 
@@ -474,12 +315,14 @@ struct parse_matmul : op_parser<parse_matmul>
         int64_t num_axis = dot_res->get_shape().ndim();
         if(is_a_prepended)
         {
-            dot_res = info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 2}}}), dot_res);
+            dot_res =
+                op::builder::add("squeeze", *info.mod, {dot_res}, {{"axes", {num_axis - 2}}}).at(0);
             --num_axis;
         }
         if(is_b_appended)
         {
-            dot_res = info.add_instruction(make_op("squeeze", {{"axes", {num_axis - 1}}}), dot_res);
+            dot_res =
+                op::builder::add("squeeze", *info.mod, {dot_res}, {{"axes", {num_axis - 1}}}).at(0);
         }
 
         return dot_res;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,45 +29,90 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/param_utils.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <migraphx/op/allocate.hpp>
+#include <migraphx/logger.hpp>
 #include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
+
+std::vector<instruction_ref> get_alloc_aliases(const module& mod)
+{
+    auto returns = mod.get_returns();
+    // Collect all allocation aliases from each return value
+    std::vector<instruction_ref> alloc_aliases;
+    // Use a join but perhaps a tuple output parameter might be better?
+    std::transform(returns.begin(),
+                   returns.end(),
+                   join_back_inserter(alloc_aliases),
+                   [](const auto& i) { return instruction::get_output_alias(i); });
+    return alloc_aliases;
+}
+
+// Create output parameter names
 std::unordered_map<instruction_ref, std::string> create_output_names(const module& mod)
 {
     std::unordered_map<instruction_ref, std::string> mod_output_names;
-    auto returns = mod.get_returns();
-
-    std::vector<instruction_ref> outputs_alias(returns.size());
-
-    std::transform(returns.begin(), returns.end(), outputs_alias.begin(), [](const auto& i) {
-        return instruction::get_output_alias(i);
-    });
+    auto alloc_aliases = get_alloc_aliases(mod);
 
     std::size_t index = 0;
-    if(outputs_alias.size() == 1 and mod.name().empty())
+    if(mod.name().empty())
     {
-        mod_output_names[outputs_alias.front()] = "output";
-    }
-    // Preserve main module output buffer naming across migraphx versions
-    else if(mod.name() == "main")
-    {
-        for(auto ins : outputs_alias)
+        // Single return with empty module name: all aliases get "output" or "output_N"
+        if(alloc_aliases.size() == 1)
         {
-            mod_output_names[ins] = mod.name() + ":#output_" + std::to_string(index++);
+            mod_output_names[alloc_aliases.front()] = "output";
+        }
+        else
+        {
+            for(auto ins : alloc_aliases)
+            {
+                mod_output_names[ins] = "output_" + std::to_string(index++);
+            }
         }
     }
+    // Preserve main module output buffer naming across migraphx versions
     else
     {
-        for(auto ins : outputs_alias)
+        for(auto ins : alloc_aliases)
         {
             mod_output_names[ins] = param_name(index++, mod.name() + ":#output_");
         }
     }
+
     return mod_output_names;
+}
+
+// Get debug symbols for output parameters from the `return` instruction
+std::unordered_map<instruction_ref, std::set<std::string>>
+get_output_debug_symbols(const module& mod)
+{
+    std::unordered_map<instruction_ref, std::set<std::string>> mod_output_debug_symbols;
+    auto last_ins = std::prev(mod.end());
+    if(mod.has_debug_symbols() and last_ins->name() == "@return" and
+       not last_ins->get_debug_symbols().empty())
+    {
+        auto alloc_aliases = get_alloc_aliases(mod);
+
+        std::size_t index          = 0;
+        const auto& output_symbols = last_ins->get_debug_symbols();
+        if(alloc_aliases.size() != output_symbols.size())
+        {
+            migraphx::log::warn()
+                << "Size mismatch between output debug symbols and return allocation aliases.";
+            return mod_output_debug_symbols;
+        }
+        for(const auto& os : range(output_symbols.begin(), output_symbols.end()))
+        {
+            mod_output_debug_symbols[alloc_aliases.at(index)] = {os};
+            ++index;
+        }
+        return mod_output_debug_symbols;
+    }
+    return mod_output_debug_symbols;
 }
 
 void insert_copy(module& m, const allocation_model& model)
@@ -78,8 +123,10 @@ void insert_copy(module& m, const allocation_model& model)
     {
         if(ins->get_shape().any_of_dynamic())
             continue;
-        auto alias = instruction::get_output_alias(ins);
-        if(alias->get_shape() == ins->get_shape())
+        auto aliases = instruction::get_output_alias(ins);
+        if(std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
+               return alias->get_shape() == ins->get_shape();
+           }))
             continue;
         auto insert_ins = std::next(ins);
         auto alloc      = m.insert_instruction(
@@ -130,7 +177,8 @@ void replace_allocate::apply(module_pass_manager& mpm) const
     }
     if(not root_offload_copy and model.needs_out_params())
         insert_copy(m, model);
-    auto mod_output_names = create_output_names(m);
+    auto mod_output_names         = create_output_names(m);
+    auto mod_output_debug_symbols = get_output_debug_symbols(m);
     for(auto ins : iterator_for(m))
     {
         if(ins->name() != "allocate")
@@ -140,6 +188,10 @@ void replace_allocate::apply(module_pass_manager& mpm) const
         if(not root_offload_copy and model.needs_out_params() and contains(mod_output_names, ins))
         {
             auto out_param = m.add_parameter(mod_output_names[ins], s);
+            if(contains(mod_output_debug_symbols, ins))
+            {
+                m.add_debug_symbols(out_param, mod_output_debug_symbols[ins]);
+            }
             m.replace_instruction(ins, out_param);
         }
         else

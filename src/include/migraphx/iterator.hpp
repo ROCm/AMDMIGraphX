@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -191,7 +191,7 @@ struct iterator_operators
     }
 
     template <class U>
-    friend constexpr auto operator-=(T& lhs, const U& rhs) -> decltype(lhs += -rhs)
+    friend constexpr auto operator-=(T& lhs, U rhs) -> decltype(lhs += -rhs)
     {
         return lhs += -rhs;
     }

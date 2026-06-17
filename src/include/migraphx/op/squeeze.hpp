@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -69,8 +69,9 @@ struct squeeze
                    ;
                }))
             {
-                MIGRAPHX_THROW(
-                    "SQUEEZE: dynamic axis dimension should have an intersection with {1, 1}");
+                MIGRAPHX_THROW("SQUEEZE: dynamic axis dimension should have an intersection with "
+                               "{1, 1}; axes {" +
+                               to_string_range(axes) + "} of input " + to_string(input_shape));
             }
             std::vector<shape::dynamic_dimension> dyn_dims = {};
             if(axes.empty())
@@ -94,13 +95,15 @@ struct squeeze
         }
         else
         {
-            auto type        = input_shape.type();
-            auto old_lens    = input_shape.lens();
+            auto type               = input_shape.type();
+            auto old_lens           = input_shape.lens();
             const auto& old_strides = input_shape.strides();
             if(std::any_of(
                    axes.begin(), axes.end(), [&](auto axis) { return old_lens[axis] != 1; }))
             {
-                MIGRAPHX_THROW("SQUEEZE: static axis dimension should be equal to 1");
+                MIGRAPHX_THROW("SQUEEZE: static axis dimension should be equal to 1; axes {" +
+                               to_string_range(axes) + "} of input dims {" +
+                               to_string_range(old_lens) + "}");
             }
             std::vector<std::size_t> new_lens;
             std::vector<std::size_t> new_strides;
@@ -141,7 +144,7 @@ struct squeeze
     {
         return args[0].reshape(dyn_out.computed_shape);
     }
-    std::ptrdiff_t output_alias(const std::vector<shape>&) const { return 0; }
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
 };
 
 } // namespace op

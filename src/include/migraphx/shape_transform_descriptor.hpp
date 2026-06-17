@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/shape.hpp>
 #include <cstdint>
 #include <iosfwd>
 #include <set>
@@ -89,7 +90,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
                          optional<std::size_t> axis = nullopt);
     void simplify();
     std::size_t elements() const;
-    std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {}) const;
+    std::vector<operation> generate(const std::vector<std::size_t>& input_dims = {},
+                                    bool no_broadcast                          = false) const;
 
     std::set<std::size_t> find_broadcasted_axes() const;
     bool has_broadcast() const;
@@ -105,6 +107,8 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
 
     std::vector<std::vector<std::size_t>> common_axes_map_from_src() const;
     std::vector<std::vector<std::size_t>> common_axes_map_from_dst() const;
+
+    std::vector<std::size_t> get_dst_axes_from_src(std::size_t axis) const;
 
     bool empty() const;
     std::vector<std::size_t> lens() const;
@@ -157,6 +161,10 @@ struct MIGRAPHX_EXPORT shape_transform_descriptor
 
 MIGRAPHX_EXPORT std::vector<operation>
 optimize_shape_transforms(const std::vector<std::size_t>& dims, const std::vector<operation>& ops);
+
+// Generate the shape transforms for strided view
+MIGRAPHX_EXPORT optional<std::vector<operation>>
+generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, std::int64_t offset);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

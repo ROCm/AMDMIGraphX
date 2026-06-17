@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,10 @@ TEST_CASE(gpu_context_serialize)
 TEST_CASE(context_queue)
 {
     migraphx::context ctx = migraphx::gpu::context{0, 3};
-    EXPECT(ctx.get_queue().get<hipStream_t>() != nullptr);
+    // unsafe_get() avoids a type-mismatch throw if MIGRAPHX_ENABLE_NULL_STREAM
+    // is set: context::get_queue() returns an untyped any_ptr when the bound
+    // stream is nullptr, so get<hipStream_t>() would not yield "false".
+    EXPECT(ctx.get_queue().unsafe_get() != nullptr);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

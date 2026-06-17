@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,7 +56,7 @@ struct device_base : oper<Derived>
 
     argument get_arg(const std::vector<argument>& args, std::size_t i) const
     {
-        if(reduce_shapes.empty())
+        if(reduce_shapes.empty() or reduce_shapes.at(i).dynamic())
             return args[i];
         return args.at(i).reshape(reduce_shapes.at(i));
     }
@@ -72,19 +72,26 @@ struct device_base : oper<Derived>
             return {s0.type(), s0.lens()};
     }
 
-    std::ptrdiff_t output_alias(const std::vector<shape>& shapes) const
+    std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const
     {
-        return shapes.size() - 1;
+        return {shapes.size() - 1};
     }
 };
 
 template <class Derived, void (*F)(hipStream_t, const argument&, const argument&)>
 struct unary_device : device_base<Derived, 1>
 {
-    argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
+    argument
+    compute(context& ctx, const dyn_output& dyn_out, const std::vector<argument>& args) const
     {
-        F(ctx.get_stream().get(), this->get_arg(args, 1), this->get_arg(args, 0));
-        return args[1];
+        auto input_arg  = this->get_arg(args, 0);
+        auto output_arg = this->get_arg(args, 1);
+        if(this->reduce_shapes.at(1).dynamic())
+        {
+            output_arg = output_arg.reshape(dyn_out.computed_shape);
+        }
+        F(ctx.get_stream().get(), output_arg, input_arg);
+        return output_arg;
     }
 };
 

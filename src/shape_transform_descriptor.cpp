@@ -1610,47 +1610,55 @@ static std::vector<int64_t> find_permutation(const std::vector<dimension::sub>& 
 // are generated from the subdimensions and steps 4-5 are generated with the
 // dimensions.
 std::vector<operation>
-shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims) const
+shape_transform_descriptor::generate(const std::vector<std::size_t>& input_dims,
+                                     bool no_broadcast) const
 {
     operation_list result;
     std::vector<dimension> new_dims =
         input_dims.empty() ? dimensions : this->rebase(input_dims).dimensions;
     assert(input_dims.empty() or not new_dims.empty());
-    // Need broadcast
-    if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+    if(no_broadcast)
     {
-        std::vector<std::size_t> out_lens;
-        std::transform(new_dims.begin(),
-                       new_dims.end(),
-                       std::back_inserter(out_lens),
-                       [](const dimension& d) { return d.len(); });
-        auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
-        auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
-        auto axis       = std::distance(new_dims.begin(), startb);
-        auto extra_dims = axis + std::distance(trailb, new_dims.end());
-        // Use broadcast instead of multibroadcast
-        if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
-           axis < new_dims.size())
-        {
-            result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
-            new_dims.erase(trailb, new_dims.end());
-            new_dims.erase(new_dims.begin(), new_dims.begin() + axis);
-        }
-        else
-        {
-            result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
-        }
+        for_each_subdimension(new_dims, &flatten_broadcasted_dim);
     }
-    // If all the dimensions have no axes then there isnt anthing else to do
-    // so just clear the new_dims
-    if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
-        new_dims.clear();
-    // Flatten broadcasted dimensions
-    for(auto& d : new_dims)
+    else
     {
-        if(d.subdimensions.size() != 1)
-            continue;
-        flatten_broadcasted_dim(d.subdimensions.front());
+        // Need broadcast
+        if(std::any_of(new_dims.begin(), new_dims.end(), &is_broadcast_dim))
+        {
+            std::vector<std::size_t> out_lens;
+            std::transform(new_dims.begin(),
+                           new_dims.end(),
+                           std::back_inserter(out_lens),
+                           [](const dimension& d) { return d.len(); });
+            auto startb     = std::find_if_not(new_dims.begin(), new_dims.end(), &has_no_axes);
+            auto trailb     = std::find_if_not(startb, new_dims.end(), &has_axes);
+            auto axis       = std::distance(new_dims.begin(), startb);
+            auto extra_dims = axis + std::distance(trailb, new_dims.end());
+            // Use broadcast instead of multibroadcast
+            if(std::all_of(trailb, new_dims.end(), &has_no_axes) and extra_dims > 0 and
+               axis < new_dims.size())
+            {
+                result.push_back(make_op("broadcast", {{"axis", axis}, {"out_lens", out_lens}}));
+                new_dims.erase(trailb, new_dims.end());
+                new_dims.erase(new_dims.begin(), new_dims.begin() + axis);
+            }
+            else
+            {
+                result.push_back(make_op("multibroadcast", {{"out_lens", out_lens}}));
+            }
+        }
+        // If all the dimensions have no axes then there isnt anthing else to do
+        // so just clear the new_dims
+        if(std::all_of(new_dims.begin(), new_dims.end(), &has_no_axes))
+            new_dims.clear();
+        // Flatten broadcasted dimensions
+        for(auto& d : new_dims)
+        {
+            if(d.subdimensions.size() != 1)
+                continue;
+            flatten_broadcasted_dim(d.subdimensions.front());
+        }
     }
     // Need squeeze reshape
     if(std::any_of(new_dims.begin(), new_dims.end(), [](const dimension& d) {
@@ -1870,6 +1878,28 @@ std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_ma
     return result;
 }
 
+std::vector<std::size_t> shape_transform_descriptor::get_dst_axes_from_src(std::size_t axis) const
+{
+    std::vector<std::size_t> result;
+    for(auto i : range(dimensions.size()))
+    {
+        const auto& d = dimensions[i];
+        auto it       = std::find_if(d.subdimensions.begin(), d.subdimensions.end(), [&](auto& s) {
+            if(s.axis.empty())
+                return false;
+            return s.axis.front() == axis;
+        });
+        if(it == d.subdimensions.end())
+            continue;
+        // If it maps to a subdimension then exit as there isn't a clear mapping
+        if(d.len() != it->len)
+            return {};
+        result.push_back(i);
+    }
+    // TODO: Put it in the correct order if there is multiple axes
+    return result;
+}
+
 bool shape_transform_descriptor::empty() const { return dimensions.empty(); }
 
 std::vector<std::size_t> shape_transform_descriptor::lens() const
@@ -2009,6 +2039,200 @@ std::vector<operation> optimize_shape_transforms(const std::vector<std::size_t>&
     if(sd.empty())
         return ops;
     return sd.generate();
+}
+
+// Replace broadcasted dimensions with size 1, and set the stride to the previous stride
+static shape unbroadcast(const shape& s)
+{
+    std::vector<std::size_t> lens    = s.lens();
+    std::vector<std::size_t> strides = s.strides();
+    auto stride_it                   = std::find_if(
+        s.strides().begin(), s.strides().end(), [](auto stride) { return stride != 0; });
+    std::size_t prev_stride = stride_it == s.strides().end() ? 1 : *stride_it;
+    for(std::size_t i = 0; i < lens.size(); ++i)
+    {
+        if(strides[i] == 0)
+        {
+            lens[i]    = 1;
+            strides[i] = prev_stride;
+        }
+        else
+        {
+            prev_stride = strides[i];
+        }
+    }
+    return {s.type(), lens, strides};
+}
+
+static std::size_t adjust_strided_shape(shape& s, std::size_t n)
+{
+    auto lens    = s.lens();
+    auto strides = s.strides();
+
+    // Insert a dim of 1 so it can be used to handle steps
+    if(std::none_of(strides.begin(), strides.end(), [](auto stride) { return stride == 1; }) and
+       std::any_of(strides.begin(), strides.end(), [](auto stride) { return stride != 0; }))
+    {
+        lens.push_back(1);
+        strides.push_back(1);
+    }
+
+    auto last_axis      = std::max_element(strides.begin(), strides.end()) - strides.begin();
+    auto total_elements = std::max<std::size_t>(1, strides[last_axis] * lens[last_axis]);
+    // Add a dim of 1 to the front so it can handle extra elements
+    auto extra = n / total_elements;
+    if(extra > 1)
+    {
+        strides.insert(strides.begin(), total_elements);
+        lens.insert(lens.begin(), 1);
+    }
+    s = shape(s.type(), lens, strides);
+    return std::max<std::size_t>(1, extra);
+}
+
+template <class Range>
+static std::vector<std::size_t> select_mask(const std::vector<std::size_t>& slice_mask,
+                                            const Range& r)
+{
+    std::vector<std::size_t> result;
+    std::transform(slice_mask.begin(),
+                   slice_mask.end(),
+                   r.begin(),
+                   join_back_inserter(result),
+                   [](std::size_t mask, std::size_t n) -> std::vector<std::size_t> {
+                       if(mask == 0)
+                           return {};
+                       return {n};
+                   });
+    return result;
+}
+
+// Generate the shape transforms for strided view
+optional<std::vector<operation>>
+generate_shape_transforms_for(shape s, const std::vector<std::size_t>& idims, std::int64_t offset)
+{
+    std::vector<operation> result;
+    if(s.lens().empty())
+        return std::nullopt;
+    std::size_t ielements =
+        std::accumulate(idims.begin(), idims.end(), std::size_t(1), std::multiplies<>());
+    auto extra = adjust_strided_shape(s, ielements);
+    // TODO: Improve handling of multiple dimensions, for now just reshape to 1 dimension
+    if(idims.size() != 1)
+    {
+        result.push_back(make_op("reshape", {{"dims", {ielements}}}));
+        auto ops = generate_shape_transforms_for(s, {ielements}, offset);
+        if(not ops)
+            return std::nullopt;
+        result.insert(result.end(), ops->begin(), ops->end());
+        return result;
+    }
+    auto pre_broadcast = unbroadcast(s);
+    auto perm          = find_permutation(pre_broadcast);
+    auto iperm         = invert_permutation(perm);
+    auto pre_transpose = reorder_shape(pre_broadcast, perm);
+
+    std::vector<std::size_t> start_lens;
+    std::adjacent_difference(pre_transpose.strides().begin(),
+                             pre_transpose.strides().end(),
+                             std::back_inserter(start_lens),
+                             [](auto y, auto x) -> std::size_t {
+                                 assert(x >= y);
+                                 assert(y != 0);
+                                 if((x % y) != 0)
+                                     return 0;
+                                 return x / y;
+                             });
+    if(std::any_of(start_lens.begin(), start_lens.end(), [](auto len) { return len == 0; }))
+        return std::nullopt;
+    start_lens.front() = extra > 1 ? extra : pre_transpose.lens().front();
+
+    std::size_t nelements =
+        std::accumulate(start_lens.begin(), start_lens.end(), std::size_t(1), std::multiplies<>());
+
+    if(nelements < pre_transpose.elements() * extra)
+        return std::nullopt;
+
+    std::vector<std::size_t> start_mask(start_lens.size(), 0);
+    if(offset != 0)
+    {
+        shape start_shape{shape::float_type, start_lens};
+        auto idx = start_shape.multi(offset);
+
+        std::vector<std::size_t> overhead;
+        std::transform(start_lens.begin(),
+                       start_lens.end(),
+                       pre_transpose.lens().begin(),
+                       std::back_inserter(overhead),
+                       [](auto start_len, auto len) { return start_len - len; });
+        if(std::equal(
+               idx.begin(), idx.end(), overhead.begin(), overhead.end(), [](auto i, auto over) {
+                   return i <= over;
+               }))
+        {
+            start_mask = reorder_dims(idx, iperm);
+            offset     = 0;
+        }
+    }
+
+    std::vector<std::size_t> pre_slice_mask;
+    std::transform(start_lens.begin(),
+                   start_lens.end(),
+                   pre_transpose.lens().begin(),
+                   std::back_inserter(pre_slice_mask),
+                   [](auto start_len, auto len) -> std::size_t {
+                       if(start_len == len)
+                           return 0;
+                       return len;
+                   });
+    auto slice_mask = reorder_dims(pre_slice_mask, iperm);
+
+    std::vector<std::size_t> blens = reorder_dims(start_lens, iperm);
+    std::transform(s.lens().begin(),
+                   s.lens().end(),
+                   blens.begin(),
+                   blens.begin(),
+                   [](auto len, auto blen) -> std::size_t {
+                       if(blen == 1)
+                           return len;
+                       return blen;
+                   });
+
+    std::vector<operation> ops;
+    ops.push_back(make_op("multibroadcast", {{"out_lens", blens}}));
+    ops.push_back(make_op("transpose", {{"permutation", invert_permutation(perm)}}));
+    ops.push_back(make_op("reshape", {{"dims", start_lens}}));
+    std::reverse(ops.begin(), ops.end());
+
+    auto desc = shape_transform_descriptor::create({nelements}, ops);
+
+    auto end = offset + nelements;
+    if(offset != 0 or nelements != ielements)
+    {
+
+        // If the end is out of bounds broadcast it to pad it
+        if(end > ielements)
+        {
+            result.push_back(make_op("broadcast", {{"axis", 1}, {"out_lens", {2, ielements}}}));
+            result.push_back(make_op("reshape", {{"dims", {2 * ielements}}}));
+        }
+        result.push_back(make_op("slice", {{"axes", {0}}, {"starts", {offset}}, {"ends", {end}}}));
+    }
+
+    auto opt_ops = desc.generate();
+    result.insert(result.end(), opt_ops.begin(), opt_ops.end());
+
+    std::vector<std::size_t> axes = select_mask(slice_mask, range(slice_mask.size()));
+
+    if(not axes.empty())
+    {
+        std::vector<std::size_t> starts = select_mask(slice_mask, start_mask);
+        std::vector<std::size_t> ends   = select_mask(slice_mask, s.lens());
+        std::transform(ends.begin(), ends.end(), starts.begin(), ends.begin(), std::plus<>{});
+
+        result.push_back(make_op("slice", {{"axes", axes}, {"starts", starts}, {"ends", ends}}));
+    }
+    return result;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

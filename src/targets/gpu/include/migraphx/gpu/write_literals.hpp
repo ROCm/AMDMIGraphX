@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,8 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_MIOPEN_WRITE_LITERALS_HPP
 
-#include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/config.hpp>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -34,7 +35,11 @@ namespace gpu {
 
 struct MIGRAPHX_GPU_EXPORT write_literals
 {
-    context* ctx = nullptr;
+    std::size_t max_memory = 0;
+    // Percentage to pad the scratch-memory estimate by. Memory coloring is NP-hard and the
+    // liveness-based estimate is incomplete without the scheduler, so the estimate is inflated to
+    // avoid exceeding max_memory after compilation.
+    std::size_t scratch_overhead_percent = 50;
     std::string name() const { return "gpu::write_literals"; }
 
     void apply(module& m) const;

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -79,6 +79,10 @@ struct parse_constant_of_shape : op_parser<parse_constant_of_shape>
                     std::vector<std::size_t> dims;
                     input.visit([&](auto ia) { dims.assign(ia.begin(), ia.end()); });
                     s = migraphx::shape{type, dims};
+                }
+                if(s.elements() == 0)
+                {
+                    return info.add_instruction(make_op("undefined"));
                 }
                 literal l_out{};
                 l_val.visit([&](auto val) {

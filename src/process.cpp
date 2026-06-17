@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -113,7 +113,7 @@ class pipe
         if(CreatePipe(&m_read, &m_write, &attrs, 0) == FALSE)
             throw GetLastError();
 
-        if(dir == direction::output)
+        if constexpr(dir == direction::output)
         {
             // Do not inherit the read handle for the output pipe
             if(SetHandleInformation(m_read, HANDLE_FLAG_INHERIT, 0) == 0)
@@ -281,6 +281,35 @@ int exec(const std::string& cmd, const std::string& cwd, const std::string& args
         if(not input.close_write_handle())
             MIGRAPHX_THROW("Error closing STDIN handle for writing (" +
                            std::to_string(GetLastError()) + ")");
+
+        {
+            TCHAR buf[MIGRAPHX_PROCESS_BUFSIZE];
+            while(true)
+            {
+                DWORD available{};
+                BOOL result = PeekNamedPipe(
+                    output.get_read_handle(), nullptr, 0, nullptr, &available, nullptr);
+                if(result == FALSE)
+                    break;
+                if(available == 0)
+                {
+                    if(WaitForSingleObject(process_info.hProcess, 0) == WAIT_OBJECT_0)
+                        break;
+                    Sleep(0);
+                    continue;
+                }
+                while(available > 0)
+                {
+                    DWORD bytes_read{};
+                    DWORD to_read = (std::min)(available, static_cast<DWORD>(sizeof(buf)));
+                    result = ReadFile(output.get_read_handle(), buf, to_read, &bytes_read, nullptr);
+                    WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), buf, bytes_read, nullptr, nullptr);
+                    available -= bytes_read;
+                    if(result == FALSE or bytes_read == 0)
+                        break;
+                }
+            }
+        }
 
         WaitForSingleObject(process_info.hProcess, INFINITE);
 

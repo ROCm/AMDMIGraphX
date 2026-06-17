@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -72,7 +72,6 @@ int main(int argc, char const* argv[])
                   << std::endl;
         std::exit(0);
     }
-    std::string output_name = argv[1];
     bool quiet              = false;
     try
     {
@@ -86,7 +85,7 @@ int main(int argc, char const* argv[])
                                                        v.at("arch").to<std::string>(),
                                                        quiet);
         if(not out.empty())
-            migraphx::write_buffer(output_name, out.front());
+            migraphx::write_buffer(argv[1], out.front());
     }
     catch(const std::exception& err)
     {

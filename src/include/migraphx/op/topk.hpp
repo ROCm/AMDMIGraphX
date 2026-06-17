@@ -72,8 +72,8 @@ struct topk
             {
                 auto min_lens_vec = inputs.at(0).min_lens();
                 auto max_lens_vec = inputs.at(0).max_lens();
-                auto min_kk       = std::min(static_cast<std::size_t>(*k), min_lens_vec[axis]);
-                auto max_kk       = std::min(static_cast<std::size_t>(*k), max_lens_vec[axis]);
+                auto min_kk       = std::min<std::size_t>(*k, min_lens_vec[axis]);
+                auto max_kk       = std::min<std::size_t>(*k, max_lens_vec[axis]);
                 dyn_dims[axis]    = {min_kk, max_kk};
             }
 
@@ -86,7 +86,7 @@ struct topk
             auto lens = inputs.at(0).lens();
             if(k.has_value())
             {
-                auto kk    = std::min(static_cast<std::size_t>(*k), lens[axis]);
+                auto kk    = std::min<std::size_t>(*k, lens[axis]);
                 lens[axis] = kk;
             }
 
@@ -117,7 +117,7 @@ struct topk
         auto in_val       = args.front();
         auto relements    = in_val.get_shape().lens()[axis];
         auto actual_k =
-            k.has_value() ? std::min(static_cast<std::size_t>(*k), relements) : relements;
+            k.has_value() ? std::min<std::size_t>(*k, relements) : relements;
         auto make_indices = [&](const auto& m_idx) {
             return [&](int64_t i) {
                 if(args.size() < 2 or not k.has_value())

@@ -71,10 +71,15 @@ struct hip_device
             add_stream();
     }
 
-    hip_device(const std::string& arch_name, std::size_t cu_count, std::size_t chiplets)
+    hip_device(const std::string& arch_name,
+               std::size_t cu_count,
+               std::size_t chiplets,
+               std::size_t max_threads_per_cu    = 2048,
+               std::size_t max_threads_per_block = 1024)
         : cross_compile_mode(true),
           chiplet_count_override(chiplets),
-          device_props(make_cross_compile_device_props(arch_name, cu_count))
+          device_props(make_cross_compile_device_props(
+              arch_name, cu_count, max_threads_per_cu, max_threads_per_block))
     {
         add_stream();
     }
@@ -306,8 +311,13 @@ struct context
     {
     }
 
-    context(const std::string& arch_name, std::size_t cu_count, std::size_t chiplets)
-        : current_device(std::make_shared<hip_device>(arch_name, cu_count, chiplets)),
+    context(const std::string& arch_name,
+            std::size_t cu_count,
+            std::size_t chiplets,
+            std::size_t max_threads_per_cu    = 2048,
+            std::size_t max_threads_per_block = 1024)
+        : current_device(std::make_shared<hip_device>(
+              arch_name, cu_count, chiplets, max_threads_per_cu, max_threads_per_block)),
           pc(std::make_shared<auto_save_problem_cache>())
     {
     }

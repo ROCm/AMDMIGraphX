@@ -39,16 +39,18 @@ static int arch_wavefront_size(const std::string& arch_name)
     return 64;
 }
 
-hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, std::size_t cu_count)
+hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name,
+                                                std::size_t cu_count,
+                                                std::size_t max_threads_per_cu,
+                                                std::size_t max_threads_per_block)
 {
     hipDeviceProp_t props{};
     auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
     std::copy_n(arch_name.begin(), n, props.gcnArchName);
-    props.gcnArchName[n] = '\0';
-    props.warpSize       = arch_wavefront_size(arch_name);
-    // these are placeholders
-    props.maxThreadsPerMultiProcessor = 2048;
-    props.maxThreadsPerBlock          = 1024;
+    props.gcnArchName[n]              = '\0';
+    props.warpSize                    = arch_wavefront_size(arch_name);
+    props.maxThreadsPerMultiProcessor = max_threads_per_cu;
+    props.maxThreadsPerBlock          = max_threads_per_block;
     props.multiProcessorCount         = cu_count;
     return props;
 }

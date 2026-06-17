@@ -700,7 +700,7 @@ struct argument_parser
     }
 
     template <class F>
-    void post_action(F f)
+    void post_action(const F& f)
     {
         actions.push_back(f);
     }

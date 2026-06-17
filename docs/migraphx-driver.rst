@@ -139,6 +139,12 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Sets the number of iterations to run for perf report
    *  - --list | -l
       - Lists all the MIGraphX operators
+   *  - --log-level
+      - Sets the log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)
+   *  - --log-file
+      - Logs to one or more files (``--log-file file1.log file2.log ...``)
+   *  - --log-stdout
+      - Logs to ``stdout`` in addition to the default ``stderr`` (warnings and errors still go to ``stderr``)
 
 Usage
 ----------

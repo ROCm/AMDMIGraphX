@@ -133,9 +133,10 @@ struct resize_compiler : compiler<resize_compiler>
             float_equal(scales[vec.axis], 1.0f) and
             contains({"half_pixel", "pytorch_half_pixel", "align_corners", "asymmetric"},
                      coord_mode);
-gen::vectorize in_vec =
-    axis_passthrough ? gen::vectorize::elements(vec.axis, {options.virtual_inputs.front()}, {vec.size})
-                     : gen::vectorize{1, vec.axis};
+        gen::vectorize in_vec =
+            axis_passthrough
+                ? gen::vectorize::elements(vec.axis, {options.virtual_inputs.front()}, {vec.size})
+                : gen::vectorize{1, vec.axis};
 
         std::string resize_func     = "resize_" + mode;
         std::string coord_transform = "coord_transform_" + coord_mode;

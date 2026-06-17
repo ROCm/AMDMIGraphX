@@ -492,11 +492,11 @@ struct compile_plan
             auto* mm                 = bench_prog.get_main_module();
 
             // Use json encoding for the comment used for benchmarking mxr files.
-            std::map<std::string, value> comment_map;
-            comment_map["op"]        = preop.name();
-            comment_map["problem"]   = config->problem;
-            comment_map["solution"]  = solution;
-            std::string comment_text = to_json_string(to_value(comment_map));
+            value comment_val = value::object{};
+            comment_val["op"]       = preop.name();
+            comment_val["problem"]  = config->problem;
+            comment_val["solution"] = solution;
+            std::string comment_text = to_json_string(comment_val);
 
             mm->add_instruction(builtin::comment{comment_text}, {});
             auto problem_hash = std::hash<std::string>{}(to_string(config->problem));

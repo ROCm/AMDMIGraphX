@@ -1,8 +1,8 @@
 """
 Example: Baking external weights into self-contained MXR programs.
 
-This demonstrates the --weight-params / external_weights_as_parameters feature
-combined with create_program_with_weights to produce MXR files with different
+This demonstrates the --weight-params / keep_weights_external feature
+combined with replace_external_weights to produce MXR files with different
 weight sets baked in -- all from a single parse + compile.
 
 Typical use cases:
@@ -38,13 +38,13 @@ def main():
     weight_dirs = sys.argv[2:]
 
     # ------------------------------------------------------------------
-    # Step 1: Parse with external_weights_as_parameters=True
+    # Step 1: Parse with keep_weights_external=True
     #
-    # Weights become program parameters (not baked-in constants).
-    # No weight file I/O happens at parse time.
+    # Weights are kept external as external_weight ops in the IR (not baked-in
+    # constants). No weight file I/O happens at parse time.
     # ------------------------------------------------------------------
-    print(f"Parsing {model_path} with weights as parameters...")
-    template = migraphx.parse_onnx(model_path, external_weights_as_parameters=True)
+    print(f"Parsing {model_path} with weights kept external...")
+    template = migraphx.parse_onnx(model_path, keep_weights_external=True)
 
     param_shapes = template.get_parameter_shapes()
     print(f"Template has {len(param_shapes)} parameters:")
@@ -74,14 +74,14 @@ def main():
     # ------------------------------------------------------------------
     # Step 4: Bake weights from each directory into separate programs
     #
-    # create_program_with_weights copies the template and replaces weight
-    # parameters with literals read from the specified directory.
+    # replace_external_weights copies the template and replaces each
+    # external_weight op with a literal read from the specified directory.
     # The result is a self-contained program you can save or run directly.
     # ------------------------------------------------------------------
     outputs = []
     for i, weight_dir in enumerate(weight_dirs):
         print(f"--- Baking weights from: {weight_dir} ---")
-        baked = migraphx.create_program_with_weights(template, weight_dir, migraphx.get_target("ref"))
+        baked = migraphx.replace_external_weights(template, weight_dir, migraphx.get_target("ref"))
 
         baked_params = baked.get_parameter_shapes()
         print(f"  Baked program has {len(baked_params)} parameters (weights gone):")

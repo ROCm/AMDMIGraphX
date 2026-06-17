@@ -34,6 +34,10 @@
 
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/load_external_weights.hpp>
+#include <migraphx/target.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -70,11 +74,11 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
         MIGRAPHX_THROW("PARSE_ONNX_FROM: both map_input_dims and map_dyn_input_dims non-empty, only"
                        "one should be used");
     }
-    parser.skip_unknown_operators         = options.skip_unknown_operators;
-    parser.max_loop_iterations            = options.max_loop_iterations;
-    parser.limit_max_iterations           = options.limit_max_iterations;
-    parser.use_dyn_output                 = options.use_dyn_output;
-    parser.external_weights_as_parameters = options.external_weights_as_parameters;
+    parser.skip_unknown_operators = options.skip_unknown_operators;
+    parser.max_loop_iterations    = options.max_loop_iterations;
+    parser.limit_max_iterations   = options.limit_max_iterations;
+    parser.use_dyn_output         = options.use_dyn_output;
+    parser.keep_weights_external  = options.keep_weights_external;
 
     if(options.print_program_on_error)
     {
@@ -93,9 +97,6 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     {
         parser.parse_from(std::forward<Ts>(xs)...);
     }
-
-    if(not parser.external_weight_map.empty())
-        parser.prog.set_external_weight_map(std::move(parser.external_weight_map));
 
     return std::move(parser.prog);
 }
@@ -119,6 +120,23 @@ program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options
 const std::vector<std::string>& get_onnx_operators()
 {
     static std::vector<std::string> result = onnx::get_op_parsers();
+    return result;
+}
+
+program replace_onnx_external_weights(const program& prog,
+                                      const std::string& base_dir,
+                                      const target& t)
+{
+    program result(prog);
+
+    // Run over the whole program so weights in submodules are handled too.
+    run_passes(result, {load_external_weights{base_dir}, dead_code_elimination{}});
+
+    // The baked literals are lowered for the device but not finalized here; they
+    // are materialized when the program is loaded or run.
+    if(result.is_compiled())
+        run_passes(result, t.get_lowering_passes());
+
     return result;
 }
 

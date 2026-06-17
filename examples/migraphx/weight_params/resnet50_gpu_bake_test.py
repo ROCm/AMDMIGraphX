@@ -88,7 +88,7 @@ def main():
 
     # Step 1: Parse with weights as parameters
     print(f"[1] Parsing {model_path} with weights as parameters...")
-    template = migraphx.parse_onnx(model_path, external_weights_as_parameters=True)
+    template = migraphx.parse_onnx(model_path, keep_weights_external=True)
 
     param_shapes = template.get_parameter_shapes()
     weight_params = [n for n in param_shapes if n != "data"]
@@ -120,7 +120,7 @@ def main():
 
     # Step 4: Bake original weights
     print(f"[4] Baking original weights from: {weights_dir}")
-    baked_original = migraphx.create_program_with_weights(template, weights_dir, gpu_target)
+    baked_original = migraphx.replace_external_weights(template, weights_dir, gpu_target)
     orig_params = baked_original.get_parameter_shapes()
     print(f"    Baked program parameters: {len(orig_params)}")
     print(f"    Remaining params: {list(orig_params.keys())[:5]}...")
@@ -141,7 +141,7 @@ def main():
 
     # Step 5: Bake perturbed weights
     print(f"[5] Baking perturbed weights from: {perturbed_dir}")
-    baked_perturbed = migraphx.create_program_with_weights(template, perturbed_dir, gpu_target)
+    baked_perturbed = migraphx.replace_external_weights(template, perturbed_dir, gpu_target)
 
     baked_pert_path = f"resnet50_gpu_baked_perturbed{suffix}.mxr"
     migraphx.save(baked_perturbed, baked_pert_path)

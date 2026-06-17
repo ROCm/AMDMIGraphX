@@ -570,8 +570,8 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_weights_as_parameters(
-    migraphx_onnx_options_t onnx_options, bool value);
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_onnx_options_set_keep_weights_external(migraphx_onnx_options_t onnx_options, bool value);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);
@@ -612,10 +612,10 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t*
                                                              size_t size,
                                                              migraphx_onnx_options_t options);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_create_program_with_weights(migraphx_program_t* out,
-                                                                       migraphx_program_t prog,
-                                                                       const char* base_dir,
-                                                                       migraphx_target_t t);
+MIGRAPHX_C_EXPORT migraphx_status migraphx_replace_external_weights(migraphx_program_t* out,
+                                                                    migraphx_program_t prog,
+                                                                    const char* base_dir,
+                                                                    migraphx_target_t t);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options);
 

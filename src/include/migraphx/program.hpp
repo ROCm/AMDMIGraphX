@@ -48,14 +48,6 @@ inline namespace MIGRAPHX_INLINE_NS {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_COMPILE)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_EVAL)
 
-/// Metadata for a single external weight file reference
-struct external_data_info
-{
-    std::string filename;
-    std::size_t offset = 0;
-    std::size_t nbytes = 0;
-};
-
 struct program_impl;
 
 struct marker;
@@ -181,9 +173,6 @@ struct MIGRAPHX_EXPORT program
     void rename_module(const std::string& old_name, const std::string& new_name);
     void remove_unused_modules();
 
-    void set_external_weight_map(std::unordered_map<std::string, external_data_info> weight_map);
-    const std::unordered_map<std::string, external_data_info>& get_external_weight_map() const;
-
     private:
     void assign(const program& p);
     std::unique_ptr<program_impl> impl;
@@ -191,18 +180,6 @@ struct MIGRAPHX_EXPORT program
     // bumped if any changes occur to the format of the MXR file.
     static constexpr int program_file_version = 9;
 };
-
-/// Copy the program and replace external-weight parameters with literals read
-/// from base_dir, producing a self-contained program suitable for saving as an
-/// MXR. The target lowers the baked literals to its device representation (the
-/// baked literals are materialized when the program is loaded or run, not here).
-///
-/// Requires that the program's external_weight_map is non-empty (populated by
-/// a producer such as the ONNX parser when external_weights_as_parameters is
-/// enabled).
-MIGRAPHX_EXPORT program create_program_with_weights(const program& prog,
-                                                    const std::string& base_dir,
-                                                    const target& t);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

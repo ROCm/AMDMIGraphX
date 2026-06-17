@@ -1,4 +1,4 @@
-# External Weights as Parameters (MXR Baking)
+# External Weights (MXR Baking)
 
 This example demonstrates how to create multiple self-contained MXR programs
 from a single ONNX model by baking in different weight sets -- all without
@@ -9,13 +9,13 @@ re-parsing or re-compiling.
 Normally, `parse_onnx` reads external weight files (`.bin`) and bakes them into
 the program as constants. Changing weights requires re-parsing and re-compiling.
 
-With `external_weights_as_parameters=True`, the weights become program
-parameters. You can then:
+With `keep_weights_external=True`, the weights are kept external as
+`external_weight` ops recorded in the IR. You can then:
 
 1. **Parse once** -- no weight file I/O at parse time
 2. **Compile once** -- shapes are known, values don't matter yet
 3. **Save the template** -- reuse without re-parse/re-compile
-4. **Bake weights** -- `create_program_with_weights(prog, dir, target)` produces a new self-contained program
+4. **Bake weights** -- `replace_external_weights(prog, dir, target)` produces a new self-contained program
 5. **Save baked MXR** -- deploy the result with weights built in
 
 ## Quick start

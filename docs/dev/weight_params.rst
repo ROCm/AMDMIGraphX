@@ -1,11 +1,11 @@
 .. meta::
-  :description: MIGraphX external weights as parameters (MXR weight baking) reference
-  :keywords: MIGraphX, external weights, weight baking, MXR, parameters, create_program_with_weights
+  :description: MIGraphX external weights (MXR weight baking) reference
+  :keywords: MIGraphX, external weights, weight baking, MXR, external_weight, replace_external_weights
 
 .. _weight-params:
 
-External Weights as Parameters (MXR Weight Baking)
-==================================================
+External Weights (MXR Weight Baking)
+====================================
 
 Large ONNX models often store their initializers (weights) in separate
 external-data files rather than inside the ``.onnx`` protobuf. By default the
@@ -13,19 +13,21 @@ ONNX parser reads those files and bakes the values directly into the program as
 ``@literal`` instructions. Changing the weights then requires re-parsing and
 re-compiling the whole model.
 
-The *external weights as parameters* workflow keeps the weights out of the
-graph at parse time by turning each external-data initializer into a
-``@param`` instruction. This lets you:
+The *external weights* workflow keeps the weights out of the graph at parse time
+by turning each external-data initializer into an ``external_weight`` op. This op
+records the file reference (location, offset, length) and tensor shape directly
+in the IR -- no side tables are needed, and the reference is serialized with the
+program like any other op. This lets you:
 
 1. **Parse once** -- no weight file I/O at parse time.
 2. **Compile once** -- shapes are known, only the values are deferred.
 3. **Save the compiled template** -- reuse it without re-parse/re-compile.
-4. **Bake a weight set** -- :cpp:func:`create_program_with_weights` reads raw
+4. **Bake a weight set** -- :cpp:func:`replace_external_weights` reads raw
    weight bytes from a directory and produces a new, self-contained program.
 5. **Save the baked program as an MXR** -- deploy a model with the weights
    built in, or stamp out many MXRs (one per weight set) from a single template.
 
-Because step 4 only swaps the deferred parameter values for literals, multiple
+Because step 4 only swaps each ``external_weight`` op for a literal, multiple
 weight sets can be baked from one compiled template without any recompilation.
 
 Workflow Overview
@@ -33,13 +35,13 @@ Workflow Overview
 
 .. code-block:: text
 
-    parse_onnx(external_weights_as_parameters=True)   # weights -> @param
+    parse_onnx(keep_weights_external=True)            # weights -> external_weight op
                    |
                    v
     program.compile(target)                           # compile template once
                    |
                    v
-    create_program_with_weights(prog, dir, target)    # @param -> baked @literal
+    replace_external_weights(prog, dir, target)       # external_weight -> baked @literal
                    |                                     (per weight set)
                    v
     save(baked, "model.mxr")                          # serialize self-contained MXR
@@ -50,19 +52,18 @@ Workflow Overview
 Enabling the Workflow
 ---------------------
 
-The parser only emits weight parameters when the
-``external_weights_as_parameters`` option is set. When enabled, every
-external-data initializer becomes a ``@param`` and its file metadata
-(location, offset, length) is recorded in the program's *external weight map*.
-:cpp:func:`create_program_with_weights` later uses that map to locate the raw
-bytes for each weight.
+The parser only emits ``external_weight`` ops when the ``keep_weights_external``
+option is set. When enabled, every external-data initializer becomes an
+``external_weight`` op carrying its file metadata (location, offset, length) and
+shape. :cpp:func:`replace_external_weights` later walks the IR (including
+submodules) to find those ops and loads the raw bytes for each one.
 
 .. note::
 
-   Only initializers that use ONNX external data become parameters. Inline
-   initializers stored inside the ``.onnx`` file are still parsed as literals.
-   ``create_program_with_weights`` requires a non-empty external weight map; it
-   errors if the program was not parsed with this option.
+   Only initializers that use ONNX external data become ``external_weight`` ops.
+   Inline initializers stored inside the ``.onnx`` file are still parsed as
+   literals. ``replace_external_weights`` is a no-op on programs that contain no
+   ``external_weight`` ops.
 
 C++ API
 -------
@@ -75,7 +76,7 @@ Parsing the template
     #include <migraphx/migraphx.hpp>
 
     migraphx::onnx_options options;
-    options.set_external_weights_as_parameters(true);
+    options.set_keep_weights_external(true);
     auto prog = migraphx::parse_onnx("model.onnx", options);
 
     migraphx::target t = migraphx::target("gpu");
@@ -86,26 +87,27 @@ Baking a weight set
 
 .. code-block:: cpp
 
-    // Copy the compiled template and replace external-weight parameters with
-    // literals read from base_dir, lowering them for the given target.
+    // Copy the compiled template and replace each external_weight op with a
+    // literal read from base_dir, lowering them for the given target.
     migraphx::program baked =
-        migraphx::create_program_with_weights(prog, "weights_v1", t);
+        migraphx::replace_external_weights(prog, "weights_v1", t);
 
     // Persist the self-contained result.
     migraphx::file_options fo;
     migraphx::save(baked, "model_v1.mxr", fo);
 
-The free function is declared in ``migraphx/program.hpp``:
+The free function is declared in ``migraphx/onnx.hpp`` (the C/C++/Python API
+wrappers expose it under the shorter name ``replace_external_weights``):
 
 .. code-block:: cpp
 
-    /// Copy the program and replace external-weight parameters with literals
-    /// read from base_dir, producing a self-contained program suitable for
-    /// saving as an MXR. The target is used to lower the baked literals for the
-    /// device (the equivalent of write_literals + finalize).
-    MIGRAPHX_EXPORT program create_program_with_weights(const program& prog,
-                                                        const std::string& base_dir,
-                                                        const target& t);
+    /// Copy the program and replace every external_weight op with a literal read
+    /// from base_dir, producing a self-contained program suitable for saving as
+    /// an MXR. When the program is compiled, the target is used to lower the
+    /// baked literals for the device (the equivalent of write_literals).
+    MIGRAPHX_ONNX_EXPORT program replace_onnx_external_weights(const program& prog,
+                                                               const std::string& base_dir,
+                                                               const target& t);
 
 The ``target`` argument controls how the baked literals are lowered. For GPU
 targets the literals are lowered to the device representation (``gpu::literal``)
@@ -114,7 +116,7 @@ so the baked program is ready to run on the device.
 Running a baked program in-process
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``create_program_with_weights`` deliberately does **not** finalize the program.
+``replace_external_weights`` deliberately does **not** finalize the program.
 Finalizing uploads literal data to the device, which is wasted work if you only
 intend to ``save`` the result (the bytes would be serialized after a redundant
 host-to-device round trip).
@@ -126,7 +128,7 @@ literals.
 
 .. code-block:: cpp
 
-    auto baked = migraphx::create_program_with_weights(prog, "weights_v1", t);
+    auto baked = migraphx::replace_external_weights(prog, "weights_v1", t);
     migraphx::save(baked, "model_v1.mxr");        // serialize the baked program
 
     auto runnable = migraphx::load("model_v1.mxr"); // finalized on load
@@ -150,21 +152,20 @@ The same workflow is available through the Python bindings.
     import migraphx
     import numpy as np
 
-    # 1. Parse with weights kept as parameters.
+    # 1. Parse with weights kept external.
     prog = migraphx.parse_onnx("model.onnx",
-                               external_weights_as_parameters=True)
+                               keep_weights_external=True)
 
-    # The external weights show up as ordinary parameters.
+    # The external weights are external_weight ops in the IR, not parameters.
     params = prog.get_parameter_shapes()
-    assert "W" in params
+    assert "W" not in params
 
     # 2. Compile the template once.
     gpu = migraphx.get_target("gpu")
     prog.compile(gpu, offload_copy=False)
 
     # 3. Bake a weight set from a directory of raw .bin files.
-    baked = migraphx.create_program_with_weights(prog, "weights_v1", gpu)
-    assert "W" not in baked.get_parameter_shapes()   # weight is now a literal
+    baked = migraphx.replace_external_weights(prog, "weights_v1", gpu)
 
     # 4. Save the self-contained MXR for later deployment.
     migraphx.save(baked, "model_v1.mxr")
@@ -185,8 +186,8 @@ The same workflow is available through the Python bindings.
     result = baked.run(run_params)
 
 ``parse_onnx`` and ``parse_onnx_buffer`` both accept the
-``external_weights_as_parameters`` keyword (default ``False``), and
-``create_program_with_weights(program, base_dir, target)`` mirrors the C++
+``keep_weights_external`` keyword (default ``False``), and
+``replace_external_weights(program, base_dir, target)`` mirrors the C++
 function above. Unlike the C/C++ wrappers, the Python bindings additionally
 expose ``program.finalize(t)``, which finalizes a baked program in place so it
 can be run without a disk round trip.
@@ -195,9 +196,10 @@ CLI
 ---
 
 The ``migraphx-driver`` tool exposes the template-parsing step with the
-``--weight-params`` flag. It sets ``external_weights_as_parameters`` so the
-parsed/compiled program keeps its external weights as parameters. Combined with
-``compile -o`` this is how you build and save a reusable template ``.mxr``:
+``--weight-params`` flag. It sets ``keep_weights_external`` so the
+parsed/compiled program keeps its external weights as ``external_weight`` ops.
+Combined with ``compile -o`` this is how you build and save a reusable template
+``.mxr``:
 
 .. code-block:: bash
 
@@ -206,8 +208,8 @@ parsed/compiled program keeps its external weights as parameters. Combined with
 
 The ``compile`` command can also bake a weight set in the same step with
 ``--bake-weights <dir>``. The input may be the ONNX model directly or a
-previously-saved template ``.mxr`` (which already carries the external weight
-map); the result is a self-contained program written to ``-o``:
+previously-saved template ``.mxr`` (which already carries the ``external_weight``
+ops); the result is a self-contained program written to ``-o``:
 
 .. code-block:: bash
 
@@ -221,15 +223,15 @@ map); the result is a self-contained program written to ``-o``:
 
 When the input is an already-compiled template, the driver skips compilation,
 bakes the weights from ``<dir>``, and saves the result. ``--bake-weights``
-requires that the program was parsed with ``--weight-params`` (so it has a
-non-empty external weight map); otherwise the driver errors.
+expects that the program was parsed with ``--weight-params`` (so it contains
+``external_weight`` ops); otherwise there is nothing to bake.
 
 Weight Directory Layout
 -----------------------
 
-``create_program_with_weights`` reads each weight from ``base_dir`` using the
-``location``, ``offset`` and ``length`` recorded in the external weight map when
-the model was parsed. In practice this means ``base_dir`` must contain the same
+``replace_external_weights`` reads each weight from ``base_dir`` using the
+``location``, ``offset`` and ``length`` recorded in the ``external_weight`` op
+when the model was parsed. In practice this means ``base_dir`` must contain the same
 external-data ``.bin`` file(s) the ONNX model refers to, with the raw tensor
 bytes laid out exactly as the model expects. To bake a different weight set,
 point ``base_dir`` at a directory containing differently-valued ``.bin`` files
@@ -238,11 +240,11 @@ with the same layout.
 Notes and Caveats
 -----------------
 
-* ``create_program_with_weights`` operates on a *compiled* program; the returned
-  program is a copy, leaving the template untouched so it can be reused for the
-  next weight set.
-* The function errors if the program has no external weight map -- always parse
-  with ``external_weights_as_parameters`` enabled before baking.
+* ``replace_external_weights`` returns a copy, leaving the template untouched so
+  it can be reused for the next weight set. When the program is compiled, the
+  target's lowering passes are applied to the baked literals.
+* The function is a no-op if the program has no ``external_weight`` ops -- parse
+  with ``keep_weights_external`` enabled to produce them.
 * Baking does not finalize. To run a baked program in-process, save it and load
   it back -- loading a compiled MXR finalizes it automatically. (Python also
   exposes ``program.finalize(target)`` as an in-place alternative; the C/C++ API

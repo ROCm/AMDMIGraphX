@@ -208,6 +208,11 @@ static void set_use_debug_symbols(onnx_options& options, bool value)
     options.use_debug_symbols = value;
 }
 
+static void set_keep_weights_external(onnx_options& options, bool value)
+{
+    options.keep_weights_external = value;
+}
+
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
 
 static void set_default_dim_value(tf_options& options, size_t value) { options.batch_size = value; }

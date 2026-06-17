@@ -208,9 +208,9 @@ static void set_use_debug_symbols(onnx_options& options, bool value)
     options.use_debug_symbols = value;
 }
 
-static void set_external_weights_as_parameters(onnx_options& options, bool value)
+static void set_keep_weights_external(onnx_options& options, bool value)
 {
-    options.external_weights_as_parameters = value;
+    options.keep_weights_external = value;
 }
 
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
@@ -2158,13 +2158,12 @@ migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options
 }
 
 extern "C" migraphx_status
-migraphx_onnx_options_set_external_weights_as_parameters(migraphx_onnx_options_t onnx_options,
-                                                         bool value)
+migraphx_onnx_options_set_keep_weights_external(migraphx_onnx_options_t onnx_options, bool value)
 {
     auto api_error_result = migraphx::try_([&] {
         if(onnx_options == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
-        migraphx::set_external_weights_as_parameters((onnx_options->object), (value));
+        migraphx::set_keep_weights_external((onnx_options->object), (value));
     });
     return api_error_result;
 }
@@ -2288,10 +2287,10 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_create_program_with_weights(migraphx_program_t* out,
-                                                                migraphx_program_t prog,
-                                                                const char* base_dir,
-                                                                migraphx_target_t t)
+extern "C" migraphx_status migraphx_replace_external_weights(migraphx_program_t* out,
+                                                             migraphx_program_t prog,
+                                                             const char* base_dir,
+                                                             migraphx_target_t t)
 {
     auto api_error_result = migraphx::try_([&] {
         if(prog == nullptr)
@@ -2299,7 +2298,7 @@ extern "C" migraphx_status migraphx_create_program_with_weights(migraphx_program
         if(t == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter t: Null pointer");
         *out = allocate<migraphx_program_t>(
-            migraphx::create_program_with_weights((prog->object), (base_dir), (t->object)));
+            migraphx::replace_onnx_external_weights((prog->object), (base_dir), (t->object)));
     });
     return api_error_result;
 }

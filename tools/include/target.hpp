@@ -96,18 +96,18 @@ struct target
      */
     argument allocate(const shape& s) const;
     /**
-     * @brief Lower @literal instructions that were inserted into a module
-     * after the normal compile pipeline has already run (e.g. by
-     * create_program_with_weights). Implementations should turn the bare
-     * literals into whatever target-specific op they would normally produce
-     * during compile. The newly-emitted instructions are not finalized here;
-     * they are materialized when the program is loaded or run. The default is
-     * a no-op for targets that consume @literal directly (e.g. the reference
+     * @brief Passes that lower bare @literal instructions inserted into a
+     * program after the normal compile pipeline has already run (e.g. by
+     * replace_external_weights). The passes turn the bare literals into
+     * whatever target-specific op the target would normally produce during
+     * compile. The newly-emitted instructions are not finalized; they are
+     * materialized when the program is loaded or run. The default is an empty
+     * list for targets that consume @literal directly (e.g. the reference
      * interpreter).
      *
-     * @param m   Module to mutate in place
+     * @return The passes to lower the baked literals.
      */
-    void lower_baked_literals(module& m) const;
+    std::vector<pass> get_lowering_passes() const;
 };
 
 #else
@@ -138,8 +138,9 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 }
 
 template <class T>
-void target_lower_baked_literals(T&, module&)
+std::vector<pass> target_get_lowering_passes(T&)
 {
+    return {};
 }
 
 template <class T>
@@ -186,10 +187,10 @@ void from_value_target(T& x, const value& v)
                       returns = 'argument',
                       const   = True,
                       default = 'target_allocate'),
-              virtual('lower_baked_literals',
-                      m       = 'module&',
+              virtual('get_lowering_passes',
+                      returns = 'std::vector<pass>',
                       const   = True,
-                      default = 'target_lower_baked_literals'),
+                      default = 'target_get_lowering_passes'),
               virtual('to_value', returns = 'value', const = True, default = 'to_value_target'),
               virtual('from_value', v = 'const value&', default = 'from_value_target'))
 %>

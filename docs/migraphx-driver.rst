@@ -70,7 +70,7 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --skip-unknown-operators	
       - Skips unknown operators when parsing and continues to parse.
    *  - --weight-params
-      - Parses external-data initializers as parameters instead of literals, enabling runtime weight swapping.
+      - Keeps external-data initializers external (as ``external_weight`` ops) instead of loading them as literals, enabling runtime weight swapping.
    *  - --trim | -t
       - Trims instructions from the end.
    *  - --optimize | -O

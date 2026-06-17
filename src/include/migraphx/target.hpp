@@ -96,18 +96,18 @@ struct target
      */
     argument allocate(const shape& s) const;
     /**
-     * @brief Lower @literal instructions that were inserted into a module
-     * after the normal compile pipeline has already run (e.g. by
-     * create_program_with_weights). Implementations should turn the bare
-     * literals into whatever target-specific op they would normally produce
-     * during compile. The newly-emitted instructions are not finalized here;
-     * they are materialized when the program is loaded or run. The default is
-     * a no-op for targets that consume @literal directly (e.g. the reference
+     * @brief Passes that lower bare @literal instructions inserted into a
+     * program after the normal compile pipeline has already run (e.g. by
+     * replace_external_weights). The passes turn the bare literals into
+     * whatever target-specific op the target would normally produce during
+     * compile. The newly-emitted instructions are not finalized; they are
+     * materialized when the program is loaded or run. The default is an empty
+     * list for targets that consume @literal directly (e.g. the reference
      * interpreter).
      *
-     * @param m   Module to mutate in place
+     * @return The passes to lower the baked literals.
      */
-    void lower_baked_literals(module& m) const;
+    std::vector<pass> get_lowering_passes() const;
 };
 
 #else
@@ -138,8 +138,9 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 }
 
 template <class T>
-void target_lower_baked_literals(T&, module&)
+std::vector<pass> target_get_lowering_passes(T&)
 {
+    return {};
 }
 
 template <class T>
@@ -176,7 +177,7 @@ struct MIGRAPHX_EXPORT target
     // (optional)
     argument allocate(const shape& s) const;
     // (optional)
-    void lower_baked_literals(module& m) const;
+    std::vector<pass> get_lowering_passes() const;
     // (optional)
     value to_value() const;
     // (optional)
@@ -252,18 +253,17 @@ struct target
     }
 
     template <class T>
-    static auto
-    private_detail_te_default_lower_baked_literals(char, T&& private_detail_te_self, module& m)
-        -> decltype(private_detail_te_self.lower_baked_literals(m))
+    static auto private_detail_te_default_get_lowering_passes(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.get_lowering_passes())
     {
-        private_detail_te_self.lower_baked_literals(m);
+        return private_detail_te_self.get_lowering_passes();
     }
 
     template <class T>
-    static void
-    private_detail_te_default_lower_baked_literals(float, T&& private_detail_te_self, module& m)
+    static std::vector<pass>
+    private_detail_te_default_get_lowering_passes(float, T&& private_detail_te_self)
     {
-        target_lower_baked_literals(private_detail_te_self, m);
+        return target_get_lowering_passes(private_detail_te_self);
     }
 
     template <class T>
@@ -327,8 +327,8 @@ struct target
                  private_detail_te_default_allocate(char(0),
                                                     std::declval<PrivateDetailTypeErasedT>(),
                                                     std::declval<const shape&>()),
-                 private_detail_te_default_lower_baked_literals(
-                     char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<module&>()),
+                 private_detail_te_default_get_lowering_passes(
+                     char(0), std::declval<PrivateDetailTypeErasedT>()),
                  private_detail_te_default_to_value(char(0),
                                                     std::declval<PrivateDetailTypeErasedT>()),
                  private_detail_te_default_from_value(char(0),
@@ -450,10 +450,10 @@ struct target
         return (*this).private_detail_te_get_handle().allocate(s);
     }
 
-    void lower_baked_literals(module& m) const
+    std::vector<pass> get_lowering_passes() const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        (*this).private_detail_te_get_handle().lower_baked_literals(m);
+        return (*this).private_detail_te_get_handle().get_lowering_passes();
     }
 
     value to_value() const
@@ -489,7 +489,7 @@ struct target
         virtual argument copy_to(const argument& input) const                                   = 0;
         virtual argument copy_from(const argument& input) const                                 = 0;
         virtual argument allocate(const shape& s) const                                         = 0;
-        virtual void lower_baked_literals(module& m) const                                      = 0;
+        virtual std::vector<pass> get_lowering_passes() const                                   = 0;
         virtual value to_value() const                                                          = 0;
         virtual void from_value(const value& v)                                                 = 0;
     };
@@ -556,10 +556,10 @@ struct target
             return private_detail_te_default_allocate(char(0), private_detail_te_value, s);
         }
 
-        void lower_baked_literals(module& m) const override
+        std::vector<pass> get_lowering_passes() const override
         {
 
-            private_detail_te_default_lower_baked_literals(char(0), private_detail_te_value, m);
+            return private_detail_te_default_get_lowering_passes(char(0), private_detail_te_value);
         }
 
         value to_value() const override

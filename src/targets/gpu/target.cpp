@@ -300,44 +300,53 @@ argument target::allocate(const shape& s) const
     return gpu::allocate_gpu(s);
 }
 
-void target::lower_baked_literals(module& m) const
+namespace {
+// Lower bare @literal instructions (e.g. those produced by baking external
+// weights into an already-compiled program) into gpu::literal. These are not
+// finalized here: gpu::literal serializes only its host data, so finalizing now
+// would upload every weight to the GPU just to discard it on save. The device
+// buffer is materialized on load (program::from_value finalizes) or before run.
+struct lower_baked_literals
 {
-    std::vector<instruction_ref> literal_refs;
-    for(auto ins : iterator_for(m))
-    {
-        if(ins->name() == "@literal")
-            literal_refs.push_back(ins);
-    }
+    std::string name() const { return "gpu::lower_baked_literals"; }
 
-    for(auto ins : literal_refs)
+    void apply(module& m) const
     {
-        // We deliberately do not finalize here: gpu::literal serializes only its
-        // host data (not the device buffer), so finalizing now would upload every
-        // weight to the GPU just to discard it on save. The buffer is materialized
-        // when the program is actually run -- program::from_value finalizes on
-        // load, and any in-process run must finalize first.
-        value v;
-        v["data"] = migraphx::to_value(ins->get_literal().get_argument());
-        v["host"] = false;
-
-        // Remember any downstream hip::copy_to_gpu before the rewrite so we
-        // can drop it once the literal is already producing a GPU buffer.
-        std::vector<instruction_ref> stale_copies;
-        for(auto out : ins->outputs())
+        std::vector<instruction_ref> literal_refs;
+        for(auto ins : iterator_for(m))
         {
-            if(out->name() == "hip::copy_to_gpu")
-                stale_copies.push_back(out);
+            if(ins->name() == "@literal")
+                literal_refs.push_back(ins);
         }
 
-        auto new_ins = m.replace_instruction(ins, make_op("gpu::literal", v));
-
-        for(auto copy_ins : stale_copies)
+        for(auto ins : literal_refs)
         {
-            m.replace_instruction(copy_ins, new_ins);
-            m.remove_instruction(copy_ins);
+            value v;
+            v["data"] = migraphx::to_value(ins->get_literal().get_argument());
+            v["host"] = false;
+
+            // Remember any downstream hip::copy_to_gpu before the rewrite so we
+            // can drop it once the literal is already producing a GPU buffer.
+            std::vector<instruction_ref> stale_copies;
+            for(auto out : ins->outputs())
+            {
+                if(out->name() == "hip::copy_to_gpu")
+                    stale_copies.push_back(out);
+            }
+
+            auto new_ins = m.replace_instruction(ins, make_op("gpu::literal", v));
+
+            for(auto copy_ins : stale_copies)
+            {
+                m.replace_instruction(copy_ins, new_ins);
+                m.remove_instruction(copy_ins);
+            }
         }
     }
-}
+};
+} // namespace
+
+std::vector<pass> target::get_lowering_passes() const { return {lower_baked_literals{}}; }
 
 MIGRAPHX_REGISTER_TARGET(target);
 

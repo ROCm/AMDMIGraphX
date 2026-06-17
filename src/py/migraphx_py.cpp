@@ -766,19 +766,19 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            int64_t max_loop_iterations,
            int64_t limit_max_iterations,
            bool use_debug_symbols,
-           bool external_weights_as_parameters) {
+           bool keep_weights_external) {
             migraphx::onnx_options options;
-            options.default_dim_value              = default_dim_value;
-            options.default_dyn_dim_value          = default_dyn_dim_value;
-            options.dim_params                     = dim_params;
-            options.map_input_dims                 = map_input_dims;
-            options.map_dyn_input_dims             = map_dyn_input_dims;
-            options.skip_unknown_operators         = skip_unknown_operators;
-            options.print_program_on_error         = print_program_on_error;
-            options.max_loop_iterations            = max_loop_iterations;
-            options.limit_max_iterations           = limit_max_iterations;
-            options.use_debug_symbols              = use_debug_symbols;
-            options.external_weights_as_parameters = external_weights_as_parameters;
+            options.default_dim_value      = default_dim_value;
+            options.default_dyn_dim_value  = default_dyn_dim_value;
+            options.dim_params             = dim_params;
+            options.map_input_dims         = map_input_dims;
+            options.map_dyn_input_dims     = map_dyn_input_dims;
+            options.skip_unknown_operators = skip_unknown_operators;
+            options.print_program_on_error = print_program_on_error;
+            options.max_loop_iterations    = max_loop_iterations;
+            options.limit_max_iterations   = limit_max_iterations;
+            options.use_debug_symbols      = use_debug_symbols;
+            options.keep_weights_external  = keep_weights_external;
             return migraphx::parse_onnx(filename, options);
         },
         "Parse onnx file",
@@ -794,8 +794,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("print_program_on_error")         = false,
         py::arg("max_loop_iterations")            = 10,
         py::arg("limit_max_iterations")           = std::numeric_limits<uint16_t>::max(),
-        py::arg("use_debug_symbols")              = false,
-        py::arg("external_weights_as_parameters") = false);
+        py::arg("use_debug_symbols")        = false,
+        py::arg("keep_weights_external")    = false);
 
     m.def(
         "parse_onnx_buffer",
@@ -809,17 +809,17 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
            bool print_program_on_error,
            const std::string& external_data_path,
            bool use_debug_symbols,
-           bool external_weights_as_parameters) {
+           bool keep_weights_external) {
             migraphx::onnx_options options;
-            options.default_dim_value              = default_dim_value;
-            options.default_dyn_dim_value          = default_dyn_dim_value;
-            options.map_input_dims                 = map_input_dims;
-            options.map_dyn_input_dims             = map_dyn_input_dims;
-            options.skip_unknown_operators         = skip_unknown_operators;
-            options.print_program_on_error         = print_program_on_error;
-            options.external_data_path             = external_data_path;
-            options.use_debug_symbols              = use_debug_symbols;
-            options.external_weights_as_parameters = external_weights_as_parameters;
+            options.default_dim_value      = default_dim_value;
+            options.default_dyn_dim_value  = default_dyn_dim_value;
+            options.map_input_dims         = map_input_dims;
+            options.map_dyn_input_dims     = map_dyn_input_dims;
+            options.skip_unknown_operators = skip_unknown_operators;
+            options.print_program_on_error = print_program_on_error;
+            options.external_data_path     = external_data_path;
+            options.use_debug_symbols      = use_debug_symbols;
+            options.keep_weights_external  = keep_weights_external;
             return migraphx::parse_onnx_buffer(onnx_buffer, options);
         },
         "Parse onnx file",
@@ -832,11 +832,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("skip_unknown_operators")         = false,
         py::arg("print_program_on_error")         = false,
         py::arg("external_data_path")             = "",
-        py::arg("use_debug_symbols")              = false,
-        py::arg("external_weights_as_parameters") = false);
+        py::arg("use_debug_symbols")     = false,
+        py::arg("keep_weights_external") = false);
 
-    m.def("create_program_with_weights",
-          &migraphx::create_program_with_weights,
+    m.def("replace_external_weights",
+          &migraphx::replace_onnx_external_weights,
           "Copy the program and bake in weights from base_dir, returning a self-contained program",
           py::arg("program"),
           py::arg("base_dir"),

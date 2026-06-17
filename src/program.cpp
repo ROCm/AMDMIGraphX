@@ -80,7 +80,6 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
-    std::unordered_map<std::string, external_data_info> external_weight_map;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -162,17 +161,6 @@ std::unordered_map<std::string, shape> program::get_parameter_shapes() const
 {
     const auto* mm = this->get_main_module();
     return mm->get_parameter_shapes();
-}
-
-void program::set_external_weight_map(
-    std::unordered_map<std::string, external_data_info> weight_map)
-{
-    impl->external_weight_map = std::move(weight_map);
-}
-
-const std::unordered_map<std::string, external_data_info>& program::get_external_weight_map() const
-{
-    return impl->external_weight_map;
 }
 
 int program::get_program_file_version() const { return program_file_version; }
@@ -387,55 +375,6 @@ void program::finalize(const target& t)
         this->impl->contexts = {t.get_context()};
     }
     this->finalize();
-}
-
-program
-create_program_with_weights(const program& prog, const std::string& base_dir, const target& t)
-{
-    program result(prog);
-    const auto& weight_map = result.get_external_weight_map();
-    if(weight_map.empty())
-        MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: program has no external weight map");
-
-    auto* mm = result.get_main_module();
-
-    // Generic step: replace each external-weight @param with the corresponding
-    // @literal. Any target-specific cleanup (e.g. lifting @literal to a
-    // device-side op such as gpu::literal and dropping now-redundant
-    // hip::copy_to_gpu copies) is delegated to the target via
-    // target::lower_baked_literals. The baked literals are materialized when the
-    // program is loaded or run, not here.
-    for(const auto& entry : weight_map)
-    {
-        const auto& name = entry.first;
-        const auto& info = entry.second;
-
-        auto param_ins = mm->get_parameter(name);
-        if(param_ins == mm->end())
-            MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: parameter \"" + name +
-                           "\" not found in program");
-
-        const auto& s = param_ins->get_shape();
-        auto raw      = read_buffer(fs::path{base_dir} / info.filename, info.offset, info.nbytes);
-
-        // The flat on-disk buffer is copied element-for-element into the literal, so the
-        // parameter must have a standard layout whose byte size matches the file region.
-        assert(s.standard());
-        if(raw.size() != s.bytes())
-            MIGRAPHX_THROW("CREATE_PROGRAM_WITH_WEIGHTS: weight \"" + name + "\" file size " +
-                           std::to_string(raw.size()) + " does not match parameter size " +
-                           std::to_string(s.bytes()));
-
-        auto lit_ins = mm->add_literal(literal{s, raw.data()});
-        mm->replace_instruction(param_ins, lit_ins);
-        mm->remove_instruction(param_ins);
-    }
-
-    if(result.is_compiled())
-        t.lower_baked_literals(*mm);
-
-    result.set_external_weight_map({});
-    return result;
 }
 
 template <class T>
@@ -851,20 +790,6 @@ value program::to_value() const
 
     result["modules"] = module_vals;
 
-    if(not impl->external_weight_map.empty())
-    {
-        value ewm = value::object{};
-        for(const auto& p : impl->external_weight_map)
-        {
-            value entry   = value::object{};
-            entry["file"] = p.second.filename;
-            entry["off"]  = p.second.offset;
-            entry["len"]  = p.second.nbytes;
-            ewm[p.first]  = entry;
-        }
-        result["external_weight_map"] = ewm;
-    }
-
     return result;
 }
 
@@ -986,18 +911,6 @@ void program::from_value(const value& v)
     std::unordered_map<std::string, instruction_ref> map_insts;
     auto* mm = get_main_module();
     mod_from_val(mm, module_vals, map_insts, map_mods);
-
-    if(v.contains("external_weight_map"))
-    {
-        for(const auto& entry : v.at("external_weight_map"))
-        {
-            external_data_info info;
-            info.filename                              = entry.at("file").to<std::string>();
-            info.offset                                = entry.at("off").to<std::size_t>();
-            info.nbytes                                = entry.at("len").to<std::size_t>();
-            impl->external_weight_map[entry.get_key()] = std::move(info);
-        }
-    }
 
     // Finalize a compiled model
     if(not this->impl->contexts.empty())

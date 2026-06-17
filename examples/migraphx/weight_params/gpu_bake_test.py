@@ -1,14 +1,14 @@
 """
-Simple GPU validation test for create_program_with_weights.
+Simple GPU validation test for replace_external_weights.
 
 Tests that baking lowers the inserted @literal instructions to gpu::literal
 on a GPU-compiled program (without finalizing during the bake).
 
 Steps:
   1. Generate a tiny model with external weights (matmul)
-  2. Parse with external_weights_as_parameters=True
+  2. Parse with keep_weights_external=True
   3. Compile for GPU
-  4. Bake weights via create_program_with_weights with GPU target
+  4. Bake weights via replace_external_weights with GPU target
   5. Run inference on GPU and compare to a reference computation
 
 Usage:
@@ -91,14 +91,16 @@ def main():
         weights_dir = write_weights(os.path.join(tmp_dir, "weights"), W_identity)
         print(f"    Weights: identity matrix at {weights_dir}/weights.bin")
 
-        # 3. Parse with external_weights_as_parameters
-        print("\n[2] Parsing ONNX with external_weights_as_parameters=True...")
+        # 3. Parse with keep_weights_external
+        print("\n[2] Parsing ONNX with keep_weights_external=True...")
         prog = migraphx.parse_onnx(
-            model_path, external_weights_as_parameters=True
+            model_path, keep_weights_external=True
         )
         params = prog.get_parameter_shapes()
         print(f"    Parameters: {list(params.keys())}")
-        assert "W" in params, "Weight 'W' should be a parameter"
+        # With keep_weights_external, 'W' is kept as an external_weight op in the
+        # IR (not a parameter); only the real 'input' is a parameter.
+        assert "W" not in params, "Weight 'W' should not be a parameter"
         assert "input" in params, "'input' should be a parameter"
 
         # 4. Compile for GPU (offload_copy=False so inputs must be GPU buffers)
@@ -110,8 +112,8 @@ def main():
         print(f"    Parameters after compile: {list(params_after_compile.keys())}")
 
         # 5. Bake weights
-        print("\n[4] Baking weights (create_program_with_weights with GPU target)...")
-        baked = migraphx.create_program_with_weights(prog, weights_dir, gpu_target)
+        print("\n[4] Baking weights (replace_external_weights with GPU target)...")
+        baked = migraphx.replace_external_weights(prog, weights_dir, gpu_target)
         baked_params = baked.get_parameter_shapes()
         print(f"    Baked program parameters: {list(baked_params.keys())}")
         assert "W" not in baked_params, "Weight 'W' should no longer be a parameter"
@@ -155,7 +157,7 @@ def main():
         W_half = np.full(weight_shape, 0.5, dtype=np.float32)
         weights_dir2 = write_weights(os.path.join(tmp_dir, "weights2"), W_half)
 
-        baked2 = migraphx.create_program_with_weights(prog, weights_dir2, gpu_target)
+        baked2 = migraphx.replace_external_weights(prog, weights_dir2, gpu_target)
         baked2.finalize(gpu_target)
         baked2_params = baked2.get_parameter_shapes()
         run_params2 = {}

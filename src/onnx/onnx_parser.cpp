@@ -35,6 +35,7 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
+#include <migraphx/op/external_weight.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/logger.hpp>
@@ -48,6 +49,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
+
+/// Metadata for a single external weight file reference, decoded from the ONNX
+/// external_data fields. Used only while parsing to construct external_weight ops.
+struct external_data_info
+{
+    std::string filename;
+    std::size_t offset = 0;
+    std::size_t nbytes = 0;
+};
 
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
@@ -368,11 +378,12 @@ parse_initializer(onnx_parser& parser, module* mod, const onnx::GraphProto& grap
 
         const auto& external_data = f.external_data();
         instruction_ref ins;
-        if(parser.external_weights_as_parameters and not external_data.empty())
+        if(parser.keep_weights_external and not external_data.empty())
         {
-            auto tensor_shape                    = parse_tensor_shape(f);
-            parser.external_weight_map[f.name()] = parse_external_data_info(f, tensor_shape);
-            ins                                  = mod->add_parameter(f.name(), tensor_shape);
+            auto tensor_shape = parse_tensor_shape(f);
+            auto info         = parse_external_data_info(f, tensor_shape);
+            ins               = mod->add_instruction(
+                op::external_weight{tensor_shape, info.filename, info.offset, info.nbytes});
         }
         else
         {

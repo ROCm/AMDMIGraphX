@@ -201,8 +201,8 @@ struct loader
     bool brief                  = false;
     bool verbose                = false;
     bool strip_context                  = false;
-    bool use_debug_symbols              = false;
-    bool external_weights_as_parameters = false;
+    bool use_debug_symbols     = false;
+    bool keep_weights_external = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -240,10 +240,10 @@ struct loader
            ap.help(
                "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
            ap.set_value(true));
-        ap(external_weights_as_parameters,
+        ap(keep_weights_external,
            {"--weight-params"},
-           ap.help("Parse external-data initializers as parameters instead of literals, "
-                   "enabling runtime weight swapping."),
+           ap.help("Keep external-data initializers external (as external_weight ops) instead of "
+                   "loading them as literals, enabling runtime weight swapping."),
            ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
@@ -450,13 +450,13 @@ struct loader
             options.default_dyn_dim_value = parse_dyn_dim_object(v);
             options.default_set           = true;
         }
-        options.skip_unknown_operators         = skip_unknown_operators;
-        options.print_program_on_error         = true;
-        options.use_debug_symbols              = use_debug_symbols;
-        options.external_weights_as_parameters = external_weights_as_parameters;
-        options.map_input_dims                 = map_input_dims;
-        options.map_dyn_input_dims             = map_dyn_input_dims;
-        options.dim_params                     = map_dim_params;
+        options.skip_unknown_operators = skip_unknown_operators;
+        options.print_program_on_error = true;
+        options.use_debug_symbols      = use_debug_symbols;
+        options.keep_weights_external  = keep_weights_external;
+        options.map_input_dims         = map_input_dims;
+        options.map_dyn_input_dims     = map_dyn_input_dims;
+        options.dim_params             = map_dim_params;
         return options;
     }
 
@@ -880,7 +880,7 @@ struct compiler
     program bake(const program& p, const target& t) const
     {
         log::info() << "Baking weights from " << bake_weights << " ...";
-        return migraphx::create_program_with_weights(p, bake_weights, t);
+        return migraphx::replace_onnx_external_weights(p, bake_weights, t);
     }
 };
 

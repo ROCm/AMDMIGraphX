@@ -944,7 +944,7 @@ static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
     if(model_dim != nullptr and model_dim->has_dim_value())
     {
         // A non-positive dim_value is unspecified, so fall back to the default.
-        if(static_cast<int>(model_dim->dim_value()) <= 0)
+        if(model_dim->dim_value() <= 0)
             return resolve_default_dim(parser, name, axis);
         if(parser.use_symbolic_shapes)
             return shape::dynamic_dimension{sym::lit(model_dim->dim_value())};

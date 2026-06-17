@@ -649,6 +649,7 @@ void log_debug_symbols_on_exception(const instruction& ins) noexcept
         log::debug() << "Exception thrown for instruction '" << ins.name()
                      << "' with debug symbols: " << join_strings(symbols, ", ");
     }
+    // cppcheck-suppress migraphx-EmptyCatchStatement
     catch(...) // logging must not replace the original exception
     {
     }

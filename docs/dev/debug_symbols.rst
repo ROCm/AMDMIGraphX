@@ -32,7 +32,7 @@ flag on ``onnx_options``. Example usage with the C++ API:
     int main(int argc, char** argv)
     {
         migraphx::onnx_options options;
-        options.set_use_debug_symbols = true;
+        options.set_use_debug_symbols(true);
         auto prog = migraphx::parse_onnx("conv_transpose_test.onnx", options);
     }
 
@@ -43,6 +43,14 @@ The same flag can be enabled from the ``migraphx-driver`` tool with the
 
     migraphx-driver read <path_to_model.onnx> --debug-symbols
     migraphx-driver compile <path_to_model.onnx> --debug-symbols
+
+The equivalent Python API passes ``use_debug_symbols`` to ``parse_onnx``:
+
+.. code-block:: python
+
+    import migraphx
+
+    prog = migraphx.parse_onnx("model.onnx", use_debug_symbols=True)
 
 When enabled, the ONNX parser inserts the parsed ONNX node name into each
 resultant MIGraphX instruction. The text after the ``#`` in the IR listing is
@@ -219,12 +227,10 @@ Before horizontal fusion:
     @0 = @literal{ ... } -> int32_type, {3, 2, 2}, {4, 2, 1}
     @1 = @literal{ ... } -> int32_type, {3, 2, 2}, {4, 2, 1}
     input = @param:input -> int32_type, {3, 2, 2}, {4, 2, 1}
-    @3 = concat[axis=2](@1,@0) -> int32_type, {3, 2, 4}, {8, 4, 1}
-    @4 = dot(input,@3) -> int32_type, {3, 2, 4}, {8, 4, 1}
-    @5 = dot(input,@1) -> int32_type, {3, 2, 2}, {4, 2, 1} # gemm1
-    @6 = dot(input,@0) -> int32_type, {3, 2, 2}, {4, 2, 1} # gemm2
-    @7 = add(@5,@6) -> int32_type, {3, 2, 2}, {4, 2, 1} # sum
-    @8 = @return(@7)
+    @3 = dot(input,@1) -> int32_type, {3, 2, 2}, {4, 2, 1} # gemm1
+    @4 = dot(input,@0) -> int32_type, {3, 2, 2}, {4, 2, 1} # gemm2
+    @5 = add(@3,@4) -> int32_type, {3, 2, 2}, {4, 2, 1} # sum
+    @6 = @return(@5)
 
 After horizontal fusion:
 
@@ -253,14 +259,13 @@ the `Netron <https://netron.app>`_ tool. You can create the file using
 ``migraphx-driver`` with the ``--debug-symbols``, ``--netron``, and
 ``--output`` options:
 
-.. code-block:: text
+.. code-block:: bash
 
     migraphx-driver compile mnist-8.onnx --netron --debug-symbols --output mnist8_netron.onnx
 
 Using Netron to open the file allows for an interactive way to explore the compiled IR:
 
 .. image:: ../data/mnist8_netron_debug_symbols.png
-   :scale: 100%
    :alt: mnist-8 model compiled with debug symbols enabled opened with Netron
    :name: mnist-ds-label
 

@@ -237,8 +237,7 @@ __device__ void nms_make_iou_mask(const index idx,
     });
 
     // Have thread 0 do middle row if odd NumBoxes
-    // NOLINTNEXTLINE(hicpp-signed-bitwise)
-    if constexpr((NumBoxes & 1) != 0 and NumBoxes > 1)
+    if constexpr((NumBoxes % 2) != 0 and NumBoxes > 1)
     {
         if(idx.local == 0)
             fill_row(half);
@@ -274,33 +273,29 @@ __device__ void nms_filter_per_block(const index idx,
     idx.local_stride(
         NumBoxes, [&](auto i) { removed[i] = (do_score_filter and sorted_scores[i] < score_thr); });
     __syncthreads();
-    index_int output_idx = 0;
-    // sequential per-block step to match greedy NMS algorithm
-    for(index_int i = 0; i < NumBoxes; ++i)
-    {
-        if(output_idx >= max_output)
-            break;
-        if(not removed[i])
-        {
+    // sequential per-block greedy filter to match greedy NMS algorithm
+    auto num_selected = seq_copy_index_if_limit(
+        NumBoxes,
+        max_output,
+        [&](auto i){ return not removed[i]; },
+        [&](auto i, auto output_idx){
             if(idx.local == 0)
             {
+                // copy over box on thread 0
                 array<typename Output::type, 3> tmp = {batch_idx, class_idx, sorted_indices[i]};
                 auto output_iter = block_output.begin_at(array<index_int, 3>{0, output_idx, 0});
                 copy(tmp.begin(), tmp.end(), output_iter);
             }
-            ++output_idx;
-            // parallel mask
             auto start = i + 1;
             idx.local_stride(NumBoxes - start, [&](auto ls) {
                 auto j = start + ls;
                 removed[j] |= mask[nms_packed_idx(i, j, NumBoxes)];
             });
         }
-        __syncthreads();
-    }
+    );
 
     if(idx.local == 0)
-        bc_counts[block_id] = output_idx;
+        bc_counts[block_id] = num_selected;
 }
 
 // TODO: Merge the nonmaxsuppression_sort and nonmaxsuppression_filter kernels by relaxing

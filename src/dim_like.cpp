@@ -21,38 +21,30 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/cross_compile_device.hpp>
-#include <migraphx/gpu/device_name.hpp>
-#include <migraphx/stringutils.hpp>
-#include <algorithm>
+
+#include <migraphx/dim_like.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-// RDNA architectures use wave32
-static int arch_wavefront_size(const std::string& arch_name)
+void migraphx_to_value(value& v, const dim_like& d)
 {
-    const auto gfx = get_gfx_name(arch_name);
-    if(starts_with(gfx, "gfx10") or starts_with(gfx, "gfx11") or starts_with(gfx, "gfx12"))
-        return 32;
-    return 64;
+    v = visit([](const auto& x) { return migraphx::to_value(x); }, d);
 }
 
-hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name, std::size_t cu_count)
+void migraphx_from_value(const value& v, dim_like& d)
 {
-    hipDeviceProp_t props{};
-    auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
-    std::copy_n(arch_name.begin(), n, props.gcnArchName);
-    props.gcnArchName[n] = '\0';
-    props.warpSize       = arch_wavefront_size(arch_name);
-    // these are placeholders
-    props.maxThreadsPerMultiProcessor = 2048;
-    props.maxThreadsPerBlock          = 1024;
-    props.multiProcessorCount         = cu_count;
-    return props;
+    if(v.is_object())
+    {
+        shape::dynamic_dimension dd;
+        migraphx::from_value(v, dd);
+        d = std::move(dd);
+        return;
+    }
+    d = v.to<int64_t>();
 }
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

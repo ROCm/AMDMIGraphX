@@ -52,7 +52,7 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
    *  - --help | -h
       - Prints help section.
    *  - --json-config
-      - Sets option values from a JSON config file. Each key is an option flag (with or without leading dashes) and its value sets the corresponding option. Boolean flags use ``true``/``false``, list options use JSON arrays. Command-line flags take precedence. Can be given multiple times.
+      - Sets option values from a JSON config file. Each key is an option flag (with or without leading dashes) and its value sets the corresponding option. Boolean flags use ``true``/``false``, list options use JSON arrays. Command-line flags take precedence.
    *  - --test 
       - Test MIGraphX with single layer GEMM model.
    *  - --onnx
@@ -161,8 +161,7 @@ Any option that can be passed on the command line can instead be set from a JSON
 config file is a JSON object whose keys are option flag names (with or without leading dashes) and
 whose values set the corresponding options. Boolean flags are toggled with ``true``/``false`` and
 list options (such as ``--input-dim``) take JSON arrays. Options passed on the command line take
-precedence over the config file, and ``--json-config`` may be given multiple times (later files
-override earlier ones).
+precedence over the config file.
 
 Given a ``config.json`` like:
 

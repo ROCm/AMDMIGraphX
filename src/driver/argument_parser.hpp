@@ -523,13 +523,12 @@ struct argument_parser
     // Values passed on the command line take precedence over the config file.
     void add_json_config_option()
     {
-        (*this)(config_files,
+        (*this)(config_file,
                 {"--json-config"},
                 help("Set option values from a JSON config file. Each key is an option flag "
                      "(with or without leading dashes) and its value sets that option. Boolean "
                      "flags are toggled with true/false, list options take JSON arrays. Values "
-                     "passed on the command line take precedence. May be given multiple times."),
-                append());
+                     "passed on the command line take precedence."));
     }
 
     void print_try_help()
@@ -741,6 +740,9 @@ struct argument_parser
         throw std::runtime_error("Unknown option in json config: '" + key + "'");
     }
 
+    // Merge the option values from the file passed via `--json-config` into arg_map.
+    // Options already present on the command line are left untouched (command line wins).
+    // Returns true if an error was reported and parsing should stop.
     bool merge_json_config(string_map& arg_map,
                            const std::unordered_map<std::string, unsigned>& keywords)
     {
@@ -749,46 +751,45 @@ struct argument_parser
             std::unordered_set<std::string> cli_flags;
             for(auto&& p : arg_map)
                 cli_flags.insert(p.first);
-            for(const auto& file : arg_map.at("--json-config"))
+            const auto& file = arg_map.at("--json-config").back();
+            std::ifstream is(file);
+            if(not is)
+                throw std::runtime_error("Unable to open json config file: " + file);
+            std::string contents((std::istreambuf_iterator<char>(is)),
+                                 std::istreambuf_iterator<char>());
+            auto v = from_json_string(convert_to_json(contents));
+            if(not v.is_object())
+                throw std::runtime_error("JSON config in '" + file +
+                                         "' must be a top-level object.");
+            for(const auto& item : v)
             {
-                std::ifstream is(file);
-                if(not is)
-                    throw std::runtime_error("Unable to open json config file: " + file);
-                std::string contents((std::istreambuf_iterator<char>(is)),
-                                     std::istreambuf_iterator<char>());
-                auto v = from_json_string(convert_to_json(contents));
-                if(not v.is_object())
-                    throw std::runtime_error("JSON config in '" + file +
-                                             "' must be a top-level object.");
-                for(const auto& item : v)
+                auto flag = resolve_config_flag(item.get_key(), keywords);
+                // Command line takes precedence over the config file.
+                if(cli_flags.count(flag) > 0)
+                    continue;
+                if(item.is_null())
+                    throw std::runtime_error("Null value for '" + item.get_key() +
+                                             "' in json config is not supported.");
+                if(item.is_bool())
                 {
-                    auto flag = resolve_config_flag(item.get_key(), keywords);
-                    // Command line takes precedence over the config file.
-                    if(cli_flags.count(flag) > 0)
-                        continue;
-                    if(item.is_null())
-                        throw std::runtime_error("Null value for '" + item.get_key() +
-                                                 "' in json config is not supported.");
-                    if(item.is_bool())
-                    {
-                        if(item.to<bool>())
-                            arg_map[flag] = {};
-                        else
-                            arg_map.erase(flag);
-                    }
-                    else if(item.is_array())
-                    {
-                        std::vector<std::string> params;
-                        std::transform(item.begin(),
-                                       item.end(),
-                                       std::back_inserter(params),
-                                       [](const auto& e) { return e.template to<std::string>(); });
-                        arg_map[flag] = params;
-                    }
+                    // A bool toggles the flag: present (with no params) when true.
+                    if(item.to<bool>())
+                        arg_map[flag] = {};
                     else
-                    {
-                        arg_map[flag] = {item.to<std::string>()};
-                    }
+                        arg_map.erase(flag);
+                }
+                else if(item.is_array())
+                {
+                    std::vector<std::string> params;
+                    std::transform(item.begin(),
+                                   item.end(),
+                                   std::back_inserter(params),
+                                   [](const auto& e) { return e.template to<std::string>(); });
+                    arg_map[flag] = params;
+                }
+                else
+                {
+                    arg_map[flag] = {item.to<std::string>()};
                 }
             }
             return false;
@@ -803,7 +804,7 @@ struct argument_parser
         }
     }
 
-    std::vector<std::string> config_files;
+    std::string config_file;
     std::list<argument> arguments;
     std::string exe_name = "";
     std::vector<std::function<void(argument_parser&)>> actions;

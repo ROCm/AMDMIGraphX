@@ -36,14 +36,13 @@
 
 #include <algorithm>
 
-static void run_pass(migraphx::module& m, bool enable_gather_slice_concat = false)
+static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(
         m,
         {
             migraphx::simplify_reshapes{.enable_op_shape_transform_op = true,
-                                        .enable_gather_rewrite        = true,
-                                        .enable_gather_slice_concat   = enable_gather_slice_concat},
+                                        .enable_gather_rewrite        = true},
             migraphx::eliminate_common_subexpression{},
             migraphx::dead_code_elimination{},
         });
@@ -5170,7 +5169,7 @@ TEST_CASE(gather_slice_concat_full_rewrite)
         auto c      = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), slices);
         m1.add_return({c});
     }
-    run_pass(m1, /*enable_gather_slice_concat=*/true);
+    run_pass(m1);
 
     migraphx::module m2;
     {
@@ -5194,7 +5193,7 @@ TEST_CASE(gather_slice_concat_permuted_rows)
         auto c      = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), slices);
         m1.add_return({c});
     }
-    run_pass(m1, true);
+    run_pass(m1);
 
     migraphx::module m2;
     {
@@ -5221,7 +5220,7 @@ TEST_CASE(gather_slice_concat_mixed_run_with_passthrough)
         auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), inputs);
         m1.add_return({c});
     }
-    run_pass(m1, true);
+    run_pass(m1);
 
     migraphx::module m2;
     {
@@ -5255,7 +5254,7 @@ TEST_CASE(gather_slice_concat_two_runs)
         auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), inputs);
         m1.add_return({c});
     }
-    run_pass(m1, true);
+    run_pass(m1);
 
     migraphx::module m2;
     {
@@ -5284,7 +5283,7 @@ TEST_CASE(gather_slice_concat_below_min_run_no_rewrite)
         m1.add_return({c});
     }
     auto m2 = m1;
-    run_pass(m1, true);
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 
@@ -5304,7 +5303,7 @@ TEST_CASE(gather_slice_concat_slice_axis_mismatch_no_rewrite)
         m1.add_return({c});
     }
     auto m2 = m1;
-    run_pass(m1, true);
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 
@@ -5322,7 +5321,7 @@ TEST_CASE(gather_slice_concat_concat_axis_mismatch_no_rewrite)
         m1.add_return({c});
     }
     auto m2 = m1;
-    run_pass(m1, true);
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 
@@ -5349,7 +5348,7 @@ TEST_CASE(gather_slice_concat_slice_width_gt_one_no_rewrite)
         m1.add_return({c});
     }
     auto m2 = m1;
-    run_pass(m1, true);
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 
@@ -5368,7 +5367,7 @@ TEST_CASE(gather_slice_concat_indices_1d_no_rewrite)
         m1.add_return({c});
     }
     auto m2 = m1;
-    run_pass(m1, true);
+    run_pass(m1);
     EXPECT(m1.sort() == m2.sort());
 }
 

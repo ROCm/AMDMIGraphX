@@ -23,8 +23,11 @@
  */
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/pack_args.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pmr/vector.hpp>
+#include <algorithm>
+#include <cstring>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -72,28 +75,101 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
+    if(not packed_kernargs.empty())
+    {
+        // Fast path: copy pre-packed buffer, patch pointer slots, launch.
+        // Back the buffer with a monotonic_buffer_resource so it lives on the
+        // stack when the payload fits, and falls back to heap allocation only
+        // when it doesn't.
+        auto sz = packed_kernargs.size();
 #if MIGRAPHX_HAS_PMR
-    std::array<char, 256> storage;
-    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
-    pmr::vector<void*> kargs(&resource);
+        alignas(8) std::array<char, 512> storage;
+        std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+        pmr::vector<char> buf(sz, &resource);
 #else
-    pmr::vector<void*> kargs;
+        pmr::vector<char> buf(sz);
 #endif
-    visit_flatten_args(args, [&](const auto& fargs) {
-        kargs.reserve(fargs.size());
-        std::transform(fargs.begin(),
-                       fargs.end(),
-                       std::back_inserter(kargs),
-                       [](const argument& a) { return a.data(); });
-    });
-    auto [start, stop] = ctx.get_perf_events();
-    k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+        std::copy(packed_kernargs.begin(), packed_kernargs.end(), buf.begin());
+
+        for(const auto& [arg_idx, byte_offset] : runtime_arg_offsets)
+        {
+            auto ptr           = reinterpret_cast<uint64_t>(args[arg_idx].data());
+            const auto* p_byte = reinterpret_cast<const char*>(&ptr);
+            std::copy(p_byte, p_byte + sizeof(uint64_t), buf.begin() + byte_offset);
+        }
+
+        auto [start, stop] = ctx.get_perf_events();
+        k.launch(ctx.get_stream().get(), global, local, buf.data(), sz, start, stop);
+    }
+    else
+    {
+#if MIGRAPHX_HAS_PMR
+        std::array<char, 256> storage;
+        std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+        pmr::vector<void*> kargs(&resource);
+#else
+        pmr::vector<void*> kargs;
+#endif
+        visit_flatten_args(args, [&](const auto& fargs) {
+            kargs.reserve(fargs.size());
+            std::transform(fargs.begin(),
+                           fargs.end(),
+                           std::back_inserter(kargs),
+                           [](const argument& a) { return a.data(); });
+        });
+        auto [start, stop] = ctx.get_perf_events();
+        k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
+    }
     return args[get_output_arg(args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
 {
     assert(not code_object.empty());
     k = kernel(code_object, symbol_name);
+
+    if(kernel_args.empty())
+        return;
+
+    // Represent each entry as a kernel_argument_value and let pack_args do
+    // the padding/insertion. Pointer slots become 8 zero bytes with align=8;
+    // their byte offsets are replayed below for compute()-time patching.
+    std::vector<kernel_argument_value> flat;
+    flat.reserve(kernel_args.size());
+    std::vector<bool> is_pointer;
+    is_pointer.reserve(kernel_args.size());
+
+    for(const auto& [idx, v] : kernel_args)
+    {
+        if(v.data.empty())
+        {
+            kernel_argument_value slot;
+            slot.align = 8;
+            slot.data.assign(8, 0);
+            flat.push_back(std::move(slot));
+            is_pointer.push_back(true);
+        }
+        else
+        {
+            flat.push_back(v);
+            is_pointer.push_back(false);
+        }
+    }
+
+    packed_kernargs = pack_args(flat);
+
+    // Replay the same alignment math pack_args uses to recover pointer-slot
+    // offsets in the packed buffer.
+    runtime_arg_offsets.clear();
+    std::size_t arg_counter = 0;
+    std::size_t pos         = 0;
+    for(std::size_t i = 0; i < flat.size(); ++i)
+    {
+        auto align = flat[i].align;
+        pos += (align - (pos % align)) % align;
+        if(is_pointer[i])
+            runtime_arg_offsets.emplace_back(arg_counter++, pos);
+        pos += flat[i].data.size();
+    }
 }
 
 } // namespace gpu

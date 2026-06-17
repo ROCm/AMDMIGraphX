@@ -1043,7 +1043,7 @@ std::vector<std::set<std::size_t>> shape::opt_lens() const { return impl->opt_le
 
 bool shape::dynamic_dimension::is_fixed() const
 {
-    if(sym_expr.is_literal())
+    if(sym_expr.name() == "literal")
         return true;
     auto i = this->get_interval();
     return i.min == i.max;

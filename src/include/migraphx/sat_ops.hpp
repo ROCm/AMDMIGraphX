@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,13 +24,56 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_SAT_OPS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_SAT_OPS_HPP
 
+#include <migraphx/config.hpp>
+#include <migraphx/requires.hpp>
 #include <type_traits>
 #include <limits>
 
-template <class T>
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
+constexpr T add_sat(T a, T b) noexcept
+{
+    T c = 0;
+    if(not __builtin_add_overflow(a, b, &c))
+    {
+        return c;
+    }
+    if constexpr(std::is_unsigned<T>{})
+    {
+        return std::numeric_limits<T>::max();
+    }
+    else if(b < 0)
+    {
+        return std::numeric_limits<T>::min();
+    }
+    return std::numeric_limits<T>::max();
+}
+
+template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
+constexpr T sub_sat(T a, T b) noexcept
+{
+    T c = 0;
+    if(not __builtin_sub_overflow(a, b, &c))
+    {
+        return c;
+    }
+    if constexpr(std::is_unsigned<T>{})
+    {
+        return (a < b) ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
+    }
+    else if(b < 0)
+    {
+        return std::numeric_limits<T>::max();
+    }
+    return std::numeric_limits<T>::min();
+}
+
+template <class T, MIGRAPHX_REQUIRES(std::is_integral<T>{})>
 constexpr T mul_sat(T a, T b) noexcept
 {
-    T c;
+    T c = 0;
     if(not __builtin_mul_overflow(a, b, &c))
     {
         return c;
@@ -45,5 +88,8 @@ constexpr T mul_sat(T a, T b) noexcept
     }
     return std::numeric_limits<T>::max();
 }
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
 #endif

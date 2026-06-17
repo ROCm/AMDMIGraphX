@@ -277,8 +277,8 @@ __device__ void nms_filter_per_block(const index idx,
     auto num_selected = block_sync_copy_index_if_n(
         NumBoxes,
         max_output,
-        [&](auto i){ return not removed[i]; },
-        [&](auto i, auto output_idx){
+        [&](auto i) { return not removed[i]; },
+        [&](auto i, auto output_idx) {
             if(idx.local == 0)
             {
                 // copy over box on thread 0
@@ -291,8 +291,7 @@ __device__ void nms_filter_per_block(const index idx,
                 auto j = start + ls;
                 removed[j] |= mask[nms_packed_idx(i, j, NumBoxes)];
             });
-        }
-    );
+        });
 
     if(idx.local == 0)
         bc_counts[block_id] = num_selected;

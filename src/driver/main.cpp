@@ -200,9 +200,9 @@ struct loader
     bool replace_literals       = false;
     bool brief                  = false;
     bool verbose                = false;
-    bool strip_context                  = false;
-    bool use_debug_symbols     = false;
-    bool keep_weights_external = false;
+    bool strip_context          = false;
+    bool use_debug_symbols      = false;
+    bool keep_weights_external  = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;

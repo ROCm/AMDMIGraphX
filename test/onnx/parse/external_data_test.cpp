@@ -73,8 +73,8 @@ TEST_CASE(replace_external_weights_test)
     static auto files{::onnx_files()};
     static std::string base_dir = read_weight_files(files);
 
-    auto baked =
-        migraphx::replace_onnx_external_weights(template_prog, base_dir, migraphx::make_target("ref"));
+    auto baked = migraphx::replace_onnx_external_weights(
+        template_prog, base_dir, migraphx::make_target("ref"));
 
     // Baked program should have no external_weight ops left.
     EXPECT(count_external_weights(baked) == 0);

@@ -123,9 +123,8 @@ const std::vector<std::string>& get_onnx_operators()
     return result;
 }
 
-program replace_onnx_external_weights(const program& prog,
-                                      const std::string& base_dir,
-                                      const target& t)
+program
+replace_onnx_external_weights(const program& prog, const std::string& base_dir, const target& t)
 {
     program result(prog);
 

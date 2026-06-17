@@ -790,12 +790,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("map_dyn_input_dims") =
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
-        py::arg("skip_unknown_operators")         = false,
-        py::arg("print_program_on_error")         = false,
-        py::arg("max_loop_iterations")            = 10,
-        py::arg("limit_max_iterations")           = std::numeric_limits<uint16_t>::max(),
-        py::arg("use_debug_symbols")        = false,
-        py::arg("keep_weights_external")    = false);
+        py::arg("skip_unknown_operators") = false,
+        py::arg("print_program_on_error") = false,
+        py::arg("max_loop_iterations")    = 10,
+        py::arg("limit_max_iterations")   = std::numeric_limits<uint16_t>::max(),
+        py::arg("use_debug_symbols")      = false,
+        py::arg("keep_weights_external")  = false);
 
     m.def(
         "parse_onnx_buffer",
@@ -829,11 +829,11 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("map_dyn_input_dims") =
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),
-        py::arg("skip_unknown_operators")         = false,
-        py::arg("print_program_on_error")         = false,
-        py::arg("external_data_path")             = "",
-        py::arg("use_debug_symbols")     = false,
-        py::arg("keep_weights_external") = false);
+        py::arg("skip_unknown_operators") = false,
+        py::arg("print_program_on_error") = false,
+        py::arg("external_data_path")     = "",
+        py::arg("use_debug_symbols")      = false,
+        py::arg("keep_weights_external")  = false);
 
     m.def("replace_external_weights",
           &migraphx::replace_onnx_external_weights,

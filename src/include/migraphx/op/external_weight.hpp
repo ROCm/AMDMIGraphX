@@ -50,8 +50,8 @@ struct external_weight
 {
     shape s;
     std::string location = "";
-    std::size_t offset    = 0;
-    std::size_t length    = 0;
+    std::size_t offset   = 0;
+    std::size_t length   = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

@@ -1858,31 +1858,16 @@ struct find_slice_squeeze
                     op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
         }
 
-        auto op = op_ins->get_operator();
-        if(find_op_shape_transform_op::is_reduce(op_ins))
-        {
-            auto v = op.to_value();
-            if(v.contains("axes"))
-            {
-                auto op_axes = v["axes"].to_vector<int64_t>();
+        // Unsqueezing the inputs shifts every axis at or after `axis` up by one.
+        // Build the source->common axes map and let find_op_shape_transform_op
+        // handle reduce/argmin/layout axis remapping (pointwise ops are inserted
+        // unchanged), instead of duplicating that logic here.
+        auto axis_sz = static_cast<std::size_t>(axis);
+        std::vector<std::vector<std::size_t>> axes_map(squeeze->get_shape().ndim());
+        for(std::size_t i = 0; i < axes_map.size(); ++i)
+            axes_map[i] = {i >= axis_sz ? i + 1 : i};
 
-                std::transform(op_axes.begin(),
-                               op_axes.end(),
-                               op_axes.begin(),
-                               [&](auto i) { return (i >= axis) ? i + 1 : i; });
-
-                v["axes"] = op_axes;
-                op = make_op(op_ins->name(), v);
-            }
-            else if(v.contains("axis"))
-            {
-                auto a = v["axis"].to<int64_t>();
-                v["axis"] = a >= axis ? a + 1 : a;
-                op = make_op(op_ins->name(), v);
-            }
-        }
-
-        auto new_op = m.insert_instruction(op_ins, op, inputs, op_ins->module_inputs());
+        auto new_op = find_op_shape_transform_op::insert(m, op_ins, inputs, axes_map);
         auto new_sq = m.insert_instruction(op_ins, squeeze->get_operator(), new_op);
         m.replace_instruction(op_ins, new_sq);
     }

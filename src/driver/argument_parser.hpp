@@ -25,8 +25,10 @@
 #define MIGRAPHX_GUARD_RTGLIB_ARGUMENT_PARSER_HPP
 
 #include <algorithm>
+#include <fstream>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <list>
 #include <optional>
 #include <set>
@@ -48,6 +50,9 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/rank.hpp>
+#include <migraphx/json.hpp>
+#include <migraphx/convert_to_json.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 namespace driver {
@@ -514,6 +519,19 @@ struct argument_parser
         actions.push_back([&](const auto& self) { x = self.exe_name; });
     }
 
+    // Register the generic `--json-config` option.
+    // Values passed on the command line take precedence over the config file.
+    void add_json_config_option()
+    {
+        (*this)(config_files,
+                {"--json-config"},
+                help("Set option values from a JSON config file. Each key is an option flag "
+                     "(with or without leading dashes) and its value sets that option. Boolean "
+                     "flags are toggled with true/false, list options take JSON arrays. Values "
+                     "passed on the command line take precedence. May be given multiple times."),
+                append());
+    }
+
     void print_try_help()
     {
         if(has_argument([](const auto& a) { return contains(a.flags, "--help"); }))
@@ -619,6 +637,8 @@ struct argument_parser
                 keywords[flag] = arg.nargs + 1;
         }
         auto arg_map = generic_parse(args, [&](const std::string& x) { return keywords[x]; });
+        if(arg_map.count("--json-config") > 0 and merge_json_config(arg_map, keywords))
+            return true;
         std::list<const argument*> missing_arguments;
         std::unordered_set<std::string> groups_used;
         for(auto&& arg : arguments)
@@ -706,6 +726,84 @@ struct argument_parser
     }
 
     private:
+    // Resolve a config key to a registered flag. Accepts the flag as written
+    // (e.g. "--fp16"), or the bare name without leading dashes (e.g. "fp16" or "n").
+    static std::string
+    resolve_config_flag(const std::string& key,
+                        const std::unordered_map<std::string, unsigned>& keywords)
+    {
+        if(keywords.count(key) > 0)
+            return key;
+        if(keywords.count("--" + key) > 0)
+            return "--" + key;
+        if(keywords.count("-" + key) > 0)
+            return "-" + key;
+        throw std::runtime_error("Unknown option in json config: '" + key + "'");
+    }
+
+    bool merge_json_config(string_map& arg_map,
+                           const std::unordered_map<std::string, unsigned>& keywords)
+    {
+        try
+        {
+            std::unordered_set<std::string> cli_flags;
+            for(auto&& p : arg_map)
+                cli_flags.insert(p.first);
+            for(const auto& file : arg_map.at("--json-config"))
+            {
+                std::ifstream is(file);
+                if(not is)
+                    throw std::runtime_error("Unable to open json config file: " + file);
+                std::string contents((std::istreambuf_iterator<char>(is)),
+                                     std::istreambuf_iterator<char>());
+                auto v = from_json_string(convert_to_json(contents));
+                if(not v.is_object())
+                    throw std::runtime_error("JSON config in '" + file +
+                                             "' must be a top-level object.");
+                for(const auto& item : v)
+                {
+                    auto flag = resolve_config_flag(item.get_key(), keywords);
+                    // Command line takes precedence over the config file.
+                    if(cli_flags.count(flag) > 0)
+                        continue;
+                    if(item.is_null())
+                        throw std::runtime_error("Null value for '" + item.get_key() +
+                                                 "' in json config is not supported.");
+                    if(item.is_bool())
+                    {
+                        if(item.to<bool>())
+                            arg_map[flag] = {};
+                        else
+                            arg_map.erase(flag);
+                    }
+                    else if(item.is_array())
+                    {
+                        std::vector<std::string> params;
+                        std::transform(item.begin(),
+                                       item.end(),
+                                       std::back_inserter(params),
+                                       [](const auto& e) { return e.template to<std::string>(); });
+                        arg_map[flag] = params;
+                    }
+                    else
+                    {
+                        arg_map[flag] = {item.to<std::string>()};
+                    }
+                }
+            }
+            return false;
+        }
+        catch(const std::exception& e)
+        {
+            std::cout << color::fg_red << color::bold << "error: " << color::reset;
+            std::cout << "Failed to apply --json-config: " << e.what() << std::endl;
+            std::cout << std::endl;
+            print_try_help();
+            return true;
+        }
+    }
+
+    std::vector<std::string> config_files;
     std::list<argument> arguments;
     std::string exe_name = "";
     std::vector<std::function<void(argument_parser&)>> actions;

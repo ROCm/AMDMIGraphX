@@ -25,8 +25,8 @@
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/gpu/pack_args.hpp>
+#include <algorithm>
 #include <cassert>
-#include <cstring>
 
 #ifdef _WIN32
 #include <hip/hip_ext.h>
@@ -141,8 +141,9 @@ unpack_kernel_config(void** extra, const std::map<std::size_t, kernel_argument_v
     auto read_pointer = [&](std::size_t off) {
         if(off + sizeof(char*) > buffer.size())
             return;
-        char* p = nullptr;
-        std::memcpy(&p, buffer.data() + off, sizeof(char*));
+        char* p          = nullptr;
+        const auto* word = buffer.data() + off;
+        std::copy(word, word + sizeof(char*), reinterpret_cast<char*>(&p));
         pointers.emplace_back(off, p);
     };
     if(kernel_args.empty())

@@ -164,9 +164,11 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     // tracks only these to decide when to re-bind the captured graph; an empty
     // list means the graph is bound to stable buffers and is just replayed.
     std::vector<std::size_t> replace_inputs;
-    for(std::size_t i = 0; i < inputs.size(); ++i)
-        if(is_param_input(inputs[i]))
-            replace_inputs.push_back(i);
+    auto indices = range(inputs.size());
+    std::copy_if(indices.begin(),
+                 indices.end(),
+                 std::back_inserter(replace_inputs),
+                 [&](std::size_t i) { return is_param_input(inputs[i]); });
 
     // The captured outputs alias the kept output buffers, which are inputs to the
     // hip::graph op.

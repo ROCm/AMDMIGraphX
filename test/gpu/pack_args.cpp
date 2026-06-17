@@ -24,8 +24,8 @@
 #include <test.hpp>
 #include <migraphx/gpu/pack_args.hpp>
 #include <migraphx/gpu/kernel.hpp>
+#include <algorithm>
 #include <cstdint>
-#include <cstring>
 #include <map>
 
 template <class T>
@@ -68,9 +68,10 @@ TEST_CASE(alignment_padding)
 }
 
 // Store a pointer value into a kernarg buffer at a byte offset.
-static void put_pointer(std::vector<char>& buf, std::size_t off, char* p)
+static void put_pointer(std::vector<char>& buf, std::size_t off, const char* p)
 {
-    std::memcpy(buf.data() + off, &p, sizeof(char*));
+    const auto* bytes = reinterpret_cast<const char*>(&p);
+    std::copy(bytes, bytes + sizeof(char*), buf.data() + off);
 }
 
 // unpack_kernel_config with a kernel_args layout must return the offset and value

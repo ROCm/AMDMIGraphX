@@ -36,11 +36,11 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/transform_view.hpp>
 #include <migraphx/register_op.hpp>
 #include <hip/hip_runtime_api.h>
 #include <algorithm>
 #include <cassert>
-#include <cstring>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -82,16 +82,6 @@ static std::vector<const void*> leaf_ptrs(const std::vector<argument>& leaves)
     return ptrs;
 }
 
-// The byte size of each leaf argument's buffer.
-static std::vector<std::size_t> leaf_sizes(const std::vector<argument>& leaves)
-{
-    std::vector<std::size_t> sizes;
-    std::transform(leaves.begin(), leaves.end(), std::back_inserter(sizes), [](const argument& a) {
-        return a.get_shape().bytes();
-    });
-    return sizes;
-}
-
 // True when `consumer` passes the buffer of its input `input` straight through
 // (a view op such as reshape/slice/load), so the parameter's address continues
 // to flow to the consumer's own outputs.
@@ -101,7 +91,7 @@ static bool aliases_input(instruction_ref consumer, instruction_ref input)
 }
 
 // Bind the submodule's parameters (in order) to the op's input arguments.
-static std::unordered_map<std::string, argument> create_params(module_ref sub,
+static std::unordered_map<std::string, argument> create_params(const_module_ref sub,
                                                                const std::vector<argument>& args)
 {
     auto param_names = sub->get_parameter_names();
@@ -212,21 +202,21 @@ struct graph_node_patch
     std::vector<graph_slot_patch> slots{};
 
     // Record a slot at byte offset `off` when the pointer `p` falls inside one of
-    // the movable input leaves (leaf i spans in_ptrs[i] .. in_ptrs[i]+in_sizes[i]).
-    void record_slot(std::size_t off,
-                     const char* p,
-                     const std::vector<const void*>& in_ptrs,
-                     const std::vector<std::size_t>& in_sizes)
+    // the movable input leaves, viewing each leaf as its [begin, end) byte range.
+    void record_slot(std::size_t off, const char* p, const std::vector<argument>& leaves)
     {
-        auto indices = range(in_ptrs.size());
-        auto it      = std::find_if(indices.begin(), indices.end(), [&](auto i) {
-            const auto* base = static_cast<const char*>(in_ptrs[i]);
-            return p >= base and p < base + in_sizes[i];
+        auto bounds = views::transform(leaves, [](const argument& leaf) {
+            const auto* base = static_cast<const char*>(leaf.data());
+            return std::make_pair(base, base + leaf.get_shape().bytes());
         });
-        if(it == indices.end())
+        auto it     = std::find_if(bounds.begin(), bounds.end(), [&](const auto& bound) {
+            return p >= bound.first and p < bound.second;
+        });
+        if(it == bounds.end())
             return;
-        const auto* base = static_cast<const char*>(in_ptrs[*it]);
-        slots.push_back({off, static_cast<std::size_t>(*it), static_cast<std::size_t>(p - base)});
+        slots.push_back({off,
+                         static_cast<std::size_t>(std::distance(bounds.begin(), it)),
+                         static_cast<std::size_t>(p - (*it).first)});
     }
 };
 
@@ -343,17 +333,15 @@ struct hip_graph_op
                     const auto& cop = any_cast<code_object_op>(consumer->get_operator());
                     out.emplace(cop.k.get_function(), &cop.kernel_args);
                 }
-                else if(starts_with(consumer->name(), "@"))
-                {
-                    // A builtin (e.g. @return) issues no device work.
-                }
                 else if(aliases_input(consumer, ins))
                 {
                     // A view passes the buffer through; keep following it.
                     self(consumer);
                 }
-                else
+                else if(not starts_with(consumer->name(), "@"))
                 {
+                    // A non-code-object, non-view consumer (a library kernel) we
+                    // cannot interpret; a builtin (e.g. @return) is skipped.
                     patchable = false;
                 }
             }
@@ -369,11 +357,9 @@ struct hip_graph_op
     // Nodes that consume no movable parameter are left alone. Returns false (re-
     // bind by re-recording) when a parameter is consumed by a kernel we cannot
     // patch -- a library gemm/conv (see collect_param_code_objects).
-    bool build_patch_plan(const std::vector<argument>& args, module_ref sub) const
+    bool build_patch_plan(const std::vector<argument>& args, const_module_ref sub) const
     {
-        auto leaves   = movable_leaves(args);
-        auto in_ptrs  = leaf_ptrs(leaves);
-        auto in_sizes = leaf_sizes(leaves);
+        auto leaves = movable_leaves(args);
 
         // The code-object kernels consuming a movable parameter, keyed by their
         // function handle so a captured node can be matched back to one.
@@ -401,7 +387,7 @@ struct hip_graph_op
             graph_node_patch np;
             np.node = node;
             for(const auto& [off, p] : unpack_kernel_config(params.extra, *cobj->second))
-                np.record_slot(off, p, in_ptrs, in_sizes);
+                np.record_slot(off, p, leaves);
             if(not np.slots.empty())
                 patches.push_back(std::move(np));
         }
@@ -428,7 +414,8 @@ struct hip_graph_op
                 assert(slot.leaf < current_ptrs.size());
                 assert(slot.offset + sizeof(char*) <= buf.size());
                 const char* p = static_cast<const char*>(current_ptrs[slot.leaf]) + slot.ptr_offset;
-                std::memcpy(buf.data() + slot.offset, &p, sizeof(char*));
+                const auto* bytes = reinterpret_cast<const char*>(&p);
+                std::copy(bytes, bytes + sizeof(char*), buf.data() + slot.offset);
             }
             std::size_t bytes   = buf.size();
             auto extra          = pack_kernel_config(buf.data(), &bytes);

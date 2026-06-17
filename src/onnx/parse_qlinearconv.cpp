@@ -245,11 +245,11 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
                 migraphx::make_op("multibroadcast", {{"out_lens", in_b->get_shape().lens()}}),
                 bias_scale);
 
+            auto dquant_bias = auto bias_scale = info.add_common_op("mul", in_scale_x, in_scale_w);
+            value options                      = {{"axis", 0}};
             auto dquant_bias =
-auto bias_scale = info.add_common_op("mul", in_scale_x, in_scale_w);
-value options = {{"axis", 0}};
-auto dquant_bias = op::builder::add("dequantizelinear", *info.mod, {in_b, bias_scale}, options).at(0);
-conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
+                op::builder::add("dequantizelinear", *info.mod, {in_b, bias_scale}, options).at(0);
+            conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
 
             conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
         }

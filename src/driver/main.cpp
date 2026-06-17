@@ -730,8 +730,6 @@ struct compiler_target
                    "--gpu-arch, --gpu-num-cus and --gpu-num-chiplets for any keys present."));
     }
 
-    // Maps the friendly --gpu-arch-params JSON keys to the gpu target's reflected
-    // option names.
     static const std::unordered_map<std::string, std::string>& gpu_arch_param_keys()
     {
         static const std::unordered_map<std::string, std::string> key_map = {
@@ -761,7 +759,6 @@ struct compiler_target
                     auto it = key_map.find(param.get_key());
                     if(it == key_map.end())
                         MIGRAPHX_THROW("Unknown --gpu-arch-params key: " + param.get_key());
-                    // gpu_arch is a string; the remaining device properties are integers.
                     if(it->second == "gpu_arch")
                         opts[it->second] = param.without_key().to<std::string>();
                     else

@@ -274,7 +274,7 @@ __device__ void nms_filter_per_block(const index idx,
         NumBoxes, [&](auto i) { removed[i] = (do_score_filter and sorted_scores[i] < score_thr); });
     __syncthreads();
     // sequential per-block greedy filter to match greedy NMS algorithm
-    auto num_selected = seq_copy_index_if_limit(
+    auto num_selected = block_sync_copy_index_if_n(
         NumBoxes,
         max_output,
         [&](auto i){ return not removed[i]; },

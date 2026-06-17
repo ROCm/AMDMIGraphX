@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/onnx/checks.hpp>
 #include <migraphx/onnx/broadcast_qdq.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/stringutils.hpp>
 
@@ -232,24 +233,14 @@ struct parse_qlinearconv : op_parser<parse_qlinearconv>
         {
             const auto& in_b = args[8];
 
-            auto bcast_scale_x = info.add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", in_scale_w->get_shape().lens()}}),
-                in_scale_x);
+            // the bias scale is x_scale * w_scale
+            auto bias_scale = info.add_common_op("mul", in_scale_x, in_scale_w);
 
-            auto bias_scale =
-                info.add_instruction(migraphx::make_op("mul"), bcast_scale_x, in_scale_w);
-
-            // dequantizelinear requires the scale to match the bias dims. Broadcast handles
-            // per-tensor weight scale (scalar), it is a no-op for per-axis weight scale
-            auto bcast_bias_scale = info.add_instruction(
-                migraphx::make_op("multibroadcast", {{"out_lens", in_b->get_shape().lens()}}),
-                bias_scale);
-
-            auto dquant_bias = auto bias_scale = info.add_common_op("mul", in_scale_x, in_scale_w);
-            value options                      = {{"axis", 0}};
+            // dequantize the bias through the op builder so the scale is broadcast to the
+            // bias shape (handles both per-tensor and per-axis weight scales)
+            value options = {{"axis", 0}};
             auto dquant_bias =
                 op::builder::add("dequantizelinear", *info.mod, {in_b, bias_scale}, options).at(0);
-            conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
 
             conv_x_w = add_bias_to_conv(dquant_bias, conv_x_w, info);
         }

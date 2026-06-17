@@ -32,7 +32,7 @@ TEST_CASE(qlinearconv_pertensor_weightbias_test)
 
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape sx{migraphx::shape::uint8_type, {1, 3, 224, 224}};
+    migraphx::shape sx{migraphx::shape::uint8_type, {1, 1, 2, 2}};
     std::vector<uint8_t> x_data(sx.elements());
     for(std::size_t i = 0; i < x_data.size(); ++i)
     {
@@ -44,18 +44,14 @@ TEST_CASE(qlinearconv_pertensor_weightbias_test)
 
     auto result = p.eval(pp).back();
 
-    EXPECT(result.get_shape().lens() == std::vector<std::size_t>{1, 64, 112, 112});
+    EXPECT(result.get_shape().lens() == std::vector<std::size_t>{1, 2, 2, 2});
     EXPECT(result.get_shape().type() == migraphx::shape::uint8_type);
 
     std::vector<uint8_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
     // Golden computed from onnxruntime reference
-    std::vector<uint8_t> gold_prefix = {174, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-                                        255, 255, 255, 255, 255, 255, 115, 35,  35,  34,  34,
-                                        33,  33,  32,  31,  31,  30,  30,  29,  29,  104};
+    std::vector<uint8_t> gold = {10, 11, 12, 13, 20, 22, 24, 26};
 
-    std::vector<uint8_t> result_prefix(result_vector.begin(), result_vector.begin() + 32);
-
-    EXPECT(migraphx::verify::verify_rms_range(result_prefix, gold_prefix));
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

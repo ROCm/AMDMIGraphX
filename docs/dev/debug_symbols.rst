@@ -201,6 +201,7 @@ instructions to ``@15``: ``(@13, @7, @4, @14)``.
   ``Convolution110, Parameter87``. ``Parameter87`` is the initializer name for
   the weights tensor of ``Convolution110``.
 
+
 Symbol propagation across instructions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -208,6 +209,52 @@ Because compiler passes propagate debug symbols, replaced instructions inherit
 the symbols of the instructions they replace. A single parsed ONNX symbol can
 therefore end up attached to multiple compiled instructions — for example,
 ``Convolution110`` appears in several places in the listing above.
+
+Here is another example with horizontal function of two GEMM operations.
+
+Before horizontal fusion:
+.. code-block:: text
+    @0 = @literal{ ... } -> int32_type, {3, 2, 2}, {4, 2, 1}
+    @1 = @literal{ ... } -> int32_type, {3, 2, 2}, {4, 2, 1}
+    input = @param:input -> int32_type, {3, 2, 2}, {4, 2, 1}
+    @3 = concat[axis=2](@1,@0) -> int32_type, {3, 2, 4}, {8, 4, 1}
+    @4 = dot(input,@3) -> int32_type, {3, 2, 4}, {8, 4, 1}
+    @5 = dot(input,@1) -> int32_type, {3, 2, 2}, {4, 2, 1} # gemm1
+    @6 = dot(input,@0) -> int32_type, {3, 2, 2}, {4, 2, 1} # gemm2
+    @7 = add(@5,@6) -> int32_type, {3, 2, 2}, {4, 2, 1} # sum
+    @8 = @return(@7)
+
+After horizontal fusion:
+.. code-block:: text
+    @0 = @literal{ ... } -> int32_type, {3, 2, 2}, {4, 2, 1}
+    @1 = @literal{ ... } -> int32_type, {3, 2, 2}, {4, 2, 1}
+    input = @param:input -> int32_type, {3, 2, 2}, {4, 2, 1}
+    @3 = concat[axis=2](@1,@0) -> int32_type, {3, 2, 4}, {8, 4, 1} # gemm1, gemm2
+    @4 = dot(input,@3) -> int32_type, {3, 2, 4}, {8, 4, 1} # gemm1, gemm2
+    @5 = slice[axes={2},starts={0},ends={2}](@4) -> int32_type, {3, 2, 2}, {8, 4, 1} # gemm1, gemm2
+    @6 = slice[axes={2},starts={2},ends={4}](@4) -> int32_type, {3, 2, 2}, {8, 4, 1} # gemm1, gemm2
+    @7 = add(@5,@6) -> int32_type, {3, 2, 2}, {4, 2, 1} # sum
+    @8 = @return(@7)
+
+The IR after the horizontal fusion shows that the new `concat`, `dot`, and `slice` instructions all have the debug symbols `gemm1, gemm2`.
+Showing that both original `dot` instructions were fused together.
+
+
+Graphical analysis with Netron
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+MIGraphX has a feature to output an ONNX-like protobuf file that can be read by the `Netron <netron.app>` tool.
+You can create the file using the `migraphx-driver` with the driver options `--debug-symbols', `--netron` and `--output`:
+
+.. code-block:: text
+    migraphx-driver compile mnist-8.onnx --netron --debug-symbols --output mnist8_netron.onnx
+
+Using Netron to open the file allows for an interactive way to explore the compiled IR:
+ 
+.. image:: ../data/mnist8_netron_debug_symbols.png
+   :scale: 100%
+   :alt: mnist-8 model compiled with debug symbols enabled opened with Netron
+   :name: mnist-ds-label
 
 Limitations
 -----------

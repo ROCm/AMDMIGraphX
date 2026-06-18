@@ -47,7 +47,7 @@ void test_strlen_empty_string_check(const char* str)
 void test_strlen_negated_condition(const char* str)
 {
     // cppcheck-suppress StrlenEmptyString
-    // cppcheck-suppress UseNamedLogicOperator
+    // cppcheck-suppress migraphx-UseNamedLogicOperator
     if(!strlen(str))
     {
         (void)0; // String is empty

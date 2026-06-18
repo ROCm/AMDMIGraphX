@@ -247,6 +247,36 @@ def argmin_select_last_index_test():
 
 
 @onnx_test()
+def array_feature_extractor_2d_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [3, 4])
+    y = helper.make_tensor_value_info('Y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('Z', TensorProto.FLOAT, [3, 2])
+
+    node = onnx.helper.make_node(
+        'ArrayFeatureExtractor',
+        inputs=['X', 'Y'],
+        outputs=['Z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
+def array_feature_extractor_3d_test():
+    x = helper.make_tensor_value_info('X', TensorProto.FLOAT, [2, 3, 4])
+    y = helper.make_tensor_value_info('Y', TensorProto.INT64, [2])
+    z = helper.make_tensor_value_info('Z', TensorProto.FLOAT, [2, 3, 2])
+
+    node = onnx.helper.make_node(
+        'ArrayFeatureExtractor',
+        inputs=['X', 'Y'],
+        outputs=['Z'],
+    )
+
+    return ([node], [x, y], [z])
+
+
+@onnx_test()
 def asin_test():
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [10])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [10])
@@ -8954,6 +8984,287 @@ def matmul_vv_test():
     return ([node], [m1, m2], [y])
 
 
+def _make_fused_matmul_node(attrs):
+    node = onnx.helper.make_node('FusedMatMul',
+                                 inputs=['1', '2'],
+                                 outputs=['y'],
+                                 domain='com.microsoft')
+    for name, value in attrs.items():
+        node.attribute.append(onnx.helper.make_attribute(name, value))
+    return node
+
+
+@onnx_test()
+def fused_matmul_2d_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6, 8])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_trans_a_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7, 6])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6, 8])
+
+    node = _make_fused_matmul_node({'transA': 1})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_trans_b_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [8, 7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6, 8])
+
+    node = _make_fused_matmul_node({'transB': 1})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_trans_ab_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7, 6])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [8, 7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6, 8])
+
+    node = _make_fused_matmul_node({'transA': 1, 'transB': 1})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_alpha_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6, 8])
+
+    node = _make_fused_matmul_node({'alpha': 0.75})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_batch_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 6, 8])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_trans_batch_a_test():
+    # A: [M=6, b0=3, K=7] -> after transBatchA: [3, 6, 7]
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [6, 3, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 6, 8])
+
+    node = _make_fused_matmul_node({'transBatchA': 1})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_trans_batch_b_test():
+    # B: [K=7, b0=3, N=8] -> after transBatchB: [3, 7, 8]
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, 3, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 6, 8])
+
+    node = _make_fused_matmul_node({'transBatchB': 1})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_trans_batch_a_trans_b_test():
+    # Rank-4 combo: A = [2, 3, 4, 7], transBatchA permutes to [3, 4, 2, 7].
+    # B = [3, 4, 8, 7]; transB swaps last two to [3, 4, 7, 8]. Result: [3, 4, 2, 8].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [3, 4, 8, 7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 4, 2, 8])
+
+    node = _make_fused_matmul_node({'transBatchA': 1, 'transB': 1})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_fp16_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT16, [6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT16, [7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT16, [6, 8])
+
+    node = _make_fused_matmul_node({'alpha': 0.5})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_bf16_test():
+    m1 = helper.make_tensor_value_info('1', TensorProto.BFLOAT16, [6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.BFLOAT16, [7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.BFLOAT16, [6, 8])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_trans_batch_rank_error_test():
+    # rank 2 inputs with transBatchA=1 must fail to parse.
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6, 8])
+
+    node = _make_fused_matmul_node({'transBatchA': 1})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_verify_test():
+    # Matches fused_matmul_trans_b_alpha numerical verify test: A [2,3,4], B [2,5,4], transB=1,
+    # alpha=0.5, expected out shape [2, 3, 5].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 5, 4])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 5])
+
+    node = _make_fused_matmul_node({'transB': 1, 'alpha': 0.5})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_vm_test():
+    # 1-D A promoted via prepend: [7] -> [1, 7] @ [7, 8] -> [1, 8] -> squeeze -> [8].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, 8])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [8])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_mv_test():
+    # 1-D B promoted via append: [6, 7] @ [7] -> [6, 7] @ [7, 1] -> [6, 1] -> squeeze -> [6].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [6])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_vv_test():
+    # Both 1-D: [7] @ [7] -> [1, 7] @ [7, 1] -> [1, 1] -> squeeze -> [1] (scalar inner product).
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [1])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_bmv_test():
+    # Batched matrix * vector: [3, 6, 7] @ [7] -> [3, 6].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 6, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 6])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_bcast_test():
+    # Batch broadcasting (rank mismatch): [2, 3, 4] @ [4, 5] -> [2, 3, 5].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [2, 3, 4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 5])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_bcast_alpha_test():
+    # Batch broadcasting combined with alpha: [1, 3, 4] @ [2, 4, 5] -> [2, 3, 5], alpha=0.25.
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 5])
+
+    node = _make_fused_matmul_node({'alpha': 0.25})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_dyn_test():
+    # Dynamic shapes should be accepted now that the parser no longer rejects them.
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 7])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [7, None])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [None, None])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_vm_verify_test():
+    # 1-D A (len 4) * 2-D B [4, 5] -> 1-D output [5] with alpha=1.
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [5])
+
+    node = _make_fused_matmul_node({})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_trans_batch_a_verify_test():
+    # A [d0=3, b0=2, K=4], transBatchA permutes A to [2, 3, 4].
+    # B [2, 4, 5]. Result: [2, 3, 5].
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 5])
+
+    node = _make_fused_matmul_node({'transBatchA': 1})
+
+    return ([node], [m1, m2], [y])
+
+
+@onnx_test()
+def fused_matmul_bcast_verify_test():
+    # Batch broadcast combined with alpha: [1, 3, 4] @ [2, 4, 5] -> [2, 3, 5], alpha=0.25.
+    m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 4])
+    m2 = helper.make_tensor_value_info('2', TensorProto.FLOAT, [2, 4, 5])
+    y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [2, 3, 5])
+
+    node = _make_fused_matmul_node({'alpha': 0.25})
+
+    return ([node], [m1, m2], [y])
+
+
 @onnx_test()
 def matmul_dyn_mm_test():
     m1 = helper.make_tensor_value_info('1', TensorProto.FLOAT, [None, 7])
@@ -11338,6 +11649,20 @@ def nonzero_int_test():
 
 
 @onnx_test()
+def nonzero_large_test():
+    rows, cols = 32, 32
+    x = helper.make_tensor_value_info('data', TensorProto.BOOL, [rows, cols])
+    y = helper.make_tensor_value_info('indices', TensorProto.INT64,
+                                      [2, rows * cols])
+
+    node = onnx.helper.make_node('NonZero',
+                                 inputs=['data'],
+                                 outputs=['indices'])
+
+    return ([node], [x], [y])
+
+
+@onnx_test()
 def onehot_static_test():
     axis_value = 0
     depth = np.array([3])
@@ -12448,6 +12773,33 @@ def qlinearconv_perchannel_weightbias_test():
         kernel_shape=[7, 7],
         pads=[3, 3, 3, 3],
         strides=[2, 2],
+    )
+    return ([node], [x], [out],
+            [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y, bias])
+
+
+@onnx_test()
+def qlinearconv_pertensor_weightbias_test():
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 2, 2])
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.5])
+    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.UINT8, [], [0])
+
+    wt = helper.make_tensor('W', TensorProto.UINT8, [2, 1, 1, 1], [1, 2])
+    sc_wt = helper.make_tensor('W_scale', TensorProto.FLOAT, [], [0.25])
+    zero_pt_wt = helper.make_tensor('W_zero_point', TensorProto.UINT8, [], [0])
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.125])
+    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [], [0])
+
+    bias = helper.make_tensor('B', TensorProto.INT32, [2], [10, 20])
+
+    out = helper.make_tensor_value_info('Y', TensorProto.UINT8, [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'QLinearConv',
+        inputs=['X', 'X_scale', 'X_zero_point', 'W', 'W_scale', 'W_zero_point',
+                'Y_scale', 'Y_zero_point', 'B'],
+        outputs=['Y'],
     )
     return ([node], [x], [out],
             [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y, bias])
@@ -14248,6 +14600,9 @@ def resize_upsample_pc_test():
 
 @onnx_test()
 def resize_aspect_ratio_err_test():
+    # The 'stretch' policy is now accepted as a no-op (matches pre-Resize-18
+    # semantics already implemented). This negative test exercises a policy
+    # value that is still unsupported.
     sizes = np.array([1, 1, 3, 5], dtype=np.int64)
     size_tensor = helper.make_tensor(name='sizes',
                                       data_type=TensorProto.INT64,
@@ -14262,8 +14617,32 @@ def resize_aspect_ratio_err_test():
                                  outputs=['Y'],
                                  coordinate_transformation_mode='asymmetric',
                                  mode='nearest',
-                                 keep_aspect_ratio_policy='stretch',
+                                 keep_aspect_ratio_policy='not_larger',
                                  nearest_mode='ceil')
+
+    return ([node], [X], [Y], [size_tensor])
+
+
+@onnx_test()
+def resize_aspect_ratio_stretch_test():
+    # 'stretch' is the Resize-18 default and matches pre-18 per-axis semantics.
+    # ORT injects it for opset-18 exports, so the parser must accept it as a no-op.
+    sizes = np.array([1, 1, 4, 8], dtype=np.int64)
+    size_tensor = helper.make_tensor(name='sizes',
+                                     data_type=TensorProto.INT64,
+                                     dims=sizes.shape,
+                                     vals=sizes.flatten().astype(np.int64))
+
+    X = helper.make_tensor_value_info('X', TensorProto.FLOAT, [1, 1, 2, 4])
+    Y = helper.make_tensor_value_info('Y', TensorProto.FLOAT, [1, 1, 4, 8])
+
+    node = onnx.helper.make_node('Resize',
+                                 inputs=['X', '', '', 'sizes'],
+                                 outputs=['Y'],
+                                 coordinate_transformation_mode='asymmetric',
+                                 mode='nearest',
+                                 keep_aspect_ratio_policy='stretch',
+                                 nearest_mode='floor')
 
     return ([node], [X], [Y], [size_tensor])
 
@@ -15208,6 +15587,36 @@ def scatternd_dyn_test():
                                  outputs=['output'])
 
     return ([node], [data, indices, updates], [output])
+
+
+@onnx_test()
+def scatternd_nonpacked_indices_test():
+    n = 16
+
+    data = helper.make_tensor_value_info('data', TensorProto.FLOAT, [1, n])
+    updates = helper.make_tensor_value_info('updates', TensorProto.FLOAT,
+                                            [n])
+    output = helper.make_tensor_value_info('output', TensorProto.FLOAT,
+                                           [1, n])
+
+    raw_indices = np.zeros((2, n), dtype=np.int64)
+    raw_indices[1, :] = np.arange(n - 1, -1, -1, dtype=np.int64)
+    raw_indices_init = helper.make_tensor(name='raw_indices',
+                                          data_type=TensorProto.INT64,
+                                          dims=raw_indices.shape,
+                                          vals=raw_indices.flatten())
+
+    transpose_node = onnx.helper.make_node('Transpose',
+                                           inputs=['raw_indices'],
+                                           outputs=['indices'],
+                                           perm=[1, 0])
+    scatter_node = onnx.helper.make_node(
+        'ScatterND',
+        inputs=['data', 'indices', 'updates'],
+        outputs=['output'])
+
+    return ([transpose_node, scatter_node], [data, updates], [output],
+            [raw_indices_init])
 
 
 @onnx_test()
@@ -18728,7 +19137,6 @@ def where_dyn_test():
 
 @onnx_test()
 def where_mixed_test():
-    # mixture of static and dynamic input shapes is not supported
     c = helper.make_tensor_value_info('c', TensorProto.BOOL, [None, 2, 2])
     x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [None, 2, 2])
     y = helper.make_tensor_value_info('y', TensorProto.FLOAT, [3, 2, 2])

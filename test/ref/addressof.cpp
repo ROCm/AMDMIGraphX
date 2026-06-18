@@ -82,9 +82,9 @@ TEST_CASE(addressof_half_test)
     result.visit([&](auto output) { addresses.assign(output.begin(), output.end()); });
 
     // For half type, addresses should be 2 bytes apart
-    for(std::size_t i = 0; i < addresses.size(); ++i)
+    for(const auto& addr : addresses)
     {
-        EXPECT(addresses[i] != 0);
+        EXPECT(addr != 0);
     }
 }
 

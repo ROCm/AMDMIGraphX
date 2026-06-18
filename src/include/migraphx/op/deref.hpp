@@ -60,6 +60,8 @@ struct deref : unary<deref>
         template <class T>
         operator T()
         {
+            // deref intentionally treats the integer input as a raw pointer address
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             return *reinterpret_cast<T*>(x);
         }
     };

@@ -157,7 +157,7 @@ TEST_CASE(deref_noncontiguous_pointers_test)
 
     // Create pointer values pointing to non-contiguous elements (every other element)
     std::vector<std::size_t> ptr_data(4);
-    ptr_data[0] = reinterpret_cast<std::size_t>(&source_data[0]);
+    ptr_data[0] = reinterpret_cast<std::size_t>(source_data.data());
     ptr_data[1] = reinterpret_cast<std::size_t>(&source_data[2]);
     ptr_data[2] = reinterpret_cast<std::size_t>(&source_data[4]);
     ptr_data[3] = reinterpret_cast<std::size_t>(&source_data[6]);

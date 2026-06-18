@@ -1602,8 +1602,8 @@ static bool literal_is_fill(const literal& lit, double fill_value)
 {
     bool is_fill = false;
     lit.visit([&](auto v) {
-        is_fill = std::all_of(
-            v.begin() + 1, v.end(), [&](auto x) { return float_equal(x, fill_value); });
+        is_fill =
+            std::all_of(v.begin() + 1, v.end(), [&](auto x) { return float_equal(x, fill_value); });
     });
     return is_fill;
 }

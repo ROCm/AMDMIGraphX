@@ -45,7 +45,7 @@ std::function<void()>& auto_print::get_handler(const std::string& name)
 {
     // NOLINTNEXTLINE
     static handler_map handlers = create_handlers();
-    return handlers.at(name);
+    return handlers[name];
 }
 
 void auto_print::set_terminate_handler(const std::string& name)

@@ -52,6 +52,17 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
 
+int compute_benchmark_bundle(const module& m)
+{
+    // Count context-requiring ops (kernel + prefills); skip context-free and @-builtins.
+    auto n = std::count_if(m.begin(), m.end(), [](const auto& ins) {
+        return not migraphx::is_context_free(ins.get_operator()) and
+               not starts_with(ins.name(), "@");
+    });
+    // Single op is timed accurately at bundle=1, saving compile time.
+    return (n <= 1) ? 1 : static_cast<int>(4 * n - 2);
+}
+
 struct precompile_op
 {
     operation op                      = op::identity{};
@@ -444,10 +455,11 @@ struct compile_plan
                            auto bench_prog = cr->make_program();
                            if(trace_level > 2)
                                std::cout << bench_prog << std::endl;
+                           auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
                            auto t = time_program(*ctx,
                                                  std::move(bench_prog),
                                                  cr->replace.fill_map,
-                                                 /* bundle */ 10,
+                                                 bundle,
                                                  /* nrun */ 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;

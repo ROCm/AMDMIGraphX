@@ -46,7 +46,11 @@ struct convert : unary<convert>
     {
         check_shapes{inputs, *this, true}.has(1);
         const auto& input = inputs.at(0);
-        if(input.dynamic())
+        if(input.symbolic())
+        {
+            return {target_type, input.dyn_dims(), input.dyn_strides()};
+        }
+        else if(input.dynamic())
         {
             return {target_type, input.dyn_dims()};
         }

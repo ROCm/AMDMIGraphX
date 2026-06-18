@@ -28,12 +28,12 @@
 #include <migraphx/config.hpp>
 #include <migraphx/optional.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/dim_like.hpp>
+#include <string>
 #include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct shape;
 
 struct reshape_dims_options
 {
@@ -43,6 +43,15 @@ struct reshape_dims_options
 // nullopt when the layout can't be proven; the caller falls back to standard.
 MIGRAPHX_EXPORT optional<shape>
 reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_dims_options options);
+
+// Resolve reshape `dims` entries against a symbolic input: 0 copies the input dim,
+// -1 is inferred as the leftover element count, literals/symbols are taken as-is.
+MIGRAPHX_EXPORT std::vector<shape::dynamic_dimension>
+resolve_reshape_dims(const shape& sym_in, const std::vector<dim_like>& dims);
+
+// Throws if `dims` holds a range-based dynamic_dimension or more than one -1 entry.
+MIGRAPHX_EXPORT void validate_reshape_dims(const std::string& name,
+                                           const std::vector<dim_like>& dims);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

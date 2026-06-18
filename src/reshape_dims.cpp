@@ -25,6 +25,7 @@
 #include <migraphx/reshape_dims.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -115,6 +116,54 @@ static auto can_strides_merge(DimIterator dim_start,
                               StrideIterator stride_last)
 {
     return merge_strides(dim_start, dim_last, stride_start, stride_last).has_value();
+}
+
+std::vector<shape::dynamic_dimension> resolve_reshape_dims(const shape& sym_in,
+                                                           const std::vector<dim_like>& dims)
+{
+    const auto& input_dds = sym_in.dyn_dims();
+    std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
+    shape::dynamic_dimension known_elements{sym::lit(1)};
+    std::size_t neg_dim_num = dims.size();
+    for(std::size_t i = 0; i < dims.size(); ++i)
+    {
+        const auto& d = dims[i];
+        // Defer -1; it needs the product of every other axis.
+        if(d == dim_like{-1})
+        {
+            neg_dim_num = i;
+            continue;
+        }
+        if(d == dim_like{0})
+            output_dyn_dims[i] = input_dds.at(i);
+        else if(is_symbolic(d))
+            output_dyn_dims[i] = std::get<shape::dynamic_dimension>(d);
+        else
+            output_dyn_dims[i] = shape::dynamic_dimension{sym::lit(std::get<int64_t>(d))};
+        known_elements = known_elements * output_dyn_dims[i];
+    }
+    if(neg_dim_num < dims.size())
+    {
+        auto total_elements          = std::accumulate(input_dds.begin(),
+                                              input_dds.end(),
+                                              shape::dynamic_dimension{sym::lit(1)},
+                                              std::multiplies<>{});
+        output_dyn_dims[neg_dim_num] = total_elements / known_elements;
+    }
+    return output_dyn_dims;
+}
+
+void validate_reshape_dims(const std::string& name, const std::vector<dim_like>& dims)
+{
+    if(std::any_of(dims.begin(), dims.end(), [](const dim_like& d) {
+           return std::holds_alternative<shape::dynamic_dimension>(d) and not is_symbolic(d);
+       }))
+        MIGRAPHX_THROW(name + ": dim entries must be int64 or symbolic");
+
+    auto n_neg_dims = std::count(dims.begin(), dims.end(), dim_like{-1});
+    if(n_neg_dims > 1)
+        MIGRAPHX_THROW(name + ": Dimensions for " + name + " can only have one -1 dim but given {" +
+                       to_string_range(dims) + "} with " + to_string(n_neg_dims) + " -1 dims");
 }
 
 optional<shape>

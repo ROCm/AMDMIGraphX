@@ -42,7 +42,6 @@ Directory layout assumed:
 """
 
 import sys
-import os
 import numpy as np
 
 import migraphx

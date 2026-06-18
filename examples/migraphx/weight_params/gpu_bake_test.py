@@ -50,7 +50,7 @@ except ImportError:
 
 try:
     import onnx
-    from onnx import helper, TensorProto, numpy_helper
+    from onnx import helper, TensorProto
 except ImportError:
     sys.exit("onnx python package required: pip install onnx")
 

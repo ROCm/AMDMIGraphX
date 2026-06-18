@@ -12779,6 +12779,33 @@ def qlinearconv_perchannel_weightbias_test():
 
 
 @onnx_test()
+def qlinearconv_pertensor_weightbias_test():
+    x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 1, 2, 2])
+    sc_x = helper.make_tensor('X_scale', TensorProto.FLOAT, [], [0.5])
+    zero_pt_x = helper.make_tensor('X_zero_point', TensorProto.UINT8, [], [0])
+
+    wt = helper.make_tensor('W', TensorProto.UINT8, [2, 1, 1, 1], [1, 2])
+    sc_wt = helper.make_tensor('W_scale', TensorProto.FLOAT, [], [0.25])
+    zero_pt_wt = helper.make_tensor('W_zero_point', TensorProto.UINT8, [], [0])
+
+    sc_y = helper.make_tensor('Y_scale', TensorProto.FLOAT, [], [0.125])
+    zero_pt_y = helper.make_tensor('Y_zero_point', TensorProto.UINT8, [], [0])
+
+    bias = helper.make_tensor('B', TensorProto.INT32, [2], [10, 20])
+
+    out = helper.make_tensor_value_info('Y', TensorProto.UINT8, [1, 2, 2, 2])
+
+    node = onnx.helper.make_node(
+        'QLinearConv',
+        inputs=['X', 'X_scale', 'X_zero_point', 'W', 'W_scale', 'W_zero_point',
+                'Y_scale', 'Y_zero_point', 'B'],
+        outputs=['Y'],
+    )
+    return ([node], [x], [out],
+            [sc_x, zero_pt_x, wt, sc_wt, zero_pt_wt, sc_y, zero_pt_y, bias])
+
+
+@onnx_test()
 def qlinearglobalavgpool_test():
     x = helper.make_tensor_value_info('X', TensorProto.UINT8, [1, 3, 4, 4])
 

@@ -28,9 +28,11 @@ Full documentation for MIGraphX is available at
 * Added per-channel scale/zero-point support for `QLinearConv` operator.
 * Added N-D scale and zero-point support for `QLinearMatMul` operator.
 * Added test cases for `QLinearConv` per-channel scale and `QLinearMatMul` N-D per-channel quantization.
+* Added horizontal fusion of gather ops that read the same constant embedding table into a single batched gather. (#4727)
 * Added find_concat_same_input matcher to convert concat(N*x) into multibroadcast(x) to reduce hipCopy() (#4981)
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
 * Added documentation for using debug symbols (#4945).
+* Added `--log-stdout` flag to migraphx-driver to log to stdout instead of stderr (#4959).
 
 ### Changed
 
@@ -64,6 +66,7 @@ Full documentation for MIGraphX is available at
 * Fixed `nonzero` GPU JIT kernel `block_scan` accumulator overflow that silently produced out-of-bounds writes for inputs with more than 255 nonzero elements; widened the predicate to `index_int`.
 * Fixed `scatternd_`* GPU JIT kernel and host reference op to read the `indices` tensor stride-aware (`begin_at`), so non-packed layouts produced by upstream `transpose`/`slice`/`concat` no longer collapse every write into the same output cell.
 * Fixed a regression in `simplify_reshapes` where `find_slice_shape_transforms` could trigger `same_dims: Dimensions do not match` when a slice's shape descriptor absorbed a `multibroadcast` on the sliced axis.
+* Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 
 ### Optimized
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).

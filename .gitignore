@@ -100,3 +100,5 @@ CMakeUserPresets.json
 # local Python virtual environment
 .venv/
 .cache/
+
+.cline_storage/

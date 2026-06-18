@@ -113,6 +113,8 @@ else()
                 -Wno-unsafe-buffer-usage
                 # This is broken for now for moved values
                 -Wno-shadow-uncaptured-local
+                -Wno-shadow-header
+                -Wno-unique-object-duplication
                 # -Wno-c++2a-designator
                 # -Weverything gives contradictory warnings, so disable the one that requires default in switch
                 -Wno-switch-default

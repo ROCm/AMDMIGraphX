@@ -4614,6 +4614,14 @@ TEST_CASE(reshape_sym_element_mismatch_throws)
     throws_shape(migraphx::make_op("reshape", {{"dims", {0, 2, 2}}}), input);
 }
 
+TEST_CASE(reshape_sym_symbolic_dim_mismatch_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, dd{lit(7)}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
 TEST_CASE(reshape_range_input_sym_dim_throws)
 {
     auto n = var("N", {1, 8});

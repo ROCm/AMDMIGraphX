@@ -136,13 +136,20 @@ struct reshape_lazy
             assert(result.bytes() == s0.bytes());
             return result;
         }
-        // A symbolic dim or inferred -1 leaves runtime divisibility to the caller.
-        if(not has_inferred_dim and not dims_have_symbolic and
-           s->sym_elements() != s0.sym_elements())
-            MIGRAPHX_THROW(
-                "reshape_lazy: Wrong number of elements for reshape_lazy: reshape_lazy has " +
-                to_string(s->sym_elements()) + " elements whereas the input has " +
-                to_string(s0.sym_elements()));
+        // An inferred -1 over a symbolic input is a floor division, so its element
+        // count is only resolvable at runtime; otherwise throw on a provably
+        // mismatched count (strict_less either way), letting indeterminate ones pass.
+        if(not(s0.symbolic() and has_inferred_dim))
+        {
+            auto out_elems = s->sym_elements();
+            auto in_elems  = s0.sym_elements();
+            if(sym::strict_less(out_elems, in_elems).value_or(false) or
+               sym::strict_less(in_elems, out_elems).value_or(false))
+                MIGRAPHX_THROW(
+                    "reshape_lazy: Wrong number of elements for reshape_lazy: reshape_lazy has " +
+                    to_string(out_elems) + " elements whereas the input has " +
+                    to_string(in_elems));
+        }
         return *s;
     }
 

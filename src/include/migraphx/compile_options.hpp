@@ -26,6 +26,9 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/tracer.hpp>
+#include <migraphx/value.hpp>
+#include <string>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,8 +44,24 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
 
+    /**
+     * Backend-specific options keyed by name. Targets can read these to
+     * configure compilation in a way that is opaque to the core engine.
+     */
+    std::unordered_map<std::string, value> backend_options;
+
     tracer trace{};
 };
+
+/**
+ * Merge the backend options from an object value into the compile options.
+ * Each top-level key of the object becomes an entry in backend_options.
+ */
+inline void set_backend_options(compile_options& options, const value& v)
+{
+    for(const auto& opt : v)
+        options.backend_options[opt.get_key()] = opt.without_key();
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

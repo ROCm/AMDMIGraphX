@@ -1596,6 +1596,48 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     os << "}";
 }
 
+// Returns true when every element of the literal holds the same value, which lets
+// large literals be reproduced with a compact fill_argument instead of a seeded one.
+static bool literal_is_fill(const literal& lit, double fill_value)
+{
+    bool is_fill = false;
+    lit.visit([&](auto v) {
+        is_fill = std::all_of(
+            v.begin() + 1, v.end(), [&](auto x) { return float_equal(x, fill_value); });
+    });
+    return is_fill;
+}
+
+static void print_py_literal(std::ostream& os,
+                             const std::string& mname,
+                             const literal& lit,
+                             const shape& s,
+                             unsigned long& seed)
+{
+    os << mname << ".add_literal(";
+    if(s.elements() < 1024)
+    {
+        os << "migraphx.create_argument(";
+        print_py_shape(os, s);
+        os << ", [" << lit << "])";
+    }
+    else if(literal_is_fill(lit, lit.at<double>()))
+    {
+        os << "migraphx.fill_argument(";
+        print_py_shape(os, s);
+        os << ", " << lit.at<double>() << ")";
+        seed++;
+    }
+    else
+    {
+        os << "migraphx.generate_argument(";
+        print_py_shape(os, s);
+        os << ", " << seed << ")";
+        seed++;
+    }
+    os << ")" << std::endl;
+}
+
 std::unordered_map<instruction_ref, std::string>
 module::print_py(std::ostream& os,
                  const std::string& mname,
@@ -1615,43 +1657,7 @@ module::print_py(std::ostream& os,
                 os << cpp_var_name(ins_names.at(ins)) << " = ";
             if(ins->name() == "@literal")
             {
-                os << mname << ".add_literal(";
-                if(ins->get_shape().elements() < 1024)
-                {
-                    os << "migraphx.create_argument(";
-                    print_py_shape(os, ins->get_shape());
-                    os << ", [" << ins->get_literal() << "])";
-                }
-                else
-                {
-                    const bool use_abs = false;
-                    // Disable abs for now
-                    // ins->get_literal().visit([&](auto v) {
-                    //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-                    // });
-                    double fill_value = ins->get_literal().template at<double>();
-                    bool is_fill      = false;
-                    ins->get_literal().visit([&](auto v) {
-                        is_fill = std::all_of(v.begin() + 1, v.end(), [&](auto x) {
-                            return float_equal(x, fill_value);
-                        });
-                    });
-                    if(use_abs)
-                        os << "migraphx.abs_literal(";
-                    if(is_fill)
-                        os << "migraphx.fill_argument(";
-                    else
-                        os << "migraphx.generate_argument(";
-                    print_py_shape(os, ins->get_shape());
-                    if(is_fill)
-                        os << ", " << fill_value << ")";
-                    else
-                        os << ", " << seed << ")";
-                    if(use_abs)
-                        os << ")";
-                    seed++;
-                }
-                os << ")" << std::endl;
+                print_py_literal(os, mname, ins->get_literal(), ins->get_shape(), seed);
             }
             else if(ins->name() == "@param")
             {

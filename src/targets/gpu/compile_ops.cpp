@@ -28,6 +28,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -456,11 +457,11 @@ struct compile_plan
                            if(trace_level > 2)
                                std::cout << bench_prog << std::endl;
                            auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
-                           auto t = time_program(*ctx,
-                                                 std::move(bench_prog),
-                                                 cr->replace.fill_map,
-                                                 bundle,
-                                                 /* nrun */ 20);
+                           auto t      = time_program(*ctx,
+                                                      std::move(bench_prog),
+                                                      cr->replace.fill_map,
+                                                      bundle,
+                                                      /* nrun */ 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
                            return t;

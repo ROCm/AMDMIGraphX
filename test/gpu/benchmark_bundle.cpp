@@ -28,8 +28,8 @@
 #include <migraphx/value.hpp>
 #include <test.hpp>
 
-// No GPU launches (builtins + context-free op) -> bundle 1.
-TEST_CASE(bundle_no_launches)
+// No context-requiring ops (builtins + a context-free op) -> bundle 1.
+TEST_CASE(bundle_zero_ops)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
@@ -40,8 +40,8 @@ TEST_CASE(bundle_no_launches)
     EXPECT(migraphx::gpu::compute_benchmark_bundle(m) == 1);
 }
 
-// One launch (single kernel) -> bundle 1.
-TEST_CASE(bundle_single_kernel)
+// One context-requiring op -> bundle 1.
+TEST_CASE(bundle_one_op)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
@@ -54,8 +54,8 @@ TEST_CASE(bundle_single_kernel)
     EXPECT(migraphx::gpu::compute_benchmark_bundle(m) == 1);
 }
 
-// Two launches (split-k kernel + hip::fill prefill) -> bundle 6.
-TEST_CASE(bundle_splitk_prefill)
+// Two context-requiring ops (e.g. kernel + prefill) -> bundle 6.
+TEST_CASE(bundle_two_ops)
 {
     migraphx::module m;
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};

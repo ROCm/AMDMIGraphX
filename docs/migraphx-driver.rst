@@ -69,6 +69,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Treats tensorflow format as nchw.
    *  - --skip-unknown-operators	
       - Skips unknown operators when parsing and continues to parse.
+   *  - --weight-params
+      - Keeps external-data initializers external (as ``external_weight`` ops) instead of loading them as literals, enabling runtime weight swapping.
    *  - --trim | -t
       - Trims instructions from the end.
    *  - --optimize | -O
@@ -125,6 +127,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Quantizes for int8
    *  - --fp8
       - Quantize for ``Float8E4M3FNUZ`` type
+   *  - --bake-weights
+      - Bakes external-weight parameters with the raw weight files in the given directory into the compiled program (use with ``compile`` and ``--weight-params`` / a template ``.mxr``)
    *  - --rms-tol
       - Sets tolerance for the RMS error (Default: 0.001)
    *  - --atol

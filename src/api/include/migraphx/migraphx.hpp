@@ -1438,7 +1438,25 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     {
         call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
     }
+
+    /// Keep external-data initializers external (as external_weight ops) instead
+    /// of loading them as literals
+    void set_keep_weights_external(bool value = true)
+    {
+        call(&migraphx_onnx_options_set_keep_weights_external, this->get_handle_ptr(), value);
+    }
 };
+
+/// Copy the program and bake in weights from base_dir, returning a self-contained program
+inline program
+replace_external_weights(const program& prog, const std::string& base_dir, const target& t)
+{
+    return program(make<migraphx_program>(&migraphx_replace_external_weights,
+                                          prog.get_handle_ptr(),
+                                          base_dir.c_str(),
+                                          t.get_handle_ptr()),
+                   own{});
+}
 
 /// Parse an onnx file into a migraphx program
 inline program parse_onnx(const char* filename, const migraphx::onnx_options& options)

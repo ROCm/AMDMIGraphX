@@ -43,6 +43,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/version.h>
 #include <migraphx/env.hpp>
@@ -201,6 +202,7 @@ struct loader
     bool verbose                = false;
     bool strip_context          = false;
     bool use_debug_symbols      = false;
+    bool keep_weights_external  = false;
     std::string output_type;
     std::string output;
     std::string default_dyn_dim;
@@ -237,6 +239,11 @@ struct loader
            {"--debug-symbols"},
            ap.help(
                "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
+           ap.set_value(true));
+        ap(keep_weights_external,
+           {"--weight-params"},
+           ap.help("Keep external-data initializers external (as external_weight ops) instead of "
+                   "loading them as literals, enabling runtime weight swapping."),
            ap.set_value(true));
         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
@@ -446,6 +453,7 @@ struct loader
         options.skip_unknown_operators = skip_unknown_operators;
         options.print_program_on_error = true;
         options.use_debug_symbols      = use_debug_symbols;
+        options.keep_weights_external  = keep_weights_external;
         options.map_input_dims         = map_input_dims;
         options.map_dyn_input_dims     = map_dyn_input_dims;
         options.dim_params             = map_dim_params;
@@ -747,6 +755,7 @@ struct compiler
     bool to_fp8  = false;
     bool to_int8 = false;
     bool to_int4 = false;
+    std::string bake_weights = {};
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -772,6 +781,13 @@ struct compiler
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
+        ap(bake_weights,
+           {"--bake-weights"},
+           ap.help("Bake external-weight parameters with the raw weight files in the given "
+                   "directory into the compiled program, producing a self-contained model. "
+                   "Requires a template parsed with --weight-params (or loaded from such a "
+                   "template .mxr)."),
+           ap.metavar("<dir>"));
     }
 
     auto params(const program& p)
@@ -817,6 +833,11 @@ struct compiler
                 log::warn() << "Quantization options are ignored as the program is already "
                                "compiled.";
             }
+            if(not bake_weights.empty())
+            {
+                p = bake(p, ct.get_target());
+                l.save(p);
+            }
             return p;
         }
         auto t = ct.get_target();
@@ -850,8 +871,16 @@ struct compiler
         p.compile(t, co);
         auto r = c.record<std::chrono::milliseconds>();
         log::info() << "Compilation time: " << r << "ms";
+        if(not bake_weights.empty())
+            p = bake(p, t);
         l.save(p);
         return p;
+    }
+
+    program bake(const program& p, const target& t) const
+    {
+        log::info() << "Baking weights from " << bake_weights << " ...";
+        return migraphx::replace_onnx_external_weights(p, bake_weights, t);
     }
 };
 

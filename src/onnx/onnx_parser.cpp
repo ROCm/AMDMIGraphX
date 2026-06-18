@@ -35,6 +35,7 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
+#include <migraphx/op/external_weight.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/logger.hpp>
@@ -48,6 +49,15 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
+
+/// Metadata for a single external weight file reference, decoded from the ONNX
+/// external_data fields. Used only while parsing to construct external_weight ops.
+struct external_data_info
+{
+    std::string filename;
+    std::size_t offset = 0;
+    std::size_t nbytes = 0;
+};
 
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
@@ -353,24 +363,42 @@ static bool is_type_packed_int4(const onnx::TensorProto& t)
     return t.data_type() == onnx::TensorProto::INT4 or t.data_type() == onnx::TensorProto::UINT4;
 }
 
+static shape parse_tensor_shape(const onnx::TensorProto& t);
+static external_data_info parse_external_data_info(const onnx::TensorProto& t,
+                                                   const shape& tensor_shape);
+
 static std::unordered_map<std::string, instruction_ref>
-parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
+parse_initializer(onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
     {
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
             std::cout << "initializer: " << f.name() << std::endl;
-        // backup instructions in parent mod
-        auto pt  = parser.parse_tensor(f);
-        auto lit = mod->add_literal(pt);
+
+        const auto& external_data = f.external_data();
+        instruction_ref ins;
+        if(parser.keep_weights_external and not external_data.empty())
+        {
+            auto tensor_shape = parse_tensor_shape(f);
+            auto info         = parse_external_data_info(f, tensor_shape);
+            // Insert at begin() to mirror add_literal, so swapping in/out of
+            // keep_weights_external mode does not change instruction order.
+            ins = mod->insert_instruction(
+                mod->begin(),
+                op::external_weight{tensor_shape, info.filename, info.offset, info.nbytes});
+        }
+        else
+        {
+            ins = mod->add_literal(parser.parse_tensor(f));
+        }
+
         if(parser.use_debug_symbols)
-            mod->add_debug_symbols(lit, {f.name()});
-
+            mod->add_debug_symbols(ins, {f.name()});
         if(is_type_packed_int4(f))
-            lit = mod->add_instruction(migraphx::make_op("unpack_int4"), lit);
+            ins = mod->add_instruction(migraphx::make_op("unpack_int4"), ins);
+        mod_insts[f.name()] = ins;
 
-        mod_insts[f.name()] = lit;
         if(enabled(MIGRAPHX_TRACE_ONNX_PARSER{}))
             mod->debug_print(mod_insts[f.name()]);
     }
@@ -754,6 +782,21 @@ static shape parse_tensor_shape(const onnx::TensorProto& t)
     return shape{get_type(t.data_type()), dims};
 }
 
+// Decode the positional ONNX external_data fields (location, offset, length),
+// falling back to the full tensor size when the optional length is absent.
+static external_data_info parse_external_data_info(const onnx::TensorProto& t,
+                                                   const shape& tensor_shape)
+{
+    const auto& external_data = t.external_data();
+    external_data_info info;
+    info.filename = external_data.at(0).value();
+    if(external_data.size() > 1)
+        info.offset = std::stoull(external_data.at(1).value());
+    info.nbytes = (external_data.size() > 2) ? std::stoull(external_data.at(2).value())
+                                             : tensor_shape.bytes();
+    return info;
+}
+
 literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 {
     auto tensor_shape         = parse_tensor_shape(t);
@@ -763,28 +806,9 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
 
     if(not external_data.empty())
     {
-        const std::string& data_file = external_data.at(0).value();
-        size_t num_data_fields       = external_data.size();
-        size_t offset                = 0;
-        size_t nbytes                = tensor_shape.bytes();
-
-        if(num_data_fields > 1) // if offset field is present
-        {
-            offset = std::stoull(t.external_data().at(1).value());
-        }
-        if(num_data_fields > 2) // if nbytes field is present
-        {
-            nbytes = std::stoull(t.external_data().at(2).value());
-        }
-        std::vector<char> raw_buffer;
-        if(not external_data_path.empty())
-        {
-            raw_buffer = read_buffer(fs::path{external_data_path} / data_file, offset, nbytes);
-        }
-        else
-        {
-            raw_buffer = read_buffer(path / data_file, offset, nbytes);
-        }
+        auto info       = parse_external_data_info(t, tensor_shape);
+        const auto dir  = external_data_path.empty() ? path : fs::path{external_data_path};
+        auto raw_buffer = read_buffer(dir / info.filename, info.offset, info.nbytes);
         std::string s(raw_buffer.begin(), raw_buffer.end());
         return create_literal(type, dims, s.data());
     }

@@ -92,6 +92,7 @@ add_library(migraphx
     json.cpp
     layout_convolution.cpp
     lexing.cpp
+    load_external_weights.cpp
     load_save.cpp
     logger.cpp
     make_op.cpp
@@ -212,6 +213,7 @@ register_migraphx_ops(
     equal
     erf
     exp
+    external_weight
     fill
     fixed_pad
     flatten

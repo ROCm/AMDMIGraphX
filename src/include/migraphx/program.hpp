@@ -40,6 +40,7 @@
 #include <migraphx/execution_environment.hpp>
 #include <algorithm>
 #include <iostream>
+#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -177,8 +178,9 @@ struct MIGRAPHX_EXPORT program
     std::unique_ptr<program_impl> impl;
     // program file version is for the data structure or format of the MXR file. Version should be
     // bumped if any changes occur to the format of the MXR file.
-    static constexpr int program_file_version = 8;
+    static constexpr int program_file_version = 9;
 };
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

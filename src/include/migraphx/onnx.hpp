@@ -64,6 +64,10 @@ struct onnx_options
     /// Path to use for the external data if it is stored at different location compared to onnx
     /// file
     std::string external_data_path = "";
+    /// When true, external-data initializers are kept external: instead of being
+    /// loaded as literals they become `external_weight` ops that record the file
+    /// reference in the IR, enabling runtime weight swapping without re-parsing.
+    bool keep_weights_external = false;
 };
 
 /// Create a program from an onnx file
@@ -80,6 +84,17 @@ MIGRAPHX_ONNX_EXPORT program parse_onnx_buffer(const void* data,
                                                const onnx_options& options);
 
 MIGRAPHX_ONNX_EXPORT const std::vector<std::string>& get_onnx_operators();
+
+/// Copy the program and replace every `external_weight` op (produced by parsing
+/// with keep_weights_external) with a literal read from base_dir, producing a
+/// self-contained program suitable for saving as an MXR. The replacement runs
+/// over all modules (including submodules). When the program is already
+/// compiled, the target lowers the baked literals to its device representation;
+/// the baked literals are materialized when the program is loaded or run, not
+/// here.
+MIGRAPHX_ONNX_EXPORT program replace_onnx_external_weights(const program& prog,
+                                                           const std::string& base_dir,
+                                                           const target& t);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

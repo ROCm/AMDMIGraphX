@@ -79,6 +79,10 @@
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
 
 namespace migraphx {
@@ -296,6 +300,46 @@ argument target::allocate(const shape& s) const
         MIGRAPHX_THROW("Cannot allocate GPU memory in cross-compilation mode");
     return gpu::allocate_gpu(s);
 }
+
+namespace {
+// Lower bare @literal instructions (e.g. those produced by baking external
+// weights into an already-compiled program) into gpu::literal. These are not
+// finalized here: gpu::literal serializes only its host data, so finalizing now
+// would upload every weight to the GPU just to discard it on save. The device
+// buffer is materialized on load (program::from_value finalizes) or before run.
+struct lower_baked_literals
+{
+    std::string name() const { return "gpu::lower_baked_literals"; }
+
+    void apply(module& m) const
+    {
+        auto literal_refs =
+            find_all(iterator_for(m), [](auto ins) { return ins->name() == "@literal"; });
+
+        for(auto ins : literal_refs)
+        {
+            value v;
+            v["data"] = migraphx::to_value(ins->get_literal().get_argument());
+            v["host"] = false;
+
+            // Remember any downstream hip::copy_to_gpu before the rewrite so we
+            // can drop it once the literal is already producing a GPU buffer.
+            auto stale_copies = find_all(
+                ins->outputs(), [](auto out) { return out->name() == "hip::copy_to_gpu"; });
+
+            auto new_ins = m.replace_instruction(ins, make_op("gpu::literal", v));
+
+            for(auto copy_ins : stale_copies)
+            {
+                m.replace_instruction(copy_ins, new_ins);
+                m.remove_instruction(copy_ins);
+            }
+        }
+    }
+};
+} // namespace
+
+std::vector<pass> target::get_lowering_passes() const { return {lower_baked_literals{}}; }
 
 MIGRAPHX_REGISTER_TARGET(target);
 

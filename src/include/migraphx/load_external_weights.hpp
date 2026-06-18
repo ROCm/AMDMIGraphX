@@ -21,47 +21,33 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_TARGET_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_MIOPEN_TARGET_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_LOAD_EXTERNAL_WEIGHTS_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_LOAD_EXTERNAL_WEIGHTS_HPP
 
-#include <cstddef>
 #include <string>
-#include <migraphx/program.hpp>
-#include <migraphx/compile_options.hpp>
-#include <migraphx/reflect.hpp>
-#include <migraphx/gpu/config.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/export.h>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-struct MIGRAPHX_GPU_EXPORT target
+struct module;
+
+/**
+ * Replace every `external_weight` op in a module with a literal whose bytes are
+ * read from `base_dir`/<location> using the op's offset and length. This bakes
+ * the externally-referenced weights into the program so it becomes
+ * self-contained.
+ */
+struct MIGRAPHX_EXPORT load_external_weights
 {
-    /// Cross-compile arch name (e.g. "gfx942"). Empty means use the local device.
-    std::string gpu_arch         = {};
-    std::size_t gpu_num_cu       = 120;
-    std::size_t gpu_num_chiplets = 1;
+    std::string base_dir = "";
 
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.gpu_arch, "gpu_arch"),
-                    f(self.gpu_num_cu, "gpu_num_cu"),
-                    f(self.gpu_num_chiplets, "gpu_num_chiplets"));
-    }
+    std::string name() const { return "load_external_weights"; }
 
-    bool is_cross_compile() const { return not gpu_arch.empty(); }
-
-    std::string name() const;
-    std::vector<pass> get_passes(migraphx::context& gctx, const compile_options& options) const;
-    migraphx::context get_context() const;
-    argument copy_to(const argument& arg) const;
-    argument copy_from(const argument& arg) const;
-    argument allocate(const shape& s) const;
-    std::vector<pass> get_lowering_passes() const;
+    void apply(module& m) const;
 };
 
-} // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

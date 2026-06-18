@@ -414,6 +414,11 @@ def onnx_options(h):
         api.params(value='bool'),
         invoke='migraphx::set_use_debug_symbols($@)',
     )
+    h.method(
+        'set_keep_weights_external',
+        api.params(value='bool'),
+        invoke='migraphx::set_keep_weights_external($@)',
+    )
 
 
 @auto_handle()
@@ -449,6 +454,13 @@ api.add_function('migraphx_parse_onnx_buffer',
                             size='size_t',
                             options='migraphx::onnx_options'),
                  fname='migraphx::parse_onnx_buffer',
+                 returns='migraphx::program')
+
+api.add_function('migraphx_replace_external_weights',
+                 api.params(prog='migraphx::program',
+                            base_dir='const char*',
+                            t='migraphx::target'),
+                 fname='migraphx::replace_onnx_external_weights',
                  returns='migraphx::program')
 
 

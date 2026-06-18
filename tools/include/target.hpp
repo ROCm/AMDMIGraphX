@@ -95,6 +95,19 @@ struct target
      * @return Allocated argument in the target.
      */
     argument allocate(const shape& s) const;
+    /**
+     * @brief Passes that lower bare @literal instructions inserted into a
+     * program after the normal compile pipeline has already run (e.g. by
+     * replace_external_weights). The passes turn the bare literals into
+     * whatever target-specific op the target would normally produce during
+     * compile. The newly-emitted instructions are not finalized; they are
+     * materialized when the program is loaded or run. The default is an empty
+     * list for targets that consume @literal directly (e.g. the reference
+     * interpreter).
+     *
+     * @return The passes to lower the baked literals.
+     */
+    std::vector<pass> get_lowering_passes() const;
 };
 
 #else
@@ -120,6 +133,12 @@ argument copy_from_target(T&, const argument& arg)
 
 template <class T>
 supported_segments target_find_supported(T&, const_module_ref, support_metric)
+{
+    return {};
+}
+
+template <class T>
+std::vector<pass> target_get_lowering_passes(T&)
 {
     return {};
 }
@@ -168,6 +187,10 @@ void from_value_target(T& x, const value& v)
                       returns = 'argument',
                       const   = True,
                       default = 'target_allocate'),
+              virtual('get_lowering_passes',
+                      returns = 'std::vector<pass>',
+                      const   = True,
+                      default = 'target_get_lowering_passes'),
               virtual('to_value', returns = 'value', const = True, default = 'to_value_target'),
               virtual('from_value', v = 'const value&', default = 'from_value_target'))
 %>

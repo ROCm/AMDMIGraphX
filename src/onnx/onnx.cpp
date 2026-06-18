@@ -34,6 +34,10 @@
 
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
+#include <migraphx/pass_manager.hpp>
+#include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/load_external_weights.hpp>
+#include <migraphx/target.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -74,6 +78,7 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.max_loop_iterations    = options.max_loop_iterations;
     parser.limit_max_iterations   = options.limit_max_iterations;
     parser.use_dyn_output         = options.use_dyn_output;
+    parser.keep_weights_external  = options.keep_weights_external;
 
     if(options.print_program_on_error)
     {
@@ -115,6 +120,26 @@ program parse_onnx_buffer(const void* data, std::size_t size, const onnx_options
 const std::vector<std::string>& get_onnx_operators()
 {
     static std::vector<std::string> result = onnx::get_op_parsers();
+    return result;
+}
+
+program
+replace_onnx_external_weights(const program& prog, const std::string& base_dir, const target& t)
+{
+    program result(prog);
+
+    // Build one pass list (so the program is walked once): replace external_weight
+    // ops with literals, lower them for an already-compiled program, then clean up.
+    // The baked literals are not finalized here; they are materialized on load/run.
+    std::vector<pass> passes = {load_external_weights{base_dir}};
+    if(result.is_compiled())
+    {
+        auto lowering = t.get_lowering_passes();
+        passes.insert(passes.end(), lowering.begin(), lowering.end());
+    }
+    passes.push_back(dead_code_elimination{});
+    run_passes(result, passes);
+
     return result;
 }
 

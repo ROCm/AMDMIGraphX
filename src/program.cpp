@@ -43,6 +43,8 @@
 #include <migraphx/pmr/unordered_map.hpp>
 #include <migraphx/graphviz.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/filesystem.hpp>
+#include <migraphx/file_buffer.hpp>
 
 #include <iostream>
 #include <queue>

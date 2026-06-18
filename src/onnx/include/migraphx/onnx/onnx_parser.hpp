@@ -52,8 +52,8 @@ struct onnx_parser
         attribute_map attributes{};
         std::size_t num_outputs = 1;
         // unique identifier for MIGX, not given ONNX node name
-        std::string name        = "";
-        module* mod             = nullptr;
+        std::string name = "";
+        module* mod      = nullptr;
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,
@@ -106,6 +106,7 @@ struct onnx_parser
     bool use_dyn_output          = false;
     bool skip_unknown_operators  = false;
     bool use_debug_symbols       = false;
+    bool keep_weights_external   = false;
     int64_t max_loop_iterations  = 10;
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;

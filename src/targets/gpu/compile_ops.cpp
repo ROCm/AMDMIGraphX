@@ -60,8 +60,7 @@ int compute_benchmark_bundle(const module& m)
         return not migraphx::is_context_free(ins.get_operator()) and
                not starts_with(ins.name(), "@");
     });
-    // Single op is timed accurately at bundle=1, saving compile time.
-    return (n <= 1) ? 1 : static_cast<int>(4 * n - 2);
+    return static_cast<int>(4 * n - 2);
 }
 
 struct precompile_op

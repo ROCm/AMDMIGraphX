@@ -52,7 +52,7 @@ static auto nonprefixed_ops()
 {
     // ops without prefixes
     static std::unordered_set<std::string> op_map = {
-        "select_module", "load", "if", "nonmaxsuppression", "multibroadcast"};
+        "select_module", "load", "if", "nonmaxsuppression", "multibroadcast", "slice", "get_tuple_elem"};
     return op_map;
 }
 

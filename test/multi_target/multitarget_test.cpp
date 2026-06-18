@@ -51,8 +51,13 @@ static bool has_target_attr(const migraphx::instruction& ins)
 static auto nonprefixed_ops()
 {
     // ops without prefixes
-    static std::unordered_set<std::string> op_map = {
-        "select_module", "load", "if", "nonmaxsuppression", "multibroadcast", "slice", "get_tuple_elem"};
+    static std::unordered_set<std::string> op_map = {"select_module",
+                                                     "load",
+                                                     "if",
+                                                     "nonmaxsuppression",
+                                                     "multibroadcast",
+                                                     "slice",
+                                                     "get_tuple_elem"};
     return op_map;
 }
 

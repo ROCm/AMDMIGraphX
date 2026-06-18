@@ -86,8 +86,8 @@ def main():
     perturb_weights(weights_dir, perturbed_dir, weight_filename)
     print()
 
-    # Step 1: Parse with weights as parameters
-    print(f"[1] Parsing {model_path} with weights as parameters...")
+    # Step 1: Parse keeping weights external (recorded as external_weight ops)
+    print(f"[1] Parsing {model_path} with weights kept external...")
     template = migraphx.parse_onnx(model_path, keep_weights_external=True)
 
     param_shapes = template.get_parameter_shapes()

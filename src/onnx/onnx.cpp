@@ -128,13 +128,17 @@ replace_onnx_external_weights(const program& prog, const std::string& base_dir, 
 {
     program result(prog);
 
-    // Run over the whole program so weights in submodules are handled too.
-    run_passes(result, {load_external_weights{base_dir}, dead_code_elimination{}});
-
-    // The baked literals are lowered for the device but not finalized here; they
-    // are materialized when the program is loaded or run.
+    // Build one pass list (so the program is walked once): replace external_weight
+    // ops with literals, lower them for an already-compiled program, then clean up.
+    // The baked literals are not finalized here; they are materialized on load/run.
+    std::vector<pass> passes = {load_external_weights{base_dir}};
     if(result.is_compiled())
-        run_passes(result, t.get_lowering_passes());
+    {
+        auto lowering = t.get_lowering_passes();
+        passes.insert(passes.end(), lowering.begin(), lowering.end());
+    }
+    passes.push_back(dead_code_elimination{});
+    run_passes(result, passes);
 
     return result;
 }

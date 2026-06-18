@@ -28,12 +28,14 @@
 #include <migraphx/config.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
-#include <migraphx/context.hpp>
 #include <migraphx/errors.hpp>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct context;
+
 namespace op {
 
 /**
@@ -49,9 +51,9 @@ namespace op {
 struct external_weight
 {
     shape s;
-    std::string location = "";
-    std::size_t offset   = 0;
-    std::size_t length   = 0;
+    std::string location;
+    std::size_t offset = 0;
+    std::size_t length = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

@@ -382,7 +382,10 @@ parse_initializer(onnx_parser& parser, module* mod, const onnx::GraphProto& grap
         {
             auto tensor_shape = parse_tensor_shape(f);
             auto info         = parse_external_data_info(f, tensor_shape);
-            ins               = mod->add_instruction(
+            // Insert at begin() to mirror add_literal, so swapping in/out of
+            // keep_weights_external mode does not change instruction order.
+            ins = mod->insert_instruction(
+                mod->begin(),
                 op::external_weight{tensor_shape, info.filename, info.offset, info.nbytes});
         }
         else

@@ -82,6 +82,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
 
 namespace migraphx {
@@ -312,12 +313,8 @@ struct lower_baked_literals
 
     void apply(module& m) const
     {
-        std::vector<instruction_ref> literal_refs;
-        for(auto ins : iterator_for(m))
-        {
-            if(ins->name() == "@literal")
-                literal_refs.push_back(ins);
-        }
+        auto literal_refs =
+            find_all(iterator_for(m), [](auto ins) { return ins->name() == "@literal"; });
 
         for(auto ins : literal_refs)
         {
@@ -327,12 +324,8 @@ struct lower_baked_literals
 
             // Remember any downstream hip::copy_to_gpu before the rewrite so we
             // can drop it once the literal is already producing a GPU buffer.
-            std::vector<instruction_ref> stale_copies;
-            for(auto out : ins->outputs())
-            {
-                if(out->name() == "hip::copy_to_gpu")
-                    stale_copies.push_back(out);
-            }
+            auto stale_copies = find_all(
+                ins->outputs(), [](auto out) { return out->name() == "hip::copy_to_gpu"; });
 
             auto new_ins = m.replace_instruction(ins, make_op("gpu::literal", v));
 

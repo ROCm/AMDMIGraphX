@@ -83,7 +83,7 @@ TEST_CASE(replace_external_weights_test)
     auto baked_params = baked.get_parameter_shapes();
     EXPECT(baked_params.count("input") > 0);
 
-    // Baked program should match the standard (literal-based) parse
-    auto reference = create_external_data_prog();
+    // Baked program should match the same model parsed straight to literals.
+    auto reference = read_onnx("external_data_test.onnx");
     EXPECT(baked == reference);
 }

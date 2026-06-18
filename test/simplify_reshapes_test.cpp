@@ -38,14 +38,13 @@
 
 static void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(
-        m,
-        {
-            migraphx::simplify_reshapes{.enable_op_shape_transform_op = true,
-                                        .enable_gather_rewrite        = true},
-            migraphx::eliminate_common_subexpression{},
-            migraphx::dead_code_elimination{},
-        });
+    migraphx::run_passes(m,
+                         {
+                             migraphx::simplify_reshapes{.enable_op_shape_transform_op = true,
+                                                         .enable_gather_rewrite        = true},
+                             migraphx::eliminate_common_subexpression{},
+                             migraphx::dead_code_elimination{},
+                         });
 }
 
 inline static std::vector<std::vector<std::size_t>>

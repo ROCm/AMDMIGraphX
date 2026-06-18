@@ -1982,9 +1982,7 @@ void simplify_reshapes::apply(module& m) const
     match::find_matches(m, find_gather_scalar{});
     dead_code_elimination{}.apply(m);
     if(enable_gather_rewrite)
-    {
         match::find_matches(m, find_gather{});
-    }
     m.repeat_while_changes(depth, [&] {
         match::find_matches(m,
                             find_nop_reshapes{},

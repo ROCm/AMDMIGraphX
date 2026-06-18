@@ -61,6 +61,7 @@ add_library(migraphx
     convert_to_json.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
+    dim_like.cpp
     dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp
@@ -138,11 +139,11 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
-    sym.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    sym.cpp
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp

@@ -79,6 +79,7 @@
 #include <migraphx/gpu/sync_device.hpp>
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
+#include <migraphx/gpu/fuse_mlss.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -182,6 +183,7 @@ struct pipeline_factory
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
+            fuse_mlss{get_context()},
             fuse_pointwise_reduce{},
             dead_code_elimination{},
 #ifndef _WIN32
@@ -197,6 +199,8 @@ struct pipeline_factory
 
     std::vector<pass> backend_pipeline() const
     {
+        std::size_t max_memory =
+            get_context()->is_cross_compile() ? std::numeric_limits<std::size_t>::max() : 0;
         return {
             auto_contiguous{},
             dead_code_elimination{},
@@ -225,7 +229,7 @@ struct pipeline_factory
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},
-            write_literals{get_context()},
+            write_literals{.max_memory = max_memory},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},
             memory_coloring{"hip::allocate"},

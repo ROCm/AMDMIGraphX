@@ -33,6 +33,7 @@ Full documentation for MIGraphX is available at
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
 * Added documentation for using debug symbols (#4945).
 * Added `--log-stdout` flag to migraphx-driver to log to stdout instead of stderr (#4959).
+* Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 
 ### Changed
 
@@ -84,6 +85,7 @@ Full documentation for MIGraphX is available at
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).
+* Removed `onnx_options::use_dyn_output` after redesign of `NonMaxSuppression` operator (#4893).
 
 ## MIGraphX 2.15 for ROCm 7.2.0
 

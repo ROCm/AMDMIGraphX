@@ -458,12 +458,12 @@ struct compile_plan
                                std::cout << bench_prog << std::endl;
                            auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
                            auto t      = time_program(*ctx,
-                                                      std::move(bench_prog),
+                                                 std::move(bench_prog),
                                                  std::move(bench_prog),
                                                  cr->replace.fill_map,
                                                  bundle,
                                                  /* nrun */ 20);
-                               std::cout << t << "ms" << std::endl;
+                           std::cout << t << "ms" << std::endl;
                            return t;
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});

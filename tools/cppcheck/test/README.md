@@ -27,22 +27,24 @@ Each test file corresponds to a specific check from either the Python addon or X
 17. **redundant_conditional_operator.cpp** - Tests `RedundantConditionalOperator`
 18. **redundant_if_statement.cpp** - Tests `RedundantIfStatement`
 19. **redundant_local_variable.cpp** - Tests `RedundantLocalVariable`
-20. **unnecessary_empty_condition.cpp** - Tests `UnnecessaryEmptyCondition`
-21. **use_device_launch.cpp** - Tests `UseDeviceLaunch`
-22. **use_manage_pointer.cpp** - Tests `UseManagePointer`
-23. **use_smart_pointer.cpp** - Tests `UseSmartPointer`
-24. **use_stl_algorithms.cpp** - Tests `useStlAlgorithms`
-25. **matcher_nested_parentheses.cpp** - Tests `MatcherNestedParentheses`
+20. **redundant_signed_static_cast.cpp** - Tests `RedundantSignedStaticCast`
+21. **redundant_unsigned_static_cast.cpp** - Tests `RedundantUnsignedStaticCast`
+22. **unnecessary_empty_condition.cpp** - Tests `UnnecessaryEmptyCondition`
+23. **use_device_launch.cpp** - Tests `UseDeviceLaunch`
+24. **use_manage_pointer.cpp** - Tests `UseManagePointer`
+25. **use_smart_pointer.cpp** - Tests `UseSmartPointer`
+26. **use_stl_algorithms.cpp** - Tests `useStlAlgorithms`
+27. **matcher_nested_parentheses.cpp** - Tests `MatcherNestedParentheses`
 
 ### XML Rules Tests (`rules.xml`)
 
-26. **unused_deref.cpp** - Tests `UnusedDeref` rule
-27. **strlen_empty_string.cpp** - Tests `StrlenEmptyString` rule
-28. **define_rules.cpp** - Tests `defineUpperCase` and `definePrefix` rules
-29. **use_named_logic_operator.cpp** - Tests `UseNamedLogicOperator` rules
-30. **unnecessary_else_statement.cpp** - Tests `UnnecessaryElseStatement` rule
-31. **inverted_logic.cpp** - Tests `InvertedLogic` rule
-32. **use_stl_algorithm_loops.cpp** - Tests `useStlAlgorithm` rules for loop patterns
+28. **unused_deref.cpp** - Tests `UnusedDeref` rule
+29. **strlen_empty_string.cpp** - Tests `StrlenEmptyString` rule
+30. **define_rules.cpp** - Tests `defineUpperCase` and `definePrefix` rules
+31. **use_named_logic_operator.cpp** - Tests `UseNamedLogicOperator` rules
+32. **unnecessary_else_statement.cpp** - Tests `UnnecessaryElseStatement` rule
+33. **inverted_logic.cpp** - Tests `InvertedLogic` rule
+34. **use_stl_algorithm_loops.cpp** - Tests `useStlAlgorithm` rules for loop patterns
 
 ## Test Structure
 

@@ -73,6 +73,96 @@ def isFunctionCall(token):
     return True
 
 
+# Conversion rank of the standard integral types, ordered from narrowest to
+# widest, used to reason about the usual arithmetic conversions.
+integralRank = {
+    'bool': 0,
+    'char': 1,
+    'short': 2,
+    'int': 3,
+    'long': 4,
+    'long long': 5
+}
+
+# Binary operators that apply the usual arithmetic conversions to both operands.
+# This excludes the shift operators ('<<', '>>'), which promote each operand
+# independently and take their result type from the left operand, so a cast of
+# the right operand is not redundant there.
+usualArithmeticConversionOps = {
+    '+', '-', '*', '/', '%', '&', '|', '^', '<', '<=', '>', '>=', '==', '!='
+}
+
+
+def integralValueType(token):
+    if not token:
+        return None
+    vt = token.valueType
+    if not vt:
+        return None
+    if vt.pointer:
+        return None
+    if not vt.isIntegral():
+        return None
+    return vt
+
+
+def getStaticCast(token):
+    # In the AST a cast is represented by the '(' token (isCast); for a
+    # static_cast its first operand is the 'static_cast' keyword.
+    if not token:
+        return None
+    if not token.isCast:
+        return None
+    if not simpleMatch(token.astOperand1, "static_cast"):
+        return None
+    return token
+
+
+def findRedundantStaticCast(token, sign):
+    # Look for 'other <op> static_cast<T>(x)' (in either operand order) where the
+    # binary operator applies the usual arithmetic conversions and 'other'
+    # already has the cast's exact integral type and signedness. Those
+    # conversions then convert the cast's source operand to that same type, so
+    # the explicit cast does not change the result. Returns the cast token to
+    # report, or None.
+    if token.str not in usualArithmeticConversionOps:
+        return None
+    op1 = token.astOperand1
+    op2 = token.astOperand2
+    # Both operands are required, which also rules out the unary forms of
+    # operators such as '-', '&' and '*'.
+    if not op1 or not op2:
+        return None
+    for cast_op, other in ((op1, op2), (op2, op1)):
+        cast = getStaticCast(cast_op)
+        if not cast or other.isCast:
+            continue
+        cast_vt = integralValueType(cast)
+        other_vt = integralValueType(other)
+        src_vt = integralValueType(cast.astOperand2)
+        if not cast_vt or not other_vt or not src_vt:
+            continue
+        if cast_vt.sign != sign or other_vt.sign != sign:
+            continue
+        if cast_vt.type != other_vt.type:
+            continue
+        src_rank = integralRank.get(src_vt.type)
+        dst_rank = integralRank.get(cast_vt.type)
+        if src_rank is None or dst_rank is None:
+            continue
+        # A narrowing cast (wider source than target) changes the value.
+        if src_rank > dst_rank:
+            continue
+        # For a signed target an unsigned source can make the common type
+        # unsigned, and whether the signed type can represent all of the
+        # unsigned values is platform dependent, so the cast is not reliably
+        # redundant.
+        if sign == 'signed' and src_vt.sign == 'unsigned':
+            continue
+        return cast
+    return None
+
+
 @cppcheck.checker
 def AvoidBranchingStatementAsLastInLoop(cfg, data):
     for token in cfg.tokenlist:
@@ -336,6 +426,30 @@ def RedundantLocalVariable(cfg, data):
         cppcheck.reportError(
             m.returned, "style",
             "Variable is returned immediately after its declaration, can be simplified to just return expression."
+        )
+
+
+@cppcheck.checker
+def RedundantSignedStaticCast(cfg, data):
+    for token in cfg.tokenlist:
+        cast = findRedundantStaticCast(token, 'signed')
+        if not cast:
+            continue
+        cppcheck.reportError(
+            cast.astOperand1, "style",
+            "Cast to signed is redundant in a binary operation with a signed value of the same type."
+        )
+
+
+@cppcheck.checker
+def RedundantUnsignedStaticCast(cfg, data):
+    for token in cfg.tokenlist:
+        cast = findRedundantStaticCast(token, 'unsigned')
+        if not cast:
+            continue
+        cppcheck.reportError(
+            cast.astOperand1, "style",
+            "Cast to unsigned is redundant in a binary operation with an unsigned value of the same type."
         )
 
 

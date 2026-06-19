@@ -227,6 +227,7 @@ add_library(migraphx_gpu
     loop.cpp
     lrn.cpp
     mlir.cpp
+    nms_ops.cpp
     no_device.cpp
     pack_args.cpp
     prefuse_ops.cpp
@@ -234,6 +235,7 @@ add_library(migraphx_gpu
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
+    propagate_reshape_layout.cpp
     rocblas.cpp
     schedule_model.cpp
     sync_device.cpp

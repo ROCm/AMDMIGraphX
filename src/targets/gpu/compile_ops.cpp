@@ -43,6 +43,7 @@
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
+#include <algorithm>
 #include <functional>
 
 namespace migraphx {
@@ -61,7 +62,7 @@ int compute_benchmark_bundle(const module& m)
         return not migraphx::is_context_free(ins.get_operator()) and
                not starts_with(ins.name(), "@");
     });
-    return static_cast<int>(4 * n - 2);
+    return std::max(1, static_cast<int>(4 * n - 2));
 }
 
 struct precompile_op
@@ -459,11 +460,11 @@ struct compile_plan
                            auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
                            auto t      = time_program(*ctx,
                                                  std::move(bench_prog),
-                                                 std::move(bench_prog),
                                                  cr->replace.fill_map,
                                                  bundle,
                                                  /* nrun */ 20);
-                           std::cout << t << "ms" << std::endl;
+                           if(trace_level > 1)
+                               std::cout << t << "ms" << std::endl;
                            return t;
                        });
         std::this_thread::sleep_for(std::chrono::milliseconds{50});

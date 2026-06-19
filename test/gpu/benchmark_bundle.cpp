@@ -40,7 +40,7 @@ TEST_CASE(bundle_zero_ops)
     EXPECT(migraphx::gpu::compute_benchmark_bundle(m) == 1);
 }
 
-// One context-requiring op -> bundle 1.
+// One context-requiring op -> bundle 2.
 TEST_CASE(bundle_one_op)
 {
     migraphx::module m;
@@ -51,7 +51,7 @@ TEST_CASE(bundle_one_op)
         m.add_instruction(migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(s)}}));
     m.add_return({id, alloc});
 
-    EXPECT(migraphx::gpu::compute_benchmark_bundle(m) == 1);
+    EXPECT(migraphx::gpu::compute_benchmark_bundle(m) == 2);
 }
 
 // Two context-requiring ops (e.g. kernel + prefill) -> bundle 6.

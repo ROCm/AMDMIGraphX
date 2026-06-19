@@ -32,14 +32,60 @@
 #include <migraphx/kernels/args.hpp>
 #include <migraphx/kernels/tile.hpp>
 #include <migraphx/kernels/tuple.hpp>
+#include <migraphx/kernels/bit_cast.hpp>
 
 namespace migraphx {
+
+// Unsigned integer with the same size as T, used to move struct element types (eg fp8)
+// through a builtin that only accepts arithmetic and vector types.
+template <class T>
+using nontemporal_storage =
+    conditional_t<sizeof(T) == 1,
+                  uint8_t,
+                  conditional_t<sizeof(T) == 2,
+                                uint16_t,
+                                conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>>;
+
+// Load a single value with a nontemporal hint so it bypasses the cache. The builtin only
+// accepts arithmetic and vector types, so any other trivially-copyable type is loaded
+// through a same-sized integer and bit-cast back.
+template <class T>
+__device__ T nontemporal_load(const T* ptr)
+{
+    if constexpr(is_integral<T>{} or is_floating_point<T>{} or is_any_vec<T>())
+    {
+        return __builtin_nontemporal_load(ptr);
+    }
+    else
+    {
+        static_assert(is_trivially_copyable<T>{});
+        using storage = nontemporal_storage<T>;
+        static_assert(sizeof(storage) == sizeof(T));
+        return bit_cast<T>(__builtin_nontemporal_load(reinterpret_cast<const storage*>(ptr)));
+    }
+}
+
+// Read an element from an input tensor. Inputs that are not broadcasted are read only
+// once, so a nontemporal load avoids polluting the cache. Broadcasted inputs reuse the
+// same element across threads, so a regular cached load is kept for them.
+template <class T, class I>
+__device__ auto pointwise_load(const T& x, I i)
+{
+#if 0
+    if constexpr(get_shape_c<T>{}.broadcasted())
+        return x[i];
+    else
+        return nontemporal_load(&x[i]);
+#else
+    return x[i];
+#endif
+}
 
 template <class Stride, class F, class Output, class T, class... Ts>
 __device__ void pointwise_tensor(Stride stride, F f, Output out, T x, Ts... xs)
 {
     stride(x.get_shape().elements(), [&](auto i) {
-        auto r = f(x[i], xs[i]...);
+        auto r = f(pointwise_load(x, i), pointwise_load(xs, i)...);
         out([&](auto... outs) {
             r([&](auto... rs) {
                 static_assert(sizeof...(outs) == sizeof...(rs));

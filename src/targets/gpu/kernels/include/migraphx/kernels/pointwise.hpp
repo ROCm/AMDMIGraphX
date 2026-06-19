@@ -39,12 +39,10 @@ namespace migraphx {
 // Unsigned integer with the same size as T, used to move struct element types (eg fp8)
 // through a builtin that only accepts arithmetic and vector types.
 template <class T>
-using nontemporal_storage =
-    conditional_t<sizeof(T) == 1,
-                  uint8_t,
-                  conditional_t<sizeof(T) == 2,
-                                uint16_t,
-                                conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>>;
+using nontemporal_storage = conditional_t<
+    sizeof(T) == 1,
+    uint8_t,
+    conditional_t<sizeof(T) == 2, uint16_t, conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>>;
 
 // Load a single value with a nontemporal hint so it bypasses the cache. The builtin only
 // accepts arithmetic and vector types, so any other trivially-copyable type is loaded

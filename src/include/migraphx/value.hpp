@@ -348,6 +348,8 @@ struct MIGRAPHX_EXPORT value
     value with_key(const std::string& pkey) const;
     value without_key() const;
 
+    value normalize() const;
+
     template <class Visitor>
     void visit(Visitor v) const
     {

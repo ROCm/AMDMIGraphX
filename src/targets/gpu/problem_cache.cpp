@@ -30,7 +30,6 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/logger.hpp>
 #include <iostream>
-#include <limits>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -38,21 +37,9 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_PROBLEM_CACHE)
 
-// Normalize integer scalars to a signed representation: any unsigned value that
-// fits in int64 is stored as int64.
-static void normalize(value& v)
+static value create_key(const std::string& name, const value& problem)
 {
-    if(v.is_array() or v.is_object())
-    {
-        for(auto& child : v)
-            normalize(child);
-    }
-    else if(v.is_uint64())
-    {
-        auto u = v.get_uint64();
-        if(u <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
-            v = static_cast<std::int64_t>(u);
-    }
+    return {{"name", name}, {"problem", problem.normalize()}};
 }
 
 void problem_cache::load()
@@ -66,9 +53,10 @@ void problem_cache::load()
         save();
         return;
     }
-    auto v = from_json_string(read_string(pc_path));
-    normalize(v);
-    from_value(v, cache);
+    std::unordered_map<value, value> unnormalized_cache;
+    from_value(from_json_string(read_string(pc_path)), unnormalized_cache);
+    for(const auto& [key, solution] : unnormalized_cache)
+        cache[create_key(key.at("name").to<std::string>(), key.at("problem"))] = solution;
 }
 void problem_cache::save() const
 {
@@ -76,13 +64,6 @@ void problem_cache::save() const
     if(pc_path.empty())
         return;
     write_string(pc_path, to_pretty_json_string(to_value(cache)));
-}
-
-static value create_key(const std::string& name, const value& problem)
-{
-    value key = {{"name", name}, {"problem", problem}};
-    normalize(key);
-    return key;
 }
 
 bool problem_cache::has(const std::string& name, const value& problem) const

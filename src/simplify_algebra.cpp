@@ -2066,7 +2066,7 @@ struct find_split_reshape
         auto input = slc->inputs().front();
 
         auto splits = get_splits(input);
-        if(splits.size() <= 1)
+        if(splits.size() < 2)
         {
             return;
         }
@@ -2103,7 +2103,7 @@ struct find_split_reshape
             terminals.push_back(*std::next(inss.begin(), ops.size() - 1));
         }
 
-        if(slices.size() <= 1)
+        if(slices.size() < 2)
             return;
 
         // Check if all the reshape descriptors are the same

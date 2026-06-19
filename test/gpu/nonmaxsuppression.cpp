@@ -90,8 +90,8 @@ TEST_CASE(nms_default_test)
                             score_threshold);
     add_nms_return(mm, nms);
 
-    std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     std::vector<float> scores_vec = {0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
     int64_t max_out_val           = 4;
     float iou_val                 = 0.5f;
@@ -398,10 +398,10 @@ TEST_CASE(nms_multi_batch_test)
                             score_threshold);
     add_nms_return(mm, nms);
 
-    std::vector<float> boxes_vec  = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0,
-                                     0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
-                                     0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
+    std::vector<float> boxes_vec = {0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0,
+                                    0.5, 0.5,  1.0, 1.0, 0.5, 0.6,  1.0, 1.0, 0.5, 0.4,   1.0, 1.0,
+                                    0.5, 10.5, 1.0, 1.0, 0.5, 10.6, 1.0, 1.0, 0.5, 100.5, 1.0, 1.0};
     std::vector<float> scores_vec = {
         0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f, 0.9f, 0.75f, 0.6f, 0.95f, 0.5f, 0.3f};
     int64_t max_out_val = 4;
@@ -1343,6 +1343,121 @@ TEST_CASE(nms_quantized_ties_test)
                                  0, 0, 6, 0, 0, 0, 0, 0, 2,  0, 0, 1,  0, 0, 5};
     EXPECT(indices == gold);
     EXPECT(num_selected == 10);
+}
+
+// Edge case: 0 boxes. Output should be empty (num_selected == 0).
+// Routes through lower_nms_to_ref because num_boxes < 2.
+TEST_CASE(nms_zero_boxes_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    // boxes shape: {batch=1, num_boxes=0, 4}
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 0, 4}};
+    // scores shape: {batch=1, num_classes=1, num_boxes=0}
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 0}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{10});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.0f);
+
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_p,
+                                   scores_p,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    add_nms_return(mm, nms);
+
+    migraphx::parameter_map host_params;
+    std::vector<float> boxes_vec;
+    std::vector<float> scores_vec;
+    host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
+    host_params["scores"] = migraphx::argument(scores_s, scores_vec.data());
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    std::vector<int64_t> gold = {};
+    EXPECT(indices == gold);
+    EXPECT(num_selected == 0);
+}
+
+// Edge case: 1 box with score above score_threshold. The single box should be
+// selected. Routes through lower_nms_to_ref because num_boxes < 2.
+TEST_CASE(nms_one_box_above_threshold_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 1, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 1}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{10});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.3f);
+
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_p,
+                                   scores_p,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    add_nms_return(mm, nms);
+
+    // single box: [y1=0, x1=0, y2=1, x2=1], score 0.9 > threshold 0.3
+    std::vector<float> boxes_vec  = {0.0f, 0.0f, 1.0f, 1.0f};
+    std::vector<float> scores_vec = {0.9f};
+
+    migraphx::parameter_map host_params;
+    host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
+    host_params["scores"] = migraphx::argument(scores_s, scores_vec.data());
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    // batch_idx=0, class_idx=0, box_idx=0
+    std::vector<int64_t> gold = {0, 0, 0};
+    EXPECT(indices == gold);
+    EXPECT(num_selected == 1);
+}
+
+// Edge case: 1 box with score below score_threshold. No boxes should be
+// selected. Routes through lower_nms_to_ref because num_boxes < 2.
+TEST_CASE(nms_one_box_below_threshold_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 1, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 1}};
+
+    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
+    auto scores_p        = mm->add_parameter("scores", scores_s);
+    auto max_out_l       = mm->add_literal(int64_t{10});
+    auto iou_threshold   = mm->add_literal(0.5f);
+    auto score_threshold = mm->add_literal(0.5f);
+
+    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
+                                   boxes_p,
+                                   scores_p,
+                                   max_out_l,
+                                   iou_threshold,
+                                   score_threshold);
+    add_nms_return(mm, nms);
+
+    // single box: score 0.2 < threshold 0.5
+    std::vector<float> boxes_vec  = {0.0f, 0.0f, 1.0f, 1.0f};
+    std::vector<float> scores_vec = {0.2f};
+
+    migraphx::parameter_map host_params;
+    host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
+    host_params["scores"] = migraphx::argument(scores_s, scores_vec.data());
+
+    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
+    indices.resize(static_cast<std::size_t>(num_selected) * 3);
+    std::vector<int64_t> gold = {};
+    EXPECT(indices == gold);
+    EXPECT(num_selected == 0);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

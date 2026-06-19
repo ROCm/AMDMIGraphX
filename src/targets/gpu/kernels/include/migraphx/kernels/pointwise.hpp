@@ -39,10 +39,12 @@ namespace migraphx {
 // Unsigned integer with the same size as T, used to move struct element types (eg fp8)
 // through a builtin that only accepts arithmetic and vector types.
 template <class T>
-using nontemporal_storage = conditional_t<
-    sizeof(T) == 1,
-    uint8_t,
-    conditional_t<sizeof(T) == 2, uint16_t, conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>>;
+using nontemporal_storage =
+    conditional_t<sizeof(T) == 1,
+                  uint8_t,
+                  conditional_t<sizeof(T) == 2,
+                                uint16_t,
+                                conditional_t<sizeof(T) == 4, uint32_t, uint64_t>>>;
 
 // Load a single value with a nontemporal hint so it bypasses the cache. The builtin only
 // accepts arithmetic and vector types, so any other trivially-copyable type is loaded
@@ -69,14 +71,10 @@ __device__ T nontemporal_load(const T* ptr)
 template <class T, class I>
 __device__ auto pointwise_load(const T& x, I i)
 {
-#if 0
     if constexpr(get_shape_c<T>{}.broadcasted())
         return x[i];
     else
         return nontemporal_load(&x[i]);
-#else
-    return x[i];
-#endif
 }
 
 template <class Stride, class F, class Output, class T, class... Ts>

@@ -984,9 +984,11 @@ struct time_cmd : command<time_cmd>
 {
     compiler c;
     unsigned n = 100;
+    unsigned nbuffers = 1;
     void parse(argument_parser& ap)
     {
         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run."));
+        ap(nbuffers, {"--buffers", "-b"}, ap.help("Number of rotated buffers to use."));
         c.parse(ap);
     }
 
@@ -994,9 +996,14 @@ struct time_cmd : command<time_cmd>
     {
         auto p = c.compile();
         log::info() << "Allocating params ...";
-        auto m = c.params(p);
+        std::vector<parameter_map> ms;
+        for(auto i:range(nbuffers))
+        {
+            (void)i;
+            ms.push_back(c.params(p));
+        }
         log::info() << "Running ...";
-        double t = time_run(p, m, n);
+        double t = time_run(p, ms, n);
         std::cout << "Total time: " << t << "ms" << std::endl;
     }
 };

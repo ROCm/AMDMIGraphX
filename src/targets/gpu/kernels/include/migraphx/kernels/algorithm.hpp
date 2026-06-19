@@ -385,6 +385,25 @@ constexpr OutputIterator merge(Iterator1 first1,
     return copy(first2, last2, d_first);
 }
 
+/**
+ * Sequentially calls `sink` with index if the predicate is true.
+ * Limits number of selections to `max_selected`.
+ * Sequential because each thread within a block is synchronized to the same index.
+ */
+template <class Predicate, class OutputSink>
+__device__ index_int
+block_sync_copy_index_if_n(index_int total, index_int n, Predicate pred, OutputSink sink)
+{
+    index_int selected = 0;
+    for(index_int i = 0; i < total and selected < n; ++i)
+    {
+        if(pred(i))
+            sink(i, selected++);
+        __syncthreads();
+    }
+    return selected;
+}
+
 } // namespace migraphx
 
 #endif

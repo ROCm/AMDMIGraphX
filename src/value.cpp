@@ -460,7 +460,7 @@ value value::normalize() const
     if(this->is_uint64())
     {
         auto u = this->get_uint64();
-        if(u <= static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+        if(u <= std::numeric_limits<std::int64_t>::max())
             return value(static_cast<std::int64_t>(u));
     }
     return *this;

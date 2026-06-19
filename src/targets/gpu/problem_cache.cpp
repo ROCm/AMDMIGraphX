@@ -37,11 +37,6 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_PROBLEM_CACHE)
 
-static value create_key(const std::string& name, const value& problem)
-{
-    return {{"name", name}, {"problem", problem.normalize()}};
-}
-
 void problem_cache::load()
 {
     auto pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});
@@ -53,10 +48,7 @@ void problem_cache::load()
         save();
         return;
     }
-    std::unordered_map<value, value> unnormalized_cache;
-    from_value(from_json_string(read_string(pc_path)), unnormalized_cache);
-    for(const auto& [key, solution] : unnormalized_cache)
-        cache[create_key(key.at("name").to<std::string>(), key.at("problem"))] = solution;
+    from_value(from_json_string(read_string(pc_path)).normalize(), cache);
 }
 
 void problem_cache::save() const
@@ -65,6 +57,11 @@ void problem_cache::save() const
     if(pc_path.empty())
         return;
     write_string(pc_path, to_pretty_json_string(to_value(cache)));
+}
+
+static value create_key(const std::string& name, const value& problem)
+{
+    return {{"name", name}, {"problem", problem.normalize()}};
 }
 
 bool problem_cache::has(const std::string& name, const value& problem) const

@@ -458,10 +458,10 @@ struct compile_plan
                            auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
                            auto t      = time_program(*ctx,
                                                       std::move(bench_prog),
-                                                      cr->replace.fill_map,
-                                                      bundle,
-                                                      /* nrun */ 20);
-                           if(trace_level > 1)
+                                                 std::move(bench_prog),
+                                                 cr->replace.fill_map,
+                                                 bundle,
+                                                 /* nrun */ 20);
                                std::cout << t << "ms" << std::endl;
                            return t;
                        });

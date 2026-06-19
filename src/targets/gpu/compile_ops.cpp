@@ -38,6 +38,7 @@
 #include <migraphx/builtin.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -501,8 +502,14 @@ struct compile_plan
             const auto& solution     = config->solutions[i];
             auto bench_prog          = results[i]->make_program();
             auto* mm                 = bench_prog.get_main_module();
-            std::string comment_text = preop.name() + " problem=" + to_string(config->problem) +
-                                       " solution=" + to_string(solution);
+
+            // Use json encoding for the comment used for benchmarking mxr files.
+            value comment_val        = value::object{};
+            comment_val["op"]        = preop.name();
+            comment_val["problem"]   = config->problem;
+            comment_val["solution"]  = solution;
+            std::string comment_text = to_json_string(comment_val);
+
             mm->add_instruction(builtin::comment{comment_text}, {});
             auto problem_hash = std::hash<std::string>{}(to_string(config->problem));
             auto mxr_file     = mxr_dir / (preop.name() + "_" + std::to_string(i) + "_" +

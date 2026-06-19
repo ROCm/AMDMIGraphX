@@ -24,6 +24,7 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/fuse_attention.hpp>
+#include <migraphx/rewrite_reduce.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -34,6 +35,7 @@
 #include <migraphx/split_factor.hpp>
 #include <migraphx/generic_float.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/op/builder/insert.hpp>
 #include <basic_ops.hpp>
 #include <group.hpp>
 #include <test.hpp>
@@ -1324,13 +1326,11 @@ TEST_CASE(kv_cache_attention)
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 6, 2}}}), query);
         auto tsp_q = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), rsp_q);
-        auto rope = mm->add_instruction(
-            migraphx::make_op("gqa_rotary_embedding",
-                              {{"num_heads", 2}, {"kv_num_heads", 2}, {"interleaved", 0}}),
-            tsp_q,
-            slk,
-            cos_cache,
-            sin_cache);
+        auto rope = migraphx::op::builder::add("rotary_embedding",
+                                               *mm,
+                                               {tsp_q, slk, cos_cache, sin_cache},
+                                               {{"interleaved", false}})
+                        .at(0);
         auto slc_k = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), rope);
         auto slc_v = mm->add_instruction(
@@ -1397,13 +1397,11 @@ TEST_CASE(kv_cache_attention)
             mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 6, 2}}}), query);
         auto tsp_q = mm->add_instruction(
             migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), rsp_q);
-        auto rope = mm->add_instruction(
-            migraphx::make_op("gqa_rotary_embedding",
-                              {{"num_heads", 2}, {"kv_num_heads", 2}, {"interleaved", 0}}),
-            tsp_q,
-            slk,
-            cos_cache,
-            sin_cache);
+        auto rope = migraphx::op::builder::add("rotary_embedding",
+                                               *mm,
+                                               {tsp_q, slk, cos_cache, sin_cache},
+                                               {{"interleaved", false}})
+                        .at(0);
         auto slc_k = mm->add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), rope);
         auto slc_v = mm->add_instruction(
@@ -1474,6 +1472,113 @@ TEST_CASE(kv_cache_attention)
         mm->add_return({group, cpp_k, cpp_v});
     }
     EXPECT(p1.sort() == p2.sort());
+}
+
+// Verify that rewrite_reduce's FP32 upcast (which inserts convert(f16->f32)
+// after the dot output) does not break kv_cache_attention fusion.
+//
+// In the real pipeline, rewrite_reduce runs first and extends the FP32 upcast
+// range from the dot output through softmax. This inserts a convert(f16->f32)
+// between the dot and mul. Then fuse_attention runs and must still recognize
+// the attention pattern despite the convert. The matcher's skip(convert)
+// allows it to see through the convert to the dot.
+//
+// This test runs both passes in sequence on a clean GQA graph and verifies
+// that attention fusion still produces a group{tag="kv_cache_attention"}.
+TEST_CASE(kv_cache_attention_with_fp32_softmax_upcast)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1}};
+    migraphx::shape s2{migraphx::shape::int32_type, {4}};
+    migraphx::shape s3{migraphx::shape::half_type, {4, 1}};
+    migraphx::shape s4{migraphx::shape::int32_type, {2, 1}};
+    migraphx::shape s5{migraphx::shape::half_type, {2, 2, 4, 2}};
+    migraphx::shape s6{migraphx::shape::half_type, {2, 1, 12}};
+
+    // Build a clean GQA graph with softmax op (not decomposed).
+    // This is the graph as it comes from the ONNX parser, before any passes.
+    migraphx::program p;
+    {
+        auto* mm  = p.get_main_module();
+        auto half = mm->add_literal(migraphx::literal{s1, {0.5}});
+        auto ninf =
+            mm->add_literal(migraphx::literal{s1, {-std::numeric_limits<float>::infinity()}});
+        auto range     = mm->add_literal(migraphx::literal{s2, {1, 2, 3, 4}});
+        auto sin_cache = mm->add_parameter("sin_cache", s3);
+        auto cos_cache = mm->add_parameter("cos_cache", s3);
+        auto slk       = mm->add_parameter("slk", s4);
+        auto v         = mm->add_parameter("v", s5);
+        auto k         = mm->add_parameter("k", s5);
+        auto query     = mm->add_parameter("query", s6);
+        auto rsp_q =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 6, 2}}}), query);
+        auto tsp_q = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), rsp_q);
+        auto rope = migraphx::op::builder::add("rotary_embedding",
+                                               *mm,
+                                               {tsp_q, slk, cos_cache, sin_cache},
+                                               {{"interleaved", false}})
+                        .at(0);
+        auto slc_k = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), rope);
+        auto slc_v = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {6}}}), rope);
+        auto cpp_k = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_k, slk, k);
+        auto cpp_v = mm->add_instruction(
+            migraphx::make_op("concat_past_present", {{"kv_num_heads", 2}}), slc_v, slk, v);
+        auto slc_q = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), rope);
+        auto tsp_k = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), cpp_k);
+        auto gemm1    = mm->add_instruction(migraphx::make_op("dot"), slc_q, tsp_k);
+        auto bc_range = mm->add_instruction(
+            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4}}}), range);
+        auto bc_ninf = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), ninf);
+        auto bc_half = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), half);
+        auto scaled = mm->add_instruction(migraphx::make_op("mul"), gemm1, bc_half);
+        auto bc_slk =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 4}}}), slk);
+        auto grtr      = mm->add_instruction(migraphx::make_op("greater"), bc_range, bc_slk);
+        auto conv_grtr = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::bool_type}}), grtr);
+        auto unsq_grtr = mm->add_instruction(
+            migraphx::make_op("unsqueeze", {{"axes", {1, 2}}, {"steps", {}}}), conv_grtr);
+        auto bc_grtr = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 1, 4}}}), unsq_grtr);
+        auto mask    = mm->add_instruction(migraphx::make_op("where"), bc_grtr, bc_ninf, scaled);
+        auto softmax = mm->add_instruction(migraphx::make_op("softmax", {{"axis", 3}}), mask);
+        auto gemm2   = mm->add_instruction(migraphx::make_op("dot"), softmax, cpp_v);
+        auto tsp_out = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), gemm2);
+        auto rsp_out =
+            mm->add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 4}}}), tsp_out);
+        mm->add_return({rsp_out, cpp_k, cpp_v});
+    }
+
+    // Run rewrite_reduce first: decomposes softmax, inserts convert(f16->f32)
+    // after dot, extending the FP32 upcast range through the attention chain.
+    migraphx::run_passes(*p.get_main_module(),
+                         {migraphx::rewrite_reduce{}, migraphx::dead_code_elimination{}});
+
+    // Run fuse_attention: must still match the kv_cache_attention pattern
+    // despite the convert between dot and mul.
+    run_pass(p, {.attn_enabled = true});
+
+    // Verify fusion happened: the output should contain a group instruction
+    // with tag "kv_cache_attention"
+    bool found_kv_cache_attention = false;
+    for(const auto& ins : *p.get_main_module())
+    {
+        if(ins.name() == "group")
+        {
+            auto tag = ins.get_operator().to_value()["tag"].to<std::string>();
+            if(tag == "kv_cache_attention")
+                found_kv_cache_attention = true;
+        }
+    }
+    EXPECT(found_kv_cache_attention);
 }
 
 // Verify that pointwise ops (add/mul from rotary embedding) that feed both
@@ -2117,6 +2222,72 @@ TEST_CASE(ceil_mul_of_function)
     EXPECT(migraphx::ceil_mul_of(100, 8) == 104);    // 100 -> 104 (padding = 4)
     EXPECT(migraphx::ceil_mul_of(127, 16) == 128);   // 127 -> 128 (padding = 1)
     EXPECT(migraphx::ceil_mul_of(2049, 32) == 2080); // 2049 -> 2080 (padding = 31)
+}
+
+// Attention block with 8-bit quantization should have q/dq pairs removed to allow for fusion
+TEST_CASE(fp8_quant_gemm_softmax_gemm)
+{
+    migraphx::shape s{migraphx::shape::half_type, {1, 12, 256, 256}};
+
+    auto quantize = [](migraphx::module* mm, migraphx::instruction_ref x) {
+        auto scale = mm->add_literal(
+            migraphx::literal{migraphx::shape{x->get_shape().type(), {1}}, {0.05f}});
+        scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), scale);
+        auto zp = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::fp8e4m3fn_type, {1}}, {0}});
+        zp = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), zp);
+        return mm->add_instruction(migraphx::make_op("quantizelinear"), x, scale, zp);
+    };
+    auto dequantize = [](migraphx::module* mm,
+                         migraphx::instruction_ref x,
+                         migraphx::shape::type_t out_type) {
+        auto scale = mm->add_literal(migraphx::literal{migraphx::shape{out_type, {1}}, {0.0025f}});
+        scale      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", x->get_shape().lens()}}), scale);
+        return mm->add_instruction(migraphx::make_op("dequantizelinear"), x, scale);
+    };
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s);
+        auto k   = mm->add_parameter("k", s);
+        auto v   = mm->add_parameter("v", s);
+        auto kt =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+
+        auto gemm1 =
+            mm->add_instruction(migraphx::make_op("quant_dot"), quantize(mm, q), quantize(mm, kt));
+        auto deq1 = dequantize(mm, gemm1, migraphx::shape::float_type);
+
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), deq1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), deq1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s.lens()}}),
+                                   rsum);
+        auto div = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+
+        auto gemm2 =
+            mm->add_instruction(migraphx::make_op("quant_dot"), quantize(mm, div), quantize(mm, v));
+        auto deq2 = dequantize(mm, gemm2, migraphx::shape::half_type);
+        mm->add_return({deq2});
+    }
+    run_pass(p1, {.attn_enabled = true});
+
+    auto* mm = p1.get_main_module();
+    // The attention gemms must be de-quantized (no quant_dot left) ...
+    EXPECT(std::none_of(
+        mm->begin(), mm->end(), [](const auto& ins) { return ins.name() == "quant_dot"; }));
+    // ... and fused into an attention group.
+    EXPECT(std::any_of(mm->begin(), mm->end(), [](const auto& ins) {
+        return ins.name() == "group" and
+               ins.get_operator().to_value()["tag"].template to<std::string>() == "attention";
+    }));
 }
 
 int main(int argc, const char* argv[])

@@ -31,6 +31,7 @@
 #include <migraphx/reduce_dims.hpp>
 #include <migraphx/generate.hpp>
 #include <migraphx/time.hpp>
+#include <migraphx/logger.hpp>
 #include <type_traits>
 #include <thread>
 
@@ -93,9 +94,9 @@ void blas_shape(const shape& in_shape)
         MIGRAPHX_THROW("GPU_GEMM: matrix dimensions can't be broadcasted");
     if(s.lens().size() < 3)
         return;
-    shape batch_shape{s.type(),
-                      {s.lens().begin(), s.lens().end() - 2},
-                      {s.strides().begin(), s.strides().end() - 2}};
+    shape batch_shape(s.type(),
+                      std::vector<std::size_t>(s.lens().begin(), s.lens().end() - 2),
+                      std::vector<std::size_t>(s.strides().begin(), s.strides().end() - 2));
     auto batch_shapes = reduce_dims({batch_shape});
     if(batch_shapes.front().lens().size() != 1)
         MIGRAPHX_THROW("GPU_GEMM: Batch dimension is not collapsible");
@@ -128,7 +129,7 @@ static auto rocblas_invoke(F f, Pack p, Ts... xs)
         {
             if(status == rocblas_status_perf_degraded)
             {
-                std::cerr << "WARNING: degraded perf. in rocBLAS call" << std::endl;
+                log::warn() << "degraded perf. in rocBLAS call";
             }
             else
                 MIGRAPHX_THROW("rocblas_invoke: rocBLAS call failed with status " +
@@ -332,7 +333,7 @@ struct gemm_impl
 
         if(check_valid == rocblas_status_invalid_value)
         {
-            std::cerr << "WARNING: tuned solution is invalid; reverting to default" << std::endl;
+            log::warn() << "tuned solution is invalid; reverting to default";
             return 0;
         }
         return solution_idx;
@@ -510,8 +511,8 @@ struct gemm_impl
                 best_time = host_time;
             }
         }
-        std::cout << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
-                  << first_time << "ms" << std::endl;
+        log::info() << "Winning GEMM solution: " << best_sol << " in " << best_time << " ms, beats "
+                    << first_time << "ms";
         std::this_thread::sleep_for(std::chrono::milliseconds{50});
         return best_sol;
     }

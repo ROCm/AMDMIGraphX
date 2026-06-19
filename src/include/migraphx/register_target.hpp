@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,10 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/target.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/auto_register.hpp>
 #include <cstring>
+#include <initializer_list>
 #include <utility>
 #include <vector>
 
@@ -38,6 +40,16 @@ MIGRAPHX_EXPORT void register_target_init();
 MIGRAPHX_EXPORT void register_target(const target& t);
 MIGRAPHX_EXPORT void unregister_target(const std::string& name);
 MIGRAPHX_EXPORT target make_target(const std::string& name);
+MIGRAPHX_EXPORT target make_target(
+    const std::string& name, const std::initializer_list<std::pair<std::string, value>>& options);
+MIGRAPHX_EXPORT target make_target_from_value(const std::string& name, const value& options);
+
+template <class Value>
+target make_target(const std::string& name, const Value& options)
+{
+    return make_target_from_value(name, options);
+}
+
 MIGRAPHX_EXPORT std::vector<std::string> get_targets();
 
 namespace detail {

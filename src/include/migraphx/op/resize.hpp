@@ -376,7 +376,7 @@ struct resize
             {
                 if(sizes.size() != input_s.ndim())
                     MIGRAPHX_THROW("RESIZE: sizes attribute's size must match rank of input X");
-                return shape{input_s.type(), sizes};
+                return input_s.with_lens(sizes);
             }
             else
             {
@@ -416,12 +416,13 @@ struct resize
             {
                 for(std::size_t i = 0; i < scales.size(); i++)
                 {
-                    dyn_dims[i].min = static_cast<std::size_t>(input.dyn_dims()[i].min * scales[i]);
-                    if(input.dyn_dims()[i].max != max_val)
-                    {
-                        dyn_dims[i].max =
-                            static_cast<std::size_t>(input.dyn_dims()[i].max * scales[i]);
-                    }
+                    auto input_interval = input.dyn_dims()[i].get_interval();
+                    std::size_t new_min = input_interval.min * scales[i];
+                    std::size_t new_max =
+                        input_interval.max == max_val
+                            ? max_val
+                            : static_cast<std::size_t>(input_interval.max * scales[i]);
+                    dyn_dims[i] = shape::dynamic_dimension{new_min, new_max};
                 }
             }
             return {input.type(), dyn_dims};

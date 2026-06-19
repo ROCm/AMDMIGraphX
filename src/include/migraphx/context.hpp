@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,6 +68,16 @@ any_ptr get_queue_context(T&)
 }
 
 template <class T>
+void set_queue_context(T&, any_ptr)
+{
+}
+
+template <class T>
+void restore_queue_context(T&)
+{
+}
+
+template <class T>
 void wait_for_context(T&, any_ptr)
 {
 }
@@ -75,6 +85,12 @@ void wait_for_context(T&, any_ptr)
 template <class T>
 void finish_on_context(T&, any_ptr)
 {
+}
+
+template <class T>
+bool is_cross_compile_context(const T&)
+{
+    return false;
 }
 
 #ifdef TYPE_ERASED_DECLARATION
@@ -89,9 +105,15 @@ struct MIGRAPHX_EXPORT context
     // (optional)
     any_ptr get_queue();
     // (optional)
+    void set_queue(any_ptr queue);
+    // (optional)
+    void restore_queue();
+    // (optional)
     void wait_for(any_ptr queue);
     // (optional)
     void finish_on(any_ptr queue);
+    // (optional)
+    bool is_cross_compile() const;
     //
     void finish() const;
 };
@@ -143,6 +165,33 @@ struct context
     }
 
     template <class T>
+    static auto private_detail_te_default_set_queue(char, T&& private_detail_te_self, any_ptr queue)
+        -> decltype(private_detail_te_self.set_queue(queue))
+    {
+        private_detail_te_self.set_queue(queue);
+    }
+
+    template <class T>
+    static void
+    private_detail_te_default_set_queue(float, T&& private_detail_te_self, any_ptr queue)
+    {
+        set_queue_context(private_detail_te_self, queue);
+    }
+
+    template <class T>
+    static auto private_detail_te_default_restore_queue(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.restore_queue())
+    {
+        private_detail_te_self.restore_queue();
+    }
+
+    template <class T>
+    static void private_detail_te_default_restore_queue(float, T&& private_detail_te_self)
+    {
+        restore_queue_context(private_detail_te_self);
+    }
+
+    template <class T>
     static auto private_detail_te_default_wait_for(char, T&& private_detail_te_self, any_ptr queue)
         -> decltype(private_detail_te_self.wait_for(queue))
     {
@@ -169,6 +218,19 @@ struct context
         finish_on_context(private_detail_te_self, queue);
     }
 
+    template <class T>
+    static auto private_detail_te_default_is_cross_compile(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.is_cross_compile())
+    {
+        return private_detail_te_self.is_cross_compile();
+    }
+
+    template <class T>
+    static bool private_detail_te_default_is_cross_compile(float, T&& private_detail_te_self)
+    {
+        return is_cross_compile_context(private_detail_te_self);
+    }
+
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
     {
@@ -192,10 +254,16 @@ struct context
                                                       std::declval<const value&>()),
                  private_detail_te_default_get_queue(char(0),
                                                      std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_set_queue(
+                     char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
+                 private_detail_te_default_restore_queue(char(0),
+                                                         std::declval<PrivateDetailTypeErasedT>()),
                  private_detail_te_default_wait_for(
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
                  private_detail_te_default_finish_on(
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
+                 private_detail_te_default_is_cross_compile(
+                     char(0), std::declval<PrivateDetailTypeErasedT>()),
                  std::declval<PrivateDetailTypeErasedT>().finish(),
                  void());
 
@@ -224,7 +292,7 @@ struct context
               typename = private_te_constraints<PrivateDetailTypeErasedT>,
               typename = typename std::enable_if<
                   not std::is_same<private_te_pure<PrivateDetailTypeErasedT>, context>{}>::type>
-    context& operator=(PrivateDetailTypeErasedT&& value)
+    context& operator=(PrivateDetailTypeErasedT && value)
     {
         using std::swap;
         auto* derived = this->any_cast<private_te_pure<PrivateDetailTypeErasedT>>();
@@ -289,6 +357,18 @@ struct context
         return (*this).private_detail_te_get_handle().get_queue();
     }
 
+    void set_queue(any_ptr queue)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().set_queue(queue);
+    }
+
+    void restore_queue()
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().restore_queue();
+    }
+
     void wait_for(any_ptr queue)
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -299,6 +379,12 @@ struct context
     {
         assert((*this).private_detail_te_handle_mem_var);
         (*this).private_detail_te_get_handle().finish_on(queue);
+    }
+
+    bool is_cross_compile() const
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        return (*this).private_detail_te_get_handle().is_cross_compile();
     }
 
     void finish() const
@@ -323,8 +409,11 @@ struct context
         virtual value to_value() const          = 0;
         virtual void from_value(const value& v) = 0;
         virtual any_ptr get_queue()             = 0;
+        virtual void set_queue(any_ptr queue)   = 0;
+        virtual void restore_queue()            = 0;
         virtual void wait_for(any_ptr queue)    = 0;
         virtual void finish_on(any_ptr queue)   = 0;
+        virtual bool is_cross_compile() const   = 0;
         virtual void finish() const             = 0;
     };
 
@@ -334,8 +423,7 @@ struct context
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>::value>::type* =
-                nullptr)
+            typename std::enable_if<std::is_reference<PrivateDetailTypeErasedU>{}>::type* = nullptr)
             : private_detail_te_value(value)
         {
         }
@@ -343,8 +431,8 @@ struct context
         template <typename PrivateDetailTypeErasedU = PrivateDetailTypeErasedT>
         private_detail_te_handle_type(
             PrivateDetailTypeErasedT value,
-            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>::value,
-                                    int>::type* = nullptr) noexcept
+            typename std::enable_if<not std::is_reference<PrivateDetailTypeErasedU>{}, int>::type* =
+                nullptr) noexcept
             : private_detail_te_value(std::move(value))
         {
         }
@@ -374,6 +462,18 @@ struct context
             return private_detail_te_default_get_queue(char(0), private_detail_te_value);
         }
 
+        void set_queue(any_ptr queue) override
+        {
+
+            private_detail_te_default_set_queue(char(0), private_detail_te_value, queue);
+        }
+
+        void restore_queue() override
+        {
+
+            private_detail_te_default_restore_queue(char(0), private_detail_te_value);
+        }
+
         void wait_for(any_ptr queue) override
         {
 
@@ -384,6 +484,12 @@ struct context
         {
 
             private_detail_te_default_finish_on(char(0), private_detail_te_value, queue);
+        }
+
+        bool is_cross_compile() const override
+        {
+
+            return private_detail_te_default_is_cross_compile(char(0), private_detail_te_value);
         }
 
         void finish() const override { private_detail_te_value.finish(); }
@@ -454,6 +560,13 @@ inline const ValueType& any_cast(const context& x)
 }
 // NOLINTEND(performance-unnecessary-value-param)
 #endif
+
+/// True iff `c` holds a concrete context impl and that impl reports cross-compiling.
+/// Safe to call on default-constructed (empty) contexts, unlike `c.is_cross_compile()`.
+inline bool is_cross_compiling(const context& c)
+{
+    return c.type_id() != typeid(std::nullptr_t) and c.is_cross_compile();
+}
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }
 

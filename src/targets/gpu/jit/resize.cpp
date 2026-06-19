@@ -90,9 +90,8 @@ struct resize_compiler : compiler<resize_compiler>
         std::string mode       = v.get("mode", "nearest");
         std::string coord_mode = v.get("coordinate_transformation_mode", "half_pixel");
 
-        // The output store is vectorized along the fastest axis. Pick the size/axis with the
-        // shared vectorize helper and launch one thread per vectorized element. Resize is faster
-        // with a width-4 store than the half2 default, so the candidate sizes are given explicitly.
+        // Vectorize the output store along the fast axis, one thread per vectorized element.
+        // Width-4 beats the half2 default for resize, so request {4, 2} explicitly.
         auto vec = gen::vectorize::elements(gen::find_fast_axis(options.virtual_inputs.back()),
                                             {options.virtual_inputs.back()},
                                             {4, 2});
@@ -118,16 +117,13 @@ struct resize_compiler : compiler<resize_compiler>
             scales = reorder_dims(scales, permutation);
         }
 
-        // The input is gathered, so it can share the output's vectorization only when the fast
-        // axis is a genuine pass-through (its input index equals its output index): equal length,
-        // unit scale, contiguous, and an identity-at-unit-scale coordinate transform. Otherwise
-        // the input transformer is the identity and the input is gathered scalar-wise.
+        // The gathered input shares the output's vectorization only on a pass-through fast axis
+        // (input index == output index): equal length, unit scale, contiguous, and an
+        // identity-at-unit-scale coord transform. Otherwise the input gathers scalar-wise.
         //
-        // The mode list below is exactly the coord_transform_* function objects in
-        // kernels/resize.hpp whose operator() maps idx -> idx at unit scale (every mode except
-        // tf_half_pixel_for_nn); keep it in sync if a coordinate transform is added or changed. An
-        // omission is safe (it just falls back to a scalar gather), but listing a non-identity mode
-        // would be incorrect.
+        // The mode list is exactly the coord_transform_* objects mapping idx -> idx at unit scale
+        // (all but tf_half_pixel_for_nn); keep in sync. Omitting one is safe (scalar gather),
+        // listing a non-identity mode is not.
         const bool axis_passthrough =
             in_lens[vec.axis] == out_lens[vec.axis] and in_strides[vec.axis] == 1 and
             float_equal(scales[vec.axis], 1.0f) and

@@ -197,22 +197,19 @@ MIGRAPHX_DEVICE_CONSTEXPR cubic_params compute_cubic_params_1d(
     return result;
 }
 
-// Drive a resize over the output `outv`, calling compute(in_shape, out_shape, out_multi, read)
-// for each output element; read(in_multi) gathers one input element. The global wrapper applies
-// the vectorize<Vn, Axis>() arg transformer to both the input and the output (identity when
-// Vn < 2).
+// Drive a resize over `outv`, calling compute(in_shape, out_shape, out_multi, read) per output
+// element; read(in_multi) gathers one input element. The wrapper vectorizes input and output via
+// vectorize<Vn, Axis>() (identity when Vn < 2).
 //
-// The host vectorizes the input only when the fast axis is a genuine pass-through (its input
-// index equals its output index). So when the input arrives vectorized, each corner is read as
-// one coalesced vec<T, Vn> load shared across the Vn lanes (read returns a vector); otherwise
-// each lane is gathered scalar-wise and the output is filled lane-by-lane.
+// The input is vectorized only on a pass-through fast axis, so a vectorized input reads each
+// corner as one coalesced vec<T, Vn> shared across lanes; otherwise lanes gather scalar-wise.
 template <index_int Axis, class Input, class Output, class Outv, class Compute>
 __device__ void resize_apply(Input input, Output out, Outv outv, Compute compute)
 {
     auto idx                = make_index();
     constexpr index_int ivn = tensor_vec_size<Input>(); // >= 2 only for a pass-through fast axis
     constexpr index_int ovn = tensor_vec_size<Outv>();
-    // Reading a vectorized input gathers a vec<float, ivn>; a scalar input gathers a float.
+    // Vectorized input gathers a vec<float, ivn>; scalar input gathers a float.
     auto read = [&](auto in_multi) { return migraphx::convert<float>(input[in_multi]); };
 
     if constexpr(ivn >= 2)
@@ -237,8 +234,7 @@ __device__ void resize_apply(Input input, Output out, Outv outv, Compute compute
             }
             else
             {
-                // outv is `out` vectorized by ovn along Axis, so the lane index reconstructs
-                // the real output coordinate.
+                // outv is `out` vectorized by ovn along Axis; lane reconstructs the output coord.
                 static_assert(get_shape_c<Outv>{}.lens[Axis] * ovn ==
                               get_shape_c<Output>{}.lens[Axis]);
                 using out_type = vec_type<typename Outv::type>;

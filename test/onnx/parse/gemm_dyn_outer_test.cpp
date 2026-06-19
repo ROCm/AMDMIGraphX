@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,4 +44,25 @@ TEST_CASE(gemm_dyn_outer_test)
     options.default_dyn_dim_value = {5, 10, {7}};
     auto prog                     = read_onnx("gemm_dyn_outer_test.onnx", options);
     EXPECT(p == prog);
+}
+
+TEST_CASE(gemm_dyn_outer_sym_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    // Symbolic outer dim on A: the alpha scaling goes through add_common_op's symbolic broadcast.
+    EXPECT(check_parse(
+        "gemm_dyn_outer_test.onnx",
+        {{"A", {migraphx::shape::float_type, sym_dims({lit(5), var("n", {5, 10}, {7})})}},
+         {"B", {migraphx::shape::float_type, {11, 5}}}},
+        [](migraphx::module& m, const auto& a) {
+            auto a_l = m.add_literal(2.f);
+            auto t_a = add_common_op(m, migraphx::make_op("mul"), {a_l, a[0]});
+            t_a = m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), t_a);
+            auto t1 =
+                m.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), a[1]);
+            auto dot =
+                migraphx::add_apply_alpha_beta(m, {t_a, t1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+            m.add_return({dot});
+        }));
 }

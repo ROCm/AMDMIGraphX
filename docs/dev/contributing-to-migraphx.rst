@@ -4,9 +4,9 @@
 
 .. _contributing-to-migraphx:
 
-==========================
+=======================
 Developing for MIGraphX
-==========================
+=======================
 
 This document is intended for anyone who wants to contribute to MIGraphX. This document covers some basic operations that can be used to develop for MIGraphX. The complete source code for the example shown here can be found at `ref_dev_examples.cpp <https://github.com/ROCm/AMDMIGraphX/blob/develop/test/ref_dev_examples.cpp>`_ on the MIGraphX repository.
 
@@ -14,13 +14,14 @@ More examples can be found on `the MIGraphX GitHub repository <https://github.co
 
 
 Adding two literals
-----------------------------
+-------------------
 
 A program is a collection of modules, which are collections of instructions to be executed when calling :cpp:any:`eval <migraphx::internal::program::eval>`.
 Each instruction has an associated :cpp:any:`operation <migraphx::internal::operation>` which represents the computation to be performed by the instruction.
 
-We start with a snippet of the simple ``add_two_literals()`` function::
+We start with a snippet of the simple ``add_two_literals()`` function:
 
+.. code-block:: cpp
 
     // create the program and get a pointer to the main module
     migraphx::program p;
@@ -48,15 +49,19 @@ The same :ref:`add_literal <migraphx-module>` function is used to add the litera
 After the literals are created, the instruction is created to add the numbers. This is done by using the :ref:`add_instruction <migraphx-module>` function with the ``add`` :cpp:any:`operation <migraphx::internal::operation>` created by ``make_op`` and the previously created literals passed as the arguments for the instruction.
 You can run this :cpp:any:`program <migraphx::internal::program>` by compiling it for the reference target (CPU) and then running it with :cpp:any:`eval <migraphx::internal::program::eval>`. This prints the result on the console.
 
-To compile the program for the GPU, move the file to ``test/gpu/`` directory and include the given target::
+To compile the program for the GPU, move the file to ``test/gpu/`` directory and include the given target:
+
+.. code-block:: cpp
 
     #include <migraphx/gpu/target.hpp>
 
-Adding Parameters
-----------------------------
+Adding parameters
+-----------------
 
 While the ``add_two_literals()`` function above demonstrates add operation on constant values ``1`` and ``2``,
-the following program demonstrates how to pass a parameter (``x``) to a module using ``add_parameter()`` function .
+the following program demonstrates how to pass a parameter (``x``) to a module using ``add_parameter()`` function:
+
+.. code-block:: cpp
 
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -72,7 +77,9 @@ the following program demonstrates how to pass a parameter (``x``) to a module u
 
 In the code snippet above, an add operation is performed on a parameter of type ``int32`` and literal ``2`` followed by compilation for the CPU.
 To run the program, pass the parameter as a ``parameter_map`` while calling :cpp:any:`eval <migraphx::internal::program::eval>`.
-To map the parameter ``x`` to an :cpp:any:`argument <migraphx::internal::argument>` object with an ``int`` data type, a ``parameter_map`` is created as shown below::
+To map the parameter ``x`` to an :cpp:any:`argument <migraphx::internal::argument>` object with an ``int`` data type, a ``parameter_map`` is created as shown below:
+
+.. code-block:: cpp
 
     // create a parameter_map object for passing a value to the "x" parameter
     std::vector<int> data = {4};
@@ -83,10 +90,12 @@ To map the parameter ``x`` to an :cpp:any:`argument <migraphx::internal::argumen
     std::cout << "add_parameters: 4 + 2 = " << result << "\n";
     EXPECT(result.at<int>() == 6);
 
-Handling Tensor Data
-----------------------------
+Handling tensor data
+--------------------
 
-The above two examples demonstrate scalar operations. To describe multi-dimensional tensors, use the :cpp:any:`shape <migraphx::internal::shape>` class to compute a simple convolution as shown below::
+The above two examples demonstrate scalar operations. To describe multi-dimensional tensors, use the :cpp:any:`shape <migraphx::internal::shape>` class to compute a simple convolution as shown below:
+
+.. code-block:: cpp
 
     migraphx::program p;
     auto* mm = p.get_main_module();
@@ -100,7 +109,9 @@ The above two examples demonstrate scalar operations. To describe multi-dimensio
     auto weights = mm->add_parameter("W", weights_shape);
     mm->add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}, {"stride", {2, 2}}}), input, weights);
 
-Most programs take data from allocated buffers that are usually on the GPU. To pass the buffer data as an argument, create :cpp:any:`argument <migraphx::internal::argument>` objects directly from the pointers to the buffers::
+Most programs take data from allocated buffers that are usually on the GPU. To pass the buffer data as an argument, create :cpp:any:`argument <migraphx::internal::argument>` objects directly from the pointers to the buffers:
+
+.. code-block:: cpp
 
     // Compile the program
     p.compile(migraphx::ref::target{});
@@ -129,25 +140,31 @@ When running the :cpp:any:`program <migraphx::internal::program>`, buffers are a
 By default, the buffers are allocated on the CPU when compiling for CPU and on the GPU when compiling for GPU.
 To locate the buffers on the CPU even when compiling for GPU, set the option ``offload_copy=true``.
 
-Importing From ONNX
-----------------------------
+Importing from ONNX
+-------------------
 
 To make it convenient to use neural networks directly from other frameworks, MIGraphX ONNX parser allows you to build a :cpp:any:`program <migraphx::internal::program>` directly from an ONNX file.
-For usage, refer to the ``parse_onnx()`` function below::
+For usage, refer to the ``parse_onnx()`` function below:
+
+.. code-block:: cpp
 
     program p = migraphx::parse_onnx("model.onnx");
     p.compile(migraphx::gpu::target{});
 
 
 Build this example
-----------------------------
+------------------
 
 Build the `ref_dev_examples.cpp <https://github.com/ROCm/AMDMIGraphX/blob/develop/test/ref_dev_examples.cpp>`_ example with this command:
+
+.. code-block:: bash
 
     make -j$(nproc) test_ref_dev_examples
 
 This creates the ``test_ref_dev_examples`` under ``bin/`` in the build directory.
 
 To verify the build, use:
+
+.. code-block:: bash
 
     make -j$(nproc) check

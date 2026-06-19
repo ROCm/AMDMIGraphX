@@ -58,6 +58,7 @@ void problem_cache::load()
     for(const auto& [key, solution] : unnormalized_cache)
         cache[create_key(key.at("name").to<std::string>(), key.at("problem"))] = solution;
 }
+
 void problem_cache::save() const
 {
     auto pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});

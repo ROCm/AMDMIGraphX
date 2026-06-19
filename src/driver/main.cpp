@@ -997,7 +997,7 @@ struct time_cmd : command<time_cmd>
         auto p = c.compile();
         log::info() << "Allocating params ...";
         std::vector<parameter_map> ms;
-        for(auto i:range(nbuffers))
+        for(auto i : range(nbuffers))
         {
             (void)i;
             ms.push_back(c.params(p));

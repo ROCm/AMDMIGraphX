@@ -183,7 +183,4 @@ void test_narrowing(std::uint32_t u, long long x)
 
 // Shift operators take their result type from the left operand and promote each
 // operand independently, so the cast of the shift count is not redundant.
-std::uint64_t test_shift(std::uint64_t u, int x)
-{
-    return u << static_cast<std::uint64_t>(x);
-}
+std::uint64_t test_shift(std::uint64_t u, int x) { return u << static_cast<std::uint64_t>(x); }

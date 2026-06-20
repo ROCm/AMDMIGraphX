@@ -118,31 +118,39 @@ def getStaticCast(token):
     return token
 
 
-def getRawTypeName(raw_cast):
-    # Recover a static_cast's target type as written in the source. cppcheck
-    # merges fundamental types such as 'unsigned int' into a single token in the
-    # simplified token list, so read the spelling between the angle brackets from
-    # the raw token stream instead. raw_cast is the raw 'static_cast' token.
-    if not raw_cast or not simpleMatch(raw_cast.next, "<"):
-        return None
-    parts = []
-    depth = 0
-    tok = raw_cast.next
-    while tok:
-        if tok.str == '<':
-            depth += 1
-            if depth == 1:
-                tok = tok.next
-                continue
-        elif tok.str == '>':
-            depth -= 1
-            if depth == 0:
-                break
-        parts.append(tok.str)
-        tok = tok.next
-    if depth != 0:
-        return None
-    return " ".join(parts).replace(" :: ", "::")
+class TemplateBracketType:
+    # Reads the type written inside a static_cast's template brackets as it
+    # appears in the source. cppcheck merges fundamental types such as
+    # 'unsigned int' into a single token in the simplified token list, so the
+    # spelling is read from the raw tokens, which are indexed by position. The
+    # index is built lazily on first use, since most files have no std::min or
+    # std::max call with a static_cast argument at all.
+    def __init__(self, data):
+        self.data = data
+        self.raw_by_pos = None
+
+    def index(self):
+        if self.raw_by_pos is None:
+            self.raw_by_pos = {(tok.file, tok.linenr, tok.column): tok
+                               for tok in self.data.rawTokens
+                               if tok.str in ('<', '>')}
+        return self.raw_by_pos
+
+    def getRawTypeName(self, cast):
+        # Use the simplified '<' link to bound the type, then read its spelling
+        # from the raw '<' and '>' tokens looked up by position.
+        lt = cast.astOperand1.next
+        if not simpleMatch(lt, "<") or not lt.link:
+            return None
+        raw_by_pos = self.index()
+        raw_lt = raw_by_pos.get((lt.file, lt.linenr, lt.column))
+        raw_gt = raw_by_pos.get((lt.link.file, lt.link.linenr, lt.link.column))
+        if not raw_lt or not raw_gt:
+            return None
+        parts = []
+        for tok in raw_lt.next.forward(raw_gt):
+            parts.append(tok.str)
+        return " ".join(parts).replace(" :: ", "::")
 
 
 @cppcheck.checker
@@ -465,11 +473,7 @@ def RedundantStaticCastOp(cfg, data):
 
 @cppcheck.checker
 def StaticCastInMinMax(cfg, data):
-    # The simplified token list collapses fundamental type spellings, so the
-    # cast target type is recovered from the raw 'static_cast' tokens indexed by
-    # position. Build that index lazily on the first offending cast, since most
-    # files have no std::min/std::max call with a static_cast argument at all.
-    raw_casts = None
+    template_type = TemplateBracketType(data)
     for token in cfg.tokenlist:
         if token.str not in ('min', 'max'):
             continue
@@ -485,12 +489,7 @@ def StaticCastInMinMax(cfg, data):
             cast = getStaticCast(arg)
             if not cast:
                 continue
-            if raw_casts is None:
-                raw_casts = {(tok.file, tok.linenr, tok.column): tok
-                             for tok in data.rawTokens if tok.str == 'static_cast'}
-            sc = cast.astOperand1
-            type_name = getRawTypeName(
-                raw_casts.get((sc.file, sc.linenr, sc.column)))
+            type_name = template_type.getRawTypeName(cast)
             if not type_name:
                 continue
             cppcheck.reportError(

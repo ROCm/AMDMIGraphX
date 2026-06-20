@@ -118,51 +118,6 @@ def getStaticCast(token):
     return token
 
 
-def findRedundantStaticCast(token, sign):
-    # Look for 'other <op> static_cast<T>(x)' (in either operand order) where the
-    # binary operator applies the usual arithmetic conversions and 'other'
-    # already has the cast's exact integral type and signedness. Those
-    # conversions then convert the cast's source operand to that same type, so
-    # the explicit cast does not change the result. Returns the cast token to
-    # report, or None.
-    if token.str not in usualArithmeticConversionOps:
-        return None
-    op1 = token.astOperand1
-    op2 = token.astOperand2
-    # Both operands are required, which also rules out the unary forms of
-    # operators such as '-', '&' and '*'.
-    if not op1 or not op2:
-        return None
-    for cast_op, other in ((op1, op2), (op2, op1)):
-        cast = getStaticCast(cast_op)
-        if not cast or other.isCast:
-            continue
-        cast_vt = integralValueType(cast)
-        other_vt = integralValueType(other)
-        src_vt = integralValueType(cast.astOperand2)
-        if not cast_vt or not other_vt or not src_vt:
-            continue
-        if cast_vt.sign != sign or other_vt.sign != sign:
-            continue
-        if cast_vt.type != other_vt.type:
-            continue
-        src_rank = integralRank.get(src_vt.type)
-        dst_rank = integralRank.get(cast_vt.type)
-        if src_rank is None or dst_rank is None:
-            continue
-        # A narrowing cast (wider source than target) changes the value.
-        if src_rank > dst_rank:
-            continue
-        # For a signed target an unsigned source can make the common type
-        # unsigned, and whether the signed type can represent all of the
-        # unsigned values is platform dependent, so the cast is not reliably
-        # redundant.
-        if sign == 'signed' and src_vt.sign == 'unsigned':
-            continue
-        return cast
-    return None
-
-
 @cppcheck.checker
 def AvoidBranchingStatementAsLastInLoop(cfg, data):
     for token in cfg.tokenlist:
@@ -430,27 +385,55 @@ def RedundantLocalVariable(cfg, data):
 
 
 @cppcheck.checker
-def RedundantSignedStaticCast(cfg, data):
+def RedundantStaticCastOp(cfg, data):
+    # Look for 'other <op> static_cast<T>(x)' (in either operand order) where the
+    # binary operator applies the usual arithmetic conversions and 'other'
+    # already has the cast's exact integral type. Those conversions then convert
+    # the cast's source operand to that same type, so the explicit cast does not
+    # change the result.
     for token in cfg.tokenlist:
-        cast = findRedundantStaticCast(token, 'signed')
-        if not cast:
+        if token.str not in usualArithmeticConversionOps:
             continue
-        cppcheck.reportError(
-            cast.astOperand1, "style",
-            "Cast to signed is redundant in a binary operation with a signed value of the same type."
-        )
-
-
-@cppcheck.checker
-def RedundantUnsignedStaticCast(cfg, data):
-    for token in cfg.tokenlist:
-        cast = findRedundantStaticCast(token, 'unsigned')
-        if not cast:
+        op1 = token.astOperand1
+        op2 = token.astOperand2
+        # Both operands are required, which also rules out the unary forms of
+        # operators such as '-', '&' and '*'.
+        if not op1 or not op2:
             continue
-        cppcheck.reportError(
-            cast.astOperand1, "style",
-            "Cast to unsigned is redundant in a binary operation with an unsigned value of the same type."
-        )
+        for cast_op, other in ((op1, op2), (op2, op1)):
+            cast = getStaticCast(cast_op)
+            if not cast or other.isCast:
+                continue
+            cast_vt = integralValueType(cast)
+            other_vt = integralValueType(other)
+            src_vt = integralValueType(cast.astOperand2)
+            if not cast_vt or not other_vt or not src_vt:
+                continue
+            # Only consider genuine signed/unsigned integers, which excludes bool.
+            if cast_vt.sign not in ('signed', 'unsigned'):
+                continue
+            # The other operand must already have the cast's exact integral type,
+            # i.e. the same width and signedness.
+            if cast_vt.type != other_vt.type or cast_vt.sign != other_vt.sign:
+                continue
+            src_rank = integralRank.get(src_vt.type)
+            dst_rank = integralRank.get(cast_vt.type)
+            if src_rank is None or dst_rank is None:
+                continue
+            # A narrowing cast (wider source than target) changes the value.
+            if src_rank > dst_rank:
+                continue
+            # For a signed target an unsigned source can make the common type
+            # unsigned, and whether the signed type can represent all of the
+            # unsigned values is platform dependent, so the cast is not reliably
+            # redundant.
+            if cast_vt.sign == 'signed' and src_vt.sign == 'unsigned':
+                continue
+            cppcheck.reportError(
+                cast.astOperand1, "style",
+                "Static cast is redundant in a binary operation with an operand of the same type."
+            )
+            break
 
 
 # @cppcheck.checker

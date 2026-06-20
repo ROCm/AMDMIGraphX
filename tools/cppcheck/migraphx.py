@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 import cppcheck, itertools
-from cppcheckdata import simpleMatch, match
+from cppcheckdata import simpleMatch, match, getArguments
 
 
 def skipTokenMatches(tokens, skip=None):
@@ -116,6 +116,33 @@ def getStaticCast(token):
     if not simpleMatch(token.astOperand1, "static_cast"):
         return None
     return token
+
+
+def getRawTypeName(raw_cast):
+    # Recover a static_cast's target type as written in the source. cppcheck
+    # merges fundamental types such as 'unsigned int' into a single token in the
+    # simplified token list, so read the spelling between the angle brackets from
+    # the raw token stream instead. raw_cast is the raw 'static_cast' token.
+    if not raw_cast or not simpleMatch(raw_cast.next, "<"):
+        return None
+    parts = []
+    depth = 0
+    tok = raw_cast.next
+    while tok:
+        if tok.str == '<':
+            depth += 1
+            if depth == 1:
+                tok = tok.next
+                continue
+        elif tok.str == '>':
+            depth -= 1
+            if depth == 0:
+                break
+        parts.append(tok.str)
+        tok = tok.next
+    if depth != 0:
+        return None
+    return " ".join(parts).replace(" :: ", "::")
 
 
 @cppcheck.checker
@@ -433,6 +460,43 @@ def RedundantStaticCastOp(cfg, data):
                 cast.astOperand1, "style",
                 "Static cast is redundant in a binary operation with an operand of the same type."
             )
+            break
+
+
+@cppcheck.checker
+def StaticCastInMinMax(cfg, data):
+    # The simplified token list collapses fundamental type spellings, so the
+    # cast target type is recovered from the raw 'static_cast' tokens indexed by
+    # position. Build that index lazily on the first offending cast, since most
+    # files have no std::min/std::max call with a static_cast argument at all.
+    raw_casts = None
+    for token in cfg.tokenlist:
+        if token.str not in ('min', 'max'):
+            continue
+        # Only the plain 'std::min(...)' call form. The 'std::min<T>(...)' form
+        # has '<' as the next token and is already what we recommend.
+        if not match(token, "min|max ("):
+            continue
+        # Require the call to be qualified with 'std::' to avoid matching member
+        # functions or other unrelated min/max overloads.
+        if not simpleMatch(token.tokAt(-2), "std ::"):
+            continue
+        for arg in getArguments(token) or []:
+            cast = getStaticCast(arg)
+            if not cast:
+                continue
+            if raw_casts is None:
+                raw_casts = {(tok.file, tok.linenr, tok.column): tok
+                             for tok in data.rawTokens if tok.str == 'static_cast'}
+            sc = cast.astOperand1
+            type_name = getRawTypeName(
+                raw_casts.get((sc.file, sc.linenr, sc.column)))
+            if not type_name:
+                continue
+            cppcheck.reportError(
+                token, "style",
+                "Use 'std::%s<%s>' with an explicit template argument instead of a static_cast on an argument."
+                % (token.str, type_name))
             break
 
 

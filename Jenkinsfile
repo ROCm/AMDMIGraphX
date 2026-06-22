@@ -26,9 +26,11 @@ def rocmnodename(name) {
     } else if(name == "navi21") {
         node_name = "${rocmtest_name} && navi21";
     } else if(name == "mi100+") {
-        node_name = "${rocmtest_name} && (gfx908 || gfx90a) && !vm";
+        node_name = "${rocmtest_name} && (gfx908 || gfx90a || gfx942 || gfx950) && !vm";
     } else if(name == "mi200+") {
-        node_name = "${rocmtest_name} && (gfx90a || gfx942) && !vm";
+        node_name = "${rocmtest_name} && (gfx90a || gfx942 || gfx950) && !vm";
+    } else if(name == "mi300+") {
+        node_name = "${rocmtest_name} && (gfx942 || gfx950) && !vm";
     } else if(name == "cdna") {
         node_name = "${rocmtest_name} && (gfx908 || gfx90a || vega20) && !vm";
     } else if(name == "navi32") {
@@ -349,7 +351,7 @@ pipeline {
             parallel {
                 stage('All Targets Release') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
@@ -392,7 +394,7 @@ pipeline {
 
                 stage('HIP Clang Release') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
@@ -406,7 +408,7 @@ pipeline {
 
                 stage('HIP Clang Static') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {
@@ -464,7 +466,7 @@ pipeline {
 
                 stage('MLIR Debug') {
                     agent {
-                        label rocmnodename('mi100+')
+                        label rocmnodename('mi300+')
                     }
                     environment {
                         // Since the purpose of this run is to verify all things MLIR supports,

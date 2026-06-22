@@ -184,3 +184,14 @@ void test_narrowing(std::uint32_t u, long long x)
 // Shift operators take their result type from the left operand and promote each
 // operand independently, so the cast of the shift count is not redundant.
 std::uint64_t test_shift(std::uint64_t u, int x) { return u << static_cast<std::uint64_t>(x); }
+
+// A scoped enum does not convert to an integer implicitly, so casting it is
+// required, not redundant.
+enum class color : std::uint8_t
+{
+    red,
+    green,
+    last
+};
+
+bool test_enum_source(std::uint8_t c) { return c < static_cast<std::uint8_t>(color::last); }

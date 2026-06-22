@@ -461,6 +461,10 @@ def RedundantStaticCastOp(cfg, data):
             src_vt = integralValueType(cast.astOperand2)
             if not cast_vt or not other_vt or not src_vt:
                 continue
+            # A cast from an enum is meaningful: a scoped enum does not convert to
+            # an integer implicitly, so removing the cast would not compile.
+            if src_vt.isEnum():
+                continue
             # Only consider genuine signed/unsigned integers, which excludes bool.
             if cast_vt.sign not in ('signed', 'unsigned'):
                 continue

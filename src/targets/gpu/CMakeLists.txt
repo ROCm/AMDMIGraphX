@@ -224,6 +224,7 @@ add_library(migraphx_gpu
     hip_gemm_impl.cpp
     hsa_chiplet.cpp
     kernel.cpp
+    layout_reduce.cpp
     lowering.cpp
     loop.cpp
     lrn.cpp

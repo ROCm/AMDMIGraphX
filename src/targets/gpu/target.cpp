@@ -81,6 +81,7 @@
 #include <migraphx/gpu/target.hpp>
 #include <migraphx/gpu/write_literals.hpp>
 #include <migraphx/gpu/fuse_mlss.hpp>
+#include <migraphx/gpu/layout_reduce.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -95,8 +96,10 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_LAYOUT_REDUCE)
 
 namespace {
+
 struct pipeline_factory
 {
     migraphx::context* gctx_ptr = nullptr;
@@ -159,6 +162,8 @@ struct pipeline_factory
             optimize_module{},
             layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
             dead_code_elimination{},
+            enable_pass(disabled(MIGRAPHX_DISABLE_LAYOUT_REDUCE{}), layout_reduce{}),
+            dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},
             prefuse_ops{get_context()},
@@ -185,6 +190,7 @@ struct pipeline_factory
             dead_code_elimination{},
             optimize_module{},
             fuse_mlss{get_context()},
+            dead_code_elimination{},
             fuse_pointwise_reduce{},
             dead_code_elimination{},
 #ifndef _WIN32

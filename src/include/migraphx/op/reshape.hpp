@@ -28,9 +28,11 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/sat_ops.hpp>
+#include <migraphx/reshape_dims.hpp>
 
 #include <algorithm>
 
@@ -56,7 +58,7 @@ namespace op {
  */
 struct reshape
 {
-    std::vector<int64_t> dims;
+    std::vector<dim_like> dims;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -70,9 +72,9 @@ struct reshape
     // Makes no checks for the validity of the `dims` attribute for the given input shape.
     shape dyn_1arg_compute_shape(shape s0) const
     {
-        auto input_dyn_dims = s0.dyn_dims();
-        const auto neg_dim_num =
-            std::distance(this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), -1));
+        auto input_dyn_dims    = s0.dyn_dims();
+        const auto neg_dim_num = std::distance(
+            this->dims.begin(), std::find(this->dims.begin(), this->dims.end(), dim_like{-1}));
         const bool has_negative_dim_attr = neg_dim_num < dims.size();
         // construct output dynamic shape from dims attribute
         std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
@@ -80,17 +82,17 @@ struct reshape
         for(std::size_t i = 0; i < dims.size(); ++i)
         {
             auto d = dims.at(i);
-            if(d == 0)
+            if(d == dim_like{0})
             {
                 output_dyn_dims.at(i) = input_dyn_dims.at(i);
             }
-            else if(d == -1)
+            else if(d == dim_like{-1})
             {
                 output_dyn_dims.at(i) = {1, 1};
             }
             else
             {
-                std::size_t u_dim     = d;
+                std::size_t u_dim     = std::get<int64_t>(d);
                 output_dyn_dims.at(i) = {u_dim, u_dim};
             }
         }
@@ -138,15 +140,18 @@ struct reshape
     {
         check_shapes{inputs, *this}.has(1);
         auto&& idims = inputs.front().lens();
-        std::vector<std::size_t> rdims(dims.begin(), dims.end());
+        std::vector<std::size_t> rdims(dims.size());
+        std::transform(dims.begin(), dims.end(), rdims.begin(), [](const dim_like& d) {
+            return std::get<int64_t>(d);
+        });
 
         for(std::size_t i = 0; i < dims.size(); i++)
         {
-            if(dims[i] == 0)
+            if(dims[i] == dim_like{0})
                 rdims[i] = idims[i];
 
             // convert -1 to 1 for rdims since rdims uses size_t (-1 is max_int for size_t)
-            if(dims[i] == -1)
+            if(dims[i] == dim_like{-1})
                 rdims[i] = 1;
         }
 
@@ -157,28 +162,39 @@ struct reshape
                 std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
             for(std::size_t i = 0; i < rdims.size(); i++)
             {
-                if(dims[i] == -1)
+                if(dims[i] == dim_like{-1})
                     rdims[i] = missing_dim;
             }
         }
 
-        auto s = shape{inputs.front().type(), rdims};
+        auto nelements =
+            std::accumulate(rdims.begin(), rdims.end(), std::size_t{1}, std::multiplies<>{});
 
-        if(s.elements() != inputs.front().elements())
+        if(nelements != inputs.front().elements())
             MIGRAPHX_THROW("Reshape: Wrong number of elements for reshape: reshape has " +
-                           std::to_string(s.elements()) + " elements whereas the input has " +
+                           std::to_string(nelements) + " elements whereas the input has " +
                            std::to_string(inputs.front().elements()));
 
-        return s;
+        auto s = reshape_dims(inputs.front(), rdims, {.lazy = false});
+        if(not s.has_value())
+            return shape{inputs.front().type(), rdims};
+
+        return s.value();
     }
 
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2);
 
-        auto n_neg_dims = std::count(dims.begin(), dims.end(), -1);
+        if(std::any_of(dims.begin(), dims.end(), [](const auto& d) {
+               return std::holds_alternative<shape::dynamic_dimension>(d);
+           }))
+            MIGRAPHX_THROW("Reshape: dynamic_dimension dim entries are not currently supported");
+
+        auto n_neg_dims = std::count(dims.begin(), dims.end(), dim_like{-1});
         if(n_neg_dims > 1)
-            MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim");
+            MIGRAPHX_THROW("Reshape: Dimensions for reshape can only have one -1 dim but given {" +
+                           to_string_range(dims) + "} with " + to_string(n_neg_dims) + " -1 dims");
 
         const auto& s0 = inputs.front();
         if(inputs.size() == 1)
@@ -200,7 +216,6 @@ struct reshape
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        assert(dyn_out.computed_shape.standard());
         if(args.size() == 1)
         {
             argument result{dyn_out.computed_shape};

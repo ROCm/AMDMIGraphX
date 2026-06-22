@@ -21,8 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <migraphx/cloneable.hpp>
 #include <migraphx/errors.hpp>
@@ -453,15 +455,17 @@ value value::normalize() const
     if(this->is_array())
     {
         value result = value::array{};
-        for(const auto& child : *this)
-            result.push_back(child.normalize());
+        std::transform(this->begin(),
+                       this->end(),
+                       std::back_inserter(result),
+                       [](const value& child) { return child.normalize(); });
         return result;
     }
     if(this->is_uint64())
     {
         auto u = this->get_uint64();
         if(u <= std::numeric_limits<std::int64_t>::max())
-            return value(static_cast<std::int64_t>(u));
+            return static_cast<std::int64_t>(u);
     }
     return *this;
 }

@@ -151,4 +151,140 @@ TEST_CASE(non_convolution_unchanged)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(fp32_dot_const_b_rewritten)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape bs{migraphx::shape::float_type, {8, 4}};
+    std::vector<float> b_data(bs.elements(), 0.5f);
+
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", as);
+        auto b   = m1.add_literal(migraphx::literal{bs, b_data});
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    run_pass(m1, {.skip_small_k = 0});
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("a", as);
+        auto b = m2.add_literal(migraphx::literal{bs, b_data});
+
+        // Split the constant B along its contraction axis (axis 0).
+        auto b_hi_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b);
+        auto b_hi_f = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), b_hi_h);
+        auto b_lo_f = m2.add_instruction(migraphx::make_op("sub"), b, b_hi_f);
+        auto b_lo_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b_lo_f);
+        auto b_concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), b_hi_h, b_lo_h);
+
+        // Duplicate A along its contraction axis (axis 1).
+        auto a_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a);
+        auto a_unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), a_h);
+        auto a_bc   = m2.add_instruction(
+            migraphx::make_op("multibroadcast",
+                                {{"out_lens", std::vector<std::size_t>{2, 2, 8}}}),
+            a_unsq);
+        auto a_doubled = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{2, 16}}}), a_bc);
+
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a_doubled, b_concat);
+        auto out = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot);
+        m2.add_return({out});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_dot_const_a_rewritten)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape bs{migraphx::shape::float_type, {8, 4}};
+    std::vector<float> a_data(as.elements(), 0.5f);
+
+    migraphx::module m1;
+    {
+        auto a   = m1.add_literal(migraphx::literal{as, a_data});
+        auto b   = m1.add_parameter("b", bs);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    run_pass(m1, {.skip_small_k = 0});
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_literal(migraphx::literal{as, a_data});
+        auto b = m2.add_parameter("b", bs);
+
+        // Split the constant A along its contraction axis (axis 1).
+        auto a_hi_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a);
+        auto a_hi_f = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), a_hi_h);
+        auto a_lo_f = m2.add_instruction(migraphx::make_op("sub"), a, a_hi_f);
+        auto a_lo_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a_lo_f);
+        auto a_concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a_hi_h, a_lo_h);
+
+        // Duplicate B along its contraction axis (axis 0).
+        auto b_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b);
+        auto b_unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b_h);
+        auto b_bc   = m2.add_instruction(
+            migraphx::make_op("multibroadcast",
+                                {{"out_lens", std::vector<std::size_t>{2, 8, 4}}}),
+            b_unsq);
+        auto b_doubled = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{16, 4}}}), b_bc);
+
+        auto dot = m2.add_instruction(migraphx::make_op("dot"), a_concat, b_doubled);
+        auto out = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot);
+        m2.add_return({out});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_dot_param_operands_unchanged)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape bs{migraphx::shape::float_type, {8, 4}};
+
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", as);
+        auto b   = m1.add_parameter("b", bs);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    auto m2 = m1;
+    run_pass(m1, {.skip_small_k = 0});
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_dot_tiny_k_unchanged)
+{
+    // K = 8 is below the default skip_small_k threshold, so leave it untouched.
+    migraphx::shape as{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape bs{migraphx::shape::float_type, {8, 4}};
+    std::vector<float> b_data(bs.elements(), 0.5f);
+
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", as);
+        auto b   = m1.add_literal(migraphx::literal{bs, b_data});
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

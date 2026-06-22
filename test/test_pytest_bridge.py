@@ -65,19 +65,19 @@ def _migraphx_lib_dir():
         return None
     return os.path.dirname(os.path.abspath(migraphx.__file__))
 
+_LIB_DIRS = [d for d in (os.path.join(_TEST_DIR, "lib"), _migraphx_lib_dir())
+             if d and os.path.isdir(d)]
 
-_LIB_DIRS = None
 
-
-def _lib_dirs():
-    # Build trees resolve libmigraphx*.so via the binaries' RPATH; the packaged
-    # wheel needs the migraphx package dir, and a build tree's lib/ helps too.
-    # Computed lazily once (importing migraphx loads its .so via ctypes).
-    global _LIB_DIRS
-    if _LIB_DIRS is None:
-        _LIB_DIRS = [d for d in (os.path.join(_TEST_DIR, "lib"), _migraphx_lib_dir())
-                     if d and os.path.isdir(d)]
-    return _LIB_DIRS
+def _make_test(name, command, env=None, fail_regexes=None, skip=None):
+    return {
+        "name": name,
+        "command": command,
+        "env": env or {},
+        # CTest applies no default fail regex; the rocm harness sets "FAILED".
+        "fail_regexes": fail_regexes or ["FAILED"],
+        "skip": skip,
+    }
 
 
 def _make_env(extra):
@@ -85,11 +85,10 @@ def _make_env(extra):
     env.update(extra)
     # Prepend our lib dirs so they win over any LD_LIBRARY_PATH a test's own
     # ctest ENVIRONMENT may have set in `extra`.
-    lib_dirs = _lib_dirs()
-    if lib_dirs:
+    if _LIB_DIRS:
         existing = env.get("LD_LIBRARY_PATH", "")
         env["LD_LIBRARY_PATH"] = os.pathsep.join(
-            lib_dirs + ([existing] if existing else []))
+            _LIB_DIRS + ([existing] if existing else []))
     return env
 
 
@@ -112,7 +111,7 @@ def _discover_via_ctest():
         if not command:
             continue
         env_extra = {}
-        fail_regexes = ["FAILED"]
+        fail_regexes = None
         needs_fixture = False
         for prop in entry.get("properties", []):
             name = prop.get("name")
@@ -125,13 +124,9 @@ def _discover_via_ctest():
                 fail_regexes = value if isinstance(value, list) else [value]
             elif name in _FIXTURE_PROPS and prop.get("value"):
                 needs_fixture = True
-        tests.append({
-            "name": entry["name"],
-            "command": command,
-            "env": env_extra,
-            "fail_regexes": fail_regexes,
-            "skip": "requires ctest fixtures; run via ctest" if needs_fixture else None,
-        })
+        tests.append(_make_test(
+            entry["name"], command, env=env_extra, fail_regexes=fail_regexes,
+            skip="requires ctest fixtures; run via ctest" if needs_fixture else None))
     return tests
 
 
@@ -143,8 +138,7 @@ def _discover_via_bin():
         path = os.path.join(_BIN_DIR, name)
         # Only test executables; bin/ may also hold non-test binaries (driver).
         if name.startswith("test_") and os.path.isfile(path):
-            tests.append({"name": name, "command": [path], "env": {},
-                          "fail_regexes": ["FAILED"], "skip": None})
+            tests.append(_make_test(name, [path]))
     return tests
 
 
@@ -172,13 +166,11 @@ def test_migraphx(spec):
         stderr=subprocess.STDOUT,
         text=True,
     )
-    output = result.stdout or ""
-    # Mirror the CTest pass criteria: zero exit and no FAIL_REGULAR_EXPRESSION
-    # match (captured per-test; defaults to "FAILED" as the rocm harness sets).
-    failed = any(re.search(p, output) for p in spec["fail_regexes"])
+    # Mirror the CTest pass criteria: zero exit and no FAIL_REGULAR_EXPRESSION match.
+    failed = any(re.search(p, result.stdout) for p in spec["fail_regexes"])
     assert result.returncode == 0 and not failed, (
         "{name} failed (exit {code}):\n{out}".format(
-            name=spec["name"], code=result.returncode, out=output))
+            name=spec["name"], code=result.returncode, out=result.stdout))
 
 
 if not _TESTS:

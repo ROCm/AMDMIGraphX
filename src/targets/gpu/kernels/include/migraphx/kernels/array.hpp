@@ -361,6 +361,12 @@ constexpr auto make_const_array(T x, Ts... xs)
 }
 
 template <class T, class N, class F>
+constexpr auto generate_const_array(N n, F f)
+{
+    return sequence_c<n>([=](auto... is) { return make_const_array(f(is)...); });
+}
+
+template <class T, class N, class F>
 constexpr auto generate_array(N n, F f)
 {
     return sequence_c<n>([=](auto... is) { return array<T, n>{f(is)...}; });
@@ -454,6 +460,18 @@ template <class T, T... Xs, class U, U... Ys, class F>
 constexpr auto transform(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>, F f)
 {
     return integral_const_array<T, f(Xs, Ys)...>{};
+}
+
+template <class T, T... Xs, class U, U... Ys>
+constexpr auto join(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>)
+{
+    return integral_const_array<T, Xs..., Ys...>{};
+}
+
+template <class T, T... Xs, class U, U... Ys, class... Arrays>
+constexpr auto join(integral_const_array<T, Xs...>, integral_const_array<U, Ys...>, Arrays...)
+{
+    return join(integral_const_array<T, Xs..., Ys...>{}, Arrays{}...);
 }
 
 template <class F>

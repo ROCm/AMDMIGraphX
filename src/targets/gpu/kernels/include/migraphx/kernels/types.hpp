@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,10 +62,17 @@ static_assert(sizeof(uint64_t) == 8, "uint64_t must be 8 bytes");
 
 #define MIGRAPHX_DEVICE_CONSTEXPR constexpr __device__ __host__ // NOLINT
 
+#ifdef MIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE
 // NOLINTNEXTLINE
 #define MIGRAPHX_AUTO_DEDUCE(name) \
     template <class... Ts>         \
     __host__ __device__ name(Ts...) -> name<Ts...>;
+#else
+// NOLINTNEXTLINE
+#define MIGRAPHX_AUTO_DEDUCE(name) \
+    template <class... Ts>         \
+    name(Ts...) -> name<Ts...>;
+#endif
 
 template <class T, index_int N>
 using vec = T __attribute__((ext_vector_type(N)));

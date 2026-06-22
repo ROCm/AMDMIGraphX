@@ -1264,12 +1264,12 @@ struct find_conv_concat_split_fuse
         if(it == candidates.end())
             return;
 
-        auto conv_a               = it->first;
-        auto prefix_len           = it->second;
-        auto input_a              = conv_a->inputs()[0];
-        auto weight_a             = conv_a->inputs()[1];
-        auto prefix_chans         = input_a->get_shape().lens()[1];
-        auto total_chans          = concat_ins->get_shape().lens()[1];
+        auto conv_a       = it->first;
+        auto prefix_len   = it->second;
+        auto input_a      = conv_a->inputs()[0];
+        auto weight_a     = conv_a->inputs()[1];
+        auto prefix_chans = input_a->get_shape().lens()[1];
+        auto total_chans  = concat_ins->get_shape().lens()[1];
 
         if(prefix_chans >= total_chans)
             return;

@@ -5099,8 +5099,8 @@ TEST_CASE(gather_slice_concat_full_rewrite)
     {
         auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
         auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
-        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        auto s0      = m1.add_instruction(
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
         auto s1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
@@ -5131,8 +5131,8 @@ TEST_CASE(gather_slice_concat_full_rewrite)
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed);
         auto new_gather =
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat);
-        auto reshaped = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather);
+        auto reshaped =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather);
         m2.add_return({reshaped});
     }
 
@@ -5157,8 +5157,8 @@ TEST_CASE(gather_slice_concat_permuted_rows)
     {
         auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
         auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
-        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        auto s3      = m1.add_instruction(
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s3     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
         auto s1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
@@ -5185,8 +5185,8 @@ TEST_CASE(gather_slice_concat_permuted_rows)
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed);
         auto new_gather =
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat);
-        auto reshaped = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather);
+        auto reshaped =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather);
         m2.add_return({reshaped});
     }
 
@@ -5210,8 +5210,8 @@ TEST_CASE(gather_slice_concat_mixed_run_with_passthrough)
         auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
         auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
         auto extra   = m1.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
-        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        auto s0      = m1.add_instruction(
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
         auto s1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
@@ -5240,8 +5240,8 @@ TEST_CASE(gather_slice_concat_mixed_run_with_passthrough)
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed);
         auto new_gather =
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat);
-        auto reshaped = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather);
+        auto reshaped =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather);
         auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), reshaped, extra);
         m2.add_return({c});
     }
@@ -5265,7 +5265,7 @@ TEST_CASE(gather_slice_concat_two_runs)
         auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
         auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
         auto extra   = m1.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
-        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
         // run0: rows {0, 1, 2, 3}
         auto r0a = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
@@ -5314,8 +5314,8 @@ TEST_CASE(gather_slice_concat_two_runs)
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed0);
         auto new_gather0 =
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat0);
-        auto reshape0 = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather0);
+        auto reshape0 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}),
+                                           new_gather0);
         // run1 rewrite: perm {3, 2, 1, 0}
         auto perm1 =
             m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {4}}, {3, 2, 1, 0}});
@@ -5327,9 +5327,9 @@ TEST_CASE(gather_slice_concat_two_runs)
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed1);
         auto new_gather1 =
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat1);
-        auto reshape1 = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather1);
-        auto c = m2.add_instruction(
+        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}),
+                                           new_gather1);
+        auto c        = m2.add_instruction(
             migraphx::make_op("concat", {{"axis", 3}}), reshape0, extra, reshape1);
         m2.add_return({c});
     }
@@ -5352,8 +5352,8 @@ TEST_CASE(gather_slice_concat_below_min_run_no_rewrite)
     {
         auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
         auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
-        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        auto s0      = m1.add_instruction(
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
         auto s1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
@@ -5383,8 +5383,8 @@ TEST_CASE(gather_slice_concat_slice_axis_mismatch_no_rewrite)
     {
         auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
         auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
-        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, indices);
-        auto s0      = m1.add_instruction(
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, indices);
+        auto s0     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
         auto s1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
@@ -5415,8 +5415,8 @@ TEST_CASE(gather_slice_concat_concat_axis_mismatch_no_rewrite)
     {
         auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
         auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
-        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        auto s0      = m1.add_instruction(
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
         auto s1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
@@ -5450,8 +5450,8 @@ TEST_CASE(gather_slice_concat_slice_width_gt_one_no_rewrite)
     {
         auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
         auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {5, 2}});
-        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        auto s0      = m1.add_instruction(
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), gather);
         auto s1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), gather);
@@ -5484,8 +5484,8 @@ TEST_CASE(gather_slice_concat_indices_1d_no_rewrite)
     {
         auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
         auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4}});
-        auto gather  = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
-        auto s0      = m1.add_instruction(
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
         auto s1 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);

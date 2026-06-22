@@ -1583,4 +1583,42 @@ TEST_CASE(split_pointwise_slices_3input_add)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(dedup_duplicate_pointwise_inputs)
+{
+    // A pointwise whose operand list contains the same instruction more than once
+    // (as eliminate_common_subexpression can produce by merging two operands). Its
+    // submodule still has a distinct parameter per operand slot. Fusing it must not
+    // trip the parameter/operand count invariant.
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    auto add_xyx = [](auto* pm, const auto& inputs) {
+        auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+        return pm->add_instruction(migraphx::make_op("add"), add1, inputs[2]);
+    };
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        // duplicate operand: x is passed at positions 0 and 2
+        auto pw0 = add_pointwise(p1, "main:pointwise0", {x, y, x}, add_xyx);
+        auto pw1 = add_pointwise(p1, "main:pointwise1", {pw0}, single_pointwise("relu"));
+        mm->add_return({pw1});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto x   = mm->add_parameter("x", s);
+        auto y   = mm->add_parameter("y", s);
+        auto fused =
+            add_pointwise(p2, "main:pointwise0:dedup", {x, y}, [](auto* pm, const auto& inputs) {
+                auto add1 = pm->add_instruction(migraphx::make_op("add"), inputs[0], inputs[1]);
+                auto add2 = pm->add_instruction(migraphx::make_op("add"), add1, inputs[0]);
+                return pm->add_instruction(migraphx::make_op("relu"), add2);
+            });
+        mm->add_return({fused});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

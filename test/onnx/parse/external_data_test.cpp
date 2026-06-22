@@ -26,14 +26,14 @@
 #include <onnx_test_utils.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/instruction.hpp>
+#include <algorithm>
 
 static std::size_t count_external_weights(const migraphx::program& p)
 {
     std::size_t n = 0;
     for(const auto* m : p.get_modules())
-        for(const auto& ins : *m)
-            if(ins.name() == "external_weight")
-                ++n;
+        n += std::count_if(
+            m->begin(), m->end(), [](const auto& ins) { return ins.name() == "external_weight"; });
     return n;
 }
 
@@ -52,10 +52,8 @@ TEST_CASE(keep_weights_external_test)
     options.keep_weights_external  = true;
     auto prog                      = read_onnx("external_data_test.onnx", options);
 
-    // External-data initializers become external_weight ops recorded in the IR.
     EXPECT(count_external_weights(prog) > 0);
 
-    // Real inputs are still parameters; external weights are not.
     auto param_shapes = prog.get_parameter_shapes();
     EXPECT(param_shapes.count("input") > 0);
 }
@@ -69,21 +67,17 @@ TEST_CASE(replace_external_weights_test)
 
     EXPECT(count_external_weights(template_prog) > 0);
 
-    // The weight files live in the external_data_path used by read_onnx
     static auto files{::onnx_files()};
     static std::string base_dir = read_weight_files(files);
 
     auto baked = migraphx::replace_onnx_external_weights(
         template_prog, base_dir, migraphx::make_target("ref"));
 
-    // Baked program should have no external_weight ops left.
     EXPECT(count_external_weights(baked) == 0);
 
-    // Only the real input parameter remains.
     auto baked_params = baked.get_parameter_shapes();
     EXPECT(baked_params.count("input") > 0);
 
-    // Baked program should match the same model parsed straight to literals.
     auto reference = read_onnx("external_data_test.onnx");
     EXPECT(baked == reference);
 }

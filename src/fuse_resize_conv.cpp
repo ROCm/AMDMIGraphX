@@ -54,8 +54,7 @@ std::vector<std::pair<int, double>> upsample_coef(int a, int kh)
 // Fold a [K,C,3,3] conv weight with the bilinear-upsample stencil into [4K,C,3,3] sub-pixel
 // weights.  Output channels are phase-major: channel (a*2+b)*K + k holds the kernel that, applied
 // to x at low-res, yields output pixel (2i+a, 2j+b) of conv(upsample(x)).
-std::vector<double>
-fold_weights(const std::vector<double>& w, std::size_t k_n, std::size_t c_n)
+std::vector<double> fold_weights(const std::vector<double>& w, std::size_t k_n, std::size_t c_n)
 {
     std::vector<double> wf(4 * k_n * c_n * 9, 0.0);
     for(int a = 0; a < 2; ++a)
@@ -132,11 +131,9 @@ void fuse_resize_conv::apply(module& m) const
         // --- fold weights at compile time ---
         std::vector<double> wd;
         w->eval().visit([&](auto v) { wd.assign(v.begin(), v.end()); });
-        auto wf = fold_weights(wd, k_n, c_n);
-        auto wf_lit =
-            m.add_literal(literal{shape{w->get_shape().type(), {4 * k_n, c_n, 3, 3}},
-                                  wf.begin(),
-                                  wf.end()});
+        auto wf     = fold_weights(wd, k_n, c_n);
+        auto wf_lit = m.add_literal(
+            literal{shape{w->get_shape().type(), {4 * k_n, c_n, 3, 3}}, wf.begin(), wf.end()});
 
         // --- sub-pixel conv at low res: [N, 4K, H, W].  The conv's own zero-padding handles the
         // border (interior exact; outer 1px ring is a bilinear/clamp approximation, within fp16
@@ -153,12 +150,12 @@ void fuse_resize_conv::apply(module& m) const
         // --- interleave (depth-to-space, block 2): [N,4K,H,W] -> [N,K,2H,2W] ---
         const std::int64_t n = x_lens[0], h = x_lens[2], wdt = x_lens[3];
         const std::int64_t kk = k_n;
-        auto r1 = m.insert_instruction(
-            ins, make_op("reshape", {{"dims", {n, 2, 2, kk, h, wdt}}}), sub);
+        auto r1 =
+            m.insert_instruction(ins, make_op("reshape", {{"dims", {n, 2, 2, kk, h, wdt}}}), sub);
         auto tr = m.insert_instruction(
             ins, make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), r1);
-        auto r2 = m.insert_instruction(
-            ins, make_op("reshape", {{"dims", {n, kk, 2 * h, 2 * wdt}}}), tr);
+        auto r2 =
+            m.insert_instruction(ins, make_op("reshape", {{"dims", {n, kk, 2 * h, 2 * wdt}}}), tr);
 
         m.replace_instruction(ins, r2);
     }

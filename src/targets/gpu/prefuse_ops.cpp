@@ -606,8 +606,7 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     if(ins->outputs().size() == 1)
     {
         auto consumer = ins->outputs().front();
-        if(consumer->name() == "reshape" and
-           consumer->get_shape().ndim() > ins->get_shape().ndim())
+        if(consumer->name() == "reshape" and consumer->get_shape().ndim() > ins->get_shape().ndim())
             return false;
     }
     return true;

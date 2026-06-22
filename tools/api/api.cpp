@@ -161,7 +161,7 @@ static value parse_json_options(const char* options_json, va_list vlist)
     va_end(vlist_copy);
     if(len < 0)
         MIGRAPHX_THROW(migraphx_status_bad_param, "Invalid format string for options_json");
-    std::vector<char> buffer(static_cast<std::size_t>(len) + 1);
+    std::vector<char> buffer(len + 1);
     va_copy(vlist_copy, vlist);
     std::vsnprintf(buffer.data(), buffer.size(), options_json, vlist_copy);
     va_end(vlist_copy);

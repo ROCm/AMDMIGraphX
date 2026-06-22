@@ -1862,10 +1862,9 @@ struct find_slice_squeeze
         // Build the source->common axes map and let find_op_shape_transform_op
         // handle reduce/argmin/layout axis remapping (pointwise ops are inserted
         // unchanged), instead of duplicating that logic here.
-        auto axis_sz = static_cast<std::size_t>(axis);
         std::vector<std::vector<std::size_t>> axes_map(squeeze->get_shape().ndim());
         for(std::size_t i = 0; i < axes_map.size(); ++i)
-            axes_map[i] = {i >= axis_sz ? i + 1 : i};
+            axes_map[i] = {i >= axis ? i + 1 : i};
 
         auto new_op = find_op_shape_transform_op::insert(m, op_ins, inputs, axes_map);
         auto new_sq = m.insert_instruction(op_ins, squeeze->get_operator(), new_op);

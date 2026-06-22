@@ -148,7 +148,7 @@ For usage, refer to the ``parse_onnx()`` function below:
 
 .. code-block:: cpp
 
-    program p = migraphx::parse_onnx("model.onnx");
+    migraphx::program p = migraphx::parse_onnx("model.onnx");
     p.compile(migraphx::gpu::target{});
 
 

@@ -49,6 +49,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
 #include <migraphx/rewrite_convolution.hpp>
+#include <migraphx/fuse_resize_conv.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
@@ -159,6 +160,8 @@ struct pipeline_factory
         const bool missing_fp32_mma =
             starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
         return {
+            fuse_resize_conv{},
+            dead_code_elimination{},
             rewrite_convolution{},
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},

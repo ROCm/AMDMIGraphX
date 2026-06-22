@@ -599,6 +599,17 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     if(not enabled(MIGRAPHX_ENABLE_WINOGRAD{}) and
        not winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc))
         return false;
+    // Skip sub-pixel convolutions (fuse_resize_conv): a conv whose sole consumer is a
+    // rank-increasing reshape is feeding a depth-to-space interleave. Winograd cannot fuse that
+    // reshape/transpose into its writeback (it would leave a slow standalone scatter kernel),
+    // whereas MLIR folds the interleave + epilogue into the conv. Leave these to MLIR.
+    if(ins->outputs().size() == 1)
+    {
+        auto consumer = ins->outputs().front();
+        if(consumer->name() == "reshape" and
+           consumer->get_shape().ndim() > ins->get_shape().ndim())
+            return false;
+    }
     return true;
 }
 

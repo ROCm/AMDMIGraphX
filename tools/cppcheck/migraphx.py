@@ -164,10 +164,7 @@ class TemplateBracketType:
         raw_gt = raw_by_pos.get((lt.link.file, lt.link.linenr, lt.link.column))
         if not raw_lt or not raw_gt:
             return None
-        parts = []
-        for tok in raw_lt.next.forward(raw_gt):
-            parts.append(tok.str)
-        return " ".join(parts).replace(" :: ", "::")
+        return " ".join(tok.str for tok in raw_lt.next.forward(raw_gt)).replace(" :: ", "::")
 
 
 @cppcheck.checker

@@ -97,17 +97,17 @@ struct find_leaky_relu
         auto x_ins = ins->inputs().front();
 
         float alpha_f = ins->get_operator().to_value()["alpha"].to<float>();
-        auto alpha    = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {alpha_f}});
+        auto alpha     = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {alpha_f}});
         auto mul_alpha = insert_common_op(m, ins, make_op("mul"), {x_ins, alpha});
         if(alpha_f >= 0.0f and alpha_f <= 1.0f)
         {
-            auto max_ins   = insert_common_op(m, ins, make_op("max"), {x_ins, mul_alpha});
+            auto max_ins = insert_common_op(m, ins, make_op("max"), {x_ins, mul_alpha});
             m.replace_instruction(ins, max_ins);
         }
         else
         {
-            auto zero     = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {0.0}});
-            auto greater   = insert_common_op(m, ins, make_op("greater"), {x_ins, zero});
+            auto zero    = m.add_literal(literal{{x_ins->get_shape().type(), {1}}, {0.0}});
+            auto greater = insert_common_op(m, ins, make_op("greater"), {x_ins, zero});
             m.replace_instruction(ins, make_op("where"), {greater, x_ins, mul_alpha});
         }
     }

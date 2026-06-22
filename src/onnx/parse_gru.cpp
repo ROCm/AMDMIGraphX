@@ -115,8 +115,8 @@ struct parse_gru : op_parser<parse_gru>
             });
         }
 
-        auto num_actv_functions = dirct == op::rnn_direction::bidirectional ? 4 : 2;
-        if(vec_names.size() != static_cast<size_t>(num_actv_functions))
+        std::size_t num_actv_functions = dirct == op::rnn_direction::bidirectional ? 4 : 2;
+        if(vec_names.size() != num_actv_functions)
         {
             MIGRAPHX_THROW("GRU: Invalid activation functions number, should be: " +
                            to_string(num_actv_functions));

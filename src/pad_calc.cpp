@@ -73,8 +73,8 @@ void calc_conv_transpose_auto_padding(std::string auto_pad,
             // output_size = input_size * stride
             // total_padding = kernel_size - stride
             int64_t dilated_kernel = k_lens[i] + (k_lens[i] - 1) * (dilation[i] - 1);
-            int64_t total_pad      = std::max(dilated_kernel - static_cast<int64_t>(strides[i]),
-                                         static_cast<int64_t>(0));
+            int64_t total_pad      = std::max<int64_t>(dilated_kernel - static_cast<int64_t>(strides[i]),
+                                         0);
 
             auto pad_ndims = paddings.size() / 2;
             if(is_same_upper)
@@ -104,7 +104,7 @@ void calculate_padding(int64_t idx,
     int64_t output_dim     = (input_dim + stride - 1) / stride; // round up result
     int64_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1);
     int64_t pad =
-        std::max(static_cast<int64_t>(0), (output_dim - 1) * stride + new_weight_dim - input_dim);
+        std::max<int64_t>(0, (output_dim - 1) * stride + new_weight_dim - input_dim);
     auto pad_ndims = pads.size() / 2;
 
     if(is_same_upper)
@@ -143,7 +143,7 @@ std::vector<std::size_t> calc_dyn_auto_pad(const std::vector<std::size_t>& input
         std::ptrdiff_t dilation       = dilations[i];
         std::ptrdiff_t output_dim     = (input_dim + stride - 1) / stride; // round up result
         std::ptrdiff_t new_weight_dim = weight_dim + (weight_dim - 1) * (dilation - 1);
-        std::size_t pad               = std::max(static_cast<std::ptrdiff_t>(0),
+        std::size_t pad               = std::max<std::ptrdiff_t>(0,
                                    (output_dim - 1) * stride + new_weight_dim - input_dim);
         auto pad_ndims                = padding.size() / 2;
 

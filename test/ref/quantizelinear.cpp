@@ -117,8 +117,8 @@ static void quantizelinear_fp8e4m3()
     for(int i = 0; i < xv.size(); ++i)
     {
         double quantized = xv.at(i) / sv.at(i) + zero_pts.at(i);
-        quantized        = std::max(static_cast<double>(min_value),
-                             std::min(static_cast<double>(max_value), quantized));
+        quantized        = std::max<double>(min_value,
+                             std::min<double>(max_value, quantized));
         gold.push_back(DType(quantized));
     }
     EXPECT(results_vector == gold);
@@ -158,8 +158,8 @@ static void quantizelinear_fp8e5m2()
     for(int i = 0; i < xv.size(); ++i)
     {
         double quantized = xv.at(i) / sv.at(i);
-        quantized        = std::max(static_cast<double>(min_value),
-                             std::min(static_cast<double>(max_value), quantized));
+        quantized        = std::max<double>(min_value,
+                             std::min<double>(max_value, quantized));
         gold.push_back(DType(quantized + zero_pts.at(i)));
     }
     EXPECT(results_vector == gold);

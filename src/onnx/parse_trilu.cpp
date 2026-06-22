@@ -71,7 +71,7 @@ struct parse_trilu : op_parser<parse_trilu>
             k++;
         for(size_t i = 0; i < num_rows; i++)
         {
-            for(int j = 0; j < std::min(k, static_cast<int>(num_cols)); j++)
+            for(int j = 0; j < std::min<int>(k, num_cols); j++)
             {
                 mask_mat[i * num_cols + j] = not upper;
             }

@@ -50,8 +50,7 @@ std::string encode(const std::vector<byte>& buf)
     for(size_t i = 0; i < last; i += 3)
     {
         std::size_t n = static_cast<std::size_t>(buf.at(i)) << 16u |
-                        static_cast<std::size_t>(buf.at(i + 1)) << 8u |
-                        static_cast<std::size_t>(buf.at(i + 2));
+                        static_cast<std::size_t>(buf.at(i + 1)) << 8u | buf.at(i + 2);
         res_vec.at(j++) = b64_chars.at(n >> 18u);
         res_vec.at(j++) = b64_chars.at(n >> 12u & 0x3Fu);
         res_vec.at(j++) = b64_chars.at(n >> 6u & 0x3Fu);
@@ -62,7 +61,7 @@ std::string encode(const std::vector<byte>& buf)
     {
         std::size_t n   = --remaining == 0 ? static_cast<std::size_t>(buf.at(last))
                                            : static_cast<std::size_t>(buf.at(last)) << 8u |
-                                               static_cast<std::size_t>(buf.at(last + 1));
+                                                 buf.at(last + 1);
         res_vec.at(j++) = b64_chars.at(remaining == 0 ? n >> 2u : n >> 10u & 0x3Fu);
         res_vec.at(j++) = b64_chars.at(remaining == 0 ? n << 4u & 0x3Fu : n >> 4u & 0x03Fu);
         res_vec.at(j++) = remaining == 0 ? '=' : b64_chars.at(n << 2u & 0x3Fu);

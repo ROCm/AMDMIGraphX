@@ -292,11 +292,19 @@ Model performance tunable variables change the compilation behavior of a model. 
 
   * - | ``MIGRAPHX_ENABLE_FULL_DYNAMIC``
       | Enables full dynamic shape support and disables certain passes that are incompatible with dynamic shapes.
-      
+
     - | ``1``: Full dynamic shape support is enabled.
       | ``0``: Returns to default behavior.
 
       | Default: Full dynamic shape support is disabled.
+
+  * - | ``MIGRAPHX_ENABLE_HIP_GRAPH``
+      | When set, the ``hipgraphify`` pass is run, which partitions the model into runs of HIP-graph-capturable instructions and wraps each in a single ``hip::graph`` op to reduce kernel launch overhead.
+
+    - | ``1``: Runs the ``hipgraphify`` pass.
+      | ``0``: Returns to default behavior.
+
+      | Default: The ``hipgraphify`` pass isn't run.
 
 Matching
 **********

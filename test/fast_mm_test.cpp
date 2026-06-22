@@ -187,8 +187,7 @@ TEST_CASE(fp32_dot_const_b_rewritten)
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a);
         auto a_unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), a_h);
         auto a_bc   = m2.add_instruction(
-            migraphx::make_op("multibroadcast",
-                                {{"out_lens", std::vector<std::size_t>{2, 2, 8}}}),
+            migraphx::make_op("multibroadcast", {{"out_lens", std::vector<std::size_t>{2, 2, 8}}}),
             a_unsq);
         auto a_doubled = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{2, 16}}}), a_bc);
@@ -237,8 +236,7 @@ TEST_CASE(fp32_dot_const_a_rewritten)
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b);
         auto b_unsq = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b_h);
         auto b_bc   = m2.add_instruction(
-            migraphx::make_op("multibroadcast",
-                                {{"out_lens", std::vector<std::size_t>{2, 8, 4}}}),
+            migraphx::make_op("multibroadcast", {{"out_lens", std::vector<std::size_t>{2, 8, 4}}}),
             b_unsq);
         auto b_doubled = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{16, 4}}}), b_bc);

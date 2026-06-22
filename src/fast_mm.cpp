@@ -97,14 +97,14 @@ void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_
     // Skip when conv is too small to benefit from fp16. These also tend
     // to be precision-sensitive (often follow upstream reductions whose
     // small magnitudes mean fp16 input rounding dominates absolute error).
-    std::size_t reduction = std::accumulate(
-        w_shape.lens().begin() + 1, w_shape.lens().end(), 1, std::multiplies<>());
+    std::size_t reduction =
+        std::accumulate(w_shape.lens().begin() + 1, w_shape.lens().end(), 1, std::multiplies<>());
     if(reduction < skip_small_k)
         return;
 
     // Split the constant weights and duplicate the input along the input-channel
     // axis (axis 1), the convolution's contraction axis.
-    auto w_concat  = split_fp16(m, ins, w, 1);
+    auto w_concat = split_fp16(m, ins, w, 1);
     auto x_h =
         m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), x);
     auto x_doubled = duplicate_axis(m, ins, x_h, 1);
@@ -143,16 +143,16 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
     instruction_ref new_b;
     if(b->can_eval())
     {
-        new_b    = split_fp16(m, ins, b, static_cast<std::int64_t>(rank) - 2);
-        auto a_h = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::half_type}}), a);
+        new_b = split_fp16(m, ins, b, static_cast<std::int64_t>(rank) - 2);
+        auto a_h =
+            m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), a);
         new_a = duplicate_axis(m, ins, a_h, rank - 1);
     }
     else if(a->can_eval())
     {
-        new_a    = split_fp16(m, ins, a, static_cast<std::int64_t>(rank) - 1);
-        auto b_h = m.insert_instruction(
-            ins, make_op("convert", {{"target_type", shape::half_type}}), b);
+        new_a = split_fp16(m, ins, a, static_cast<std::int64_t>(rank) - 1);
+        auto b_h =
+            m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), b);
         new_b = duplicate_axis(m, ins, b_h, rank - 2);
     }
     else

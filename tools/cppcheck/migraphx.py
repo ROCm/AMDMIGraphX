@@ -135,36 +135,48 @@ def staticCastOf(use):
     return None
 
 
-class TemplateBracketType:
-    # Reads the type written inside a static_cast's template brackets as it
-    # appears in the source. cppcheck merges fundamental types such as
-    # 'unsigned int' into a single token in the simplified token list, so the
-    # spelling is read from the raw tokens, which are indexed by position. The
-    # index is built lazily on first use, since most files have no std::min or
-    # std::max call with a static_cast argument at all.
-    def __init__(self, data):
-        self.data = data
-        self.raw_by_pos = None
+class RawTokenLookup:
+    # Indexes the raw tokens whose text is one of `tokens` by source position, so
+    # a simplified token can be matched back to how it was written in the source.
+    # cppcheck rewrites alternative spellings ('and' -> '&&') and merges
+    # fundamental types ('unsigned int' -> one token) in the simplified token
+    # list, so the original spelling is only available in the raw tokens. The
+    # index is memoized per file (the addon may run on several files) and per
+    # token set, since more than one checker needs the same lookup.
+    cache = {}
 
-    def index(self):
-        if self.raw_by_pos is None:
-            self.raw_by_pos = {(tok.file, tok.linenr, tok.column): tok
-                               for tok in self.data.rawTokens
-                               if tok.str in ('<', '>')}
-        return self.raw_by_pos
+    def __init__(self, data, tokens):
+        wanted = frozenset(tokens)
+        key = (data.filename, wanted)
+        index = RawTokenLookup.cache.get(key)
+        if index is None:
+            index = {(tok.file, tok.linenr, tok.column): tok
+                     for tok in data.rawTokens if tok.str in wanted}
+            RawTokenLookup.cache[key] = index
+        self.index = index
 
-    def getRawTypeName(self, cast):
-        # Use the simplified '<' link to bound the type, then read its spelling
-        # from the raw '<' and '>' tokens looked up by position.
-        lt = cast.astOperand1.next
-        if not simpleMatch(lt, "<") or not lt.link:
-            return None
-        raw_by_pos = self.index()
-        raw_lt = raw_by_pos.get((lt.file, lt.linenr, lt.column))
-        raw_gt = raw_by_pos.get((lt.link.file, lt.link.linenr, lt.link.column))
-        if not raw_lt or not raw_gt:
-            return None
-        return " ".join(tok.str for tok in raw_lt.next.forward(raw_gt)).replace(" :: ", "::")
+    def __bool__(self):
+        return bool(self.index)
+
+    def at(self, token):
+        # The raw token written at `token`'s source position, or None.
+        return self.index.get((token.file, token.linenr, token.column))
+
+
+def getRawTypeName(data, cast):
+    # The type inside a static_cast's '<...>' as written in the source. Use the
+    # simplified '<' link to bound the type, then read the spelling from the raw
+    # '<' and '>' tokens (the simplified list merges fundamental types such as
+    # 'unsigned int' into a single token).
+    lt = cast.astOperand1.next
+    if not simpleMatch(lt, "<") or not lt.link:
+        return None
+    brackets = RawTokenLookup(data, ('<', '>'))
+    raw_lt = brackets.at(lt)
+    raw_gt = brackets.at(lt.link)
+    if not raw_lt or not raw_gt:
+        return None
+    return " ".join(tok.str for tok in raw_lt.next.forward(raw_gt)).replace(" :: ", "::")
 
 
 @cppcheck.checker
@@ -491,7 +503,6 @@ def RedundantStaticCastOp(cfg, data):
 
 @cppcheck.checker
 def StaticCastInMinMax(cfg, data):
-    template_type = TemplateBracketType(data)
     for token in cfg.tokenlist:
         if token.str not in ('min', 'max'):
             continue
@@ -507,7 +518,7 @@ def StaticCastInMinMax(cfg, data):
             cast = getStaticCast(arg)
             if not cast:
                 continue
-            type_name = template_type.getRawTypeName(cast)
+            type_name = getRawTypeName(data, cast)
             if not type_name:
                 continue
             cppcheck.reportError(
@@ -525,7 +536,6 @@ def RedundantStaticCastDecl(cfg, data):
     for tok in cfg.tokenlist:
         if tok.varId:
             uses_by_id.setdefault(tok.varId, []).append(tok)
-    template_type = TemplateBracketType(data)
     for var in cfg.variables:
         if (not var.isLocal or var.isReference or var.isPointer or var.isArray
                 or var.isStatic):
@@ -557,7 +567,7 @@ def RedundantStaticCastDecl(cfg, data):
         cast_keys = {integralTypeKey(c) for c in casts}
         if None in cast_keys or len(cast_keys) != 1 or var_key in cast_keys:
             continue
-        type_name = template_type.getRawTypeName(casts[0])
+        type_name = getRawTypeName(data, casts[0])
         if not type_name:
             continue
         cppcheck.reportError(
@@ -639,14 +649,13 @@ def UseNamedLogicOperator(cfg, data):
     # symbolic spelling in the token list and does not always populate
     # originalName, so consult the raw token stream for operators that were
     # written in symbolic form -- anything else was already named.
-    symbolic = {(tok.file, tok.linenr, tok.column)
-                for tok in data.rawTokens if tok.str in names}
+    symbolic = RawTokenLookup(data, names)
     if not symbolic:
         return
     for token in cfg.tokenlist:
         if token.str not in names:
             continue
-        if (token.file, token.linenr, token.column) not in symbolic:
+        if symbolic.at(token) is None:
             continue
         if token.str == '&&':
             # A '&&' token can also be an rvalue reference ('T&&') rather than

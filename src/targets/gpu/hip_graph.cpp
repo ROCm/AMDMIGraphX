@@ -41,6 +41,7 @@
 #include <hip/hip_runtime_api.h>
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <functional>
 #include <iterator>
 #include <memory>
@@ -206,18 +207,18 @@ struct graph_node_patch
     void record_slot(std::size_t off, const char* p, const std::vector<argument>& leaves)
     {
         auto bounds = views::transform(leaves, [](const argument& leaf) {
-            const auto* base = static_cast<const char*>(leaf.data());
+            auto base = reinterpret_cast<std::uintptr_t>(leaf.data());
             return std::make_pair(base, base + leaf.get_shape().bytes());
         });
+        auto p_addr = reinterpret_cast<std::uintptr_t>(p);
         auto it     = std::find_if(bounds.begin(), bounds.end(), [&](const auto& bound) {
-            return p >= bound.first and p < bound.second;
+            return p_addr >= bound.first and p_addr < bound.second;
         });
         if(it == bounds.end())
             return;
         slots.push_back({off,
                          static_cast<std::size_t>(std::distance(bounds.begin(), it)),
-                         static_cast<std::size_t>(p - (*it).first)});
-    }
+                         static_cast<std::size_t>(p_addr - (*it).first)});
 };
 
 // Records the work of a submodule into a HIP graph the first time it is run and

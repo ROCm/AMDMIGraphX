@@ -89,8 +89,10 @@ TEST_CASE(unpack_skips_scalars)
     kernel_args[2] = migraphx::gpu::kernel_argument_value{};
     kernel_args[3] = migraphx::gpu::kernel_argument_value(std::uint16_t{3});
 
-    auto* ptr0 = reinterpret_cast<char*>(0xdead0000);
-    auto* ptr2 = reinterpret_cast<char*>(0xbeef0000);
+    char p0_storage = 0;
+    char p2_storage = 0;
+    auto* ptr0 = &p0_storage;
+    auto* ptr2 = &p2_storage;
     std::vector<char> buf(32, 0);
     put_pointer(buf, 0, ptr0);
     put_pointer(buf, 16, ptr2);
@@ -109,9 +111,12 @@ TEST_CASE(unpack_skips_scalars)
 TEST_CASE(unpack_all_pointers)
 {
     std::map<std::size_t, migraphx::gpu::kernel_argument_value> kernel_args;
-    auto* ptr0 = reinterpret_cast<char*>(0x1000);
-    auto* ptr1 = reinterpret_cast<char*>(0x2000);
-    auto* ptr2 = reinterpret_cast<char*>(0x3000);
+    char p0_storage = 0;
+    char p1_storage = 0;
+    char p2_storage = 0;
+    auto* ptr0 = &p0_storage;
+    auto* ptr1 = &p1_storage;
+    auto* ptr2 = &p2_storage;
     std::vector<char> buf(24, 0);
     put_pointer(buf, 0, ptr0);
     put_pointer(buf, 8, ptr1);

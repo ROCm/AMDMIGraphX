@@ -106,6 +106,15 @@ def integralValueType(token):
     return vt
 
 
+def integralTypeKey(token):
+    # A (type, sign) key identifying a token's plain integral value type, or None
+    # when it is not a non-pointer, non-reference integral.
+    vt = integralValueType(token)
+    if not vt or vt.reference in ('LValue', 'RValue'):
+        return None
+    return (vt.type, vt.sign)
+
+
 def getStaticCast(token):
     # In the AST a cast is represented by the '(' token (isCast); for a
     # static_cast its first operand is the 'static_cast' keyword.
@@ -116,6 +125,14 @@ def getStaticCast(token):
     if not simpleMatch(token.astOperand1, "static_cast"):
         return None
     return token
+
+
+def staticCastOf(use):
+    # Return the static_cast that has 'use' as its direct operand, or None.
+    cast = getStaticCast(use.astParent)
+    if cast and cast.astOperand2 is use:
+        return cast
+    return None
 
 
 class TemplateBracketType:
@@ -497,6 +514,55 @@ def StaticCastInMinMax(cfg, data):
                 "Use 'std::%s<%s>' with an explicit template argument instead of a static_cast on an argument."
                 % (token.str, type_name))
             break
+
+
+@cppcheck.checker
+def RedundantStaticCastDecl(cfg, data):
+    # A local variable whose every read is 'static_cast<U>(x)' to the same type U
+    # could be declared as U instead, removing all of those casts.
+    uses_by_id = {}
+    for tok in cfg.tokenlist:
+        if tok.varId:
+            uses_by_id.setdefault(tok.varId, []).append(tok)
+    template_type = TemplateBracketType(data)
+    for var in cfg.variables:
+        if (not var.isLocal or var.isReference or var.isPointer or var.isArray
+                or var.isStatic):
+            continue
+        nt = var.nameToken
+        if not nt or not nt.varId:
+            continue
+        var_key = integralTypeKey(nt)
+        if var_key is None:
+            continue
+        # The declaration is not a use. Its initializer either stays on the
+        # declaration ('T x = ...') or, after simplification, is split off into a
+        # following assignment ('T x ; x = ...'); skip the name and that
+        # assignment so only genuine reads remain.
+        skip = {nt}
+        has_init = simpleMatch(nt.next, "=")
+        split = match(nt, "%var%@decl ; %var%@assign =")
+        if split and split.decl.varId == split.assign.varId:
+            skip.add(split.assign)
+            has_init = True
+        if not has_init:
+            continue
+        reads = (u for u in uses_by_id.get(nt.varId, []) if u not in skip)
+        casts = [staticCastOf(u) for u in reads]
+        if not casts or not all(casts):
+            continue
+        # Every read must cast to the same integral type, and that type must
+        # differ from the declaration (a same-type cast is handled elsewhere).
+        cast_keys = {integralTypeKey(c) for c in casts}
+        if None in cast_keys or len(cast_keys) != 1 or var_key in cast_keys:
+            continue
+        type_name = template_type.getRawTypeName(casts[0])
+        if not type_name:
+            continue
+        cppcheck.reportError(
+            nt, "style",
+            "Variable '%s' is only used as a static_cast to '%s'; declare it as '%s' instead."
+            % (nt.str, type_name, type_name))
 
 
 # @cppcheck.checker

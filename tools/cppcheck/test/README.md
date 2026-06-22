@@ -27,24 +27,25 @@ Each test file corresponds to a specific check from either the Python addon or X
 17. **redundant_conditional_operator.cpp** - Tests `RedundantConditionalOperator`
 18. **redundant_if_statement.cpp** - Tests `RedundantIfStatement`
 19. **redundant_local_variable.cpp** - Tests `RedundantLocalVariable`
-20. **redundant_static_cast_op.cpp** - Tests `RedundantStaticCastOp`
-21. **static_cast_in_min_max.cpp** - Tests `StaticCastInMinMax`
-22. **unnecessary_empty_condition.cpp** - Tests `UnnecessaryEmptyCondition`
-23. **use_device_launch.cpp** - Tests `UseDeviceLaunch`
-24. **use_manage_pointer.cpp** - Tests `UseManagePointer`
-25. **use_smart_pointer.cpp** - Tests `UseSmartPointer`
-26. **use_stl_algorithms.cpp** - Tests `useStlAlgorithms`
-27. **matcher_nested_parentheses.cpp** - Tests `MatcherNestedParentheses`
+20. **redundant_static_cast_decl.cpp** - Tests `RedundantStaticCastDecl`
+21. **redundant_static_cast_op.cpp** - Tests `RedundantStaticCastOp`
+22. **static_cast_in_min_max.cpp** - Tests `StaticCastInMinMax`
+23. **unnecessary_empty_condition.cpp** - Tests `UnnecessaryEmptyCondition`
+24. **use_device_launch.cpp** - Tests `UseDeviceLaunch`
+25. **use_manage_pointer.cpp** - Tests `UseManagePointer`
+26. **use_smart_pointer.cpp** - Tests `UseSmartPointer`
+27. **use_stl_algorithms.cpp** - Tests `useStlAlgorithms`
+28. **matcher_nested_parentheses.cpp** - Tests `MatcherNestedParentheses`
 
 ### XML Rules Tests (`rules.xml`)
 
-28. **unused_deref.cpp** - Tests `UnusedDeref` rule
-29. **strlen_empty_string.cpp** - Tests `StrlenEmptyString` rule
-30. **define_rules.cpp** - Tests `defineUpperCase` and `definePrefix` rules
-31. **use_named_logic_operator.cpp** - Tests `UseNamedLogicOperator` rules
-32. **unnecessary_else_statement.cpp** - Tests `UnnecessaryElseStatement` rule
-33. **inverted_logic.cpp** - Tests `InvertedLogic` rule
-34. **use_stl_algorithm_loops.cpp** - Tests `useStlAlgorithm` rules for loop patterns
+29. **unused_deref.cpp** - Tests `UnusedDeref` rule
+30. **strlen_empty_string.cpp** - Tests `StrlenEmptyString` rule
+31. **define_rules.cpp** - Tests `defineUpperCase` and `definePrefix` rules
+32. **use_named_logic_operator.cpp** - Tests `UseNamedLogicOperator` rules
+33. **unnecessary_else_statement.cpp** - Tests `UnnecessaryElseStatement` rule
+34. **inverted_logic.cpp** - Tests `InvertedLogic` rule
+35. **use_stl_algorithm_loops.cpp** - Tests `useStlAlgorithm` rules for loop patterns
 
 ## Test Structure
 

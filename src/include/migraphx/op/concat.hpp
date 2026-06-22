@@ -108,7 +108,7 @@ struct concat
         {
             std::vector<std::size_t> new_lens(new_dds.size());
             std::transform(new_dds.begin(), new_dds.end(), new_lens.begin(), [](const auto& d) {
-                assert(d.sym_expr.is_literal());
+                assert(d.sym_expr.name() == "literal");
                 return d.sym_expr.eval_uint({});
             });
             return shape::from_permutation(type, new_lens, find_permutation(inputs));

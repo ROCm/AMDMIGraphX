@@ -33,6 +33,7 @@ Full documentation for MIGraphX is available at
 * Added driver warnings when inputs dimensions and/or values are not set (#4850).
 * Added documentation for using debug symbols (#4945).
 * Added `--log-stdout` flag to migraphx-driver to log to stdout instead of stderr (#4959).
+* Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 
 ### Changed
 
@@ -66,6 +67,7 @@ Full documentation for MIGraphX is available at
 * Fixed `nonzero` GPU JIT kernel `block_scan` accumulator overflow that silently produced out-of-bounds writes for inputs with more than 255 nonzero elements; widened the predicate to `index_int`.
 * Fixed `scatternd_`* GPU JIT kernel and host reference op to read the `indices` tensor stride-aware (`begin_at`), so non-packed layouts produced by upstream `transpose`/`slice`/`concat` no longer collapse every write into the same output cell.
 * Fixed a regression in `simplify_reshapes` where `find_slice_shape_transforms` could trigger `same_dims: Dimensions do not match` when a slice's shape descriptor absorbed a `multibroadcast` on the sliced axis.
+* Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 
 ### Optimized
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).
@@ -83,6 +85,7 @@ Full documentation for MIGraphX is available at
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).
+* Removed `onnx_options::use_dyn_output` after redesign of `NonMaxSuppression` operator (#4893).
 
 ## MIGraphX 2.15 for ROCm 7.2.0
 

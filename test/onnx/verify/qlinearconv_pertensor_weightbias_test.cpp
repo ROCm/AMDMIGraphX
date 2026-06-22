@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -22,34 +22,36 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/register_target.hpp>
+#include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-TEST_CASE(nms_overwrite_use_dyn_output_test)
+TEST_CASE(qlinearconv_pertensor_weightbias_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape sb{migraphx::shape::float_type, {1, 6, 4}};
-    auto b = mm->add_parameter("boxes", sb);
+    migraphx::program p = read_onnx("qlinearconv_pertensor_weightbias_test.onnx");
 
-    migraphx::shape ss{migraphx::shape::float_type, {1, 1, 6}};
-    auto s = mm->add_parameter("scores", ss);
+    p.compile(migraphx::make_target("ref"));
 
-    migraphx::shape smo{migraphx::shape::int64_type, {1}};
-    auto mo = mm->add_parameter("max_output_boxes_per_class", smo);
+    migraphx::shape sx{migraphx::shape::uint8_type, {1, 1, 2, 2}};
+    std::vector<uint8_t> x_data(sx.elements());
+    for(std::size_t i = 0; i < x_data.size(); ++i)
+    {
+        x_data[i] = static_cast<uint8_t>(i % 256);
+    }
 
-    migraphx::shape siou{migraphx::shape::float_type, {1}};
-    auto iou = mm->add_parameter("iou_threshold", siou);
+    migraphx::parameter_map pp;
+    pp["X"] = migraphx::argument(sx, x_data.data());
 
-    migraphx::shape sst{migraphx::shape::float_type, {1}};
-    auto st = mm->add_parameter("score_threshold", sst);
+    auto result = p.eval(pp).back();
 
-    auto ret = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}), b, s, mo, iou, st);
-    mm->add_return({ret});
+    EXPECT(result.get_shape().lens() == std::vector<std::size_t>{1, 2, 2, 2});
+    EXPECT(result.get_shape().type() == migraphx::shape::uint8_type);
 
-    migraphx::onnx_options options;
-    options.use_dyn_output = true;
+    std::vector<uint8_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
 
-    auto prog = read_onnx("nms_use_dyn_output_false_test.onnx", options);
-    EXPECT(p == prog);
+    // Golden computed from onnxruntime reference
+    std::vector<uint8_t> gold = {10, 11, 12, 13, 20, 22, 24, 26};
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

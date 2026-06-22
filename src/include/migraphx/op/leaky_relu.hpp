@@ -42,7 +42,13 @@ struct leaky_relu : unary<leaky_relu>
         return pack(f(self.alpha, "alpha"));
     }
 
-    std::string point_op() const { return "${function:where}(${0} > 0, ${0}, ${alpha} * ${0})"; }
+    std::string point_op() const
+    {
+        return alpha >= 0.0f and alpha <= 1.0f
+                   ? "${function:max}(${0}, static_cast<decltype(${0})>(${alpha}) * ${0})"
+                   : "${function:where}(${0} > 0, ${0}, "
+                     "static_cast<decltype(${0})>(${alpha}) * ${0})";
+    }
 
     std::string name() const { return "leaky_relu"; }
 

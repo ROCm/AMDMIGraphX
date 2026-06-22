@@ -91,8 +91,8 @@ TEST_CASE(unpack_skips_scalars)
 
     char p0_storage = 0;
     char p2_storage = 0;
-    auto* ptr0 = &p0_storage;
-    auto* ptr2 = &p2_storage;
+    auto* ptr0      = &p0_storage;
+    auto* ptr2      = &p2_storage;
     std::vector<char> buf(32, 0);
     put_pointer(buf, 0, ptr0);
     put_pointer(buf, 16, ptr2);
@@ -114,9 +114,9 @@ TEST_CASE(unpack_all_pointers)
     char p0_storage = 0;
     char p1_storage = 0;
     char p2_storage = 0;
-    auto* ptr0 = &p0_storage;
-    auto* ptr1 = &p1_storage;
-    auto* ptr2 = &p2_storage;
+    auto* ptr0      = &p0_storage;
+    auto* ptr1      = &p1_storage;
+    auto* ptr2      = &p2_storage;
     std::vector<char> buf(24, 0);
     put_pointer(buf, 0, ptr0);
     put_pointer(buf, 8, ptr1);

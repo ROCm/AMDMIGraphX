@@ -83,8 +83,8 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
 
 TEST_CASE(fp32_convolution_tiny_unchanged)
 {
-    // 11 outputs * 8 reduction = 88 ops — too small to benefit from fp16
-    // acceleration, and tiny conv outputs are precision-sensitive.
+    // Reduction K = 8 (in_channels * kh * kw) is below the default skip_small_k
+    // threshold, so the conv is left untouched.
     migraphx::shape xs{migraphx::shape::float_type, {1, 8, 1, 1}};
     migraphx::shape ws{migraphx::shape::float_type, {11, 8, 1, 1}};
     std::vector<float> w_data(ws.elements(), 0.5f);

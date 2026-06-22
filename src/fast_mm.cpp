@@ -26,8 +26,13 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+
+#include <algorithm>
+#include <cassert>
+#include <functional>
+#include <numeric>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -39,7 +44,7 @@ namespace {
 // All folds at compile time since C is constant. Pairing this against the other
 // operand duplicated along its matching contraction axis recovers, in the fp16
 // accumulation, the mantissa bits that a plain fp16 cast of C would have dropped.
-instruction_ref split_fp16(module& m, instruction_ref pos, instruction_ref c, std::int64_t axis)
+instruction_ref split_fp16(module& m, instruction_ref pos, instruction_ref c, std::size_t axis)
 {
     auto c_hi_h =
         m.insert_instruction(pos, make_op("convert", {{"target_type", shape::half_type}}), c);
@@ -48,16 +53,21 @@ instruction_ref split_fp16(module& m, instruction_ref pos, instruction_ref c, st
     auto c_lo_f = m.insert_instruction(pos, make_op("sub"), c, c_hi_f);
     auto c_lo_h =
         m.insert_instruction(pos, make_op("convert", {{"target_type", shape::half_type}}), c_lo_f);
-    return m.insert_instruction(pos, make_op("concat", {{"axis", axis}}), c_hi_h, c_lo_h);
+    return m.insert_instruction(
+        pos, make_op("concat", {{"axis", static_cast<std::int64_t>(axis)}}), c_hi_h, c_lo_h);
 }
 
-// Duplicate `x` along `axis` without copying: insert a size-1 axis, broadcast it
-// to 2, then reshape to merge back into `axis`. Same semantics as concat(x, x)
-// along `axis`, so contraction over the doubled axis pairs the first copy with
-// the C_hi half and the second copy with the C_lo half of split_fp16.
+// Cast `x` to fp16 and duplicate it along `axis` without copying: insert a
+// size-1 axis, broadcast it to 2, then reshape to merge back into `axis`. Same
+// layout as concat(x, x) along `axis`, so contraction over the doubled axis
+// pairs the first copy with the C_hi half and the second with the C_lo half of
+// split_fp16.
 instruction_ref duplicate_axis(module& m, instruction_ref pos, instruction_ref x, std::size_t axis)
 {
-    const auto& lens = x->get_shape().lens();
+    auto x_h =
+        m.insert_instruction(pos, make_op("convert", {{"target_type", shape::half_type}}), x);
+    const auto& lens = x_h->get_shape().lens();
+    assert(axis < lens.size());
     std::vector<std::size_t> bc_lens(lens.size() + 1);
     std::copy(lens.begin(), lens.begin() + axis, bc_lens.begin());
     bc_lens[axis] = 2;
@@ -66,7 +76,7 @@ instruction_ref duplicate_axis(module& m, instruction_ref pos, instruction_ref x
     reshape_dims[axis] *= 2;
 
     auto x_unsq = m.insert_instruction(
-        pos, make_op("unsqueeze", {{"axes", {static_cast<std::int64_t>(axis)}}}), x);
+        pos, make_op("unsqueeze", {{"axes", {static_cast<std::int64_t>(axis)}}}), x_h);
     auto x_bc =
         m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", bc_lens}}), x_unsq);
     return m.insert_instruction(pos, make_op("reshape", {{"dims", reshape_dims}}), x_bc);
@@ -97,17 +107,15 @@ void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_
     // Skip when conv is too small to benefit from fp16. These also tend
     // to be precision-sensitive (often follow upstream reductions whose
     // small magnitudes mean fp16 input rounding dominates absolute error).
-    std::size_t reduction =
-        std::accumulate(w_shape.lens().begin() + 1, w_shape.lens().end(), 1, std::multiplies<>());
+    std::size_t reduction = std::accumulate(
+        w_shape.lens().begin() + 1, w_shape.lens().end(), std::size_t{1}, std::multiplies<>());
     if(reduction < skip_small_k)
         return;
 
     // Split the constant weights and duplicate the input along the input-channel
     // axis (axis 1), the convolution's contraction axis.
-    auto w_concat = split_fp16(m, ins, w, 1);
-    auto x_h =
-        m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), x);
-    auto x_doubled = duplicate_axis(m, ins, x_h, 1);
+    auto w_concat  = split_fp16(m, ins, w, 1);
+    auto x_doubled = duplicate_axis(m, ins, x, 1);
 
     auto half_conv = m.insert_instruction(ins, ins->get_operator(), x_doubled, w_concat);
     auto converted =
@@ -128,6 +136,8 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
     auto inputs = ins->inputs();
     auto a      = inputs[0];
     auto b      = inputs[1];
+    if(not a->can_eval() and not b->can_eval())
+        return;
 
     // dot enforces same_ndims, so A and B share a rank. The contraction dim K is
     // the last axis of A and the second-to-last axis of B.
@@ -143,21 +153,13 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
     instruction_ref new_b;
     if(b->can_eval())
     {
-        new_b = split_fp16(m, ins, b, static_cast<std::int64_t>(rank) - 2);
-        auto a_h =
-            m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), a);
-        new_a = duplicate_axis(m, ins, a_h, rank - 1);
-    }
-    else if(a->can_eval())
-    {
-        new_a = split_fp16(m, ins, a, static_cast<std::int64_t>(rank) - 1);
-        auto b_h =
-            m.insert_instruction(ins, make_op("convert", {{"target_type", shape::half_type}}), b);
-        new_b = duplicate_axis(m, ins, b_h, rank - 2);
+        new_b = split_fp16(m, ins, b, rank - 2);
+        new_a = duplicate_axis(m, ins, a, rank - 1);
     }
     else
     {
-        return;
+        new_a = split_fp16(m, ins, a, rank - 1);
+        new_b = duplicate_axis(m, ins, b, rank - 2);
     }
 
     auto half_dot = m.insert_instruction(ins, ins->get_operator(), new_a, new_b);

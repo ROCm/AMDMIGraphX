@@ -1829,9 +1829,9 @@ struct find_slice_squeeze
     auto matcher() const
     {
         auto match_op = match::any_of(match::pointwise(), match::reduce());
-        auto squeeze_slice = match::name("squeeze")(
-            match::arg(0)(match::name("slice").bind("slice")))
-            .bind("squeeze");
+        auto squeeze_slice =
+            match::name("squeeze")(match::arg(0)(match::name("slice").bind("slice")))
+                .bind("squeeze");
         return match_op(match::any_of[match::inputs()](squeeze_slice));
     }
 
@@ -1854,8 +1854,8 @@ struct find_slice_squeeze
             if(input == squeeze)
                 input = slice_ins;
             else
-                input = m.insert_instruction(
-                    op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
+                input =
+                    m.insert_instruction(op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
         }
 
         // Unsqueezing the inputs shifts every axis at or after `axis` up by one.

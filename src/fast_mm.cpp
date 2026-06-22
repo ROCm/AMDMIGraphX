@@ -53,8 +53,7 @@ instruction_ref split_fp16(module& m, instruction_ref pos, instruction_ref c, st
     auto c_lo_f = m.insert_instruction(pos, make_op("sub"), c, c_hi_f);
     auto c_lo_h =
         m.insert_instruction(pos, make_op("convert", {{"target_type", shape::half_type}}), c_lo_f);
-    return m.insert_instruction(
-        pos, make_op("concat", {{"axis", axis}}), c_hi_h, c_lo_h);
+    return m.insert_instruction(pos, make_op("concat", {{"axis", axis}}), c_hi_h, c_lo_h);
 }
 
 // Cast `x` to fp16 and duplicate it along `axis` without copying: insert a
@@ -75,8 +74,7 @@ instruction_ref duplicate_axis(module& m, instruction_ref pos, instruction_ref x
     std::vector<std::int64_t> reshape_dims(lens.begin(), lens.end());
     reshape_dims[axis] *= 2;
 
-    auto x_unsq = m.insert_instruction(
-        pos, make_op("unsqueeze", {{"axes", {axis}}}), x_h);
+    auto x_unsq = m.insert_instruction(pos, make_op("unsqueeze", {{"axes", {axis}}}), x_h);
     auto x_bc =
         m.insert_instruction(pos, make_op("multibroadcast", {{"out_lens", bc_lens}}), x_unsq);
     return m.insert_instruction(pos, make_op("reshape", {{"dims", reshape_dims}}), x_bc);

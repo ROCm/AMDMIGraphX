@@ -59,6 +59,8 @@ struct compile_options
  */
 inline void set_backend_options(compile_options& options, const value& v)
 {
+    if(not v.is_object())
+        MIGRAPHX_THROW("set_backend_options expects an object value");
     for(const auto& opt : v)
         options.backend_options[opt.get_key()] = opt.without_key();
 }

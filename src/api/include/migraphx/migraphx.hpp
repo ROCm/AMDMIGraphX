@@ -1226,6 +1226,7 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     void set_advance_backend_option(const std::string& name, T x)
     {
         std::ostringstream ss;
+        ss << std::boolalpha;
         ss << x;
         const std::string option = "{" + name + ":%s}";
         const std::string value  = ss.str();
@@ -1237,6 +1238,7 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     void set_advance_backend_option(const std::string& name, const std::vector<T>& x)
     {
         std::ostringstream ss;
+        ss << std::boolalpha;
         ss << "[";
         for(std::size_t i = 0; i < x.size(); ++i)
         {

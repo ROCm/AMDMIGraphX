@@ -66,7 +66,7 @@ TEST_CASE(topk_var_k_dynamic_test)
     migraphx::shape ds{migraphx::shape::float_type, {2, 4}};
     std::vector<float> dd = {1, 3, 2, 4, 8, 5, 7, 6};
     migraphx::shape ks{migraphx::shape::int64_type, {1}};
-    std::vector<int64_t> kd = {2};
+    std::vector<int64_t> kd = {3};
 
     migraphx::parameter_map pp;
     pp["data"] = migraphx::argument(ds, dd.data());
@@ -79,6 +79,6 @@ TEST_CASE(topk_var_k_dynamic_test)
     results[1].visit([&](auto o) { ind_v.assign(o.begin(), o.end()); });
 
     EXPECT(migraphx::verify::allclose(
-        val_v, std::vector<float>{4, 3, 8, 7}, migraphx::verify::tolerance{}));
-    EXPECT(ind_v == std::vector<int64_t>{3, 1, 0, 2});
+        val_v, std::vector<float>{4, 3, 2, 8, 7, 6}, migraphx::verify::tolerance{}));
+    EXPECT(ind_v == std::vector<int64_t>{3, 1, 2, 0, 2, 3});
 }

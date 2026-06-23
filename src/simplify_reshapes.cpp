@@ -946,14 +946,10 @@ struct find_concat_reshape
         int64_t n_dim = reshapes.front()->get_shape().lens().size();
         auto axis     = tune_axis(n_dim, op.axis, op.name());
 
-        // Special case: concat(unsqueeze(x_i, 0), ..., axis=0) - stacking the
-        // inputs along a new leading dimension, as emitted by horizontal fusion.
-        // The element-product axis mapping below cannot canonicalize this (the
-        // inserted unit dim makes the pre/post products mismatch), so handle it
-        // directly: concat the pre-unsqueeze inputs along axis 0 and reshape to
-        // the concat output shape. Restricted to the leading axis so interior
-        // unsqueeze+concat forms (e.g. produced by transpose sinking) are left
-        // untouched.
+        // Special case: concat(unsqueeze(x_i, 0), ..., axis=0). The axis mapping
+        // below can't canonicalize this (the inserted unit dim mismatches the
+        // pre/post products), so concat the pre-unsqueeze inputs along axis 0 and
+        // reshape to the output. Leading axis only to leave interior forms alone.
         if(axis == 0 and std::all_of(reshapes.begin(), reshapes.end(), [&](instruction_ref r) {
                if(r->name() != "unsqueeze")
                    return false;

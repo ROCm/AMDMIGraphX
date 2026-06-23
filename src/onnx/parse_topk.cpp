@@ -89,10 +89,10 @@ struct parse_topk : op_parser<parse_topk>
         {
             auto starts = info.add_literal(literal{shape{shape::int64_type, {1}}, {0}});
             auto ends   = info.add_instruction(make_op("reshape", {{"dims", {1}}}), args.at(1));
-            ret_val     = info.add_instruction(
-                make_op("slice", {{"axes", {axis}}}), ret_val, starts, ends);
-            ret_ind     = info.add_instruction(
-                make_op("slice", {{"axes", {axis}}}), ret_ind, starts, ends);
+            ret_val =
+                info.add_instruction(make_op("slice", {{"axes", {axis}}}), ret_val, starts, ends);
+            ret_ind =
+                info.add_instruction(make_op("slice", {{"axes", {axis}}}), ret_ind, starts, ends);
         }
 
         return {ret_val, ret_ind};

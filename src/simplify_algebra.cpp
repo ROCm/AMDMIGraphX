@@ -984,14 +984,14 @@ struct find_concat_op
         if(std::distance(start, last) < 2)
             return {start, last};
         auto x = *start;
-        if(std::any_of(
-               start, last, [](instruction_ref i) { return rejected_inputs(i->inputs()); }))
+        if(std::any_of(start, last, [](instruction_ref i) { return rejected_inputs(i->inputs()); }))
             return {start, last};
         // Skip if any multi-use input feeds into another group member,
         // since the fused result would redundantly recompute the dominated
         // input without being able to eliminate the original.
         if(std::any_of(start, last, [&](instruction_ref orig) {
-               return orig->outputs().size() > 1 and std::any_of(start, last, [&](instruction_ref g) {
+               return orig->outputs().size() > 1 and
+                      std::any_of(start, last, [&](instruction_ref g) {
                           return g != orig and reaches(orig, g);
                       });
            }))

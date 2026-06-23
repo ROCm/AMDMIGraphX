@@ -53,8 +53,8 @@ struct parse_topk : op_parser<parse_topk>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        bool dyn_k    = false;
-        int64_t k     = 0;
+        bool dyn_k = false;
+        int64_t k  = 0;
         if(args.size() == 2)
         {
             auto arg_k = args.at(1)->eval();

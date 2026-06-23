@@ -79,9 +79,9 @@ struct topk
         }
         else
         {
-            auto lens   = inputs.at(0).lens();
-            auto kk     = std::min<std::size_t>(k, lens[axis]);
-            lens[axis]  = kk;
+            auto lens  = inputs.at(0).lens();
+            auto kk    = std::min<std::size_t>(k, lens[axis]);
+            lens[axis] = kk;
 
             shape s_val{type, lens};
             shape s_ind{shape::int64_type, lens};

@@ -27,7 +27,7 @@
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/shape.hpp>
-#include <migraphx/op/convolution_backwards.hpp>
+#include <migraphx/value.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -81,7 +81,7 @@ void rewrite_convolution::apply(module& m) const
 
     for(auto ins : conv_bwds)
     {
-        auto op         = any_cast<op::convolution_backwards>(ins->get_operator());
+        const auto val  = ins->get_operator().to_value();
         auto dy         = ins->inputs().at(0);
         auto w          = ins->inputs().at(1);
         const auto& dys = dy->get_shape();
@@ -93,13 +93,17 @@ void rewrite_convolution::apply(module& m) const
         if(dys.dynamic() or ws.dynamic() or os.dynamic())
             continue;
 
-        const std::size_t nsp    = op.stride.size();
+        const auto stride   = val.at("stride").to_vector<std::size_t>();
+        const auto dilation = val.at("dilation").to_vector<std::size_t>();
+        const auto padding  = val.at("padding").to_vector<std::size_t>();
+        const int group     = val.at("group").to<int>();
+
+        const std::size_t nsp    = stride.size();
         const auto& dy_lens      = dys.lens();
         const auto& w_lens       = ws.lens();
         const auto& out_lens     = os.lens();
         const std::size_t k_chan = dy_lens.at(1); // dy channels == forward output channels
         const std::size_t c_pg   = w_lens.at(1);  // output channels per group
-        const int group          = op.group;
         if(group <= 0 or k_chan % static_cast<std::size_t>(group) != 0)
             continue;
 
@@ -107,8 +111,8 @@ void rewrite_convolution::apply(module& m) const
         for(std::size_t d = 0; d < nsp; ++d)
         {
             auto& di             = dims[d];
-            di.stride            = op.stride[d];
-            di.dilation          = op.dilation[d];
+            di.stride            = stride[d];
+            di.dilation          = dilation[d];
             di.y                 = w_lens[2 + d];
             const std::size_t ho = dy_lens[2 + d];
             const std::size_t g  = std::gcd(di.stride, di.dilation);
@@ -351,7 +355,7 @@ void rewrite_convolution::apply(module& m) const
         // Crop the padding region to produce dx.
         for(std::size_t d = 0; d < nsp; ++d)
         {
-            const int64_t start = static_cast<int64_t>(op.padding[d]);
+            const int64_t start = static_cast<int64_t>(padding[d]);
             const int64_t end   = start + static_cast<int64_t>(out_lens[2 + d]);
             if(start == 0 and end == static_cast<int64_t>(acc->get_shape().lens()[2 + d]))
                 continue; // crop covers the whole axis -> no-op

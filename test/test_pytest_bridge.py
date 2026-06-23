@@ -25,16 +25,13 @@
 
 NOTE: the file is named ``test_*`` on purpose so pytest's default discovery can find it
 """
-import json
 import os
-import re
 import shutil
 import subprocess
 
 import pytest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_FIXTURE_PROPS = ("FIXTURES_REQUIRED", "FIXTURES_SETUP", "FIXTURES_CLEANUP")
 
 
 def _resolve_test_dir():
@@ -47,10 +44,6 @@ def _resolve_test_dir():
     return _HERE
 
 
-_TEST_DIR = _resolve_test_dir()
-_BIN_DIR = os.path.join(_TEST_DIR, "bin")
-
-
 def _migraphx_lib_dir():
     try:
         import migraphx
@@ -58,107 +51,41 @@ def _migraphx_lib_dir():
         return None
     return os.path.dirname(os.path.abspath(migraphx.__file__))
 
-_LIB_DIRS = [d for d in (os.path.join(_TEST_DIR, "lib"), _migraphx_lib_dir())
-             if d and os.path.isdir(d)]
 
-
-def _make_test(name, command, env=None, fail_regexes=None, skip=None):
-    return {
-        "name": name,
-        "command": command,
-        "env": env or {},
-        "fail_regexes": fail_regexes or ["FAILED"],
-        "skip": skip,
-    }
-
-
-def _make_env(extra):
+def _ctest_env(test_dir):
     env = dict(os.environ)
-    env.update(extra)
-    if _LIB_DIRS:
+    lib_dirs = [d for d in (os.path.join(test_dir, "lib"), _migraphx_lib_dir())
+                if d and os.path.isdir(d)]
+    if lib_dirs:
         existing = env.get("LD_LIBRARY_PATH", "")
         env["LD_LIBRARY_PATH"] = os.pathsep.join(
-            _LIB_DIRS + ([existing] if existing else []))
+            lib_dirs + ([existing] if existing else []))
     return env
 
 
-def _discover_via_ctest():
-    ctest = shutil.which("ctest")
-    if not ctest or not os.path.exists(os.path.join(_TEST_DIR, "CTestTestfile.cmake")):
-        return None
-    try:
-        out = subprocess.check_output(
-            [ctest, "--show-only=json-v1", "--test-dir", _TEST_DIR],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-    except (OSError, subprocess.CalledProcessError):
-        return None
-    data = json.loads(out)
-    tests = []
-    for entry in data.get("tests", []):
-        command = entry.get("command")
-        if not command:
-            continue
-        env_extra = {}
-        fail_regexes = None
-        needs_fixture = False
-        for prop in entry.get("properties", []):
-            name = prop.get("name")
-            if name == "ENVIRONMENT":
-                for item in prop.get("value", []):
-                    key, _, value = item.partition("=")
-                    env_extra[key] = value
-            elif name == "FAIL_REGULAR_EXPRESSION" and prop.get("value"):
-                value = prop["value"]
-                fail_regexes = value if isinstance(value, list) else [value]
-            elif name in _FIXTURE_PROPS and prop.get("value"):
-                needs_fixture = True
-        tests.append(_make_test(
-            entry["name"], command, env=env_extra, fail_regexes=fail_regexes,
-            skip="requires ctest fixtures; run via ctest" if needs_fixture else None))
-    return tests
+def _ensure_executable(test_dir):
+    bin_dir = os.path.join(test_dir, "bin")
+    if not os.path.isdir(bin_dir):
+        return
+    for name in os.listdir(bin_dir):
+        try:
+            os.chmod(os.path.join(bin_dir, name), 0o755)
+        except OSError:
+            pass
 
 
-def _discover_via_bin():
-    if not os.path.isdir(_BIN_DIR):
-        return []
-    tests = []
-    for name in sorted(os.listdir(_BIN_DIR)):
-        path = os.path.join(_BIN_DIR, name)
-        if name.startswith("test_") and os.path.isfile(path):
-            tests.append(_make_test(name, [path]))
-    return tests
-
-
-_TESTS = _discover_via_ctest() or _discover_via_bin()
-
-
-@pytest.mark.parametrize("spec", _TESTS, ids=[t["name"] for t in _TESTS])
-def test_migraphx(spec):
-    if spec["skip"]:
-        pytest.skip(spec["skip"])
-    # Wheel installs can drop the executable bit; restore it on the binary we run.
-    try:
-        os.chmod(spec["command"][0], 0o755)
-    except OSError:
-        pass
-    result = subprocess.run(
-        spec["command"],
-        cwd=_TEST_DIR,
-        env=_make_env(spec["env"]),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-    # Mirror the CTest pass criteria: zero exit and no FAIL_REGULAR_EXPRESSION match.
-    failed = any(re.search(p, result.stdout) for p in spec["fail_regexes"])
-    assert result.returncode == 0 and not failed, (
-        f"{spec['name']} failed (exit {result.returncode}):\n{result.stdout}")
-
-
-if not _TESTS:
-    def test_migraphx_suite_discovered():
+@pytest.mark.skipif(shutil.which("ctest") is None,
+                    reason="ctest not found; install CMake to run the suite")
+def test_migraphx():
+    test_dir = _resolve_test_dir()
+    if not os.path.exists(os.path.join(test_dir, "CTestTestfile.cmake")):
         pytest.skip(
-            "No MIGraphX tests found. Set MIGRAPHX_TEST_DIR to a build/install "
-            "dir containing CTestTestfile.cmake, or run from one.")
+            f"No CTestTestfile.cmake in {test_dir}; set MIGRAPHX_TEST_DIR to a "
+            "build or installed-tests directory.")
+    _ensure_executable(test_dir)
+    result = subprocess.run(
+        ["ctest", "--test-dir", test_dir, "-j", str(os.cpu_count() or 1),
+         "--output-on-failure"],
+        env=_ctest_env(test_dir),
+    )
+    assert result.returncode == 0, f"ctest reported failures (exit {result.returncode})"

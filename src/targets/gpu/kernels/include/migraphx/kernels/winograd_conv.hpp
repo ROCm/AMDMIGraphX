@@ -410,9 +410,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
 
     // Lane's tile (n, th, tw). Same for all c (only c changes per tile_idx).
     // Decompose the linear nt index over the {N, tiles_h, tiles_w} extents.
-    const bool nt_active = (nt_global < NT_total);
-    const auto tile_idx  = nt_active ? array<index_int, 3>{N, tiles_h, tiles_w}.multi(nt_global)
-                                     : array<index_int, 3>{};
+    const bool nt_active   = (nt_global < NT_total);
+    const auto tile_idx    = nt_active ? array<index_int, 3>{N, tiles_h, tiles_w}.multi(nt_global)
+                                       : array<index_int, 3>{};
     const index_int n_idx  = tile_idx[0];
     const index_int th_idx = tile_idx[1];
     const index_int tw_idx = tile_idx[2];
@@ -468,9 +468,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // columns; the per-element fallback handles other strides. Inactive
         // lanes have `off == x_byte_count`, so every load returns 0.
         const int32_t oob_byte = static_cast<int32_t>(x_byte_count);
-        const half hzero          = half(0.0f);
-        const array<bool, 4> hi   = {v_hok0, v_hok1, v_hok2, v_hok3};
-        const array<bool, 4> wj   = {v_wok0, v_wok1, v_wok2, v_wok3};
+        const half hzero        = half(0.0f);
+        const array<bool, 4> hi = {v_hok0, v_hok1, v_hok2, v_hok3};
+        const array<bool, 4> wj = {v_wok0, v_wok1, v_wok2, v_wok3};
         if constexpr(NHWC)
         {
             // NHWC: each lane loads its tile's 8 channels per spatial position

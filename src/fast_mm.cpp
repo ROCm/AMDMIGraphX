@@ -109,8 +109,8 @@ void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_
     auto x_doubled = duplicate_axis(m, ins, x, 1);
 
     auto half_conv = m.insert_instruction(ins, ins->get_operator(), x_doubled, w_concat);
-    auto converted =
-        m.insert_instruction(ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_conv);
+    auto converted = m.insert_instruction(
+        ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_conv);
 
     m.replace_instruction(ins, converted);
 }
@@ -147,8 +147,8 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
     }
 
     auto half_dot = m.insert_instruction(ins, ins->get_operator(), new_a, new_b);
-    auto converted =
-        m.insert_instruction(ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_dot);
+    auto converted = m.insert_instruction(
+        ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_dot);
 
     m.replace_instruction(ins, converted);
 }

@@ -74,7 +74,7 @@ def _ensure_migraphx_available(registration_name):
         f"MIGraphX EP nor the plugin registration API")
 
 
-def ensure_migraphx_ep(provider_options=None, registration_name="migraphx"):
+def ensure_migraphx_ep(provider_options=None, registration_name=MIGRAPHX_EP):
     """Ensure the MIGraphX execution provider is available and return the provider
     list to pass to onnxruntime.InferenceSession.
 

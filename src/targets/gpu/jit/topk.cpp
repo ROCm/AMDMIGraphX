@@ -46,7 +46,9 @@ extern "C" {
 
 MIGRAPHX_GLOBAL void topk_kernel(${params}) 
 {
-    transform_args(make_tensors(), rotate_last<2>())(${args})(${topk_call});
+    transform_args(make_tensors(), rotate_last<2>())(${args})([](auto... xs) {
+        topk<${axis}>(${compare}, ${init})(xs...);
+    });
 }
 
 }
@@ -63,11 +65,11 @@ struct topk_compiler : compiler<topk_compiler>
     {
         hip_compile_options options;
         options.output      = inputs.back();
-        options.inputs      = flatten(inputs);
+        options.inputs      = flatten_tuple_shapes(inputs);
         options.kernel_name = "topk_kernel";
 
         auto axis           = v.at("axis").to<int64_t>();
-        auto kelements      = v.at("k").to<std::size_t>();
+        auto kelements      = v.at("k").to<int64_t>();
         auto relements      = inputs.front().lens()[axis];
         auto nelements      = inputs.front().elements() / relements;
         auto max_wavefronts = std::max<std::size_t>(1, 8192 / kelements);
@@ -85,14 +87,13 @@ struct topk_compiler : compiler<topk_compiler>
             init    = "lowest{}";
         }
 
-        auto topk_invoke = "topk<" + std::to_string(axis) + ">(" + compare + ", " + init + ")";
-        auto topk_call   = "[](auto... xs) { " + topk_invoke + "(xs...); }";
-
         auto src =
             interpolate_string(topk_kernel,
-                               {{"params", enum_params(options.inputs.size(), "void * private_p")},
+                               {{"compare", compare},
+                                {"init", init},
+                                {"params", enum_params(options.inputs.size(), "void * private_p")},
                                 {"args", enum_params(options.inputs.size(), "private_p")},
-                                {"topk_call", topk_call}});
+                                {"axis", std::to_string(axis)}});
 
         return compile_hip_code_object(ctx, src, options);
     }

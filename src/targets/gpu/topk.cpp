@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,19 +36,18 @@ shape hip_topk::compute_shape(std::vector<shape> inputs) const
 
 argument hip_topk::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
-    auto outputs  = args.back().get_sub_objects();
-    auto actual_k = std::min<std::size_t>(op.k, args[0].get_shape().lens()[op.axis]);
+    auto outputs = args.back().get_sub_objects();
     return op.largest ? device::topk_largest(ctx.get_stream().get(),
                                              outputs.front(),
                                              outputs.back(),
                                              args[0],
-                                             actual_k,
+                                             op.k,
                                              op.axis)
                       : device::topk_smallest(ctx.get_stream().get(),
                                               outputs.front(),
                                               outputs.back(),
                                               args[0],
-                                              actual_k,
+                                              op.k,
                                               op.axis);
 }
 

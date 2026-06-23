@@ -26,10 +26,11 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/op/convolution_backwards.hpp>
 
 #include <algorithm>
-#include <functional>
+#include <cassert>
 #include <iterator>
 #include <numeric>
 #include <vector>
@@ -62,7 +63,6 @@ struct dim_info
     std::size_t ydot;   // ceil(Y / ytilda)     -> max taps per residue
     std::size_t dd;     // D / gcd(S, D)        -> per-residue conv dilation
     std::size_t htilda; // common per-residue conv output length
-    std::size_t lbuf;   // reassembly buffer length before cropping
     std::size_t y;      // filter length
 };
 
@@ -81,12 +81,12 @@ void rewrite_convolution::apply(module& m) const
 
     for(auto ins : conv_bwds)
     {
-        auto op  = any_cast<op::convolution_backwards>(ins->get_operator());
-        auto dy  = ins->inputs().at(0);
-        auto w   = ins->inputs().at(1);
-        auto dys = dy->get_shape();
-        auto ws  = w->get_shape();
-        auto os  = ins->get_shape();
+        auto op         = any_cast<op::convolution_backwards>(ins->get_operator());
+        auto dy         = ins->inputs().at(0);
+        auto w          = ins->inputs().at(1);
+        const auto& dys = dy->get_shape();
+        const auto& ws  = w->get_shape();
+        const auto& os  = ins->get_shape();
 
         // The decomposition needs concrete spatial/kernel sizes; leave dynamic shapes untouched
         // so the existing (MLIR / reference) path handles them.
@@ -94,9 +94,9 @@ void rewrite_convolution::apply(module& m) const
             continue;
 
         const std::size_t nsp    = op.stride.size();
-        const auto dy_lens       = dys.lens();
-        const auto w_lens        = ws.lens();
-        const auto out_lens      = os.lens();
+        const auto& dy_lens      = dys.lens();
+        const auto& w_lens       = ws.lens();
+        const auto& out_lens     = os.lens();
         const std::size_t k_chan = dy_lens.at(1); // dy channels == forward output channels
         const std::size_t c_pg   = w_lens.at(1);  // output channels per group
         const int group          = op.group;
@@ -116,7 +116,6 @@ void rewrite_convolution::apply(module& m) const
             di.dd                = di.dilation / g;
             di.ydot              = ceil_div(di.y, di.ytilda);
             di.htilda            = ho + (di.ydot - 1) * di.dd;
-            di.lbuf              = di.stride * di.htilda + (di.ytilda - 1) * di.dilation;
         }
 
         // Helpers that build the reassembly (insertion point is `ins`).
@@ -143,10 +142,14 @@ void rewrite_convolution::apply(module& m) const
             return m.insert_instruction(ins, make_op("reshape", {{"dims", rdims}}), u);
         };
 
-        const std::size_t num_res = std::accumulate(
-            dims.begin(), dims.end(), std::size_t{1}, [](std::size_t a, const dim_info& di) {
-                return a * di.ytilda;
-            });
+        // The residues form a mixed-radix grid, one axis per spatial dim with radix ytilda. A shape
+        // over those lengths maps each linear residue index `r` back to its per-dim `itilda`.
+        std::vector<std::size_t> ytilda_lens(nsp);
+        std::transform(dims.begin(), dims.end(), ytilda_lens.begin(), [](const dim_info& di) {
+            return di.ytilda;
+        });
+        const shape residue_grid{shape::uint32_type, ytilda_lens};
+        const std::size_t num_res = residue_grid.elements();
 
         // When there is no dilation every output position is covered exactly once, so the residues
         // reassemble with a pure interleave (concat + reshape/transpose, no pad/add kernels). The
@@ -159,14 +162,8 @@ void rewrite_convolution::apply(module& m) const
         std::vector<std::vector<std::size_t>> partial_itilda;
         for(std::size_t r = 0; r < num_res; ++r)
         {
-            // Mixed-radix decode of the residue index into itilda per dim.
-            std::vector<std::size_t> itilda(nsp);
-            std::size_t rem = r;
-            for(std::size_t d = nsp; d-- > 0;)
-            {
-                itilda[d] = rem % dims[d].ytilda;
-                rem /= dims[d].ytilda;
-            }
+            // Decode the linear residue index into itilda per dim.
+            auto itilda = residue_grid.multi(r);
 
             // Number of filter taps kept by this residue along each dim.
             std::vector<std::size_t> ydot_slice(nsp);
@@ -187,7 +184,7 @@ void rewrite_convolution::apply(module& m) const
             auto wsl = w;
             for(std::size_t d = 0; d < nsp; ++d)
             {
-                if(itilda[d] > 0) // a starts==0 slice over the full axis is a no-op
+                if(itilda[d] > 0) // a slice starting at 0 spans the full axis, so it is a no-op
                     wsl =
                         m.insert_instruction(ins,
                                              make_op("slice",
@@ -270,6 +267,9 @@ void rewrite_convolution::apply(module& m) const
         const bool no_upsample = std::all_of(
             dims.begin(), dims.end(), [](const dim_info& di) { return di.stride == 1; });
 
+        // Residue 0 (itilda all zero) is never empty since every filter axis has length >= 1, so the
+        // reassembly always has at least one partial to start from.
+        assert(not partials.empty());
         instruction_ref acc;
         if(no_upsample)
         {
@@ -299,7 +299,7 @@ void rewrite_convolution::apply(module& m) const
                 split_dims.push_back(static_cast<int64_t>(di.stride));
             // For 1-D the concat already has this shape (num_res == stride), so the split is a
             // no-op.
-            const auto cat_lens = cat->get_shape().lens();
+            const auto& cat_lens = cat->get_shape().lens();
             auto split =
                 (std::equal(split_dims.begin(), split_dims.end(), cat_lens.begin(), cat_lens.end()))
                     ? cat

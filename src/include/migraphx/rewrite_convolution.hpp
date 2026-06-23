@@ -26,7 +26,6 @@
 
 #include <string>
 #include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

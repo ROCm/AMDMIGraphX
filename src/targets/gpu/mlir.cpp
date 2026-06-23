@@ -32,12 +32,12 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
-#include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
 #include <tuple>
 
 #ifdef MIGRAPHX_MLIR
+#include <mlir-c/Dialect/RockEnums.h>
 #include <mlir-c/IR.h>
 #include <mlir-c/BuiltinAttributes.h>
 #include <mlir-c/BuiltinTypes.h>

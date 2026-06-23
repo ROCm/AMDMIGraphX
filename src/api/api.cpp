@@ -179,11 +179,13 @@ static void set_file_format(file_options& options, const char* format) { options
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
+    options.default_set       = true;
 }
 
 static void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimension& dd)
 {
     options.default_dyn_dim_value = dd;
+    options.default_set           = true;
 }
 
 static void set_default_loop_iterations(onnx_options& options, int64_t value)
@@ -1998,6 +2000,8 @@ migraphx_operation_name(char* out, size_t out_size, migraphx_operation_t operati
     auto api_error_result = migraphx::try_([&] {
         if(out == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(out_size == 0)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out_size: zero");
         if(operation == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
         auto&& api_result = (operation->object).name();

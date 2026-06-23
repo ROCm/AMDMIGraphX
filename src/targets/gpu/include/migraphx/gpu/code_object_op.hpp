@@ -30,6 +30,8 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/launch_dims.hpp>
+#include <migraphx/gpu/pack_args.hpp>
+#include <map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,6 +48,13 @@ struct code_object_op
     std::vector<shape> expected_inputs{};
     shape output{};
     std::int64_t output_arg = -1;
+
+    std::map<std::size_t, kernel_argument_value> kernel_args{};
+    // Pre-packed kernarg buffer built in finalize(); not reflected.
+    std::vector<char> packed_kernargs{};
+    // (runtime arg index, byte offset) pairs for pointer patching in compute().
+    std::vector<std::pair<std::size_t, std::size_t>> runtime_arg_offsets{};
+
     kernel k{};
 
     template <class Self, class F>
@@ -57,7 +66,8 @@ struct code_object_op
                     f(self.local.dims, "local"),
                     f(self.expected_inputs, "expected_inputs"),
                     f(self.output, "output"),
-                    f(self.output_arg, "output_arg"));
+                    f(self.output_arg, "output_arg"),
+                    f(self.kernel_args, "kernel_args"));
     }
 
     value attributes() const { return {{"group", group()}}; }

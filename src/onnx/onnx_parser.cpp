@@ -36,9 +36,12 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/op/unknown.hpp>
 #include <migraphx/float8.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/logger.hpp>
 #include <onnx.pb.h>
 #include <iomanip>
+#include <set>
 #include <sstream>
 
 namespace migraphx {
@@ -60,6 +63,13 @@ static shape shape_from_dyn_dims(shape::type_t shape_type,
         return {shape_type, dims};
     }
     return {shape_type, dyn_dims};
+}
+
+static std::set<sym::scalar> sym_optimals(const shape::dynamic_dimension& dd)
+{
+    if(dd.optimals.has_value())
+        return {dd.optimals->begin(), dd.optimals->end()};
+    return {};
 }
 
 static onnx_parser::attribute_map get_attributes(const onnx::NodeProto& node)
@@ -132,16 +142,21 @@ instruction_ref onnx_parser::node_info::add_bias(const std::vector<instruction_r
     if(args.size() == 3)
     {
         instruction_ref bias_bcast;
-        // if curr_ins has a dynamic output shape use 2 input broadcast
-        if(curr_ins->get_shape().dynamic())
+        const auto& s = curr_ins->get_shape();
+        if(s.symbolic())
+        {
+            bias_bcast = add_instruction(
+                make_op("broadcast", {{"axis", axis}, {"out_dyn_dims", to_value(s.dyn_dims())}}),
+                args[2]);
+        }
+        else if(s.dynamic())
         {
             bias_bcast = add_instruction(make_op("broadcast", {{"axis", axis}}), args[2], curr_ins);
         }
         else
         {
             bias_bcast = add_instruction(
-                make_op("broadcast", {{"axis", axis}, {"out_lens", curr_ins->get_shape().lens()}}),
-                args[2]);
+                make_op("broadcast", {{"axis", axis}, {"out_lens", s.lens()}}), args[2]);
         }
         return add_instruction(make_op("add"), curr_ins, bias_bcast);
     }
@@ -259,6 +274,31 @@ void onnx_parser::parse_undefined(module* mod, const std::string& name)
     }
 }
 
+static void warn_unresolved_dim_params(const onnx_parser& parser, const onnx::GraphProto& graph)
+{
+    if(parser.default_set)
+        return;
+    std::set<std::string> unresolved;
+    for(const auto& input : graph.input())
+    {
+        if(contains(parser.map_input_dims, input.name()) or
+           contains(parser.map_dyn_input_dims, input.name()))
+            continue;
+        for(const auto& d : input.type().tensor_type().shape().dim())
+        {
+            if(d.has_dim_param() and not contains(parser.dim_params, d.dim_param()))
+                unresolved.insert(d.dim_param());
+        }
+    }
+    if(unresolved.empty())
+        return;
+    log::warn() << "Model has unbound symbolic dimension(s): "
+                << join_strings(std::move(unresolved), ", ") << ". These default to "
+                << parser.default_dyn_dim_value << " and may cause unexpected behavior. "
+                << "Try setting `--dim-param @<name> <value>` or `--input-dim @<input> <dims>` "
+                   "if program compilation fails.";
+}
+
 void onnx_parser::parse_from(std::istream& is, std::string name)
 {
     auto* mm         = prog.get_main_module();
@@ -275,6 +315,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
 
         if(model.has_graph())
         {
+            warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
         }
     }
@@ -295,6 +336,7 @@ void onnx_parser::parse_from(const void* data, std::size_t size)
 
         if(model.has_graph())
         {
+            warn_unresolved_dim_params(*this, model.graph());
             (void)this->parse_graph(mm, model.graph());
         }
     }
@@ -319,40 +361,13 @@ int64_t onnx_parser::get_opset_version(const onnx::ModelProto& model)
     return version;
 }
 
-/**
- * Get the instructions added by the parser not in `args`.
- * Does a DFS through inputs of result up to the instructions `args`.
- */
-static std::vector<instruction_ref>
-get_added_instructions(const std::vector<instruction_ref>& args,
-                       const std::vector<instruction_ref>& result)
-{
-    // Print instructions added by the parser not in args
-    std::vector<instruction_ref> added_instructions;
-    // Set for checking added_instructions faster
-    std::unordered_set<instruction_ref> visit_set;
-    fix([&](auto self, const auto& r) {
-        for(auto ins : r)
-        {
-            if(contains(args, ins))
-                continue;
-            if(contains(visit_set, ins))
-                continue;
-            self(ins->inputs());
-            added_instructions.push_back(ins);
-            visit_set.insert(ins);
-        }
-    })(result);
-    return added_instructions;
-}
-
 static bool is_type_packed_int4(const onnx::TensorProto& t)
 {
     return t.data_type() == onnx::TensorProto::INT4 or t.data_type() == onnx::TensorProto::UINT4;
 }
 
 static std::unordered_map<std::string, instruction_ref>
-parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
+parse_initializer(const onnx_parser& parser, module* mod, const onnx::GraphProto& graph)
 {
     std::unordered_map<std::string, instruction_ref> mod_insts;
     for(auto&& f : graph.initializer())
@@ -362,6 +377,8 @@ parse_intializer(const onnx_parser& parser, module* mod, const onnx::GraphProto&
         // backup instructions in parent mod
         auto pt  = parser.parse_tensor(f);
         auto lit = mod->add_literal(pt);
+        if(parser.use_debug_symbols)
+            mod->add_debug_symbols(lit, {f.name()});
 
         if(is_type_packed_int4(f))
             lit = mod->add_instruction(migraphx::make_op("unpack_int4"), lit);
@@ -399,12 +416,22 @@ parse_inputs(const onnx_parser& parser,
             }
             else if(parser.map_dyn_input_dims.count(name) > 0)
             {
-                shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
-                s = shape_from_dyn_dims(shape_type, parser.map_dyn_input_dims.at(name));
+                const auto& override_dims = parser.map_dyn_input_dims.at(name);
+                if(parser.use_symbolic_shapes)
+                {
+                    // Name each overridden axis from the model's dim_param so it
+                    // becomes a symbol; bounds/optimals come from the override.
+                    s = parser.parse_type(input.type(), name, override_dims);
+                }
+                else
+                {
+                    shape::type_t shape_type = get_type(input.type().tensor_type().elem_type());
+                    s                        = shape_from_dyn_dims(shape_type, override_dims);
+                }
             }
             else
             {
-                s = parser.parse_type(input.type());
+                s = parser.parse_type(input.type(), name);
             }
             mod_insts[name] = mod->add_parameter(name, s);
         }
@@ -581,7 +608,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     }
 
     std::unordered_map<std::string, instruction_ref> mod_insts =
-        parse_intializer(*this, mod, graph);
+        parse_initializer(*this, mod, graph);
 
     mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 
@@ -850,43 +877,111 @@ literal onnx_parser::parse_tensor(const onnx::TensorProto& t) const
     MIGRAPHX_THROW("PARSE_TENSOR: Invalid tensor type");
 }
 
-shape onnx_parser::parse_type(const onnx::TypeProto& t) const
+static shape::dynamic_dimension make_symbol(const std::string& sym_name,
+                                            const shape::dynamic_dimension& bounds)
+{
+    auto iv = bounds.get_interval();
+    return shape::dynamic_dimension{
+        sym::var(sym_name,
+                 {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},
+                 sym_optimals(bounds))};
+}
+
+static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,
+                                            const shape::dynamic_dimension& bounds,
+                                            const std::string& name,
+                                            int axis)
+{
+    if(not parser.use_symbolic_shapes)
+        return bounds;
+    // A fixed bound is a constant, so emit it as a literal.
+    if(bounds.is_fixed())
+        return shape::dynamic_dimension{sym::lit(bounds.get_interval().min)};
+    // A ranged bound becomes a per-axis symbol "<input>_d<axis>" (onnxruntime's scheme
+    // for unnamed dims).
+    return make_symbol(name + "_d" + std::to_string(axis), bounds);
+}
+
+static shape::dynamic_dimension
+resolve_default_dim(const onnx_parser& parser, const std::string& name, int axis)
+{
+    return resolve_dim(parser, parser.default_dyn_dim_value, name, axis);
+}
+
+static shape::dynamic_dimension dim_param_bounds(const onnx_parser& parser,
+                                                 const std::string& dim_param,
+                                                 const shape::dynamic_dimension* override_dim)
+{
+    if(override_dim != nullptr)
+        return *override_dim;
+    if(contains(parser.dim_params, dim_param))
+        return parser.dim_params.at(dim_param);
+    return parser.default_dyn_dim_value;
+}
+
+static shape::dynamic_dimension map_dyn_dim(const onnx_parser& parser,
+                                            const onnx::TensorShapeProto::Dimension* model_dim,
+                                            const shape::dynamic_dimension* override_dim,
+                                            const std::string& name,
+                                            int axis)
+{
+    // An already-symbolic override carries its own symbol; keep it.
+    if(override_dim != nullptr and override_dim->is_symbolic())
+        return *override_dim;
+    if(model_dim != nullptr and model_dim->has_dim_param())
+    {
+        const auto& dim_param = model_dim->dim_param();
+        if(parser.use_symbolic_shapes)
+            return make_symbol(dim_param, dim_param_bounds(parser, dim_param, override_dim));
+        if(override_dim != nullptr)
+            return *override_dim;
+        if(contains(parser.dim_params, dim_param))
+            return parser.dim_params.at(dim_param);
+    }
+    // An override replaces a model dim_value entirely.
+    if(override_dim != nullptr)
+        return resolve_dim(parser, *override_dim, name, axis);
+    if(model_dim != nullptr and model_dim->has_dim_value())
+    {
+        // A non-positive dim_value is unspecified, so fall back to the default.
+        if(model_dim->dim_value() <= 0)
+            return resolve_default_dim(parser, name, axis);
+        if(parser.use_symbolic_shapes)
+            return shape::dynamic_dimension{sym::lit(model_dim->dim_value())};
+        std::size_t tmp = model_dim->dim_value();
+        return {tmp, tmp};
+    }
+    return resolve_default_dim(parser, name, axis);
+}
+
+shape onnx_parser::parse_type(const onnx::TypeProto& t, const std::string& name) const
+{
+    return parse_type(t, name, {});
+}
+
+// Resolve an input's dims; a map_dyn_input_dims override (if any) supplies bounds while
+// the model supplies the symbol name.
+shape onnx_parser::parse_type(const onnx::TypeProto& t,
+                              const std::string& name,
+                              const std::vector<shape::dynamic_dimension>& override_dims) const
 {
     shape::type_t shape_type = get_type(t.tensor_type().elem_type());
+    auto&& tensor_dims       = t.tensor_type().shape().dim();
+    // An override drives the rank (it may describe a model with no declared shape).
+    std::size_t num_dims = override_dims.empty() ? tensor_dims.size() : override_dims.size();
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
-    auto&& tensor_dims = t.tensor_type().shape().dim();
-    std::transform(tensor_dims.begin(),
-                   tensor_dims.end(),
-                   std::back_inserter(dynamic_dims),
-                   [&](auto&& d) -> shape::dynamic_dimension {
-                       if(d.has_dim_param())
-                       {
-                           const auto& dim_param = d.dim_param();
-                           if(contains(dim_params, dim_param))
-                           {
-                               return dim_params.at(dim_param);
-                           }
-                       }
-                       if(d.has_dim_value())
-                       {
-                           if(static_cast<int>(d.dim_value()) <= 0)
-                           {
-                               return default_dyn_dim_value;
-                           }
-                           std::size_t tmp = d.dim_value();
-                           return {tmp, tmp};
-                       }
-                       else
-                       {
-                           return default_dyn_dim_value;
-                       }
-                   });
+    transform(range(num_dims),
+              std::back_inserter(dynamic_dims),
+              [&](std::size_t axis) -> shape::dynamic_dimension {
+                  const shape::dynamic_dimension* od =
+                      axis < override_dims.size() ? &override_dims[axis] : nullptr;
+                  const auto* d = axis < tensor_dims.size() ? &tensor_dims[axis] : nullptr;
+                  return map_dyn_dim(*this, d, od, name, axis);
+              });
 
     if(dynamic_dims.empty())
-    {
         return {shape_type};
-    }
     return shape_from_dyn_dims(shape_type, dynamic_dims);
 }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,25 +24,29 @@
 
 #include <onnx_test.hpp>
 
+// TODO: use shapes that require broadcasting, when available.
+static void build_where(migraphx::module& m, const std::vector<migraphx::instruction_ref>& a)
+{
+    m.add_return({m.add_instruction(migraphx::make_op("where"), a[0], a[1], a[2])});
+}
+
 TEST_CASE(where_dyn_test)
 {
-    // TODO: broadcasting for dynamic shapes isn't implemented at time of writing.
-    // Update this test case to use shapes that require broadcasting, when available.
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto lc  = mm->add_parameter(
-        "c", migraphx::shape{migraphx::shape::bool_type, {{1, 4}, {2, 2}, {2, 2}}});
-    auto lx = mm->add_parameter(
-        "x", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {2, 2}, {2, 2}}});
-    auto ly = mm->add_parameter(
-        "y", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {2, 2}, {2, 2}}});
+    EXPECT(check_parse("where_dyn_test.onnx",
+                       {{"c", {migraphx::shape::bool_type, {{1, 4}, {2, 2}, {2, 2}}}},
+                        {"x", {migraphx::shape::float_type, {{1, 4}, {2, 2}, {2, 2}}}},
+                        {"y", {migraphx::shape::float_type, {{1, 4}, {2, 2}, {2, 2}}}}},
+                       build_where));
+}
 
-    auto r = mm->add_instruction(migraphx::make_op("where"), lc, lx, ly);
-    mm->add_return({r});
-
-    migraphx::onnx_options options;
-    options.default_dyn_dim_value = {1, 4};
-    auto prog                     = read_onnx("where_dyn_test.onnx", options);
-
-    EXPECT(p == prog);
+TEST_CASE(where_sym_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    auto d = [] { return sym_dims({var("n", {1, 4}), lit(2), lit(2)}); };
+    EXPECT(check_parse("where_dyn_test.onnx",
+                       {{"c", {migraphx::shape::bool_type, d()}},
+                        {"x", {migraphx::shape::float_type, d()}},
+                        {"y", {migraphx::shape::float_type, d()}}},
+                       build_where));
 }

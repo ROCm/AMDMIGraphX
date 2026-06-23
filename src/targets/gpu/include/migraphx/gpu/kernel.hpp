@@ -71,23 +71,15 @@ struct MIGRAPHX_GPU_EXPORT kernel
     bool empty() const;
 
     void launch(hipStream_t stream,
-                std::size_t global,
-                std::size_t global_y,
-                std::size_t global_z,
-                std::size_t local,
-                std::size_t local_y,
-                std::size_t local_z,
+                std::array<std::size_t, 3> global,
+                std::array<std::size_t, 3> local,
                 const std::vector<kernel_argument>& args,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
 
     void launch(hipStream_t stream,
-                std::size_t global,
-                std::size_t global_y,
-                std::size_t global_z,
-                std::size_t local,
-                std::size_t local_y,
-                std::size_t local_z,
+                std::array<std::size_t, 3> global,
+                std::array<std::size_t, 3> local,
                 pointers args,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
@@ -95,54 +87,59 @@ struct MIGRAPHX_GPU_EXPORT kernel
     void launch(hipStream_t stream,
                 std::array<std::size_t, 3> global,
                 std::array<std::size_t, 3> local,
+                void* kernargs,
+                std::size_t kernargs_size,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const;
+
+    void launch(hipStream_t stream,
+                std::size_t global,
+                std::size_t local,
                 const std::vector<kernel_argument>& args,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const
     {
-        launch(stream,
-               global[0], global[1], global[2],
-               local[0], local[1], local[2],
-               args, start, stop);
+        launch(stream, {global, 1, 1}, {local, 1, 1}, args, start, stop);
     }
 
     void launch(hipStream_t stream,
+                std::size_t global,
+                std::size_t local,
+                pointers args,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const
+    {
+        launch(stream, {global, 1, 1}, {local, 1, 1}, args, start, stop);
+    }
+
+    void launch(hipStream_t stream,
+                std::size_t global,
+                std::size_t local,
+                void* kernargs,
+                std::size_t kernargs_size,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const
+    {
+        launch(stream, {global, 1, 1}, {local, 1, 1}, kernargs, kernargs_size, start, stop);
+    }
+
+    template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
+    auto launch(hipStream_t stream,
                 std::array<std::size_t, 3> global,
                 std::array<std::size_t, 3> local,
-                pointers args,
-                hipEvent_t start = nullptr,
-                hipEvent_t stop  = nullptr) const
+                Ts... zs) const
     {
-        launch(stream,
-               global[0], global[1], global[2],
-               local[0], local[1], local[2],
-               args, start, stop);
-    }
-
-    void launch(hipStream_t stream,
-                std::size_t global,
-                std::size_t local,
-                const std::vector<kernel_argument>& args,
-                hipEvent_t start = nullptr,
-                hipEvent_t stop  = nullptr) const
-    {
-        launch(stream, global, 1, 1, local, 1, 1, args, start, stop);
-    }
-
-    void launch(hipStream_t stream,
-                std::size_t global,
-                std::size_t local,
-                pointers args,
-                hipEvent_t start = nullptr,
-                hipEvent_t stop  = nullptr) const
-    {
-        launch(stream, global, 1, 1, local, 1, 1, args, start, stop);
+        return [=](auto&&... xs) {
+            launch(stream, global, local, std::vector<kernel_argument>{xs...}, zs...);
+        };
     }
 
     template <class... Ts, MIGRAPHX_REQUIRES(std::is_convertible<Ts, hipEvent_t>{}...)>
     auto launch(hipStream_t stream, std::size_t global, std::size_t local, Ts... zs) const
     {
         return [=](auto&&... xs) {
-            launch(stream, global, local, std::vector<kernel_argument>{xs...}, zs...);
+            launch(
+                stream, {global, 1, 1}, {local, 1, 1}, std::vector<kernel_argument>{xs...}, zs...);
         };
     }
 

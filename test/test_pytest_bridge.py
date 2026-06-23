@@ -21,15 +21,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #####################################################################################
-"""Pytest bridge for the MIGraphX test suite.
+"""Pytest bridge for the MIGraphX test suite
 
-It exposes every test registered in a ``CTestTestfile.cmake`` to pytest as its
-own parametrized case, reading the list (with arguments and per-test
-environment) from ``ctest --show-only`` so pytest and ctest always run the exact
-same set.
-
-NOTE: the file is named ``test_*`` on purpose so pytest's default discovery
-(``python_files``) collects it during directory/``--pyargs`` recursion
+NOTE: the file is named ``test_*`` on purpose so pytest's default discovery can find it
 """
 import json
 import os
@@ -58,7 +52,6 @@ _BIN_DIR = os.path.join(_TEST_DIR, "bin")
 
 
 def _migraphx_lib_dir():
-    """Directory of the installed migraphx wheel (carries libmigraphx*.so)."""
     try:
         import migraphx
     except ImportError:
@@ -74,7 +67,6 @@ def _make_test(name, command, env=None, fail_regexes=None, skip=None):
         "name": name,
         "command": command,
         "env": env or {},
-        # CTest applies no default fail regex; the rocm harness sets "FAILED".
         "fail_regexes": fail_regexes or ["FAILED"],
         "skip": skip,
     }
@@ -83,8 +75,6 @@ def _make_test(name, command, env=None, fail_regexes=None, skip=None):
 def _make_env(extra):
     env = dict(os.environ)
     env.update(extra)
-    # Prepend our lib dirs so they win over any LD_LIBRARY_PATH a test's own
-    # ctest ENVIRONMENT may have set in `extra`.
     if _LIB_DIRS:
         existing = env.get("LD_LIBRARY_PATH", "")
         env["LD_LIBRARY_PATH"] = os.pathsep.join(
@@ -136,17 +126,12 @@ def _discover_via_bin():
     tests = []
     for name in sorted(os.listdir(_BIN_DIR)):
         path = os.path.join(_BIN_DIR, name)
-        # Only test executables; bin/ may also hold non-test binaries (driver).
         if name.startswith("test_") and os.path.isfile(path):
             tests.append(_make_test(name, [path]))
     return tests
 
 
-def _discover():
-    return _discover_via_ctest() or _discover_via_bin()
-
-
-_TESTS = _discover()
+_TESTS = _discover_via_ctest() or _discover_via_bin()
 
 
 @pytest.mark.parametrize("spec", _TESTS, ids=[t["name"] for t in _TESTS])
@@ -169,8 +154,7 @@ def test_migraphx(spec):
     # Mirror the CTest pass criteria: zero exit and no FAIL_REGULAR_EXPRESSION match.
     failed = any(re.search(p, result.stdout) for p in spec["fail_regexes"])
     assert result.returncode == 0 and not failed, (
-        "{name} failed (exit {code}):\n{out}".format(
-            name=spec["name"], code=result.returncode, out=result.stdout))
+        f"{spec['name']} failed (exit {result.returncode}):\n{result.stdout}")
 
 
 if not _TESTS:

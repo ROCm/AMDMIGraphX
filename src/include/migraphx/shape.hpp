@@ -161,7 +161,7 @@ struct MIGRAPHX_EXPORT shape
         std::set<std::size_t> get_optimals() const
         {
             if(is_symbolic())
-                return sym_expr.eval_optimals();
+                return sym_expr.eval_optimals_uint();
             if(optimals.has_value())
                 return *optimals;
             return {};
@@ -308,6 +308,14 @@ struct MIGRAPHX_EXPORT shape
      * Return the number of elements in the tensor.
      */
     std::size_t elements() const;
+
+    /*!
+     * Return the number of elements as a symbolic expression. Works for any
+     * shape kind: for static shapes returns a literal; for symbolic shapes
+     * returns the product of the symbolic dimension expressions. Throws for
+     * range-only dynamic shapes.
+     */
+    sym::expr sym_elements() const;
 
     /*!
      * Return the number of total bytes used for storage of the tensor data; includes subshapes.
@@ -467,9 +475,7 @@ struct MIGRAPHX_EXPORT shape
 
     // convert the shape to a static one setting any non-fixed dynamic_dimensions to x
     shape to_static(std::size_t x) const;
-    shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map) const;
-    // Collapse a fully-fixed shape to a static one; throws on non-fixed dimensions.
-    shape to_static() const;
+    shape to_static(const std::unordered_map<sym::expr, std::size_t>& symbol_map = {}) const;
 
     MIGRAPHX_EXPORT friend bool operator==(const shape& x, const shape& y);
     MIGRAPHX_EXPORT friend bool operator!=(const shape& x, const shape& y);
@@ -615,7 +621,7 @@ struct MIGRAPHX_EXPORT shape
 };
 
 /// Flatten subshapes to a single vector of non-tuple type of shapes
-MIGRAPHX_EXPORT std::vector<shape> flatten(const std::vector<shape>& shapes);
+MIGRAPHX_EXPORT std::vector<shape> flatten_tuple_shapes(const std::vector<shape>& shapes);
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);

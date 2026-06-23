@@ -108,7 +108,7 @@ struct test_suite : std::enable_shared_from_this<test_suite>
     {
         auto failures = migraphx::gpu::write_to_gpu(int32_t{0}, true);
         compile();
-        k.launch(nullptr, options.global, options.local)(test_cases.at(case_name), failures.get());
+        k.launch(nullptr, options.global.x(), options.local.x())(test_cases.at(case_name), failures.get());
         CHECK(hipDeviceSynchronize() == hipSuccess);
         test::report_failure(*failures);
     }

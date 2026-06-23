@@ -136,11 +136,12 @@ void hip_compile_options::set_launch_params(
     const std::function<std::size_t(std::size_t local)>& compute_global,
     std::size_t default_local)
 {
-    local = v.get("local", default_local);
+    auto local_size = v.get("local", default_local);
+    local           = local_size;
     if(v.contains("global"))
         global = v.at("global").to<std::size_t>();
     else
-        global = compute_global(local);
+        global = compute_global(local_size);
 }
 
 static bool hip_accept_non_uniform_wg()
@@ -202,8 +203,10 @@ std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t ma
 std::vector<char>
 compile_hip_raw(context& ctx, const std::string& content, hip_compile_options options)
 {
-    assert(options.global > 0);
-    assert(options.local > 0);
+    const auto& g = options.global;
+    const auto& l = options.local;
+    assert(g.x() > 0);
+    assert(l.x() > 0);
     std::vector<src_file> srcs = options.additional_src_files;
     static auto kernels{::migraphx_kernels()};
     std::transform(
@@ -213,9 +216,7 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
         [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
     srcs.emplace_back("main.cpp", content);
 
-    bool non_uniform = (options.global % options.local != 0) or
-                       (options.global_y % options.local_y != 0) or
-                       (options.global_z % options.local_z != 0);
+    bool non_uniform = (g.x() % l.x() != 0) or (g.y() % l.y() != 0) or (g.z() % l.z() != 0);
     if(non_uniform and hip_accept_non_uniform_wg())
         options.emplace_param("-fno-offload-uniform-block");
     else
@@ -223,10 +224,8 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
     if(hip_workaround_broken_deduction_guide())
         options.emplace_param("-DMIGRAPHX_WORKAROUND_BROKEN_DEDUCTION_GUIDE");
 
-    options.emplace_param("-DMIGRAPHX_NGLOBAL=" +
-                          std::to_string(options.global * options.global_y * options.global_z));
-    options.emplace_param("-DMIGRAPHX_NLOCAL=" +
-                          std::to_string(options.local * options.local_y * options.local_z));
+    options.emplace_param("-DMIGRAPHX_NGLOBAL=" + std::to_string(g.x() * g.y() * g.z()));
+    options.emplace_param("-DMIGRAPHX_NLOCAL=" + std::to_string(l.x() * l.y() * l.z()));
     options.emplace_param("-DMIGRAPHX_WAVEFRONTSIZE=" +
                           std::to_string(ctx.get_current_device().get_wavefront_size()));
     const auto& warnings = compiler_warnings();
@@ -252,11 +251,7 @@ compile_hip_code_object(context& ctx, const std::string& content, hip_compile_op
     return code_object_op{value::binary{compile_hip_raw(ctx, content, options)},
                           options.kernel_name,
                           options.global,
-                          options.global_y,
-                          options.global_z,
                           options.local,
-                          options.local_y,
-                          options.local_z,
                           options.inputs,
                           options.output,
                           options.output_arg};

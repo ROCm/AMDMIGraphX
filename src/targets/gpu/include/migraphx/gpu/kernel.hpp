@@ -28,6 +28,7 @@
 #include <migraphx/gpu/pack_args.hpp>
 #include <migraphx/pmr/vector.hpp>
 #include <hip/hip_runtime_api.h>
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
@@ -90,6 +91,32 @@ struct MIGRAPHX_GPU_EXPORT kernel
                 pointers args,
                 hipEvent_t start = nullptr,
                 hipEvent_t stop  = nullptr) const;
+
+    void launch(hipStream_t stream,
+                std::array<std::size_t, 3> global,
+                std::array<std::size_t, 3> local,
+                const std::vector<kernel_argument>& args,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const
+    {
+        launch(stream,
+               global[0], global[1], global[2],
+               local[0], local[1], local[2],
+               args, start, stop);
+    }
+
+    void launch(hipStream_t stream,
+                std::array<std::size_t, 3> global,
+                std::array<std::size_t, 3> local,
+                pointers args,
+                hipEvent_t start = nullptr,
+                hipEvent_t stop  = nullptr) const
+    {
+        launch(stream,
+               global[0], global[1], global[2],
+               local[0], local[1], local[2],
+               args, start, stop);
+    }
 
     void launch(hipStream_t stream,
                 std::size_t global,

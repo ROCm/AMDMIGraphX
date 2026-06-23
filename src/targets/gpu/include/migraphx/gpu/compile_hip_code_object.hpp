@@ -28,6 +28,8 @@
 #include <migraphx/operation.hpp>
 #include <migraphx/compile_src.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/functional.hpp>
+#include <migraphx/gpu/launch_dims.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,12 +39,8 @@ struct context;
 
 struct hip_compile_options
 {
-    std::size_t global;
-    std::size_t global_y = 1;
-    std::size_t global_z = 1;
-    std::size_t local;
-    std::size_t local_y = 1;
-    std::size_t local_z = 1;
+    launch_dims global{0};
+    launch_dims local{0};
     std::vector<shape> inputs;
     shape output;
     std::string kernel_name                    = "kernel";

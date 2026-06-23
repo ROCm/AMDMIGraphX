@@ -229,13 +229,13 @@ __device__ inline array<half, 16> winograd_input_transform_f23(const array<half,
 // Element-generic B^T d B input transform: same math as above but over an
 // arbitrary element type T. The NHWC load path uses T = vec<half, 8> so the
 // transform runs across the lane's 8 contiguous channels at once (the loads
-// already deliver them packed), avoiding the per-channel scalar transpose. Uses
-// C arrays of T (not the device array<>, whose vectorized ops can't hold a vec
-// element type); d and v may alias.
+// already deliver them packed), avoiding the per-channel scalar transpose. Only
+// per-element indexing is used (never array's whole-array vectorized ops), so a
+// vec element type is fine here.
 template <class T>
-__device__ inline void winograd_input_transform_f23_vec(const T (&d)[16], T (&v)[16])
+__device__ inline void winograd_input_transform_f23_vec(const array<T, 16>& d, array<T, 16>& v)
 {
-    T t[16];
+    array<T, 16> t;
     repeat_c<4>([&](auto j) {
         t[0 * 4 + j] = d[0 * 4 + j] - d[2 * 4 + j];
         t[1 * 4 + j] = d[1 * 4 + j] + d[2 * 4 + j];
@@ -369,7 +369,8 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     };
 
     // alpha[wp,r,c] = A^T[r, wp/4] * A[wp%4, c]
-    constexpr float at[2][4] = {{1.f, 1.f, 1.f, 0.f}, {0.f, 1.f, -1.f, -1.f}};
+    constexpr array<array<float, 4>, 2> at = {array<float, 4>{1.f, 1.f, 1.f, 0.f},
+                                              array<float, 4>{0.f, 1.f, -1.f, -1.f}};
 
     // Y[k_idx][r*2+c] running accumulator, one vec<float,8> per output
     // position (8 K rows per lane). KW * 4 outputs. Using vec (the native
@@ -408,11 +409,13 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const index_int nt_global             = t_base + nt_slot;
 
     // Lane's tile (n, th, tw). Same for all c (only c changes per tile_idx).
-    const bool nt_active   = (nt_global < NT_total);
-    const index_int n_idx  = nt_active ? nt_global / tiles_per_img : index_int{0};
-    const auto rem_lane    = nt_active ? nt_global - n_idx * tiles_per_img : index_int{0};
-    const index_int th_idx = nt_active ? rem_lane / tiles_w : index_int{0};
-    const index_int tw_idx = nt_active ? rem_lane - th_idx * tiles_w : index_int{0};
+    // Decompose the linear nt index over the {N, tiles_h, tiles_w} extents.
+    const bool nt_active = (nt_global < NT_total);
+    const auto tile_idx  = nt_active ? array<index_int, 3>{N, tiles_h, tiles_w}.multi(nt_global)
+                                     : array<index_int, 3>{};
+    const index_int n_idx  = tile_idx[0];
+    const index_int th_idx = tile_idx[1];
+    const index_int tw_idx = tile_idx[2];
     const int h0           = static_cast<int>(2 * th_idx) - 1;
     const int w0           = static_cast<int>(2 * tw_idx) - 1;
     const int32_t n_off    = static_cast<int32_t>(n_idx * x_sh[0]) * sizeof(half);
@@ -465,9 +468,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // columns; the per-element fallback handles other strides. Inactive
         // lanes have `off == x_byte_count`, so every load returns 0.
         const int32_t oob_byte = static_cast<int32_t>(x_byte_count);
-        const half hzero       = half(0.0f);
-        const bool hi[4]       = {v_hok0, v_hok1, v_hok2, v_hok3};
-        const bool wj[4]       = {v_wok0, v_wok1, v_wok2, v_wok3};
+        const half hzero          = half(0.0f);
+        const array<bool, 4> hi   = {v_hok0, v_hok1, v_hok2, v_hok3};
+        const array<bool, 4> wj   = {v_wok0, v_wok1, v_wok2, v_wok3};
         if constexpr(NHWC)
         {
             // NHWC: each lane loads its tile's 8 channels per spatial position
@@ -480,7 +483,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 const int32_t base_off =
                     n_off + static_cast<int32_t>(c_start * x_sh[1]) * sizeof(half) + hw_off;
                 const bool c_partial = (c_start + 8 > C);
-                vec<half, 8> d_vec[16];
+                array<vec<half, 8>, 16> d_vec;
                 repeat_c<4>([&](auto i_val) {
                     constexpr int i = i_val;
                     repeat_c<4>([&](auto j_val) {
@@ -500,7 +503,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         d_vec[i * 4 + j] = v8;
                     });
                 });
-                vec<half, 8> V_vec[16];
+                array<vec<half, 8>, 16> V_vec;
                 winograd_input_transform_f23_vec(d_vec, V_vec);
                 repeat_c<8>([&](auto ci_val) {
                     constexpr index_int ci = ci_val;
@@ -639,11 +642,11 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 // the raw 3x3 g once and write the full 4x4 U into LDS.
                 constexpr index_int U_TASKS = KW * BK * (CB / 8);
                 idx.local_stride(_c<U_TASKS>, [&](auto task) {
-                    const index_int c_half     = task % (CB / 8);
-                    const index_int rest       = task / (CB / 8);
-                    const index_int k_in_block = rest % BK;
-                    const index_int k_idx      = rest / BK;
-                    const index_int c_in_block = c_half * 8;
+                    // task decomposes over {KW, BK, CB/8} -> (k_idx, k_in_block, c_half).
+                    const auto t3              = array<index_int, 3>{KW, BK, CB / 8}.multi(task);
+                    const index_int k_idx      = t3[0];
+                    const index_int k_in_block = t3[1];
+                    const index_int c_in_block = t3[2] * 8;
                     const index_int k          = k_base + k_idx * BK + k_in_block;
                     auto trows                 = load_trows(k, c_base + c_in_block);
                     repeat_c<4>([&](auto i_t_val) {
@@ -671,13 +674,12 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 // extra i_t parallelism keeps more lanes issuing loads.
                 constexpr index_int U_TASKS = KW * 4 * BK * (CB / 8);
                 idx.local_stride(_c<U_TASKS>, [&](auto task) {
-                    const index_int c_half     = task % (CB / 8);
-                    const index_int rest       = task / (CB / 8);
-                    const index_int k_in_block = rest % BK;
-                    const index_int rest2      = rest / BK;
-                    const index_int i_t        = rest2 % 4;
-                    const index_int k_idx      = rest2 / 4;
-                    const index_int c_in_block = c_half * 8;
+                    // task decomposes over {KW, 4, BK, CB/8} -> (k_idx, i_t, k_in_block, c_half).
+                    const auto t4              = array<index_int, 4>{KW, 4, BK, CB / 8}.multi(task);
+                    const index_int k_idx      = t4[0];
+                    const index_int i_t        = t4[1];
+                    const index_int k_in_block = t4[2];
+                    const index_int c_in_block = t4[3] * 8;
                     const index_int k          = k_base + k_idx * BK + k_in_block;
                     vec<half, 8> t0, t1, t2;
                     if(k < K)
@@ -786,7 +788,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             // and apply the row transform up front (load_trows), staging the 4
             // T rows in t_buf. apply_gt (the column transform) then runs at the
             // WMMA dispatch, overlapping with the in-flight global loads.
-            t_triple t_buf[wmma_chunks == 2 ? 8 : 4];
+            array<t_triple, wmma_chunks == 2 ? 8 : 4> t_buf;
             if constexpr(not u_via_lds)
             {
                 const index_int kk = k_base + k_idx * BK + m_in_wave;

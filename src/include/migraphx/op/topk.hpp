@@ -38,6 +38,11 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
+/**
+ * TopK with constant `k` value. Significantly different from ONNX spec's TopK.
+ * arg[0]: input data
+ * arg[1]: optional indexing information used for rewrite_topk
+ */
 struct topk
 {
     int64_t k    = 1;

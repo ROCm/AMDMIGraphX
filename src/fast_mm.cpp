@@ -120,7 +120,9 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
     auto inputs = ins->inputs();
     auto a      = inputs[0];
     auto b      = inputs[1];
-    if(not a->can_eval() and not b->can_eval())
+    const bool a_can_eval = a->can_eval();
+    const bool b_can_eval = b->can_eval();
+    if(not a_can_eval and not b_can_eval)
         return;
 
     // dot enforces same_ndims, so A and B share a rank. The contraction dim K is
@@ -135,7 +137,7 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
     // (or A_hi*B + A_lo*B), recovering the constant's dropped mantissa bits.
     instruction_ref new_a;
     instruction_ref new_b;
-    if(b->can_eval())
+    if(b_can_eval)
     {
         new_b = split_fp16(m, ins, b, rank - 2);
         new_a = duplicate_axis(m, ins, a, rank - 1);

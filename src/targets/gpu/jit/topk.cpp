@@ -66,9 +66,9 @@ struct topk_compiler : compiler<topk_compiler>
         options.inputs      = flatten(inputs);
         options.kernel_name = "topk_kernel";
 
-        auto axis      = v.at("axis").to<int64_t>();
-        auto kelements = v.at("k").to<std::size_t>();
-        auto relements = inputs.front().lens()[axis];
+        auto axis           = v.at("axis").to<int64_t>();
+        auto kelements      = v.at("k").to<std::size_t>();
+        auto relements      = inputs.front().lens()[axis];
         auto nelements      = inputs.front().elements() / relements;
         auto max_wavefronts = std::max<std::size_t>(1, 8192 / kelements);
         auto max_block_size = std::min<std::size_t>(

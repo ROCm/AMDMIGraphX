@@ -146,7 +146,7 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
         new_b = duplicate_axis(m, ins, b, rank - 2);
     }
 
-    auto half_dot = m.insert_instruction(ins, ins->get_operator(), new_a, new_b);
+    auto half_dot  = m.insert_instruction(ins, ins->get_operator(), new_a, new_b);
     auto converted = m.insert_instruction(
         ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_dot);
 

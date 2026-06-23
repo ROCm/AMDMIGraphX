@@ -47,11 +47,11 @@ hipDeviceProp_t make_cross_compile_device_props(const std::string& arch_name,
     hipDeviceProp_t props{};
     auto n = std::min(arch_name.size(), sizeof(props.gcnArchName) - 1);
     std::copy_n(arch_name.begin(), n, props.gcnArchName);
-    props.gcnArchName[n]              = '\0';
-    props.warpSize                    = arch_wavefront_size(arch_name);
-    props.maxThreadsPerMultiProcessor = max_threads_per_cu;
-    props.maxThreadsPerBlock          = max_threads_per_block;
-    props.multiProcessorCount         = cu_count;
+    props.gcnArchName[n] = '\0';
+    props.warpSize       = arch_wavefront_size(arch_name);
+    props.maxThreadsPerMultiProcessor = std::max<std::size_t>(max_threads_per_cu, 1);
+    props.maxThreadsPerBlock          = std::max<std::size_t>(max_threads_per_block, 1);
+    props.multiProcessorCount         = std::max<std::size_t>(cu_count, 1);
     return props;
 }
 

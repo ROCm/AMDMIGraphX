@@ -129,9 +129,9 @@ Limitations and caveats
 * **Only rocMLIR and MIGraphX device kernels are supported.** Cross-compilation
   can only produce kernels that are emitted as code objects without a device.
   Library backends (MIOpen, rocBLAS, hipBLASLt, and Composable Kernel) require a
-  physical device and are not supported. Keep ``MIGRAPHX_DISABLE_MLIR``,
+  physical device and are not supported. ``MIGRAPHX_DISABLE_MLIR``,
   ``MIGRAPHX_ENABLE_CK``, ``MIGRAPHX_SET_GEMM_PROVIDER``, and
-  ``MIGRAPHX_ENABLE_MIOPEN_POOLING`` unset.
+  ``MIGRAPHX_ENABLE_MIOPEN_POOLING`` must be unset.
 
 * **No tuning.** Kernel benchmarking is skipped, so the selected kernels are not
   tuned for the target and performance may be lower than a native, tuned

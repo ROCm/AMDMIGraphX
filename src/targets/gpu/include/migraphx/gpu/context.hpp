@@ -77,7 +77,7 @@ struct hip_device
                std::size_t max_threads_per_cu    = 2048,
                std::size_t max_threads_per_block = 1024)
         : cross_compile_mode(true),
-          chiplet_count_override(chiplets),
+          chiplet_count_override(std::max<std::size_t>(chiplets, 1)),
           device_props(make_cross_compile_device_props(
               arch_name, cu_count, max_threads_per_cu, max_threads_per_block))
     {

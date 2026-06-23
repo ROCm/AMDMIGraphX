@@ -22,11 +22,21 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/value.hpp>
 #include <test.hpp>
+
+// forward-declare for testing
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+
+std::size_t compute_benchmark_bundle(const module& m);
+
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
 
 // No context-requiring ops (builtins + a context-free op) -> bundle 1.
 TEST_CASE(bundle_zero_ops)

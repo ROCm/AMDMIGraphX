@@ -31,7 +31,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 struct module_pass_manager;
-struct module;
 
 namespace gpu {
 
@@ -44,9 +43,6 @@ struct MIGRAPHX_GPU_EXPORT compile_ops
     std::string name() const { return "gpu::compile_ops"; }
     void apply(module_pass_manager& mpm) const;
 };
-
-// Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
-MIGRAPHX_GPU_EXPORT int compute_benchmark_bundle(const module& m);
 
 } // namespace gpu
 

@@ -55,14 +55,15 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
 
-int compute_benchmark_bundle(const module& m)
+// Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
+size_t compute_benchmark_bundle(const module& m)
 {
     // Count context-requiring ops (kernel + prefills); skip context-free and @-builtins.
-    auto n = std::count_if(m.begin(), m.end(), [](const auto& ins) {
+    int n = std::count_if(m.begin(), m.end(), [](const auto& ins) {
         return not migraphx::is_context_free(ins.get_operator()) and
                not starts_with(ins.name(), "@");
     });
-    return std::max(1, static_cast<int>(4 * n - 2));
+    return std::max(1, 4 * n - 2);
 }
 
 struct precompile_op

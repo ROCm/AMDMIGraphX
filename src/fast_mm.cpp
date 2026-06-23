@@ -117,9 +117,9 @@ void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_
 
 void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
 {
-    auto inputs = ins->inputs();
-    auto a      = inputs[0];
-    auto b      = inputs[1];
+    auto inputs           = ins->inputs();
+    auto a                = inputs[0];
+    auto b                = inputs[1];
     const bool a_can_eval = a->can_eval();
     const bool b_can_eval = b->can_eval();
     if(not a_can_eval and not b_can_eval)

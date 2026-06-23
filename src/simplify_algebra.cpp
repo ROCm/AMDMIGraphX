@@ -969,6 +969,94 @@ struct find_concat_op
         return nonconst > 2;
     }
 
+    // Fuse a group of equivalent concat inputs [start, last) into a single
+    // operation applied to concatenated arguments. Multi-use inputs are recorded
+    // in `replacements` so they can be rewired to slices of the fused result.
+    template <class Iterator>
+    static std::vector<instruction_ref>
+    fuse_group(module& m,
+               instruction_ref ins,
+               int64_t axis,
+               std::vector<std::pair<instruction_ref, instruction_ref>>& replacements,
+               Iterator start,
+               Iterator last)
+    {
+        if(std::distance(start, last) < 2)
+            return {start, last};
+        auto x = *start;
+        if(std::any_of(
+               start, last, [](instruction_ref i) { return rejected_inputs(i->inputs()); }))
+            return {start, last};
+        // Skip if any multi-use input feeds into another group member,
+        // since the fused result would redundantly recompute the dominated
+        // input without being able to eliminate the original.
+        if(std::any_of(start, last, [&](instruction_ref orig) {
+               return orig->outputs().size() > 1 and std::any_of(start, last, [&](instruction_ref g) {
+                          return g != orig and reaches(orig, g);
+                      });
+           }))
+            return {start, last};
+        auto op = x->get_operator();
+        if(not is_valid_op(op))
+            return {start, last};
+        auto iaxis = axis;
+        // Adjust broadcast lens
+        if(op.name() == "broadcast")
+        {
+            auto b = any_cast<op::broadcast>(op);
+            if(b.axis != iaxis)
+                return {start, last};
+            b.broadcast_lens = get_output_lens(start, last, iaxis);
+            op               = b;
+            iaxis            = 0;
+        }
+        else if(op.name() == "multibroadcast")
+        {
+            shape bshape = (*start)->get_shape();
+            auto input   = (*start)->inputs()[0];
+            if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
+                return {start, last};
+            op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
+            auto delta = bshape.lens().size() - input->get_shape().lens().size();
+            iaxis -= delta;
+        }
+        if(not concat_const_foldable(start, last, iaxis))
+            return {start, last};
+
+        std::vector<instruction_ref> concats;
+        for(std::size_t i = 0; i < x->inputs().size(); i++)
+        {
+            std::vector<instruction_ref> inputs;
+            std::transform(
+                start, last, std::back_inserter(inputs), [&](auto j) { return j->inputs().at(i); });
+            if(not is_valid_concat(inputs, iaxis))
+                return {start, last};
+            auto concat = m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
+            concats.push_back(concat);
+        }
+        auto y = m.insert_instruction(ins, op, concats);
+
+        // Replace multi-use inputs with slices of the fused result
+        std::size_t offset = 0;
+        for(auto it = start; it != last; ++it)
+        {
+            auto orig = *it;
+            auto len  = orig->get_shape().lens()[axis];
+            if(orig->outputs().size() > 1)
+            {
+                auto slice_ins = m.insert_instruction(
+                    ins,
+                    make_op("slice",
+                            {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
+                    y);
+                replacements.emplace_back(orig, slice_ins);
+            }
+            offset += len;
+        }
+
+        return {y};
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
@@ -976,89 +1064,9 @@ struct find_concat_op
 
         std::vector<std::pair<instruction_ref, instruction_ref>> replacements;
 
-        auto each = [&](auto start, auto last) -> std::vector<instruction_ref> {
-            if(std::distance(start, last) < 2)
-                return {start, last};
-            auto x = *start;
-            if(std::any_of(
-                   start, last, [](instruction_ref ins) { return rejected_inputs(ins->inputs()); }))
-                return {start, last};
-            // Skip if any multi-use input feeds into another group member,
-            // since the fused result would redundantly recompute the dominated
-            // input without being able to eliminate the original.
-            if(std::any_of(start, last, [&](instruction_ref orig) {
-                   return orig->outputs().size() > 1 and
-                          std::any_of(start, last, [&](instruction_ref g) {
-                              return g != orig and reaches(orig, g);
-                          });
-               }))
-                return {start, last};
-            auto op = x->get_operator();
-            if(not is_valid_op(op))
-                return {start, last};
-            auto iaxis = axis;
-            // Adjust broadcast lens
-            if(op.name() == "broadcast")
-            {
-                auto b = any_cast<op::broadcast>(op);
-                if(b.axis != iaxis)
-                    return {start, last};
-                b.broadcast_lens = get_output_lens(start, last, iaxis);
-                op               = b;
-                iaxis            = 0;
-            }
-            else if(op.name() == "multibroadcast")
-            {
-                shape bshape = (*start)->get_shape();
-                auto input   = (*start)->inputs()[0];
-                if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
-                    return {start, last};
-                op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
-                auto delta = bshape.lens().size() - input->get_shape().lens().size();
-                iaxis -= delta;
-            }
-            if(not concat_const_foldable(start, last, iaxis))
-                return {start, last};
-
-            std::vector<instruction_ref> concats;
-            for(std::size_t i = 0; i < x->inputs().size(); i++)
-            {
-                std::vector<instruction_ref> inputs;
-                std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
-                    return j->inputs().at(i);
-                });
-                if(not is_valid_concat(inputs, iaxis))
-                    return {start, last};
-                auto concat =
-                    m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
-                concats.push_back(concat);
-            }
-            auto y = m.insert_instruction(ins, op, concats);
-
-            // Replace multi-use inputs with slices of the fused result
-            std::size_t offset = 0;
-            for(auto it = start; it != last; ++it)
-            {
-                auto orig = *it;
-                auto len  = orig->get_shape().lens()[axis];
-                if(orig->outputs().size() > 1)
-                {
-                    auto slice_ins = m.insert_instruction(
-                        ins,
-                        make_op("slice",
-                                {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
-                        y);
-                    replacements.emplace_back(orig, slice_ins);
-                }
-                offset += len;
-            }
-
-            return {y};
-        };
-
         std::vector<instruction_ref> args;
         auto update_args = [&](auto start, auto last) {
-            auto x = each(start, last);
+            auto x = fuse_group(m, ins, axis, replacements, start, last);
             args.insert(args.end(), x.begin(), x.end());
         };
         auto pred = [](auto i, auto j) {

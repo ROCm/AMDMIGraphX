@@ -105,6 +105,12 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Compiles on the CPU
    *  - --ref
       - Compiles on the reference implementation
+   *  - --gpu-arch
+      - Cross-compiles the ``gpu`` target for the given architecture (e.g. ``gfx942``) without requiring a physical device
+   *  - --gpu-num-cus
+      - Number of compute units to assume for cross-compilation (Default: 120, only used when ``--gpu-arch`` is set)
+   *  - --gpu-num-chiplets
+      - Number of chiplets (XCCs) to assume for cross-compilation (Default: 1, only used when ``--gpu-arch`` is set)
    *  - --enable-offload-copy
       - Enables implicit offload copying
    *  - --disable-fast-math
@@ -133,6 +139,12 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Sets the number of iterations to run for perf report
    *  - --list | -l
       - Lists all the MIGraphX operators
+   *  - --log-level
+      - Sets the log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)
+   *  - --log-file
+      - Logs to one or more files (``--log-file file1.log file2.log ...``)
+   *  - --log-stdout
+      - Logs to ``stdout`` in addition to the default ``stderr`` (warnings and errors still go to ``stderr``)
 
 Usage
 ----------

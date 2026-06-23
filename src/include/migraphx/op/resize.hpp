@@ -376,7 +376,7 @@ struct resize
             {
                 if(sizes.size() != input_s.ndim())
                     MIGRAPHX_THROW("RESIZE: sizes attribute's size must match rank of input X");
-                return shape{input_s.type(), sizes};
+                return input_s.with_lens(sizes);
             }
             else
             {

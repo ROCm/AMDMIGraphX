@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,8 @@
  */
 #include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
+#include <numeric>
 #include <sstream>
 #include "test.hpp"
 #include <basic_ops.hpp>
@@ -52,6 +54,23 @@ struct sum_cf_op
     {
         if(inputs.size() != 2)
             MIGRAPHX_THROW("Wrong inputs");
+        return inputs.front();
+    }
+};
+
+struct counting_cf_op
+{
+    inline static std::size_t calls = 0;
+    std::string name() const { return "counting_cf"; }
+    migraphx::argument compute(const migraphx::shape&, std::vector<migraphx::argument> args) const
+    {
+        calls++;
+        return args.front();
+    }
+    migraphx::shape compute_shape(std::vector<migraphx::shape> inputs) const
+    {
+        if(inputs.empty())
+            MIGRAPHX_THROW("counting_cf: requires an input");
         return inputs.front();
     }
 };
@@ -153,6 +172,22 @@ TEST_CASE(compute_nop_context)
     EXPECT(test::throws([&] {
         op.compute(ctx, migraphx::shape{migraphx::shape::float_type, {1}}, {one, two});
     }));
+}
+
+TEST_CASE(eval_reuses_cache)
+{
+    migraphx::program p;
+
+    auto* mm                = p.get_main_module();
+    const std::size_t depth = 20;
+    auto blocks             = migraphx::range(depth);
+    auto ins =
+        std::accumulate(blocks.begin(), blocks.end(), mm->add_literal(1.0f), [&](auto acc, auto) {
+            return mm->add_instruction(counting_cf_op{}, acc, acc);
+        });
+    counting_cf_op::calls = 0;
+    EXPECT(not ins->eval().empty());
+    EXPECT(counting_cf_op::calls == depth);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

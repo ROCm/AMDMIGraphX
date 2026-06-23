@@ -37,6 +37,7 @@
 #include <migraphx/builtin.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -337,7 +338,8 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or solutions.size() == 1)
+                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or ctx->is_cross_compile() or
+                   solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
@@ -488,8 +490,14 @@ struct compile_plan
             const auto& solution     = config->solutions[i];
             auto bench_prog          = results[i]->make_program();
             auto* mm                 = bench_prog.get_main_module();
-            std::string comment_text = preop.name() + " problem=" + to_string(config->problem) +
-                                       " solution=" + to_string(solution);
+
+            // Use json encoding for the comment used for benchmarking mxr files.
+            value comment_val        = value::object{};
+            comment_val["op"]        = preop.name();
+            comment_val["problem"]   = config->problem;
+            comment_val["solution"]  = solution;
+            std::string comment_text = to_json_string(comment_val);
+
             mm->add_instruction(builtin::comment{comment_text}, {});
             auto problem_hash = std::hash<std::string>{}(to_string(config->problem));
             auto mxr_file     = mxr_dir / (preop.name() + "_" + std::to_string(i) + "_" +

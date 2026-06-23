@@ -41,6 +41,7 @@ The public repository is located at `https://github.com/ROCm/torch_migraphx/ <ht
       * :doc:`Environment variables <./reference/MIGraphX-dev-env-vars>`
       * :doc:`Develop for the MIGraphX code base <./dev/contributing-to-migraphx>` 
       * :doc:`Using debug symbols <./dev/debug_symbols>`
+      * :doc:`Cross-compilation <./dev/cross_compilation>`
       * :ref:`migraphx-driver`
     
   .. grid-item-card:: Examples  

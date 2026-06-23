@@ -53,7 +53,7 @@ struct parse_topk : op_parser<parse_topk>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        bool dyn_k = false;
+        bool var_k = false;
         int64_t k  = 0;
         if(args.size() == 2)
         {
@@ -64,7 +64,7 @@ struct parse_topk : op_parser<parse_topk>
             }
             else
             {
-                dyn_k = true;
+                var_k = true;
             }
         }
         else if(contains(info.attributes, "k"))
@@ -72,8 +72,9 @@ struct parse_topk : op_parser<parse_topk>
             k = info.attributes.at("k").i();
         }
 
-        if(dyn_k)
+        if(var_k)
         {
+            // set `k` to axis dimension
             auto input_shape = args.at(0)->get_shape();
             auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
             k                = input_shape.max_lens().at(norm_axis);
@@ -85,14 +86,13 @@ struct parse_topk : op_parser<parse_topk>
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
         auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
 
-        if(dyn_k)
+        if(var_k)
         {
-            auto starts = info.add_literal(literal{shape{shape::int64_type, {1}}, {0}});
-            auto ends   = info.add_instruction(make_op("reshape", {{"dims", {1}}}), args.at(1));
+            // dynamic slice on outputs of `topk`
             ret_val =
-                info.add_instruction(make_op("slice", {{"axes", {axis}}}), ret_val, starts, ends);
+                info.add_instruction(make_op("slice", {{"starts", {0}}, {"axes", {axis}}}), ret_val, args.at(1));
             ret_ind =
-                info.add_instruction(make_op("slice", {{"axes", {axis}}}), ret_ind, starts, ends);
+                info.add_instruction(make_op("slice", {{"starts", {0}}, {"axes", {axis}}}), ret_ind, args.at(1));
         }
 
         return {ret_val, ret_ind};

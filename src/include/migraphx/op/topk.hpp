@@ -33,7 +33,6 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/value.hpp>
-#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,9 +40,9 @@ namespace op {
 
 struct topk
 {
-    std::optional<int64_t> k;
-    int64_t axis = 0;
-    bool largest = true;
+    int64_t k     = 1;
+    int64_t axis  = 0;
+    bool largest  = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -67,15 +66,12 @@ struct topk
 
         if(inputs.at(0).dynamic())
         {
-            auto dyn_dims = inputs.at(0).dyn_dims();
-            if(k.has_value())
-            {
-                auto min_lens_vec = inputs.at(0).min_lens();
-                auto max_lens_vec = inputs.at(0).max_lens();
-                auto min_kk       = std::min<std::size_t>(*k, min_lens_vec[axis]);
-                auto max_kk       = std::min<std::size_t>(*k, max_lens_vec[axis]);
-                dyn_dims[axis]    = {min_kk, max_kk};
-            }
+            auto dyn_dims     = inputs.at(0).dyn_dims();
+            auto min_lens_vec = inputs.at(0).min_lens();
+            auto max_lens_vec = inputs.at(0).max_lens();
+            auto min_kk       = std::min<std::size_t>(k, min_lens_vec[axis]);
+            auto max_kk       = std::min<std::size_t>(k, max_lens_vec[axis]);
+            dyn_dims[axis]    = {min_kk, max_kk};
 
             shape s_val{type, dyn_dims};
             shape s_ind{shape::int64_type, dyn_dims};
@@ -83,12 +79,9 @@ struct topk
         }
         else
         {
-            auto lens = inputs.at(0).lens();
-            if(k.has_value())
-            {
-                auto kk    = std::min<std::size_t>(*k, lens[axis]);
-                lens[axis] = kk;
-            }
+            auto lens   = inputs.at(0).lens();
+            auto kk     = std::min<std::size_t>(k, lens[axis]);
+            lens[axis]  = kk;
 
             shape s_val{type, lens};
             shape s_ind{shape::int64_type, lens};
@@ -116,11 +109,10 @@ struct topk
         argument res_ind{vec_ss.back()};
         auto in_val       = args.front();
         auto relements    = in_val.get_shape().lens()[axis];
-        auto actual_k =
-            k.has_value() ? std::min<std::size_t>(*k, relements) : relements;
+        auto actual_k     = std::min<std::size_t>(k, relements);
         auto make_indices = [&](const auto& m_idx) {
             return [&](int64_t i) {
-                if(args.size() < 2 or not k.has_value())
+                if(args.size() < 2)
                     return i;
                 auto j  = m_idx;
                 j[axis] = i;

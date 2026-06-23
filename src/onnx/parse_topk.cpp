@@ -26,6 +26,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -52,7 +53,8 @@ struct parse_topk : op_parser<parse_topk>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        std::optional<int64_t> k;
+        bool dyn_k    = false;
+        int64_t k     = 0;
         if(args.size() == 2)
         {
             auto arg_k = args.at(1)->eval();
@@ -60,21 +62,38 @@ struct parse_topk : op_parser<parse_topk>
             {
                 k = arg_k.at<int>();
             }
+            else
+            {
+                dyn_k = true;
+            }
         }
         else if(contains(info.attributes, "k"))
         {
             k = info.attributes.at("k").i();
         }
 
-        auto topk_ret =
-            k.has_value() ? info.add_instruction(
-                                make_op("topk", {{"k", *k}, {"axis", axis}, {"largest", largest}}),
-                                args.at(0))
-                          : info.add_instruction(
-                                make_op("topk", {{"axis", axis}, {"largest", largest}}), args);
+        if(dyn_k)
+        {
+            auto input_shape = args.at(0)->get_shape();
+            auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
+            k                = input_shape.max_lens().at(norm_axis);
+        }
+
+        auto topk_ret = info.add_instruction(
+            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
 
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
         auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
+
+        if(dyn_k)
+        {
+            auto starts = info.add_literal(literal{shape{shape::int64_type, {1}}, {0}});
+            auto ends   = info.add_instruction(make_op("reshape", {{"dims", {1}}}), args.at(1));
+            ret_val     = info.add_instruction(
+                make_op("slice", {{"axes", {axis}}}), ret_val, starts, ends);
+            ret_ind     = info.add_instruction(
+                make_op("slice", {{"axes", {axis}}}), ret_ind, starts, ends);
+        }
 
         return {ret_val, ret_ind};
     }

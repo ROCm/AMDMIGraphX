@@ -66,15 +66,9 @@ struct topk_compiler : compiler<topk_compiler>
         options.inputs      = flatten(inputs);
         options.kernel_name = "topk_kernel";
 
-        auto axis           = v.at("axis").to<int64_t>();
-        const auto& k_value = v.at("k");
-        // use std::optional<int64_t> instead of placeholder value will let topk[k=nullopt]
-        // we need to handle k = nullopt.
-        auto output_lens = inputs.back().sub_shapes().front().lens();
-        auto kelements   = output_lens.at(axis);
-        if(not k_value.is_null())
-            kelements = k_value.to<std::size_t>();
-        auto relements      = inputs.front().lens()[axis];
+        auto axis      = v.at("axis").to<int64_t>();
+        auto kelements = v.at("k").to<std::size_t>();
+        auto relements = inputs.front().lens()[axis];
         auto nelements      = inputs.front().elements() / relements;
         auto max_wavefronts = std::max<std::size_t>(1, 8192 / kelements);
         auto max_block_size = std::min<std::size_t>(
@@ -92,10 +86,7 @@ struct topk_compiler : compiler<topk_compiler>
         }
 
         auto topk_invoke = "topk<" + std::to_string(axis) + ">(" + compare + ", " + init + ")";
-        auto topk_call   = k_value.is_null()
-                               ? "[](auto output, auto out_indices, auto input, auto) { " +
-                                   topk_invoke + "(output, out_indices, input); }"
-                               : "[](auto... xs) { " + topk_invoke + "(xs...); }";
+        auto topk_call   = "[](auto... xs) { " + topk_invoke + "(xs...); }";
 
         auto src =
             interpolate_string(topk_kernel,

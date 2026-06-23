@@ -47,7 +47,7 @@ struct find_large_topk
         auto axis  = op["axis"].to<std::int64_t>();
         auto dims  = input->get_shape().lens();
         auto n     = dims.at(axis);
-        auto k     = op["k"].is_null() ? static_cast<std::int64_t>(n) : op["k"].to<std::int64_t>();
+        auto k     = op["k"].to<std::int64_t>();
         if(n < n_threshold)
             return;
 

@@ -1128,6 +1128,14 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
     auto get_slice = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
     auto&& axes    = get_slice(result.front()).axes;
 
+    auto is_static_slice = [&](auto i) {
+        const auto& s = get_slice(i);
+        return not s.axes.empty() and s.starts.size() == s.axes.size() and
+               s.ends.size() == s.axes.size();
+    };
+    if(not std::all_of(result.begin(), result.end(), is_static_slice))
+        return {};
+
     // "slice" instructions must all have the same axes
     if(std::any_of(result.begin(), result.end(), [&](auto i) { return get_slice(i).axes != axes; }))
         return {};

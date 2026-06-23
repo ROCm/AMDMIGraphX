@@ -267,8 +267,8 @@ void rewrite_convolution::apply(module& m) const
         const bool no_upsample = std::all_of(
             dims.begin(), dims.end(), [](const dim_info& di) { return di.stride == 1; });
 
-        // Residue 0 (itilda all zero) is never empty since every filter axis has length >= 1, so the
-        // reassembly always has at least one partial to start from.
+        // Residue 0 (itilda all zero) is never empty since every filter axis has length >= 1, so
+        // the reassembly always has at least one partial to start from.
         assert(not partials.empty());
         instruction_ref acc;
         if(no_upsample)

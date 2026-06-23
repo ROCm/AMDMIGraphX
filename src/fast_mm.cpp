@@ -82,13 +82,6 @@ instruction_ref duplicate_axis(module& m, instruction_ref pos, instruction_ref x
 
 void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_k)
 {
-    const auto out_type = ins->get_shape().type();
-    if(out_type != shape::float_type)
-        return;
-
-    if(ins->get_shape().dynamic())
-        return;
-
     auto inputs = ins->inputs();
     auto x      = inputs[0];
     auto w      = inputs[1];
@@ -117,20 +110,13 @@ void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_
 
     auto half_conv = m.insert_instruction(ins, ins->get_operator(), x_doubled, w_concat);
     auto converted =
-        m.insert_instruction(ins, make_op("convert", {{"target_type", out_type}}), half_conv);
+        m.insert_instruction(ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_conv);
 
     m.replace_instruction(ins, converted);
 }
 
 void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
 {
-    const auto out_type = ins->get_shape().type();
-    if(out_type != shape::float_type)
-        return;
-
-    if(ins->get_shape().dynamic())
-        return;
-
     auto inputs = ins->inputs();
     auto a      = inputs[0];
     auto b      = inputs[1];
@@ -162,7 +148,7 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
 
     auto half_dot = m.insert_instruction(ins, ins->get_operator(), new_a, new_b);
     auto converted =
-        m.insert_instruction(ins, make_op("convert", {{"target_type", out_type}}), half_dot);
+        m.insert_instruction(ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_dot);
 
     m.replace_instruction(ins, converted);
 }
@@ -173,6 +159,11 @@ void fast_mm::apply(module& m) const
 {
     for(auto ins : iterator_for(m))
     {
+        if(ins->get_shape().type() != shape::float_type)
+            continue;
+
+        if(ins->get_shape().dynamic())
+            continue;
         if(ins->name() == "convolution")
             process_convolution(m, ins, skip_small_k);
         else if(ins->name() == "dot")

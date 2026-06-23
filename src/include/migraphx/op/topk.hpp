@@ -40,9 +40,9 @@ namespace op {
 
 struct topk
 {
-    int64_t k     = 1;
-    int64_t axis  = 0;
-    bool largest  = true;
+    int64_t k    = 1;
+    int64_t axis = 0;
+    bool largest = true;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)

@@ -1061,4 +1061,91 @@ TEST_CASE(same_table_gathers_idempotent)
     EXPECT(m1.sort() == snapshot.sort());
 }
 
+// Two independent dots with identical activation/weight shapes and constant
+// weights should batch into a single GEMM, then slice+squeeze back.
+TEST_CASE(dot_horiz_fusion_basic)
+{
+    migraphx::module m1;
+    {
+        auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto w0 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 1));
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
+        m1.add_return({d0, d1});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a0 = m2.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m2.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto w0 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto w1 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 1));
+
+        auto ua0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a0);
+        auto ua1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a1);
+        auto bact = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua0, ua1);
+        auto uw0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w0);
+        auto uw1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
+        auto bwt  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw0, uw1);
+        auto bd   = m2.add_instruction(migraphx::make_op("dot"), bact, bwt);
+
+        auto s0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), bd);
+        auto sq0 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto s1  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bd);
+        auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        m2.add_return({sq0, sq1});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Dots whose weights are not compile-time constants are not candidates.
+TEST_CASE(dot_horiz_fusion_non_constant_weight_unchanged)
+{
+    migraphx::module m1;
+    {
+        auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto w0 = m1.add_parameter("w0", {migraphx::shape::float_type, {3, 4}});
+        auto w1 = m1.add_parameter("w1", {migraphx::shape::float_type, {3, 4}});
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
+        m1.add_return({d0, d1});
+    }
+    migraphx::module before = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == before.sort());
+}
+
+// Dots with different activation/weight shapes do not share a group key.
+TEST_CASE(dot_horiz_fusion_mismatched_shapes_unchanged)
+{
+    migraphx::module m1;
+    {
+        auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
+        auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 5}});
+        auto w0 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 4}}, 1));
+        auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
+        auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
+        m1.add_return({d0, d1});
+    }
+    migraphx::module before = m1;
+    run_pass(m1);
+
+    EXPECT(m1.sort() == before.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -12,6 +12,16 @@
 namespace nvinfer1
 {
 
+enum class InputIndex : int32_t
+{
+    kData   = 0,
+    kStart  = 1,
+    kSize   = 2,
+    kStride = 3,
+    kFill   = 4,
+    kAxes   = 5,
+};
+
 SliceLayer_impl::SliceLayer_impl() noexcept
     : Layer_impl{LayerType::kSLICE, nullptr}
 {
@@ -50,19 +60,23 @@ Dims SliceLayer_impl::getAxes() const noexcept { return mAxes; }
 void SliceLayer_impl::setInput(int32_t index, ITensor& tensor) noexcept
 {
     auto* tensorImpl = dynamic_cast<Tensor_impl*>(&tensor);
-    switch(index)
+    switch(static_cast<InputIndex>(index))
     {
-    case 0:
+    case InputIndex::kData:
         if(mInputs.empty())
             mInputs.push_back(tensorImpl);
         else
             mInputs[0] = tensorImpl;
         break;
-    case 4:
+    case InputIndex::kFill:
         // Fill value for kFILL mode (a scalar produced by an IConstantLayer).
         mFill = tensorImpl;
         break;
-    default:
+
+    case InputIndex::kStart:
+    case InputIndex::kSize:
+    case InputIndex::kStride:
+    case InputIndex::kAxes:
         // Dynamic start/size/stride/axes inputs are not exercised by the sample.
         break;
     }
@@ -74,7 +88,7 @@ void SliceLayer_impl::build() noexcept
     mInstructions.clear();
 
     auto* mm   = getModule();
-    auto data  = args[0];
+    auto data  = args[static_cast<std::size_t>(InputIndex::kData)];
     mInstructions.push_back(data);
 
     const auto in_shape          = data->get_shape();

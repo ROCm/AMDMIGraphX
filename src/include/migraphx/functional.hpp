@@ -139,7 +139,10 @@ constexpr void each_args(F)
 template <class F, class T>
 auto unpack(F f, T&& x)
 {
-    return sequence(tuple_size(x), [&](auto... is) { f(std::get<is>(static_cast<T&&>(x))...); });
+    // Use an unqualified get so ADL finds the right overload (std::get for tuple/array, or a
+    // user-provided get) regardless of which headers were included before this one.
+    using std::get;
+    return sequence(tuple_size(x), [&](auto... is) { return f(get<is>(static_cast<T&&>(x))...); });
 }
 
 /// Implements a fix-point combinator

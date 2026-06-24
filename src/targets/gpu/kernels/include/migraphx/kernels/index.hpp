@@ -79,8 +79,8 @@ inline __device__ __attribute__((const)) index_int compute_max_local_size()
 #ifdef MIGRAPHX_LOCAL
     return MIGRAPHX_NLOCAL;
 #else
-    // Returns the block size. When workgroup has non-uniform block, this returns size of the
-    // uniform block.
+    // Returns the block size. When workgrop has non-uniform block, this returns size of the uniform
+    // block.
     return __ockl_get_enqueued_local_size(0); // NOLINT
 #endif
 }

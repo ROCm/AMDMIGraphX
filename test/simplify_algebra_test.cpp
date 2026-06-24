@@ -4942,14 +4942,16 @@ TEST_CASE(conv_horizontal_fuse)
         // channels that consume act1) stays as a separate convolution.
         auto w2_prefix = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), w2);
-        auto wcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), w1, w2_prefix);
-        auto wcat_c     = m2.add_instruction(migraphx::make_op("contiguous"), wcat);
-        auto fused_conv = m2.add_instruction(
-            migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, wcat_c);
+        auto wcat   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), w1, w2_prefix);
+        auto wcat_c = m2.add_instruction(migraphx::make_op("contiguous"), wcat);
+        auto fused_conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, wcat_c);
         auto conv1_out = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), fused_conv);
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}),
+            fused_conv);
         auto conv2_prefix = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), fused_conv);
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}),
+            fused_conv);
         auto act1      = m2.add_instruction(migraphx::make_op("relu"), conv1_out);
         auto w2_suffix = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {1}}, {"starts", {8}}, {"ends", {12}}}), w2);

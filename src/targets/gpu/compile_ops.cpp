@@ -56,7 +56,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
 
 // Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
-size_t compute_benchmark_bundle(const module& m)
+static std::size_t compute_benchmark_bundle(const module& m)
 {
     // Count context-requiring ops (kernel + prefills); skip context-free and @-builtins.
     int n = std::count_if(m.begin(), m.end(), [](const auto& ins) {

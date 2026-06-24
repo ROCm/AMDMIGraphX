@@ -254,9 +254,6 @@ struct nonmaxsuppression
             MIGRAPHX_THROW("NonMaxSuppression: runtime batch dimension mismatch "
                            "between boxes and scores input");
         }
-        // 0 boxes: nothing to select, output stays zeroed.
-        if(num_boxes == 0)
-            return 0;
         // boxes of a class with NMS applied [score, index]
         std::vector<int64_t> selected_indices;
         // iterate over batches and classes

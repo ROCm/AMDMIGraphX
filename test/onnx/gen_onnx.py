@@ -11546,6 +11546,30 @@ def nms_dynamic_classes_test():
 
 
 @onnx_test()
+def nonmaxsuppression_zero_boxes_test():
+    b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 0, 4])
+    s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 0])
+    mo = helper.make_tensor_value_info('max_output_boxes_per_class',
+                                       TensorProto.INT64, [1])
+    iou = helper.make_tensor_value_info('iou_threshold', TensorProto.FLOAT,
+                                        [1])
+    st = helper.make_tensor_value_info('score_threshold', TensorProto.FLOAT,
+                                       [1])
+    out = helper.make_tensor_value_info('selected_indices', TensorProto.INT64,
+                                        [None, 3])
+
+    node = onnx.helper.make_node('NonMaxSuppression',
+                                 inputs=[
+                                     'boxes', 'scores',
+                                     'max_output_boxes_per_class',
+                                     'iou_threshold', 'score_threshold'
+                                 ],
+                                 outputs=['selected_indices'])
+
+    return ([node], [b, s, mo, iou, st], [out])
+
+
+@onnx_test()
 def not_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT32, [4])
     y = helper.make_tensor_value_info('1', TensorProto.INT32, [4])

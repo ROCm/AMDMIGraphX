@@ -145,6 +145,12 @@ auto unpack(F f, T&& x)
     return sequence(tuple_size(x), [&](auto... is) { return f(get<is>(static_cast<T&&>(x))...); });
 }
 
+template <class F>
+auto unpack(F f)
+{
+    return [=](auto&& x) { return unpack(f, static_cast<decltype(x)>(x)); };
+}
+
 /// Implements a fix-point combinator
 template <class R, class F>
 detail::fix_f<R, F> fix(F f)

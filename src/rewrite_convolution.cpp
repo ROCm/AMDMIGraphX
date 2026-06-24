@@ -26,8 +26,10 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/zip_view.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -117,20 +119,28 @@ std::vector<dim_info> compute_dims(const std::vector<std::size_t>& stride,
                                    const std::vector<std::size_t>& w_lens)
 {
     const std::size_t nsp = stride.size();
-    std::vector<dim_info> dims(nsp);
-    for(std::size_t d = 0; d < nsp; ++d)
-    {
-        auto& di             = dims[d];
-        di.stride            = stride[d];
-        di.dilation          = dilation[d];
-        di.y                 = w_lens[2 + d];
-        const std::size_t ho = dy_lens[2 + d];
-        const std::size_t g  = std::gcd(di.stride, di.dilation);
-        di.ytilda            = di.stride / g;
-        di.dd                = di.dilation / g;
-        di.ydot              = ceil_div(di.y, di.ytilda);
-        di.htilda            = ho + (di.ydot - 1) * di.dd;
-    }
+    // dy/w carry two leading (batch, channel) axes; their spatial sizes align with stride/dilation.
+    auto ho_sp = range(dy_lens.begin() + 2, dy_lens.end());
+    auto y_sp  = range(w_lens.begin() + 2, w_lens.end());
+
+    std::vector<dim_info> dims;
+    dims.reserve(nsp);
+    auto per_dim = views::zip(stride, dilation, ho_sp, y_sp);
+    std::transform(per_dim.begin(),
+                   per_dim.end(),
+                   std::back_inserter(dims),
+                   unpack([](auto s, auto dil, auto ho, auto y) {
+                       dim_info di;
+                       di.stride           = s;
+                       di.dilation         = dil;
+                       di.y                = y;
+                       const std::size_t g = std::gcd(s, dil);
+                       di.ytilda           = s / g;
+                       di.dd               = dil / g;
+                       di.ydot             = ceil_div(y, di.ytilda);
+                       di.htilda           = ho + (di.ydot - 1) * di.dd;
+                       return di;
+                   }));
     return dims;
 }
 
@@ -149,9 +159,13 @@ instruction_ref make_residue_partial(module& m,
     const std::size_t nsp = dims.size();
 
     // Number of filter taps kept by this residue along each dim.
-    std::vector<std::size_t> ydot_slice(nsp);
-    for(std::size_t d = 0; d < nsp; ++d)
-        ydot_slice[d] = ceil_div(dims[d].y - itilda[d], dims[d].ytilda);
+    std::vector<std::size_t> ydot_slice;
+    ydot_slice.reserve(nsp);
+    auto dim_itilda = views::zip(dims, itilda);
+    std::transform(dim_itilda.begin(),
+                   dim_itilda.end(),
+                   std::back_inserter(ydot_slice),
+                   unpack([](const auto& di, auto it) { return ceil_div(di.y - it, di.ytilda); }));
 
     // --- weight branch (constant-folded later): strided tap-slice of the filter ---
     auto wsl = w;
@@ -211,15 +225,23 @@ instruction_ref make_residue_partial(module& m,
     cw = m.insert_instruction(ins, make_op("reverse", {{"axes", rev_axes}}), cw);
 
     // --- the dense, stride-1 forward convolution (one of the v4r1 "gemms") ---
-    std::vector<std::size_t> conv_pad(2 * nsp, 0);
     std::vector<std::size_t> conv_str(nsp, 1);
-    std::vector<std::size_t> conv_dil(nsp);
-    for(std::size_t d = 0; d < nsp; ++d)
-    {
-        conv_pad[d]       = (ydot_slice[d] - 1) * dims[d].dd; // leading
-        conv_pad[nsp + d] = (dims[d].ydot - 1) * dims[d].dd;  // trailing -> common htilda
-        conv_dil[d]       = dims[d].dd;
-    }
+    std::vector<std::size_t> conv_dil;
+    conv_dil.reserve(nsp);
+    std::transform(dims.begin(), dims.end(), std::back_inserter(conv_dil), [](const dim_info& di) {
+        return di.dd;
+    });
+    // padding is [leading..., trailing...]: leading spaces the kept taps, trailing pads to htilda.
+    std::vector<std::size_t> conv_pad;
+    conv_pad.reserve(2 * nsp);
+    auto slice_dim = views::zip(ydot_slice, dims);
+    std::transform(slice_dim.begin(),
+                   slice_dim.end(),
+                   std::back_inserter(conv_pad),
+                   unpack([](auto slice, const auto& di) { return (slice - 1) * di.dd; }));
+    std::transform(dims.begin(), dims.end(), std::back_inserter(conv_pad), [](const dim_info& di) {
+        return (di.ydot - 1) * di.dd;
+    });
     return m.insert_instruction(ins,
                                 make_op("convolution",
                                         {{"padding", conv_pad},
@@ -241,7 +263,6 @@ residue_set build_partials(module& m,
                            std::size_t k_chan,
                            std::size_t c_pg)
 {
-    const std::size_t nsp = dims.size();
     residue_set out;
     for(std::size_t r = 0; r < residue_grid.elements(); ++r)
     {
@@ -249,16 +270,10 @@ residue_set build_partials(module& m,
         auto itilda = residue_grid.multi(r);
 
         // Skip residues whose first kept tap falls outside the filter (they contribute nothing).
-        bool empty = false;
-        for(std::size_t d = 0; d < nsp; ++d)
-        {
-            if(itilda[d] >= dims[d].y)
-            {
-                empty = true;
-                break;
-            }
-        }
-        if(empty)
+        auto itilda_dim = views::zip(itilda, dims);
+        if(std::any_of(itilda_dim.begin(), itilda_dim.end(), unpack([](auto it, const auto& di) {
+                           return it >= di.y;
+                       })))
             continue;
 
         out.partials.push_back(
@@ -333,20 +348,22 @@ instruction_ref reassemble_general(module& m,
     const std::size_t nsp = dims.size();
     std::vector<instruction_ref> placed;
     placed.reserve(res.partials.size());
-    for(std::size_t i = 0; i < res.partials.size(); ++i)
-    {
-        auto partial       = res.partials[i];
-        const auto& itilda = res.itildas[i];
-        for(std::size_t d = 0; d < nsp; ++d)
-        {
-            const std::size_t axis = 2 + d;
-            partial                = zero_stuff(m, ins, partial, axis, dims[d].stride);
-            const int64_t before   = itilda[d] * dims[d].dilation;
-            const int64_t after    = (dims[d].ytilda - 1 - itilda[d]) * dims[d].dilation;
-            partial                = pad_axis(m, ins, partial, axis, before, after);
-        }
-        placed.push_back(partial);
-    }
+    auto partial_itilda = views::zip(res.partials, res.itildas);
+    std::transform(partial_itilda.begin(),
+                   partial_itilda.end(),
+                   std::back_inserter(placed),
+                   unpack([&](auto partial, const auto& itilda) {
+                       for(std::size_t d = 0; d < nsp; ++d)
+                       {
+                           const std::size_t axis = 2 + d;
+                           partial              = zero_stuff(m, ins, partial, axis, dims[d].stride);
+                           const int64_t before = itilda[d] * dims[d].dilation;
+                           const int64_t after =
+                               (dims[d].ytilda - 1 - itilda[d]) * dims[d].dilation;
+                           partial = pad_axis(m, ins, partial, axis, before, after);
+                       }
+                       return partial;
+                   }));
     auto acc = placed.front();
     for(std::size_t i = 1; i < placed.size(); ++i)
         acc = m.insert_instruction(ins, make_op("add"), acc, placed[i]);

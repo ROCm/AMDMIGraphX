@@ -187,6 +187,79 @@ TEST_CASE(dynamic_shape_no_rewrite)
     EXPECT(m1 == m2);
 }
 
+// stride 1 in 2-D: one flipped stride-1 forward convolution (channels swapped, taps reversed).
+TEST_CASE(rewrite_2d_stride1)
+{
+    migraphx::module m1;
+    {
+        auto dy = m1.add_parameter("dy", sf({1, 2, 5, 5}));
+        auto w  = m1.add_parameter("w", sf({2, 3, 3, 3}));
+        auto r  = m1.add_instruction(
+            migraphx::make_op(
+                "convolution_backwards",
+                {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 1}}),
+            dy,
+            w);
+        m1.add_return({r});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto dy = m2.add_parameter("dy", sf({1, 2, 5, 5}));
+        auto w  = m2.add_parameter("w", sf({2, 3, 3, 3}));
+        auto t =
+            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2, 3}}}), w);
+        auto rv = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2, 3}}}), t);
+        auto c  = m2.add_instruction(migraphx::make_op("convolution",
+                                                       {{"padding", {2, 2, 2, 2}},
+                                                        {"stride", {1, 1}},
+                                                        {"dilation", {1, 1}},
+                                                        {"group", 1}}),
+                                    dy,
+                                    rv);
+        m2.add_return({c});
+    }
+    EXPECT(m1 == m2);
+}
+
+// stride 1 in 3-D.
+TEST_CASE(rewrite_3d_stride1)
+{
+    migraphx::module m1;
+    {
+        auto dy = m1.add_parameter("dy", sf({1, 2, 5, 5, 5}));
+        auto w  = m1.add_parameter("w", sf({2, 3, 3, 3, 3}));
+        auto r  = m1.add_instruction(migraphx::make_op("convolution_backwards",
+                                                       {{"padding", {0, 0, 0}},
+                                                        {"stride", {1, 1, 1}},
+                                                        {"dilation", {1, 1, 1}},
+                                                        {"group", 1}}),
+                                    dy,
+                                    w);
+        m1.add_return({r});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto dy = m2.add_parameter("dy", sf({1, 2, 5, 5, 5}));
+        auto w  = m2.add_parameter("w", sf({2, 3, 3, 3, 3}));
+        auto t  = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0, 2, 3, 4}}}), w);
+        auto rv = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2, 3, 4}}}), t);
+        auto c  = m2.add_instruction(migraphx::make_op("convolution",
+                                                       {{"padding", {2, 2, 2, 2, 2, 2}},
+                                                        {"stride", {1, 1, 1}},
+                                                        {"dilation", {1, 1, 1}},
+                                                        {"group", 1}}),
+                                    dy,
+                                    rv);
+        m2.add_return({c});
+    }
+    EXPECT(m1 == m2);
+}
+
 // Build dx = convolution_backwards(dy, w), compile on the reference target, and return the result.
 static migraphx::argument eval_conv_backwards(const migraphx::operation& op,
                                               bool rewrite,
@@ -283,6 +356,48 @@ TEST_CASE(numeric_1d)
                           {{"padding", {0}}, {"stride", {2}}, {"dilation", {1}}, {"group", 1}}),
         sf({1, 2, 5}),
         sf({2, 3, 3}));
+}
+
+// 2-D, stride 1: no-upsample path.
+TEST_CASE(numeric_2d_stride1)
+{
+    verify_rewrite(
+        migraphx::make_op(
+            "convolution_backwards",
+            {{"padding", {1, 1}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 1}}),
+        sf({1, 2, 5, 5}),
+        sf({2, 3, 3, 3}));
+}
+
+// 3-D, stride 1: no-upsample path.
+TEST_CASE(numeric_3d_stride1)
+{
+    verify_rewrite(
+        migraphx::make_op(
+            "convolution_backwards",
+            {{"padding", {1, 1, 1}}, {"stride", {1, 1, 1}}, {"dilation", {1, 1, 1}}, {"group", 1}}),
+        sf({1, 2, 4, 4, 4}),
+        sf({2, 3, 3, 3, 3}));
+}
+
+// 3-D, stride 2, no dilation: interleave reassembly.
+TEST_CASE(numeric_3d_stride2_interleave)
+{
+    verify_rewrite(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {1, 1, 1}}, {"stride", {2, 2, 2}}, {"dilation", {1, 1, 1}}}),
+        sf({1, 2, 3, 3, 3}),
+        sf({2, 3, 3, 3, 3}));
+}
+
+// 3-D, stride 2, dilation 2: general (zero-stuff + pad + add) reassembly.
+TEST_CASE(numeric_3d_stride2_dilation2_general)
+{
+    verify_rewrite(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {2, 2, 2}}, {"stride", {2, 2, 2}}, {"dilation", {2, 2, 2}}}),
+        sf({1, 2, 3, 3, 3}),
+        sf({2, 3, 3, 3, 3}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

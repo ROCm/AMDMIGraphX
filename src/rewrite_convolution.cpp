@@ -166,18 +166,18 @@ instruction_ref make_residue_partial(module& m,
         unpack([](const auto& di, auto it) { return integer_divide_ceil(di.y - it, di.ytilda); }));
 
     // --- weight branch (constant-folded later): strided tap-slice of the filter ---
-    auto wsl = w;
-    for(std::size_t d = 0; d < nsp; ++d)
+    auto wsl       = w;
+    const auto idx = range(nsp);
+    for(auto&& [d, di, it] : views::zip(idx, dims, itilda))
     {
-        if(itilda[d] > 0) // a slice starting at 0 spans the full axis, so it is a no-op
+        if(it > 0) // a slice starting at 0 spans the full axis, so it is a no-op
             wsl = m.insert_instruction(
                 ins,
-                make_op("slice",
-                        {{"axes", {2 + d}}, {"starts", {itilda[d]}}, {"ends", {dims[d].y}}}),
+                make_op("slice", {{"axes", {2 + d}}, {"starts", {it}}, {"ends", {di.y}}}),
                 wsl);
-        if(dims[d].ytilda > 1)
+        if(di.ytilda > 1)
             wsl = m.insert_instruction(
-                ins, make_op("step", {{"axes", {2 + d}}, {"steps", {dims[d].ytilda}}}), wsl);
+                ins, make_op("step", {{"axes", {2 + d}}, {"steps", {di.ytilda}}}), wsl);
     }
 
     // Reshape the [K, C_pg, *Ydot] backward filter into the forward-conv weight
@@ -197,8 +197,7 @@ instruction_ref make_residue_partial(module& m,
         split_dims.push_back(groups);
         split_dims.push_back(k_chan / groups);
         split_dims.push_back(c_pg);
-        for(std::size_t d = 0; d < nsp; ++d)
-            split_dims.push_back(ydot_slice[d]);
+        split_dims.insert(split_dims.end(), ydot_slice.begin(), ydot_slice.end());
         auto split = m.insert_instruction(ins, make_op("reshape", {{"dims", split_dims}}), wsl);
 
         std::vector<std::size_t> perm(3 + nsp);
@@ -210,8 +209,7 @@ instruction_ref make_residue_partial(module& m,
         std::vector<std::size_t> merge_dims;
         merge_dims.push_back(groups * c_pg);
         merge_dims.push_back(k_chan / groups);
-        for(std::size_t d = 0; d < nsp; ++d)
-            merge_dims.push_back(ydot_slice[d]);
+        merge_dims.insert(merge_dims.end(), ydot_slice.begin(), ydot_slice.end());
         cw = m.insert_instruction(ins, make_op("reshape", {{"dims", merge_dims}}), trans);
     }
     // Flip the filter along the spatial (tap) axes: backward-data is a flipped correlation.
@@ -262,7 +260,7 @@ residue_set build_partials(module& m,
     residue_set out;
     out.partials.reserve(n_residues);
     out.itildas.reserve(n_residues);
-    for(std::size_t r = 0; r < n_residues; ++r)
+    for(std::size_t r : range(n_residues))
     {
         // Decode the linear residue index into itilda per dim.
         auto itilda = residue_grid.multi(r);
@@ -317,10 +315,12 @@ instruction_ref reassemble_interleave(module& m,
             : m.insert_instruction(ins, make_op("reshape", {{"dims", split_dims}}), cat);
     // interleave each Htilda_d with its stride axis: [N, C, H0, S0, H1, S1, ...]
     std::vector<std::size_t> perm{0, 1};
-    for(std::size_t d = 0; d < nsp; ++d)
+    const auto htilda_axes = range(2, 2 + nsp);
+    const auto stride_axes = range(2 + nsp, 2 + 2 * nsp);
+    for(auto&& [h, s] : views::zip(htilda_axes, stride_axes))
     {
-        perm.push_back(2 + d);
-        perm.push_back(2 + nsp + d);
+        perm.push_back(h);
+        perm.push_back(s);
     }
     std::vector<std::size_t> identity(perm.size());
     std::iota(identity.begin(), identity.end(), 0);
@@ -351,21 +351,21 @@ instruction_ref reassemble_general(module& m,
                    partial_itilda.end(),
                    std::back_inserter(placed),
                    unpack([&](auto partial, const auto& itilda) {
-                       for(std::size_t d = 0; d < nsp; ++d)
+                       const auto idx = range(nsp);
+                       for(auto&& [d, di, it] : views::zip(idx, dims, itilda))
                        {
-                           const std::size_t axis = 2 + d;
-                           partial = zero_stuff(m, ins, partial, axis, dims[d].stride);
-                           const std::size_t before = itilda[d] * dims[d].dilation;
-                           const std::size_t after =
-                               (dims[d].ytilda - 1 - itilda[d]) * dims[d].dilation;
+                           const std::size_t axis   = 2 + d;
+                           partial                  = zero_stuff(m, ins, partial, axis, di.stride);
+                           const std::size_t before = it * di.dilation;
+                           const std::size_t after  = (di.ytilda - 1 - it) * di.dilation;
                            partial = pad_axis(m, ins, partial, axis, before, after);
                        }
                        return partial;
                    }));
     assert(not placed.empty()); // residue 0 (itilda all zero) is never empty, so there is a base
     auto acc = placed.front();
-    for(std::size_t i = 1; i < placed.size(); ++i)
-        acc = m.insert_instruction(ins, make_op("add"), acc, placed[i]);
+    for(auto p : range(std::next(placed.begin()), placed.end()))
+        acc = m.insert_instruction(ins, make_op("add"), acc, p);
     return acc;
 }
 
@@ -438,9 +438,10 @@ void rewrite_conv_backwards(module& m, instruction_ref ins)
         acc = reassemble_general(m, ins, res, dims);
 
     // Crop the padding region to produce dx.
-    for(std::size_t d = 0; d < nsp; ++d)
+    const auto idx = range(nsp);
+    for(auto&& [d, pad] : views::zip(idx, padding))
     {
-        const std::size_t start = padding[d];
+        const std::size_t start = pad;
         const std::size_t end   = start + out_lens[2 + d];
         if(start == 0 and end == acc->get_shape().lens()[2 + d])
             continue; // crop covers the whole axis -> no-op

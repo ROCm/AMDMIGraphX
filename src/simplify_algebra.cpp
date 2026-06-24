@@ -921,8 +921,10 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        return match::name("concat")(match::any_of[match::inputs()](match::any_of(
-            match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4"))));
+        auto fusable_input =
+            match::any_of(match::pointwise(),
+                          match::name("broadcast", "multibroadcast", "unpack_int4"));
+        return match::name("concat")(match::any_of[match::inputs()](fusable_input));
     }
 
     template <class Iterator>
@@ -1188,10 +1190,10 @@ struct find_conv_concat_split_fuse
 {
     auto matcher() const
     {
-        return match::name("convolution")(
-            match::arg(0)(match::name("concat")(match::any_of[match::inputs()](
-                match::any_of[match::outputs()](match::name("convolution"))))),
-            match::arg(1)(match::is_constant()));
+        auto input_feeds_conv = match::any_of[match::inputs()](
+            match::any_of[match::outputs()](match::name("convolution")));
+        auto concat_input = match::arg(0)(match::name("concat")(input_feeds_conv));
+        return match::name("convolution")(concat_input, match::arg(1)(match::is_constant()));
     }
 
     static bool is_fusable_conv(instruction_ref output,

@@ -22,14 +22,18 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fuse_horizontal.hpp>
+#include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
+#include <string>
+#include <vector>
 
 static void run_pass(migraphx::module& m)
 {
@@ -1146,6 +1150,69 @@ TEST_CASE(dot_horiz_fusion_mismatched_shapes_unchanged)
     run_pass(m1);
 
     EXPECT(m1.sort() == before.sort());
+}
+
+// End-to-end: hoist_pointwise_above_slices (simplify_reshapes) and
+// dot_horizontal_fusion (fuse_horizontal) cooperate in one pipeline.  The
+// module contains both opportunities and both reductions must occur.
+static void run_mlp_pipeline(migraphx::module& m)
+{
+    migraphx::run_passes(m,
+                         {migraphx::simplify_reshapes{},
+                          migraphx::fuse_horizontal{},
+                          migraphx::dead_code_elimination{}});
+}
+
+TEST_CASE(hoist_and_dot_fusion_end_to_end)
+{
+    migraphx::module m;
+    {
+        // Hoist target: a SiLU (sigmoid * x) replicated across sibling row
+        // slices of a common tensor that exactly tile it.
+        auto t = m.add_parameter("t", {migraphx::shape::float_type, {4, 8}});
+        std::vector<migraphx::instruction_ref> outs;
+        for(int i = 0; i < 4; ++i)
+        {
+            auto s = m.add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), t);
+            auto sig = m.add_instruction(migraphx::make_op("sigmoid"), s);
+            outs.push_back(m.add_instruction(migraphx::make_op("mul"), s, sig));
+        }
+
+        // Dot-fusion target: parallel constant-weight dots with identical shapes.
+        for(int i = 0; i < 3; ++i)
+        {
+            auto x =
+                m.add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 3}});
+            auto w =
+                m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 5}}, i));
+            outs.push_back(m.add_instruction(migraphx::make_op("dot"), x, w));
+        }
+
+        m.add_return(outs);
+    }
+    run_mlp_pipeline(m);
+
+    std::size_t n_dot     = 0;
+    std::size_t n_sigmoid = 0;
+    std::size_t n_mul     = 0;
+    for(auto ins : iterator_for(m))
+    {
+        const auto& name = ins->name();
+        if(name == "dot")
+            ++n_dot;
+        else if(name == "sigmoid")
+            ++n_sigmoid;
+        else if(name == "mul")
+            ++n_mul;
+    }
+
+    // dot_horizontal_fusion collapses the 3 towers into a single batched GEMM.
+    EXPECT(n_dot == 1);
+    // hoist_pointwise_above_slices collapses the 4 per-slice SiLUs into one
+    // sigmoid/mul pair computed on the bounding slice.
+    EXPECT(n_sigmoid == 1);
+    EXPECT(n_mul == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

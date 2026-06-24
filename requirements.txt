@@ -27,7 +27,7 @@ nlohmann/json@v3.12.0 -DJSON_BuildTests=OFF -DJSON_MultiHeaders=OFF -DJSON_Syste
 pybind/pybind11@v3.0.4 --build
 msgpack/msgpack-c@cpp-3.3.0 -DMSGPACK_BUILD_TESTS=Off -DMSGPACK_BUILD_EXAMPLES=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 sqlite3@3.50.4 -DCMAKE_POSITION_INDEPENDENT_CODE=On
-ROCm/rocm-cmake@4d391d7bda62a0f476dbadb383e99f4508c7415d --build
+ROCm/rocm-cmake@fbb761e12dd6e37787c98afe694f657b9bbc23cd --build
 ROCm/composable_kernel@ad0db05b040bacda751c65c705261b8a0a7ed25d --cmake subdir -DCMAKE_DIR=codegen -DCMAKE_POSITION_INDEPENDENT_CODE=On -DBUILD_TESTING=Off -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 https://gitlab.com/libeigen/eigen/-/archive/5.0.1/eigen-5.0.1.tar.gz -DBUILD_TESTING=Off -DEIGEN_BUILD_DOC=Off -DEIGEN_BUILD_LAPACK=Off
 ROCm/rocMLIR@5aeab99430d628aa72e3abdbd47da7c378085151 -DBUILD_FAT_LIBROCKCOMPILER=On -DLLVM_INCLUDE_TESTS=Off

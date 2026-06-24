@@ -1467,11 +1467,9 @@ struct find_gather_slice_concat
         // all_inputs (and, shifted by one, the start of the next passthrough segment).
         std::vector<std::size_t> run_ends(runs.size());
         transform_partial_sum(
-            runs.begin(),
-            runs.end(),
-            run_ends.begin(),
-            std::plus<>{},
-            [](const run_t& r) { return r.gap + r.rows.size(); });
+            runs.begin(), runs.end(), run_ends.begin(), std::plus<>{}, [](const run_t& r) {
+                return r.gap + r.rows.size();
+            });
 
         std::vector<std::int64_t> trans_perm(indices_ndim);
         std::iota(trans_perm.begin(), trans_perm.end(), 0);

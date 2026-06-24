@@ -174,6 +174,11 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+static void set_mlss_use_specific_ops(compile_options& options, const char* value)
+{
+    options.mlss_use_specific_ops = value == nullptr ? "" : value;
+}
+
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
 
 static void set_default_dim_value(onnx_options& options, size_t value)

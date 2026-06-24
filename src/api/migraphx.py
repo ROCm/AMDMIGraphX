@@ -436,6 +436,9 @@ def compile_options(h):
     h.method('set_exhaustive_tune_flag',
              api.params(value='bool'),
              invoke='migraphx::set_exhaustive_tune_flag($@)')
+    h.method('set_mlss_use_specific_ops',
+             api.params(value='const char*'),
+             invoke='migraphx::set_mlss_use_specific_ops($@)')
 
 
 api.add_function('migraphx_parse_onnx',

@@ -1204,6 +1204,13 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     {
         call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
     }
+
+    /// Force specific ops (comma-separated, e.g. "conv") onto AMDMLSS. Empty lets
+    /// MIGraphX decide. Mirrors the MIGRAPHX_MLSS_USE_SPECIFIC_OPS env var.
+    void set_mlss_use_specific_ops(const char* value)
+    {
+        call(&migraphx_compile_options_set_mlss_use_specific_ops, this->get_handle_ptr(), value);
+    }
 };
 
 /// A program represents the all computation graphs to be compiled and executed

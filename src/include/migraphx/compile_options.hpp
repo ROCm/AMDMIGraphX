@@ -24,6 +24,7 @@
 #ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
 #define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
 
+#include <string>
 #include <migraphx/config.hpp>
 #include <migraphx/tracer.hpp>
 
@@ -40,6 +41,10 @@ struct compile_options
 
     bool fast_math       = true;
     bool exhaustive_tune = false;
+
+    // Comma-separated list of ops to force onto AMDMLSS (e.g. "conv"). Empty lets
+    // MIGraphX decide. Mirrors the MIGRAPHX_MLSS_USE_SPECIFIC_OPS env var.
+    std::string mlss_use_specific_ops = "";
 
     tracer trace{};
 };

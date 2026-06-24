@@ -25,8 +25,13 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/register_target.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/verify.hpp>
+#include <algorithm>
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m)
@@ -180,6 +185,104 @@ TEST_CASE(dynamic_shape_no_rewrite)
     run_pass(m1);
     migraphx::module m2 = make();
     EXPECT(m1 == m2);
+}
+
+// Build dx = convolution_backwards(dy, w), compile on the reference target, and return the result.
+static migraphx::argument eval_conv_backwards(const migraphx::operation& op,
+                                              bool rewrite,
+                                              migraphx::shape dys,
+                                              migraphx::shape ws)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto dy  = mm->add_parameter("dy", dys);
+    auto w   = mm->add_parameter("w", ws);
+    auto r   = mm->add_instruction(op, dy, w);
+    mm->add_return({r});
+    if(rewrite)
+        run_pass(*mm);
+    // The rewrite must actually fire, otherwise the comparison below is vacuous.
+    bool has_bwd = std::any_of(
+        mm->begin(), mm->end(), [](auto&& ins) { return ins.name() == "convolution_backwards"; });
+    EXPECT(has_bwd != rewrite);
+    p.compile(migraphx::make_target("ref"));
+    migraphx::parameter_map params;
+    params["dy"] = migraphx::generate_argument(dys, 1);
+    params["w"]  = migraphx::generate_argument(ws, 2);
+    return p.eval(params).back();
+}
+
+// The rewritten subgraph must compute the same dx as the reference convolution_backwards.
+static void verify_rewrite(const migraphx::operation& op, migraphx::shape dys, migraphx::shape ws)
+{
+    auto ref = eval_conv_backwards(op, false, dys, ws);
+    auto got = eval_conv_backwards(op, true, dys, ws);
+    std::vector<float> ref_data;
+    std::vector<float> got_data;
+    ref.visit([&](auto v) { ref_data.assign(v.begin(), v.end()); });
+    got.visit([&](auto v) { got_data.assign(v.begin(), v.end()); });
+    EXPECT(migraphx::verify::allclose(got_data, migraphx::verify::expected{ref_data}));
+}
+
+// stride 1: single flipped forward convolution.
+TEST_CASE(numeric_stride1)
+{
+    verify_rewrite(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {1}}, {"stride", {1}}, {"dilation", {1}}, {"group", 1}}),
+        sf({1, 2, 5}),
+        sf({2, 3, 3}));
+}
+
+// stride 2, no dilation: pixel-shuffle interleave reassembly.
+TEST_CASE(numeric_stride2_interleave)
+{
+    verify_rewrite(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+        sf({1, 2, 4, 4}),
+        sf({2, 3, 3, 3}));
+}
+
+// asymmetric stride, no dilation: interleave with different per-dim strides.
+TEST_CASE(numeric_stride_asymmetric)
+{
+    verify_rewrite(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {1, 1}}, {"stride", {2, 3}}, {"dilation", {1, 1}}}),
+        sf({1, 2, 4, 4}),
+        sf({2, 3, 3, 3}));
+}
+
+// stride 2, dilation 2: general (zero-stuff + pad + add) reassembly.
+TEST_CASE(numeric_stride2_dilation2_general)
+{
+    verify_rewrite(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {2, 2}}, {"stride", {2, 2}}, {"dilation", {2, 2}}}),
+        sf({1, 2, 4, 4}),
+        sf({2, 3, 3, 3}));
+}
+
+// grouped backward convolution.
+TEST_CASE(numeric_grouped)
+{
+    verify_rewrite(
+        migraphx::make_op(
+            "convolution_backwards",
+            {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}, {"group", 2}}),
+        sf({1, 2, 4, 4}),
+        sf({2, 3, 3, 3}));
+}
+
+// 1-D backward convolution.
+TEST_CASE(numeric_1d)
+{
+    verify_rewrite(
+        migraphx::make_op("convolution_backwards",
+                          {{"padding", {0}}, {"stride", {2}}, {"dilation", {1}}, {"group", 1}}),
+        sf({1, 2, 5}),
+        sf({2, 3, 3}));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

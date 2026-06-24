@@ -21,26 +21,35 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_OPERATORS_ADDRESSOF_HPP
+#define MIGRAPHX_GUARD_OPERATORS_ADDRESSOF_HPP
 
-#include <onnx_test.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/op/unary.hpp>
 
-TEST_CASE(binary_dyn_brcst_add_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace op {
+
+struct addressof : unary<addressof>
 {
-    EXPECT(
-        check_common_op("binary_dyn_brcst_add_test.onnx",
-                        migraphx::make_op("add"),
-                        {{"0", {migraphx::shape::half_type, {4, 5}}},
-                         {"1", {migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}}}}));
-}
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        const auto& input = inputs.at(0);
+        return input.with_type(shape::uint64_type);
+    }
 
-TEST_CASE(binary_sym_brcst_add_test)
-{
-    using migraphx::sym::lit;
-    using migraphx::sym::var;
-    EXPECT(check_common_op(
-        "binary_dyn_brcst_add_test.onnx",
-        migraphx::make_op("add"),
-        {{"0", {migraphx::shape::half_type, {4, 5}}},
-         {"1",
-          {migraphx::shape::float_type, sym_dims({var("n", {1, 4}), lit(3), lit(4), lit(5)})}}}));
-}
+    std::string point_op() const { return "${function:addressof}(${0})"; }
+
+    auto apply() const
+    {
+        return [](auto& x) -> std::size_t { return reinterpret_cast<std::size_t>(&x); };
+    }
+};
+
+} // namespace op
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

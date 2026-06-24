@@ -21,26 +21,25 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_GENERATE_RANDOM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_GENERATE_RANDOM_HPP
 
-#include <onnx_test.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/gpu/device/config.hpp>
+#include <hip/hip_runtime_api.h>
 
-TEST_CASE(binary_dyn_brcst_add_test)
-{
-    EXPECT(
-        check_common_op("binary_dyn_brcst_add_test.onnx",
-                        migraphx::make_op("add"),
-                        {{"0", {migraphx::shape::half_type, {4, 5}}},
-                         {"1", {migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}}}}));
-}
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+namespace gpu {
+namespace device {
 
-TEST_CASE(binary_sym_brcst_add_test)
-{
-    using migraphx::sym::lit;
-    using migraphx::sym::var;
-    EXPECT(check_common_op(
-        "binary_dyn_brcst_add_test.onnx",
-        migraphx::make_op("add"),
-        {{"0", {migraphx::shape::half_type, {4, 5}}},
-         {"1",
-          {migraphx::shape::float_type, sym_dims({var("n", {1, 4}), lit(3), lit(4), lit(5)})}}}));
-}
+void MIGRAPHX_DEVICE_EXPORT generate_random(hipStream_t stream,
+                                            const argument& result,
+                                            unsigned long seed);
+
+} // namespace device
+} // namespace gpu
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif

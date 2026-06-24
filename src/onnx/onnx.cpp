@@ -42,12 +42,13 @@ template <class... Ts>
 static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
 {
     onnx::onnx_parser parser;
-    parser.external_data_path = options.external_data_path;
-    parser.map_input_dims     = options.map_input_dims;
-    parser.dim_params         = options.dim_params;
-    parser.map_dyn_input_dims = options.map_dyn_input_dims;
-    parser.use_debug_symbols  = options.use_debug_symbols;
-    auto dim_val              = options.default_dim_value;
+    parser.external_data_path  = options.external_data_path;
+    parser.map_input_dims      = options.map_input_dims;
+    parser.dim_params          = options.dim_params;
+    parser.map_dyn_input_dims  = options.map_dyn_input_dims;
+    parser.use_debug_symbols   = options.use_debug_symbols;
+    parser.use_symbolic_shapes = options.use_symbolic_shapes;
+    auto dim_val               = options.default_dim_value;
     if(dim_val != 0)
     {
         if(options.default_dyn_dim_value != shape::dynamic_dimension{1, 1})

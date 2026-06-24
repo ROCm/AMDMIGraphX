@@ -22,25 +22,35 @@
  * THE SOFTWARE.
  */
 
-#include <onnx_test.hpp>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/serialize.hpp>
 
-TEST_CASE(binary_dyn_brcst_add_test)
-{
-    EXPECT(
-        check_common_op("binary_dyn_brcst_add_test.onnx",
-                        migraphx::make_op("add"),
-                        {{"0", {migraphx::shape::half_type, {4, 5}}},
-                         {"1", {migraphx::shape::float_type, {{1, 4}, {3, 3}, {4, 4}, {5, 5}}}}}));
-}
+#include <migraphx/make_op.hpp>
 
-TEST_CASE(binary_sym_brcst_add_test)
+// These tests verify the deref operation by using addressof to generate
+// valid pointers at runtime, then dereferencing them back to the original values.
+// This pattern works across all targets (ref, CPU, GPU) because the pointers
+// are generated on each target's memory space.
+
+template <migraphx::shape::type_t DType>
+struct test_deref : verify_program<test_deref<DType>>
 {
-    using migraphx::sym::lit;
-    using migraphx::sym::var;
-    EXPECT(check_common_op(
-        "binary_dyn_brcst_add_test.onnx",
-        migraphx::make_op("add"),
-        {{"0", {migraphx::shape::half_type, {4, 5}}},
-         {"1",
-          {migraphx::shape::float_type, sym_dims({var("n", {1, 4}), lit(3), lit(4), lit(5)})}}}));
-}
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+
+        migraphx::shape s{DType, {2, 4}};
+        auto param = mm->add_parameter("x", s);
+        auto addrs = mm->add_instruction(migraphx::make_op("addressof"), param);
+        mm->add_instruction(
+            migraphx::make_op("deref", {{"target_type", migraphx::to_value(DType)}}), addrs);
+        return p;
+    }
+};
+
+template struct test_deref<migraphx::shape::float_type>;
+template struct test_deref<migraphx::shape::half_type>;
+template struct test_deref<migraphx::shape::double_type>;

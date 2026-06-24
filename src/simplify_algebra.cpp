@@ -921,9 +921,8 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        auto fusable_input =
-            match::any_of(match::pointwise(),
-                          match::name("broadcast", "multibroadcast", "unpack_int4"));
+        auto fusable_input = match::any_of(
+            match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4"));
         return match::name("concat")(match::any_of[match::inputs()](fusable_input));
     }
 

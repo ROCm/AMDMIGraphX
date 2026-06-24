@@ -4930,19 +4930,37 @@ TEST_CASE(conv_horizontal_fuse)
         m1.add_return({conv2});
     }
     run_pass(m1);
-    EXPECT(m1.validate() == m1.end());
 
-    // Verify the fused conv has more output channels (4+4=8)
-    bool found_fused = false;
-    for(auto ins = m1.begin(); ins != m1.end(); ++ins)
+    migraphx::module m2;
     {
-        if(ins->name() == "convolution" and ins->get_shape().lens()[1] == 8)
-        {
-            found_fused = true;
-            break;
-        }
+        auto x  = m2.add_parameter("x", xs);
+        auto w1 = m2.add_literal(migraphx::generate_literal(w1s, 1));
+        auto w2 = m2.add_literal(migraphx::generate_literal(w2s, 2));
+        // conv2's weights are split along the input-channel axis: the prefix (the
+        // channels that consume x) is concatenated with conv1's weights so both
+        // convolutions run as a single fused convolution, while the suffix (the
+        // channels that consume act1) stays as a separate convolution.
+        auto w2_prefix = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), w2);
+        auto wcat = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), w1, w2_prefix);
+        auto wcat_c     = m2.add_instruction(migraphx::make_op("contiguous"), wcat);
+        auto fused_conv = m2.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, wcat_c);
+        auto conv1_out = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), fused_conv);
+        auto conv2_prefix = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), fused_conv);
+        auto act1      = m2.add_instruction(migraphx::make_op("relu"), conv1_out);
+        auto w2_suffix = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {8}}, {"ends", {12}}}), w2);
+        auto w2_suffix_c  = m2.add_instruction(migraphx::make_op("contiguous"), w2_suffix);
+        auto conv2_suffix = m2.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1}}}), act1, w2_suffix_c);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), conv2_prefix, conv2_suffix);
+        m2.add_return({sum});
     }
-    EXPECT(found_fused);
+
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(find_concat_different_broadcast_axes)

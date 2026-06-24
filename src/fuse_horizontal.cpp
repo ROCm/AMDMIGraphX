@@ -355,26 +355,86 @@ struct gather_horizontal_fusion
 };
 
 // ---------------------------------------------------------------------------
-// Future: add more horizontal fusion finders here, e.g.
+// Generic dot horizontal fusion
 //
-// struct pointwise_horizontal_fusion
-// {
-//     std::size_t min_group_size() const { return 2; }
-//     bool is_candidate(instruction_ref ins) const { ... }
-//     std::string group_key(instruction_ref ins) const { ... }
-//     std::vector<instruction_ref>
-//         fuse(module& m, const std::vector<instruction_ref>& ops,
-//              instruction_ref insert_pt) const { ... }
-// };
+// Batches structurally-identical dot operations into a single batched GEMM by
+// stacking activations and weights along a new leading dimension (axis 0).  The
+// batched dot output is sliced and squeezed back into the individual results.
+//
+// Only the dots themselves are fused here.  Any downstream elementwise work
+// (bias add, SiLU, ...) is intentionally left untouched so that the existing
+// fusions (e.g. find_splits in simplify_algebra and the pointwise/MLIR fusions)
+// can recombine it on top of the batched dot.
 // ---------------------------------------------------------------------------
+
+struct dot_horizontal_fusion
+{
+    std::size_t min_group_size() const { return 2; }
+
+    bool is_candidate(instruction_ref ins) const
+    {
+        if(ins->name() != "dot")
+            return false;
+        if(ins->get_shape().dynamic())
+            return false;
+        if(ins->get_shape().ndim() < 2)
+            return false;
+        // Only fold when the weight is a compile-time constant so the batched
+        // weight tensor can be materialized.
+        return ins->inputs().at(1)->can_eval();
+    }
+
+    auto group_key(instruction_ref ins) const
+    {
+        return std::make_tuple(ins->inputs().at(0)->get_shape().lens(),
+                               ins->inputs().at(1)->get_shape().lens(),
+                               ins->get_shape().type());
+    }
+
+    std::vector<instruction_ref>
+    fuse(module& m, const std::vector<instruction_ref>& dots, instruction_ref insert_pt) const
+    {
+        // Stack input `input_idx` of every dot along a new leading axis.
+        auto stack = [&](std::size_t input_idx) {
+            std::vector<instruction_ref> unsqueezed(dots.size());
+            std::transform(dots.begin(), dots.end(), unsqueezed.begin(), [&](auto d) {
+                return m.insert_instruction(
+                    insert_pt, make_op("unsqueeze", {{"axes", {0}}}), d->inputs().at(input_idx));
+            });
+            return m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), unsqueezed);
+        };
+
+        auto batched_act = stack(0);
+        auto batched_wt  = stack(1);
+        auto batched_dot = m.insert_instruction(insert_pt, make_op("dot"), batched_act, batched_wt);
+
+        // Slice each original result back out of the batched dot.
+        std::vector<instruction_ref> results(dots.size());
+        for(std::size_t i = 0; i < dots.size(); ++i)
+        {
+            auto idx    = static_cast<int64_t>(i);
+            auto sliced = m.insert_instruction(
+                insert_pt,
+                make_op("slice", {{"axes", {0}}, {"starts", {idx}}, {"ends", {idx + 1}}}),
+                batched_dot);
+            results[i] =
+                m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced);
+        }
+        return results;
+    }
+};
 
 void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
     // Collapse gathers that share the same table first; any sibling gathers left
-    // across *different* tables then fall through to cross-table fusion.
-    fuse_horizontal_ops(m, same_table_gather_horizontal_fusion{}, gather_horizontal_fusion{});
+    // across *different* tables then fall through to cross-table fusion.  Finally
+    // batch structurally-identical dots into a single GEMM.
+    fuse_horizontal_ops(m,
+                        same_table_gather_horizontal_fusion{},
+                        gather_horizontal_fusion{},
+                        dot_horizontal_fusion{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

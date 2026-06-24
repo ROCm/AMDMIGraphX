@@ -28,6 +28,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/bit_cast.hpp>
 #include <migraphx/bit.hpp>
+#include <migraphx/math.hpp>
 #include <algorithm>
 #include <limits>
 #include <iostream>
@@ -36,18 +37,6 @@
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
-{
-    return (x + y - std::size_t{1}) / y;
-}
-
-// compute the smallest multiple of y that is greater than or equal to x
-// this is equivalent to y * ceil(x / y)
-constexpr std::size_t ceil_mul_of(std::size_t x, std::size_t y)
-{
-    return y * integer_divide_ceil(x, y);
-}
 
 template <unsigned int Bytes>
 struct unsigned_type
@@ -304,14 +293,14 @@ struct __attribute__((packed, may_alias)) generic_float
         return generic_float{x.to_float() - 1.0f};
     }
 // NOLINTNEXTLINE
-#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                        \
-    constexpr generic_float& operator op(const generic_float & rhs) \
-    {                                                               \
-        float self = *this;                                         \
-        float frhs = rhs;                                           \
-        self op frhs;                                               \
-        *this = generic_float(self);                                \
-        return *this;                                               \
+#define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                       \
+    constexpr generic_float& operator op(const generic_float& rhs) \
+    {                                                              \
+        float self = *this;                                        \
+        float frhs = rhs;                                          \
+        self op frhs;                                              \
+        *this = generic_float(self);                               \
+        return *this;                                              \
     }
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(*=)
     MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(-=)

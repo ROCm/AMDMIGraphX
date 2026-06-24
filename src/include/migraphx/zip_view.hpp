@@ -31,6 +31,7 @@
 #include <migraphx/utility_operators.hpp>
 #include <algorithm>
 #include <array>
+#include <cstdlib>
 #include <iterator>
 #include <tuple>
 #include <type_traits>
@@ -100,7 +101,7 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
                                 static_cast<diff>(yits - xits)...};
                             return *std::min_element(
                                 dists.begin(), dists.end(), [](diff a, diff b) {
-                                    return (a < 0 ? -a : a) < (b < 0 ? -b : b);
+                                    return std::abs(a) < std::abs(b);
                                 });
                         },
                         y.current);
@@ -142,15 +143,23 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
             [](auto*... rs) { return make_iterator(std::make_tuple(std::end(*rs)...)); }, rng);
     }
 
+    // rng holds plain pointers, so const does not propagate on its own; view each range as const
+    // (like transform_view's base() const) so the const overloads yield const iterators.
     auto begin() const
     {
         return migraphx::unpack(
-            [](auto*... rs) { return make_iterator(std::make_tuple(std::begin(*rs)...)); }, rng);
+            [](auto*... rs) {
+                return make_iterator(std::make_tuple(std::begin(std::as_const(*rs))...));
+            },
+            rng);
     }
     auto end() const
     {
         return migraphx::unpack(
-            [](auto*... rs) { return make_iterator(std::make_tuple(std::end(*rs)...)); }, rng);
+            [](auto*... rs) {
+                return make_iterator(std::make_tuple(std::end(std::as_const(*rs))...));
+            },
+            rng);
     }
 
     template <class... Ts>

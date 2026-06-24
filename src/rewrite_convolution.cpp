@@ -26,6 +26,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/math.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/value.hpp>
@@ -75,8 +76,6 @@ struct residue_set
     std::vector<instruction_ref> partials;
     std::vector<std::vector<std::size_t>> itildas;
 };
-
-std::size_t ceil_div(std::size_t a, std::size_t b) { return (a + b - 1) / b; }
 
 // Pad `before`/`after` zeros onto a single axis (a no-op when both are zero).
 instruction_ref pad_axis(module& m,
@@ -137,7 +136,7 @@ std::vector<dim_info> compute_dims(const std::vector<std::size_t>& stride,
                        const std::size_t g = std::gcd(s, dil);
                        di.ytilda           = s / g;
                        di.dd               = dil / g;
-                       di.ydot             = ceil_div(y, di.ytilda);
+                       di.ydot             = integer_divide_ceil(y, di.ytilda);
                        di.htilda           = ho + (di.ydot - 1) * di.dd;
                        return di;
                    }));
@@ -162,10 +161,11 @@ instruction_ref make_residue_partial(module& m,
     std::vector<std::size_t> ydot_slice;
     ydot_slice.reserve(nsp);
     auto dim_itilda = views::zip(dims, itilda);
-    std::transform(dim_itilda.begin(),
-                   dim_itilda.end(),
-                   std::back_inserter(ydot_slice),
-                   unpack([](const auto& di, auto it) { return ceil_div(di.y - it, di.ytilda); }));
+    std::transform(
+        dim_itilda.begin(),
+        dim_itilda.end(),
+        std::back_inserter(ydot_slice),
+        unpack([](const auto& di, auto it) { return integer_divide_ceil(di.y - it, di.ytilda); }));
 
     // --- weight branch (constant-folded later): strided tap-slice of the filter ---
     auto wsl = w;
@@ -263,8 +263,11 @@ residue_set build_partials(module& m,
                            std::size_t k_chan,
                            std::size_t c_pg)
 {
+    const std::size_t n_residues = residue_grid.elements();
     residue_set out;
-    for(std::size_t r = 0; r < residue_grid.elements(); ++r)
+    out.partials.reserve(n_residues);
+    out.itildas.reserve(n_residues);
+    for(std::size_t r = 0; r < n_residues; ++r)
     {
         // Decode the linear residue index into itilda per dim.
         auto itilda = residue_grid.multi(r);
@@ -364,6 +367,7 @@ instruction_ref reassemble_general(module& m,
                        }
                        return partial;
                    }));
+    assert(not placed.empty()); // residue 0 (itilda all zero) is never empty, so there is a base
     auto acc = placed.front();
     for(std::size_t i = 1; i < placed.size(); ++i)
         acc = m.insert_instruction(ins, make_op("add"), acc, placed[i]);
@@ -398,6 +402,11 @@ void rewrite_conv_backwards(module& m, instruction_ref ins)
     const std::size_t c_pg   = w_lens.at(1);  // output channels per group
     if(group <= 0 or k_chan % group != 0)
         return;
+
+    // stride/dilation/padding and the tensor spatial axes all share the rank nsp; the zips in
+    // compute_dims and the per-dim indexing below assume it.
+    assert(dilation.size() == nsp and padding.size() >= nsp and dy_lens.size() == nsp + 2 and
+           w_lens.size() == nsp + 2 and out_lens.size() == nsp + 2);
 
     const auto dims = compute_dims(stride, dilation, dy_lens, w_lens);
 

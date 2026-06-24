@@ -328,6 +328,15 @@ struct pooling
         auto in_s    = input.get_shape();
         auto in_lens = in_s.lens();
 
+        const std::size_t num_spatial_dims = kernel_dims.size();
+        const bool padding_is_asymmetric   = padding_vals.size() == 2 * num_spatial_dims;
+
+        // padding_vals is either one value per axis or a {begin..., end...} list.
+        auto trailing_padding = [&](std::size_t axis) {
+            return padding_is_asymmetric ? padding_vals[num_spatial_dims + axis]
+                                         : padding_vals[axis];
+        };
+
         // For each element of output; i.e., for each placement of pooling kernel...
         par_for(output_shape.elements(), [&](auto i) {
             auto idx_o = output_shape.multi(i);
@@ -342,24 +351,15 @@ struct pooling
                 auto d_2  = dim - 2;
                 int start = static_cast<int>(idx_o[dim] * stride[d_2]) -
                             static_cast<int>(padding_vals[d_2]);
-                int end;
                 std::size_t dilated_kernel_dim = dilate_dim(kernel_dims[d_2], dilations[d_2]);
-                // NOLINT
-                if(count_include_pad and mode == pooling_mode::average)
-                {
-                    // Even when using padding, if in ceil_mode a window
-                    // could extend beyond the end of both input and
-                    // padding.  Clip out-of-bounds indexes but not padding.
 
-                    // Check if this kernel extends beyond the padding at end of dimension
-                    end = std::min(start + dilated_kernel_dim,
-                                   in_lens[dim] + static_cast<int>(padding_vals[d_2]));
-                }
-                else
-                {
-                    // count_include_pad is false, or for max pooling, clip off padding.
-                    end = std::min(start + dilated_kernel_dim, in_lens[dim]);
-                }
+                // count_include_pad divides by the full window, so it keeps the declared
+                // trailing padding (issue #4350); every other case stops at the input edge.
+                const bool keep_padding_in_window =
+                    count_include_pad and mode == pooling_mode::average;
+                const std::size_t window_limit =
+                    keep_padding_in_window ? in_lens[dim] + trailing_padding(d_2) : in_lens[dim];
+                int end = std::min(start + dilated_kernel_dim, window_limit);
                 win_start.push_back(start);
                 if(end < start)
                 {

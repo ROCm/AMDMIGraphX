@@ -960,8 +960,8 @@ struct mlir_program
         op.code_object = get_binary();
         // TODO: update code_object_op to use cluster size
         auto [cluster, grid, block] = get_launch_params();
-        op.global = launch_dims(grid);
-        op.local  = launch_dims(block);
+        op.global                   = launch_dims(grid);
+        op.local                    = launch_dims(block);
         return op;
     }
 

@@ -83,19 +83,15 @@ bool kernel::empty() const { return impl == nullptr; }
 
 static void launch_kernel(hipFunction_t fun,
                           hipStream_t stream,
-                          std::size_t global,
-                          std::size_t global_y,
-                          std::size_t global_z,
-                          std::size_t local,
-                          std::size_t local_y,
-                          std::size_t local_z,
+                          std::array<std::size_t, 3> global,
+                          std::array<std::size_t, 3> local,
                           void* kernargs,
                           std::size_t size,
                           hipEvent_t start,
                           hipEvent_t stop)
 {
-    assert(global > 0);
-    assert(local > 0);
+    assert(global[0] > 0 and global[1] > 0 and global[2] > 0);
+    assert(local[0] > 0 and local[1] > 0 and local[2] > 0);
     void* config[] = {
 // HIP_LAUNCH_PARAM_* are macros that do horrible things
 #ifdef MIGRAPHX_USE_CLANG_TIDY
@@ -110,12 +106,12 @@ static void launch_kernel(hipFunction_t fun,
     };
 
     auto status = hipExtModuleLaunchKernel(fun,
-                                           global,
-                                           global_y,
-                                           global_z,
-                                           local,
-                                           local_y,
-                                           local_z,
+                                           global[0],
+                                           global[1],
+                                           global[2],
+                                           local[0],
+                                           local[1],
+                                           local[2],
                                            0,
                                            stream,
                                            nullptr,
@@ -143,18 +139,7 @@ void kernel::launch(hipStream_t stream,
     void* kernargs   = reinterpret_cast<void*>(args.data());
     std::size_t size = args.bytes();
 
-    launch_kernel(impl->fun,
-                  stream,
-                  global[0],
-                  global[1],
-                  global[2],
-                  local[0],
-                  local[1],
-                  local[2],
-                  kernargs,
-                  size,
-                  start,
-                  stop);
+    launch_kernel(impl->fun, stream, global, local, kernargs, size, start, stop);
 }
 
 void kernel::launch(hipStream_t stream,
@@ -168,18 +153,7 @@ void kernel::launch(hipStream_t stream,
     std::vector<char> kernargs = pack_args(args);
     std::size_t size           = kernargs.size();
 
-    launch_kernel(impl->fun,
-                  stream,
-                  global[0],
-                  global[1],
-                  global[2],
-                  local[0],
-                  local[1],
-                  local[2],
-                  kernargs.data(),
-                  size,
-                  start,
-                  stop);
+    launch_kernel(impl->fun, stream, global, local, kernargs.data(), size, start, stop);
 }
 
 void kernel::launch(hipStream_t stream,
@@ -191,18 +165,7 @@ void kernel::launch(hipStream_t stream,
                     hipEvent_t stop) const
 {
     assert(impl != nullptr);
-    launch_kernel(impl->fun,
-                  stream,
-                  global[0],
-                  global[1],
-                  global[2],
-                  local[0],
-                  local[1],
-                  local[2],
-                  kernargs,
-                  kernargs_size,
-                  start,
-                  stop);
+    launch_kernel(impl->fun, stream, global, local, kernargs, kernargs_size, start, stop);
 }
 
 } // namespace gpu

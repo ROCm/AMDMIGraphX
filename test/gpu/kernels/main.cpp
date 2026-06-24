@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -108,7 +108,8 @@ struct test_suite : std::enable_shared_from_this<test_suite>
     {
         auto failures = migraphx::gpu::write_to_gpu(int32_t{0}, true);
         compile();
-        k.launch(nullptr, options.global.x(), options.local.x())(test_cases.at(case_name), failures.get());
+        k.launch(nullptr, options.global.x(), options.local.x())(test_cases.at(case_name),
+                                                                 failures.get());
         CHECK(hipDeviceSynchronize() == hipSuccess);
         test::report_failure(*failures);
     }

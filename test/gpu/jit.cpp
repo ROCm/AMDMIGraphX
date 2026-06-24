@@ -298,14 +298,14 @@ TEST_CASE(code_object_hip)
     migraphx::shape input{migraphx::shape::int8_type, {5}};
 
     std::vector<migraphx::shape> expected_inputs = {input, input};
-    auto co = migraphx::make_op(
+    auto co                                      = migraphx::make_op(
         "gpu::code_object",
         {{"code_object", migraphx::value::binary{binaries.front()}},
-         {"symbol_name", "add_2"},
-         {"global", migraphx::to_value(std::array<std::size_t, 3>{input.elements(), 1, 1})},
-         {"local", migraphx::to_value(std::array<std::size_t, 3>{1024, 1, 1})},
-         {"expected_inputs", migraphx::to_value(expected_inputs)},
-         {"output", migraphx::to_value(input)}});
+                                              {"symbol_name", "add_2"},
+                                              {"global", migraphx::to_value(std::array<std::size_t, 3>{input.elements(), 1, 1})},
+                                              {"local", migraphx::to_value(std::array<std::size_t, 3>{1024, 1, 1})},
+                                              {"expected_inputs", migraphx::to_value(expected_inputs)},
+                                              {"output", migraphx::to_value(input)}});
 
     migraphx::program p;
     auto* mm            = p.get_main_module();

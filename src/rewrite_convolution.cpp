@@ -82,13 +82,13 @@ instruction_ref pad_axis(module& m,
                          instruction_ref ins,
                          instruction_ref t,
                          std::size_t axis,
-                         int64_t before,
-                         int64_t after)
+                         std::size_t before,
+                         std::size_t after)
 {
     if(before == 0 and after == 0)
         return t;
     const std::size_t nd = t->get_shape().ndim();
-    std::vector<int64_t> pads(2 * nd, 0);
+    std::vector<std::size_t> pads(2 * nd, 0);
     pads[axis]      = before;
     pads[nd + axis] = after;
     return m.insert_instruction(ins, make_op("pad", {{"pads", pads}}), t);
@@ -100,12 +100,10 @@ zero_stuff(module& m, instruction_ref ins, instruction_ref t, std::size_t axis, 
 {
     if(step <= 1)
         return t;
-    auto u = m.insert_instruction(
-        ins, make_op("unsqueeze", {{"axes", {static_cast<int64_t>(axis + 1)}}}), t);
-    u         = pad_axis(m, ins, u, axis + 1, 0, static_cast<int64_t>(step - 1));
-    auto lens = u->get_shape().lens();
-    std::vector<int64_t> rdims(lens.begin(), lens.end());
-    rdims[axis] *= static_cast<int64_t>(step);
+    auto u     = m.insert_instruction(ins, make_op("unsqueeze", {{"axes", {axis + 1}}}), t);
+    u          = pad_axis(m, ins, u, axis + 1, 0, step - 1);
+    auto rdims = u->get_shape().lens();
+    rdims[axis] *= step;
     rdims.erase(rdims.begin() + axis + 1);
     return m.insert_instruction(ins, make_op("reshape", {{"dims", rdims}}), u);
 }
@@ -172,18 +170,14 @@ instruction_ref make_residue_partial(module& m,
     for(std::size_t d = 0; d < nsp; ++d)
     {
         if(itilda[d] > 0) // a slice starting at 0 spans the full axis, so it is a no-op
-            wsl = m.insert_instruction(ins,
-                                       make_op("slice",
-                                               {{"axes", {static_cast<int64_t>(2 + d)}},
-                                                {"starts", {static_cast<int64_t>(itilda[d])}},
-                                                {"ends", {static_cast<int64_t>(dims[d].y)}}}),
-                                       wsl);
+            wsl = m.insert_instruction(
+                ins,
+                make_op("slice",
+                        {{"axes", {2 + d}}, {"starts", {itilda[d]}}, {"ends", {dims[d].y}}}),
+                wsl);
         if(dims[d].ytilda > 1)
-            wsl = m.insert_instruction(ins,
-                                       make_op("step",
-                                               {{"axes", {static_cast<int64_t>(2 + d)}},
-                                                {"steps", {static_cast<int64_t>(dims[d].ytilda)}}}),
-                                       wsl);
+            wsl = m.insert_instruction(
+                ins, make_op("step", {{"axes", {2 + d}}, {"steps", {dims[d].ytilda}}}), wsl);
     }
 
     // Reshape the [K, C_pg, *Ydot] backward filter into the forward-conv weight
@@ -191,37 +185,38 @@ instruction_ref make_residue_partial(module& m,
     instruction_ref cw;
     if(group == 1)
     {
-        std::vector<int64_t> perm(2 + nsp);
+        std::vector<std::size_t> perm(2 + nsp);
         std::iota(perm.begin(), perm.end(), 0);
         std::swap(perm[0], perm[1]);
         cw = m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), wsl);
     }
     else
     {
-        std::vector<int64_t> split_dims;
-        split_dims.push_back(group);
-        split_dims.push_back(static_cast<int64_t>(k_chan / group));
-        split_dims.push_back(static_cast<int64_t>(c_pg));
+        const std::size_t groups = group;
+        std::vector<std::size_t> split_dims;
+        split_dims.push_back(groups);
+        split_dims.push_back(k_chan / groups);
+        split_dims.push_back(c_pg);
         for(std::size_t d = 0; d < nsp; ++d)
-            split_dims.push_back(static_cast<int64_t>(ydot_slice[d]));
+            split_dims.push_back(ydot_slice[d]);
         auto split = m.insert_instruction(ins, make_op("reshape", {{"dims", split_dims}}), wsl);
 
-        std::vector<int64_t> perm(3 + nsp);
+        std::vector<std::size_t> perm(3 + nsp);
         std::iota(perm.begin(), perm.end(), 0);
         std::swap(perm[1], perm[2]);
         auto trans =
             m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), split);
 
-        std::vector<int64_t> merge_dims;
-        merge_dims.push_back(static_cast<int64_t>(group) * static_cast<int64_t>(c_pg));
-        merge_dims.push_back(static_cast<int64_t>(k_chan / group));
+        std::vector<std::size_t> merge_dims;
+        merge_dims.push_back(groups * c_pg);
+        merge_dims.push_back(k_chan / groups);
         for(std::size_t d = 0; d < nsp; ++d)
-            merge_dims.push_back(static_cast<int64_t>(ydot_slice[d]));
+            merge_dims.push_back(ydot_slice[d]);
         cw = m.insert_instruction(ins, make_op("reshape", {{"dims", merge_dims}}), trans);
     }
     // Flip the filter along the spatial (tap) axes: backward-data is a flipped correlation.
-    std::vector<int64_t> rev_axes(nsp);
-    std::iota(rev_axes.begin(), rev_axes.end(), static_cast<int64_t>(2));
+    std::vector<std::size_t> rev_axes(nsp);
+    std::iota(rev_axes.begin(), rev_axes.end(), 2);
     cw = m.insert_instruction(ins, make_op("reverse", {{"axes", rev_axes}}), cw);
 
     // --- the dense, stride-1 forward convolution (one of the v4r1 "gemms") ---
@@ -292,11 +287,11 @@ instruction_ref reassemble_interleave(module& m,
                                       instruction_ref ins,
                                       const std::vector<instruction_ref>& partials,
                                       const std::vector<dim_info>& dims,
-                                      int64_t n_batch,
-                                      int64_t c_total)
+                                      std::size_t n_batch,
+                                      std::size_t c_total)
 {
-    const std::size_t nsp  = dims.size();
-    const int64_t new_axis = 2 + nsp;
+    const std::size_t nsp      = dims.size();
+    const std::size_t new_axis = 2 + nsp;
     std::vector<instruction_ref> stacked;
     stacked.reserve(partials.size());
     std::transform(partials.begin(), partials.end(), std::back_inserter(stacked), [&](auto p) {
@@ -305,15 +300,15 @@ instruction_ref reassemble_interleave(module& m,
     auto cat = m.insert_instruction(ins, make_op("concat", {{"axis", new_axis}}), stacked);
 
     // [N, C, *Htilda, num_res] -> [N, C, *Htilda, *S]
-    std::vector<int64_t> split_dims{n_batch, c_total};
+    std::vector<std::size_t> split_dims{n_batch, c_total};
     std::transform(dims.begin(),
                    dims.end(),
                    std::back_inserter(split_dims),
-                   [](const dim_info& di) { return static_cast<int64_t>(di.htilda); });
+                   [](const dim_info& di) { return di.htilda; });
     std::transform(dims.begin(),
                    dims.end(),
                    std::back_inserter(split_dims),
-                   [](const dim_info& di) { return static_cast<int64_t>(di.stride); });
+                   [](const dim_info& di) { return di.stride; });
     // For 1-D the concat already has this shape (num_res == stride), so the split is a no-op.
     const auto& cat_lens = cat->get_shape().lens();
     auto split =
@@ -321,23 +316,23 @@ instruction_ref reassemble_interleave(module& m,
             ? cat
             : m.insert_instruction(ins, make_op("reshape", {{"dims", split_dims}}), cat);
     // interleave each Htilda_d with its stride axis: [N, C, H0, S0, H1, S1, ...]
-    std::vector<int64_t> perm{0, 1};
+    std::vector<std::size_t> perm{0, 1};
     for(std::size_t d = 0; d < nsp; ++d)
     {
-        perm.push_back(static_cast<int64_t>(2 + d));
-        perm.push_back(static_cast<int64_t>(2 + nsp + d));
+        perm.push_back(2 + d);
+        perm.push_back(2 + nsp + d);
     }
-    std::vector<int64_t> identity(perm.size());
+    std::vector<std::size_t> identity(perm.size());
     std::iota(identity.begin(), identity.end(), 0);
     auto trans =
         (perm == identity)
             ? split // 1-D: the interleave permutation is a no-op
             : m.insert_instruction(ins, make_op("transpose", {{"permutation", perm}}), split);
-    std::vector<int64_t> merge_dims{n_batch, c_total};
+    std::vector<std::size_t> merge_dims{n_batch, c_total};
     std::transform(dims.begin(),
                    dims.end(),
                    std::back_inserter(merge_dims),
-                   [](const dim_info& di) { return static_cast<int64_t>(di.htilda * di.stride); });
+                   [](const dim_info& di) { return di.htilda * di.stride; });
     return m.insert_instruction(ins, make_op("reshape", {{"dims", merge_dims}}), trans);
 }
 
@@ -359,9 +354,9 @@ instruction_ref reassemble_general(module& m,
                        for(std::size_t d = 0; d < nsp; ++d)
                        {
                            const std::size_t axis = 2 + d;
-                           partial              = zero_stuff(m, ins, partial, axis, dims[d].stride);
-                           const int64_t before = itilda[d] * dims[d].dilation;
-                           const int64_t after =
+                           partial = zero_stuff(m, ins, partial, axis, dims[d].stride);
+                           const std::size_t before = itilda[d] * dims[d].dilation;
+                           const std::size_t after =
                                (dims[d].ytilda - 1 - itilda[d]) * dims[d].dilation;
                            partial = pad_axis(m, ins, partial, axis, before, after);
                        }
@@ -438,28 +433,19 @@ void rewrite_conv_backwards(module& m, instruction_ref ins)
     if(no_upsample)
         acc = res.partials.front();
     else if(interleave)
-        acc = reassemble_interleave(m,
-                                    ins,
-                                    res.partials,
-                                    dims,
-                                    static_cast<int64_t>(dy_lens[0]),
-                                    static_cast<int64_t>(c_pg) * group);
+        acc = reassemble_interleave(m, ins, res.partials, dims, dy_lens[0], c_pg * group);
     else
         acc = reassemble_general(m, ins, res, dims);
 
     // Crop the padding region to produce dx.
     for(std::size_t d = 0; d < nsp; ++d)
     {
-        const int64_t start = padding[d];
-        const int64_t end   = start + static_cast<int64_t>(out_lens[2 + d]);
-        if(start == 0 and end == static_cast<int64_t>(acc->get_shape().lens()[2 + d]))
+        const std::size_t start = padding[d];
+        const std::size_t end   = start + out_lens[2 + d];
+        if(start == 0 and end == acc->get_shape().lens()[2 + d])
             continue; // crop covers the whole axis -> no-op
         acc = m.insert_instruction(
-            ins,
-            make_op(
-                "slice",
-                {{"axes", {static_cast<int64_t>(2 + d)}}, {"starts", {start}}, {"ends", {end}}}),
-            acc);
+            ins, make_op("slice", {{"axes", {2 + d}}, {"starts", {start}}, {"ends", {end}}}), acc);
     }
     m.replace_instruction(ins, acc);
 }
@@ -468,14 +454,12 @@ void rewrite_conv_backwards(module& m, instruction_ref ins)
 
 void rewrite_convolution::apply(module& m) const
 {
-    std::vector<instruction_ref> conv_bwds;
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() == "convolution_backwards")
-            conv_bwds.push_back(ins);
-    }
-    for(auto ins : conv_bwds)
+        if(ins->name() != "convolution_backwards")
+            continue;
         rewrite_conv_backwards(m, ins);
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

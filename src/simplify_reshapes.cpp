@@ -49,6 +49,7 @@
 #include <migraphx/par.hpp>
 
 #include <array>
+#include <functional>
 #include <map>
 #include <numeric>
 #include <set>
@@ -1440,10 +1441,11 @@ struct find_gather_slice_concat
 
         struct run_t
         {
-            std::size_t start_pos;
+            std::size_t gap; // passthrough inputs preceding this run since the last recorded run
             std::vector<std::size_t> rows;
         };
         std::vector<run_t> runs;
+        std::size_t prev_end = 0;
         group_find(
             input_rows.begin(),
             input_rows.end(),
@@ -1453,53 +1455,79 @@ struct find_gather_slice_concat
                 if(run_len < min_run)
                     return;
                 std::size_t start_pos = std::distance(input_rows.begin(), first);
-                runs.push_back({start_pos, std::vector<std::size_t>(first, last)});
+                runs.push_back({start_pos - prev_end, std::vector<std::size_t>(first, last)});
+                prev_end = start_pos + run_len;
             });
 
         if(runs.empty())
             return;
 
+        // Each run consumes its leading passthrough gap plus its own rows, so the inclusive
+        // prefix sum of those spans yields the absolute end position of every run within
+        // all_inputs (and, shifted by one, the start of the next passthrough segment).
+        std::vector<std::size_t> run_ends(runs.size());
+        transform_partial_sum(
+            runs.begin(),
+            runs.end(),
+            run_ends.begin(),
+            std::plus<>{},
+            [](const run_t& r) { return r.gap + r.rows.size(); });
+
         std::vector<std::int64_t> trans_perm(indices_ndim);
         std::iota(trans_perm.begin(), trans_perm.end(), 0);
         std::rotate(trans_perm.begin(), trans_perm.begin() + 1, trans_perm.end());
 
+        // Collapse each run into a single gather+reshape. run_ends[i] is the run's end position
+        // within all_inputs, so run_ends[i] - rows.size() is where its unit slices begin.
+        std::vector<instruction_ref> rewritten(runs.size());
+        std::transform(
+            runs.begin(),
+            runs.end(),
+            run_ends.begin(),
+            rewritten.begin(),
+            [&](const run_t& run, std::size_t run_end) {
+                const std::size_t n     = run.rows.size();
+                const std::size_t start = run_end - n;
+                assert(not run.rows.empty());
+                assert(start < all_inputs.size());
+
+                std::vector<std::int32_t> perm_values(run.rows.begin(), run.rows.end());
+                shape perm_shape{shape::int32_type, {n}};
+                auto perm_lit =
+                    m.add_literal(literal{perm_shape, perm_values.begin(), perm_values.end()});
+
+                auto idx_subset = m.insert_instruction(
+                    concat_ins, make_op("gather", {{"axis", 0}}), indices_ins, perm_lit);
+
+                auto idx_transposed = m.insert_instruction(
+                    concat_ins, make_op("transpose", {{"permutation", trans_perm}}), idx_subset);
+
+                std::int64_t flat_len = batch_stride * n;
+                auto idx_flat         = m.insert_instruction(
+                    concat_ins, make_op("reshape", {{"dims", {flat_len}}}), idx_transposed);
+
+                auto new_gather = m.insert_instruction(
+                    concat_ins, make_op("gather", {{"axis", gather_axis}}), data_ins, idx_flat);
+
+                const auto& unit_lens = all_inputs[start]->get_shape().lens();
+                assert(concat_axis >= 0);
+                std::vector<std::int64_t> target_dims(unit_lens.begin(), unit_lens.end());
+                target_dims[concat_axis] = n * unit_lens[concat_axis];
+
+                return m.insert_instruction(
+                    concat_ins, make_op("reshape", {{"dims", target_dims}}), new_gather);
+            });
+
+        // Splice the rewritten runs back in, preserving the passthrough inputs around each run.
         std::vector<instruction_ref> new_inputs;
         std::size_t pos = 0;
-        for(const auto& run : runs)
+        for(std::size_t i = 0; i < runs.size(); ++i)
         {
-            assert(not run.rows.empty());
-            assert(run.start_pos < all_inputs.size());
-            new_inputs.insert(
-                new_inputs.end(), all_inputs.begin() + pos, all_inputs.begin() + run.start_pos);
-
-            const std::size_t n = run.rows.size();
-            std::vector<std::int32_t> perm_values(run.rows.begin(), run.rows.end());
-            shape perm_shape{shape::int32_type, {n}};
-            auto perm_lit =
-                m.add_literal(literal{perm_shape, perm_values.begin(), perm_values.end()});
-
-            auto idx_subset = m.insert_instruction(
-                concat_ins, make_op("gather", {{"axis", 0}}), indices_ins, perm_lit);
-
-            auto idx_transposed = m.insert_instruction(
-                concat_ins, make_op("transpose", {{"permutation", trans_perm}}), idx_subset);
-
-            std::int64_t flat_len = batch_stride * n;
-            auto idx_flat         = m.insert_instruction(
-                concat_ins, make_op("reshape", {{"dims", {flat_len}}}), idx_transposed);
-
-            auto new_gather = m.insert_instruction(
-                concat_ins, make_op("gather", {{"axis", gather_axis}}), data_ins, idx_flat);
-
-            const auto& unit_lens = all_inputs[run.start_pos]->get_shape().lens();
-            assert(concat_axis >= 0);
-            std::vector<std::int64_t> target_dims(unit_lens.begin(), unit_lens.end());
-            target_dims[concat_axis] = n * unit_lens[concat_axis];
-
-            new_inputs.push_back(m.insert_instruction(
-                concat_ins, make_op("reshape", {{"dims", target_dims}}), new_gather));
-
-            pos = run.start_pos + run.rows.size();
+            new_inputs.insert(new_inputs.end(),
+                              all_inputs.begin() + pos,
+                              all_inputs.begin() + (run_ends[i] - runs[i].rows.size()));
+            new_inputs.push_back(rewritten[i]);
+            pos = run_ends[i];
         }
         new_inputs.insert(new_inputs.end(), all_inputs.begin() + pos, all_inputs.end());
 

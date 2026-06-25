@@ -173,7 +173,9 @@ static std::size_t get_reduce_size(const_module_ref rm)
 {
     auto ins = std::find_if(rm->begin(), rm->end(), &is_reduce);
     assert(ins != rm->end());
-    return ins->inputs().front()->get_shape().elements() / ins->get_shape().elements();
+    return ins->get_shape().dynamic() ? 
+            ins->inputs().front()->get_shape().element_space() / ins->get_shape().element_space() 
+            : ins->inputs().front()->get_shape().elements() / ins->get_shape().elements();
 }
 
 void split_reduce::apply(module_pass_manager& mpm) const

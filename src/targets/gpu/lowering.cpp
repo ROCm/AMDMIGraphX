@@ -637,6 +637,12 @@ struct miopen_apply
     void add_reshape_lazy_op()
     {
         apply_map.emplace("reshape", [=](instruction_ref ins) {
+            // check if reshape dims contains any 0s 
+            auto dims = ins->get_operator().to_value().at("dims");
+            if(std::any_of(dims.begin(), dims.end(), [](auto dim) { return dim == 0 or dim == -1; }))
+            {
+                return ins;
+            }
             std::vector<instruction_ref> before_contiguous_args = ins->inputs();
             auto before_alloc = insert_allocation(ins, std::prev(ins)->get_shape());
             before_contiguous_args.push_back(before_alloc);

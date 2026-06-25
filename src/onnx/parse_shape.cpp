@@ -74,8 +74,14 @@ struct parse_shape : op_parser<parse_shape>
 
         if(input_shape.dynamic())
         {
-            return info.add_instruction(make_op("dimensions_of", {{"start", start}, {"end", end}}),
-                                        args[0]);
+            std::size_t output_ndim = end - start;
+            auto dyn_dims = input_shape.dyn_dims();
+            // create a literal where non-static dimensions are set to -1
+            std::vector<int64_t> vec_shape(dyn_dims.size());
+            std::transform(dyn_dims.begin(), dyn_dims.end(), vec_shape.begin(), [](const auto& dd) {
+                return dd.is_fixed() ? dd.get_interval().max : -1;
+            });
+            return info.add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {output_ndim}}, vec_shape});
         }
         else
         {

@@ -55,7 +55,7 @@ struct reshape_lazy
         const auto& dyn_dims = s0.dyn_dims();
         auto num_not_fixed   = std::count_if(
             dyn_dims.cbegin(), dyn_dims.cend(), [](const auto& dd) { return not dd.is_fixed(); });
-        if(num_not_fixed != 1)
+        if(num_not_fixed > 1)
         {
             MIGRAPHX_THROW(
                 "reshape_lazy: Only supports one non-fixed dynamic_dimension but input {" +
@@ -64,21 +64,25 @@ struct reshape_lazy
         // track number of fixed elements in input and output
         std::size_t num_dims_ele = 1;
         std::size_t num_dd_ele   = 1;
-        for(std::size_t i = 0; i < dyn_dims.size(); ++i)
+        auto max_dims = std::max(dims.size(), dyn_dims.size());
+        for(std::size_t i = 0; i < max_dims; ++i)
         {
-            if(dyn_dims[i].is_fixed())
-            {
-                num_dims_ele *= std::get<int64_t>(dims[i]);
-                num_dd_ele *= dyn_dims[i].get_interval().min;
-            }
-            else
-            {
-                if(dims[i] != dim_like{0} and dims[i] != dim_like{-1})
+            if(i < dims.size())
+                num_dims_ele *= dims[i];
+            if(i < dyn_dims.size())
+            {                
+                if(dyn_dims[i].is_fixed())
                 {
-                    MIGRAPHX_THROW(
-                        "reshape_lazy: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
-                        "output dimension");
+                    num_dd_ele *= dyn_dims[i].get_interval().min;
                 }
+                else
+                {
+                    if(dims[i] != dim_like{0} and dims[i] != dim_like{-1})
+                    {
+                        MIGRAPHX_THROW(
+                            "reshape_lazy: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
+                            "output dimension");
+                    }
             }
         }
         if(num_dims_ele != num_dd_ele)
@@ -88,16 +92,21 @@ struct reshape_lazy
         }
         // construct output dynamic shape from dims attribute
         std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
-        std::transform(dims.cbegin(),
-                       dims.cend(),
-                       dyn_dims.cbegin(),
-                       output_dyn_dims.begin(),
-                       [](const dim_like& d, auto dyn_dim) {
-                           if(not dyn_dim.is_fixed())
-                               return dyn_dim;
-                           std::size_t dim = std::get<int64_t>(d);
-                           return shape::dynamic_dimension{dim, dim};
-                       });
+        // avoid out of bounds access
+        for(std::size_t i = 0; i < dims.size(); i++)
+        {
+            if(i < dyn_dims.size())
+            {
+                if(dyn_dims[i].is_fixed())
+                {
+                    output_dyn_dims[i] = shape::dynamic_dimension{static_cast<std::size_t>(dims[i]), static_cast<std::size_t>(dims[i])};
+                }
+            }
+            else
+            {
+                output_dyn_dims[i] = shape::dynamic_dimension{static_cast<std::size_t>(dims[i]), static_cast<std::size_t>(dims[i])};
+            }
+        }
         return {s0.type(), output_dyn_dims};
     }
 

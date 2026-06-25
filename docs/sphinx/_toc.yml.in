@@ -21,6 +21,8 @@ subtrees:
           - file: reference/MIGraphX-cpp
           - file: reference/MIGraphX-py
           - file: dev/onnx_operators
+    - file: reference/MIGraphX-data-type-support
+      title: Precision support
     - file: reference/MIGraphX-dev-reference
       subtrees:
         - entries:

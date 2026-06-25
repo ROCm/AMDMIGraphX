@@ -35,7 +35,9 @@ The public repository is located at `https://github.com/ROCm/torch_migraphx/ <ht
       * :ref:`cpp-api-reference`
       * :ref:`python-api-reference`
       * :doc:`Supported ONNX Operators <./dev/onnx_operators>`
-   
+
+    * :doc:`Precision support <./reference/MIGraphX-data-type-support>`
+
     * :doc:`MIGraphX contributor reference <./reference/MIGraphX-dev-reference>`
    
       * :doc:`Environment variables <./reference/MIGraphX-dev-env-vars>`

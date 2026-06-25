@@ -303,7 +303,8 @@ struct find_op_shape_transform_op
                 auto ndim            = ins->inputs().front()->get_shape().ndim();
                 auto op_axis         = axis_val < 0 ? axis_val + ndim : axis_val;
                 const auto& new_axes = am.at(op_axis);
-                v["axis"]            = new_axes.front();
+                assert(new_axes.size() == 1);
+                v["axis"] = new_axes.front();
                 return m.insert_instruction(
                     ins, make_op(ins->name(), v), inputs, ins->module_inputs());
             }
@@ -334,7 +335,7 @@ struct find_op_shape_transform_op
         return m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
     }
 
-    // argmin/argmax reduce a single axis; it must map to exactly one common axis
+    // argmin/argmax reduce a single axis; it must be in range and map to exactly one common axis
     static bool argmax_axis_unsplit(instruction_ref ins,
                                     const std::vector<std::vector<std::size_t>>& axes_map)
     {
@@ -342,7 +343,7 @@ struct find_op_shape_transform_op
         auto axis_val = v.at("axis").to<int64_t>();
         auto ndim     = ins->inputs().front()->get_shape().ndim();
         auto axis     = axis_val < 0 ? axis_val + ndim : axis_val;
-        return axis >= axes_map.size() or axes_map[axis].size() == 1;
+        return axis < axes_map.size() and axes_map[axis].size() == 1;
     }
 
     static bool is_valid(instruction_ref ins, const shape_transform_descriptor& desc)

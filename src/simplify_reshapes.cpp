@@ -946,6 +946,29 @@ struct find_concat_reshape
         int64_t n_dim = reshapes.front()->get_shape().lens().size();
         auto axis     = tune_axis(n_dim, op.axis, op.name());
 
+        // Special case: concat(unsqueeze(x_i, 0), ..., axis=0). The axis mapping
+        // below can't canonicalize this (the inserted unit dim mismatches the
+        // pre/post products), so concat the pre-unsqueeze inputs along axis 0 and
+        // reshape to the output. Leading axis only to leave interior forms alone.
+        if(axis == 0 and std::all_of(reshapes.begin(), reshapes.end(), [&](instruction_ref r) {
+               if(r->name() != "unsqueeze")
+                   return false;
+               auto uaxes = r->get_operator().to_value()["axes"].to_vector<int64_t>();
+               return uaxes.size() == 1 and tune_axis(n_dim, uaxes.front(), r->name()) == 0;
+           }))
+        {
+            std::vector<instruction_ref> unsq_inputs;
+            std::transform(reshapes.begin(),
+                           reshapes.end(),
+                           std::back_inserter(unsq_inputs),
+                           [&](instruction_ref i) { return i->inputs().front(); });
+            auto new_concat =
+                m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), unsq_inputs);
+            m.replace_instruction(
+                ins, make_op("reshape", {{"dims", concat_shape.lens()}}), new_concat);
+            return;
+        }
+
         auto predims  = std::accumulate(concat_shape.lens().begin(),
                                        concat_shape.lens().begin() + axis,
                                        std::size_t{1},

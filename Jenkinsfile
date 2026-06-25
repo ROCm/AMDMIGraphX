@@ -445,7 +445,7 @@ pipeline {
 
                 stage('HIP RTC Debug') {
                     agent {
-                        label rocmnodename('mi200+')
+                        label rocmnodename('mi100+')
                     }
                     environment {
                         // Disable MLIR since it doesnt work with all ub sanitizers

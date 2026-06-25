@@ -48,12 +48,12 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/par.hpp>
 
-#include <algorithm>
 #include <array>
 #include <map>
 #include <numeric>
 #include <set>
 #include <limits>
+#include <optional>
 #include <tuple>
 #include <utility>
 #include <variant>
@@ -1827,26 +1827,22 @@ struct find_flatten
 using pw_chain_sig = std::vector<std::tuple<std::string, std::size_t, std::size_t>>;
 
 // Check that every non-chain input is either the chain source (start),
-// the current node, or a scalar constant (safely broadcastable to any
-// shape).  Returns false if any input would cause a shape mismatch
+// the current node, or a single-element/scalar shape (safely broadcastable
+// to any shape).  Returns false if any input would cause a shape mismatch
 // when the chain is replayed on a wider bounding slice.
-static bool validate_non_chain_inputs(const std::vector<instruction_ref>& inputs,
-                                      std::size_t chain_idx,
-                                      instruction_ref start,
-                                      instruction_ref current)
+bool validate_non_chain_inputs(const std::vector<instruction_ref>& inputs,
+                               std::size_t chain_idx,
+                               instruction_ref start,
+                               instruction_ref current)
 {
-    for(std::size_t j = 0; j < inputs.size(); ++j)
-    {
-        if(j == chain_idx)
-            continue;
-        auto inp = inputs[j];
-        if(inp == start or inp == current)
-            continue;
-        if(inp->get_shape().scalar() or inp->get_shape().elements() == 1)
-            continue;
-        return false;
-    }
-    return true;
+    // The chain input itself (inputs[chain_idx]) is always fine; every other
+    // input must be the source, the current node, or broadcastable to any shape.
+    auto widenable = [&](instruction_ref inp) {
+        return inp == start or inp == current or inp->get_shape().scalar() or
+               inp->get_shape().elements() == 1;
+    };
+    return std::all_of(inputs.begin(), inputs.begin() + chain_idx, widenable) and
+           std::all_of(inputs.begin() + chain_idx + 1, inputs.end(), widenable);
 }
 
 // Walk a pointwise chain from `start` and return the signature plus
@@ -1854,10 +1850,25 @@ static bool validate_non_chain_inputs(const std::vector<instruction_ref>& inputs
 // consumer) and diamond patterns where `current` has exactly two
 // outputs that converge to a single pointwise merge (e.g. SiLU:
 // slice -> sigmoid -> mul(slice, sigmoid)).
-static std::pair<pw_chain_sig, instruction_ref> trace_pw_chain(instruction_ref start)
+std::pair<pw_chain_sig, instruction_ref> trace_pw_chain(instruction_ref start)
 {
     pw_chain_sig sig;
     auto current = start;
+
+    // Locate `chain_input` among `node`'s inputs and, if the remaining inputs
+    // are safe to widen, return the recorded step (op_name, num_inputs, index).
+    auto check = [&](instruction_ref node, instruction_ref chain_input)
+        -> std::optional<pw_chain_sig::value_type> {
+        const auto& inputs = node->inputs();
+        auto it            = std::find(inputs.begin(), inputs.end(), chain_input);
+        if(it == inputs.end())
+            return std::nullopt;
+        auto idx = std::distance(inputs.begin(), it);
+        if(not validate_non_chain_inputs(inputs, idx, start, current))
+            return std::nullopt;
+        return std::make_tuple(node->name(), inputs.size(), idx);
+    };
+
     for(;;)
     {
         const auto& outs = current->outputs();
@@ -1866,14 +1877,10 @@ static std::pair<pw_chain_sig, instruction_ref> trace_pw_chain(instruction_ref s
             auto next = outs.front();
             if(not next->get_operator().attributes().contains("pointwise"))
                 break;
-            const auto& ins_inputs = next->inputs();
-            auto it                = std::find(ins_inputs.begin(), ins_inputs.end(), current);
-            if(it == ins_inputs.end())
+            auto step = check(next, current);
+            if(not step)
                 break;
-            auto chain_idx = static_cast<std::size_t>(std::distance(ins_inputs.begin(), it));
-            if(not validate_non_chain_inputs(ins_inputs, chain_idx, start, current))
-                break;
-            sig.emplace_back(next->name(), ins_inputs.size(), chain_idx);
+            sig.push_back(*step);
             current = next;
         }
         else if(outs.size() == 2)
@@ -1904,27 +1911,17 @@ static std::pair<pw_chain_sig, instruction_ref> trace_pw_chain(instruction_ref s
                not merge->get_operator().attributes().contains("pointwise"))
                 break;
 
-            // Validate and record the intermediate op
-            const auto& int_inputs = intermediate->inputs();
-            auto int_it            = std::find(int_inputs.begin(), int_inputs.end(), current);
-            if(int_it == int_inputs.end())
+            // The chain flows current -> intermediate -> merge; only record
+            // anything if both steps pass (all-or-nothing for the diamond).
+            auto int_step = check(intermediate, current);
+            if(not int_step)
                 break;
-            auto int_idx = static_cast<std::size_t>(std::distance(int_inputs.begin(), int_it));
-            if(not validate_non_chain_inputs(int_inputs, int_idx, start, current))
-                break;
-
-            // Validate and record the merge op (chain flows through
-            // intermediate; other inputs must be start/current/scalar)
-            const auto& mrg_inputs = merge->inputs();
-            auto mrg_it            = std::find(mrg_inputs.begin(), mrg_inputs.end(), intermediate);
-            if(mrg_it == mrg_inputs.end())
-                break;
-            auto mrg_idx = static_cast<std::size_t>(std::distance(mrg_inputs.begin(), mrg_it));
-            if(not validate_non_chain_inputs(mrg_inputs, mrg_idx, start, current))
+            auto mrg_step = check(merge, intermediate);
+            if(not mrg_step)
                 break;
 
-            sig.emplace_back(intermediate->name(), int_inputs.size(), int_idx);
-            sig.emplace_back(merge->name(), mrg_inputs.size(), mrg_idx);
+            sig.push_back(*int_step);
+            sig.push_back(*mrg_step);
             current = merge;
         }
         else
@@ -1935,13 +1932,157 @@ static std::pair<pw_chain_sig, instruction_ref> trace_pw_chain(instruction_ref s
     return {sig, current};
 }
 
-// Hoist a pointwise (or SiLU diamond) chain that is replicated across
-// several sibling slices of the same instruction above the slices: the
-// chain is computed once on the bounding slice, then each consumer reads
-// its sub-range back out.  This exposes a single wide pointwise op (which
-// downstream passes such as find_splits can recombine with batched dots)
-// instead of N identical narrow ones.
-static void hoist_pointwise_above_slices(module& m)
+// Sibling slices of one instruction grouped by (single axis, slice width, the
+// pointwise chain hanging off each slice).  Slices sharing a key can have that
+// chain computed once on a shared bounding slice.
+struct slice_group_key
+{
+    int64_t axis;
+    int64_t width;
+    pw_chain_sig sig;
+    bool operator==(const slice_group_key& o) const
+    {
+        return axis == o.axis and width == o.width and sig == o.sig;
+    }
+};
+struct slice_entry
+{
+    instruction_ref slice_ins;
+    instruction_ref terminal;
+    int64_t start;
+    int64_t end;
+};
+
+// Group the sibling slice consumers of `ins` whose unit-axis pointwise chains
+// match.  Returns empty if fewer than two slices qualify.
+std::vector<std::pair<slice_group_key, std::vector<slice_entry>>>
+group_sibling_slices(instruction_ref ins)
+{
+    std::vector<std::pair<slice_group_key, std::vector<slice_entry>>> groups;
+    const auto& outs = ins->outputs();
+    std::vector<instruction_ref> slice_outs;
+    std::copy_if(outs.begin(), outs.end(), std::back_inserter(slice_outs), [](auto o) {
+        return o->name() == "slice";
+    });
+    if(slice_outs.size() < 2)
+        return groups;
+
+    for(auto s : slice_outs)
+    {
+        auto sv   = s->get_operator().to_value();
+        auto axes = sv.at("axes").to_vector<int64_t>();
+        if(axes.size() != 1)
+            continue;
+        auto starts = sv.at("starts").to_vector<int64_t>();
+        auto ends   = sv.at("ends").to_vector<int64_t>();
+        // A slice op keeps axes/starts/ends parallel.
+        assert(starts.size() == axes.size() and ends.size() == axes.size());
+        auto [sig, terminal] = trace_pw_chain(s);
+        // terminal == s exactly when sig is empty, so the empty check already
+        // excludes the no-chain case.
+        if(sig.empty() or terminal->outputs().empty())
+            continue;
+
+        slice_group_key key{axes.front(), ends.front() - starts.front(), sig};
+        slice_entry entry{s, terminal, starts.front(), ends.front()};
+        auto git = std::find_if(
+            groups.begin(), groups.end(), [&](const auto& g) { return g.first == key; });
+        if(git != groups.end())
+            git->second.push_back(entry);
+        else
+            groups.push_back({key, {entry}});
+    }
+    return groups;
+}
+
+// Replay the pointwise chain described by `sig` onto `big_slice`, using the
+// chain hanging off `first_slice` as the template, and return its terminal.
+instruction_ref replay_pw_chain(module& m,
+                                       instruction_ref ip,
+                                       instruction_ref big_slice,
+                                       instruction_ref first_slice,
+                                       const pw_chain_sig& sig)
+{
+    auto chain_input  = big_slice;
+    auto template_ins = first_slice;
+    for(const auto& [op_name, n_inputs, chain_idx] : sig)
+    {
+        // Navigate to the correct template output -- may differ from front() in
+        // diamond patterns with multiple outputs.  The signature was built from
+        // this chain, so a match must exist.  (alias avoids capturing a
+        // structured binding in the lambda)
+        const std::string& name = op_name;
+        const auto& tmpl_outs   = template_ins->outputs();
+        auto tmpl_it            = std::find_if(
+            tmpl_outs.begin(), tmpl_outs.end(), [&](auto out) { return out->name() == name; });
+        assert(tmpl_it != tmpl_outs.end());
+        auto tmpl = *tmpl_it;
+        assert(tmpl->inputs().size() == n_inputs);
+        std::vector<instruction_ref> new_inputs(n_inputs);
+        for(std::size_t j = 0; j < n_inputs; ++j)
+        {
+            if(j == chain_idx)
+                new_inputs[j] = chain_input;
+            else if(tmpl->inputs()[j] == first_slice)
+                new_inputs[j] = big_slice;
+            else
+                new_inputs[j] = tmpl->inputs()[j];
+        }
+        chain_input =
+            m.insert_instruction(ip, make_op(op_name, tmpl->get_operator().to_value()), new_inputs);
+        template_ins = tmpl;
+    }
+    return chain_input;
+}
+
+// Hoist one matching slice group: compute its chain once on the bounding slice
+// and replace each terminal with a sub-slice of the result.  Returns false when
+// the group is too small or the slices do not exactly tile their bounding range
+// (a gap would compute the chain over elements no consumer needs).
+bool hoist_slice_group(module& m,
+                              instruction_ref ins,
+                              const slice_group_key& key,
+                              const std::vector<slice_entry>& entries)
+{
+    if(entries.size() < 2)
+        return false;
+
+    int64_t lo          = entries.front().start;
+    int64_t hi          = entries.front().end;
+    int64_t total_width = 0;
+    for(const auto& e : entries)
+    {
+        lo = std::min(lo, e.start);
+        hi = std::max(hi, e.end);
+        total_width += (e.end - e.start);
+    }
+    if(total_width != hi - lo)
+        return false;
+
+    auto ip        = std::next(ins);
+    auto big_slice = m.insert_instruction(
+        ip, make_op("slice", {{"axes", {key.axis}}, {"starts", {lo}}, {"ends", {hi}}}), ins);
+    auto chain_input = replay_pw_chain(m, ip, big_slice, entries.front().slice_ins, key.sig);
+
+    for(const auto& e : entries)
+    {
+        auto new_sub = m.insert_instruction(
+            e.terminal,
+            make_op("slice",
+                    {{"axes", {key.axis}}, {"starts", {e.start - lo}}, {"ends", {e.end - lo}}}),
+            chain_input);
+        m.replace_instruction(e.terminal, new_sub);
+    }
+    return true;
+}
+
+// Hoist a pointwise (or SiLU diamond) chain that is replicated across several
+// sibling slices of the same instruction above the slices: the chain is
+// computed once on the bounding slice, then each consumer reads its sub-range
+// back out.  This exposes a single wide pointwise op (which downstream passes
+// such as find_splits can recombine with batched dots) instead of N identical
+// narrow ones.
+void hoist_pointwise_above_slices(module& m)
 {
     bool changed = true;
     while(changed)
@@ -1949,141 +2090,13 @@ static void hoist_pointwise_above_slices(module& m)
         changed = false;
         for(auto ins : iterator_for(m))
         {
-            // Collect slice consumers of this instruction
-            auto outs = ins->outputs();
-            std::vector<instruction_ref> slice_outs;
-            std::copy_if(outs.begin(), outs.end(), std::back_inserter(slice_outs), [](auto o) {
-                return o->name() == "slice";
-            });
-            if(slice_outs.size() < 2)
-                continue;
-
-            // Group slices by (single axis, slice width, pw chain signature)
-            struct slice_group_key
+            for(const auto& [key, entries] : group_sibling_slices(ins))
             {
-                int64_t axis;
-                int64_t width;
-                pw_chain_sig sig;
-                bool operator==(const slice_group_key& o) const
+                if(hoist_slice_group(m, ins, key, entries))
                 {
-                    return axis == o.axis and width == o.width and sig == o.sig;
+                    changed = true;
+                    break;
                 }
-            };
-            struct slice_entry
-            {
-                instruction_ref slice_ins;
-                instruction_ref terminal;
-                int64_t start;
-                int64_t end;
-            };
-            std::vector<std::pair<slice_group_key, std::vector<slice_entry>>> groups;
-
-            for(auto s : slice_outs)
-            {
-                auto sv   = s->get_operator().to_value();
-                auto axes = sv.at("axes").to_vector<int64_t>();
-                if(axes.size() != 1)
-                    continue;
-                auto starts = sv.at("starts").to_vector<int64_t>();
-                auto ends   = sv.at("ends").to_vector<int64_t>();
-                auto [sig, terminal] = trace_pw_chain(s);
-                if(sig.empty())
-                    continue;
-                if(terminal == s)
-                    continue;
-                if(terminal->outputs().empty())
-                    continue;
-
-                slice_group_key key{axes.front(), ends.front() - starts.front(), sig};
-                slice_entry entry{s, terminal, starts.front(), ends.front()};
-
-                auto git = std::find_if(
-                    groups.begin(), groups.end(), [&](auto& g) { return g.first == key; });
-                if(git != groups.end())
-                    git->second.push_back(entry);
-                else
-                    groups.push_back({key, {entry}});
-            }
-
-            for(auto& [key, entries] : groups)
-            {
-                if(entries.size() < 2)
-                    continue;
-
-                // Compute bounding range
-                int64_t lo          = entries.front().start;
-                int64_t hi          = entries.front().end;
-                int64_t total_width = 0;
-                for(auto& e : entries)
-                {
-                    lo = std::min(lo, e.start);
-                    hi = std::max(hi, e.end);
-                    total_width += (e.end - e.start);
-                }
-
-                // Only hoist when the slices exactly tile the bounding
-                // range -- gaps mean we'd compute the pointwise chain
-                // over elements that no consumer needs.
-                if(total_width != hi - lo)
-                    continue;
-
-                // Insert after the source instruction
-                auto ip = std::next(ins);
-
-                // Create the bounding slice
-                auto big_slice = m.insert_instruction(
-                    ip,
-                    make_op("slice", {{"axes", {key.axis}}, {"starts", {lo}}, {"ends", {hi}}}),
-                    ins);
-
-                // Replay the pointwise chain on the big slice.
-                // Use the first entry's chain as the template.
-                auto first_slice  = entries.front().slice_ins;
-                auto chain_input  = big_slice;
-                auto template_ins = first_slice;
-                for(auto& [op_name, n_inputs, chain_idx] : key.sig)
-                {
-                    // Navigate to the correct template output -- may
-                    // differ from front() in diamond patterns where
-                    // template_ins has multiple outputs.
-                    auto tmpl = template_ins->outputs().front();
-                    for(auto out : template_ins->outputs())
-                    {
-                        if(out->name() == op_name)
-                        {
-                            tmpl = out;
-                            break;
-                        }
-                    }
-                    std::vector<instruction_ref> new_inputs(n_inputs);
-                    for(std::size_t j = 0; j < n_inputs; ++j)
-                    {
-                        if(j == chain_idx)
-                            new_inputs[j] = chain_input;
-                        else if(tmpl->inputs()[j] == first_slice)
-                            new_inputs[j] = big_slice;
-                        else
-                            new_inputs[j] = tmpl->inputs()[j];
-                    }
-                    chain_input = m.insert_instruction(
-                        ip, make_op(op_name, tmpl->get_operator().to_value()), new_inputs);
-                    template_ins = tmpl;
-                }
-
-                // Replace each original terminal with a sub-slice of chain_input
-                for(auto& e : entries)
-                {
-                    auto new_sub = m.insert_instruction(
-                        e.terminal,
-                        make_op("slice",
-                                {{"axes", {key.axis}},
-                                 {"starts", {e.start - lo}},
-                                 {"ends", {e.end - lo}}}),
-                        chain_input);
-                    m.replace_instruction(e.terminal, new_sub);
-                }
-                changed = true;
-                break;
             }
             if(changed)
                 break;

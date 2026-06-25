@@ -412,10 +412,9 @@ struct dot_horizontal_fusion
         std::vector<instruction_ref> results(dots.size());
         for(std::size_t i = 0; i < dots.size(); ++i)
         {
-            auto idx    = static_cast<int64_t>(i);
             auto sliced = m.insert_instruction(
                 insert_pt,
-                make_op("slice", {{"axes", {0}}, {"starts", {idx}}, {"ends", {idx + 1}}}),
+                make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
                 batched_dot);
             results[i] =
                 m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced);

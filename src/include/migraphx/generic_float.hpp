@@ -295,7 +295,7 @@ struct __attribute__((packed, may_alias)) generic_float
     }
 // NOLINTNEXTLINE
 #define MIGRAPHX_GENERIC_FLOAT_ASSIGN_OP(op)                       \
-    constexpr generic_float& operator op(const generic_float & rhs) \
+    constexpr generic_float& operator op(const generic_float& rhs) \
     {                                                              \
         float self = *this;                                        \
         float frhs = rhs;                                          \

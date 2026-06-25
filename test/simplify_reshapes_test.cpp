@@ -5038,6 +5038,24 @@ TEST_CASE(argmax_negative_axis_squeeze_pointwise)
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
 }
 
+TEST_CASE(argmax_reshape_splits_reduction_axis)
+{
+    // reshape splits the argmax reduction axis; rewriting would squeeze on a non-1 axis
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3, 4}};
+    migraphx::module m1;
+    {
+        auto x       = m1.add_parameter("x", s);
+        auto relu    = m1.add_instruction(migraphx::make_op("relu"), x);
+        auto reshape = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), relu);
+        auto argmax  = m1.add_instruction(migraphx::make_op("argmax", {{"axis", 0}}), reshape);
+        auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), argmax);
+        m1.add_return({squeeze});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(gather_strided_view_elements_mismatch)
 {
     migraphx::module m1;

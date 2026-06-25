@@ -303,9 +303,7 @@ struct find_op_shape_transform_op
                 auto ndim            = ins->inputs().front()->get_shape().ndim();
                 auto op_axis         = axis_val < 0 ? axis_val + ndim : axis_val;
                 const auto& new_axes = am.at(op_axis);
-                // is_valid ensures single axis mapping for argmin/argmax
-                assert(new_axes.size() == 1);
-                v["axis"] = new_axes.front();
+                v["axis"]            = new_axes.front();
                 return m.insert_instruction(
                     ins, make_op(ins->name(), v), inputs, ins->module_inputs());
             }
@@ -336,6 +334,17 @@ struct find_op_shape_transform_op
         return m.insert_instruction(ins, ins->get_operator(), inputs, ins->module_inputs());
     }
 
+    // argmin/argmax reduce a single axis; it must map to exactly one common axis
+    static bool argmax_axis_unsplit(instruction_ref ins,
+                                    const std::vector<std::vector<std::size_t>>& axes_map)
+    {
+        auto v        = ins->get_operator().to_value();
+        auto axis_val = v.at("axis").to<int64_t>();
+        auto ndim     = ins->inputs().front()->get_shape().ndim();
+        auto axis     = axis_val < 0 ? axis_val + ndim : axis_val;
+        return axis >= axes_map.size() or axes_map[axis].size() == 1;
+    }
+
     static bool is_valid(instruction_ref ins, const shape_transform_descriptor& desc)
     {
         if(is_reduce(ins))
@@ -349,9 +358,7 @@ struct find_op_shape_transform_op
                 auto ndim     = ins->inputs().front()->get_shape().ndim();
                 auto axis     = axis_val < 0 ? axis_val + ndim : axis_val;
                 op_axes       = {static_cast<std::size_t>(axis)};
-                // argmin/argmax only support single axis
-                auto axes_map = desc.common_axes_map_from_src();
-                if(axis < axes_map.size() and axes_map[axis].size() != 1)
+                if(not argmax_axis_unsplit(ins, desc.common_axes_map_from_src()))
                     return false;
             }
             else
@@ -453,6 +460,11 @@ struct find_op_shape_transform_op
             return;
 
         if(not is_valid(x_ins, desc))
+            return;
+
+        // ins is remapped via the dst map; bail if its argmin/argmax axis splits
+        if(is_reduce(ins) and ins->get_operator().to_value().contains("axis") and
+           not argmax_axis_unsplit(ins, desc.common_axes_map_from_dst()))
             return;
 
         // If we already in the common dimension space then skip if there are other outputs to avoid

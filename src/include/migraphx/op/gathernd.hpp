@@ -60,8 +60,9 @@ struct gathernd
             // the rank of the output is a function of k, so it must be fixed.
             if(not i_shape.dyn_dims().back().is_fixed())
             {
-                MIGRAPHX_THROW(
-                    "GATHERND: last dimension of indices tensor must be fixed (min=max)");
+                MIGRAPHX_THROW("GATHERND: last dimension of indices tensor must be fixed (min=max) "
+                               "but is " +
+                               to_string(i_shape.dyn_dims().back()));
             }
             k = i_shape.dyn_dims().back().get_interval().min;
         }
@@ -81,7 +82,8 @@ struct gathernd
         if(batch_dims >= q or batch_dims >= r)
         {
             MIGRAPHX_THROW("GATHERND: rank of an input cannot be less than batch_dims=" +
-                           std::to_string(batch_dims));
+                           to_string(batch_dims) + " (indices rank " + to_string(q) +
+                           ", data rank " + to_string(r) + ")");
         }
 
         if(output_ndim < 0)

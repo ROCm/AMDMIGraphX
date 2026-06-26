@@ -95,6 +95,7 @@ struct logger_options
 {
     std::string log_level;
     std::vector<std::string> log_files;
+    bool log_to_cout = false;
 
     void parse(migraphx::driver::argument_parser& ap)
     {
@@ -118,11 +119,26 @@ struct logger_options
            ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
            ap.append(),
            ap.nargs(2));
+        ap(log_to_cout,
+           {"--log-stdout"},
+           ap.help("Send info logs to std::cout, keeping warnings and errors on std::cerr"),
+           ap.set_value(true));
         ap.post_action([this](auto&&) { this->apply(); });
     }
 
-    void apply() const
+    void add_cout_sink()
     {
+        migraphx::log::set_severity(
+            migraphx::log::severity::warn); // sets the severity of default (stderr) sink to warn
+        migraphx::log::add_sink(migraphx::log::make_io_sink(std::cout));
+    }
+
+    void apply()
+    {
+        if(log_to_cout)
+        {
+            add_cout_sink();
+        }
         if(not log_level.empty())
         {
             auto level = parse_log_level_string(log_level);
@@ -310,6 +326,21 @@ struct loader
         return map_input_dims;
     }
 
+    static migraphx::shape::dynamic_dimension parse_dyn_dim_object(const migraphx::value& x)
+    {
+        // Accept the legacy JSON form {min, max, optimals:[...]}
+        if(x.contains("min") and x.contains("max"))
+        {
+            auto mn = x.at("min").to<std::size_t>();
+            auto mx = x.at("max").to<std::size_t>();
+            std::set<std::size_t> opt;
+            if(x.contains("optimals"))
+                opt = migraphx::from_value<std::set<std::size_t>>(x.at("optimals"));
+            return migraphx::shape::dynamic_dimension{mn, mx, opt};
+        }
+        return migraphx::from_value<migraphx::shape::dynamic_dimension>(x);
+    }
+
     static auto parse_dyn_dims_json(const std::string& dd_json)
     {
         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
@@ -317,7 +348,7 @@ struct loader
         std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
         std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](const auto& x) {
             if(x.is_object())
-                return from_value<migraphx::shape::dynamic_dimension>(x);
+                return parse_dyn_dim_object(x);
             auto d = x.template to<std::size_t>();
             return migraphx::shape::dynamic_dimension{d, d};
         });
@@ -409,7 +440,7 @@ struct loader
         else
         {
             auto v                        = from_json_string(convert_to_json(default_dyn_dim));
-            options.default_dyn_dim_value = from_value<migraphx::shape::dynamic_dimension>(v);
+            options.default_dyn_dim_value = parse_dyn_dim_object(v);
             options.default_set           = true;
         }
         options.skip_unknown_operators = skip_unknown_operators;
@@ -669,6 +700,7 @@ struct compiler_target
     std::string gpu_arch         = {};
     std::size_t gpu_num_cu       = 120;
     std::size_t gpu_num_chiplets = 1;
+    std::string gpu_arch_params  = {};
 
     void parse(argument_parser& ap)
     {
@@ -690,16 +722,53 @@ struct compiler_target
            {"--gpu-num-chiplets"},
            ap.help("Number of chiplets (XCCs) to assume for cross-compilation. "
                    "Only used when --gpu-arch is set."));
+        ap(gpu_arch_params,
+           {"--gpu-arch-params"},
+           ap.help("Device properties to assume for cross-compilation, as a JSON object "
+                   "(format: \"{arch:gfx942, num_cu:120, num_chiplets:1, "
+                   "max_threads_per_cu:2048, max_threads_per_block:1024}\"). Overrides "
+                   "--gpu-arch, --gpu-num-cus and --gpu-num-chiplets for any keys present."));
+    }
+
+    static const std::unordered_map<std::string, std::string>& gpu_arch_param_keys()
+    {
+        static const std::unordered_map<std::string, std::string> key_map = {
+            {"arch", "gpu_arch"},
+            {"num_cu", "gpu_num_cu"},
+            {"num_chiplets", "gpu_num_chiplets"},
+            {"max_threads_per_cu", "gpu_max_threads_per_cu"},
+            {"max_threads_per_block", "gpu_max_threads_per_block"}};
+        return key_map;
     }
 
     target get_target() const
     {
-        if(target_name == "gpu" and not gpu_arch.empty())
+        if(target_name == "gpu")
         {
-            return make_target(target_name,
-                               {{"gpu_arch", gpu_arch},
-                                {"gpu_num_cu", gpu_num_cu},
-                                {"gpu_num_chiplets", gpu_num_chiplets}});
+            migraphx::value opts = {{"gpu_arch", gpu_arch},
+                                    {"gpu_num_cu", gpu_num_cu},
+                                    {"gpu_num_chiplets", gpu_num_chiplets}};
+            if(not gpu_arch_params.empty())
+            {
+                const auto& key_map = gpu_arch_param_keys();
+                auto parsed         = from_json_string(convert_to_json(gpu_arch_params));
+                if(not parsed.is_object())
+                    MIGRAPHX_THROW("--gpu-arch-params must be a JSON object");
+                for(const auto& param : parsed)
+                {
+                    auto it = key_map.find(param.get_key());
+                    if(it == key_map.end())
+                        MIGRAPHX_THROW("Unknown --gpu-arch-params key: " + param.get_key());
+                    if(it->second == "gpu_arch")
+                        opts[it->second] = param.without_key().to<std::string>();
+                    else
+                        opts[it->second] = param.without_key().to<std::size_t>();
+                }
+            }
+            // Cross-compile only when an arch is provided, via --gpu-arch or the
+            // arch key in --gpu-arch-params.
+            if(not opts.at("gpu_arch").to<std::string>().empty())
+                return make_target(target_name, opts);
         }
         return make_target(target_name);
     }
@@ -1178,18 +1247,11 @@ int main(int argc, const char* argv[], const char* envp[])
         logger_options log_opts;
         log_opts.parse(ap);
 
-        // Needed so that the first two lines printed follow the log level set
-        auto it = std::find(args.begin(), args.end(), "--log-level");
-        if(it != args.end() and std::next(it) != args.end())
-        {
-            auto level = logger_options::parse_log_level_string(*std::next(it));
-            if(level)
-                migraphx::log::set_severity(*level);
-        }
-
         std::string driver_invocation =
             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
-        migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
+        ap.post_action([driver_invocation](auto&&) {
+            migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
+        });
 
         auto start_time = std::chrono::system_clock::now();
 

@@ -2,7 +2,7 @@ DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 DOCKER_IMAGE_ORT = 'rocm/migraphx-ci-jenkins-ubuntu-ort'
 
 def getgputargets() {
-    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201"
+    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201;gfx942"
     return targets
 }
 
@@ -85,7 +85,7 @@ def cmake_build = { bconf ->
         export MIGRAPHX_GPU_DEBUG=${gpu_debug}
         export CXX=${compiler}
         export CXXFLAGS='-Werror'
-        rocminfo
+        /opt/rocm/bin/rocminfo
         env
         rm -rf build
         mkdir build
@@ -239,6 +239,10 @@ def rocmtest = { Map conf = [:], Closure body ->
     def image = conf.get("image", DOCKER_IMAGE)
     def imageTag = conf.get("imageTag", env.IMAGE_TAG)
     def ccache = "/workspaces/.cache/ccache"
+    def comgr_cache = "/workspaces/.cache/comgr_cache"
+    
+    env.AMD_COMGR_CACHE = 1
+    env.AMD_COMGR_CACHE_DIR = comgr_cache
     env.CCACHE_COMPRESSLEVEL = 7
     env.CCACHE_DIR = ccache
     env.HSA_ENABLE_SDMA = 0
@@ -265,6 +269,7 @@ def rocmtest = { Map conf = [:], Closure body ->
         stage("build ${variant}") {
             withDockerContainer(image: "${image}:${imageTag}", args: docker_opts + docker_args) {
                 timeout(time: 4, unit: 'HOURS') {
+                    sh "mkdir -p '${ccache}' '${comgr_cache}'"
                     body()
                 }
             }
@@ -440,7 +445,7 @@ pipeline {
 
                 stage('HIP RTC Debug') {
                     agent {
-                        label rocmnodename('mi200+')
+                        label "(rocmtest || migraphx) && gfx90a && !vm"
                     }
                     environment {
                         // Disable MLIR since it doesnt work with all ub sanitizers

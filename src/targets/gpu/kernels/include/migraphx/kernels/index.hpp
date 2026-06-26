@@ -251,9 +251,12 @@ struct index
             }
             else if constexpr(Unroll)
             {
-                MIGRAPHX_STATIC_ASSERT_FOR(max_stride_iterations(n, stride) < 256)
+                if constexpr(max_stride_iterations(n, stride) < 256)
                 {
                     for_stride_loop_unroll(start, n, stride, f);
+                }
+                else{
+                    for_stride_loop(start, n, stride, f);
                 }
             }
             else

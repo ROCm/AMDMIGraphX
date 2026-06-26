@@ -183,6 +183,12 @@ struct same_table_gather_horizontal_fusion
 
         if(ins->get_operator().to_value()["axis"].to<int>() != 0)
             return false;
+    
+        // Skip on any dynamic shaped inputs
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto inp){return inp->get_shape().dynamic();}))
+        {
+            return false;
+        }
 
         auto data = ins->inputs().at(0);
         auto idx  = ins->inputs().at(1);
@@ -261,6 +267,12 @@ struct gather_horizontal_fusion
 
         if(ins->get_operator().to_value()["axis"].to<int>() != 0)
             return false;
+
+        // Skip on any dynamic shaped inputs
+        if(std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto inp){return inp->get_shape().dynamic();}))
+        {
+            return false;
+        }
 
         auto data = ins->inputs().at(0);
         auto idx  = ins->inputs().at(1);

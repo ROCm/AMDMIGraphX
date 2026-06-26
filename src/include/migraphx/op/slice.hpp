@@ -278,7 +278,10 @@ struct slice
            }))
         {
             if(input_shape.symbolic())
-                MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on non-fixed symbolic input axis ");
+            {
+                MIGRAPHX_THROW(
+                        "SLICE 1_arg: slicing is not allowed on non-fixed symbolic input axis ");
+            }
             // attributes are not normalized for this case.
             auto dds = input_shape.dyn_dims();
             for(auto axis : this->axes)

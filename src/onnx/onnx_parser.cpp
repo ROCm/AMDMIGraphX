@@ -891,9 +891,7 @@ shape::dynamic_dimension onnx_parser::resolve_dim(const shape::dynamic_dimension
     // A ranged bound becomes a per-axis symbol "<input>_d<axis>" (onnxruntime's scheme
     // for unnamed dims).
     return shape::dynamic_dimension{
-        sym::var(name + "_d" + std::to_string(axis),
-                 {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},
-                 sym_optimals(bounds))};
+        sym::var(name + "_d" + std::to_string(axis), {iv.min, iv.max}, sym_optimals(bounds))};
 }
 
 // Fallback for a dim with no name and no value. default_dyn_dim_value supplies the bounds.
@@ -940,9 +938,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                                                    : default_dyn_dim_value;
                           auto iv            = bounds.get_interval();
                           return shape::dynamic_dimension{
-                              sym::var(dim_param,
-                                       {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},
-                                       sym_optimals(bounds))};
+                              sym::var(dim_param, {iv.min, iv.max}, sym_optimals(bounds))};
                       }
                       if(od != nullptr)
                           return *od;
@@ -955,7 +951,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
                   if(d != nullptr and d->has_dim_value())
                   {
                       // A non-positive dim_value is unspecified, so fall back to the default.
-                      if(static_cast<int>(d->dim_value()) <= 0)
+                      if(d->dim_value() <= 0)
                           return resolve_default_dim(name, axis);
                       if(use_symbolic_shapes)
                           return shape::dynamic_dimension{sym::lit(d->dim_value())};

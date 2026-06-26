@@ -346,9 +346,7 @@ struct loader
             {
                 std::set<migraphx::sym::scalar> sym_optimals(opt.begin(), opt.end());
                 return migraphx::shape::dynamic_dimension{migraphx::sym::var(
-                    x.at("name").to<std::string>(),
-                    {static_cast<std::int64_t>(mn), static_cast<std::int64_t>(mx)},
-                    std::move(sym_optimals))};
+                    x.at("name").to<std::string>(), {mn, mx}, std::move(sym_optimals))};
             }
             return migraphx::shape::dynamic_dimension{mn, mx, opt};
         }

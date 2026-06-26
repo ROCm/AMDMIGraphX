@@ -410,23 +410,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def(py::init([](const std::string& expression,
                          const std::unordered_map<std::string, migraphx::shape::dynamic_dimension>&
                              symbols) {
-                 auto e = migraphx::sym::parse(expression);
-                 if(e.empty())
-                     throw std::runtime_error("dynamic_dimension: symbolic expression is empty");
-                 std::unordered_map<migraphx::sym::expr, migraphx::sym::expr> bindings;
-                 for(const auto& [name, dd] : symbols)
-                 {
-                     auto iv = dd.get_interval();
-                     std::set<migraphx::sym::scalar> optimals;
-                     for(auto o : dd.get_optimals())
-                         optimals.insert(static_cast<std::int64_t>(o));
-                     bindings.emplace(migraphx::sym::parse(name),
-                                      migraphx::sym::var(name,
-                                                         {static_cast<std::int64_t>(iv.min),
-                                                          static_cast<std::int64_t>(iv.max)},
-                                                         std::move(optimals)));
-                 }
-                 return migraphx::shape::dynamic_dimension{e.subs(bindings)};
+                 return migraphx::shape::make_symbolic_dynamic_dimension(expression, symbols);
              }),
              py::arg("expression"),
              py::arg("symbols"))

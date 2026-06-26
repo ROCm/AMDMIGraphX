@@ -183,22 +183,7 @@ static shape::dynamic_dimension make_symbolic_dynamic_dimension(
     const char* expression,
     const std::unordered_map<std::string, shape::dynamic_dimension>& symbols)
 {
-    auto e = sym::parse(expression);
-    if(e.empty())
-        MIGRAPHX_THROW("migraphx_dynamic_dimension: symbolic expression is empty");
-    std::unordered_map<sym::expr, sym::expr> bindings;
-    for(const auto& [name, dd] : symbols)
-    {
-        auto iv = dd.get_interval();
-        std::set<sym::scalar> optimals;
-        for(auto o : dd.get_optimals())
-            optimals.insert(static_cast<int64_t>(o));
-        bindings.emplace(sym::parse(name),
-                         sym::var(name,
-                                  {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},
-                                  std::move(optimals)));
-    }
-    return shape::dynamic_dimension{e.subs(bindings)};
+    return shape::make_symbolic_dynamic_dimension(expression, symbols);
 }
 
 static void set_default_dim_value(onnx_options& options, size_t value)

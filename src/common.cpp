@@ -76,9 +76,13 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                        }
                        else
                        {
+                           std::cout << "a: " << a << std::endl;
+                           std::cout << "b: " << b << std::endl;
                            auto intersect = a.intersection(b);
                            if(intersect.has_value())
                            {
+                                // if(a.is_symbolic())
+                                //     return a;
                                return intersect.value();
                            }
                            MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +

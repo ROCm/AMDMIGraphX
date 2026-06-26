@@ -55,7 +55,14 @@ struct parse_expand : op_parser<parse_expand>
             if(shape_0.dynamic())
             {
                 shape target_shape{shape_0.type(), dims};
+                std::cout << "shape_0: " << shape_0 << std::endl;
+                std::cout << "target_shape: " << target_shape << std::endl;
                 auto out_dyn_dims = compute_broadcasted_dyn_dims(shape_0, target_shape);
+                std::cout << "out_dyn_dims: " << std::endl;
+                for(auto dim : out_dyn_dims)
+                {
+                    std::cout << dim << std::endl;
+                }
                 return info.add_instruction(
                     make_op("multibroadcast", {{"out_dyn_dims", to_value(out_dyn_dims)}}),
                     args[0],

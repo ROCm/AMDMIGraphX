@@ -4569,6 +4569,20 @@ TEST_CASE(reshape_lazy_dyn_shape)
     }
 }
 
+TEST_CASE(reshape_lazy_all_fixed_dyn_dims)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{2, 2}, {6, 6}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 2}, {2, 2}}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", {1, 3, 2, 2}}}), input);
+}
+
+TEST_CASE(reshape_lazy_rank_expansion)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {4, 4}, {3, 3}, {2, 2}}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", {0, 4, 3, 2}}}), input);
+}
+
 TEST_CASE(reshape_lazy_multiple_non_fixed_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {10, 20}, {1, 1}}};

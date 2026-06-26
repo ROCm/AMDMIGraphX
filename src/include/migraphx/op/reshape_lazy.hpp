@@ -52,6 +52,16 @@ struct reshape_lazy
 
     shape dyn_compute_shape(shape s0) const
     {
+        // std::cout << "dyn_compute_shape" << std::endl;
+        // std::cout << "s0: " << s0 << std::endl;
+        // std::cout << "dims: " << std::endl;
+        // for(auto dim : dims)
+        // {
+        //     std::cout << dim << " ";
+        // }
+        // std::cout << std::endl;
+
+
         const auto& dyn_dims = s0.dyn_dims();
         auto num_not_fixed   = std::count_if(
             dyn_dims.cbegin(), dyn_dims.cend(), [](const auto& dd) { return not dd.is_fixed(); });
@@ -67,22 +77,26 @@ struct reshape_lazy
         auto max_dims = std::max(dims.size(), dyn_dims.size());
         for(std::size_t i = 0; i < max_dims; ++i)
         {
-            if(i < dims.size())
-                num_dims_ele *= dims[i];
             if(i < dyn_dims.size())
             {                
                 if(dyn_dims[i].is_fixed())
                 {
                     num_dd_ele *= dyn_dims[i].get_interval().min;
+                    num_dims_ele *= static_cast<std::size_t>(std::get<int64_t>(dims[i]));
                 }
                 else
                 {
-                    if(dims[i] != dim_like{0} and dims[i] != dim_like{-1})
+                    if(i < dims.size() and dims[i] != dim_like{0} and dims[i] != dim_like{-1})
                     {
                         MIGRAPHX_THROW(
                             "reshape_lazy: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
                             "output dimension");
                     }
+                }
+            }
+            else if(i < dims.size())
+            {
+                num_dims_ele *= static_cast<std::size_t>(std::get<int64_t>(dims[i]));
             }
         }
         if(num_dims_ele != num_dd_ele)
@@ -99,12 +113,20 @@ struct reshape_lazy
             {
                 if(dyn_dims[i].is_fixed())
                 {
-                    output_dyn_dims[i] = shape::dynamic_dimension{static_cast<std::size_t>(dims[i]), static_cast<std::size_t>(dims[i])};
+                    output_dyn_dims[i] = shape::dynamic_dimension{
+                        static_cast<std::size_t>(std::get<int64_t>(dims[i])),
+                        static_cast<std::size_t>(std::get<int64_t>(dims[i]))};
+                }
+                else
+                {
+                    output_dyn_dims[i] = dyn_dims[i];
                 }
             }
             else
             {
-                output_dyn_dims[i] = shape::dynamic_dimension{static_cast<std::size_t>(dims[i]), static_cast<std::size_t>(dims[i])};
+                output_dyn_dims[i] = shape::dynamic_dimension{
+                    static_cast<std::size_t>(std::get<int64_t>(dims[i])),
+                    static_cast<std::size_t>(std::get<int64_t>(dims[i]))};
             }
         }
         return {s0.type(), output_dyn_dims};
@@ -194,3 +216,191 @@ struct reshape_lazy
 } // namespace migraphx
 
 #endif
+
+// /*
+//  * The MIT License (MIT)
+//  *
+//  * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+//  *
+//  * Permission is hereby granted, free of charge, to any person obtaining a copy
+//  * of this software and associated documentation files (the "Software"), to deal
+//  * in the Software without restriction, including without limitation the rights
+//  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//  * copies of the Software, and to permit persons to whom the Software is
+//  * furnished to do so, subject to the following conditions:
+//  *
+//  * The above copyright notice and this permission notice shall be included in
+//  * all copies or substantial portions of the Software.
+//  *
+//  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+//  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+//  * THE SOFTWARE.
+//  */
+// #ifndef MIGRAPHX_GUARD_OPERATORS_RESHAPE_LAZY_HPP
+// #define MIGRAPHX_GUARD_OPERATORS_RESHAPE_LAZY_HPP
+
+// #include <migraphx/check_shapes.hpp>
+// #include <migraphx/argument.hpp>
+// #include <migraphx/config.hpp>
+// #include <migraphx/dim_like.hpp>
+// #include <migraphx/value.hpp>
+// #include <migraphx/dyn_output.hpp>
+// #include <migraphx/reshape_dims.hpp>
+
+// namespace migraphx {
+// inline namespace MIGRAPHX_INLINE_NS {
+// namespace op {
+
+// struct reshape_lazy
+// {
+//     std::vector<dim_like> dims;
+
+//     template <class Self, class F>
+//     static auto reflect(Self& self, F f)
+//     {
+//         return pack(f(self.dims, "dims"));
+//     }
+
+//     value attributes() const { return {{"require_std_shape", true}}; }
+
+//     std::string name() const { return "reshape_lazy"; }
+
+//     shape dyn_compute_shape(shape s0) const
+//     {
+//         const auto& dyn_dims = s0.dyn_dims();
+//         auto num_not_fixed   = std::count_if(
+//             dyn_dims.cbegin(), dyn_dims.cend(), [](const auto& dd) { return not dd.is_fixed(); });
+//         if(num_not_fixed > 1)
+//         {
+//             MIGRAPHX_THROW(
+//                 "reshape_lazy: Only supports one non-fixed dynamic_dimension but input {" +
+//                 to_string_range(dyn_dims) + "} has " + to_string(num_not_fixed));
+//         }
+//         // track number of fixed elements in input and output
+//         std::size_t num_dims_ele = 1;
+//         std::size_t num_dd_ele   = 1;
+//         for(std::size_t i = 0; i < dyn_dims.size(); ++i)
+//         {
+//             if(dyn_dims[i].is_fixed())
+//             {
+//                 num_dims_ele *= std::get<int64_t>(dims[i]);
+//                 num_dd_ele *= dyn_dims[i].get_interval().min;
+//             }
+//             else
+//             {
+//                 if(dims[i] != dim_like{0} and dims[i] != dim_like{-1})
+//                 {
+//                     MIGRAPHX_THROW(
+//                         "reshape_lazy: Non-fixed dynamic_dimension doesn't match with 0 or -1 "
+//                         "output dimension");
+//                 }
+//             }
+//         }
+//         if(num_dims_ele != num_dd_ele)
+//         {
+//             MIGRAPHX_THROW("reshape_lazy: Number of fixed elements must match. Input: " +
+//                            std::to_string(num_dd_ele) + " Output: " + std::to_string(num_dims_ele));
+//         }
+//         // construct output dynamic shape from dims attribute
+//         std::vector<shape::dynamic_dimension> output_dyn_dims(dims.size());
+//         std::transform(dims.cbegin(),
+//                        dims.cend(),
+//                        dyn_dims.cbegin(),
+//                        output_dyn_dims.begin(),
+//                        [](const dim_like& d, auto dyn_dim) {
+//                            if(not dyn_dim.is_fixed())
+//                                return dyn_dim;
+//                            std::size_t dim = std::get<int64_t>(d);
+//                            return shape::dynamic_dimension{dim, dim};
+//                        });
+//         return {s0.type(), output_dyn_dims};
+//     }
+
+//     shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
+//     {
+//         check_shapes{inputs, *this}.has(1);
+//         auto&& idims = inputs.front().lens();
+//         std::vector<std::size_t> rdims(dims.size());
+//         std::transform(dims.begin(), dims.end(), rdims.begin(), [](const dim_like& d) {
+//             return std::get<int64_t>(d);
+//         });
+
+//         for(std::size_t i = 0; i < dims.size(); i++)
+//         {
+//             if(dims[i] == dim_like{0})
+//                 rdims[i] = idims[i];
+
+//             // since rdims using size_t type, -1 is the max value
+//             // is size_t that cause later compuation incorrect
+//             if(dims[i] == dim_like{-1})
+//                 rdims[i] = 1;
+//         }
+
+//         if(n_neg_dims > 0)
+//         {
+//             size_t missing_dim =
+//                 inputs.front().elements() /
+//                 std::accumulate(rdims.begin(), rdims.end(), 1, std::multiplies<int64_t>());
+//             for(std::size_t i = 0; i < rdims.size(); i++)
+//             {
+//                 if(dims[i] == dim_like{-1})
+//                     rdims[i] = missing_dim;
+//             }
+//         }
+
+//         auto s = reshape_dims(inputs.front(), rdims, {.lazy = true});
+//         if(not s.has_value())
+//             MIGRAPHX_THROW("reshape_lazy on axis that is not packed.");
+
+//         if(s->elements() != inputs.front().elements())
+//             MIGRAPHX_THROW(
+//                 "reshape_lazy: Wrong number of elements for reshape_lazy: reshape_lazy has " +
+//                 std::to_string(s->elements()) + " elements whereas the input has " +
+//                 std::to_string(inputs.front().elements()));
+
+//         assert(s->bytes() == inputs.front().bytes());
+//         return *s;
+//     }
+
+//     shape compute_shape(std::vector<shape> inputs) const
+//     {
+//         check_shapes{inputs, *this, true}.has(1);
+//         if(std::any_of(dims.begin(), dims.end(), [](const auto& d) {
+//                return std::holds_alternative<shape::dynamic_dimension>(d);
+//            }))
+//             MIGRAPHX_THROW(
+//                 "reshape_lazy: dynamic_dimension dim entries are not currently supported");
+
+//         auto n_neg_dims = std::count(dims.begin(), dims.end(), dim_like{-1});
+//         if(n_neg_dims > 1)
+//             MIGRAPHX_THROW("reshape_lazy: Dimensions for reshape_lazy can only have one -1 dim but "
+//                            "given {" +
+//                            to_string_range(dims) + "} with " + to_string(n_neg_dims) + " -1 dims");
+//         const auto& s0 = inputs[0];
+//         if(s0.dynamic())
+//         {
+//             return dyn_compute_shape(s0);
+//         }
+//         else
+//         {
+//             return static_compute_shape(inputs, n_neg_dims);
+//         }
+//     }
+
+//     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
+//     {
+//         return args[0].reshape(dyn_out.computed_shape);
+//     }
+
+//     std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }
+// };
+
+// } // namespace op
+// } // namespace MIGRAPHX_INLINE_NS
+// } // namespace migraphx
+
+// #endif

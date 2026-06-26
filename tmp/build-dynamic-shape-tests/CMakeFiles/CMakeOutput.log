@@ -1,0 +1,1298 @@
+The system is: Linux - 5.15.0-70-generic - x86_64
+Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+Compiler: /usr/bin/cc 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "a.out"
+
+The C compiler identification is GNU, found in "/home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/3.25.2/CompilerIdC/a.out"
+
+Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+Compiler: /usr/bin/c++ 
+Build flags: 
+Id flags:  
+
+The output was:
+0
+
+
+Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "a.out"
+
+The CXX compiler identification is GNU, found in "/home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/3.25.2/CompilerIdCXX/a.out"
+
+Detecting C compiler ABI info compiled with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-1umjYf
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_77a4c/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_77a4c.dir/build.make CMakeFiles/cmTC_77a4c.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-1umjYf'
+Building C object CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o
+/usr/bin/cc   -v -o CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o -c /usr/local/share/cmake-3.25/Modules/CMakeCCompilerABI.c
+Using built-in specs.
+COLLECT_GCC=/usr/bin/cc
+OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++,m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr,amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) 
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_77a4c.dir/'
+ /usr/lib/gcc/x86_64-linux-gnu/11/cc1 -quiet -v -imultiarch x86_64-linux-gnu /usr/local/share/cmake-3.25/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_77a4c.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mtune=generic -march=x86-64 -version -fasynchronous-unwind-tables -fstack-protector-strong -Wformat -Wformat-security -fstack-clash-protection -fcf-protection -o /tmp/ccgsrNAt.s
+GNU C17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)
+	compiled by GNU C version 11.4.0, GMP version 6.2.1, MPFR version 4.1.0, MPC version 1.2.1, isl version isl-0.24-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring nonexistent directory "/usr/local/include/x86_64-linux-gnu"
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/include-fixed"
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/../../../../x86_64-linux-gnu/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /usr/lib/gcc/x86_64-linux-gnu/11/include
+ /usr/local/include
+ /usr/include/x86_64-linux-gnu
+ /usr/include
+End of search list.
+GNU C17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)
+	compiled by GNU C version 11.4.0, GMP version 6.2.1, MPFR version 4.1.0, MPC version 1.2.1, isl version isl-0.24-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+Compiler executable checksum: 50eaa2331df977b8016186198deb2d18
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_77a4c.dir/'
+ as -v --64 -o CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o /tmp/ccgsrNAt.s
+GNU assembler version 2.38 (x86_64-linux-gnu) using BFD version (GNU Binutils for Ubuntu) 2.38
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.'
+Linking C executable cmTC_77a4c
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_77a4c.dir/link.txt --verbose=1
+/usr/bin/cc  -v CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o -o cmTC_77a4c 
+Using built-in specs.
+COLLECT_GCC=/usr/bin/cc
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper
+OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++,m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr,amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) 
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_77a4c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_77a4c.'
+ /usr/lib/gcc/x86_64-linux-gnu/11/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/11/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper -plugin-opt=-fresolution=/tmp/ccLEK5Ud.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_77a4c /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/11/../../.. CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_77a4c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_77a4c.'
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-1umjYf'
+
+
+
+Parsed C implicit include dir info from above output: rv=done
+  found start of include info
+  found start of implicit include info
+    add: [/usr/lib/gcc/x86_64-linux-gnu/11/include]
+    add: [/usr/local/include]
+    add: [/usr/include/x86_64-linux-gnu]
+    add: [/usr/include]
+  end of search list found
+  collapse include dir [/usr/lib/gcc/x86_64-linux-gnu/11/include] ==> [/usr/lib/gcc/x86_64-linux-gnu/11/include]
+  collapse include dir [/usr/local/include] ==> [/usr/local/include]
+  collapse include dir [/usr/include/x86_64-linux-gnu] ==> [/usr/include/x86_64-linux-gnu]
+  collapse include dir [/usr/include] ==> [/usr/include]
+  implicit include dirs: [/usr/lib/gcc/x86_64-linux-gnu/11/include;/usr/local/include;/usr/include/x86_64-linux-gnu;/usr/include]
+
+
+Parsed C implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-1umjYf]
+  ignore line: []
+  ignore line: [Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_77a4c/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_77a4c.dir/build.make CMakeFiles/cmTC_77a4c.dir/build]
+  ignore line: [gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-1umjYf']
+  ignore line: [Building C object CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o]
+  ignore line: [/usr/bin/cc   -v -o CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o -c /usr/local/share/cmake-3.25/Modules/CMakeCCompilerABI.c]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/cc]
+  ignore line: [OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa]
+  ignore line: [OFFLOAD_TARGET_DEFAULT=1]
+  ignore line: [Target: x86_64-linux-gnu]
+  ignore line: [Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c ada c++ go brig d fortran objc obj-c++ m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32 m64 mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2]
+  ignore line: [Thread model: posix]
+  ignore line: [Supported LTO compression algorithms: zlib zstd]
+  ignore line: [gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) ]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_77a4c.dir/']
+  ignore line: [ /usr/lib/gcc/x86_64-linux-gnu/11/cc1 -quiet -v -imultiarch x86_64-linux-gnu /usr/local/share/cmake-3.25/Modules/CMakeCCompilerABI.c -quiet -dumpdir CMakeFiles/cmTC_77a4c.dir/ -dumpbase CMakeCCompilerABI.c.c -dumpbase-ext .c -mtune=generic -march=x86-64 -version -fasynchronous-unwind-tables -fstack-protector-strong -Wformat -Wformat-security -fstack-clash-protection -fcf-protection -o /tmp/ccgsrNAt.s]
+  ignore line: [GNU C17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)]
+  ignore line: [	compiled by GNU C version 11.4.0  GMP version 6.2.1  MPFR version 4.1.0  MPC version 1.2.1  isl version isl-0.24-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [ignoring nonexistent directory "/usr/local/include/x86_64-linux-gnu"]
+  ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/include-fixed"]
+  ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/../../../../x86_64-linux-gnu/include"]
+  ignore line: [#include "..." search starts here:]
+  ignore line: [#include <...> search starts here:]
+  ignore line: [ /usr/lib/gcc/x86_64-linux-gnu/11/include]
+  ignore line: [ /usr/local/include]
+  ignore line: [ /usr/include/x86_64-linux-gnu]
+  ignore line: [ /usr/include]
+  ignore line: [End of search list.]
+  ignore line: [GNU C17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)]
+  ignore line: [	compiled by GNU C version 11.4.0  GMP version 6.2.1  MPFR version 4.1.0  MPC version 1.2.1  isl version isl-0.24-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [Compiler executable checksum: 50eaa2331df977b8016186198deb2d18]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_77a4c.dir/']
+  ignore line: [ as -v --64 -o CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o /tmp/ccgsrNAt.s]
+  ignore line: [GNU assembler version 2.38 (x86_64-linux-gnu) using BFD version (GNU Binutils for Ubuntu) 2.38]
+  ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o' '-c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.']
+  ignore line: [Linking C executable cmTC_77a4c]
+  ignore line: [/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_77a4c.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/cc  -v CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o -o cmTC_77a4c ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/cc]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa]
+  ignore line: [OFFLOAD_TARGET_DEFAULT=1]
+  ignore line: [Target: x86_64-linux-gnu]
+  ignore line: [Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c ada c++ go brig d fortran objc obj-c++ m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32 m64 mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2]
+  ignore line: [Thread model: posix]
+  ignore line: [Supported LTO compression algorithms: zlib zstd]
+  ignore line: [gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) ]
+  ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_77a4c' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_77a4c.']
+  link line: [ /usr/lib/gcc/x86_64-linux-gnu/11/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/11/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper -plugin-opt=-fresolution=/tmp/ccLEK5Ud.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_77a4c /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/11/../../.. CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o -lgcc --push-state --as-needed -lgcc_s --pop-state -lc -lgcc --push-state --as-needed -lgcc_s --pop-state /usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccLEK5Ud.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [--build-id] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [--hash-style=gnu] ==> ignore
+    arg [--as-needed] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-pie] ==> ignore
+    arg [-znow] ==> ignore
+    arg [-zrelro] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_77a4c] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib]
+    arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+    arg [-L/lib/../lib] ==> dir [/lib/../lib]
+    arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+    arg [-L/usr/lib/../lib] ==> dir [/usr/lib/../lib]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11/../../..] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../..]
+    arg [CMakeFiles/cmTC_77a4c.dir/CMakeCCompilerABI.c.o] ==> ignore
+    arg [-lgcc] ==> lib [gcc]
+    arg [--push-state] ==> ignore
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--pop-state] ==> ignore
+    arg [-lc] ==> lib [c]
+    arg [-lgcc] ==> lib [gcc]
+    arg [--push-state] ==> ignore
+    arg [--as-needed] ==> ignore
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [--pop-state] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o]
+  collapse obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o] ==> [/usr/lib/x86_64-linux-gnu/Scrt1.o]
+  collapse obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o] ==> [/usr/lib/x86_64-linux-gnu/crti.o]
+  collapse obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o] ==> [/usr/lib/x86_64-linux-gnu/crtn.o]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11] ==> [/usr/lib/gcc/x86_64-linux-gnu/11]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib] ==> [/usr/lib]
+  collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+  collapse library dir [/lib/../lib] ==> [/lib]
+  collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/../lib] ==> [/usr/lib]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../..] ==> [/usr/lib]
+  implicit libs: [gcc;gcc_s;c;gcc;gcc_s]
+  implicit objs: [/usr/lib/x86_64-linux-gnu/Scrt1.o;/usr/lib/x86_64-linux-gnu/crti.o;/usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o;/usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o;/usr/lib/x86_64-linux-gnu/crtn.o]
+  implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/11;/usr/lib/x86_64-linux-gnu;/usr/lib;/lib/x86_64-linux-gnu;/lib]
+  implicit fwks: []
+
+
+Detecting CXX compiler ABI info compiled with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EyFDUJ
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_dd219/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_dd219.dir/build.make CMakeFiles/cmTC_dd219.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EyFDUJ'
+Building CXX object CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o
+/usr/bin/c++   -v -o CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o -c /usr/local/share/cmake-3.25/Modules/CMakeCXXCompilerABI.cpp
+Using built-in specs.
+COLLECT_GCC=/usr/bin/c++
+OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++,m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr,amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) 
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_dd219.dir/'
+ /usr/lib/gcc/x86_64-linux-gnu/11/cc1plus -quiet -v -imultiarch x86_64-linux-gnu -D_GNU_SOURCE /usr/local/share/cmake-3.25/Modules/CMakeCXXCompilerABI.cpp -quiet -dumpdir CMakeFiles/cmTC_dd219.dir/ -dumpbase CMakeCXXCompilerABI.cpp.cpp -dumpbase-ext .cpp -mtune=generic -march=x86-64 -version -fasynchronous-unwind-tables -fstack-protector-strong -Wformat -Wformat-security -fstack-clash-protection -fcf-protection -o /tmp/ccz1j2HS.s
+GNU C++17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)
+	compiled by GNU C version 11.4.0, GMP version 6.2.1, MPFR version 4.1.0, MPC version 1.2.1, isl version isl-0.24-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring duplicate directory "/usr/include/x86_64-linux-gnu/c++/11"
+ignoring nonexistent directory "/usr/local/include/x86_64-linux-gnu"
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/include-fixed"
+ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/../../../../x86_64-linux-gnu/include"
+#include "..." search starts here:
+#include <...> search starts here:
+ /usr/include/c++/11
+ /usr/include/x86_64-linux-gnu/c++/11
+ /usr/include/c++/11/backward
+ /usr/lib/gcc/x86_64-linux-gnu/11/include
+ /usr/local/include
+ /usr/include/x86_64-linux-gnu
+ /usr/include
+End of search list.
+GNU C++17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)
+	compiled by GNU C version 11.4.0, GMP version 6.2.1, MPFR version 4.1.0, MPC version 1.2.1, isl version isl-0.24-GMP
+
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+Compiler executable checksum: d591828bb4d392ae8b7b160e5bb0b95f
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_dd219.dir/'
+ as -v --64 -o CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o /tmp/ccz1j2HS.s
+GNU assembler version 2.38 (x86_64-linux-gnu) using BFD version (GNU Binutils for Ubuntu) 2.38
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.'
+Linking CXX executable cmTC_dd219
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_dd219.dir/link.txt --verbose=1
+/usr/bin/c++  -v CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_dd219 
+Using built-in specs.
+COLLECT_GCC=/usr/bin/c++
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper
+OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa
+OFFLOAD_TARGET_DEFAULT=1
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c,ada,c++,go,brig,d,fortran,objc,obj-c++,m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr,amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2
+Thread model: posix
+Supported LTO compression algorithms: zlib zstd
+gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) 
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_dd219' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_dd219.'
+ /usr/lib/gcc/x86_64-linux-gnu/11/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/11/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper -plugin-opt=-fresolution=/tmp/ccLEBDdZ.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_dd219 /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/11/../../.. CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o
+COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_dd219' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_dd219.'
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EyFDUJ'
+
+
+
+Parsed CXX implicit include dir info from above output: rv=done
+  found start of include info
+  found start of implicit include info
+    add: [/usr/include/c++/11]
+    add: [/usr/include/x86_64-linux-gnu/c++/11]
+    add: [/usr/include/c++/11/backward]
+    add: [/usr/lib/gcc/x86_64-linux-gnu/11/include]
+    add: [/usr/local/include]
+    add: [/usr/include/x86_64-linux-gnu]
+    add: [/usr/include]
+  end of search list found
+  collapse include dir [/usr/include/c++/11] ==> [/usr/include/c++/11]
+  collapse include dir [/usr/include/x86_64-linux-gnu/c++/11] ==> [/usr/include/x86_64-linux-gnu/c++/11]
+  collapse include dir [/usr/include/c++/11/backward] ==> [/usr/include/c++/11/backward]
+  collapse include dir [/usr/lib/gcc/x86_64-linux-gnu/11/include] ==> [/usr/lib/gcc/x86_64-linux-gnu/11/include]
+  collapse include dir [/usr/local/include] ==> [/usr/local/include]
+  collapse include dir [/usr/include/x86_64-linux-gnu] ==> [/usr/include/x86_64-linux-gnu]
+  collapse include dir [/usr/include] ==> [/usr/include]
+  implicit include dirs: [/usr/include/c++/11;/usr/include/x86_64-linux-gnu/c++/11;/usr/include/c++/11/backward;/usr/lib/gcc/x86_64-linux-gnu/11/include;/usr/local/include;/usr/include/x86_64-linux-gnu;/usr/include]
+
+
+Parsed CXX implicit link information from above output:
+  link line regex: [^( *|.*[/\])(ld|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
+  ignore line: [Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EyFDUJ]
+  ignore line: []
+  ignore line: [Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_dd219/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_dd219.dir/build.make CMakeFiles/cmTC_dd219.dir/build]
+  ignore line: [gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EyFDUJ']
+  ignore line: [Building CXX object CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o]
+  ignore line: [/usr/bin/c++   -v -o CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o -c /usr/local/share/cmake-3.25/Modules/CMakeCXXCompilerABI.cpp]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/c++]
+  ignore line: [OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa]
+  ignore line: [OFFLOAD_TARGET_DEFAULT=1]
+  ignore line: [Target: x86_64-linux-gnu]
+  ignore line: [Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c ada c++ go brig d fortran objc obj-c++ m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32 m64 mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2]
+  ignore line: [Thread model: posix]
+  ignore line: [Supported LTO compression algorithms: zlib zstd]
+  ignore line: [gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) ]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_dd219.dir/']
+  ignore line: [ /usr/lib/gcc/x86_64-linux-gnu/11/cc1plus -quiet -v -imultiarch x86_64-linux-gnu -D_GNU_SOURCE /usr/local/share/cmake-3.25/Modules/CMakeCXXCompilerABI.cpp -quiet -dumpdir CMakeFiles/cmTC_dd219.dir/ -dumpbase CMakeCXXCompilerABI.cpp.cpp -dumpbase-ext .cpp -mtune=generic -march=x86-64 -version -fasynchronous-unwind-tables -fstack-protector-strong -Wformat -Wformat-security -fstack-clash-protection -fcf-protection -o /tmp/ccz1j2HS.s]
+  ignore line: [GNU C++17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)]
+  ignore line: [	compiled by GNU C version 11.4.0  GMP version 6.2.1  MPFR version 4.1.0  MPC version 1.2.1  isl version isl-0.24-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [ignoring duplicate directory "/usr/include/x86_64-linux-gnu/c++/11"]
+  ignore line: [ignoring nonexistent directory "/usr/local/include/x86_64-linux-gnu"]
+  ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/include-fixed"]
+  ignore line: [ignoring nonexistent directory "/usr/lib/gcc/x86_64-linux-gnu/11/../../../../x86_64-linux-gnu/include"]
+  ignore line: [#include "..." search starts here:]
+  ignore line: [#include <...> search starts here:]
+  ignore line: [ /usr/include/c++/11]
+  ignore line: [ /usr/include/x86_64-linux-gnu/c++/11]
+  ignore line: [ /usr/include/c++/11/backward]
+  ignore line: [ /usr/lib/gcc/x86_64-linux-gnu/11/include]
+  ignore line: [ /usr/local/include]
+  ignore line: [ /usr/include/x86_64-linux-gnu]
+  ignore line: [ /usr/include]
+  ignore line: [End of search list.]
+  ignore line: [GNU C++17 (Ubuntu 11.4.0-1ubuntu1~22.04) version 11.4.0 (x86_64-linux-gnu)]
+  ignore line: [	compiled by GNU C version 11.4.0  GMP version 6.2.1  MPFR version 4.1.0  MPC version 1.2.1  isl version isl-0.24-GMP]
+  ignore line: []
+  ignore line: [GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072]
+  ignore line: [Compiler executable checksum: d591828bb4d392ae8b7b160e5bb0b95f]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_dd219.dir/']
+  ignore line: [ as -v --64 -o CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o /tmp/ccz1j2HS.s]
+  ignore line: [GNU assembler version 2.38 (x86_64-linux-gnu) using BFD version (GNU Binutils for Ubuntu) 2.38]
+  ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o' '-c' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.']
+  ignore line: [Linking CXX executable cmTC_dd219]
+  ignore line: [/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_dd219.dir/link.txt --verbose=1]
+  ignore line: [/usr/bin/c++  -v CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o -o cmTC_dd219 ]
+  ignore line: [Using built-in specs.]
+  ignore line: [COLLECT_GCC=/usr/bin/c++]
+  ignore line: [COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper]
+  ignore line: [OFFLOAD_TARGET_NAMES=nvptx-none:amdgcn-amdhsa]
+  ignore line: [OFFLOAD_TARGET_DEFAULT=1]
+  ignore line: [Target: x86_64-linux-gnu]
+  ignore line: [Configured with: ../src/configure -v --with-pkgversion='Ubuntu 11.4.0-1ubuntu1~22.04' --with-bugurl=file:///usr/share/doc/gcc-11/README.Bugs --enable-languages=c ada c++ go brig d fortran objc obj-c++ m2 --prefix=/usr --with-gcc-major-version-only --program-suffix=-11 --program-prefix=x86_64-linux-gnu- --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --enable-bootstrap --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-plugin --enable-default-pie --with-system-zlib --enable-libphobos-checking=release --with-target-system-zlib=auto --enable-objc-gc=auto --enable-multiarch --disable-werror --enable-cet --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32 m64 mx32 --enable-multilib --with-tune=generic --enable-offload-targets=nvptx-none=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-nvptx/usr amdgcn-amdhsa=/build/gcc-11-XeT9lY/gcc-11-11.4.0/debian/tmp-gcn/usr --without-cuda-driver --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu --with-build-config=bootstrap-lto-lean --enable-link-serialization=2]
+  ignore line: [Thread model: posix]
+  ignore line: [Supported LTO compression algorithms: zlib zstd]
+  ignore line: [gcc version 11.4.0 (Ubuntu 11.4.0-1ubuntu1~22.04) ]
+  ignore line: [COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/]
+  ignore line: [LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/11/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/11/../../../:/lib/:/usr/lib/]
+  ignore line: [COLLECT_GCC_OPTIONS='-v' '-o' 'cmTC_dd219' '-shared-libgcc' '-mtune=generic' '-march=x86-64' '-dumpdir' 'cmTC_dd219.']
+  link line: [ /usr/lib/gcc/x86_64-linux-gnu/11/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/11/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper -plugin-opt=-fresolution=/tmp/ccLEBDdZ.res -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lgcc --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -pie -z now -z relro -o cmTC_dd219 /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o -L/usr/lib/gcc/x86_64-linux-gnu/11 -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/11/../../.. CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o -lstdc++ -lm -lgcc_s -lgcc -lc -lgcc_s -lgcc /usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o /usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/collect2] ==> ignore
+    arg [-plugin] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/liblto_plugin.so] ==> ignore
+    arg [-plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/11/lto-wrapper] ==> ignore
+    arg [-plugin-opt=-fresolution=/tmp/ccLEBDdZ.res] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lc] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc_s] ==> ignore
+    arg [-plugin-opt=-pass-through=-lgcc] ==> ignore
+    arg [--build-id] ==> ignore
+    arg [--eh-frame-hdr] ==> ignore
+    arg [-m] ==> ignore
+    arg [elf_x86_64] ==> ignore
+    arg [--hash-style=gnu] ==> ignore
+    arg [--as-needed] ==> ignore
+    arg [-dynamic-linker] ==> ignore
+    arg [/lib64/ld-linux-x86-64.so.2] ==> ignore
+    arg [-pie] ==> ignore
+    arg [-znow] ==> ignore
+    arg [-zrelro] ==> ignore
+    arg [-o] ==> ignore
+    arg [cmTC_dd219] ==> ignore
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib]
+    arg [-L/lib/x86_64-linux-gnu] ==> dir [/lib/x86_64-linux-gnu]
+    arg [-L/lib/../lib] ==> dir [/lib/../lib]
+    arg [-L/usr/lib/x86_64-linux-gnu] ==> dir [/usr/lib/x86_64-linux-gnu]
+    arg [-L/usr/lib/../lib] ==> dir [/usr/lib/../lib]
+    arg [-L/usr/lib/gcc/x86_64-linux-gnu/11/../../..] ==> dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../..]
+    arg [CMakeFiles/cmTC_dd219.dir/CMakeCXXCompilerABI.cpp.o] ==> ignore
+    arg [-lstdc++] ==> lib [stdc++]
+    arg [-lm] ==> lib [m]
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [-lgcc] ==> lib [gcc]
+    arg [-lc] ==> lib [c]
+    arg [-lgcc_s] ==> lib [gcc_s]
+    arg [-lgcc] ==> lib [gcc]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o]
+    arg [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o] ==> obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o]
+  collapse obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/Scrt1.o] ==> [/usr/lib/x86_64-linux-gnu/Scrt1.o]
+  collapse obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crti.o] ==> [/usr/lib/x86_64-linux-gnu/crti.o]
+  collapse obj [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu/crtn.o] ==> [/usr/lib/x86_64-linux-gnu/crtn.o]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11] ==> [/usr/lib/gcc/x86_64-linux-gnu/11]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../../../lib] ==> [/usr/lib]
+  collapse library dir [/lib/x86_64-linux-gnu] ==> [/lib/x86_64-linux-gnu]
+  collapse library dir [/lib/../lib] ==> [/lib]
+  collapse library dir [/usr/lib/x86_64-linux-gnu] ==> [/usr/lib/x86_64-linux-gnu]
+  collapse library dir [/usr/lib/../lib] ==> [/usr/lib]
+  collapse library dir [/usr/lib/gcc/x86_64-linux-gnu/11/../../..] ==> [/usr/lib]
+  implicit libs: [stdc++;m;gcc_s;gcc;c;gcc_s;gcc]
+  implicit objs: [/usr/lib/x86_64-linux-gnu/Scrt1.o;/usr/lib/x86_64-linux-gnu/crti.o;/usr/lib/gcc/x86_64-linux-gnu/11/crtbeginS.o;/usr/lib/gcc/x86_64-linux-gnu/11/crtendS.o;/usr/lib/x86_64-linux-gnu/crtn.o]
+  implicit dirs: [/usr/lib/gcc/x86_64-linux-gnu/11;/usr/lib/x86_64-linux-gnu;/usr/lib;/lib/x86_64-linux-gnu;/lib]
+  implicit fwks: []
+
+
+Performing C SOURCE FILE Test CMAKE_HAVE_LIBC_PTHREAD succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-WdRPxR
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_4680e/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_4680e.dir/build.make CMakeFiles/cmTC_4680e.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-WdRPxR'
+Building C object CMakeFiles/cmTC_4680e.dir/src.c.o
+/usr/bin/cc -DCMAKE_HAVE_LIBC_PTHREAD   -o CMakeFiles/cmTC_4680e.dir/src.c.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-WdRPxR/src.c
+Linking C executable cmTC_4680e
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4680e.dir/link.txt --verbose=1
+/usr/bin/cc CMakeFiles/cmTC_4680e.dir/src.c.o -o cmTC_4680e 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-WdRPxR'
+
+
+Source file was:
+#include <pthread.h>
+
+static void* test_func(void* data)
+{
+  return data;
+}
+
+int main(void)
+{
+  pthread_t thread;
+  pthread_create(&thread, NULL, test_func, NULL);
+  pthread_detach(thread);
+  pthread_cancel(thread);
+  pthread_join(thread, NULL);
+  pthread_atfork(NULL, NULL, NULL);
+  pthread_exit(NULL);
+
+  return 0;
+}
+
+
+Performing C++ SOURCE FILE Test _has_execution_5a01e0d505c32cf71512ea897dc5c6ab succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-FQ6fTO
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_ca19b/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_ca19b.dir/build.make CMakeFiles/cmTC_ca19b.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-FQ6fTO'
+Building CXX object CMakeFiles/cmTC_ca19b.dir/src.cxx.o
+/usr/bin/c++ -D_has_execution_5a01e0d505c32cf71512ea897dc5c6ab  -std=c++17 -fPIE -o CMakeFiles/cmTC_ca19b.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-FQ6fTO/src.cxx
+Linking CXX executable cmTC_ca19b
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ca19b.dir/link.txt --verbose=1
+/usr/bin/c++  -std=c++17 CMakeFiles/cmTC_ca19b.dir/src.cxx.o -o cmTC_ca19b  /usr/lib/x86_64-linux-gnu/libtbb.so.12.5 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-FQ6fTO'
+
+
+Source file was:
+
+#include <execution>
+
+#ifdef _PSTL_PAR_BACKEND_SERIAL
+#error "Using serial backend"
+#endif
+
+int main() {
+    int* i = nullptr;
+    std::sort(std::execution::par, i, i);
+}
+
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wall succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-iF2U9D
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_5af24/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_5af24.dir/build.make CMakeFiles/cmTC_5af24.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-iF2U9D'
+Building CXX object CMakeFiles/cmTC_5af24.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wall  -fPIE   -Wall -o CMakeFiles/cmTC_5af24.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-iF2U9D/src.cxx
+Linking CXX executable cmTC_5af24
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_5af24.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_5af24.dir/src.cxx.o -o cmTC_5af24 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-iF2U9D'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wextra succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-dCHXRm
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_2e4af/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_2e4af.dir/build.make CMakeFiles/cmTC_2e4af.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-dCHXRm'
+Building CXX object CMakeFiles/cmTC_2e4af.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wextra  -fPIE   -Wextra -o CMakeFiles/cmTC_2e4af.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-dCHXRm/src.cxx
+Linking CXX executable cmTC_2e4af
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2e4af.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_2e4af.dir/src.cxx.o -o cmTC_2e4af 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-dCHXRm'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wcomment succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-i1i2RQ
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_eeef9/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_eeef9.dir/build.make CMakeFiles/cmTC_eeef9.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-i1i2RQ'
+Building CXX object CMakeFiles/cmTC_eeef9.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wcomment  -fPIE   -Wcomment -o CMakeFiles/cmTC_eeef9.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-i1i2RQ/src.cxx
+Linking CXX executable cmTC_eeef9
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_eeef9.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_eeef9.dir/src.cxx.o -o cmTC_eeef9 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-i1i2RQ'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wendif_labels succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-03PgzJ
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_4ae10/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_4ae10.dir/build.make CMakeFiles/cmTC_4ae10.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-03PgzJ'
+Building CXX object CMakeFiles/cmTC_4ae10.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wendif_labels  -fPIE   -Wendif-labels -o CMakeFiles/cmTC_4ae10.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-03PgzJ/src.cxx
+Linking CXX executable cmTC_4ae10
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_4ae10.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_4ae10.dir/src.cxx.o -o cmTC_4ae10 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-03PgzJ'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wformat succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-tCXmeT
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_bf05c/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_bf05c.dir/build.make CMakeFiles/cmTC_bf05c.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-tCXmeT'
+Building CXX object CMakeFiles/cmTC_bf05c.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wformat  -fPIE   -Wformat -o CMakeFiles/cmTC_bf05c.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-tCXmeT/src.cxx
+Linking CXX executable cmTC_bf05c
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_bf05c.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_bf05c.dir/src.cxx.o -o cmTC_bf05c 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-tCXmeT'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Winit_self succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-bcIKvg
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_26ba9/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_26ba9.dir/build.make CMakeFiles/cmTC_26ba9.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-bcIKvg'
+Building CXX object CMakeFiles/cmTC_26ba9.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Winit_self  -fPIE   -Winit-self -o CMakeFiles/cmTC_26ba9.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-bcIKvg/src.cxx
+Linking CXX executable cmTC_26ba9
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_26ba9.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_26ba9.dir/src.cxx.o -o cmTC_26ba9 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-bcIKvg'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wreturn_type succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-xTGCw0
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_0c2fa/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_0c2fa.dir/build.make CMakeFiles/cmTC_0c2fa.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-xTGCw0'
+Building CXX object CMakeFiles/cmTC_0c2fa.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wreturn_type  -fPIE   -Wreturn-type -o CMakeFiles/cmTC_0c2fa.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-xTGCw0/src.cxx
+Linking CXX executable cmTC_0c2fa
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0c2fa.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_0c2fa.dir/src.cxx.o -o cmTC_0c2fa 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-xTGCw0'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wsequence_point succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-84RP4j
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_54a3c/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_54a3c.dir/build.make CMakeFiles/cmTC_54a3c.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-84RP4j'
+Building CXX object CMakeFiles/cmTC_54a3c.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wsequence_point  -fPIE   -Wsequence-point -o CMakeFiles/cmTC_54a3c.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-84RP4j/src.cxx
+Linking CXX executable cmTC_54a3c
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_54a3c.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_54a3c.dir/src.cxx.o -o cmTC_54a3c 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-84RP4j'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wswitch succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-bGIEB0
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_3f273/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_3f273.dir/build.make CMakeFiles/cmTC_3f273.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-bGIEB0'
+Building CXX object CMakeFiles/cmTC_3f273.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wswitch  -fPIE   -Wswitch -o CMakeFiles/cmTC_3f273.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-bGIEB0/src.cxx
+Linking CXX executable cmTC_3f273
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_3f273.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_3f273.dir/src.cxx.o -o cmTC_3f273 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-bGIEB0'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wtrigraphs succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NmyJib
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_149ea/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_149ea.dir/build.make CMakeFiles/cmTC_149ea.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NmyJib'
+Building CXX object CMakeFiles/cmTC_149ea.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wtrigraphs  -fPIE   -Wtrigraphs -o CMakeFiles/cmTC_149ea.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NmyJib/src.cxx
+Linking CXX executable cmTC_149ea
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_149ea.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_149ea.dir/src.cxx.o -o cmTC_149ea 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NmyJib'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wundef succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-nfNBpn
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_bf34e/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_bf34e.dir/build.make CMakeFiles/cmTC_bf34e.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-nfNBpn'
+Building CXX object CMakeFiles/cmTC_bf34e.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wundef  -fPIE   -Wundef -o CMakeFiles/cmTC_bf34e.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-nfNBpn/src.cxx
+Linking CXX executable cmTC_bf34e
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_bf34e.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_bf34e.dir/src.cxx.o -o cmTC_bf34e 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-nfNBpn'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wuninitialized succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-Q7E76t
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_08778/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_08778.dir/build.make CMakeFiles/cmTC_08778.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-Q7E76t'
+Building CXX object CMakeFiles/cmTC_08778.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wuninitialized  -fPIE   -Wuninitialized -o CMakeFiles/cmTC_08778.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-Q7E76t/src.cxx
+Linking CXX executable cmTC_08778
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_08778.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_08778.dir/src.cxx.o -o cmTC_08778 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-Q7E76t'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wunreachable_code succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-kSOWNI
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_7f73e/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_7f73e.dir/build.make CMakeFiles/cmTC_7f73e.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-kSOWNI'
+Building CXX object CMakeFiles/cmTC_7f73e.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wunreachable_code  -fPIE   -Wunreachable-code -o CMakeFiles/cmTC_7f73e.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-kSOWNI/src.cxx
+Linking CXX executable cmTC_7f73e
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7f73e.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_7f73e.dir/src.cxx.o -o cmTC_7f73e 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-kSOWNI'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wunused succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EatQ9t
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_1cd8a/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_1cd8a.dir/build.make CMakeFiles/cmTC_1cd8a.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EatQ9t'
+Building CXX object CMakeFiles/cmTC_1cd8a.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wunused  -fPIE   -Wunused -o CMakeFiles/cmTC_1cd8a.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EatQ9t/src.cxx
+Linking CXX executable cmTC_1cd8a
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1cd8a.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_1cd8a.dir/src.cxx.o -o cmTC_1cd8a 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EatQ9t'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wno_sign_compare succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-LK6F8B
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_1d579/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_1d579.dir/build.make CMakeFiles/cmTC_1d579.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-LK6F8B'
+Building CXX object CMakeFiles/cmTC_1d579.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wno_sign_compare  -fPIE   -Wno-sign-compare -o CMakeFiles/cmTC_1d579.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-LK6F8B/src.cxx
+Linking CXX executable cmTC_1d579
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1d579.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_1d579.dir/src.cxx.o -o cmTC_1d579 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-LK6F8B'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wduplicated_branches succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-lzocWs
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_10a59/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_10a59.dir/build.make CMakeFiles/cmTC_10a59.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-lzocWs'
+Building CXX object CMakeFiles/cmTC_10a59.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wduplicated_branches  -fPIE   -Wduplicated-branches -o CMakeFiles/cmTC_10a59.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-lzocWs/src.cxx
+Linking CXX executable cmTC_10a59
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_10a59.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_10a59.dir/src.cxx.o -o cmTC_10a59 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-lzocWs'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wduplicated_cond succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-QZeYO9
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_0daf0/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_0daf0.dir/build.make CMakeFiles/cmTC_0daf0.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-QZeYO9'
+Building CXX object CMakeFiles/cmTC_0daf0.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wduplicated_cond  -fPIE   -Wduplicated-cond -o CMakeFiles/cmTC_0daf0.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-QZeYO9/src.cxx
+Linking CXX executable cmTC_0daf0
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_0daf0.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_0daf0.dir/src.cxx.o -o cmTC_0daf0 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-QZeYO9'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wno_noexcept_type succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-OMqaI4
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_03763/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_03763.dir/build.make CMakeFiles/cmTC_03763.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-OMqaI4'
+Building CXX object CMakeFiles/cmTC_03763.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wno_noexcept_type  -fPIE   -Wno-noexcept-type -o CMakeFiles/cmTC_03763.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-OMqaI4/src.cxx
+Linking CXX executable cmTC_03763
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_03763.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_03763.dir/src.cxx.o -o cmTC_03763 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-OMqaI4'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wodr succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-atbkKp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_2c7a5/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_2c7a5.dir/build.make CMakeFiles/cmTC_2c7a5.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-atbkKp'
+Building CXX object CMakeFiles/cmTC_2c7a5.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wodr  -fPIE   -Wodr -o CMakeFiles/cmTC_2c7a5.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-atbkKp/src.cxx
+Linking CXX executable cmTC_2c7a5
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2c7a5.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_2c7a5.dir/src.cxx.o -o cmTC_2c7a5 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-atbkKp'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wshift_negative_value succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-9nQBEf
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_43635/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_43635.dir/build.make CMakeFiles/cmTC_43635.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-9nQBEf'
+Building CXX object CMakeFiles/cmTC_43635.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wshift_negative_value  -fPIE   -Wshift-negative-value -o CMakeFiles/cmTC_43635.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-9nQBEf/src.cxx
+Linking CXX executable cmTC_43635
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_43635.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_43635.dir/src.cxx.o -o cmTC_43635 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-9nQBEf'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wshift_overflow_2 succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-7FNpZw
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_2bf62/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_2bf62.dir/build.make CMakeFiles/cmTC_2bf62.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-7FNpZw'
+Building CXX object CMakeFiles/cmTC_2bf62.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wshift_overflow_2  -fPIE   -Wshift-overflow=2 -o CMakeFiles/cmTC_2bf62.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-7FNpZw/src.cxx
+Linking CXX executable cmTC_2bf62
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2bf62.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_2bf62.dir/src.cxx.o -o cmTC_2bf62 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-7FNpZw'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wno_comment succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-85YFaq
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_b03a0/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_b03a0.dir/build.make CMakeFiles/cmTC_b03a0.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-85YFaq'
+Building CXX object CMakeFiles/cmTC_b03a0.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wno_comment  -fPIE   -Wno-comment -o CMakeFiles/cmTC_b03a0.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-85YFaq/src.cxx
+Linking CXX executable cmTC_b03a0
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_b03a0.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_b03a0.dir/src.cxx.o -o cmTC_b03a0 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-85YFaq'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wno_missing_field_initializers succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NHPrCU
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_d4e1a/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_d4e1a.dir/build.make CMakeFiles/cmTC_d4e1a.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NHPrCU'
+Building CXX object CMakeFiles/cmTC_d4e1a.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wno_missing_field_initializers  -fPIE   -Wno-missing-field-initializers -o CMakeFiles/cmTC_d4e1a.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NHPrCU/src.cxx
+Linking CXX executable cmTC_d4e1a
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d4e1a.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_d4e1a.dir/src.cxx.o -o cmTC_d4e1a 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NHPrCU'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_C_FLAG_Wno_maybe_uninitialized succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-HNFtah
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_7dee1/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_7dee1.dir/build.make CMakeFiles/cmTC_7dee1.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-HNFtah'
+Building CXX object CMakeFiles/cmTC_7dee1.dir/src.cxx.o
+/usr/bin/c++ -DHAS_C_FLAG_Wno_maybe_uninitialized  -fPIE   -Wno-maybe-uninitialized -o CMakeFiles/cmTC_7dee1.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-HNFtah/src.cxx
+Linking CXX executable cmTC_7dee1
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_7dee1.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_7dee1.dir/src.cxx.o -o cmTC_7dee1 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-HNFtah'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wall succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-zSXvNZ
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_c6f11/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_c6f11.dir/build.make CMakeFiles/cmTC_c6f11.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-zSXvNZ'
+Building CXX object CMakeFiles/cmTC_c6f11.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wall  -fPIE   -Wall -o CMakeFiles/cmTC_c6f11.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-zSXvNZ/src.cxx
+Linking CXX executable cmTC_c6f11
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_c6f11.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_c6f11.dir/src.cxx.o -o cmTC_c6f11 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-zSXvNZ'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wextra succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-UNgZJF
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_ec679/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_ec679.dir/build.make CMakeFiles/cmTC_ec679.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-UNgZJF'
+Building CXX object CMakeFiles/cmTC_ec679.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wextra  -fPIE   -Wextra -o CMakeFiles/cmTC_ec679.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-UNgZJF/src.cxx
+Linking CXX executable cmTC_ec679
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ec679.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_ec679.dir/src.cxx.o -o cmTC_ec679 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-UNgZJF'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wcomment succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-kexXjG
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_6f6ab/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_6f6ab.dir/build.make CMakeFiles/cmTC_6f6ab.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-kexXjG'
+Building CXX object CMakeFiles/cmTC_6f6ab.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wcomment  -fPIE   -Wcomment -o CMakeFiles/cmTC_6f6ab.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-kexXjG/src.cxx
+Linking CXX executable cmTC_6f6ab
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_6f6ab.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_6f6ab.dir/src.cxx.o -o cmTC_6f6ab 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-kexXjG'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wendif_labels succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-roRW6N
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_2959f/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_2959f.dir/build.make CMakeFiles/cmTC_2959f.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-roRW6N'
+Building CXX object CMakeFiles/cmTC_2959f.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wendif_labels  -fPIE   -Wendif-labels -o CMakeFiles/cmTC_2959f.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-roRW6N/src.cxx
+Linking CXX executable cmTC_2959f
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2959f.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_2959f.dir/src.cxx.o -o cmTC_2959f 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-roRW6N'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wformat succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-3NvmhU
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_1030b/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_1030b.dir/build.make CMakeFiles/cmTC_1030b.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-3NvmhU'
+Building CXX object CMakeFiles/cmTC_1030b.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wformat  -fPIE   -Wformat -o CMakeFiles/cmTC_1030b.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-3NvmhU/src.cxx
+Linking CXX executable cmTC_1030b
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1030b.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_1030b.dir/src.cxx.o -o cmTC_1030b 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-3NvmhU'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Winit_self succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-QvnHLy
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_29096/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_29096.dir/build.make CMakeFiles/cmTC_29096.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-QvnHLy'
+Building CXX object CMakeFiles/cmTC_29096.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Winit_self  -fPIE   -Winit-self -o CMakeFiles/cmTC_29096.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-QvnHLy/src.cxx
+Linking CXX executable cmTC_29096
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_29096.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_29096.dir/src.cxx.o -o cmTC_29096 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-QvnHLy'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wreturn_type succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-alb2us
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_1a736/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_1a736.dir/build.make CMakeFiles/cmTC_1a736.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-alb2us'
+Building CXX object CMakeFiles/cmTC_1a736.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wreturn_type  -fPIE   -Wreturn-type -o CMakeFiles/cmTC_1a736.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-alb2us/src.cxx
+Linking CXX executable cmTC_1a736
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_1a736.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_1a736.dir/src.cxx.o -o cmTC_1a736 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-alb2us'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wsequence_point succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-uaqCAD
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_f0e8a/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_f0e8a.dir/build.make CMakeFiles/cmTC_f0e8a.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-uaqCAD'
+Building CXX object CMakeFiles/cmTC_f0e8a.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wsequence_point  -fPIE   -Wsequence-point -o CMakeFiles/cmTC_f0e8a.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-uaqCAD/src.cxx
+Linking CXX executable cmTC_f0e8a
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_f0e8a.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_f0e8a.dir/src.cxx.o -o cmTC_f0e8a 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-uaqCAD'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wswitch succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NGIi7m
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_016e1/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_016e1.dir/build.make CMakeFiles/cmTC_016e1.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NGIi7m'
+Building CXX object CMakeFiles/cmTC_016e1.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wswitch  -fPIE   -Wswitch -o CMakeFiles/cmTC_016e1.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NGIi7m/src.cxx
+Linking CXX executable cmTC_016e1
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_016e1.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_016e1.dir/src.cxx.o -o cmTC_016e1 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-NGIi7m'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wtrigraphs succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-xG8k59
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_de1f3/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_de1f3.dir/build.make CMakeFiles/cmTC_de1f3.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-xG8k59'
+Building CXX object CMakeFiles/cmTC_de1f3.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wtrigraphs  -fPIE   -Wtrigraphs -o CMakeFiles/cmTC_de1f3.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-xG8k59/src.cxx
+Linking CXX executable cmTC_de1f3
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_de1f3.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_de1f3.dir/src.cxx.o -o cmTC_de1f3 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-xG8k59'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wundef succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-rH6KiZ
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_ef2e3/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_ef2e3.dir/build.make CMakeFiles/cmTC_ef2e3.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-rH6KiZ'
+Building CXX object CMakeFiles/cmTC_ef2e3.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wundef  -fPIE   -Wundef -o CMakeFiles/cmTC_ef2e3.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-rH6KiZ/src.cxx
+Linking CXX executable cmTC_ef2e3
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ef2e3.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_ef2e3.dir/src.cxx.o -o cmTC_ef2e3 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-rH6KiZ'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wuninitialized succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EX54tO
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_864ba/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_864ba.dir/build.make CMakeFiles/cmTC_864ba.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EX54tO'
+Building CXX object CMakeFiles/cmTC_864ba.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wuninitialized  -fPIE   -Wuninitialized -o CMakeFiles/cmTC_864ba.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EX54tO/src.cxx
+Linking CXX executable cmTC_864ba
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_864ba.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_864ba.dir/src.cxx.o -o cmTC_864ba 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-EX54tO'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wunreachable_code succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-dGecpt
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_d166b/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_d166b.dir/build.make CMakeFiles/cmTC_d166b.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-dGecpt'
+Building CXX object CMakeFiles/cmTC_d166b.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wunreachable_code  -fPIE   -Wunreachable-code -o CMakeFiles/cmTC_d166b.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-dGecpt/src.cxx
+Linking CXX executable cmTC_d166b
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d166b.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_d166b.dir/src.cxx.o -o cmTC_d166b 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-dGecpt'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wunused succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-4U9UWp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_d7516/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_d7516.dir/build.make CMakeFiles/cmTC_d7516.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-4U9UWp'
+Building CXX object CMakeFiles/cmTC_d7516.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wunused  -fPIE   -Wunused -o CMakeFiles/cmTC_d7516.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-4U9UWp/src.cxx
+Linking CXX executable cmTC_d7516
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_d7516.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_d7516.dir/src.cxx.o -o cmTC_d7516 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-4U9UWp'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wno_sign_compare succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-JQZ2Pn
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_66825/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_66825.dir/build.make CMakeFiles/cmTC_66825.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-JQZ2Pn'
+Building CXX object CMakeFiles/cmTC_66825.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wno_sign_compare  -fPIE   -Wno-sign-compare -o CMakeFiles/cmTC_66825.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-JQZ2Pn/src.cxx
+Linking CXX executable cmTC_66825
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_66825.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_66825.dir/src.cxx.o -o cmTC_66825 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-JQZ2Pn'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wduplicated_branches succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-SUPhek
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_97c9a/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_97c9a.dir/build.make CMakeFiles/cmTC_97c9a.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-SUPhek'
+Building CXX object CMakeFiles/cmTC_97c9a.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wduplicated_branches  -fPIE   -Wduplicated-branches -o CMakeFiles/cmTC_97c9a.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-SUPhek/src.cxx
+Linking CXX executable cmTC_97c9a
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_97c9a.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_97c9a.dir/src.cxx.o -o cmTC_97c9a 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-SUPhek'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wduplicated_cond succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-omrZtc
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_e87b9/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_e87b9.dir/build.make CMakeFiles/cmTC_e87b9.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-omrZtc'
+Building CXX object CMakeFiles/cmTC_e87b9.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wduplicated_cond  -fPIE   -Wduplicated-cond -o CMakeFiles/cmTC_e87b9.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-omrZtc/src.cxx
+Linking CXX executable cmTC_e87b9
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_e87b9.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_e87b9.dir/src.cxx.o -o cmTC_e87b9 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-omrZtc'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wno_noexcept_type succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-seJKsp
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_eeb29/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_eeb29.dir/build.make CMakeFiles/cmTC_eeb29.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-seJKsp'
+Building CXX object CMakeFiles/cmTC_eeb29.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wno_noexcept_type  -fPIE   -Wno-noexcept-type -o CMakeFiles/cmTC_eeb29.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-seJKsp/src.cxx
+Linking CXX executable cmTC_eeb29
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_eeb29.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_eeb29.dir/src.cxx.o -o cmTC_eeb29 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-seJKsp'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wodr succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-BpMrCI
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_75d3a/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_75d3a.dir/build.make CMakeFiles/cmTC_75d3a.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-BpMrCI'
+Building CXX object CMakeFiles/cmTC_75d3a.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wodr  -fPIE   -Wodr -o CMakeFiles/cmTC_75d3a.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-BpMrCI/src.cxx
+Linking CXX executable cmTC_75d3a
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_75d3a.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_75d3a.dir/src.cxx.o -o cmTC_75d3a 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-BpMrCI'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wshift_negative_value succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-7CguDo
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_54ce1/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_54ce1.dir/build.make CMakeFiles/cmTC_54ce1.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-7CguDo'
+Building CXX object CMakeFiles/cmTC_54ce1.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wshift_negative_value  -fPIE   -Wshift-negative-value -o CMakeFiles/cmTC_54ce1.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-7CguDo/src.cxx
+Linking CXX executable cmTC_54ce1
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_54ce1.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_54ce1.dir/src.cxx.o -o cmTC_54ce1 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-7CguDo'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wshift_overflow_2 succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-YClt2E
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_2c8ff/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_2c8ff.dir/build.make CMakeFiles/cmTC_2c8ff.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-YClt2E'
+Building CXX object CMakeFiles/cmTC_2c8ff.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wshift_overflow_2  -fPIE   -Wshift-overflow=2 -o CMakeFiles/cmTC_2c8ff.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-YClt2E/src.cxx
+Linking CXX executable cmTC_2c8ff
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2c8ff.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_2c8ff.dir/src.cxx.o -o cmTC_2c8ff 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-YClt2E'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wno_comment succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-RGF7Nb
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_c99c0/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_c99c0.dir/build.make CMakeFiles/cmTC_c99c0.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-RGF7Nb'
+Building CXX object CMakeFiles/cmTC_c99c0.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wno_comment  -fPIE   -Wno-comment -o CMakeFiles/cmTC_c99c0.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-RGF7Nb/src.cxx
+Linking CXX executable cmTC_c99c0
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_c99c0.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_c99c0.dir/src.cxx.o -o cmTC_c99c0 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-RGF7Nb'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wno_missing_field_initializers succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-jBf0b8
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_ddbcc/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_ddbcc.dir/build.make CMakeFiles/cmTC_ddbcc.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-jBf0b8'
+Building CXX object CMakeFiles/cmTC_ddbcc.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wno_missing_field_initializers  -fPIE   -Wno-missing-field-initializers -o CMakeFiles/cmTC_ddbcc.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-jBf0b8/src.cxx
+Linking CXX executable cmTC_ddbcc
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ddbcc.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_ddbcc.dir/src.cxx.o -o cmTC_ddbcc 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-jBf0b8'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test HAS_CXX_FLAG_Wno_maybe_uninitialized succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-Dm5J1i
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_f1f88/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_f1f88.dir/build.make CMakeFiles/cmTC_f1f88.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-Dm5J1i'
+Building CXX object CMakeFiles/cmTC_f1f88.dir/src.cxx.o
+/usr/bin/c++ -DHAS_CXX_FLAG_Wno_maybe_uninitialized  -fPIE   -Wno-maybe-uninitialized -o CMakeFiles/cmTC_f1f88.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-Dm5J1i/src.cxx
+Linking CXX executable cmTC_f1f88
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_f1f88.dir/link.txt --verbose=1
+/usr/bin/c++ CMakeFiles/cmTC_f1f88.dir/src.cxx.o -o cmTC_f1f88 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-Dm5J1i'
+
+
+Source file was:
+int main() { return 0; }
+
+Performing C++ SOURCE FILE Test COMPILER_IGNORES_DEPRECATED_DECL_IN_SYSTEM_HEADERS succeeded with the following output:
+Change Dir: /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-K63zOn
+
+Run Build Command(s):/usr/bin/gmake -f Makefile cmTC_2d339/fast && /usr/bin/gmake  -f CMakeFiles/cmTC_2d339.dir/build.make CMakeFiles/cmTC_2d339.dir/build
+gmake[1]: Entering directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-K63zOn'
+Building CXX object CMakeFiles/cmTC_2d339.dir/src.cxx.o
+/usr/bin/c++ -DCOMPILER_IGNORES_DEPRECATED_DECL_IN_SYSTEM_HEADERS  -Werror=deprecated-declarations -fPIE -o CMakeFiles/cmTC_2d339.dir/src.cxx.o -c /home/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-K63zOn/src.cxx
+Linking CXX executable cmTC_2d339
+/usr/local/bin/cmake -E cmake_link_script CMakeFiles/cmTC_2d339.dir/link.txt --verbose=1
+/usr/bin/c++  -Werror=deprecated-declarations CMakeFiles/cmTC_2d339.dir/src.cxx.o -o cmTC_2d339 
+gmake[1]: Leaving directory '/mnt/data/alturner/code/code4/AMDMIGraphX/tmp/build-dynamic-shape-tests/CMakeFiles/CMakeScratch/TryCompile-K63zOn'
+
+
+Source file was:
+
+#include <algorithm>
+int main() { std::stable_sort((int *)0, (int*)0); }
+
+

@@ -1849,22 +1849,24 @@ struct find_slice_squeeze
         auto axis = sq_axes.front();
 
         auto inputs = op_ins->inputs();
-        for(auto& input : inputs)
-        {
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
             if(input == squeeze)
-                input = slice_ins;
-            else
-                input =
-                    m.insert_instruction(op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
-        }
+                return slice_ins;
+            return m.insert_instruction(op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
+        });
 
         // Unsqueezing the inputs shifts every axis at or after `axis` up by one.
         // Build the source->common axes map and let find_op_shape_transform_op
         // handle reduce/argmin/layout axis remapping (pointwise ops are inserted
         // unchanged), instead of duplicating that logic here.
-        std::vector<std::vector<std::size_t>> axes_map(squeeze->get_shape().ndim());
-        for(std::size_t i = 0; i < axes_map.size(); ++i)
-            axes_map[i] = {i >= axis ? i + 1 : i};
+        std::vector<std::size_t> src_axes(squeeze->get_shape().ndim());
+        std::iota(src_axes.begin(), src_axes.end(), 0);
+        std::vector<std::vector<std::size_t>> axes_map;
+        std::transform(
+            src_axes.begin(),
+            src_axes.end(),
+            std::back_inserter(axes_map),
+            [&](std::size_t i) -> std::vector<std::size_t> { return {i >= axis ? i + 1 : i}; });
 
         auto new_op = find_op_shape_transform_op::insert(m, op_ins, inputs, axes_map);
         auto new_sq = m.insert_instruction(op_ins, squeeze->get_operator(), new_op);

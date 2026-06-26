@@ -986,17 +986,17 @@ struct find_kv_cache_attention
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
-    if(counter == 0)
-    {
-        std::cout << "fuse_attention" << std::endl;
-        mpm.get_module().debug_print();
-        std::cout << "fuse_attention end" << std::endl;
-    }
+    // if(counter == 0)
+    // {
+    //     std::cout << "fuse_attention" << std::endl;
+    //     mpm.get_module().debug_print();
+    //     std::cout << "fuse_attention end" << std::endl;
+    // }
 
     // Fuse kv-cache attention by default
-    match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
-    mpm.get_module().sort();
-    mpm.run_pass(dead_code_elimination{});
+    // match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
+    // mpm.get_module().sort();
+    // mpm.run_pass(dead_code_elimination{});
 
     // Only fuse plain attention when requested
     if(attn_enabled)

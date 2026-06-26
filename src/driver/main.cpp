@@ -193,12 +193,25 @@ static void validate_static_lens_against_declared(const shape& declared, const s
         return;
     const auto& dds  = declared.dyn_dims();
     const auto& lens = concrete.lens();
+    std::cout << "validate_static_lens_against_declared: dds: " << std::endl;
+    for(auto dim : dds)
+    {
+        std::cout << dim << std::endl;
+    }
+    std::cout << "validate_static_lens_against_declared: lens: " << std::endl;
+    for(auto len : lens)
+    {
+        std::cout << len << std::endl;
+    }
     if(dds.size() != lens.size())
         MIGRAPHX_THROW("Parameter rank mismatch between declared and concrete shape.");
     for(std::size_t i = 0; i < dds.size(); ++i)
     {
         const auto iv = dds[i].get_interval();
         const auto len = lens[i];
+        std::cout << "validate_static_lens_against_declared: len: " << len << std::endl;
+        std::cout << "validate_static_lens_against_declared: iv.min: " << iv.min << std::endl;
+        std::cout << "validate_static_lens_against_declared: iv.max: " << iv.max << std::endl;
         if(len < iv.min or len > iv.max)
             MIGRAPHX_THROW("Parameter dimension " + std::to_string(len) + " at axis " +
                            std::to_string(i) + " is outside the declared range [" +
@@ -300,9 +313,12 @@ static shape resolve_concrete_parameter_shape(
     const dims_map& map_input_dims,
     const std::unordered_map<sym::expr, std::size_t>& symbol_map)
 {
+    std::cout << "resolve_concrete_parameter_shape: pname: " << pname << std::endl;
+    std::cout << "resolve_concrete_parameter_shape: declared: " << declared << std::endl;
     if(contains(map_input_dims, pname))
     {
         auto concrete = shape{declared.type(), map_input_dims.at(pname)};
+        std::cout << "resolve_concrete_parameter_shape: concrete: " << concrete << std::endl;
         if(declared.dynamic())
             validate_static_lens_against_declared(declared, concrete);
         return concrete;
@@ -312,11 +328,13 @@ static shape resolve_concrete_parameter_shape(
         if(shape_resolved_fully_by_symbol_map(declared, symbol_map))
         {
             auto concrete = declared.to_static(symbol_map);
+            std::cout << "resolve_concrete_parameter_shape: concrete: " << concrete << std::endl;
             validate_static_lens_against_declared(declared, concrete);
             return concrete;
         }
         throw_if_unbound_symbolic_axes(declared, symbol_map);
         auto concrete = declared.to_static(batch);
+        std::cout << "resolve_concrete_parameter_shape: concrete: " << concrete << std::endl;
         validate_static_lens_against_declared(declared, concrete);
         return concrete;
     }

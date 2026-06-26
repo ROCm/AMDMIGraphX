@@ -26,6 +26,7 @@
 
 #include <migraphx/op/name.hpp>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/common.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
@@ -64,20 +65,35 @@ struct binary : op_name<Derived>
     value attributes() const { return base_attributes(); }
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, static_cast<const Derived&>(*this), true}
-            .has(2)
-            .same_type()
-            .same_dims();
+        // std::cout << "compute_shape: " << this->name() << std::endl;
+        check_shapes{inputs, static_cast<const Derived&>(*this), true}.has(2).same_type();
         auto s0 = inputs.at(0);
         auto s1 = inputs.at(1);
         // Range-based dynamic (or mixed dynamic/static) inputs only support strict equality.
         if((s0.dynamic() or s1.dynamic()) and not(s0.symbolic() and s1.symbolic()))
         {
-            if(s0 == s1)
-                return s0;
-            MIGRAPHX_THROW("BINARY: " + point_function() + ": fixed-dyn shape for inputs");
+            if(s0.dynamic() and not s1.dynamic())
+            {
+                if(s1.elements() != 1 and not std::all_of(s0.dyn_dims().begin(), s0.dyn_dims().end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+                {
+                    MIGRAPHX_THROW("BINARY: " + point_function() +
+                                   ": dynamic shape with non-fixed dimensions not supported");
+                }
+            }
+            if (s1.dynamic() and not s0.dynamic())
+            {
+                if(s0.elements() != 1 and not std::all_of(s1.dyn_dims().begin(), s1.dyn_dims().end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+                {
+                    MIGRAPHX_THROW("BINARY: " + point_function() +
+                                   ": dynamic shape with non-fixed dimensions not supported");
+                }
+            }
+
+            return {s0.type(), compute_broadcasted_dyn_dims(s0, s1)};
         }
-        else if(s0 == s1 and s0.packed())
+
+        check_shapes{{s0, s1}, static_cast<const Derived&>(*this), true}.same_dims();
+        if(s0 == s1 and s0.packed())
         {
             return s0;
         }

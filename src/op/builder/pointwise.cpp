@@ -73,10 +73,12 @@ struct pointwise : op_builder<pointwise>
                                   {{"axis", broadcasted_axis.value()},
                                    {"out_lens", args[longer_instr_idx]->get_shape().lens()}}),
                 args[shorter_instr_idx]);
+            std::cout << "make op with broadcast" << std::endl;
             return {m.add_instruction(migraphx::make_op(op_name), args[longer_instr_idx], l)};
         }
         else
         {
+            std::cout << "make op without broadcast" << std::endl;
             return {insert_common_op(m, ins, migraphx::make_op(op_name), args)};
         }
     }

@@ -985,33 +985,14 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t,
     std::size_t num_dims = override_dims.empty() ? tensor_dims.size() : override_dims.size();
 
     std::vector<shape::dynamic_dimension> dynamic_dims;
-    auto&& tensor_dims = t.tensor_type().shape().dim();
-    std::transform(tensor_dims.begin(),
-                   tensor_dims.end(),
-                   std::back_inserter(dynamic_dims),
-                   [&](auto&& d) -> shape::dynamic_dimension {
-                       if(d.has_dim_param())
-                       {
-                           const auto& dim_param = d.dim_param();
-                           if(contains(dim_params, dim_param))
-                           {
-                               return dim_param_to_symbolic(dim_param, dim_params.at(dim_param));
-                           }
-                       }
-                       if(d.has_dim_value())
-                       {
-                           if(static_cast<int>(d.dim_value()) <= 0)
-                           {
-                               return default_dyn_dim_value;
-                           }
-                           std::size_t tmp = d.dim_value();
-                           return {tmp, tmp};
-                       }
-                       else
-                       {
-                           return default_dyn_dim_value;
-                       }
-                   });
+    transform(range(num_dims),
+                std::back_inserter(dynamic_dims),
+                [&](std::size_t axis) -> shape::dynamic_dimension {
+                    const shape::dynamic_dimension* od =
+                        axis < override_dims.size() ? &override_dims[axis] : nullptr;
+                    const auto* d = axis < tensor_dims.size() ? &tensor_dims[axis] : nullptr;
+                    return map_dyn_dim(*this, d, od, name, axis);
+                });
 
     if(dynamic_dims.empty())
         return {shape_type};

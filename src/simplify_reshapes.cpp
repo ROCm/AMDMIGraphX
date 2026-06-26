@@ -1835,6 +1835,7 @@ bool validate_non_chain_inputs(const std::vector<instruction_ref>& inputs,
                                instruction_ref start,
                                instruction_ref current)
 {
+    assert(chain_idx < inputs.size());
     // The chain input itself (inputs[chain_idx]) is always fine; every other
     // input must be the source, the current node, or broadcastable to any shape.
     auto widenable = [&](instruction_ref inp) {
@@ -1953,7 +1954,7 @@ struct slice_entry
     int64_t end;
 };
 
-// Group the sibling slice consumers of `ins` whose unit-axis pointwise chains
+// Group the sibling slice consumers of `ins` whose single-axis pointwise chains
 // match.  Returns empty if fewer than two slices qualify.
 std::vector<std::pair<slice_group_key, std::vector<slice_entry>>>
 group_sibling_slices(instruction_ref ins)
@@ -2028,8 +2029,7 @@ instruction_ref replay_pw_chain(module& m,
             else
                 new_inputs[j] = tmpl->inputs()[j];
         }
-        chain_input =
-            m.insert_instruction(ip, make_op(op_name, tmpl->get_operator().to_value()), new_inputs);
+        chain_input  = m.insert_instruction(ip, tmpl->get_operator(), new_inputs);
         template_ins = tmpl;
     }
     return chain_input;

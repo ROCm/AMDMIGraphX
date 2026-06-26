@@ -5121,7 +5121,7 @@ TEST_CASE(broadcast_nop_reduce_mean)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Runs only simplify_reshapes (which now includes hoist_pointwise_above_slices)
+// Runs only simplify_reshapes (which includes hoist_pointwise_above_slices)
 // plus dead_code_elimination, so the hoist transform can be checked in isolation
 // without eliminate_common_subexpression rewriting the result.
 static void run_hoist_pass(migraphx::module& m)

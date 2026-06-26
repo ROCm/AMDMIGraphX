@@ -53,3 +53,34 @@ struct test_split_reduce_add : verify_program<test_split_reduce_add<N, DType>>
 template struct test_split_reduce_add<14400, migraphx::shape::float_type>;
 template struct test_split_reduce_add<3276, migraphx::shape::float_type>;
 template struct test_split_reduce_add<3277, migraphx::shape::float_type>;
+
+template <std::size_t N>
+struct test_split_reduce_add_dynamic : verify_program<test_split_reduce_add_dynamic<N>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
+        using dd = migraphx::shape::dynamic_dimension;
+        migraphx::shape s{migraphx::shape::float_type, {dd{N, N}, dd{32, 32}, dd{20, 20}, dd{16, 16}}};
+        migraphx::shape bs{migraphx::shape::float_type, {1, 32, 1, 16}, {1, 1, 1, 32}};
+        auto x = mm->add_parameter("x", s);
+        auto y = mm->add_parameter("y", bs);
+        auto reduce_mean =
+            mm->add_instruction(migraphx::make_op("reduce_mean", {{"axes", {0, 2}}}), x);
+        auto add = mm->add_instruction(migraphx::make_op("add"), reduce_mean, y);
+        mm->add_return({add});
+        return p;
+    }
+
+    std::unordered_map<std::string, migraphx::shape> get_test_dims() const
+    {
+        return {{"x", migraphx::shape{migraphx::shape::float_type, {N, 32, 20, 16}}},
+                {"y",
+                 migraphx::shape{migraphx::shape::float_type, {1, 32, 1, 16}, {1, 1, 1, 32}}}};
+    }
+
+    std::string section() const { return "reduce"; }
+};
+
+template struct test_split_reduce_add_dynamic<3277>;

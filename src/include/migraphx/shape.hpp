@@ -180,12 +180,22 @@ struct MIGRAPHX_EXPORT shape
         {
             if(this->is_symbolic() and other.is_symbolic())
             {
+                std::cout << "both sym" << std::endl;
+                std::cout << "this_sym_expr: " << this->sym_expr << std::endl;
+                std::cout << "other_sym_expr: " << other.sym_expr << std::endl;
                 if(this->sym_expr == other.sym_expr)
                     return *this;
-                return nullopt;
+                std::cout << "not same sym" << std::endl;
+                if(not other.is_fixed())
+                    return nullopt;
             }
+            
             auto this_interval  = this->get_interval();
             auto other_interval = other.get_interval();
+            std::cout << "this_interval min: " << this_interval.min << std::endl;
+            std::cout << "this_interval max: " << this_interval.max << std::endl;
+            std::cout << "other_interval min: " << other_interval.min << std::endl;
+            std::cout << "other_interval max: " << other_interval.max << std::endl;
             auto left           = std::max(this_interval.min, other_interval.min);
             auto right          = std::min(this_interval.max, other_interval.max);
             if(left <= right)
@@ -621,7 +631,7 @@ struct MIGRAPHX_EXPORT shape
 };
 
 /// Flatten subshapes to a single vector of non-tuple type of shapes
-MIGRAPHX_EXPORT std::vector<shape> flatten(const std::vector<shape>& shapes);
+MIGRAPHX_EXPORT std::vector<shape> flatten_tuple_shapes(const std::vector<shape>& shapes);
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);

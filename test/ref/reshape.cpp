@@ -102,6 +102,27 @@ TEST_CASE(reshape_lazy_dyn_test)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, data));
 }
 
+TEST_CASE(reshape_lazy_dyn_rank_expansion_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{1, 4}, {24, 24}}};
+    std::vector<int64_t> new_shape = {0, 4, 3, 2};
+    auto input                     = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> data(48);
+    std::iota(data.begin(), data.end(), -3);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 24}};
+    params["X"] = migraphx::argument(input_fixed_shape, data.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector{};
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, data));
+}
+
 TEST_CASE(reshape_test0)
 {
     migraphx::shape a_shape{migraphx::shape::float_type, {24, 1, 1, 1}};

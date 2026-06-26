@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,4 +58,42 @@ TEST_CASE(instance_norm_dyn_batch_test)
     auto prog                     = read_onnx("instance_norm_dyn_batch_test.onnx", options);
 
     EXPECT(p == prog);
+}
+
+TEST_CASE(instance_norm_sym_batch_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    // Symbolic batch: scale/bias use the single-input broadcast (axis + out_dyn_dims) form.
+    migraphx::shape s1{migraphx::shape::float_type,
+                       sym_dims({var("n", {1, 2}), lit(2), lit(3), lit(3)})};
+    migraphx::shape s2{migraphx::shape::float_type, {2}};
+    EXPECT(check_parse(
+        "instance_norm_dyn_batch_test.onnx",
+        {{"0", s1}, {"1", s2}, {"2", s2}},
+        [](migraphx::module& m, const auto& a) {
+            auto x     = a[0];
+            auto scale = a[1];
+            auto bias  = a[2];
+
+            auto mean = m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), x);
+            auto l1   = add_common_op(m, migraphx::make_op("sub"), {x, mean});
+            auto l0   = add_common_op(m, migraphx::make_op("sqdiff"), {x, mean});
+            auto variance =
+                m.add_instruction(migraphx::make_op("reduce_mean", {{"axes", {2, 3}}}), l0);
+            auto epsilon_literal = m.add_literal(
+                migraphx::literal{migraphx::shape{migraphx::shape::float_type}, {1e-5}});
+            auto l2 = add_common_op(m, migraphx::make_op("add"), {variance, epsilon_literal});
+
+            auto l3          = m.add_instruction(migraphx::make_op("rsqrt"), l2);
+            auto l4          = add_common_op(m, migraphx::make_op("mul"), {l1, l3});
+            auto dims        = migraphx::to_value(x->get_shape().dyn_dims());
+            auto scale_bcast = m.add_instruction(
+                migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), scale);
+            auto bias_bcast = m.add_instruction(
+                migraphx::make_op("broadcast", {{"axis", 1}, {"out_dyn_dims", dims}}), bias);
+            auto l5  = m.add_instruction(migraphx::make_op("mul"), l4, scale_bcast);
+            auto ret = m.add_instruction(migraphx::make_op("add"), l5, bias_bcast);
+            m.add_return({ret});
+        }));
 }

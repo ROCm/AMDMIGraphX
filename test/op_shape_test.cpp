@@ -2911,64 +2911,46 @@ TEST_CASE(multinomial_dyn)
 
 TEST_CASE(nms_shape)
 {
-    // use_dyn_output == false
-    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
-    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    // The nonmaxsuppression op always returns a tuple shape:
+    //   {indices [max_num_boxes, 3] int64, num_selected [1] int64}
+    // where max_num_boxes = max_batches * max_classes * max_spatial_dim (from max_lens).
     migraphx::shape max_out_s{migraphx::shape::int64_type, {1}};
     migraphx::shape iou_thres_s{migraphx::shape::float_type, {1}};
     migraphx::shape score_thres_s{migraphx::shape::float_type, {1}};
-    migraphx::shape output_s{migraphx::shape::int64_type, {6, 3}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", false}}),
+    migraphx::shape num_selected_s{migraphx::shape::int64_type, {1}};
+
+    auto nms_tuple = [&](std::size_t max_num_boxes) {
+        return migraphx::shape(
+            {migraphx::shape{migraphx::shape::int64_type, {max_num_boxes, 3}}, num_selected_s});
+    };
+
+    // fully static inputs
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 6, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 6}};
+    expect_shape(nms_tuple(6),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
                  iou_thres_s,
                  score_thres_s);
 
-    // use_dyn_output == true
-    output_s = {migraphx::shape::int64_type, {{0, 6}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // dynamic batches
+    // dynamic batches: max_num_boxes = 3 * 1 * 6 = 18
     boxes_s  = {migraphx::shape::float_type, {{1, 3}, {6, 6}, {4, 4}}};
     scores_s = {migraphx::shape::float_type, {{1, 3}, {1, 1}, {6, 6}}};
-    output_s = {migraphx::shape::int64_type, {{0, 18}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+    expect_shape(nms_tuple(18),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
                  iou_thres_s,
                  score_thres_s);
 
-    // dynamic num boxes
+    // dynamic num boxes: max_num_boxes = 1 * 1 * 20 = 20
     boxes_s  = {migraphx::shape::float_type, {{1, 1}, {6, 20}, {4, 4}}};
     scores_s = {migraphx::shape::float_type, {{1, 1}, {1, 1}, {6, 20}}};
-    output_s = {migraphx::shape::int64_type, {{0, 20}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // use_dyn_output false with dynamic input shape: auto-enables dynamic output
-    output_s = {migraphx::shape::int64_type, {{0, 20}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", false}}),
+    expect_shape(nms_tuple(20),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
@@ -2978,90 +2960,20 @@ TEST_CASE(nms_shape)
     // dynamic classes: max_num_boxes = 1 * 3 * 6 = 18
     boxes_s  = {migraphx::shape::float_type, {{1, 1}, {6, 6}, {4, 4}}};
     scores_s = {migraphx::shape::float_type, {{1, 1}, {1, 3}, {6, 6}}};
-    output_s = {migraphx::shape::int64_type, {{0, 18}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+    expect_shape(nms_tuple(18),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
                  iou_thres_s,
                  score_thres_s);
 
-    // fixed mismatch batches: use_dyn_output=true takes dynamic path, deferred to runtime
-    // max_num_boxes = 2 * 1 * 6 = 12
-    boxes_s  = {migraphx::shape::float_type, {2, 6, 4}};
-    scores_s = {migraphx::shape::float_type, {1, 1, 6}};
-    output_s = {migraphx::shape::int64_type, {{0, 12}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // fixed mismatch num boxes: use_dyn_output=true takes dynamic path, deferred to runtime
-    // max_num_boxes = 1 * 1 * 6 = 6
-    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
-    scores_s = {migraphx::shape::float_type, {1, 1, 4}};
-    output_s = {migraphx::shape::int64_type, {{0, 6}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // dynamic mismatch batches: deferred to runtime validation
-    // max_num_boxes = boxes_max[0] * scores_max[1] * boxes_max[1] = 4 * 1 * 6 = 24
-    boxes_s  = {migraphx::shape::float_type, {{1, 4}, {6, 6}, {4, 4}}};
-    scores_s = {migraphx::shape::float_type, {{2, 8}, {1, 1}, {6, 6}}};
-    output_s = {migraphx::shape::int64_type, {{0, 24}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // dynamic mismatch num boxes: deferred to runtime validation
+    // dynamic mismatch num boxes: deferred to runtime validation.
+    // spatial dim is taken from boxes.max_lens()[1] = 8, so max_num_boxes = 1 * 1 * 8 = 8
     boxes_s  = {migraphx::shape::float_type, {{1, 1}, {6, 8}, {4, 4}}};
     scores_s = {migraphx::shape::float_type, {{1, 1}, {1, 1}, {3, 9}}};
-    output_s = {migraphx::shape::int64_type, {{0, 8}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-
-    // dynamic number of classes, fixed boxes_s, mismatch batches: deferred to runtime
-    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
-    scores_s = {migraphx::shape::float_type, {{1, 3}, {1, 3}, {6, 6}}};
-    output_s = {migraphx::shape::int64_type, {{0, 18}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
-                 boxes_s,
-                 scores_s,
-                 max_out_s,
-                 iou_thres_s,
-                 score_thres_s);
-    // dynamic number of classes, fixed boxes_s, mismatch num boxes: deferred to runtime
-    boxes_s  = {migraphx::shape::float_type, {1, 6, 4}};
-    scores_s = {migraphx::shape::float_type, {{1, 1}, {1, 3}, {4, 8}}};
-    output_s = {migraphx::shape::int64_type, {{0, 18}, {3, 3}}};
-    expect_shape(output_s,
-                 migraphx::make_op("nonmaxsuppression",
-                                   {{"center_point_box", true}, {"use_dyn_output", true}}),
+    expect_shape(nms_tuple(8),
+                 migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}),
                  boxes_s,
                  scores_s,
                  max_out_s,
@@ -4655,6 +4567,20 @@ TEST_CASE(reshape_lazy_dyn_shape)
         migraphx::shape output{migraphx::shape::float_type, out_dyn_dims};
         expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
     }
+}
+
+TEST_CASE(reshape_lazy_all_fixed_dyn_dims)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{2, 2}, {6, 6}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 1}, {3, 3}, {2, 2}, {2, 2}}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", {1, 3, 2, 2}}}), input);
+}
+
+TEST_CASE(reshape_lazy_rank_expansion)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}}};
+    migraphx::shape output{migraphx::shape::float_type, {{1, 4}, {4, 4}, {3, 3}, {2, 2}}};
+    expect_shape(output, migraphx::make_op("reshape_lazy", {{"dims", {0, 4, 3, 2}}}), input);
 }
 
 TEST_CASE(reshape_lazy_multiple_non_fixed_error)

@@ -277,7 +277,15 @@ struct slice
                return not input_shape.dyn_dims()[axis].is_fixed();
            }))
         {
-            MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on non-fixed dynamic input axis ");
+            if(inputs_shape.symbolic())
+                MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on non-fixed symbolic input axis ");
+            // attributes are not normalized for this case.
+            auto dds = input_shape.dyn_dims();
+            auto new_dds = dds;
+            std::transform(dds.begin(), dds.end(), new_dds.begin(), [&](auto dd){
+                    return {0, dd.get_interval().max()}
+                });
+            return shape{input_shape.type(), new_dds};
         }
 
         auto new_lens = lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes);

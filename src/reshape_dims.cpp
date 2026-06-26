@@ -45,7 +45,7 @@ static Iterator compute_end_dim(Iterator start, Iterator last, const sym::expr& 
         }
         return not *x_lt;
     });
-    if(indeterminate or x != dim)
+    if(indeterminate or not sym::same_symbol(x, dim))
         return start;
     return it;
 }
@@ -69,17 +69,17 @@ try_merge_pairs(optional<std::pair<sym::expr, sym::expr>> p2,
     if(not order.has_value() or *order)
         return nullopt;
     // Broadcasted check to avoid division by zero
-    if(stride2 == zero)
+    if(sym::same_symbol(stride2, zero))
     {
-        if(stride1 == zero)
+        if(sym::same_symbol(stride1, zero))
             return {{elements, zero}};
         return nullopt;
     }
-    if(stride1 % stride2 != zero)
+    if(not sym::same_symbol(stride1 % stride2, zero))
         return nullopt;
     auto space = (stride1 * dim1 + stride2 * dim2 - stride1) / stride2;
     // Nonpacked
-    if(space != elements)
+    if(not sym::same_symbol(space, elements))
         return nullopt;
     return {{elements, stride2}};
 }

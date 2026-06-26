@@ -26,9 +26,28 @@
 
 TEST_CASE(slice_step_dyn_test)
 {
-    // A slice command with non-default steps will have a "Step" instruction added in parsing.
-    // At the time of writing, Step doesn't support dynamic shape input.
+    // A slice command with non-default steps will have a "step" instruction added in parsing.
+    // Slicing over a non-fixed dynamic dimension and the step op both support dynamic shapes,
+    // so parsing succeeds.
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto l0 =
+        mm->add_parameter("0", migraphx::shape{migraphx::shape::float_type, {{1, 4}, {5, 5}}});
+    // literals from parser
+    mm->add_literal({{migraphx::shape::int32_type, {2}}, {2, 1}});
+    mm->add_literal({{migraphx::shape::int32_type, {2}}, {-1, -2}});
+    mm->add_literal({{migraphx::shape::int32_type, {2}}, {-1, -1}});
+    mm->add_literal({{migraphx::shape::int32_type, {2}}, {-5, -3}});
+    auto slice_out = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {-1, -2}}, {"starts", {-5, -3}}, {"ends", {-1, -1}}}),
+        l0);
+    auto step_out = mm->add_instruction(
+        migraphx::make_op("step", {{"axes", {-1, -2}}, {"steps", {2, 1}}}), slice_out);
+    mm->add_return({step_out});
+
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
-    EXPECT(test::throws([&] { read_onnx("slice_step_dyn_test.onnx", options); }));
+    auto prog                     = read_onnx("slice_step_dyn_test.onnx", options);
+
+    EXPECT(p == prog);
 }

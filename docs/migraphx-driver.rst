@@ -111,6 +111,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Number of compute units to assume for cross-compilation (Default: 120, only used when ``--gpu-arch`` is set)
    *  - --gpu-num-chiplets
       - Number of chiplets (XCCs) to assume for cross-compilation (Default: 1, only used when ``--gpu-arch`` is set)
+   *  - --gpu-arch-params
+      - Device properties to assume for cross-compilation as a JSON object, e.g. ``"{arch:gfx942, num_cu:120, num_chiplets:1, max_threads_per_cu:2048, max_threads_per_block:1024}"`` (overrides ``--gpu-arch``, ``--gpu-num-cus`` and ``--gpu-num-chiplets``; specifying ``arch`` here enables cross-compilation without ``--gpu-arch``)
    *  - --enable-offload-copy
       - Enables implicit offload copying
    *  - --disable-fast-math

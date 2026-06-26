@@ -1,7 +1,7 @@
 #####################################################################################
 #  The MIT License (MIT)
 #
-#  Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+#  Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a copy
 #  of this software and associated documentation files (the "Software"), to deal
@@ -52,7 +52,7 @@ copyright = "Copyright (c) 2024 Advanced Micro Devices, Inc. All rights reserved
 version = version_number
 release = version_number
 
-extensions = ["rocm_docs", "rocm_docs.doxygen", "sphinx_collapse"]
+extensions = ["rocm_docs", "rocm_docs.doxygen", "sphinx_collapse", "sphinxcontrib.datatemplates"]
 external_toc_path = "./sphinx/_toc.yml"
 doxygen_root = "doxygen"
 doxysphinx_enabled = False

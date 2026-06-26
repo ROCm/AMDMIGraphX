@@ -21,26 +21,23 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_DEVICE_GENERATE_RANDOM_HPP
+#define MIGRAPHX_GUARD_RTGLIB_DEVICE_GENERATE_RANDOM_HPP
 
-#include <migraphx/gpu/export.h>
-#include <migraphx/config.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/gpu/device/config.hpp>
 #include <hip/hip_runtime_api.h>
-#include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+namespace device {
 
-/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present.
-MIGRAPHX_GPU_EXPORT hipDeviceProp_t
-make_cross_compile_device_props(const std::string& arch_name,
-                                std::size_t cu_count,
-                                std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024);
+void MIGRAPHX_DEVICE_EXPORT generate_random(hipStream_t stream,
+                                            const argument& result,
+                                            unsigned long seed);
 
+} // namespace device
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

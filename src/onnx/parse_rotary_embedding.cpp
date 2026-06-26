@@ -114,7 +114,30 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 
     static void parse_input(const instruction_ref& input, rotary_parameters& param)
     {
-        auto input_lens = input->get_shape().lens();
+        std::cout << "parse_input" << std::endl;
+        // check if input is dynamic, if so, check if all dims are fixed 
+        if(input->get_shape().dynamic())
+        {
+            if(not all_of(input->get_shape().dyn_dims(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+            {
+                MIGRAPHX_THROW("RotaryEmbedding: Input must be static");
+            }
+            
+        }
+        // auto input_lens = input->get_shape().lens();
+        auto input_shape = input->get_shape();
+        auto input_dyn_shape = input_shape.to_dynamic();
+        auto input_dyn_dims = input_dyn_shape.dyn_dims();
+        std::vector<std::size_t> input_lens(input_dyn_dims.size());
+        if(std::all_of(input_dyn_dims.begin(), input_dyn_dims.end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+        {
+            std::transform(input_dyn_dims.begin(), input_dyn_dims.end(), input_lens.begin(), [](const shape::dynamic_dimension& dim) { return dim.get_interval().max; });
+        }
+        else
+        {
+            MIGRAPHX_THROW("RotaryEmbedding: Input must be static");
+        }
+        input->debug_print();
         auto input_dims = input_lens.size();
 
         if(input_dims < 3 or input_dims > 4)
@@ -145,7 +168,9 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
     static void parse_position_ids(const instruction_ref& position_ids,
                                    const rotary_parameters& param)
     {
+        std::cout << "parse_position_ids" << std::endl;
         auto position_len = position_ids->get_shape().lens();
+        position_ids->debug_print();
         auto position_dim = position_ids->get_shape().lens().size();
 
         if(position_dim > 2 or position_ids->get_shape().scalar())
@@ -169,7 +194,9 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 
     static void parse_cos_cache(const instruction_ref& cos_cache, rotary_parameters& param)
     {
+        std::cout << "parse_cos_cache" << std::endl;
         auto cos_cache_len = cos_cache->get_shape().lens();
+        cos_cache->debug_print();
         param.max_seq_len  = cos_cache_len.at(0);
         if(param.num_heads == 0)
         {
@@ -198,7 +225,9 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
 
     static void parse_sin_cache(const instruction_ref& sin_cache, const rotary_parameters& param)
     {
+        std::cout << "parse_sin_cache" << std::endl;
         auto sin_cache_len = sin_cache->get_shape().lens();
+        sin_cache->debug_print();
 
         if(param.max_seq_len != sin_cache_len.at(0))
         {

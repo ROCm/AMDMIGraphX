@@ -183,11 +183,12 @@ struct same_table_gather_horizontal_fusion
 
         if(ins->get_operator().to_value()["axis"].to<int>() != 0)
             return false;
-    
+
         // Skip dynamic shapes: this fusion relies on static `lens()` on inputs.
         const auto& inputs = ins->inputs();
-        if(std::any_of(inputs.begin(), inputs.end(),
-                       [](const auto& inp) { return inp->get_shape().dynamic(); }))
+        if(std::any_of(inputs.begin(), inputs.end(), [](const auto& inp) {
+               return inp->get_shape().dynamic();
+           }))
             return false;
 
         auto data = inputs.at(0);
@@ -270,8 +271,9 @@ struct gather_horizontal_fusion
 
         // Skip dynamic shapes: this fusion relies on static `lens()` on inputs.
         const auto& inputs = ins->inputs();
-        if(std::any_of(inputs.begin(), inputs.end(),
-                       [](const auto& inp) { return inp->get_shape().dynamic(); }))
+        if(std::any_of(inputs.begin(), inputs.end(), [](const auto& inp) {
+               return inp->get_shape().dynamic();
+           }))
             return false;
 
         auto data = inputs.at(0);

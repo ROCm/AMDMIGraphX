@@ -246,6 +246,9 @@ class MIGRAPHX_EXPORT expr
 MIGRAPHX_EXPORT expr var(std::string name);
 MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar> optimals = {});
 
+/// If \p e is a plain symbolic variable, returns its name; otherwise nullopt.
+MIGRAPHX_EXPORT std::optional<std::string> variable_name(const expr& e);
+
 // Project an expr onto its structural symbol form, stripping all variable
 // metadata (constraints, optimals). `same_symbol(a, b)` is true when a and b
 // are equal ignoring that metadata. max_depth limits the strip to the top

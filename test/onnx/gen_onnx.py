@@ -3196,6 +3196,22 @@ def dim_param_test():
 
 
 @onnx_test()
+def dim_param_shape_probe_test():
+    """Input rank-2 float tensor [seq_len, 1] with symbolic seq_len; output is Shape(x).
+
+    After binding ``seq_len`` at compile/run (e.g. ``--dim-param @seq_len N``), the sole
+    output is a length-2 int64 vector ``[N, 1]``, so the bound value is visible without
+    inspecting intermediate buffers.
+    """
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, ['seq_len', 1])
+    shape = helper.make_tensor_value_info('shape', TensorProto.INT64, [2])
+
+    node = helper.make_node('Shape', inputs=['x'], outputs=['shape'])
+
+    return ([node], [x], [shape])
+
+
+@onnx_test()
 def dropout_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 3, 2, 2])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [1, 3, 2, 2])

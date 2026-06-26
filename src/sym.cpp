@@ -467,6 +467,16 @@ expr var(std::string name, interval constraint, std::set<scalar> optimals)
     return expr(variable_node{std::move(name), {constraint}, std::move(optimals)});
 }
 
+std::optional<std::string> variable_name(const expr& e)
+{
+    if(e.empty())
+        return std::nullopt;
+    const auto* v = std::get_if<variable_node>(&get_node(e));
+    if(v == nullptr)
+        return std::nullopt;
+    return std::string{v->name};
+}
+
 expr arg(expr x) { return x; }
 
 static bool expr_children_less(const std::vector<expr>& a, const std::vector<expr>& b);

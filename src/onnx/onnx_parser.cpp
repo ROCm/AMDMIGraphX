@@ -38,6 +38,7 @@
 #include <migraphx/float8.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/sym.hpp>
 #include <onnx.pb.h>
 #include <iomanip>
 #include <set>
@@ -48,6 +49,19 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_ONNX_PARSER)
+
+static shape::dynamic_dimension dim_param_to_symbolic(std::string onnx_dim_name,
+                                                      const shape::dynamic_dimension& dd)
+{
+    if(dd.is_symbolic())
+        return dd;
+    const auto iv = dd.get_interval();
+    sym::interval siv{static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)};
+    std::set<sym::scalar> sym_opts;
+    for(auto o : dd.get_optimals())
+        sym_opts.insert(static_cast<int64_t>(o));
+    return {sym::var(std::move(onnx_dim_name), siv, std::move(sym_opts))};
+}
 
 static shape shape_from_dyn_dims(shape::type_t shape_type,
                                  const std::vector<shape::dynamic_dimension>& dyn_dims)
@@ -869,7 +883,7 @@ shape onnx_parser::parse_type(const onnx::TypeProto& t) const
                            const auto& dim_param = d.dim_param();
                            if(contains(dim_params, dim_param))
                            {
-                               return dim_params.at(dim_param);
+                               return dim_param_to_symbolic(dim_param, dim_params.at(dim_param));
                            }
                        }
                        if(d.has_dim_value())

@@ -59,6 +59,8 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/errors.hpp>
+#include <migraphx/sym.hpp>
 
 #include <migraphx/time.hpp>
 #include <migraphx/netron_output.hpp>
@@ -67,6 +69,7 @@
 #include <optional>
 #include <set>
 #include <sstream>
+#include <unordered_set>
 
 namespace {
 
@@ -168,6 +171,142 @@ inline static std::string get_version()
            "." MIGRAPHX_VERSION_TWEAK;
 }
 
+static void validate_static_lens_against_declared(const shape& declared, const shape& concrete)
+{
+    if(not declared.dynamic() or concrete.dynamic())
+        return;
+    const auto& dds  = declared.dyn_dims();
+    const auto& lens = concrete.lens();
+    if(dds.size() != lens.size())
+        MIGRAPHX_THROW("Parameter rank mismatch between declared and concrete shape.");
+    for(std::size_t i = 0; i < dds.size(); ++i)
+    {
+        const auto iv = dds[i].get_interval();
+        const auto len = lens[i];
+        if(len < iv.min or len > iv.max)
+            MIGRAPHX_THROW("Parameter dimension " + std::to_string(len) + " at axis " +
+                           std::to_string(i) + " is outside the declared range [" +
+                           std::to_string(iv.min) + ".." + std::to_string(iv.max) + "].");
+    }
+}
+
+static bool shape_resolved_fully_by_symbol_map(
+    const shape& sh, const std::unordered_map<sym::expr, std::size_t>& symbol_map)
+{
+    if(not sh.dynamic())
+        return true;
+    for(const auto& dd : sh.dyn_dims())
+    {
+        if(dd.is_fixed())
+            continue;
+        if(dd.is_symbolic())
+        {
+            if(symbol_map.count(dd.sym_expr) == 0)
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void throw_if_unbound_symbolic_axes(const shape& sh,
+                                           const std::unordered_map<sym::expr, std::size_t>& symbol_map)
+{
+    if(not sh.dynamic())
+        return;
+    for(const auto& dd : sh.dyn_dims())
+    {
+        if(dd.is_fixed())
+            continue;
+        if(dd.is_symbolic() and symbol_map.count(dd.sym_expr) == 0)
+        {
+            auto vn = sym::variable_name(dd.sym_expr);
+            const std::string label = vn ? *vn : dd.sym_expr.to_string();
+            MIGRAPHX_THROW("Symbolic axis `" + label +
+                           "` requires `--dim-param @" + label +
+                           " <static>` (within its declared range) for this program.");
+        }
+    }
+}
+
+static std::unordered_map<sym::expr, std::size_t> build_dim_param_symbol_map(
+    const std::unordered_map<std::string, shape>& param_shapes,
+    const std::unordered_map<std::string, shape::dynamic_dimension>& dim_cli)
+{
+    std::unordered_map<std::string, std::size_t> fixed_values;
+    for(const auto& e : dim_cli)
+    {
+        if(not e.second.is_fixed())
+        {
+            MIGRAPHX_THROW("When binding symbolic axes at run time, `--dim-param @" + e.first +
+                           "` must be a single non-negative integer, not a range.");
+        }
+        fixed_values.emplace(e.first, e.second.get_interval().min);
+    }
+    if(fixed_values.empty())
+        return {};
+    std::unordered_map<sym::expr, std::size_t> symbol_map;
+    std::unordered_set<std::string> matched;
+    for(const auto& param : param_shapes)
+    {
+        if(not param.second.dynamic())
+            continue;
+        for(const auto& dd : param.second.dyn_dims())
+        {
+            if(not dd.is_symbolic())
+                continue;
+            auto vname = sym::variable_name(dd.sym_expr);
+            if(not vname)
+                continue;
+            auto it = fixed_values.find(*vname);
+            if(it == fixed_values.end())
+                continue;
+            symbol_map[dd.sym_expr] = it->second;
+            matched.insert(*vname);
+        }
+    }
+    for(const auto& e : fixed_values)
+    {
+        if(not contains(matched, e.first))
+            log::warn() << "DIM_PARAM: `" << e.first
+                         << "` does not match any symbolic axis in this program; ignoring.";
+    }
+    return symbol_map;
+}
+
+static shape resolve_concrete_parameter_shape(
+    const std::string& pname,
+    const shape& declared,
+    unsigned batch,
+    const dims_map& map_input_dims,
+    const std::unordered_map<sym::expr, std::size_t>& symbol_map)
+{
+    if(contains(map_input_dims, pname))
+    {
+        auto concrete = shape{declared.type(), map_input_dims.at(pname)};
+        if(declared.dynamic())
+            validate_static_lens_against_declared(declared, concrete);
+        return concrete;
+    }
+    if(declared.dynamic())
+    {
+        if(shape_resolved_fully_by_symbol_map(declared, symbol_map))
+        {
+            auto concrete = declared.to_static(symbol_map);
+            validate_static_lens_against_declared(declared, concrete);
+            return concrete;
+        }
+        throw_if_unbound_symbolic_axes(declared, symbol_map);
+        auto concrete = declared.to_static(batch);
+        validate_static_lens_against_declared(declared, concrete);
+        return concrete;
+    }
+    return declared;
+}
+
 struct loader
 {
     std::string file;
@@ -226,14 +365,18 @@ struct loader
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
            {"--input-dim"},
-           ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
+           ap.help("Static shape for a parameter: \"@name d1 d2 ...\". When the program declares "
+                   "dynamic axes, each dimension must fall within the declared min/max. Overrides "
+                   "per-axis `--dim-param` bindings for that parameter when both are supplied."),
            ap.append(),
            ap.nargs(2));
         ap(dim_params,
            {"--dim-param"},
-           ap.help("Symbolic parameter dimension name (fixed / dynamic) - "
-                   "(fixed format): \"@dim_param_name\" \"x\" / "
-                   "(dynamic format): \"@dim_param_name\" \"{min:x, max:y, optimals:[o1,o2]}\""),
+           ap.help("ONNX symbolic dimension: at parse time, \"@name\" with a range JSON sets "
+                   "bounds and preserves the name through .mxr; a single integer fixes the size. "
+                   "When loading a saved program, \"@name N\" binds symbolic axis `name` to "
+                   "static N (must lie in the saved range). `--input-dim` overrides full tensor "
+                   "shapes when both are set."),
            ap.append(),
            ap.nargs(2));
         ap(dyn_param_dims,
@@ -635,18 +778,22 @@ struct program_params
                   const target& t,
                   bool offload,
                   unsigned batch,
-                  dims_map map_input_dims = {})
+                  dims_map map_input_dims                       = {},
+                  std::unordered_map<std::string, shape::dynamic_dimension> dim_param_bindings =
+                      {}) const
     {
         parameter_map m;
         auto param_shapes = p.get_parameter_shapes();
+        const auto symbol_map = build_dim_param_symbol_map(param_shapes, dim_param_bindings);
         std::unordered_map<std::string, shape> static_param_shapes;
         for(auto&& param : param_shapes)
         {
-            if(contains(map_input_dims, param.first))
-                static_param_shapes[param.first] = {param.second.type(),
-                                                    map_input_dims[param.first]};
-            else
-                static_param_shapes[param.first] = param.second.to_static(batch);
+            static_param_shapes[param.first] =
+                resolve_concrete_parameter_shape(param.first,
+                                                 param.second,
+                                                 batch,
+                                                 map_input_dims,
+                                                 symbol_map);
         }
 
         for(auto&& s : fill0)
@@ -761,12 +908,14 @@ struct compiler
     auto params(const program& p)
     {
         return parameters.generate(
-            p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims));
+            p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims),
+            loader::parse_dim_params(l.dim_params));
     }
 
     auto host_params(const program& p)
     {
-        return parameters.generate(p, ct.get_target(), true, l.batch);
+        return parameters.generate(p, ct.get_target(), true, l.batch, {},
+                                   loader::parse_dim_params(l.dim_params));
     }
 
     program compile()
@@ -902,7 +1051,8 @@ struct verify : command<verify>
 
         auto t = c.ct.get_target();
         auto m =
-            c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims));
+            c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims),
+                                  loader::parse_dim_params(c.l.dim_params));
 
         if(c.to_fp16)
         {

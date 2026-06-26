@@ -676,12 +676,19 @@ The driver (`./bin/migraphx-driver`) is essential for development, debugging, an
 | `--fp16` / `--int8` | Quantization mode |
 | `--text` / `--json` / `--binary` | Output format |
 | `--batch N` | Set batch size for model |
-| `--input-dim @input 1 3 224 224` | Set static dimensions |
+| `--input-dim @input 1 3 224 224` | Set full static shape per parameter; values must lie within any declared dynamic bounds |
+| `--dim-param @name ...` | ONNX: bind symbolic dimension `name` to a range JSON or a single integer (preserves the name through `.mxr`). When loading a saved program, `--dim-param @name N` sets symbolic axis `name` to static `N` |
 | `-n N` / `--iterations N` | Number of iterations for perf |
 | `--fill0` / `--fill1` | Fill parameters with 0s or 1s |
 | `-o FILE` / `--output FILE` | Write output to file |
 
 ### Usage Examples
+
+**Compile ONNX with symbolic bounds, save, then run with static bindings:**
+```bash
+migraphx-driver compile model.onnx --onnx --dim-param @seq_len "{min:1,max:512}" -o model.mxr --binary
+migraphx-driver run model.mxr --dim-param @seq_len 128 --ref
+```
 
 **Compile and inspect IR:**
 ```bash

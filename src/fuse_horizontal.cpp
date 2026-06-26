@@ -360,11 +360,6 @@ struct gather_horizontal_fusion
 // Batches structurally-identical dot operations into a single batched GEMM by
 // stacking activations and weights along a new leading dimension (axis 0).  The
 // batched dot output is sliced and squeezed back into the individual results.
-//
-// Only the dots themselves are fused here.  Any downstream elementwise work
-// (bias add, SiLU, ...) is intentionally left untouched so that the existing
-// fusions (e.g. find_splits in simplify_algebra and the pointwise/MLIR fusions)
-// can recombine it on top of the batched dot.
 // ---------------------------------------------------------------------------
 
 struct dot_horizontal_fusion

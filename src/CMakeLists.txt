@@ -318,6 +318,7 @@ register_migraphx_ops(
     sub
     tanh
     tan
+    tile
     topk
     transpose
     unary_not

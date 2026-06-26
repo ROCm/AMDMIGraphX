@@ -21,28 +21,31 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
+#ifndef MIGRAPHX_GUARD_KERNELS_ONNX_TILE_HPP
+#define MIGRAPHX_GUARD_KERNELS_ONNX_TILE_HPP
 
-#include <migraphx/gpu/export.h>
-#include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
-#include <string>
+#include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/tensor_view.hpp>
 
 namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
 
-/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present.
-MIGRAPHX_GPU_EXPORT hipDeviceProp_t
-make_cross_compile_device_props(const std::string& arch_name,
-                                std::size_t cu_count,
-                                std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024);
+/// ONNX Tile: output[i] = input[i mod input_lens] per dimension.
+template <class Input, class Output>
+__device__ void onnx_tile(Input input, Output output)
+{
+    auto ind           = make_index();
+    const auto in_lens = input.get_shape().lens;
+    ind.global_stride(output.get_shape().elements(), [&](auto i) {
+        auto om = output.get_shape().multi(i);
+        auto im = om;
+        for(index_int d = 0; d < in_lens.size(); ++d)
+        {
+            im[d] = om[d] % in_lens[d];
+        }
+        output[i] = input[im];
+    });
+}
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
 #endif

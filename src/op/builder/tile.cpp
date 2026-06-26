@@ -46,7 +46,12 @@ struct tile : op_builder<tile>
     insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
     {
         const auto& input_shape = args[0]->get_shape();
-        const auto& input_lens  = input_shape.lens();
+        if(input_shape.dynamic())
+        {
+            return {m.add_instruction(migraphx::make_op("tile", {{"repeats", repeats}}), args[0])};
+        }
+
+        const auto& input_lens = input_shape.lens();
 
         if(repeats.size() != input_lens.size())
         {

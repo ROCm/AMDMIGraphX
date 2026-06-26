@@ -317,6 +317,16 @@ struct pooling
         double final(double x, std::size_t) const { return (x); }
     };
 
+    // Return the trailing (post) padding declared for the given spatial axis.
+    // padding_vals is either one value per axis or a {begin..., end...} list.
+    static std::size_t trailing_padding(const std::vector<std::size_t>& padding_vals,
+                                        std::size_t num_spatial_dims,
+                                        std::size_t axis)
+    {
+        const bool padding_is_asymmetric = padding_vals.size() == 2 * num_spatial_dims;
+        return padding_is_asymmetric ? padding_vals[num_spatial_dims + axis] : padding_vals[axis];
+    }
+
     template <class Type, class Out, class In, class Op>
     void calc_pooling(const shape& output_shape,
                       Out& output,
@@ -327,15 +337,6 @@ struct pooling
     {
         auto in_s    = input.get_shape();
         auto in_lens = in_s.lens();
-
-        const std::size_t num_spatial_dims = kernel_dims.size();
-        const bool padding_is_asymmetric   = padding_vals.size() == 2 * num_spatial_dims;
-
-        // padding_vals is either one value per axis or a {begin..., end...} list.
-        auto trailing_padding = [&](std::size_t axis) {
-            return padding_is_asymmetric ? padding_vals[num_spatial_dims + axis]
-                                         : padding_vals[axis];
-        };
 
         // For each element of output; i.e., for each placement of pooling kernel...
         par_for(output_shape.elements(), [&](auto i) {
@@ -358,7 +359,9 @@ struct pooling
                 const bool keep_padding_in_window =
                     count_include_pad and mode == pooling_mode::average;
                 const std::size_t window_limit =
-                    keep_padding_in_window ? in_lens[dim] + trailing_padding(d_2) : in_lens[dim];
+                    keep_padding_in_window
+                        ? in_lens[dim] + trailing_padding(padding_vals, kernel_dims.size(), d_2)
+                        : in_lens[dim];
                 int end = std::min(start + dilated_kernel_dim, window_limit);
                 win_start.push_back(start);
                 if(end < start)

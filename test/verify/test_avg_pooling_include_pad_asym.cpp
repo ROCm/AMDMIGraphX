@@ -41,13 +41,15 @@ struct test_avg_pooling_include_pad_asym : verify_program<test_avg_pooling_inclu
 
         auto input =
             mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {1, 3, 8, 8}});
-        mm->add_instruction(migraphx::make_op("pooling",
-                                              {{"mode", migraphx::op::pooling_mode::average},
-                                               {"padding", {1, 1, 2, 2}},
-                                               {"stride", {1, 1}},
-                                               {"lengths", {3, 3}},
-                                               {"count_include_pad", true}}),
-                            input);
+        auto r =
+            mm->add_instruction(migraphx::make_op("pooling",
+                                                  {{"mode", migraphx::op::pooling_mode::average},
+                                                   {"padding", {1, 1, 2, 2}},
+                                                   {"stride", {1, 1}},
+                                                   {"lengths", {3, 3}},
+                                                   {"count_include_pad", true}}),
+                                input);
+        mm->add_return({r});
         return p;
     }
 };

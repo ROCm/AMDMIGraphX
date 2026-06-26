@@ -131,14 +131,19 @@ void broadcast_dimensions(Builder& bldr,
                           instruction_ref& ba0,
                           instruction_ref& ba1)
 {
-    bool any_symbolic = a0->get_shape().symbolic() or a1->get_shape().symbolic();
-    bool any_range    = (a0->get_shape().dynamic() and not a0->get_shape().symbolic()) or
-                     (a1->get_shape().dynamic() and not a1->get_shape().symbolic());
+    auto args         = {a0, a1};
+    bool any_symbolic = std::any_of(
+        args.begin(), args.end(), [](const auto& a) { return a->get_shape().symbolic(); });
+    bool any_range   = std::any_of(args.begin(), args.end(), [](const auto& a) {
+        return a->get_shape().dynamic() and not a->get_shape().symbolic();
+    });
+    bool any_dynamic = std::any_of(
+        args.begin(), args.end(), [](const auto& a) { return a->get_shape().dynamic(); });
     if(any_symbolic and not any_range)
     {
         detail::broadcast_dimensions_symbolic(bldr, a0, a1, ba0, ba1);
     }
-    else if(a0->get_shape().dynamic() or a1->get_shape().dynamic())
+    else if(any_dynamic)
     {
         detail::broadcast_dimensions_dynamic(bldr, a0, a1, ba0, ba1);
     }

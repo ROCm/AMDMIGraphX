@@ -271,6 +271,43 @@ find_output_pointwise(const module& m, instruction_ref ins, bool multi_out)
     return result;
 }
 
+// A later pass (such as eliminate_common_subexpression) can merge two operands of
+// a pointwise instruction into the same instruction. This leaves the pointwise with
+// duplicate operands while its submodule still has a distinct parameter for each
+// original operand, breaking the invariant that every pointwise has exactly one
+// parameter per distinct input. Rebuild any such pointwise so that each distinct
+// operand maps to a single parameter.
+static bool dedup_pointwise_inputs(module_pass_manager& mpm)
+{
+    bool changed = false;
+    auto& m      = mpm.get_module();
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "pointwise")
+            continue;
+        auto inputs = ins->inputs();
+        std::unordered_set<instruction_ref> seen;
+        std::vector<instruction_ref> deduped;
+        std::copy_if(inputs.begin(), inputs.end(), std::back_inserter(deduped), [&](auto input) {
+            return seen.insert(input).second;
+        });
+        if(deduped.size() == inputs.size())
+            continue;
+
+        const_module_ref sm = ins->module_inputs().front();
+        module pm;
+        pm.set_bypass();
+        std::unordered_map<instruction_ref, instruction_ref> map_ins;
+        auto returns = pm.fuse(*sm, inputs, &map_ins, nullptr, &to_scalar);
+        pm.add_return(returns);
+        auto* new_pm = mpm.create_module(sm->name() + ":dedup", std::move(pm));
+        new_pm->set_bypass();
+        m.replace_instruction(ins, make_op("pointwise"), deduped, {new_pm});
+        changed = true;
+    }
+    return changed;
+}
+
 static bool split_pointwise_through_slices(module_pass_manager& mpm)
 {
     bool changed    = false;
@@ -461,6 +498,7 @@ void fuse_pointwise::apply(module_pass_manager& mpm) const
             mpm.run_pass(rewrite_reshapes<pointwise_reshape>{});
         if(enable_rewrite_broadcasts)
             rewrite_broadcasts(mpm);
+        dedup_pointwise_inputs(mpm);
         auto changed = split_pointwise_through_slices(mpm);
         changed      = find_pointwise_modules(mpm, enable_multi_output) or changed;
         if(not changed)

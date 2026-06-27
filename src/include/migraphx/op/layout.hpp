@@ -58,10 +58,15 @@ struct layout : unary<layout>
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).only_dims(permutation.size());
-        auto lens = inputs.at(0).lens();
-        auto t    = inputs.at(0).type();
-        return shape::from_permutation(t, lens, permutation);
+        check_shapes{inputs, *this, true}.has(1).only_dims(permutation.size());
+        const auto& input = inputs.at(0);
+        auto t            = input.type();
+        // A range-based dynamic shape has no strides, so a permuted layout is not representable.
+        if(input.symbolic())
+            return shape::from_permutation(t, input.dyn_dims(), permutation);
+        if(input.dynamic())
+            MIGRAPHX_THROW("LAYOUT: non-symbolic dynamic shapes are not supported");
+        return shape::from_permutation(t, input.lens(), permutation);
     }
 
     auto apply() const

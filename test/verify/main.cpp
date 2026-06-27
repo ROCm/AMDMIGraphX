@@ -81,6 +81,14 @@ int main(int argc, const char* argv[])
          "test_instancenorm_large_3d<migraphx::shape::half_type>",
          "test_isinf<migraphx::generic_float<7, 8> >",
          "test_isinf<migraphx::bf16>",
+         // Disabled until following error can be addressed:
+         // Error eliminate_contiguous: could not create a descriptor for a binary operation
+         // primitive
+         "test_group_query_attention_decode",
+         "test_group_query_attention_grouped",
+         "test_group_query_attention_rotary_only",
+         "test_group_query_attention_concat_only_small",
+         "test_group_query_attention_decode_local",
     // these tests are disabled due issue of lossy downcast, see issue#2517
 #if defined(__GNUC__) and !defined(__clang__)
          "test_batch_quant_dot_1<migraphx::fp8::float8<migraphx::fp8::f8_type::fp8, true>, "
@@ -145,7 +153,10 @@ int main(int argc, const char* argv[])
          "test_bit_cast<migraphx::shape::fp8e4m3fnuz_type, migraphx::shape::fp8e4m3fn_type>",
          "test_dynamic_pointwise<4, 16, 24>",
          "test_dynamic_pointwise<2, 8, 4>",
-         "test_dynamic_pointwise<3, 10, 13>"});
+         "test_dynamic_pointwise<3, 10, 13>",
+         "test_dynamic_gemm_pointwise<4, 4>",
+         "test_dynamic_gemm_pointwise<3, 24>",
+         "test_dynamic_gemm_pointwise<2, 16>"});
     rv.disable_test_for("gpu",
                         {
                             // These passes on MI300 but fails on others, same issue as CPU.

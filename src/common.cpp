@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -91,10 +91,8 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
 
 std::vector<shape::dynamic_dimension> compute_broadcasted_dyn_dims(shape s0, shape s1)
 {
-    // change both shapes to dynamic_dimension representation
-    s0 = s0.to_dynamic();
-    s1 = s1.to_dynamic();
-    return compute_broadcasted_dyn_dims(s0.dyn_dims(), s1.dyn_dims());
+    auto aligned = shape::to_dynamic({s0, s1});
+    return compute_broadcasted_dyn_dims(aligned[0].dyn_dims(), aligned[1].dyn_dims());
 }
 
 std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<shape>& shapes)
@@ -156,8 +154,38 @@ std::vector<instruction_ref> insert_common_args(module& m,
                                                 std::vector<instruction_ref> inputs,
                                                 common_options options)
 {
-    if(std::any_of(
-           inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().dynamic(); }))
+    // Symbolic inputs (with no range-dynamic mixed in) use single-input broadcasts + converts,
+    // mirroring the static path.
+    bool any_symbolic = std::any_of(
+        inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().symbolic(); });
+    bool any_range = std::any_of(inputs.cbegin(), inputs.cend(), [](auto input) {
+        return input->get_shape().dynamic() and not input->get_shape().symbolic();
+    });
+    if(any_symbolic and not any_range)
+    {
+        auto input_shapes = to_shapes(inputs);
+        auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
+        auto c_type       = compute_common_types(input_shapes);
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            auto s = input->get_shape();
+            if(options.common_lens and not(s.symbolic() and s.dyn_dims() == c_dyn_dims))
+            {
+                input = m.insert_instruction(
+                    ins,
+                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                    input);
+            }
+            if(options.common_type and input->get_shape().type() != c_type)
+            {
+                input =
+                    m.insert_instruction(ins, make_op("convert", {{"target_type", c_type}}), input);
+            }
+            return input;
+        });
+        return inputs;
+    }
+
+    if(any_range)
     {
         auto input_shapes = to_shapes(inputs);
         if(options.common_lens)
@@ -235,19 +263,43 @@ instruction_ref add_common_op(module& m,
     return insert_common_op(m, m.end(), op, std::move(inputs), options);
 }
 
+// Unified broadcast-shape builder: propagates input strides on matching axes and leaves
+// `zero` on broadcast axes. Works for both static (Dim = std::size_t, Stride = std::size_t)
+// and symbolic (Dim = shape::dynamic_dimension, Stride = sym::expr) representations.
+template <class Dim, class Stride>
+static shape make_bcast_shape_impl(shape::type_t type,
+                                   const std::vector<Dim>& input_dims,
+                                   const std::vector<Stride>& input_strides,
+                                   const std::vector<Dim>& bcast_dims,
+                                   const Stride& zero)
+{
+    assert(bcast_dims.size() >= input_dims.size());
+    auto offset = bcast_dims.size() - input_dims.size();
+    std::vector<Stride> bcast_strides(bcast_dims.size(), zero);
+    for(std::size_t i = 0; i < input_dims.size(); ++i)
+    {
+        if(bcast_dims[i + offset] == input_dims[i])
+            bcast_strides[i + offset] = input_strides[i];
+    }
+    return {type, bcast_dims, bcast_strides};
+}
+
 shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens)
 {
     assert(not input_shape.dynamic());
-    auto offset = bcast_lens.size() - input_shape.ndim();
-    std::vector<size_t> bcast_strides(bcast_lens.size(), 0);
-    for(std::ptrdiff_t i : reverse(range(input_shape.ndim())))
-    {
-        if(bcast_lens.at(i + offset) == input_shape.lens()[i])
-        {
-            bcast_strides.at(i + offset) = input_shape.strides()[i];
-        }
-    }
-    return shape{input_shape.type(), bcast_lens, bcast_strides};
+    return make_bcast_shape_impl(
+        input_shape.type(), input_shape.lens(), input_shape.strides(), bcast_lens, std::size_t{0});
+}
+
+shape make_bcast_shape(const shape& input_shape,
+                       const std::vector<shape::dynamic_dimension>& bcast_dyn_dims)
+{
+    assert(input_shape.symbolic());
+    return make_bcast_shape_impl(input_shape.type(),
+                                 input_shape.dyn_dims(),
+                                 input_shape.dyn_strides(),
+                                 bcast_dyn_dims,
+                                 sym::lit(0));
 }
 
 } // namespace MIGRAPHX_INLINE_NS

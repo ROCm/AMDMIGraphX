@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,6 @@
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/convolution_backwards.hpp>
 #include <migraphx/op/quant_convolution.hpp>
-#include <migraphx/op/dot.hpp>
 #include <migraphx/op/quant_dot.hpp>
 #include <migraphx/op/im2col.hpp>
 #include <migraphx/op/logsoftmax.hpp>
@@ -48,6 +47,7 @@
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/pad_calc.hpp>
 
+#include <algorithm>
 #include <unordered_map>
 #include <utility>
 #include <iostream>
@@ -202,28 +202,6 @@ struct ref_op
 };
 MIGRAPHX_REGISTER_OP(ref_op)
 
-struct ref_gemm
-{
-    op::dot op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-    std::string name() const { return "ref::dot"; }
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
-    {
-        argument result{dyn_out.computed_shape};
-        visit_all(result, args[0], args[1])(
-            [&](auto cmat, auto amat, auto bmat) { gemm(cmat, amat, bmat, 1.0f, 0.0f); });
-        return result;
-    }
-};
-MIGRAPHX_REGISTER_OP(ref_gemm)
-
 struct ref_quant_gemm
 {
     op::quant_dot op;
@@ -240,15 +218,37 @@ struct ref_quant_gemm
     argument compute(context&, const shape& output_shape, std::vector<argument> args) const
     {
         argument result{output_shape};
-        result.visit([&](auto cmat) {
-            visit_all(args.at(0), args.at(1))(
-                [&](auto amat, auto bmat) { return gemm(cmat, amat, bmat, 1.0f, 0.0f); });
-        });
+        if(args.size() == 4)
+        {
+            auto a_std_shape = shape{shape::float_type, args[0].get_shape().lens()};
+            auto b_std_shape = shape{shape::float_type, args[1].get_shape().lens()};
+
+            std::vector<float> a_dq(a_std_shape.elements());
+            std::vector<float> b_dq(b_std_shape.elements());
+
+            get_all<float>(args[0], args[2])([&](auto amat, auto scale_a) {
+                std::transform(
+                    amat.begin(), amat.end(), scale_a.begin(), a_dq.begin(), std::multiplies<>{});
+            });
+
+            get_all<float>(args[1], args[3])([&](auto bmat, auto scale_b) {
+                std::transform(
+                    bmat.begin(), bmat.end(), scale_b.begin(), b_dq.begin(), std::multiplies<>{});
+            });
+
+            argument a_arg{a_std_shape, a_dq.data()};
+            argument b_arg{b_std_shape, b_dq.data()};
+            gemm(result, a_arg, b_arg);
+        }
+        else
+        {
+            gemm(result, args[0], args[1]);
+        }
         return result;
     }
 };
 
-MIGRAPHX_REGISTER_OP(ref_gemm)
+MIGRAPHX_REGISTER_OP(ref_quant_gemm)
 
 template <class Op>
 struct ref_softmax : auto_register_op<ref_softmax<Op>>
@@ -385,7 +385,6 @@ struct ref_apply
 
     void init()
     {
-        apply_map["dot"]        = extend_op<ref_gemm, op::dot>();
         apply_map["quant_dot"]  = extend_op<ref_quant_gemm, op::quant_dot>();
         apply_map["im2col"]     = extend_op<ref_im2col, op::im2col>();
         apply_map["logsoftmax"] = extend_op<ref_softmax<op::logsoftmax>, op::logsoftmax>();

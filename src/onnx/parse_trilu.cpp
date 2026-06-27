@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -71,7 +71,7 @@ struct parse_trilu : op_parser<parse_trilu>
             k++;
         for(size_t i = 0; i < num_rows; i++)
         {
-            for(int j = 0; j < std::min(k, static_cast<int>(num_cols)); j++)
+            for(int j = 0; j < std::min<int>(k, num_cols); j++)
             {
                 mask_mat[i * num_cols + j] = not upper;
             }

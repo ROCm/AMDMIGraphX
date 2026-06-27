@@ -38,6 +38,7 @@
 #include <migraphx/instruction.hpp>
 
 #include <migraphx/algorithm.hpp>
+#include <migraphx/output_iterator.hpp>
 #include <unordered_set>
 
 namespace migraphx {
@@ -920,10 +921,9 @@ struct find_concat_op
 {
     auto matcher() const
     {
-        return match::name("concat")(match::any_of[match::inputs()](
-            match::any_of(match::pointwise(),
-                          match::name("broadcast", "multibroadcast", "unpack_int4")),
-            match::used_once()));
+        auto fusable_input = match::any_of(
+            match::pointwise(), match::name("broadcast", "multibroadcast", "unpack_int4"));
+        return match::name("concat")(match::any_of[match::inputs()](fusable_input));
     }
 
     template <class Iterator>
@@ -950,11 +950,12 @@ struct find_concat_op
     {
         auto concat_lens = ins.front()->get_shape().lens();
         concat_lens.erase(concat_lens.begin() + axis);
+        auto front_type = ins.front()->get_shape().type();
 
         return std::all_of(ins.begin(), ins.end(), [&](auto i) {
             auto lens = i->get_shape().lens();
             lens.erase(lens.begin() + axis);
-            return lens == concat_lens;
+            return lens == concat_lens and i->get_shape().type() == front_type;
         });
     }
 
@@ -969,78 +970,165 @@ struct find_concat_op
         return nonconst > 2;
     }
 
+    // Fuse a group of equivalent concat inputs [start, last) into a single
+    // operation applied to concatenated arguments. Multi-use inputs are recorded
+    // in `replacements` so they can be rewired to slices of the fused result.
+    template <class Iterator>
+    static std::vector<instruction_ref>
+    fuse_group(module& m,
+               instruction_ref ins,
+               int64_t axis,
+               std::vector<std::pair<instruction_ref, instruction_ref>>& replacements,
+               Iterator start,
+               Iterator last)
+    {
+        if(std::distance(start, last) < 2)
+            return {start, last};
+        auto x = *start;
+        if(std::any_of(start, last, [](instruction_ref i) { return rejected_inputs(i->inputs()); }))
+            return {start, last};
+        // Skip if any multi-use input feeds into another group member,
+        // since the fused result would redundantly recompute the dominated
+        // input without being able to eliminate the original.
+        if(std::any_of(start, last, [&](instruction_ref orig) {
+               return orig->outputs().size() > 1 and
+                      std::any_of(start, last, [&](instruction_ref g) {
+                          return g != orig and reaches(orig, g);
+                      });
+           }))
+            return {start, last};
+        auto op = x->get_operator();
+        if(not is_valid_op(op))
+            return {start, last};
+        auto iaxis = axis;
+        // Adjust broadcast lens
+        if(op.name() == "broadcast")
+        {
+            auto b = any_cast<op::broadcast>(op);
+            if(b.axis != iaxis)
+                return {start, last};
+            b.broadcast_lens = get_output_lens(start, last, iaxis);
+            op               = b;
+            iaxis            = 0;
+        }
+        else if(op.name() == "multibroadcast")
+        {
+            shape bshape = (*start)->get_shape();
+            auto input   = (*start)->inputs()[0];
+            if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
+                return {start, last};
+            op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
+            auto delta = bshape.lens().size() - input->get_shape().lens().size();
+            iaxis -= delta;
+        }
+        if(not concat_const_foldable(start, last, iaxis))
+            return {start, last};
+
+        std::vector<instruction_ref> concats;
+        for(std::size_t i = 0; i < x->inputs().size(); i++)
+        {
+            std::vector<instruction_ref> inputs;
+            std::transform(
+                start, last, std::back_inserter(inputs), [&](auto j) { return j->inputs().at(i); });
+            if(not is_valid_concat(inputs, iaxis))
+                return {start, last};
+            auto concat = m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
+            concats.push_back(concat);
+        }
+        auto y = m.insert_instruction(ins, op, concats);
+
+        // Replace multi-use inputs with slices of the fused result
+        std::size_t offset = 0;
+        for(auto it = start; it != last; ++it)
+        {
+            auto orig = *it;
+            auto len  = orig->get_shape().lens()[axis];
+            if(orig->outputs().size() > 1)
+            {
+                auto slice_ins = m.insert_instruction(
+                    ins,
+                    make_op("slice",
+                            {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
+                    y);
+                replacements.emplace_back(orig, slice_ins);
+            }
+            offset += len;
+        }
+
+        return {y};
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins  = r.result;
         auto axis = any_cast<op::concat>(ins->get_operator()).axis;
 
-        auto each = [&](auto start, auto last) -> std::vector<instruction_ref> {
-            if(std::distance(start, last) < 2)
-                return {start, last};
-            auto x = *start;
-            if(std::any_of(start, last, [](instruction_ref x) {
-                   return x->outputs().size() > 1 or rejected_inputs(x->inputs());
-               }))
-                return {start, last};
-            auto op = x->get_operator();
-            if(not is_valid_op(op))
-                return {start, last};
-            auto iaxis = axis;
-            // Adjust broadcast lens
-            if(op.name() == "broadcast")
-            {
-                auto b = any_cast<op::broadcast>(op);
-                if(b.axis != iaxis)
-                    return {start, last};
-                b.broadcast_lens = get_output_lens(start, last, iaxis);
-                op               = b;
-                iaxis            = 0;
-            }
-            else if(op.name() == "multibroadcast")
-            {
-                shape bshape = (*start)->get_shape();
-                auto input   = (*start)->inputs()[0];
-                if(iaxis >= bshape.strides().size() or bshape.strides()[iaxis] == 0)
-                    return {start, last};
-                op.from_value({{"out_lens", get_output_lens(start, last, iaxis)}});
-                auto delta = bshape.lens().size() - input->get_shape().lens().size();
-                iaxis -= delta;
-            }
-            if(not concat_const_foldable(start, last, iaxis))
-                return {start, last};
-
-            std::vector<instruction_ref> concats;
-            for(std::size_t i = 0; i < x->inputs().size(); i++)
-            {
-                std::vector<instruction_ref> inputs;
-                std::transform(start, last, std::back_inserter(inputs), [&](auto j) {
-                    return j->inputs().at(i);
-                });
-                if(not is_valid_concat(inputs, iaxis))
-                    return {start, last};
-                auto concat =
-                    m.insert_instruction(ins, make_op("concat", {{"axis", iaxis}}), inputs);
-                concats.push_back(concat);
-            }
-            auto y = m.insert_instruction(ins, op, concats);
-            return {y};
-        };
+        std::vector<std::pair<instruction_ref, instruction_ref>> replacements;
 
         std::vector<instruction_ref> args;
         auto update_args = [&](auto start, auto last) {
-            auto x = each(start, last);
+            auto x = fuse_group(m, ins, axis, replacements, start, last);
             args.insert(args.end(), x.begin(), x.end());
         };
         auto pred = [](auto i, auto j) {
             return i->get_operator() == j->get_operator() and
-                   i->inputs().size() == j->inputs().size() and
-                   i->outputs().size() == j->outputs().size();
+                   i->inputs().size() == j->inputs().size();
         };
         group_unique(ins->inputs().begin(), ins->inputs().end(), update_args, pred);
+
+        for(const auto& p : replacements)
+        {
+            m.move_output_instructions_after(p.first, ins);
+        }
+
         if(args.size() == 1)
             m.replace_instruction(ins, args.front());
         else
             m.replace_instruction(ins, make_op("concat", {{"axis", axis}}), args);
+
+        for(const auto& p : replacements)
+        {
+            m.replace_instruction(p.first, p.second);
+        }
+    }
+};
+
+// Collapse `concat(x, x, ..., x)` (N copies of the same instruction) into a
+// single `multibroadcast` when the concat axis has length 1 in the source
+// tensor. This is the common shape that shows up in MoE / KV-cache / RoPE
+// expansion code where a tensor is replicated N times along an axis. The
+// rewrite turns an O(output_size) memcpy into a strided view.
+struct find_concat_same_input
+{
+    auto matcher() const { return match::name("concat")(match::same_inputs()); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins           = r.result;
+        const auto& inputs = ins->inputs();
+        auto x             = inputs.front();
+
+        if(inputs.size() < 2)
+            return;
+
+        auto axis        = ins->get_operator().to_value()["axis"].to<int64_t>();
+        const auto& lens = x->get_shape().lens();
+
+        if(axis < 0 or axis >= lens.size())
+            return;
+
+        // Safe (no data movement) case: the concat axis is size 1 in the
+        // source, so it can be broadcast to N. The general lens[axis] > 1
+        // case requires unsqueeze + multGibroadcast + reshape and is left
+        // to a follow-up matcher.
+        if(lens[axis] != 1)
+            return;
+
+        auto out_lens  = lens;
+        out_lens[axis] = inputs.size();
+        assert(out_lens == ins->get_shape().lens());
+
+        m.replace_instruction(ins, make_op("multibroadcast", {{"out_lens", out_lens}}), x);
     }
 };
 
@@ -1090,6 +1178,162 @@ struct find_concat_conv
         auto w              = m.insert_instruction(ins, make_op("concat", {{"axis", 0}}), weights);
         conv.from_value({{"group", original_group * inputs.size()}});
         m.replace_instruction(ins, conv, x, w);
+    }
+};
+
+// Horizontal fusion for convolutions through concat decomposition.
+// When conv_b operates on concat(A, extra) and conv_a operates on A,
+// we can decompose conv_b = conv(A, w_prefix) + conv(extra, w_suffix)
+// and fuse conv_a with the prefix part into a single convolution.
+struct find_conv_concat_split_fuse
+{
+    auto matcher() const
+    {
+        auto input_feeds_conv = match::any_of[match::inputs()](
+            match::any_of[match::outputs()](match::name("convolution")));
+        auto concat_input = match::arg(0)(match::name("concat")(input_feeds_conv));
+        return match::name("convolution")(concat_input, match::arg(1)(match::is_constant()));
+    }
+
+    static bool is_fusable_conv(instruction_ref output,
+                                instruction_ref prefix_input,
+                                instruction_ref conv_b,
+                                const value& conv_b_val)
+    {
+        if(output->name() != "convolution" or output == conv_b)
+            return false;
+        auto ca_val = output->get_operator().to_value();
+        if(ca_val["padding"] != conv_b_val.at("padding") or
+           ca_val["stride"] != conv_b_val.at("stride") or
+           ca_val["dilation"] != conv_b_val.at("dilation") or ca_val["group"].to<int>() != 1)
+            return false;
+        if(output->inputs()[0] != prefix_input)
+            return false;
+        // Only fuse with original convolutions (not derived from prior fusion)
+        if(not output->inputs()[1]->inputs().empty())
+            return false;
+        return reaches(output, conv_b);
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto conv_b     = r.result;
+        auto concat_ins = conv_b->inputs()[0];
+        auto weight_b   = conv_b->inputs()[1];
+        auto conv_b_val = conv_b->get_operator().to_value();
+
+        if(conv_b_val.at("group").to<int>() != 1)
+            return;
+
+        auto concat_axis = concat_ins->get_operator().to_value()["axis"].to<std::size_t>();
+        if(concat_axis != 1)
+            return;
+
+        auto concat_inputs = concat_ins->inputs();
+        if(concat_inputs.size() < 2)
+            return;
+
+        // Collect (conv_a, prefix_len) candidates: prefix concats and direct single-element
+        auto front_outputs = concat_inputs.front()->outputs();
+        using conv_prefix  = std::pair<instruction_ref, std::size_t>;
+        std::vector<conv_prefix> candidates;
+        transform_if(
+            front_outputs.begin(),
+            front_outputs.end(),
+            join_back_inserter(candidates),
+            [&](instruction_ref output) {
+                // Direct convolution on first input (single-element prefix)
+                if(is_fusable_conv(output, concat_inputs.front(), conv_b, conv_b_val))
+                    return true;
+                // Prefix concat whose inputs match a prefix of concat_ins
+                if(output->name() != "concat" or output == concat_ins)
+                    return false;
+                auto out_inputs = output->inputs();
+                return out_inputs.size() < concat_inputs.size() and
+                       std::equal(out_inputs.begin(), out_inputs.end(), concat_inputs.begin());
+            },
+            [&](instruction_ref output) -> std::vector<conv_prefix> {
+                if(output->name() != "concat")
+                    return {{output, 1}};
+                auto fi = std::find_if(
+                    output->outputs().begin(), output->outputs().end(), [&](instruction_ref o) {
+                        return is_fusable_conv(o, output, conv_b, conv_b_val);
+                    });
+                if(fi == output->outputs().end())
+                    return {};
+                return {{*fi, output->inputs().size()}};
+            });
+
+        // Pick the longest prefix
+        auto it = std::max_element(
+            candidates.begin(), candidates.end(), [](const conv_prefix& a, const conv_prefix& b) {
+                return a.second < b.second;
+            });
+
+        if(it == candidates.end())
+            return;
+
+        auto conv_a       = it->first;
+        auto prefix_len   = it->second;
+        auto input_a      = conv_a->inputs()[0];
+        auto weight_a     = conv_a->inputs()[1];
+        auto prefix_chans = input_a->get_shape().lens()[1];
+        auto total_chans  = concat_ins->get_shape().lens()[1];
+
+        if(prefix_chans >= total_chans)
+            return;
+
+        auto out_a = weight_a->get_shape().lens()[0];
+        auto out_b = weight_b->get_shape().lens()[0];
+
+        // --- Insert fused conv and slices at conv_a's position ---
+        auto w_b_prefix = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {prefix_chans}}}),
+            weight_b);
+
+        auto w_fused =
+            m.insert_instruction(conv_a, make_op("concat", {{"axis", 0}}), weight_a, w_b_prefix);
+        w_fused = m.insert_instruction(conv_a, make_op("contiguous"), w_fused);
+
+        auto fused_conv = m.insert_instruction(conv_a, conv_a->get_operator(), input_a, w_fused);
+
+        auto conv_a_result = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {out_a}}}),
+            fused_conv);
+        auto conv_b_prefix_result = m.insert_instruction(
+            conv_a,
+            make_op("slice", {{"axes", {1}}, {"starts", {out_a}}, {"ends", {out_a + out_b}}}),
+            fused_conv);
+
+        // --- Insert residual conv at conv_b's position ---
+        auto w_b_suffix = m.insert_instruction(
+            conv_b,
+            make_op("slice", {{"axes", {1}}, {"starts", {prefix_chans}}, {"ends", {total_chans}}}),
+            weight_b);
+        w_b_suffix = m.insert_instruction(conv_b, make_op("contiguous"), w_b_suffix);
+
+        std::vector<instruction_ref> remaining(concat_inputs.begin() + prefix_len,
+                                               concat_inputs.end());
+        instruction_ref extra;
+        if(remaining.size() == 1)
+        {
+            extra = remaining.front();
+        }
+        else
+        {
+            extra = m.insert_instruction(conv_b, make_op("concat", {{"axis", 1}}), remaining);
+        }
+
+        auto conv_b_suffix_result =
+            m.insert_instruction(conv_b, conv_b->get_operator(), extra, w_b_suffix);
+
+        auto conv_b_result = m.insert_instruction(
+            conv_b, make_op("add"), conv_b_prefix_result, conv_b_suffix_result);
+
+        m.replace_instruction(conv_a, conv_a_result);
+        m.replace_instruction(conv_b, conv_b_result);
     }
 };
 
@@ -1710,19 +1954,17 @@ struct find_conv_dot_horiz_fusion
             auto concat =
                 m.insert_instruction(input, make_op("concat", {{"axis", concat_axis}}), args);
             auto fused     = m.insert_instruction(std::next(input), op, input, concat);
+            std::vector<module::instruction_replacement> replacers;
             int64_t offset = 0;
             for(auto arg : range(start, last))
             {
-                auto outputs = arg->outputs();
-
                 int64_t len = arg->get_shape().lens()[axis];
-                m.replace_instruction(
-                    arg,
-                    make_op("slice",
-                            {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}}),
-                    fused);
+                auto slice_op = make_op(
+                    "slice", {{"axes", {axis}}, {"starts", {offset}}, {"ends", {offset + len}}});
+                replacers.push_back(module::instruction_replacement{arg, slice_op, {fused}, {}});
                 offset += len;
             }
+            m.batch_replace_instruction(replacers);
         };
 
         auto outputs = ins->outputs();
@@ -2238,6 +2480,11 @@ struct find_conv_broadcast_input
                 padding = std::move(asym);
             }
 
+            if(std::any_of(range(num_spatial).begin(), range(num_spatial).end(), [&](auto i) {
+                   return out_lens[i + 2] <= (padding[i] + padding[i + num_spatial]);
+               }))
+                return;
+
             apply_small_conv(
                 m, ins, x_ins, w_ins, bcast_ins, out_lens, w_shape, padding, num_spatial);
         }
@@ -2306,13 +2553,10 @@ struct find_conv_broadcast_input
         instruction_ref current = small_conv;
         for(std::size_t i = 0; i < num_spatial; i++)
         {
-            auto p_start  = padding[i];
-            auto p_end    = padding[i + num_spatial];
-            auto full_dim = out_lens[i + 2];
-            auto axis     = i + 2;
-
-            if(full_dim <= p_start + p_end)
-                continue;
+            auto p_start      = padding[i];
+            auto p_end        = padding[i + num_spatial];
+            auto full_dim     = out_lens[i + 2];
+            auto axis         = i + 2;
             auto interior_len = full_dim - p_start - p_end;
             if(interior_len == 1)
                 continue;
@@ -2401,6 +2645,8 @@ void simplify_algebra::apply(module& m) const
                             find_log_exp{},
                             find_log_div{},
                             find_concat_conv{},
+                            find_conv_concat_split_fuse{},
+                            find_concat_same_input{},
                             find_concat_op{},
                             find_split_concat{},
                             find_splits{},

@@ -185,7 +185,7 @@ reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_di
                    input.dyn_dims().end(),
                    idims.begin(),
                    [](const auto& dd) { return dd.sym_expr; });
-    const auto istrides = input.dyn_strides();
+    const auto& istrides = input.dyn_strides();
 
     std::vector<sym::expr> rstrides;
     std::size_t i = 0;

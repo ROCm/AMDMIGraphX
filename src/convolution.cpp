@@ -111,9 +111,8 @@ template <class Output, class Input>
 
 // The begin/end padding for spatial dimension `d`. MIGraphX stores padding either
 // as one value per spatial dim (symmetric) or as all begins followed by all ends.
-std::pair<std::ptrdiff_t, std::ptrdiff_t> spatial_padding(const std::vector<std::size_t>& padding,
-                                                          std::size_t kdims,
-                                                          std::size_t d)
+std::pair<std::ptrdiff_t, std::ptrdiff_t>
+spatial_padding(const std::vector<std::size_t>& padding, std::size_t kdims, std::size_t d)
 {
     std::ptrdiff_t begin = padding[d];
     std::ptrdiff_t end   = padding.size() == 2 * kdims ? padding[kdims + d] : padding[d];
@@ -182,13 +181,25 @@ void convolution_eigen_patches(Output output,
     for(index g = 0; g < group; ++g)
     {
         // [Cpg, H, W, N]
-        tensor4 in_chw =
-            in_map.slice(Eigen::array<index, 4>{0, 0, g * cpg, 0}, Eigen::array<index, 4>{iw, ih, cpg, n})
-                .shuffle(to_depth_major);
+        tensor4 in_chw = in_map
+                             .slice(Eigen::array<index, 4>{0, 0, g * cpg, 0},
+                                    Eigen::array<index, 4>{iw, ih, cpg, n})
+                             .shuffle(to_depth_major);
 
         // [Cpg, KH, KW, OH*OW, N]
-        tensor5 patches = in_chw.extract_image_patches(
-            kh, kw, sh, sw, dh, dw, 1, 1, pad_h.first, pad_h.second, pad_w.first, pad_w.second, 0.0);
+        tensor5 patches = in_chw.extract_image_patches(kh,
+                                                       kw,
+                                                       sh,
+                                                       sw,
+                                                       dh,
+                                                       dw,
+                                                       1,
+                                                       1,
+                                                       pad_h.first,
+                                                       pad_h.second,
+                                                       pad_w.first,
+                                                       pad_w.second,
+                                                       0.0);
 
         // [Kpg, Cpg, KH, KW]
         tensor4 wei_g = wei_map
@@ -281,10 +292,10 @@ void scatter_conv_group(std::vector<double>& out_buf,
 {
     const std::size_t out_elems = prob.out_elems();
     par_for(prob.kpg * prob.col_count, [&](auto i) {
-        const std::size_t f   = i / prob.col_count;
-        const std::size_t col = i % prob.col_count;
-        const std::size_t bn  = col / out_elems;
-        const std::size_t oc  = g * prob.kpg + f;
+        const std::size_t f                                                    = i / prob.col_count;
+        const std::size_t col                                                  = i % prob.col_count;
+        const std::size_t bn                                                   = col / out_elems;
+        const std::size_t oc                                                   = g * prob.kpg + f;
         out_buf[(bn * prob.out_channels + oc) * out_elems + (col % out_elems)] = c_mat(f, col);
     });
 }

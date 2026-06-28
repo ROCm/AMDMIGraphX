@@ -112,8 +112,8 @@ template <class Output, class Input>
 
 // The begin/end padding for spatial dimension `d` of a 2D convolution. MIGraphX stores padding
 // either as one value per spatial dim (symmetric) or as all begins followed by all ends.
-std::pair<std::ptrdiff_t, std::ptrdiff_t>
-spatial_padding(const std::vector<std::size_t>& padding, std::size_t d)
+std::pair<std::ptrdiff_t, std::ptrdiff_t> spatial_padding(const std::vector<std::size_t>& padding,
+                                                          std::size_t d)
 {
     assert(padding.size() == 2 or padding.size() == 4);
     std::ptrdiff_t begin = padding[d];
@@ -245,7 +245,8 @@ struct conv_problem
     std::size_t p_dim() const { return cpg * kernel_elems(); } // im2col rows per group
 
     // Map an output position `os` and kernel tap `ks` to input spatial coordinates, written into
-    // `idx` (after the batch/channel slots). Returns false when the tap lands in the padding region.
+    // `idx` (after the batch/channel slots). Returns false when the tap lands in the padding
+    // region.
     bool conv_input_coords(const std::vector<std::size_t>& os,
                            const std::vector<std::size_t>& ks,
                            std::vector<std::ptrdiff_t>& idx) const
@@ -287,7 +288,7 @@ struct conv_problem
                     continue;
                 for(std::size_t ci = 0; ci < cpg; ++ci)
                 {
-                    idx[1] = g * cpg + ci;
+                    idx[1]                                   = g * cpg + ci;
                     col_buf[col_layout.index({ci, kk, col})] = input(idx.begin(), idx.end());
                 }
             }
@@ -383,7 +384,8 @@ void convolution_eigen(Output output,
                        const std::vector<std::size_t>& dilation,
                        int group)
 {
-    // `extract_image_patches` only supports 2 spatial dims; fall back to im2col for everything else.
+    // `extract_image_patches` only supports 2 spatial dims; fall back to im2col for everything
+    // else.
     if(stride.size() == 2)
         convolution_eigen_patches(output, input, weights, padding, stride, dilation, group);
     else

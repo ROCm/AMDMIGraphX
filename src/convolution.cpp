@@ -26,6 +26,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <vector>
 
@@ -109,13 +110,14 @@ template <class Output, class Input>
 
 #if MIGRAPHX_USE_EIGEN
 
-// The begin/end padding for spatial dimension `d`. MIGraphX stores padding either
-// as one value per spatial dim (symmetric) or as all begins followed by all ends.
+// The begin/end padding for spatial dimension `d` of a 2D convolution. MIGraphX stores padding
+// either as one value per spatial dim (symmetric) or as all begins followed by all ends.
 std::pair<std::ptrdiff_t, std::ptrdiff_t>
-spatial_padding(const std::vector<std::size_t>& padding, std::size_t kdims, std::size_t d)
+spatial_padding(const std::vector<std::size_t>& padding, std::size_t d)
 {
+    assert(padding.size() == 2 or padding.size() == 4);
     std::ptrdiff_t begin = padding[d];
-    std::ptrdiff_t end   = padding.size() == 2 * kdims ? padding[kdims + d] : padding[d];
+    std::ptrdiff_t end   = padding.size() == 4 ? padding[2 + d] : padding[d];
     return {begin, end};
 }
 
@@ -139,6 +141,8 @@ void convolution_eigen_patches(Output output,
     const auto& in_lens  = input.get_shape().lens();
     const auto& wei_lens = weights.get_shape().lens();
     const auto& out_lens = output.get_shape().lens();
+    // This path is selected only for 2 spatial dims, which implies rank-4 NCHW tensors.
+    assert(in_lens.size() == 4 and wei_lens.size() == 4 and out_lens.size() == 4);
 
     const index n   = in_lens[0];
     const index c   = in_lens[1];
@@ -151,14 +155,16 @@ void convolution_eigen_patches(Output output,
     const index oh  = out_lens[2];
     const index ow  = out_lens[3];
     const index kpg = k / group; // output channels per group
+    // Groups partition the channels evenly; relied on by the per-group slices below.
+    assert(group > 0 and k % group == 0 and c == cpg * group);
 
     const index sh = stride[0];
     const index sw = stride[1];
     const index dh = dilation[0];
     const index dw = dilation[1];
 
-    const auto pad_h = spatial_padding(padding, 2, 0);
-    const auto pad_w = spatial_padding(padding, 2, 1);
+    const auto pad_h = spatial_padding(padding, 0);
+    const auto pad_w = spatial_padding(padding, 1);
 
     std::vector<double> in_buf(input.get_shape().elements());
     std::copy(input.begin(), input.end(), in_buf.begin());
@@ -220,13 +226,13 @@ void convolution_eigen_patches(Output output,
     std::copy(out_buf.begin(), out_buf.end(), output.begin());
 }
 
-// Static description of an N-d convolution, shared by the im2col helpers below.
+// An N-d convolution problem and the im2col build/scatter it drives.
 struct conv_problem
 {
     shape kernel_shape;                  // spatial kernel extents
     shape out_shape;                     // spatial output extents
-    std::vector<std::size_t> stride;     //
-    std::vector<std::size_t> dilation;   //
+    std::vector<std::size_t> stride;     // spatial stride
+    std::vector<std::size_t> dilation;   // spatial dilation
     std::vector<std::size_t> padding;    // begin padding per spatial dim
     std::vector<std::size_t> in_spatial; // spatial input extents
     std::size_t cpg          = 0;        // input channels per group
@@ -237,68 +243,75 @@ struct conv_problem
     std::size_t kernel_elems() const { return kernel_shape.elements(); }
     std::size_t out_elems() const { return out_shape.elements(); }
     std::size_t p_dim() const { return cpg * kernel_elems(); } // im2col rows per group
-};
 
-// Map an output position `os` and kernel tap `ks` to input spatial coordinates, written into
-// `idx` (after the batch/channel slots). Returns false when the tap lands in the padding region.
-bool conv_input_coords(const conv_problem& prob,
-                       const std::vector<std::size_t>& os,
-                       const std::vector<std::size_t>& ks,
-                       std::vector<std::ptrdiff_t>& idx)
-{
-    for(std::size_t d = 0; d < prob.stride.size(); ++d)
+    // Map an output position `os` and kernel tap `ks` to input spatial coordinates, written into
+    // `idx` (after the batch/channel slots). Returns false when the tap lands in the padding region.
+    bool conv_input_coords(const std::vector<std::size_t>& os,
+                           const std::vector<std::size_t>& ks,
+                           std::vector<std::ptrdiff_t>& idx) const
     {
-        const std::ptrdiff_t pos = std::ptrdiff_t(os[d]) * prob.stride[d] +
-                                   std::ptrdiff_t(ks[d]) * prob.dilation[d] -
-                                   std::ptrdiff_t(prob.padding[d]);
-        if(pos < 0 or pos >= std::ptrdiff_t(prob.in_spatial[d]))
-            return false;
-        idx[d + 2] = pos;
-    }
-    return true;
-}
-
-// Build the im2col matrix for one group as a [Cpg*kernel, batch*output] row-major buffer; each
-// column gathers the receptive field of one (batch, output position) pair.
-template <class Input>
-void fill_im2col(std::vector<double>& col_buf, Input input, const conv_problem& prob, std::size_t g)
-{
-    const std::size_t kdims        = prob.stride.size();
-    const std::size_t kernel_elems = prob.kernel_elems();
-    const std::size_t out_elems    = prob.out_elems();
-    par_for(prob.col_count, [&](auto col) {
-        const auto os = prob.out_shape.multi(col % out_elems);
-        std::vector<std::ptrdiff_t> idx(kdims + 2);
-        idx[0] = col / out_elems; // batch
-        for(std::size_t ci = 0; ci < prob.cpg; ++ci)
+        for(std::size_t d = 0; d < stride.size(); ++d)
         {
-            idx[1] = g * prob.cpg + ci;
-            for(std::size_t kk = 0; kk < kernel_elems; ++kk)
-            {
-                if(conv_input_coords(prob, os, prob.kernel_shape.multi(kk), idx))
-                    col_buf[(ci * kernel_elems + kk) * prob.col_count + col] =
-                        input(idx.begin(), idx.end());
-            }
+            const std::ptrdiff_t pos = std::ptrdiff_t(os[d]) * stride[d] +
+                                       std::ptrdiff_t(ks[d]) * dilation[d] -
+                                       std::ptrdiff_t(padding[d]);
+            if(pos < 0 or pos >= std::ptrdiff_t(in_spatial[d]))
+                return false;
+            idx[d + 2] = pos;
         }
-    });
-}
+        return true;
+    }
 
-// Scatter one group's gemm result [Kpg, batch*output] into the NCHW output buffer.
-template <class Matrix>
-void scatter_conv_group(std::vector<double>& out_buf,
-                        const Matrix& c_mat,
-                        const conv_problem& prob,
-                        std::size_t g)
-{
-    const std::size_t out_elems = prob.out_elems();
-    par_for(prob.kpg * prob.col_count, [&](auto i) {
-        const std::size_t f                                                    = i / prob.col_count;
-        const std::size_t col                                                  = i % prob.col_count;
-        const std::size_t bn                                                   = col / out_elems;
-        const std::size_t oc                                                   = g * prob.kpg + f;
-        out_buf[(bn * prob.out_channels + oc) * out_elems + (col % out_elems)] = c_mat(f, col);
-    });
-}
+    // Build the im2col matrix for one group as a [Cpg*kernel, batch*output] row-major buffer; each
+    // column gathers the receptive field of one (batch, output position) pair.
+    template <class Input>
+    void fill_im2col(std::vector<double>& col_buf, Input input, std::size_t g) const
+    {
+        const std::size_t kdims     = stride.size();
+        const std::size_t tap_count = kernel_elems();
+        const std::size_t out_count = out_elems();
+        // Kernel tap coordinates depend only on the tap index; compute them once up front.
+        std::vector<std::vector<std::size_t>> kernel_taps(tap_count);
+        for(std::size_t kk = 0; kk < tap_count; ++kk)
+            kernel_taps[kk] = kernel_shape.multi(kk);
+        // Row-major layout of the im2col matrix, indexed as [channel, tap, column].
+        const shape col_layout{out_shape.type(), {cpg, tap_count, col_count}};
+        par_for(col_count, [&](auto col) {
+            const auto os = out_shape.multi(col % out_count);
+            std::vector<std::ptrdiff_t> idx(kdims + 2);
+            idx[0] = col / out_count; // batch
+            for(std::size_t kk = 0; kk < tap_count; ++kk)
+            {
+                // The input position is the same for every channel, so resolve it once per tap.
+                if(not conv_input_coords(os, kernel_taps[kk], idx))
+                    continue;
+                for(std::size_t ci = 0; ci < cpg; ++ci)
+                {
+                    idx[1] = g * cpg + ci;
+                    col_buf[col_layout.index({ci, kk, col})] = input(idx.begin(), idx.end());
+                }
+            }
+        });
+    }
+
+    // Scatter one group's gemm result [Kpg, batch*output] into the NCHW output buffer.
+    template <class Matrix>
+    void scatter_conv_group(std::vector<double>& out_buf, const Matrix& c_mat, std::size_t g) const
+    {
+        const std::size_t out_count = out_elems();
+        const std::size_t batch     = col_count / out_count;
+        // The gemm result c_mat is a [Kpg, batch, spatial] row-major matrix, so its flat index `i`
+        // decodes to those three coordinates...
+        const shape result_layout{out_shape.type(), {kpg, batch, out_count}};
+        // ...which are scattered into the collapsed output layout [batch, channel, spatial].
+        const shape out_layout{out_shape.type(), {batch, out_channels, out_count}};
+        par_for(result_layout.elements(), [&](auto i) {
+            const auto m         = result_layout.multi<3>(i); // {filter-in-group, batch, spatial}
+            const std::size_t oc = g * kpg + m[0];
+            out_buf[out_layout.index({m[1], oc, m[2]})] = c_mat.data()[i];
+        });
+    }
+};
 
 // N-dimensional convolution: `extract_image_patches` only handles the 2D case, so build the
 // im2col matrix explicitly and multiply it by the reshaped weights with an Eigen gemm.
@@ -313,22 +326,29 @@ void convolution_eigen_im2col(Output output,
 {
     using row_major = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
-    const auto& in_lens  = input.get_shape().lens();
-    const auto& wei_lens = weights.get_shape().lens();
-    const auto& out_lens = output.get_shape().lens();
-    const auto type      = output.get_shape().type();
+    const auto& in_lens     = input.get_shape().lens();
+    const auto& wei_lens    = weights.get_shape().lens();
+    const auto& out_lens    = output.get_shape().lens();
+    const auto type         = output.get_shape().type();
+    const std::size_t kdims = stride.size();
+    assert(in_lens.size() == kdims + 2 and wei_lens.size() == kdims + 2 and
+           out_lens.size() == kdims + 2);
 
     conv_problem prob;
     prob.kernel_shape = shape{type, std::vector<std::size_t>(wei_lens.begin() + 2, wei_lens.end())};
     prob.out_shape    = shape{type, std::vector<std::size_t>(out_lens.begin() + 2, out_lens.end())};
     prob.stride       = stride;
     prob.dilation     = dilation;
-    prob.padding      = padding;
+    // Only the begin padding is used (matching the naive impl); drop any trailing end padding.
+    prob.padding      = std::vector<std::size_t>(padding.begin(), padding.begin() + kdims);
     prob.in_spatial   = std::vector<std::size_t>(in_lens.begin() + 2, in_lens.end());
     prob.cpg          = wei_lens[1];
     prob.out_channels = wei_lens[0];
     prob.kpg          = prob.out_channels / group;
     prob.col_count    = in_lens[0] * prob.out_elems();
+    // Groups partition the channels evenly; relied on by the per-group weight/output blocks.
+    assert(group > 0 and prob.out_channels % std::size_t(group) == 0 and
+           in_lens[1] == prob.cpg * std::size_t(group));
 
     // Weights as a contiguous [Cout, Cpg*kernel] row-major buffer; each group's filters form a
     // contiguous [Kpg, p_dim] block that is used directly as the gemm's left operand.
@@ -337,17 +357,18 @@ void convolution_eigen_im2col(Output output,
     std::vector<double> out_buf(output.get_shape().elements(), 0.0);
 
     const std::size_t p_dim = prob.p_dim();
+    std::vector<double> col_buf(p_dim * prob.col_count);
     for(std::size_t g = 0; g < std::size_t(group); ++g)
     {
-        std::vector<double> col_buf(p_dim * prob.col_count, 0.0);
-        fill_im2col(col_buf, input, prob, g);
+        std::fill(col_buf.begin(), col_buf.end(), 0.0);
+        prob.fill_im2col(col_buf, input, g);
 
         // [Kpg, col_count] = [Kpg, p_dim] * [p_dim, col_count]
         Eigen::Map<row_major> a_mat(wei_buf.data() + g * prob.kpg * p_dim, prob.kpg, p_dim);
         Eigen::Map<row_major> b_mat(col_buf.data(), p_dim, prob.col_count);
         row_major c_mat = a_mat * b_mat;
 
-        scatter_conv_group(out_buf, c_mat, prob, g);
+        prob.scatter_conv_group(out_buf, c_mat, g);
     }
 
     std::copy(out_buf.begin(), out_buf.end(), output.begin());
@@ -362,6 +383,7 @@ void convolution_eigen(Output output,
                        const std::vector<std::size_t>& dilation,
                        int group)
 {
+    // `extract_image_patches` only supports 2 spatial dims; fall back to im2col for everything else.
     if(stride.size() == 2)
         convolution_eigen_patches(output, input, weights, padding, stride, dilation, group);
     else

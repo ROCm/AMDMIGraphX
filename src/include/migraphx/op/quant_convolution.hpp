@@ -147,11 +147,7 @@ struct quant_convolution
             MIGRAPHX_THROW("QUANT_CONVOLUTION: ref 4 input quantized convolution not implemented");
         }
         argument result{output_shape};
-        result.visit([&](auto output) {
-            get_all<double>(args[0], args[1])([&](auto input, auto weights) {
-                migraphx::convolution(output, input, weights, padding, stride, dilation, group);
-            });
-        });
+        migraphx::convolution(result, args[0], args[1], padding, stride, dilation, group);
         return result;
     }
 };

@@ -107,6 +107,29 @@ struct find_leaky_relu
     }
 };
 
+// fast_mm emits fp16-input/fp32-output quant_dot and quant_convolution to express an
+// fp32-accumulating contraction. MLIR has no such op, so rewrite it back into the plain
+// dot/convolution on the fp16 operands with a convert to fp32 on the direct output.
+struct find_fp16_quant_op
+{
+    auto matcher() const { return match::name("quant_dot", "quant_convolution"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        if(ins->inputs().front()->get_shape().type() != shape::half_type)
+            return;
+
+        auto op        = ins->name() == "quant_dot"
+                             ? make_op("dot")
+                             : make_op("convolution", ins->get_operator().to_value());
+        auto half_out  = m.insert_instruction(ins, op, ins->inputs());
+        auto converted = m.insert_instruction(
+            ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_out);
+        m.replace_instruction(ins, converted);
+    }
+};
+
 // mlir has issues sometime when the condition to `where` is not a bool. So this will convert the
 // condition to a bool.
 struct find_where
@@ -133,7 +156,7 @@ struct find_where
 
 void prepare_mlir::apply(module& m) const
 {
-    match::find_matches(m, find_reduce{}, find_leaky_relu{});
+    match::find_matches(m, find_reduce{}, find_leaky_relu{}, find_fp16_quant_op{});
     match::find_matches(m, find_where{});
     run_passes(m, {dead_code_elimination{}});
 }

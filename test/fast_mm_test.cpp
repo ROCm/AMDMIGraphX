@@ -75,10 +75,9 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
         auto x_doubled = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{1, 6, 8, 8}}}), x_bc);
 
-        auto conv = m2.add_instruction(migraphx::make_op("convolution"), x_doubled, w_concat);
-        auto out  = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), conv);
-        m2.add_return({out});
+        // quant_convolution consumes the fp16 operands and produces the fp32 output directly.
+        auto conv = m2.add_instruction(migraphx::make_op("quant_convolution"), x_doubled, w_concat);
+        m2.add_return({conv});
     }
     EXPECT(m1 == m2);
 }
@@ -194,10 +193,9 @@ TEST_CASE(fp32_dot_const_b_rewritten)
         auto a_doubled = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{2, 16}}}), a_bc);
 
-        auto dot = m2.add_instruction(migraphx::make_op("dot"), a_doubled, b_concat);
-        auto out = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot);
-        m2.add_return({out});
+        // quant_dot consumes the fp16 operands and produces the fp32 output directly.
+        auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), a_doubled, b_concat);
+        m2.add_return({dot});
     }
     EXPECT(m1 == m2);
 }
@@ -243,10 +241,9 @@ TEST_CASE(fp32_dot_const_a_rewritten)
         auto b_doubled = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", std::vector<std::int64_t>{16, 4}}}), b_bc);
 
-        auto dot = m2.add_instruction(migraphx::make_op("dot"), a_concat, b_doubled);
-        auto out = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), dot);
-        m2.add_return({out});
+        // quant_dot consumes the fp16 operands and produces the fp32 output directly.
+        auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), a_concat, b_doubled);
+        m2.add_return({dot});
     }
     EXPECT(m1 == m2);
 }

@@ -102,14 +102,17 @@ struct quant_convolution
             MIGRAPHX_THROW("QUANT_CONVOLUTION: input k-dims does not match attribute size");
         }
 
-        // limit input types to int8, fp8 types, float, or fp4x2
+        // limit input types to int8, fp8 types, float, fp4x2, or half
         std::set<migraphx::shape::type_t> supported_types = fp8_types{}.get();
         supported_types.insert(shape::int8_type);
         supported_types.insert(shape::float_type);
         supported_types.insert(shape::fp4x2_type);
+        // fp16 inputs accumulate into an fp32 output (used by fast_mm)
+        supported_types.insert(shape::half_type);
         if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_CONVOLUTION: only supports int8_t, uint8_t, fp4x2, and fp8");
+            MIGRAPHX_THROW(
+                "QUANT_CONVOLUTION: only supports int8_t, uint8_t, fp4x2, half, and fp8");
         }
 
         std::vector<size_t> output_lens{input.lens()[0], weights.lens()[0]};

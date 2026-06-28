@@ -3628,6 +3628,12 @@ TEST_CASE(quant_convolution_shape)
     migraphx::shape input{migraphx::shape::int8_type, {4, 3, 3, 3}};
     migraphx::shape weights{migraphx::shape::int8_type, {4, 3, 3, 3}};
     expect_shape(output, migraphx::make_op("quant_convolution"), input, weights);
+
+    // fp16 inputs accumulate into an fp32 output
+    migraphx::shape output_half{migraphx::shape::float_type, {4, 4, 1, 1}};
+    migraphx::shape input_half{migraphx::shape::half_type, {4, 3, 3, 3}};
+    migraphx::shape weights_half{migraphx::shape::half_type, {4, 3, 3, 3}};
+    expect_shape(output_half, migraphx::make_op("quant_convolution"), input_half, weights_half);
     throws_shape(migraphx::make_op("quant_convolution"), input);
     throws_shape(migraphx::make_op("quant_convolution",
                                    {{"padding", {0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}}),
@@ -3675,6 +3681,16 @@ TEST_CASE(quant_dot_2args)
         migraphx::shape s_m1{migraphx::shape::int8_type, {2, 4}};
         migraphx::shape s_m2{migraphx::shape::int8_type, {8, 8}};
         throws_shape(migraphx::make_op("quant_dot"), s_m1, s_m2);
+    }
+
+    {
+        // fp16 inputs accumulate into an fp32 output
+        migraphx::shape s_m1{migraphx::shape::half_type, {2, 4}};
+        migraphx::shape s_m2{migraphx::shape::half_type, {4, 8}};
+        expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 8}},
+                     migraphx::make_op("quant_dot"),
+                     s_m1,
+                     s_m2);
     }
 }
 

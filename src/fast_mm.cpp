@@ -42,8 +42,8 @@ namespace {
 // Split a constant tensor C into C = C_hi + C_lo where C_hi = fp16-rounded C and
 // C_lo = fp16-rounded residual, returning concat(C_hi, C_lo) along `axis` as fp16.
 // All folds at compile time since C is constant. Pairing this against the other
-// operand duplicated along its matching contraction axis recovers, in the fp16
-// accumulation, the mantissa bits that a plain fp16 cast of C would have dropped.
+// operand duplicated along its matching contraction axis recovers, in the quant
+// op's contraction, the mantissa bits that a plain fp16 cast of C would have dropped.
 instruction_ref split_fp16(module& m, instruction_ref pos, instruction_ref c, std::size_t axis)
 {
     auto c_hi_h =
@@ -108,11 +108,12 @@ void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_
     auto w_concat  = split_fp16(m, ins, w, 1);
     auto x_doubled = duplicate_axis(m, ins, x, 1);
 
-    auto half_conv = m.insert_instruction(ins, ins->get_operator(), x_doubled, w_concat);
-    auto converted = m.insert_instruction(
-        ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_conv);
+    // quant_convolution takes the fp16 operands and accumulates directly into the
+    // fp32 output, so no trailing convert is needed.
+    auto quant_conv = m.insert_instruction(
+        ins, make_op("quant_convolution", ins->get_operator().to_value()), x_doubled, w_concat);
 
-    m.replace_instruction(ins, converted);
+    m.replace_instruction(ins, quant_conv);
 }
 
 void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
@@ -133,7 +134,7 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
         return;
 
     // Split whichever operand is constant and duplicate the other along its
-    // matching contraction axis so the fp16 contraction computes A*B_hi + A*B_lo
+    // matching contraction axis so the contraction computes A*B_hi + A*B_lo
     // (or A_hi*B + A_lo*B), recovering the constant's dropped mantissa bits.
     instruction_ref new_a;
     instruction_ref new_b;
@@ -148,11 +149,11 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
         new_b = duplicate_axis(m, ins, b, rank - 2);
     }
 
-    auto half_dot  = m.insert_instruction(ins, ins->get_operator(), new_a, new_b);
-    auto converted = m.insert_instruction(
-        ins, make_op("convert", {{"target_type", ins->get_shape().type()}}), half_dot);
+    // quant_dot takes the fp16 operands and accumulates directly into the fp32
+    // output, so no trailing convert is needed.
+    auto q_dot = m.insert_instruction(ins, make_op("quant_dot"), new_a, new_b);
 
-    m.replace_instruction(ins, converted);
+    m.replace_instruction(ins, q_dot);
 }
 
 } // namespace

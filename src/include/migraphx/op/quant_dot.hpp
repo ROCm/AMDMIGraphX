@@ -64,10 +64,13 @@ struct quant_dot
         supported_types.insert(shape::uint8_type);
         // for how mxfp4 is handled with pack/unpack
         supported_types.insert(shape::float_type);
+        // fp16 inputs accumulate into an fp32 output (used by fast_mm)
+        supported_types.insert(shape::half_type);
         if(not contains(supported_types, t))
         {
-            MIGRAPHX_THROW("QUANT_DOT: only supports int8_t, uint8_t, float, and fp8, but given " +
-                           a.type_string());
+            MIGRAPHX_THROW(
+                "QUANT_DOT: only supports int8_t, uint8_t, float, half, and fp8, but given " +
+                a.type_string());
         }
         if(not std::all_of(inputs.begin(), inputs.end(), [](auto s) { return s.ndim() >= 2; }))
         {
@@ -75,8 +78,10 @@ struct quant_dot
                            to_string(a) + " and B " + to_string(b));
         }
 
-        auto out_type = (inputs.size() == 4 or contains(fp8_types{}.get(), t)) ? shape::float_type
-                                                                               : shape::int32_type;
+        auto out_type =
+            (inputs.size() == 4 or contains(fp8_types{}.get(), t) or t == shape::half_type)
+                ? shape::float_type
+                : shape::int32_type;
 
         auto aligned   = shape::to_dynamic({a, b});
         const auto& s0 = aligned[0];

@@ -326,10 +326,10 @@ static bool split_pointwise_through_slices(module_pass_manager& mpm)
             continue;
 
         // All consumers must be slice instructions
-if(not all_of(outputs, [](instruction_ref output) {
-       return output->name() == "slice" and output->inputs().size() == 1;
-   }))
-    continue;
+        if(not all_of(outputs, [](instruction_ref output) {
+               return output->name() == "slice" and output->inputs().size() == 1;
+           }))
+            continue;
 
         // Cache slice values to avoid repeated to_value() calls
         std::unordered_map<instruction_ref, value> slice_vals;

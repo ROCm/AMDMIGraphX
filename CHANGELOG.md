@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added environment variable `MIGRAPHX_SHARE_LITERALS` which, when enabled, shares a single device copy of byte-identical weight literals across programs compiled in the same process (#PR_NUMBER).
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added YOLO26 object detection example notebook.
 * Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).

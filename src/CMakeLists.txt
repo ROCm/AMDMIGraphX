@@ -175,11 +175,15 @@ function(register_migraphx_ops)
         register_op(migraphx HEADER migraphx/op/${OP}.hpp OPERATORS op::${OP})
     endforeach()
 endfunction()
+
+rocm_add_version_resource(migraphx "AMD MIGraphX" "MIGraphX Core Library - AMD Graph Optimization Engine")
+
 register_migraphx_ops(
     abs
     acosh
     acos
     add
+    addressof
     allocate
     argmax
     argmin
@@ -205,6 +209,7 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    deref
     dimensions_of
     div
     dot

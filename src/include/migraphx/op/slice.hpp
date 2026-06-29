@@ -27,6 +27,7 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
@@ -54,8 +55,8 @@ namespace op {
  *
  * Attributes:
  * axes: constant axes to slice over (optional)
- * starts: constant slice starting indices (optional)
- * ends: constant slice ending indices (optional)
+ * starts: slice starting indices, constant or symbolic (optional)
+ * ends: slice ending indices, constant or symbolic (optional)
  *
  * Parameters:
  * data: the input tensor to slice (dynamic or static shape)
@@ -66,8 +67,8 @@ namespace op {
 struct slice
 {
     std::vector<int64_t> axes{};
-    std::vector<int64_t> starts{};
-    std::vector<int64_t> ends{};
+    std::vector<dim_like> starts{};
+    std::vector<dim_like> ends{};
 
     /**
      * Named arrays for the set attribute possibilities.
@@ -134,12 +135,7 @@ struct slice
     /// Get the attributes that are non-empty
     std::array<bool, 3> get_set_attributes() const
     {
-        std::array<std::vector<int64_t>, 3> attrs = {this->starts, this->ends, this->axes};
-        std::array<bool, 3> bool_vec;
-        std::transform(attrs.cbegin(), attrs.cend(), bool_vec.begin(), [](const auto& a) {
-            return not a.empty();
-        });
-        return bool_vec;
+        return {not starts.empty(), not ends.empty(), not axes.empty()};
     }
 
     /// Helper function for normalize_compute_shape()
@@ -259,6 +255,28 @@ struct slice
         return shape{input_shape.type(), dds};
     }
 
+    static sym::expr bound_expr(const dim_like& d)
+    {
+        if(std::holds_alternative<shape::dynamic_dimension>(d))
+            return std::get<shape::dynamic_dimension>(d).sym_expr;
+        return sym::lit(std::get<int64_t>(d));
+    }
+
+    // Static and symbolic input share one path: promote to a symbolic shape, set
+    // each sliced axis to the extent ends - starts, carry the kept strides through,
+    // then demote back to static when the result is fully fixed (slice is a view).
+    shape symbolic_compute_shape(const shape& s) const
+    {
+        auto sym_in = s.to_symbolic();
+        auto dds    = sym_in.dyn_dims();
+        for(std::size_t i = 0; i < axes.size(); ++i)
+            dds[axes[i]] = shape::dynamic_dimension{bound_expr(ends[i]) - bound_expr(starts[i])};
+        shape result{s.type(), dds, sym_in.dyn_strides()};
+        if(not s.symbolic() and result.is_fixed())
+            return result.to_static();
+        return result;
+    }
+
     // uses the normalize_axes flag to normalize axes, starts, and ends
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
@@ -271,31 +289,21 @@ struct slice
         if(set_attributes != all_set)
             MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
 
-        // TODO: support slicing non-fixed symbolic dims (output dim would be
-        // a sym::expr derived from starts/ends and the symbolic axis bound).
-        if(input_shape.dynamic() and std::any_of(axes.begin(), axes.end(), [&](auto axis) {
-               return not input_shape.dyn_dims()[axis].is_fixed();
-           }))
+        if(input_shape.dynamic() and not input_shape.symbolic())
         {
-            MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on non-fixed dynamic input axis ");
+            if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+                   return not input_shape.dyn_dims()[axis].is_fixed();
+               }))
+                MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on a non-fixed input axis ");
+
+            auto new_lens = lens_calc(input_shape.max_lens(), to_ints(starts), to_ints(ends), axes);
+            auto dds      = input_shape.dyn_dims();
+            for(auto axis : axes)
+                dds[axis] = shape::dynamic_dimension{new_lens[axis], new_lens[axis]};
+            return shape{input_shape.type(), dds};
         }
 
-        auto new_lens = lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes);
-
-        if(not input_shape.dynamic())
-            return shape{input_shape.type(), new_lens, input_shape.strides()};
-
-        auto dds = input_shape.dyn_dims();
-        for(auto axis : this->axes)
-        {
-            dds[axis] = input_shape.symbolic()
-                            ? shape::dynamic_dimension{sym::lit(new_lens[axis])}
-                            : shape::dynamic_dimension{new_lens[axis], new_lens[axis]};
-        }
-
-        if(input_shape.symbolic())
-            return shape{input_shape.type(), dds, input_shape.dyn_strides()};
-        return shape{input_shape.type(), dds};
+        return symbolic_compute_shape(input_shape);
     }
 
     /**
@@ -314,14 +322,14 @@ struct slice
             for(std::size_t i = 0; i < axes.size(); i++)
             {
                 auto axis = axes[i];
-                offset += starts[i] * strides[axis];
+                offset += std::get<int64_t>(starts[i]) * strides[axis];
             }
         }
         else
         {
             for(std::size_t axis = 0; axis < lens.size(); axis++)
             {
-                offset += starts[axis] * strides[axis];
+                offset += std::get<int64_t>(starts[axis]) * strides[axis];
             }
         }
         return offset * s.type_size();
@@ -388,7 +396,7 @@ struct slice
         }
         else
         {
-            norm_starts = this->starts;
+            norm_starts = to_ints(this->starts);
         }
         if(input_ends)
         {
@@ -400,7 +408,7 @@ struct slice
         }
         else
         {
-            norm_ends = this->ends;
+            norm_ends = to_ints(this->ends);
         }
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
     }
@@ -428,7 +436,7 @@ struct slice
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
                                                    input_starts.template to_vector<int64_t>(),
-                                                   this->ends,
+                                                   to_ints(this->ends),
                                                    this->axes);
                 });
             }
@@ -438,7 +446,7 @@ struct slice
                 args[1].visit([&](auto input_ends) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
-                                                   this->starts,
+                                                   to_ints(this->starts),
                                                    input_ends.template to_vector<int64_t>(),
                                                    this->axes);
                 });
@@ -449,8 +457,8 @@ struct slice
                 args[1].visit([&](auto input_axes) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
-                                                   this->starts,
-                                                   this->ends,
+                                                   to_ints(this->starts),
+                                                   to_ints(this->ends),
                                                    input_axes.template to_vector<int64_t>());
                 });
             }
@@ -472,7 +480,7 @@ struct slice
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
                                                    input_starts.template to_vector<int64_t>(),
-                                                   this->ends,
+                                                   to_ints(this->ends),
                                                    input_axes.template to_vector<int64_t>());
                 });
             }
@@ -482,7 +490,7 @@ struct slice
                 visit_all(args[1], args[2])([&](auto input_ends, auto input_axes) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
-                                                   this->starts,
+                                                   to_ints(this->starts),
                                                    input_ends.template to_vector<int64_t>(),
                                                    input_axes.template to_vector<int64_t>());
                 });

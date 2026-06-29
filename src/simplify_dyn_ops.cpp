@@ -182,7 +182,7 @@ struct find_const_2in_slice : match::supports_dynamic_shapes
             // slice(data, starts)
             inputs.at(1)->eval().visit(
                 [&](auto output) { starts_vec.assign(output.begin(), output.end()); });
-            ends_vec = slice_op.ends;
+            ends_vec = to_ints(slice_op.ends);
             axes_vec = slice_op.axes;
         }
         else if(set_attrs == op::slice::starts_axes)
@@ -190,7 +190,7 @@ struct find_const_2in_slice : match::supports_dynamic_shapes
             // slice(data, ends)
             inputs.at(1)->eval().visit(
                 [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
-            starts_vec = slice_op.starts;
+            starts_vec = to_ints(slice_op.starts);
             axes_vec   = slice_op.axes;
         }
         else
@@ -198,8 +198,8 @@ struct find_const_2in_slice : match::supports_dynamic_shapes
             // slice(data, axes)
             inputs.at(1)->eval().visit(
                 [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
-            starts_vec = slice_op.starts;
-            ends_vec   = slice_op.ends;
+            starts_vec = to_ints(slice_op.starts);
+            ends_vec   = to_ints(slice_op.ends);
         }
         m.replace_instruction(
             ins,
@@ -249,7 +249,7 @@ struct find_const_3in_slice : match::supports_dynamic_shapes
                 [&](auto output) { starts_vec.assign(output.begin(), output.end()); });
             inputs.at(2)->eval().visit(
                 [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
-            ends_vec = slice_op.ends;
+            ends_vec = to_ints(slice_op.ends);
         }
         else
         {
@@ -258,7 +258,7 @@ struct find_const_3in_slice : match::supports_dynamic_shapes
                 [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
             inputs.at(2)->eval().visit(
                 [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
-            starts_vec = slice_op.starts;
+            starts_vec = to_ints(slice_op.starts);
         }
         m.replace_instruction(
             ins,

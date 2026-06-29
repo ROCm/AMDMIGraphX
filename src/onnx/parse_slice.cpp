@@ -118,22 +118,32 @@ struct parse_slice : op_parser<parse_slice>
 
         if(args.size() >= 3)
         {
-            sd.op.ends = sd.insert(args.at(2));
+            auto ends = sd.insert(args.at(2));
+            sd.op.ends.assign(ends.begin(), ends.end());
         }
         else if(contains(info.attributes, "ends"))
         {
             literal s = parser.parse_value(info.attributes.at("ends"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(sd.op.ends)); });
+            s.visit([&](auto v) {
+                std::transform(v.begin(), v.end(), std::back_inserter(sd.op.ends), [](auto e) {
+                    return static_cast<int64_t>(e);
+                });
+            });
         }
 
         if(args.size() >= 2)
         {
-            sd.op.starts = sd.insert(args.at(1));
+            auto starts = sd.insert(args.at(1));
+            sd.op.starts.assign(starts.begin(), starts.end());
         }
         else if(contains(info.attributes, "starts"))
         {
             literal s = parser.parse_value(info.attributes.at("starts"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(sd.op.starts)); });
+            s.visit([&](auto v) {
+                std::transform(v.begin(), v.end(), std::back_inserter(sd.op.starts), [](auto e) {
+                    return static_cast<int64_t>(e);
+                });
+            });
         }
 
         // data input argument
@@ -161,10 +171,11 @@ struct parse_slice : op_parser<parse_slice>
         {
             if(sd.steps[i] >= 0)
                 continue;
-            sd.op.starts[i] += 1;
-            if(sd.op.starts[i] == 0)
-                sd.op.starts[i] = INT_MAX;
-            sd.op.ends[i] += 1;
+            auto start = std::get<int64_t>(sd.op.starts[i]) + 1;
+            if(start == 0)
+                start = INT_MAX;
+            sd.op.starts[i] = start;
+            sd.op.ends[i]   = std::get<int64_t>(sd.op.ends[i]) + 1;
             sd.raxes.push_back(sd.op.axes[i]);
             std::swap(sd.op.starts[i], sd.op.ends[i]);
         }

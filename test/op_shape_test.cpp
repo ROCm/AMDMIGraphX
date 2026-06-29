@@ -5329,12 +5329,18 @@ TEST_CASE(slice_sym_fixed_bound_var)
     EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
 }
 
-TEST_CASE(slice_sym_non_fixed_throws)
+TEST_CASE(slice_sym_non_fixed_axis)
 {
-    // Slicing on a non-fixed symbolic axis is rejected (same contract as range).
-    auto n = var("n", {1, 8});
-    migraphx::shape sin{migraphx::shape::float_type, {dd{lit(4)}, dd{n}, dd{lit(8)}}};
-    throws_shape(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), sin);
+    // Slicing a non-fixed symbolic axis is allowed: the bounds are trusted to be valid at
+    // runtime, so the extent is just ends - starts (no clamping). The other symbol is kept.
+    auto n                                      = var("n", {1, 8});
+    auto m                                      = var("m", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 5}, {m, 3}};
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    auto op = migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}});
+    migraphx::shape sout{migraphx::shape::float_type, {dd{lit(2)}, dd{m}}, sin.dyn_strides()};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
 }
 
 TEST_CASE(slice_sym_nonstandard_layout)
@@ -5348,6 +5354,107 @@ TEST_CASE(slice_sym_nonstandard_layout)
     auto op   = migraphx::make_op("slice", {{"axes", {3}}, {"starts", {1}}, {"ends", {6}}});
     auto sout = op.compute_shape({sin});
     EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+}
+
+TEST_CASE(slice_sym_clamped_and_negative_bounds)
+{
+    // Concrete bounds on a symbolic input are clipped/resolved against the fixed sliced axis
+    // like the static path; the symbolic axis is untouched.
+    auto n                                      = var("n", {1, 8});
+    std::unordered_map<se, std::size_t> sym_map = {{n, 5}};
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
+
+    {
+        // end clipped to len 3: dim = 3 - 2 = 1.
+        auto op = migraphx::make_op("slice", {{"axes", {2}}, {"starts", {2}}, {"ends", {10}}});
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(1)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+    }
+    {
+        // negative start: -1 -> 2, dim = 3 - 2 = 1.
+        auto op = migraphx::make_op("slice", {{"axes", {2}}, {"starts", {-1}}, {"ends", {10}}});
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(1)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+    }
+    {
+        // negative end on axis 1 (len 2): -1 -> 1, dim = 1 - 0 = 1.
+        auto op = migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {-1}}});
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{lit(3)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        EXPECT(sout.to_static(sym_map) == op.compute_shape({sin.to_static(sym_map)}));
+    }
+}
+
+TEST_CASE(slice_sym_symbolic_end_static_input)
+{
+    // Static input + symbolic end bound: output is symbolic (not fixed -> not demoted to static).
+    auto n  = var("n", {1, 16});
+    auto op = migraphx::make_op("slice",
+                                {{"axes", {0}},
+                                 {"starts", {0}},
+                                 {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+
+    migraphx::shape sin{migraphx::shape::float_type, {10}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{n}}, {lit(1)}};
+    expect_shape(sout, op, sin);
+    EXPECT(sout.symbolic());
+    EXPECT(not sout.is_fixed());
+    EXPECT(sout.to_static({{n, 7}}) == migraphx::shape{migraphx::shape::float_type, {7}, {1}});
+    EXPECT(sout.to_static({{n, 10}}) == migraphx::shape{migraphx::shape::float_type, {10}, {1}});
+}
+
+TEST_CASE(slice_sym_symbolic_bounds)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+
+    {
+        // Symbolic end on a fixed axis: dim = n - 2; leading axis and strides preserved.
+        auto op = migraphx::make_op("slice",
+                                    {{"axes", {1}},
+                                     {"starts", {2}},
+                                     {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{m}, dd{lit(12)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{m}, dd{n - lit(2)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        EXPECT(sout.symbolic());
+        EXPECT(not sout.is_fixed());
+        EXPECT(sout.to_static({{m, 4}, {n, 9}}) ==
+               migraphx::shape{migraphx::shape::float_type, {4, 7}, {12, 1}});
+    }
+    {
+        // Symbolic start: dim = 8 - n.
+        auto op = migraphx::make_op("slice",
+                                    {{"axes", {0}},
+                                     {"starts", migraphx::value::array{migraphx::to_value(dd{n})}},
+                                     {"ends", {8}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(10)}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{lit(8) - n}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        EXPECT(sout.symbolic());
+        EXPECT(sout.to_static({{n, 3}}) ==
+               migraphx::shape{migraphx::shape::float_type, {5, 4}, {4, 1}});
+    }
+    {
+        // Both bounds symbolic: dim = n - m.
+        auto op = migraphx::make_op("slice",
+                                    {{"axes", {0}},
+                                     {"starts", migraphx::value::array{migraphx::to_value(dd{m})}},
+                                     {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(20)}}};
+        migraphx::shape sout{migraphx::shape::float_type, {dd{n - m}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
+        EXPECT(sout.symbolic());
+        EXPECT(sout.to_static({{m, 3}, {n, 9}}) ==
+               migraphx::shape{migraphx::shape::float_type, {6}, {1}});
+    }
 }
 
 TEST_CASE(test_scan_slice1)

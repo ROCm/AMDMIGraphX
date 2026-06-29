@@ -230,6 +230,10 @@ bool normalize_attributes(operation& op, const shape& input_shape)
             auto vv      = val.at(key).without_key();
             if(vv.is_array())
             {
+                // Symbolic (dim_like) bounds serialize as objects and cannot be
+                // clamped against the input length at compile time; leave them as-is.
+                if(std::any_of(vv.begin(), vv.end(), [](const auto& e) { return e.is_object(); }))
+                    continue;
                 std::vector<int64_t> axes;
                 if(val.contains("axes"))
                 {

@@ -41,9 +41,7 @@ struct parse_where : op_parser<parse_where>
                           std::vector<instruction_ref> args) const
     {
         // Fast path: when all three inputs already share the same dims, emit
-        // where() directly (no redundant broadcast). This keeps the common
-        // same-shape case -- including all-dynamic identical shapes -- as a
-        // bare where op.
+        // where() directly (no redundant broadcast)
         const auto s0 = args[0]->get_shape();
         if(shape::same_lens(args[1]->get_shape(), s0) and
            shape::same_lens(args[2]->get_shape(), s0))

@@ -7,6 +7,7 @@ Full documentation for MIGraphX is available at
 
 ### Added
 
+* Added environment variable `MIGRAPHX_FINALIZE_PARALLEL` which, when set to N > 0, finalizes operations that opt in via a `parallel_finalize` attribute across up to N worker threads (#PR_NUMBER) (default off = serial finalization).
 * Added `ArrayFeatureExtractor` ONNX operator support (#4742).
 * Added YOLO26 object detection example notebook.
 * Added `auto_pad` attribute support for the ONNX `ConvTranspose` operator, supporting `SAME_UPPER`, `SAME_LOWER`, and `VALID` padding modes for static shapes (#4638).

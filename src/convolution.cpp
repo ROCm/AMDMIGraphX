@@ -32,7 +32,6 @@
 #include <vector>
 
 #if MIGRAPHX_USE_EIGEN
-#include <unsupported/Eigen/CXX11/Tensor>
 #include <Eigen/Core>
 #endif
 
@@ -110,120 +109,6 @@ template <class Output, class Input>
 }
 
 #if MIGRAPHX_USE_EIGEN
-
-// The begin/end padding for spatial dimension `d` of a 2D convolution. MIGraphX stores padding
-// either as one value per spatial dim (symmetric) or as all begins followed by all ends.
-std::pair<std::ptrdiff_t, std::ptrdiff_t> spatial_padding(const std::vector<std::size_t>& padding,
-                                                          std::size_t d)
-{
-    assert(padding.size() == 2 or padding.size() == 4);
-    std::ptrdiff_t begin = padding[d];
-    std::ptrdiff_t end   = padding.size() == 4 ? padding[2 + d] : padding[d];
-    return {begin, end};
-}
-
-// 2D convolution: lower to im2col + matmul with Eigen's `extract_image_patches` and `contract`.
-// A MIGraphX NCHW row-major buffer aliases a column-major Eigen tensor with dims [W, H, C, N],
-// which is shuffled to the [depth, rows, cols, batch] order that `extract_image_patches` expects.
-template <class Output, class Input>
-void convolution_eigen_patches(Output output,
-                               Input input,
-                               Input weights,
-                               const std::vector<std::size_t>& padding,
-                               const std::vector<std::size_t>& stride,
-                               const std::vector<std::size_t>& dilation,
-                               int group)
-{
-    using index   = Eigen::Index;
-    using tensor4 = Eigen::Tensor<double, 4>;
-    using tensor5 = Eigen::Tensor<double, 5>;
-    using map4    = Eigen::TensorMap<tensor4>;
-
-    const auto& in_lens  = input.get_shape().lens();
-    const auto& wei_lens = weights.get_shape().lens();
-    const auto& out_lens = output.get_shape().lens();
-    // This path is selected only for 2 spatial dims, which implies rank-4 NCHW tensors.
-    assert(in_lens.size() == 4 and wei_lens.size() == 4 and out_lens.size() == 4);
-
-    const index n   = in_lens[0];
-    const index c   = in_lens[1];
-    const index ih  = in_lens[2];
-    const index iw  = in_lens[3];
-    const index k   = wei_lens[0]; // total output channels
-    const index cpg = wei_lens[1]; // input channels per group
-    const index kh  = wei_lens[2];
-    const index kw  = wei_lens[3];
-    const index oh  = out_lens[2];
-    const index ow  = out_lens[3];
-    const index kpg = k / group; // output channels per group
-    // Groups partition the channels evenly; relied on by the per-group slices below.
-    assert(group > 0 and k % group == 0 and c == cpg * group);
-
-    const index sh = stride[0];
-    const index sw = stride[1];
-    const index dh = dilation[0];
-    const index dw = dilation[1];
-
-    const auto pad_h = spatial_padding(padding, 0);
-    const auto pad_w = spatial_padding(padding, 1);
-
-    std::vector<double> in_buf(input.begin(), input.end());
-    std::vector<double> wei_buf(weights.begin(), weights.end());
-    std::vector<double> out_buf(output.get_shape().elements());
-
-    // Column-major aliases of the row-major NCHW/KCHW/NCHW buffers.
-    map4 in_map(in_buf.data(), iw, ih, c, n);
-    map4 wei_map(wei_buf.data(), kw, kh, cpg, k);
-    map4 out_map(out_buf.data(), ow, oh, k, n);
-
-    const Eigen::array<index, 4> to_depth_major{2, 1, 0, 3}; // [W,H,*,N] -> [*,H,W,N]
-    const Eigen::array<index, 4> to_kernel{3, 2, 1, 0};      // [KW,KH,Cpg,Kpg] -> [Kpg,Cpg,KH,KW]
-    const Eigen::array<index, 2> patch_2d{cpg * kh * kw, oh * ow * n};
-    const Eigen::array<index, 2> kernel_2d{kpg, cpg * kh * kw};
-    const Eigen::array<index, 4> out_4d{kpg, oh, ow, n};
-    const Eigen::array<Eigen::IndexPair<index>, 1> contract_dims{Eigen::IndexPair<index>{1, 0}};
-
-    for(index g = 0; g < group; ++g)
-    {
-        // [Cpg, H, W, N]
-        tensor4 in_chw = in_map
-                             .slice(Eigen::array<index, 4>{0, 0, g * cpg, 0},
-                                    Eigen::array<index, 4>{iw, ih, cpg, n})
-                             .shuffle(to_depth_major);
-
-        // [Cpg, KH, KW, OH*OW, N]
-        tensor5 patches = in_chw.extract_image_patches(kh,
-                                                       kw,
-                                                       sh,
-                                                       sw,
-                                                       dh,
-                                                       dw,
-                                                       1,
-                                                       1,
-                                                       pad_h.first,
-                                                       pad_h.second,
-                                                       pad_w.first,
-                                                       pad_w.second,
-                                                       0.0);
-
-        // [Kpg, Cpg, KH, KW]
-        tensor4 wei_g = wei_map
-                            .slice(Eigen::array<index, 4>{0, 0, 0, g * kpg},
-                                   Eigen::array<index, 4>{kw, kh, cpg, kpg})
-                            .shuffle(to_kernel);
-
-        // [Kpg, OH*OW*N] = [Kpg, Cpg*KH*KW] * [Cpg*KH*KW, OH*OW*N]
-        Eigen::Tensor<double, 2> result =
-            wei_g.reshape(kernel_2d).contract(patches.reshape(patch_2d), contract_dims);
-
-        // Write the group's results into its output channels (NCHW alias [OW,OH,Cout,N]).
-        out_map.slice(Eigen::array<index, 4>{0, 0, g * kpg, 0},
-                      Eigen::array<index, 4>{ow, oh, kpg, n}) =
-            result.reshape(out_4d).shuffle(to_depth_major);
-    }
-
-    std::copy(out_buf.begin(), out_buf.end(), output.begin());
-}
 
 // An N-d convolution problem and the im2col build/scatter it drives.
 struct conv_problem
@@ -328,16 +213,16 @@ struct conv_problem
     }
 };
 
-// N-dimensional convolution: `extract_image_patches` only handles the 2D case, so build the
-// im2col matrix explicitly and multiply it by the reshaped weights with an Eigen gemm.
+// Reference convolution for any number of spatial dims: build the im2col matrix for each group and
+// multiply it by the reshaped weights with an Eigen gemm.
 template <class Output, class Input>
-void convolution_eigen_im2col(Output output,
-                              Input input,
-                              Input weights,
-                              const std::vector<std::size_t>& padding,
-                              const std::vector<std::size_t>& stride,
-                              const std::vector<std::size_t>& dilation,
-                              int group)
+void convolution_eigen(Output output,
+                       Input input,
+                       Input weights,
+                       const std::vector<std::size_t>& padding,
+                       const std::vector<std::size_t>& stride,
+                       const std::vector<std::size_t>& dilation,
+                       int group)
 {
     using row_major = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
@@ -389,23 +274,6 @@ void convolution_eigen_im2col(Output output,
     }
 
     std::copy(out_buf.begin(), out_buf.end(), output.begin());
-}
-
-template <class Output, class Input>
-void convolution_eigen(Output output,
-                       Input input,
-                       Input weights,
-                       const std::vector<std::size_t>& padding,
-                       const std::vector<std::size_t>& stride,
-                       const std::vector<std::size_t>& dilation,
-                       int group)
-{
-    // `extract_image_patches` only supports 2 spatial dims; fall back to im2col for everything
-    // else.
-    if(stride.size() == 2)
-        convolution_eigen_patches(output, input, weights, padding, stride, dilation, group);
-    else
-        convolution_eigen_im2col(output, input, weights, padding, stride, dilation, group);
 }
 
 #endif // MIGRAPHX_USE_EIGEN

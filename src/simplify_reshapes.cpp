@@ -2037,6 +2037,61 @@ struct find_flatten
                               flatten->inputs());
     }
 };
+
+// Match slice->squeeze->pw/reduce where the squeeze and slice share the same
+// single axis, then rewrite to slice->pw/reduce->squeeze (unsqueezing the
+// other inputs).  find_op_shape_transform_op propagates the squeeze through
+// any downstream op chain, and find_splits in simplify_algebra merges parallel
+// branches back together.
+struct find_slice_squeeze
+{
+    auto matcher() const
+    {
+        auto match_op = match::any_of(match::pointwise(), match::reduce());
+        auto squeeze_slice =
+            match::name("squeeze")(match::arg(0)(match::name("slice").bind("slice")))
+                .bind("squeeze");
+        return match_op(match::any_of[match::inputs()](squeeze_slice));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto op_ins    = r.result;
+        auto squeeze   = r.instructions["squeeze"];
+        auto slice_ins = r.instructions["slice"];
+
+        auto sq_axes = squeeze->get_operator().to_value()["axes"].to_vector<int64_t>();
+        auto sl_axes = slice_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
+        if(sq_axes.size() != 1 or sl_axes.size() != 1 or sq_axes.front() != sl_axes.front())
+            return;
+
+        auto axis = sq_axes.front();
+
+        auto inputs = op_ins->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            if(input == squeeze)
+                return slice_ins;
+            return m.insert_instruction(op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
+        });
+
+        // Unsqueezing the inputs shifts every axis at or after `axis` up by one.
+        // Build the source->common axes map and let find_op_shape_transform_op
+        // handle reduce/argmin/layout axis remapping (pointwise ops are inserted
+        // unchanged), instead of duplicating that logic here.
+        std::vector<std::size_t> src_axes(squeeze->get_shape().ndim());
+        std::iota(src_axes.begin(), src_axes.end(), 0);
+        std::vector<std::vector<std::size_t>> axes_map;
+        std::transform(
+            src_axes.begin(),
+            src_axes.end(),
+            std::back_inserter(axes_map),
+            [&](std::size_t i) -> std::vector<std::size_t> { return {i >= axis ? i + 1 : i}; });
+
+        auto new_op = find_op_shape_transform_op::insert(m, op_ins, inputs, axes_map);
+        auto new_sq = m.insert_instruction(op_ins, squeeze->get_operator(), new_op);
+        m.replace_instruction(op_ins, new_sq);
+    }
+};
 } // namespace
 
 void simplify_reshapes::apply(module& m) const
@@ -2061,6 +2116,7 @@ void simplify_reshapes::apply(module& m) const
                             find_nested_concat{},
                             find_transpose_slice{},
                             find_slice_transpose{},
+                            find_slice_squeeze{},
                             find_unary_shape_transforms{},
                             find_reshape_dot{},
                             find_mul_add_shape_op_dot{},

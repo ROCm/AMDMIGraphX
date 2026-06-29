@@ -92,7 +92,7 @@ def cmake_build = { bconf ->
         rm -rf build
         mkdir build
         cd build
-        cmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
+        cmake -DCMAKE_PREFIX_PATH=/usr/local -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON ${flags} ..
         git diff
         git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
         make -j\$(nproc) generate VERBOSE=1

@@ -1005,7 +1005,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             value = info.add_instruction(make_op("fixed_pad"), value);
             
             // use dimensions_of to get the dynamic past sequence length as a runtime value
-            auto dyn_past_sl = info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), key);
+            auto dyn_past_sl = info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), key_out);
             // add one to get total sequence length
             auto total_seq_len = info.add_instruction(make_op("add"), dyn_past_sl, info.add_literal(migraphx::literal{migraphx::shape{dyn_past_sl->get_shape().type(), {1}}, {1}}));
             total_seq_len = info.add_instruction(make_op("multibroadcast", {{"out_lens", {params.batch_size, params.num_heads}}}), total_seq_len);

@@ -722,6 +722,7 @@ struct compiler_target
     std::string gpu_arch         = {};
     std::size_t gpu_num_cu       = 120;
     std::size_t gpu_num_chiplets = 1;
+    std::string gpu_arch_params  = {};
 
     void parse(argument_parser& ap)
     {
@@ -743,16 +744,53 @@ struct compiler_target
            {"--gpu-num-chiplets"},
            ap.help("Number of chiplets (XCCs) to assume for cross-compilation. "
                    "Only used when --gpu-arch is set."));
+        ap(gpu_arch_params,
+           {"--gpu-arch-params"},
+           ap.help("Device properties to assume for cross-compilation, as a JSON object "
+                   "(format: \"{arch:gfx942, num_cu:120, num_chiplets:1, "
+                   "max_threads_per_cu:2048, max_threads_per_block:1024}\"). Overrides "
+                   "--gpu-arch, --gpu-num-cus and --gpu-num-chiplets for any keys present."));
+    }
+
+    static const std::unordered_map<std::string, std::string>& gpu_arch_param_keys()
+    {
+        static const std::unordered_map<std::string, std::string> key_map = {
+            {"arch", "gpu_arch"},
+            {"num_cu", "gpu_num_cu"},
+            {"num_chiplets", "gpu_num_chiplets"},
+            {"max_threads_per_cu", "gpu_max_threads_per_cu"},
+            {"max_threads_per_block", "gpu_max_threads_per_block"}};
+        return key_map;
     }
 
     target get_target() const
     {
-        if(target_name == "gpu" and not gpu_arch.empty())
+        if(target_name == "gpu")
         {
-            return make_target(target_name,
-                               {{"gpu_arch", gpu_arch},
-                                {"gpu_num_cu", gpu_num_cu},
-                                {"gpu_num_chiplets", gpu_num_chiplets}});
+            migraphx::value opts = {{"gpu_arch", gpu_arch},
+                                    {"gpu_num_cu", gpu_num_cu},
+                                    {"gpu_num_chiplets", gpu_num_chiplets}};
+            if(not gpu_arch_params.empty())
+            {
+                const auto& key_map = gpu_arch_param_keys();
+                auto parsed         = from_json_string(convert_to_json(gpu_arch_params));
+                if(not parsed.is_object())
+                    MIGRAPHX_THROW("--gpu-arch-params must be a JSON object");
+                for(const auto& param : parsed)
+                {
+                    auto it = key_map.find(param.get_key());
+                    if(it == key_map.end())
+                        MIGRAPHX_THROW("Unknown --gpu-arch-params key: " + param.get_key());
+                    if(it->second == "gpu_arch")
+                        opts[it->second] = param.without_key().to<std::string>();
+                    else
+                        opts[it->second] = param.without_key().to<std::size_t>();
+                }
+            }
+            // Cross-compile only when an arch is provided, via --gpu-arch or the
+            // arch key in --gpu-arch-params.
+            if(not opts.at("gpu_arch").to<std::string>().empty())
+                return make_target(target_name, opts);
         }
         return make_target(target_name);
     }

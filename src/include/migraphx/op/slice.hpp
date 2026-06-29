@@ -282,8 +282,9 @@ struct slice
                 MIGRAPHX_THROW(
                     "SLICE 1_arg: slicing is not allowed on non-fixed symbolic input axis ");
             }
-            // Attributes are not normalized for this case, so they can be negative or out-of-bounds.
-            // Using a relaxed dimension bound for now instead of calculating the tightest possible bound.
+            // Attributes are not normalized for this case, so they can be negative or
+            // out-of-bounds. Using a relaxed dimension bound for now instead of calculating the
+            // tightest possible bound.
             auto dds = input_shape.dyn_dims();
             for(auto axis : this->axes)
             {

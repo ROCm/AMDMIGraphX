@@ -21,27 +21,58 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_DEREF_HPP
+#define MIGRAPHX_GUARD_OPERATORS_DEREF_HPP
 
-#include <migraphx/gpu/export.h>
 #include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
-#include <string>
+#include <migraphx/op/unary.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace op {
 
-/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present.
-MIGRAPHX_GPU_EXPORT hipDeviceProp_t
-make_cross_compile_device_props(const std::string& arch_name,
-                                std::size_t cu_count,
-                                std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024);
+struct deref : unary<deref>
+{
+    shape::type_t target_type = shape::half_type;
 
-} // namespace gpu
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.target_type, "target_type"));
+    }
+
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        const auto& input = inputs.at(0);
+        return input.with_type(target_type);
+    }
+
+    std::string point_op() const
+    {
+        return "${function:deref}<" + shape::cpp_type(target_type) + ">(${0})";
+    }
+
+    struct auto_cast_ptr
+    {
+        std::size_t x;
+
+        template <class T>
+        operator T()
+        {
+            // deref intentionally treats the integer input as a raw pointer address
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
+            return *reinterpret_cast<T*>(x);
+        }
+    };
+
+    auto apply() const
+    {
+        return [](std::size_t x) { return auto_cast_ptr{x}; };
+    }
+};
+
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

@@ -21,27 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
+#ifndef MIGRAPHX_GUARD_OPERATORS_ADDRESSOF_HPP
+#define MIGRAPHX_GUARD_OPERATORS_ADDRESSOF_HPP
 
-#include <migraphx/gpu/export.h>
 #include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
-#include <string>
+#include <migraphx/op/unary.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+namespace op {
 
-/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present.
-MIGRAPHX_GPU_EXPORT hipDeviceProp_t
-make_cross_compile_device_props(const std::string& arch_name,
-                                std::size_t cu_count,
-                                std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024);
+struct addressof : unary<addressof>
+{
+    shape compute_shape(std::vector<shape> inputs) const
+    {
+        check_shapes{inputs, *this}.has(1);
+        const auto& input = inputs.at(0);
+        return input.with_type(shape::uint64_type);
+    }
 
-} // namespace gpu
+    std::string point_op() const { return "${function:addressof}(${0})"; }
+
+    auto apply() const
+    {
+        return [](auto& x) -> std::size_t { return reinterpret_cast<std::size_t>(&x); };
+    }
+};
+
+} // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

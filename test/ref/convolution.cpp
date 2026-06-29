@@ -1099,7 +1099,7 @@ TEST_CASE(conv1d_nhwc_test)
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
-auto results_vector = result.to_vector<float>();
+    auto results_vector = result.to_vector<float>();
 
     std::vector<float> gold = {2.4143062532e-01,
                                -5.6675648689e-01,
@@ -1163,7 +1163,7 @@ TEST_CASE(conv2d_nhwc_test)
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
-auto results_vector = result.to_vector<float>();
+    auto results_vector = result.to_vector<float>();
 
     std::vector<float> gold = {0.27039781,
                                0.19105849,
@@ -1235,7 +1235,7 @@ TEST_CASE(conv3d_nhwc_test)
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
 
-auto results_vector = result.to_vector<float>();
+    auto results_vector     = result.to_vector<float>();
     std::vector<float> gold = {0.27039781,
                                0.19105849,
                                -0.06339942,

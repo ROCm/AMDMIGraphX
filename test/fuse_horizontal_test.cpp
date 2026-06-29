@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fuse_horizontal.hpp>
+#include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -1152,13 +1153,17 @@ TEST_CASE(dot_horiz_fusion_mismatched_shapes_unchanged)
     EXPECT(m1.sort() == before.sort());
 }
 
-// End-to-end: hoist_pointwise_above_slices (simplify_reshapes) and
+// End-to-end: the pointwise-chain hoist in find_splits (simplify_algebra) and
 // dot_horizontal_fusion (fuse_horizontal) cooperate in one pipeline.  The
-// module contains both opportunities and both reductions must occur.
+// module contains both opportunities and both reductions must occur.  This
+// mirrors the GPU pipeline ordering where optimize_module (simplify_algebra)
+// runs before fuse_horizontal.
 static void run_mlp_pipeline(migraphx::module& m)
 {
     migraphx::run_passes(m,
                          {migraphx::simplify_reshapes{},
+                          migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{},
                           migraphx::fuse_horizontal{},
                           migraphx::dead_code_elimination{}});
 }

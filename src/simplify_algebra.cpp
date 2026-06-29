@@ -1152,16 +1152,23 @@ move_instructions_back(module& m, instruction_ref pos, std::vector<instruction_r
     }
 }
 
-/** Search for multiple "slice" instructions in an instruction's outputs
- *  which are contiguous slices of the same tensor.
- */
-static std::vector<instruction_ref> get_splits(instruction_ref ins)
+/** Collect the "slice" instructions in an instruction's outputs. */
+static std::vector<instruction_ref> get_slice_outputs(instruction_ref ins)
 {
     std::vector<instruction_ref> result;
     std::copy_if(ins->outputs().begin(),
                  ins->outputs().end(),
                  std::back_inserter(result),
-                 [&](auto i) { return i->name() == "slice"; });
+                 [](auto i) { return i->name() == "slice"; });
+    return result;
+}
+
+/** Search for multiple "slice" instructions in an instruction's outputs
+ *  which are contiguous slices of the same tensor.
+ */
+static std::vector<instruction_ref> get_splits(instruction_ref ins)
+{
+    auto result = get_slice_outputs(ins);
     if(result.size() < 2)
         return {};
     auto get_slice = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
@@ -1403,15 +1410,294 @@ struct find_splits
         return false;
     }
 
+    // ------------------------------------------------------------------------
+    // Relaxation of the split fusion: hoist a pointwise chain replicated across
+    // sibling slices of the same tensor above those slices.  The chain is
+    // computed once on the bounding slice and each consumer reads its sub-range
+    // back out, collapsing N identical narrow pointwise ops (including SiLU
+    // diamonds) into a single wide one.  This covers what the constant-folding
+    // path cannot: multi-op or diamond chains and partial covers (slices that
+    // do not tile the whole tensor).
+    // ------------------------------------------------------------------------
+    struct slice_entry
+    {
+        instruction_ref slice_ins;
+        instruction_ref terminal;
+        int64_t start;
+        int64_t end;
+    };
+    struct slice_chain_group
+    {
+        int64_t axis;
+        int64_t width;
+        std::vector<instruction_ref> ops;
+        std::vector<slice_entry> entries;
+    };
+
+    // Two pointwise instructions match when their operator (and, for fused
+    // pointwise ops, their submodule) are identical.
+    static bool same_pw_op(instruction_ref a, instruction_ref b)
+    {
+        if(not(a->get_operator() == b->get_operator()))
+            return false;
+        const auto& am = a->module_inputs();
+        const auto& bm = b->module_inputs();
+        return am.size() == bm.size() and
+               std::equal(
+                   am.begin(), am.end(), bm.begin(), [](auto x, auto y) { return *x == *y; });
+    }
+
+    // Walk the pointwise chain hanging off `start` (a slice) and return its ops
+    // in topological order (terminal last).  Handles linear chains and SiLU
+    // diamonds (start -> f(start); g(start, f(start))).  Empty when none.
+    static std::vector<instruction_ref> trace_pw_chain(instruction_ref start)
+    {
+        std::vector<instruction_ref> ops;
+        auto is_pw = [](instruction_ref i) {
+            return i->get_operator().attributes().contains("pointwise");
+        };
+        auto current = start;
+        for(;;)
+        {
+            const auto& outs = current->outputs();
+            if(outs.size() == 1)
+            {
+                auto next = outs.front();
+                if(not is_pw(next) or not contains(next->inputs(), current))
+                    break;
+                ops.push_back(next);
+                current = next;
+            }
+            else if(outs.size() == 2)
+            {
+                // Diamond: one output feeds the other (the merge).
+                auto out0 = outs[0];
+                auto out1 = outs[1];
+                instruction_ref intermediate;
+                instruction_ref merge;
+                if(out0->outputs().size() == 1 and out0->outputs().front() == out1)
+                {
+                    intermediate = out0;
+                    merge        = out1;
+                }
+                else if(out1->outputs().size() == 1 and out1->outputs().front() == out0)
+                {
+                    intermediate = out1;
+                    merge        = out0;
+                }
+                else
+                {
+                    break;
+                }
+                if(not is_pw(intermediate) or not is_pw(merge))
+                    break;
+                if(not contains(merge->inputs(), current) or
+                   not contains(merge->inputs(), intermediate))
+                    break;
+                ops.push_back(intermediate);
+                ops.push_back(merge);
+                current = merge;
+            }
+            else
+            {
+                break;
+            }
+        }
+        return ops;
+    }
+
+    // Classify an input of a chain op: -1 if it is the chain source, its index
+    // if it is another op in the chain, or -2 if it is external to the chain.
+    static int classify_chain_input(const std::vector<instruction_ref>& ops,
+                                    instruction_ref source,
+                                    instruction_ref inp)
+    {
+        if(inp == source)
+            return -1;
+        auto it = std::find(ops.begin(), ops.end(), inp);
+        if(it != ops.end())
+            return static_cast<int>(std::distance(ops.begin(), it));
+        return -2;
+    }
+
+    // Two chains are equivalent for hoisting when substituting one source slice
+    // for the other makes them identical: the same ops in order, chain-internal
+    // inputs in matching positions, and external inputs being the exact same
+    // instruction (else the merged chain would use one slice's operand for all).
+    static bool pw_chain_equivalent(const std::vector<instruction_ref>& a_ops,
+                                    instruction_ref a_src,
+                                    const std::vector<instruction_ref>& b_ops,
+                                    instruction_ref b_src)
+    {
+        if(a_ops.size() != b_ops.size())
+            return false;
+        for(std::size_t i = 0; i < a_ops.size(); ++i)
+        {
+            auto ta = a_ops[i];
+            auto tb = b_ops[i];
+            if(not same_pw_op(ta, tb) or ta->inputs().size() != tb->inputs().size())
+                return false;
+            for(std::size_t j = 0; j < ta->inputs().size(); ++j)
+            {
+                auto ia = ta->inputs()[j];
+                auto ib = tb->inputs()[j];
+                auto ca = classify_chain_input(a_ops, a_src, ia);
+                auto cb = classify_chain_input(b_ops, b_src, ib);
+                if(ca != cb)
+                    return false;
+                if(ca == -2 and ia != ib)
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    // Group the single-axis sibling slices of `ins` whose pointwise chains are
+    // equivalent, so the chain can be computed once on a shared bounding slice.
+    static std::vector<slice_chain_group> group_sibling_slices(instruction_ref ins)
+    {
+        std::vector<slice_chain_group> groups;
+        auto slice_outs = get_slice_outputs(ins);
+        if(slice_outs.size() < 2)
+            return {};
+
+        for(auto s : slice_outs)
+        {
+            auto slc = any_cast<op::slice>(s->get_operator());
+            if(slc.axes.size() != 1)
+                continue;
+            auto ops = trace_pw_chain(s);
+            if(ops.empty() or ops.back()->outputs().empty())
+                continue;
+            int64_t axis  = slc.axes.front();
+            int64_t start = slc.starts.front();
+            int64_t end   = slc.ends.front();
+            slice_entry entry{s, ops.back(), start, end};
+            auto git = std::find_if(groups.begin(), groups.end(), [&](const auto& g) {
+                return g.axis == axis and g.width == (end - start) and
+                       pw_chain_equivalent(g.ops, g.entries.front().slice_ins, ops, s);
+            });
+            if(git != groups.end())
+                git->entries.push_back(entry);
+            else
+                groups.push_back({axis, end - start, ops, {entry}});
+        }
+        return groups;
+    }
+
+    // Replay the template chain `ops` (hanging off `src`) onto `big_slice`,
+    // mapping the source to the bounding slice and chain-internal inputs to
+    // their rebuilt counterparts, and return the rebuilt terminal.
+    static instruction_ref replay_pw_chain(module& m,
+                                           instruction_ref ip,
+                                           instruction_ref big_slice,
+                                           instruction_ref src,
+                                           const std::vector<instruction_ref>& ops)
+    {
+        std::vector<instruction_ref> built;
+        auto map_input = [&](instruction_ref inp) -> instruction_ref {
+            if(inp == src)
+                return big_slice;
+            auto it = std::find(ops.begin(), ops.end(), inp);
+            if(it != ops.end())
+                return built[std::distance(ops.begin(), it)];
+            return inp;
+        };
+        for(auto op_ins : ops)
+        {
+            std::vector<instruction_ref> new_inputs;
+            std::transform(op_ins->inputs().begin(),
+                           op_ins->inputs().end(),
+                           std::back_inserter(new_inputs),
+                           map_input);
+            built.push_back(m.insert_instruction(
+                ip, op_ins->get_operator(), new_inputs, op_ins->module_inputs()));
+        }
+        return built.back();
+    }
+
+    // True when every external (non chain-internal) input of the template chain
+    // is broadcastable to the wider bounding slice (scalar or single-element).
+    static bool chain_inputs_widenable(instruction_ref src, const std::vector<instruction_ref>& ops)
+    {
+        return std::all_of(ops.begin(), ops.end(), [&](instruction_ref op_ins) {
+            return std::all_of(op_ins->inputs().begin(), op_ins->inputs().end(), [&](auto inp) {
+                if(classify_chain_input(ops, src, inp) != -2)
+                    return true;
+                return inp->get_shape().scalar() or inp->get_shape().elements() == 1;
+            });
+        });
+    }
+
+    // Hoist one matching slice group onto its bounding slice and replace each
+    // terminal with a sub-slice of the result.  False when the slices do not
+    // exactly tile their bounding range or an external input cannot be widened.
+    static bool hoist_slice_group(module& m, instruction_ref root, const slice_chain_group& g)
+    {
+        if(g.entries.size() < 2)
+            return false;
+        auto src = g.entries.front().slice_ins;
+        if(not chain_inputs_widenable(src, g.ops))
+            return false;
+
+        int64_t lo          = g.entries.front().start;
+        int64_t hi          = g.entries.front().end;
+        int64_t total_width = 0;
+        for(const auto& e : g.entries)
+        {
+            lo = std::min(lo, e.start);
+            hi = std::max(hi, e.end);
+            total_width += (e.end - e.start);
+        }
+        if(total_width != hi - lo)
+            return false;
+
+        auto ip        = std::next(root);
+        auto big_slice = m.insert_instruction(
+            ip, make_op("slice", {{"axes", {g.axis}}, {"starts", {lo}}, {"ends", {hi}}}), root);
+        auto chain = replay_pw_chain(m, ip, big_slice, src, g.ops);
+
+        for(const auto& e : g.entries)
+        {
+            auto sub = m.insert_instruction(
+                e.terminal,
+                make_op("slice",
+                        {{"axes", {g.axis}}, {"starts", {e.start - lo}}, {"ends", {e.end - lo}}}),
+                chain);
+            m.replace_instruction(e.terminal, sub);
+        }
+        return true;
+    }
+
+    // Hoist any replicated pointwise chain above the sibling slices of `root`.
+    static bool hoist_pointwise_chains(module& m, instruction_ref root)
+    {
+        for(const auto& g : group_sibling_slices(root))
+        {
+            if(hoist_slice_group(m, root, g))
+                return true;
+        }
+        return false;
+    }
+
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins    = r.result;
         auto splits = get_splits(ins);
         if(splits.empty())
+        {
+            // No full-cover split fusion is possible (e.g. the sibling slices
+            // only partially tile their tensor); fall back to hoisting a
+            // replicated pointwise chain above their bounding slice.
+            hoist_pointwise_chains(m, ins);
             return;
+        }
         auto split_groups = get_split_groups(m, ins, splits);
         if(split_groups_are_dependent(m, ins, split_groups))
         {
+            // An inter-group dependency (e.g. a SiLU diamond) blocks split
+            // fusion; hoist the replicated chain above the slices instead.
+            hoist_pointwise_chains(m, ins);
             return;
         }
 

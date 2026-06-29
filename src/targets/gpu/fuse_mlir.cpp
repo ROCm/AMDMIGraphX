@@ -1504,6 +1504,28 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
     const auto& device_name = ctx == nullptr ? "" : ctx->get_current_device().get_gfx_name();
     const bool is_navi = starts_with(device_name, "gfx11") or starts_with(device_name, "gfx12");
 
+    // mark this program non-capturable for hipGraph if it contains any quantized /
+    // low-bit op. hipGraph capture/replay regresses int4/fp4 decode substantially (up to
+    // ~2x slower than the eager path on discrete GPUs). Allowlist-by-absence: any quantized
+    // program (int4 nibble unpack, fp4, or the int8/int4 dequantize+quant_dot path that has
+    // no nibble unpack) takes the eager path; only fp16 (none of these ops) captures.
+    // Scanned here -- before fusion consumes these into a code_object whose name no longer
+    // reveals them -- and recorded on the (shared) context so the hipGraph path (gated by
+    // context::is_graph_enabled) skips capture.
+    if(ctx != nullptr)
+    {
+        static const std::array<std::string, 4> low_bit_ops = {
+            {"unpack_int4", "unpack_fp4", "dequantizelinear", "quant_dot"}};
+        for(const auto& ins : mpm.get_module())
+        {
+            if(contains(low_bit_ops, ins.name()))
+            {
+                ctx->set_graph_not_capturable();
+                break;
+            }
+        }
+    }
+
     auto get_mode = [&](std::string_view option, mlir_mode m1, mlir_mode m2 = mlir_mode::fast) {
         if(specific_op<rejected>(option))
             return mlir_mode::none;

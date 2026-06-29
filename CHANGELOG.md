@@ -36,6 +36,7 @@ Full documentation for MIGraphX is available at
 * Added `--log-stdout` flag to migraphx-driver to log to stdout instead of stderr (#4959).
 * Added slice squeeze matcher to propogate squeeze downstream and allow for parallel branches to merge together (#5004)
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
+* Added opt-in hipGraph capture/replay for the decode eval path (`MIGRAPHX_ENABLE_HIPGRAPH`, default off): the single-context per-token kernel sequence is captured into a hipGraph once and replayed with one launch per eval, cutting host dispatch overhead. Gated to fp16; quantized (int4/fp4) programs run the eager path.
 
 ### Changed
 

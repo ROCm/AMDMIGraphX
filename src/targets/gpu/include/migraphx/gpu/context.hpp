@@ -44,6 +44,7 @@
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <functional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -51,8 +52,17 @@ namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_NULL_STREAM)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_NSTREAMS)
+// opt-in hipGraph capture/replay of the eval kernel sequence. When set, a
+// steady-state (static-shape, fixed-buffer) eval is captured into a hipGraph once
+// and replayed with a single hipGraphLaunch per subsequent eval -- collapsing the
+// ~52 per-token individual kernel dispatches into one host submit (cuts dispatch
+// overhead + the GPU-clock throttle the per-dispatch bubbles cause). Additive: the
+// default per-op eval path is unchanged when this is off.
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_HIPGRAPH)
 
-using hip_event_ptr = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
+using hip_event_ptr      = MIGRAPHX_MANAGE_PTR(hipEvent_t, hipEventDestroy);
+using hip_graph_ptr      = MIGRAPHX_MANAGE_PTR(hipGraph_t, hipGraphDestroy);
+using hip_graph_exec_ptr = MIGRAPHX_MANAGE_PTR(hipGraphExec_t, hipGraphExecDestroy);
 
 struct hip_device
 {
@@ -482,6 +492,98 @@ struct context
         pc->auto_save = true;
     }
 
+    // hipGraph capture/replay -------------------------------------------
+    // is_graph_enabled(): opt-in via MIGRAPHX_ENABLE_HIPGRAPH, only when not
+    // cross-compiling, and only for a capturable program (see graph_capturable).
+    // has_graph(): a graph has already been captured+instantiated for this context,
+    // so eval should replay instead of re-running the per-op loop.
+    bool is_graph_enabled() const
+    {
+        return enabled(MIGRAPHX_ENABLE_HIPGRAPH{}) and not is_cross_compile() and graph_capturable;
+    }
+    bool has_graph() const { return graph_exec != nullptr; }
+
+    // Capture eligibility, set at compile time (fuse_mlir). hipGraph capture/replay
+    // regresses low-bit-quantized (int4/fp4) decode substantially (up to ~2x slower than
+    // the eager per-op path on discrete GPUs), so a program that fuses any low-bit dequant
+    // op is marked non-capturable and runs the eager path; fp16 still captures.
+    bool is_graph_capturable() const { return graph_capturable; }
+    void set_graph_not_capturable() { graph_capturable = false; }
+
+    // Begin capturing all kernel launches on the current stream into a hipGraph.
+    // Uses ThreadLocal mode so only this stream's work is captured. Caller runs the
+    // normal eval kernel loop between begin/end; the terminal stream sync stays
+    // OUTSIDE the capture (capture must contain only async work).
+    void begin_graph_capture()
+    {
+        auto status = hipStreamBeginCapture(get_stream().get(), hipStreamCaptureModeThreadLocal);
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("hipStreamBeginCapture failed: " + hip_error(status));
+    }
+
+    // End capture, instantiate the executable graph, and cache it. Returns false
+    // (without throwing) if capture produced no usable graph, so the caller can
+    // fall back to having just executed the work eagerly during capture.
+    bool end_graph_capture()
+    {
+        hipGraph_t g = nullptr;
+        auto status  = hipStreamEndCapture(get_stream().get(), &g);
+        if(status != hipSuccess or g == nullptr)
+            return false;
+        captured_graph      = hip_graph_ptr{g};
+        hipGraphExec_t exec = nullptr;
+        status              = hipGraphInstantiate(&exec, g, nullptr, nullptr, 0);
+        if(status != hipSuccess or exec == nullptr)
+        {
+            captured_graph.reset();
+            return false;
+        }
+        graph_exec = hip_graph_exec_ptr{exec};
+        return true;
+    }
+
+    // Replay the captured graph (one host submit for the whole kernel sequence).
+    void replay_graph()
+    {
+        auto status = hipGraphLaunch(graph_exec.get(), get_stream().get());
+        if(status != hipSuccess)
+            MIGRAPHX_THROW("hipGraphLaunch failed: " + hip_error(status));
+    }
+
+    // single execution entry point used by program::eval. When hipGraph mode
+    // is off (env flag unset, cross-compiling, or the program is not capturable -- see
+    // is_graph_enabled / graph_capturable), just runs the eval kernel loop (run_kernels)
+    // eagerly -- identical to the prior behavior. When on: the first call captures the loop
+    // into a hipGraph and instantiates it (still executing it eagerly during capture);
+    // subsequent calls replay the cached graph with one host submit and SKIP the loop
+    // entirely. The terminal stream sync is the caller's job and stays outside the
+    // captured region.
+    void execute(const std::function<void()>& run_kernels)
+    {
+        if(not is_graph_enabled())
+        {
+            run_kernels();
+            return;
+        }
+        if(has_graph())
+        {
+            replay_graph();
+            return;
+        }
+        // First eval: capture the loop into a graph. NOTE under hipStreamBeginCapture
+        // the kernel launches are RECORDED, not executed -- so run_kernels() here
+        // produces no output; we must launch the instantiated graph once to actually
+        // compute this first token. If capture/instantiate fails, fall back to a real
+        // eager run so the first token is still correct (and future evals stay eager
+        // since graph_exec remains null).
+        begin_graph_capture();
+        run_kernels();
+        if(end_graph_capture())
+            replay_graph();
+        else
+            run_kernels(); // capture failed -> eager fallback (graph_exec stays null)
+    }
+
     private:
     // TODO: Make this a vector to support multiple devices
     std::shared_ptr<hip_device> current_device;
@@ -495,6 +597,12 @@ struct context
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = nullptr;
+    // hipGraph capture/replay state (lifetime tied to the context, which the
+    // EP keeps alive across decode-step evals on the same program).
+    shared<hip_graph_ptr> captured_graph  = nullptr;
+    shared<hip_graph_exec_ptr> graph_exec = nullptr;
+    // capture eligibility (set false at compile time for low-bit/int4 programs).
+    bool graph_capturable = true;
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

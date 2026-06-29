@@ -78,6 +78,12 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
+    // cached eval results for the hipGraph replay path. On the capture eval we
+    // record the output arguments (which point at fixed device buffers); on every
+    // subsequent replay (hipGraphLaunch) the host-side generic_eval loop is skipped,
+    // so we return these cached arguments -- valid because graph replay reuses the
+    // same fixed input/output device buffers (static-shape decode).
+    std::vector<argument> graph_cached_results;
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -703,6 +709,23 @@ std::vector<argument> program::eval(const parameter_map& params,
                 exec_env.trace(ins, copy_to_host(result, ins->get_target_id()));
             return result;
         });
+    }
+    else if(contexts.size() == 1)
+    {
+        // route the single-context eval (the EP decode path, async or not)
+        // through context.execute, which optionally captures the kernel loop into a
+        // hipGraph (gated by MIGRAPHX_ENABLE_HIPGRAPH inside the gpu context) and
+        // replays it on later evals. On a replay the host-side generic_eval is
+        // skipped, so we cache and reuse the output arguments -- valid because graph
+        // replay reuses the same fixed input/output device buffers (static-shape
+        // decode). When the env flag is off, context.execute just runs the loop
+        // eagerly, i.e. behavior is byte-identical to the prior path.
+        contexts.front().execute([&] {
+            ret = generic_eval(*this, contexts, params, [&](auto&&, auto f) { return f(); });
+            impl->graph_cached_results = ret;
+        });
+        if(ret.empty())
+            ret = impl->graph_cached_results;
     }
     else
     {

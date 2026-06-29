@@ -93,6 +93,15 @@ bool is_cross_compile_context(const T&)
     return false;
 }
 
+// default execution hook -- a target without its own execute() just runs the
+// eval kernel loop eagerly. The gpu target overrides this (via a member execute())
+// to optionally capture/replay the loop as a hipGraph.
+template <class T>
+void execute_context(T&, const std::function<void()>& run_kernels)
+{
+    run_kernels();
+}
+
 #ifdef TYPE_ERASED_DECLARATION
 
 // Type-erased interface for:
@@ -114,6 +123,8 @@ struct MIGRAPHX_EXPORT context
     void finish_on(any_ptr queue);
     // (optional)
     bool is_cross_compile() const;
+    // (optional)
+    void execute(const std::function<void()>& run_kernels);
     //
     void finish() const;
 };
@@ -231,6 +242,21 @@ struct context
         return is_cross_compile_context(private_detail_te_self);
     }
 
+    template <class T>
+    static auto private_detail_te_default_execute(
+        char, T&& private_detail_te_self, const std::function<void()>& run_kernels)
+        -> decltype(private_detail_te_self.execute(run_kernels))
+    {
+        private_detail_te_self.execute(run_kernels);
+    }
+
+    template <class T>
+    static void private_detail_te_default_execute(
+        float, T&& private_detail_te_self, const std::function<void()>& run_kernels)
+    {
+        execute_context(private_detail_te_self, run_kernels);
+    }
+
     template <class PrivateDetailTypeErasedT>
     struct private_te_unwrap_reference
     {
@@ -264,6 +290,10 @@ struct context
                      char(0), std::declval<PrivateDetailTypeErasedT>(), std::declval<any_ptr>()),
                  private_detail_te_default_is_cross_compile(
                      char(0), std::declval<PrivateDetailTypeErasedT>()),
+                 private_detail_te_default_execute(
+                     char(0),
+                     std::declval<PrivateDetailTypeErasedT>(),
+                     std::declval<const std::function<void()>&>()),
                  std::declval<PrivateDetailTypeErasedT>().finish(),
                  void());
 
@@ -387,6 +417,12 @@ struct context
         return (*this).private_detail_te_get_handle().is_cross_compile();
     }
 
+    void execute(const std::function<void()>& run_kernels)
+    {
+        assert((*this).private_detail_te_handle_mem_var);
+        (*this).private_detail_te_get_handle().execute(run_kernels);
+    }
+
     void finish() const
     {
         assert((*this).private_detail_te_handle_mem_var);
@@ -414,6 +450,7 @@ struct context
         virtual void wait_for(any_ptr queue)    = 0;
         virtual void finish_on(any_ptr queue)   = 0;
         virtual bool is_cross_compile() const   = 0;
+        virtual void execute(const std::function<void()>& run_kernels) = 0;
         virtual void finish() const             = 0;
     };
 
@@ -490,6 +527,12 @@ struct context
         {
 
             return private_detail_te_default_is_cross_compile(char(0), private_detail_te_value);
+        }
+
+        void execute(const std::function<void()>& run_kernels) override
+        {
+
+            private_detail_te_default_execute(char(0), private_detail_te_value, run_kernels);
         }
 
         void finish() const override { private_detail_te_value.finish(); }

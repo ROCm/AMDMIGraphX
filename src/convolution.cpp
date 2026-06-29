@@ -41,13 +41,13 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace {
 
 template <class Output, class Input>
-[[maybe_unused]] void convolution_naive(Output output,
-                                        Input input,
-                                        Input weights,
-                                        const std::vector<std::size_t>& padding,
-                                        const std::vector<std::size_t>& stride,
-                                        const std::vector<std::size_t>& dilation,
-                                        int group)
+void convolution_naive(Output output,
+                       Input input,
+                       Input weights,
+                       const std::vector<std::size_t>& padding,
+                       const std::vector<std::size_t>& stride,
+                       const std::vector<std::size_t>& dilation,
+                       int group)
 {
     auto output_shape = output.get_shape();
     auto in_lens      = input.get_shape().lens();
@@ -291,7 +291,12 @@ void convolution(const argument& result,
     result.visit([&](auto output) {
         get_all<double>(x, w)([&](auto input, auto weights) {
 #if MIGRAPHX_USE_EIGEN
-            convolution_eigen(output, input, weights, padding, stride, dilation, group);
+            // For depthwise (one input channel per group), the per-group im2col loop spawns many
+            // tiny par_for tasks; the naive path's single par_for over all outputs is far cheaper.
+            if(group > 1 and weights.get_shape().lens()[1] == 1)
+                convolution_naive(output, input, weights, padding, stride, dilation, group);
+            else
+                convolution_eigen(output, input, weights, padding, stride, dilation, group);
 #else
             convolution_naive(output, input, weights, padding, stride, dilation, group);
 #endif

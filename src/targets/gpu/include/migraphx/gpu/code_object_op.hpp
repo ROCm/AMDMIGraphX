@@ -69,7 +69,11 @@ struct code_object_op
                     f(self.kernel_args, "kernel_args"));
     }
 
-    value attributes() const { return {{"group", group()}}; }
+    // "parallel_finalize" opts this op into module::finalize's parallel pass:
+    // its finalize() loads a GPU module and writes only its own instance (it does
+    // not touch the shared context), so finalizing many of them concurrently is
+    // safe and hides the per-module load latency.
+    value attributes() const { return {{"group", group()}, {"parallel_finalize", true}}; }
 
     std::string group() const { return "gpu::code_object::" + symbol_name; }
 

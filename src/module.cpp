@@ -30,6 +30,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/par_for.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -53,6 +54,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_FINALIZE)
+// Finalizes ops that opt in via the "parallel_finalize" attribute concurrently.
+// 0/unset = serial (original behavior); N > 0 = use up to N worker threads. The
+// effective count is capped by the number of such ops and the hardware concurrency.
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_FINALIZE_PARALLEL)
 
 struct module_impl
 {
@@ -1114,17 +1119,64 @@ void module::finalize(std::vector<context>& contexts)
 {
     assert(not contexts.empty());
     const bool trace = enabled(MIGRAPHX_TRACE_FINALIZE{});
-    for(auto ins : iterator_for(*this))
+
+    // An op may declare the "parallel_finalize" attribute to opt into being
+    // finalized concurrently: it promises that its finalize() writes only its own
+    // instance and does not touch the shared context, so finalizing many such ops
+    // in parallel is safe. When MIGRAPHX_FINALIZE_PARALLEL is set, those ops are
+    // finalized first across worker threads (this hides per-op finalize latency,
+    // e.g. GPU module loads), then the remaining ops are finalized serially.
+    // Default unset = the original serial behavior below.
+    const auto can_parallel_finalize = [](instruction_ref ins) {
+        return ins->module_inputs().empty() and
+               ins->get_operator().attributes().get("parallel_finalize", false);
+    };
+    const std::size_t par_degree = value_of(MIGRAPHX_FINALIZE_PARALLEL{});
+    if(par_degree != 0 and not trace)
     {
-        if(trace)
+        std::vector<instruction_ref> parallel_ins;
+        for(auto ins : iterator_for(*this))
         {
-            std::cout << "Finalize: ";
-            this->debug_print(ins);
+            if(can_parallel_finalize(ins))
+                parallel_ins.push_back(ins);
         }
-        ins->finalize(contexts[ins->get_target_id()]);
-        for(const auto& smod : ins->module_inputs())
+        if(not parallel_ins.empty())
         {
-            smod->finalize(contexts);
+            const std::size_t n = parallel_ins.size();
+            // par_for's second argument is the minimum grain (items per thread);
+            // n / threads gives roughly `threads` workers. Cap the requested
+            // thread count at the number of ops to finalize.
+            const std::size_t threads   = std::min(par_degree, n);
+            const std::size_t min_grain = n / threads;
+            par_for(n, min_grain, [&](auto i) {
+                parallel_ins[i]->finalize(contexts[parallel_ins[i]->get_target_id()]);
+            });
+        }
+        // Serial pass for the remaining instructions and submodules; the ops
+        // finalized in parallel above are skipped here.
+        for(auto ins : iterator_for(*this))
+        {
+            if(can_parallel_finalize(ins))
+                continue;
+            ins->finalize(contexts[ins->get_target_id()]);
+            for(const auto& smod : ins->module_inputs())
+                smod->finalize(contexts);
+        }
+    }
+    else
+    {
+        for(auto ins : iterator_for(*this))
+        {
+            if(trace)
+            {
+                std::cout << "Finalize: ";
+                this->debug_print(ins);
+            }
+            ins->finalize(contexts[ins->get_target_id()]);
+            for(const auto& smod : ins->module_inputs())
+            {
+                smod->finalize(contexts);
+            }
         }
     }
 

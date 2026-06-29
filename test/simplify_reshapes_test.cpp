@@ -34,6 +34,8 @@
 
 #include <test.hpp>
 
+#include <algorithm>
+
 static void run_pass(migraphx::module& m)
 {
     migraphx::run_passes(m,
@@ -5115,6 +5117,432 @@ TEST_CASE(slice_reshape_multibroadcast_rebase_axis)
     auto m2 = m1;
     run_pass(m1);
     EXPECT(m1.get_output_shapes() == m2.get_output_shapes());
+}
+
+// The gather_slice_concat tests below use parameter indices (rather than
+// literals) so that find_gather (enabled in run_pass via enable_gather_rewrite)
+// cannot rewrite the gather before find_gather_slice_concat gets a chance to
+// match - find_gather requires constant indices.
+
+TEST_CASE(gather_slice_concat_full_rewrite)
+{
+    // Four consecutive slice-of-gather inputs that all share the same gather
+    // instruction, slice on the gather axis with width 1, and feed a concat
+    // whose axis is gather_axis + indices_ndim. The whole concat must collapse
+    // into a single rewritten gather + reshape.
+    //
+    //   data[3,5,7] indices[4,2]
+    //          \      /
+    //        gather(axis=1) -> [3,4,2,7]
+    //        /   |   |   \
+    //   slice slice slice slice   (axis=1, width 1) -> each [3,1,2,7]
+    //   [0:1] [1:2] [2:3] [3:4]
+    //        \   |   |   /
+    //        concat(axis=3) -> [3,1,2,28]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), s0, s1, s2, s3);
+        m1.add_return({c});
+    }
+    run_pass(m1);
+
+    // Expected rewrite: the concat order {0,1,2,3} becomes a perm literal that
+    // selects/reorders the gather indices, which are transposed and flattened
+    // (batch_stride * num_rows = 2 * 4 = 8) into a single gather, then reshaped
+    // back to the original concat output shape [3,1,2,28].
+    migraphx::module m2;
+    {
+        auto data    = m2.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m2.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto perm =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {4}}, {0, 1, 2, 3}});
+        auto idx_subset =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), indices, perm);
+        auto idx_transposed = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), idx_subset);
+        auto idx_flat =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed);
+        auto new_gather =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat);
+        auto reshaped =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather);
+        m2.add_return({reshaped});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_permuted_rows)
+{
+    // Slices visit gather rows out of order ({3,1,0,2}). The synthesized perm
+    // literal must capture the exact concat order so the rewritten gather pulls
+    // rows in the same sequence the concat would have.
+    //
+    //   data[3,5,7] indices[4,2]
+    //          \      /
+    //        gather(axis=1) -> [3,4,2,7]
+    //        /   |   |   \
+    //   slice slice slice slice   (axis=1, width 1) -> each [3,1,2,7]
+    //   [3:4] [1:2] [0:1] [2:3]
+    //        \   |   |   /
+    //        concat(axis=3) -> [3,1,2,28]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s3     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), s3, s1, s0, s2);
+        m1.add_return({c});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto data    = m2.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m2.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto perm =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {4}}, {3, 1, 0, 2}});
+        auto idx_subset =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), indices, perm);
+        auto idx_transposed = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), idx_subset);
+        auto idx_flat =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed);
+        auto new_gather =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat);
+        auto reshaped =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather);
+        m2.add_return({reshaped});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_mixed_run_with_passthrough)
+{
+    // A run of four slice-of-gather inputs followed by an unrelated parameter.
+    // The run fuses into a single rewritten input; the trailing parameter
+    // stays verbatim in the new concat. Exercises the new_inputs.size() != 1
+    // branch of the rewrite (single-output concat fallback is not taken).
+    //
+    //   gather(axis=1)[3,4,2,7]                 extra[3,1,2,5]
+    //   /   |   |   \                               |
+    //  s0  s1  s2  s3  (axis=1, width 1)            |
+    //   \   |   |   /                               |
+    //    concat(axis=3, [s0,s1,s2,s3,extra]) -> [3,1,2,33]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto extra   = m1.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        auto c =
+            m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), s0, s1, s2, s3, extra);
+        m1.add_return({c});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto data    = m2.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m2.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto extra   = m2.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
+        auto perm =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {4}}, {0, 1, 2, 3}});
+        auto idx_subset =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), indices, perm);
+        auto idx_transposed = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), idx_subset);
+        auto idx_flat =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed);
+        auto new_gather =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat);
+        auto reshaped =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}), new_gather);
+        auto c = m2.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), reshaped, extra);
+        m2.add_return({c});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_two_runs)
+{
+    // Two separate runs of four slice-of-gather inputs each, separated by an
+    // unrelated parameter. Each run is rewritten independently with its own
+    // perm literal and gather/transpose/reshape/gather/reshape chain. The
+    // final concat has three inputs: [run0, extra, run1]. Exercises the
+    // multi-iteration path of the for-each-run loop.
+    //
+    //   run0 = slices{0,1,2,3}   extra[3,1,2,5]   run1 = slices{3,2,1,0}
+    //                       \          |          /
+    //                concat(axis=3, [run0..., extra, run1...]) -> [3,1,2,61]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto extra   = m1.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        // run0: rows {0, 1, 2, 3}
+        auto r0a = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto r0b = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto r0c = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto r0d = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        // run1: rows {3, 2, 1, 0}
+        auto r1a = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        auto r1b = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto r1c = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto r1d = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}),
+                                    r0a,
+                                    r0b,
+                                    r0c,
+                                    r0d,
+                                    extra,
+                                    r1a,
+                                    r1b,
+                                    r1c,
+                                    r1d);
+        m1.add_return({c});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto data    = m2.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m2.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto extra   = m2.add_parameter("extra", {migraphx::shape::float_type, {3, 1, 2, 5}});
+        // run0 rewrite: perm {0, 1, 2, 3}
+        auto perm0 =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {4}}, {0, 1, 2, 3}});
+        auto idx_subset0 =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), indices, perm0);
+        auto idx_transposed0 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), idx_subset0);
+        auto idx_flat0 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed0);
+        auto new_gather0 =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat0);
+        auto reshape0 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}),
+                                           new_gather0);
+        // run1 rewrite: perm {3, 2, 1, 0}
+        auto perm1 =
+            m2.add_literal(migraphx::literal{{migraphx::shape::int32_type, {4}}, {3, 2, 1, 0}});
+        auto idx_subset1 =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), indices, perm1);
+        auto idx_transposed1 = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {1, 0}}}), idx_subset1);
+        auto idx_flat1 =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), idx_transposed1);
+        auto new_gather1 =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, idx_flat1);
+        auto reshape1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 1, 2, 28}}}),
+                                           new_gather1);
+        auto c        = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 3}}), reshape0, extra, reshape1);
+        m2.add_return({c});
+    }
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_below_min_run_no_rewrite)
+{
+    // Only three slice-of-gather inputs - below find_gather_slice_concat's min_run
+    // of 4. The matcher still fires on the concat but apply() forms no qualifying
+    // run and leaves the IR untouched.
+    //
+    //   gather(axis=1)[3,4,2,7]
+    //      /    |    \
+    //    s0    s1    s2   (axis=1, width 1)
+    //      \    |    /
+    //     concat(axis=3) -> [3,1,2,21]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), s0, s1, s2);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_slice_axis_mismatch_no_rewrite)
+{
+    // Slices are taken on a different axis than the gather axis. The
+    // representative-slice scan picks slice_axis = 1 from the first slice;
+    // gather_axis = 2 after tune_axis, so apply() bails on
+    // slice_axis != gather_axis.
+    //
+    //   gather(axis=2)[3,5,4,2]
+    //      /   |   |   \
+    //    s0  s1  s2  s3   (axis=1, width 1) -> each [3,1,4,2]
+    //      \   |   |   /
+    //     concat(axis=1) -> [3,4,4,2]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 2}}), data, indices);
+        auto s0     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), s0, s1, s2, s3);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_concat_axis_mismatch_no_rewrite)
+{
+    // slice_axis == gather_axis == 1, but the concat axis is 2 instead of the
+    // required gather_axis + indices_ndim = 3. apply() bails on the
+    // concat_axis check.
+    //
+    //   gather(axis=1)[3,4,2,7]
+    //      /   |   |   \
+    //    s0  s1  s2  s3   (axis=1, width 1) -> each [3,1,2,7]
+    //      \   |   |   /
+    //     concat(axis=2) -> [3,1,8,7]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), s0, s1, s2, s3);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_slice_width_gt_one_no_rewrite)
+{
+    // Every slice has width 2 (ends - starts != 1), so the representative-
+    // slice scan in apply() rejects every slice and slice_axis stays at -1,
+    // leading to an early return without any rewrite. Slice operators are
+    // kept distinct to avoid ECS merging them (which would itself change the
+    // module structure). Indices are sized so the gather output's axis-1 has
+    // 5 rows, giving us four distinct contiguous width-2 slices.
+    //
+    //   gather(axis=1)[3,5,2,7]
+    //      /     |     |     \
+    //   [0:2] [1:3] [2:4] [3:5]   (axis=1, width 2) -> each [3,2,2,7]
+    //      \     |     |     /
+    //         concat(axis=3) -> [3,2,2,28]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {5, 2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {3}}}), gather);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {4}}}), gather);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {5}}}), gather);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), s0, s1, s2, s3);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(gather_slice_concat_indices_1d_no_rewrite)
+{
+    // Gather is called with rank-1 indices. The matcher itself still matches
+    // (just looks at op names), and the gather/slice axes line up, but
+    // apply() bails on indices_ndim < 2.
+    //
+    //   data[3,5,7] indices[4]
+    //          \      /
+    //        gather(axis=1) -> [3,4,7]
+    //        /   |   |   \
+    //    s0  s1  s2  s3   (axis=1, width 1) -> each [3,1,7]
+    //        \   |   |   /
+    //     concat(axis=2) -> [3,1,28]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 5, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 2}}), s0, s1, s2, s3);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
 }
 
 TEST_CASE(slice_multibroadcast_over_sliced_axis)

@@ -32,12 +32,75 @@
 #include <migraphx/liveness.hpp>
 #include <migraphx/algorithm.hpp>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <mutex>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_COPY_LITERALS)
+// Shares a single VRAM copy of a weight literal across multiple compiled
+// programs on the same device when their weight bytes are identical (for
+// example, an LLM's prefill and decode programs). Default off: each program
+// uploads its own copy as before.
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SHARE_LITERALS)
+
+namespace {
+// FNV-1a 64-bit over the literal's raw host bytes, used as the content key. The
+// hash only selects a candidate; the bytes are always compared before sharing
+// (see same_bytes), so a hash collision never causes an incorrect share.
+std::uint64_t literal_content_hash(const argument& data)
+{
+    const auto* p       = reinterpret_cast<const unsigned char*>(data.data());
+    const std::size_t n = data.get_shape().bytes();
+    std::uint64_t h     = 1469598103934665603ULL; // FNV offset basis
+    for(std::size_t i = 0; i < n; ++i)
+    {
+        h ^= p[i];
+        h *= 1099511628211ULL; // FNV prime
+    }
+    return h;
+}
+
+// Exact equality of two host literals (same byte length and identical bytes).
+// Guards against FNV-1a hash collisions: two distinct weights that hash equal
+// must not be aliased to the same device buffer.
+bool same_bytes(const argument& a, const argument& b)
+{
+    const std::size_t n = a.get_shape().bytes();
+    if(n != b.get_shape().bytes())
+        return false;
+    return std::memcmp(a.data(), b.data(), n) == 0;
+}
+
+// Process-lifetime, per-(device,content-hash) pool of already-uploaded weights.
+// Each entry retains the host literal (for the collision byte-compare) and the
+// device buffer; gpu_literals that opt in share the SAME device `argument`
+// (shared_ptr-refcounted), so N identical weights => 1 VRAM copy. Refs are held
+// for the process lifetime, which suits the co-residency use case (the weights
+// stay live as long as the resident programs); a process that repeatedly loads
+// and unloads distinct models would retain their weights until exit. Guarded by
+// a mutex since finalize may run on multiple compile threads.
+struct pooled_literal
+{
+    argument host; // host bytes, for the collision check
+    argument gpu;  // device buffer, shared on a match
+};
+struct shared_literal_pool
+{
+    std::mutex mtx;
+    std::unordered_map<std::string, pooled_literal> buffers; // key: "<gfx_name>:<hash>"
+
+    static shared_literal_pool& instance()
+    {
+        static shared_literal_pool pool;
+        return pool;
+    }
+};
+} // namespace
 
 struct gpu_literal
 {
@@ -58,8 +121,32 @@ struct gpu_literal
 
     argument compute(const shape&, const std::vector<argument>&) const { return gpu_data; }
 
-    void finalize(context&, const shape&, const std::vector<shape>&)
+    void finalize(context& ctx, const shape&, const std::vector<shape>&)
     {
+        // When sharing is enabled, dedup identical weight bytes to a single VRAM
+        // buffer shared across programs. host-pinned literals are not device VRAM,
+        // so they are never pooled (only the to_gpu/device path is).
+        if(enabled(MIGRAPHX_SHARE_LITERALS{}) and not host)
+        {
+            // Namespace the pool per-device via the public gfx-name (device_id is
+            // private on hip_device). Content-hash keys identical bytes together.
+            const std::string key = ctx.get_current_device().get_gfx_name() + ":" +
+                                    std::to_string(literal_content_hash(data));
+            auto& pool = shared_literal_pool::instance();
+            std::lock_guard<std::mutex> lock(pool.mtx);
+            auto it = pool.buffers.find(key);
+            if(it != pool.buffers.end() and same_bytes(it->second.host, data))
+            {
+                gpu_data = it->second.gpu.share(); // alias existing VRAM buffer (refcount++)
+                return;
+            }
+            // Miss, or a hash collision with different bytes: upload a private copy.
+            // On a genuine miss, register it so later identical weights can share.
+            gpu_data = to_gpu(data);
+            if(it == pool.buffers.end())
+                pool.buffers.emplace(key, pooled_literal{data.share(), gpu_data.share()});
+            return;
+        }
         if(host)
             gpu_data = register_on_gpu(data);
         else

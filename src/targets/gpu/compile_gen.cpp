@@ -541,7 +541,7 @@ std::string generate_reduce(module m, const std::string& name)
                 return "auto " + s;
             });
             return interpolate_string(inner_template,
-                                             {{"inner", inner_name},
+                                      {{"inner", inner_name},
                                        {"params", join_strings(params, ", ")},
                                        {"args", join_strings(args, ", ")},
                                        {"call", call_function}});
@@ -555,7 +555,7 @@ std::string generate_reduce(module m, const std::string& name)
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
             return interpolate_string("${x}[_c<${index}>]",
-                                             {{"x", x}, {"index", std::to_string(index)}});
+                                      {{"x", x}, {"index", std::to_string(index)}});
         }
         if(ins->name() == "gpu::make_indices")
         {

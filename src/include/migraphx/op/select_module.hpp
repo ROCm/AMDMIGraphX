@@ -24,12 +24,64 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_SELECT_MODULE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_SELECT_MODULE_HPP
 
+#include <migraphx/argument.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/module.hpp>
+#include <cstddef>
+#include <cstring>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
+
+// Smallest-bucket fallback for runtime dispatch.
+//   compatible: same type+rank, bucket lens >= input lens (componentwise).
+//   winner:     compatible submodule with the smallest total element count.
+// Returns end() if no compatible submodule exists.
+inline std::vector<module_ref>::const_iterator find_smallest_compatible_submodule(
+    const std::vector<module_ref>& submodule_list,
+    const std::vector<argument>& args,
+    const std::function<std::vector<std::string>(module_ref)>& get_input_parameter_names_fn)
+{
+    auto best              = submodule_list.cend();
+    std::size_t best_score = 0;
+    for(auto it = submodule_list.cbegin(); it != submodule_list.cend(); ++it)
+    {
+        auto in_param_names = get_input_parameter_names_fn(*it);
+        if(in_param_names.size() > args.size())
+            continue;
+        auto param_shapes = (*it)->get_parameter_shapes();
+        bool compatible   = true;
+        std::size_t score = 1;
+        for(std::size_t i = 0; i < in_param_names.size(); ++i)
+        {
+            const auto& a  = args[i];
+            const auto& ps = param_shapes.at(in_param_names[i]);
+            if(ps.type() != a.get_shape().type() or ps.lens().size() != a.get_shape().lens().size())
+            {
+                compatible = false;
+                break;
+            }
+            for(std::size_t d = 0; d < ps.lens().size(); ++d)
+            {
+                if(ps.lens()[d] < a.get_shape().lens()[d])
+                {
+                    compatible = false;
+                    break;
+                }
+                score *= ps.lens()[d];
+            }
+            if(not compatible)
+                break;
+        }
+        if(compatible and (best == submodule_list.cend() or score < best_score))
+        {
+            best       = it;
+            best_score = score;
+        }
+    }
+    return best;
+}
 
 struct select_module
 {
@@ -96,6 +148,19 @@ struct select_module
                                   });
             });
 
+        // Smallest-compatible-bucket fallback (bucket_by_optimals mode). Whether
+        // any buckets exist is a compile-time decision in split_single_dyn_dim.
+        // Ref pads the inputs on the host below; GPU callers pre-pad.
+        bool bucket_dispatch = false;
+        if(module_iter == submodule_list.end())
+        {
+            module_iter =
+                find_smallest_compatible_submodule(submodule_list, args, [this](module_ref mr) {
+                    return this->get_input_parameter_names(mr);
+                });
+            bucket_dispatch = (module_iter != submodule_list.end());
+        }
+
         if(module_iter == submodule_list.end())
         {
             MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
@@ -104,18 +169,31 @@ struct select_module
         auto* module_to_run = *module_iter;
         std::unordered_map<std::string, argument> p_map;
 
-        // add input parameters to parameter_map
+        // Input parameters. On a bucket dispatch the input is smaller than the
+        // bucket shape, so zero-pad on the host into a bucket-sized argument.
         auto in_param_names = get_input_parameter_names(module_to_run);
+        auto param_shapes   = module_to_run->get_parameter_shapes();
         assert(in_param_names.size() <= args.size());
-        std::transform(in_param_names.begin(),
-                       in_param_names.end(),
-                       args.begin(),
-                       std::inserter(p_map, p_map.end()),
-                       [&](auto&& name, auto&& a) { return std::make_pair(name, a); });
+        for(std::size_t i = 0; i < in_param_names.size(); ++i)
+        {
+            const auto& name = in_param_names[i];
+            const auto& a    = args[i];
+            const auto& ps   = param_shapes.at(name);
+            if(bucket_dispatch and a.get_shape() != ps)
+            {
+                argument padded{ps};
+                std::memset(padded.data(), 0, ps.bytes());
+                std::memcpy(padded.data(), a.data(), a.get_shape().bytes());
+                p_map.emplace(name, std::move(padded));
+            }
+            else
+            {
+                p_map.emplace(name, a);
+            }
+        }
 
         // One tuple output parameter in main module to multiple output parameters in submodule
         auto out_param_names    = get_output_parameter_names(module_to_run);
-        auto param_shapes       = module_to_run->get_parameter_shapes();
         auto output_sub_objects = args.back().get_sub_objects();
         assert(out_param_names.size() == output_sub_objects.size());
         std::transform(out_param_names.begin(),

@@ -60,6 +60,8 @@ vectorize vectorize::elements(std::size_t axis,
                               const std::vector<shape>& inputs,
                               const std::vector<std::size_t>& sizes)
 {
+    if(std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); }))
+        return {1, axis};
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
            return contains(fp8_types{}.get(), ishape.type());
@@ -97,6 +99,8 @@ vectorize vectorize::elements(std::size_t axis,
 
 vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<shape>& inputs)
 {
+    if(std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); }))
+        return {1, axis};
     // disable vectorization for fp8 types
     if(std::any_of(inputs.begin(), inputs.end(), [&](auto ishape) {
            return contains(fp8_types{}.get(), ishape.type());
@@ -106,8 +110,8 @@ vectorize vectorize::elements(context& ctx, std::size_t axis, const std::vector<
         return {1, axis};
     std::size_t n = std::max_element(inputs.begin(),
                                      inputs.end(),
-                                     by(std::less<>{}, [](const auto& s) { return s.elements(); }))
-                        ->elements();
+                                     by(std::less<>{}, [](const auto& s) { return s.element_space(); }))
+                        ->element_space();
     std::size_t max_global = ctx.get_current_device().get_cu_count() *
                              ctx.get_current_device().get_max_workitems_per_cu();
     std::size_t over = n / max_global;
@@ -197,6 +201,8 @@ static std::size_t compute_tile_factor(std::size_t r, std::size_t max_size = 64)
 tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
 {
     tile result;
+    if(std::any_of(inputs.begin(), inputs.end(), [](const shape& s) { return s.dynamic(); }))
+        return {};
     auto ndim = inputs.front().ndim();
     std::vector<std::size_t> faxes;
     std::transform(

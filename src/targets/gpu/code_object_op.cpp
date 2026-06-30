@@ -24,6 +24,7 @@
 #include <migraphx/gpu/code_object_op.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/pack_args.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/pmr/vector.hpp>
 #include <algorithm>
@@ -72,9 +73,37 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
         f(args);
 }
 
+static std::vector<argument> ensure_gpu_kernel_args(const std::vector<argument>& args,
+                                                      pmr::vector<argument>& temps)
+{
+    std::vector<argument> gpu_args;
+    gpu_args.reserve(args.size());
+    for(const auto& arg : args)
+    {
+        if(arg.data() != nullptr and not is_gpu_device_ptr(arg.data()))
+        {
+            temps.push_back(to_gpu(arg));
+            gpu_args.push_back(temps.back());
+        }
+        else
+        {
+            gpu_args.push_back(arg);
+        }
+    }
+    return gpu_args;
+}
+
 argument
 code_object_op::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
+#if MIGRAPHX_HAS_PMR
+    std::array<char, 256> temp_storage;
+    std::pmr::monotonic_buffer_resource temp_resource{temp_storage.data(), temp_storage.size()};
+    pmr::vector<argument> temp_gpu_args(&temp_resource);
+#else
+    pmr::vector<argument> temp_gpu_args;
+#endif
+    auto gpu_args = ensure_gpu_kernel_args(args, temp_gpu_args);
     if(not packed_kernargs.empty())
     {
         // Fast path: copy pre-packed buffer, patch pointer slots, launch.
@@ -93,7 +122,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
 
         for(const auto& [arg_idx, byte_offset] : runtime_arg_offsets)
         {
-            auto ptr           = reinterpret_cast<uint64_t>(args[arg_idx].data());
+            auto ptr           = reinterpret_cast<uint64_t>(gpu_args[arg_idx].data());
             const auto* p_byte = reinterpret_cast<const char*>(&ptr);
             std::copy(p_byte, p_byte + sizeof(uint64_t), buf.begin() + byte_offset);
         }
@@ -110,7 +139,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
 #else
         pmr::vector<void*> kargs;
 #endif
-        visit_flatten_args(args, [&](const auto& fargs) {
+        visit_flatten_args(gpu_args, [&](const auto& fargs) {
             kargs.reserve(fargs.size());
             std::transform(fargs.begin(),
                            fargs.end(),
@@ -120,7 +149,7 @@ code_object_op::compute(context& ctx, const shape&, const std::vector<argument>&
         auto [start, stop] = ctx.get_perf_events();
         k.launch(ctx.get_stream().get(), global, local, kargs, start, stop);
     }
-    return args[get_output_arg(args.size())];
+    return gpu_args[get_output_arg(gpu_args.size())];
 }
 void code_object_op::finalize(context&, const shape&, const std::vector<shape>&)
 {

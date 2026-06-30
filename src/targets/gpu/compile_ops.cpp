@@ -40,10 +40,12 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
+#include <chrono>
 #include <functional>
 
 namespace migraphx {
@@ -173,10 +175,21 @@ struct dynamic_code_object_op
             return results.front();
         }
 
-        if(output_arg.get_shape().dynamic())
         {
             auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
-            static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
+            if(output_arg.get_shape() != out_shape)
+            {
+                if(out_shape.element_space() > output_arg.get_shape().element_space())
+                {
+                    // Driver may pass #output params sized via to_static(batch) while concat
+                    // output grows with operand dims (e.g. KV-cache seq len 1+1=2).
+                    static_args[static_args.size() - 1] = allocate_gpu(out_shape);
+                }
+                else
+                {
+                    static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
+                }
+            }
         }
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation

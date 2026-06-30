@@ -70,7 +70,10 @@ argument fixed_pad(hipStream_t stream, const argument& result, const argument& a
         auto ilens            = arg.get_shape().lens();
         auto olens            = result.get_shape().lens();
         auto [istart, ostart] = std::mismatch(ilens.begin(), ilens.end(), olens.begin());
-        if(std::equal(istart, ilens.end(), ostart, olens.end()))
+        // Linear indexing only pads the trailing dimension; middle-axis padding needs
+        // multi-dimensional bounds checks in fixed_pad_base_impl.
+        if(istart + 1 == ilens.end() and *istart <= *ostart and
+           std::equal(istart + 1, ilens.end(), ostart + 1, olens.end()))
             return fixed_pad_standard_impl(stream, result, arg);
     }
     return fixed_pad_base_impl(stream, result, arg);

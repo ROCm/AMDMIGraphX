@@ -1,3 +1,1457 @@
+// /*
+//  * The MIT License (MIT)
+//  *
+//  * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+//  *
+//  * Permission is hereby granted, free of charge, to any person obtaining a copy
+//  * of this software and associated documentation files (the "Software"), to deal
+//  * in the Software without restriction, including without limitation the rights
+//  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+//  * copies of the Software, and to permit persons to whom the Software is
+//  * furnished to do so, subject to the following conditions:
+//  *
+//  * The above copyright notice and this permission notice shall be included in
+//  * all copies or substantial portions of the Software.
+//  *
+//  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+//  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+//  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
+//  * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+//  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+//  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+//  * THE SOFTWARE.
+//  */
+
+// #include "verify.hpp"
+// #include "verify_options.hpp"
+// #include "argument_parser.hpp"
+// #include "command.hpp"
+// #include "mlir.hpp"
+// #include "precision.hpp"
+// #include "passes.hpp"
+// #include "perf.hpp"
+// #include "transform.hpp"
+// #include "trim.hpp"
+// #include "models.hpp"
+// #include "marker_roctx.hpp"
+
+// #include <migraphx/tf.hpp>
+// #include <migraphx/onnx.hpp>
+// #ifdef MIGRAPHX_ENABLE_PYTHON
+// #include <migraphx/py.hpp>
+// #endif
+// #include <migraphx/stringutils.hpp>
+// #include <migraphx/convert_to_json.hpp>
+// #include <migraphx/load_save.hpp>
+// #include <migraphx/json.hpp>
+// #include <migraphx/version.h>
+// #include <migraphx/env.hpp>
+// #include <migraphx/logger.hpp>
+
+// #include <migraphx/dead_code_elimination.hpp>
+// #include <migraphx/eliminate_identity.hpp>
+// #include <migraphx/eliminate_pad.hpp>
+// #include <migraphx/generate.hpp>
+// #include <migraphx/pass_manager.hpp>
+// #include <migraphx/propagate_constant.hpp>
+// #include <migraphx/quantization.hpp>
+// #include <migraphx/register_op.hpp>
+// #include <migraphx/simplify_algebra.hpp>
+// #include <migraphx/simplify_reshapes.hpp>
+// #include <migraphx/register_target.hpp>
+// #include <migraphx/errors.hpp>
+// #include <migraphx/sym.hpp>
+
+// #include <migraphx/time.hpp>
+// #include <migraphx/netron_output.hpp>
+
+// #include <fstream>
+// #include <optional>
+// #include <set>
+// #include <sstream>
+// #include <unordered_set>
+
+// namespace {
+
+// using dims_map = std::unordered_map<std::string, std::vector<std::size_t>>;
+
+// std::vector<std::string>
+// get_unrecognized_migraphx_envs(const char* envp[],
+//                                const std::map<std::string, std::string>& used_env)
+// {
+//     std::vector<std::string> unused_migx_env;
+//     for(; *envp != nullptr; ++envp)
+//     {
+//         std::string e(*envp);
+//         if(not migraphx::starts_with(e, "MIGRAPHX"))
+//             continue;
+//         size_t pos = e.find('=');
+//         if(pos == std::string::npos)
+//             continue;
+//         if(used_env.find(e.substr(0, pos)) == used_env.end())
+//             unused_migx_env.push_back(e);
+//     }
+//     return unused_migx_env;
+// }
+
+// struct logger_options
+// {
+//     std::string log_level;
+//     std::vector<std::string> log_files;
+//     bool log_to_cout = false;
+
+//     void parse(migraphx::driver::argument_parser& ap)
+//     {
+//         ap(log_level,
+//            {"--log-level"},
+//            ap.help("Set log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)"),
+//            ap.validate([](auto&, auto&, auto& params) {
+//                if(not params.empty())
+//                {
+//                    auto const& level_str = params.back();
+//                    if(not parse_log_level_string(level_str))
+//                    {
+//                        throw std::runtime_error(
+//                            "Invalid log level: " + level_str +
+//                            ". Valid levels: none/0, error/1, warn/2, info/3, debug/4, trace/5");
+//                    }
+//                }
+//            }));
+//         ap(log_files,
+//            {"--log-file"},
+//            ap.help("Log to file(s) (--log-file file1.log file2.log ...)"),
+//            ap.append(),
+//            ap.nargs(2));
+//         ap(log_to_cout,
+//            {"--log-stdout"},
+//            ap.help("Send info logs to std::cout, keeping warnings and errors on std::cerr"),
+//            ap.set_value(true));
+//         ap.post_action([this](auto&&) { this->apply(); });
+//     }
+
+//     void add_cout_sink()
+//     {
+//         migraphx::log::set_severity(
+//             migraphx::log::severity::warn); // sets the severity of default (stderr) sink to warn
+//         migraphx::log::add_sink(migraphx::log::make_io_sink(std::cout));
+//     }
+
+//     void apply()
+//     {
+//         if(log_to_cout)
+//         {
+//             add_cout_sink();
+//         }
+//         if(not log_level.empty())
+//         {
+//             auto level = parse_log_level_string(log_level);
+//             if(level)
+//                 migraphx::log::set_severity(*level);
+//         }
+//         for(const auto& log_file : log_files)
+//         {
+//             migraphx::log::add_file_logger(log_file);
+//         }
+//     }
+
+//     static std::optional<migraphx::log::severity>
+//     parse_log_level_string(const std::string& level_str)
+//     {
+//         if(level_str == "trace" or level_str == "5")
+//             return migraphx::log::severity::trace;
+//         else if(level_str == "debug" or level_str == "4")
+//             return migraphx::log::severity::debug;
+//         else if(level_str == "info" or level_str == "3")
+//             return migraphx::log::severity::info;
+//         else if(level_str == "warn" or level_str == "2")
+//             return migraphx::log::severity::warn;
+//         else if(level_str == "error" or level_str == "1")
+//             return migraphx::log::severity::error;
+//         else if(level_str == "none" or level_str == "0")
+//             return migraphx::log::severity::none;
+
+//         return std::nullopt;
+//     }
+// };
+
+// } // namespace
+
+// namespace migraphx {
+// namespace driver {
+// inline namespace MIGRAPHX_INLINE_NS {
+
+// inline static std::string get_version()
+// {
+//     return "MIGraphX Version: " + std::to_string(MIGRAPHX_VERSION_MAJOR) + "." +
+//            std::to_string(MIGRAPHX_VERSION_MINOR) + "." + std::to_string(MIGRAPHX_VERSION_PATCH) +
+//            "." MIGRAPHX_VERSION_TWEAK;
+// }
+
+// static void validate_static_lens_against_declared(const shape& declared, const shape& concrete)
+// {
+//     if(not declared.dynamic() or concrete.dynamic())
+//         return;
+//     const auto& dds  = declared.dyn_dims();
+//     const auto& lens = concrete.lens();
+//     std::cout << "validate_static_lens_against_declared: dds: " << std::endl;
+//     for(auto dim : dds)
+//     {
+//         std::cout << dim << std::endl;
+//     }
+//     std::cout << "validate_static_lens_against_declared: lens: " << std::endl;
+//     for(auto len : lens)
+//     {
+//         std::cout << len << std::endl;
+//     }
+//     if(dds.size() != lens.size())
+//         MIGRAPHX_THROW("Parameter rank mismatch between declared and concrete shape.");
+//     for(std::size_t i = 0; i < dds.size(); ++i)
+//     {
+//         const auto iv = dds[i].get_interval();
+//         const auto len = lens[i];
+//         std::cout << "validate_static_lens_against_declared: len: " << len << std::endl;
+//         std::cout << "validate_static_lens_against_declared: iv.min: " << iv.min << std::endl;
+//         std::cout << "validate_static_lens_against_declared: iv.max: " << iv.max << std::endl;
+//         if(len < iv.min or len > iv.max)
+//             MIGRAPHX_THROW("Parameter dimension " + std::to_string(len) + " at axis " +
+//                            std::to_string(i) + " is outside the declared range [" +
+//                            std::to_string(iv.min) + ".." + std::to_string(iv.max) + "].");
+//     }
+// }
+
+// static bool shape_resolved_fully_by_symbol_map(
+//     const shape& sh, const std::unordered_map<sym::expr, std::size_t>& symbol_map)
+// {
+//     if(not sh.dynamic())
+//         return true;
+//     for(const auto& dd : sh.dyn_dims())
+//     {
+//         if(dd.is_fixed())
+//             continue;
+//         if(dd.is_symbolic())
+//         {
+//             if(symbol_map.count(dd.sym_expr) == 0)
+//                 return false;
+//         }
+//         else
+//         {
+//             return false;
+//         }
+//     }
+//     return true;
+// }
+
+// static void throw_if_unbound_symbolic_axes(const shape& sh,
+//                                            const std::unordered_map<sym::expr, std::size_t>& symbol_map)
+// {
+//     if(not sh.dynamic())
+//         return;
+//     for(const auto& dd : sh.dyn_dims())
+//     {
+//         if(dd.is_fixed())
+//             continue;
+//         if(dd.is_symbolic() and symbol_map.count(dd.sym_expr) == 0)
+//         {
+//             auto vn = sym::variable_name(dd.sym_expr);
+//             const std::string label = vn ? *vn : dd.sym_expr.to_string();
+//             MIGRAPHX_THROW("Symbolic axis `" + label +
+//                            "` requires `--dim-param @" + label +
+//                            " <static>` (within its declared range) for this program.");
+//         }
+//     }
+// }
+
+// static std::unordered_map<sym::expr, std::size_t> build_dim_param_symbol_map(
+//     const std::unordered_map<std::string, shape>& param_shapes,
+//     const std::unordered_map<std::string, shape::dynamic_dimension>& dim_cli)
+// {
+//     std::unordered_map<std::string, std::size_t> fixed_values;
+//     for(const auto& e : dim_cli)
+//     {
+//         if(not e.second.is_fixed())
+//         {
+//             MIGRAPHX_THROW("When binding symbolic axes at run time, `--dim-param @" + e.first +
+//                            "` must be a single non-negative integer, not a range.");
+//         }
+//         fixed_values.emplace(e.first, e.second.get_interval().min);
+//     }
+//     if(fixed_values.empty())
+//         return {};
+//     std::unordered_map<sym::expr, std::size_t> symbol_map;
+//     std::unordered_set<std::string> matched;
+//     for(const auto& param : param_shapes)
+//     {
+//         if(not param.second.dynamic())
+//             continue;
+//         for(const auto& dd : param.second.dyn_dims())
+//         {
+//             if(not dd.is_symbolic())
+//                 continue;
+//             auto vname = sym::variable_name(dd.sym_expr);
+//             if(not vname)
+//                 continue;
+//             auto it = fixed_values.find(*vname);
+//             if(it == fixed_values.end())
+//                 continue;
+//             symbol_map[dd.sym_expr] = it->second;
+//             matched.insert(*vname);
+//         }
+//     }
+//     for(const auto& e : fixed_values)
+//     {
+//         if(not contains(matched, e.first))
+//             log::warn() << "DIM_PARAM: `" << e.first
+//                          << "` does not match any symbolic axis in this program; ignoring.";
+//     }
+//     return symbol_map;
+// }
+
+// static shape resolve_concrete_parameter_shape(
+//     const std::string& pname,
+//     const shape& declared,
+//     unsigned batch,
+//     const dims_map& map_input_dims,
+//     const std::unordered_map<sym::expr, std::size_t>& symbol_map)
+// {
+//     std::cout << "resolve_concrete_parameter_shape: pname: " << pname << std::endl;
+//     std::cout << "resolve_concrete_parameter_shape: declared: " << declared << std::endl;
+//     if(contains(map_input_dims, pname))
+//     {
+//         auto concrete = shape{declared.type(), map_input_dims.at(pname)};
+//         std::cout << "resolve_concrete_parameter_shape: concrete: " << concrete << std::endl;
+//         if(declared.dynamic())
+//             validate_static_lens_against_declared(declared, concrete);
+//         return concrete;
+//     }
+//     if(declared.dynamic())
+//     {
+//         if(shape_resolved_fully_by_symbol_map(declared, symbol_map))
+//         {
+//             auto concrete = declared.to_static(symbol_map);
+//             std::cout << "resolve_concrete_parameter_shape: concrete: " << concrete << std::endl;
+//             validate_static_lens_against_declared(declared, concrete);
+//             return concrete;
+//         }
+//         throw_if_unbound_symbolic_axes(declared, symbol_map);
+//         std::cout << "resolve_concrete_parameter_shape: to_static(batch): " << batch << std::endl;
+//         auto concrete = declared.to_static(batch);
+//         std::cout << "resolve_concrete_parameter_shape: concrete: " << concrete << std::endl;
+//         validate_static_lens_against_declared(declared, concrete);
+//         return concrete;
+//     }
+//     return declared;
+// }
+
+// struct loader
+// {
+//     std::string file;
+//     std::string file_type;
+//     unsigned batch              = 1;
+//     bool is_nhwc                = true;
+//     bool is_test                = false;
+//     unsigned trim               = 0;
+//     unsigned trim_size          = 0;
+//     bool optimize               = false;
+//     bool mlir                   = false;
+//     bool skip_unknown_operators = false;
+//     bool replace_literals       = false;
+//     bool brief                  = false;
+//     bool verbose                = false;
+//     bool strip_context          = false;
+//     bool use_debug_symbols      = false;
+//     std::string output_type;
+//     std::string output;
+//     std::string default_dyn_dim;
+//     std::vector<std::string> param_dims;
+//     std::vector<std::string> dim_params;
+//     std::vector<std::string> dyn_param_dims;
+//     std::vector<std::string> output_names;
+//     std::vector<std::string> passes;
+
+//     void parse(argument_parser& ap)
+//     {
+//         ap(file, {}, ap.metavar("<input file>"), ap.file_exist(), ap.required(), ap.group("input"));
+//         ap(is_test,
+//            {"--test"},
+//            ap.help("Run a single GEMM to test MIGraphX"),
+//            ap.set_value(true),
+//            ap.group("input"));
+//         ap(file_type, {"--onnx"}, ap.help("Load as onnx"), ap.set_value("onnx"));
+//         ap(file_type, {"--tf"}, ap.help("Load as tensorflow"), ap.set_value("tf"));
+//         ap(file_type, {"--migraphx"}, ap.help("Load as MIGraphX"), ap.set_value("migraphx"));
+//         ap(file_type, {"--migraphx-json"}, ap.help("Load as MIGraphX JSON"), ap.set_value("json"));
+//         ap(batch,
+//            {"--batch"},
+//            ap.help("For a static model, sets default_dim_value size (commonly batch size). For a "
+//                    "dynamic batch model, sets the batch "
+//                    "size at runtime."));
+//         ap(is_nhwc, {"--nhwc"}, ap.help("Treat tensorflow format as nhwc"), ap.set_value(true));
+//         ap(skip_unknown_operators,
+//            {"--skip-unknown-operators"},
+//            ap.help("Skip unknown operators when parsing and continue to parse."),
+//            ap.set_value(true));
+//         ap(is_nhwc, {"--nchw"}, ap.help("Treat tensorflow format as nchw"), ap.set_value(false));
+//         ap(use_debug_symbols,
+//            {"--debug-symbols"},
+//            ap.help(
+//                "Parse ONNX node names into MIGX instructions and propagate them as debug symbols."),
+//            ap.set_value(true));
+//         ap(trim, {"--trim", "-t"}, ap.help("Trim instructions from the end"));
+//         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
+//         ap(param_dims,
+//            {"--input-dim"},
+//            ap.help("Static shape for a parameter: \"@name d1 d2 ...\". When the program declares "
+//                    "dynamic axes, each dimension must fall within the declared min/max. Overrides "
+//                    "per-axis `--dim-param` bindings for that parameter when both are supplied."),
+//            ap.append(),
+//            ap.nargs(2));
+//         ap(dim_params,
+//            {"--dim-param"},
+//            ap.help("ONNX symbolic dimension: at parse time, \"@name\" with a range JSON sets "
+//                    "bounds and preserves the name through .mxr; a single integer fixes the size. "
+//                    "When loading a saved program, \"@name N\" binds symbolic axis `name` to "
+//                    "static N (must lie in the saved range). `--input-dim` overrides full tensor "
+//                    "shapes when both are set."),
+//            ap.append(),
+//            ap.nargs(2));
+//         ap(dyn_param_dims,
+//            {"--dyn-input-dim"},
+//            ap.help("Dynamic dimensions of a parameter (format: \"@name_1\" \"[{min:x, max:y, "
+//                    "optimals:[o1,o2,...]}, dim2,dim3, ...]\", \"@name_2\", ... You can supply a "
+//                    "single integer value for a dimension to specify it as fixed."),
+//            ap.append(),
+//            ap.nargs(2));
+//         ap(default_dyn_dim,
+//            {"--default-dyn-dim"},
+//            ap.help("Default dynamic dimension (format: \"{min:x, max:y, optimals:[o1,o2]}\")."));
+//         ap(output_names,
+//            {"--output-names"},
+//            ap.help("Names of node output (format: \"name_1 name_2 name_n\")"),
+//            ap.append(),
+//            ap.nargs(2));
+//         ap(optimize, {"--optimize", "-O"}, ap.help("Optimize when reading"), ap.set_value(true));
+//         ap(mlir, {"--mlir"}, ap.help("Offload everything to mlir"), ap.set_value(true));
+//         ap(replace_literals,
+//            {"--replace-literals"},
+//            ap.help("Replace literals with parameters"),
+//            ap.set_value(true));
+//         ap(passes, {"--apply-pass", "-p"}, ap.help("Passes to apply to model"), ap.append());
+//         ap(strip_context,
+//            {"--strip-context"},
+//            ap.help("Strip context from program"),
+//            ap.set_value(true));
+//         ap(output_type,
+//            {"--graphviz", "-g"},
+//            ap.help("Print out a graphviz representation."),
+//            ap.set_value("graphviz"));
+//         ap(brief, {"--brief"}, ap.help("Make the output brief."), ap.set_value(true));
+//         ap(output_type,
+//            {"--cpp"},
+//            ap.help("Print out the program as C++ program."),
+//            ap.set_value("cpp"));
+//         ap(output_type,
+//            {"--python", "--py"},
+//            ap.help("Print out the program as python program."),
+//            ap.set_value("py"));
+//         ap(output_type, {"--json"}, ap.help("Print out program as json."), ap.set_value("json"));
+//         ap(output_type,
+//            {"--text"},
+//            ap.help("Print out program in text format."),
+//            ap.set_value("text"));
+//         ap(output_type,
+//            {"--binary"},
+//            ap.help("Print out program in binary format."),
+//            ap.set_value("binary"));
+//         ap(output_type,
+//            {"--netron"},
+//            ap.help("Print out program as ONNX protobuf binary viewable in Netron."),
+//            ap.set_value("netron"));
+//         ap(output, {"--output", "-o"}, ap.help("Output to file."));
+//     }
+
+//     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
+//     {
+//         dims_map map_input_dims;
+//         std::string name = "";
+//         for(auto&& x : param_dims_info)
+//         {
+//             if(x[0] == '@')
+//             {
+//                 name = x.substr(1);
+//             }
+//             else
+//             {
+//                 map_input_dims[name].push_back(value_parser<std::size_t>::apply(x));
+//             }
+//         }
+
+//         return map_input_dims;
+//     }
+
+//     static migraphx::shape::dynamic_dimension parse_dyn_dim_object(const migraphx::value& x)
+//     {
+//         // Accept the legacy JSON form {min, max, optimals:[...]}
+//         if(x.contains("min") and x.contains("max"))
+//         {
+//             auto mn = x.at("min").to<std::size_t>();
+//             auto mx = x.at("max").to<std::size_t>();
+//             std::set<std::size_t> opt;
+//             if(x.contains("optimals"))
+//                 opt = migraphx::from_value<std::set<std::size_t>>(x.at("optimals"));
+//             return migraphx::shape::dynamic_dimension{mn, mx, opt};
+//         }
+//         return migraphx::from_value<migraphx::shape::dynamic_dimension>(x);
+//     }
+
+//     static auto parse_dyn_dims_json(const std::string& dd_json)
+//     {
+//         // expecting a json string like "[{min:1,max:64,optimals:[1,2,4,8]},3,224,224]"
+//         auto v = from_json_string(convert_to_json(dd_json));
+//         std::vector<migraphx::shape::dynamic_dimension> dyn_dims;
+//         std::transform(v.begin(), v.end(), std::back_inserter(dyn_dims), [&](const auto& x) {
+//             if(x.is_object())
+//                 return parse_dyn_dim_object(x);
+//             auto d = x.template to<std::size_t>();
+//             return migraphx::shape::dynamic_dimension{d, d};
+//         });
+//         return dyn_dims;
+//     }
+
+//     static auto parse_dyn_dims_map(const std::vector<std::string>& param_dyn_dims)
+//     {
+//         // expecting vector of strings formatted like
+//         // {"@param_name_0", "dd_json_0", "@param_name_1", "dd_json_1", ...}
+//         std::unordered_map<std::string, std::vector<shape::dynamic_dimension>> map_dyn_input_dims;
+//         std::string name = "";
+//         for(auto&& x : param_dyn_dims)
+//         {
+//             if(x[0] == '@')
+//             {
+//                 name = x.substr(1);
+//             }
+//             else
+//             {
+//                 map_dyn_input_dims[name] = parse_dyn_dims_json(x);
+//             }
+//         }
+//         return map_dyn_input_dims;
+//     }
+
+//     static auto parse_dim_params(const std::vector<std::string>& dim_params_info)
+//     {
+//         std::unordered_map<std::string, shape::dynamic_dimension> map_dim_params;
+//         std::string name = "";
+//         for(auto&& x : dim_params_info)
+//         {
+//             if(x[0] == '@')
+//             {
+//                 name = x.substr(1);
+//             }
+//             else
+//             {
+//                 if(std::all_of(x.begin(), x.end(), [](char ch) {
+//                        return std::isdigit(static_cast<unsigned char>(ch));
+//                    }))
+//                     map_dim_params[name] = {std::stoul(x), std::stoul(x)};
+//                 else
+//                 {
+//                     auto dyn_dim = parse_dyn_dims_json(x);
+//                     if(dyn_dim.size() != 1)
+//                         MIGRAPHX_THROW("dim_param must only specify one dimension");
+//                     map_dim_params[name] = dyn_dim.front();
+//                 }
+//             }
+//         }
+
+//         return map_dim_params;
+//     }
+
+//     static auto parse_output_names(const std::vector<std::string>& output_names_info)
+//     {
+//         std::vector<std::string> output_node_names;
+//         std::transform(output_names_info.begin(),
+//                        output_names_info.end(),
+//                        std::back_inserter(output_node_names),
+//                        [&](const auto& x) { return value_parser<std::string>::apply(x); });
+
+//         return output_node_names;
+//     }
+
+//     tf_options get_tf_options() const
+//     {
+//         auto map_input_dims    = parse_param_dims(param_dims);
+//         auto output_node_names = parse_output_names(output_names);
+//         tf_options options;
+//         options.is_nhwc           = is_nhwc;
+//         options.batch_size        = batch;
+//         options.map_input_dims    = map_input_dims;
+//         options.output_node_names = output_node_names;
+//         return options;
+//     }
+
+//     onnx_options get_onnx_options() const
+//     {
+//         auto map_input_dims     = parse_param_dims(param_dims);
+//         auto map_dyn_input_dims = parse_dyn_dims_map(dyn_param_dims);
+//         auto map_dim_params     = parse_dim_params(dim_params);
+//         onnx_options options;
+//         if(default_dyn_dim.empty())
+//         {
+//             options.default_dim_value = batch;
+//         }
+//         else
+//         {
+//             auto v                        = from_json_string(convert_to_json(default_dyn_dim));
+//             options.default_dyn_dim_value = parse_dyn_dim_object(v);
+//             options.default_set           = true;
+//         }
+//         options.skip_unknown_operators = skip_unknown_operators;
+//         options.print_program_on_error = true;
+//         options.use_debug_symbols      = use_debug_symbols;
+//         options.map_input_dims         = map_input_dims;
+//         options.map_dyn_input_dims     = map_dyn_input_dims;
+//         options.dim_params             = map_dim_params;
+//         return options;
+//     }
+
+//     static std::string get_file_type(const std::string& file)
+//     {
+//         if(ends_with(file, ".onnx"))
+//             return "onnx";
+//         else if(ends_with(file, ".pb"))
+//             return "tf";
+//         else if(ends_with(file, ".json"))
+//             return "json";
+//         else if(ends_with(file, ".py"))
+//             return "py";
+//         else
+//             return "migraphx";
+//     }
+
+//     program load()
+//     {
+//         program p;
+//         if(is_test)
+//         {
+//             p = test_gemm();
+//         }
+//         else
+//         {
+//             if(file_type.empty())
+//             {
+//                 file_type = get_file_type(file);
+//             }
+//             log::info() << "Reading: " << file;
+//             if(file_type == "onnx")
+//             {
+//                 p = parse_onnx(file, get_onnx_options());
+//             }
+//             else if(file_type == "tf")
+//             {
+//                 p = parse_tf(file, get_tf_options());
+//             }
+//             else if(file_type == "json")
+//             {
+//                 file_options options;
+//                 options.format = "json";
+//                 p              = migraphx::load(file, options);
+//             }
+// #ifdef MIGRAPHX_ENABLE_PYTHON
+//             else if(file_type == "py")
+//             {
+//                 p = migraphx::load_py(file);
+//             }
+// #endif
+//             else if(file_type == "migraphx")
+//             {
+//                 p = migraphx::load(file);
+//             }
+//         }
+//         if(trim > 0)
+//         {
+//             trim_module(*p.get_main_module(), trim, trim_size);
+//         }
+//         if(strip_context)
+//             p.clear_context();
+//         if(replace_literals)
+//         {
+//             replace_literals_with_params(p);
+//         }
+//         // Remove unused variable when exporting to cpp
+//         if(output_type == "cpp")
+//             migraphx::run_passes(*p.get_main_module(), {migraphx::dead_code_elimination{}});
+//         if(optimize)
+//         {
+//             migraphx::run_passes(*p.get_main_module(),
+//                                  {
+//                                      migraphx::eliminate_identity{},
+//                                      migraphx::dead_code_elimination{},
+//                                      migraphx::simplify_algebra{},
+//                                      migraphx::dead_code_elimination{},
+//                                      migraphx::simplify_reshapes{},
+//                                      migraphx::dead_code_elimination{},
+//                                      migraphx::propagate_constant{},
+//                                      migraphx::dead_code_elimination{},
+//                                      migraphx::eliminate_pad{},
+//                                      migraphx::dead_code_elimination{},
+//                                  });
+//         }
+//         if(not passes.empty())
+//             migraphx::run_passes(p, get_passes(passes));
+//         if(mlir)
+//             offload_to_mlir(p);
+//         return p;
+//     }
+
+//     static void write(std::ostream& os, const std::vector<char>& buffer)
+//     {
+//         os.write(buffer.data(), buffer.size());
+//     }
+
+//     void save(const program& p) const
+//     {
+//         std::string type = output_type;
+//         if(type.empty())
+//         {
+//             if(output.empty())
+//                 type = "text";
+//             else
+//                 type = "binary";
+//         }
+
+//         if(output.empty() and type == "text")
+//         {
+//             std::cout << p << std::endl;
+//             return;
+//         }
+
+//         auto* os = &std::cout;
+//         std::ofstream fs;
+//         if(not output.empty())
+//         {
+//             fs.open(output, std::ios::binary);
+//             os = &fs;
+//         }
+
+//         if(type == "py")
+//             p.print_py(*os);
+//         else if(type == "cpp")
+//             p.print_cpp(*os);
+//         else if(type == "graphviz")
+//             p.print_graph(*os, brief);
+//         else if(type == "text")
+//             *os << p << std::endl;
+//         else if(type == "json")
+//             *os << to_json_string(p.to_value()) << std::endl;
+//         else if(type == "binary")
+//             write(*os, save_buffer(p));
+//         else if(type == "netron")
+//             write_netron_output(p, *os);
+//     }
+// };
+
+// struct program_params
+// {
+//     std::vector<std::string> fill0{};
+//     std::vector<std::string> fill1{};
+//     std::vector<std::string> load_args_info;
+//     void parse(argument_parser& ap)
+//     {
+//         ap(fill0, {"--fill0"}, ap.help("Fill parameter with 0s"), ap.append(), ap.nargs(2));
+//         ap(fill1, {"--fill1"}, ap.help("Fill parameter with 1s"), ap.append(), ap.nargs(2));
+//         ap(load_args_info,
+//            {"--load-arg"},
+//            ap.help("Load arguments for the model (format: \"@name filename\")"),
+//            ap.append(),
+//            ap.nargs(2));
+//     }
+
+//     static auto
+//     parse_load_args(const std::vector<std::string>& load_args_info, const target& t, bool offload)
+//     {
+//         parameter_map map_load_args;
+//         std::string name = "";
+//         for(auto&& x : load_args_info)
+//         {
+//             if(x[0] == '@')
+//             {
+//                 name = x.substr(1);
+//             }
+//             else
+//             {
+//                 argument arg = migraphx::load_argument(x);
+//                 if(not offload)
+//                     arg = t.copy_to(arg);
+//                 map_load_args[name] = arg;
+//             }
+//         }
+
+//         return map_load_args;
+//     }
+
+//     void warn_unset_inputs(const std::unordered_map<std::string, shape>& param_shapes) const
+//     {
+//         std::set<std::string> load_arg_names;
+//         for(auto&& x : load_args_info)
+//             if(not x.empty() and x[0] == '@')
+//                 load_arg_names.insert(x.substr(1));
+//         std::set<std::string> unset;
+//         for(const auto& param : param_shapes)
+//             if(shape::is_integral(param.second.type()) and not contains(param.first, "#output_") and
+//                not contains(fill0, param.first) and not contains(fill1, param.first) and
+//                not contains(load_arg_names, param.first))
+//                 unset.insert(param.first);
+//         if(unset.empty())
+//             return;
+//         log::warn() << "Input(s) without explicit values: " << join_strings(std::move(unset), ", ")
+//                     << ". These will be filled with random data and may cause unexpected behavior. "
+//                        "Use `--fill0 <name>`, `--fill1 <name>`, or "
+//                        "`--load-arg @<name> <file>` if the program fails to run.";
+//     }
+
+//     auto generate(const program& p,
+//                   const target& t,
+//                   bool offload,
+//                   unsigned batch,
+//                   dims_map map_input_dims                       = {},
+//                   std::unordered_map<std::string, shape::dynamic_dimension> dim_param_bindings =
+//                       {}) const
+//     {
+//         parameter_map m;
+//         auto param_shapes = p.get_parameter_shapes();
+//         const auto symbol_map = build_dim_param_symbol_map(param_shapes, dim_param_bindings);
+//         std::unordered_map<std::string, shape> static_param_shapes;
+//         for(auto&& param : param_shapes)
+//         {
+//             static_param_shapes[param.first] =
+//                 resolve_concrete_parameter_shape(param.first,
+//                                                  param.second,
+//                                                  batch,
+//                                                  map_input_dims,
+//                                                  symbol_map);
+//         }
+
+//         for(auto&& s : fill0)
+//             m[s] = fill_argument(static_param_shapes.at(s), 0);
+//         for(auto&& s : fill1)
+//             m[s] = fill_argument(static_param_shapes.at(s), 1);
+
+//         warn_unset_inputs(param_shapes);
+
+//         fill_param_map(m, static_param_shapes, t, offload);
+//         auto load_arg_map = program_params::parse_load_args(load_args_info, t, offload);
+//         for(auto&& arg : load_arg_map)
+//         {
+//             m[arg.first] = arg.second;
+//         }
+//         return m;
+//     }
+// };
+
+// struct compiler_target
+// {
+// #ifdef HAVE_GPU
+//     std::string target_name = "gpu";
+// #elif defined(HAVE_CPU)
+//     std::string target_name = "cpu";
+// #elif defined(HAVE_FPGA)
+//     std::string target_name = "fpga";
+// #else
+//     std::string target_name = "ref";
+// #endif
+
+//     // GPU cross-compile options. When gpu_arch is non-empty, the GPU target is
+//     // configured for cross-compilation against the given architecture without
+//     // requiring a physical device.
+//     std::string gpu_arch         = {};
+//     std::size_t gpu_num_cu       = 120;
+//     std::size_t gpu_num_chiplets = 1;
+//     std::string gpu_arch_params  = {};
+
+//     void parse(argument_parser& ap)
+//     {
+//         ap(target_name, {"--gpu"}, ap.help("Compile on the gpu"), ap.set_value("gpu"));
+//         ap(target_name, {"--cpu"}, ap.help("Compile on the cpu"), ap.set_value("cpu"));
+//         ap(target_name,
+//            {"--ref"},
+//            ap.help("Compile on the reference implementation"),
+//            ap.set_value("ref"));
+//         ap(gpu_arch,
+//            {"--gpu-arch"},
+//            ap.help("Cross-compile for the given GPU architecture (e.g. gfx942) without "
+//                    "requiring a physical device. Only applies to the gpu target."));
+//         ap(gpu_num_cu,
+//            {"--gpu-num-cus"},
+//            ap.help("Number of compute units to assume for cross-compilation. "
+//                    "Only used when --gpu-arch is set."));
+//         ap(gpu_num_chiplets,
+//            {"--gpu-num-chiplets"},
+//            ap.help("Number of chiplets (XCCs) to assume for cross-compilation. "
+//                    "Only used when --gpu-arch is set."));
+//         ap(gpu_arch_params,
+//            {"--gpu-arch-params"},
+//            ap.help("Device properties to assume for cross-compilation, as a JSON object "
+//                    "(format: \"{arch:gfx942, num_cu:120, num_chiplets:1, "
+//                    "max_threads_per_cu:2048, max_threads_per_block:1024}\"). Overrides "
+//                    "--gpu-arch, --gpu-num-cus and --gpu-num-chiplets for any keys present."));
+//     }
+
+//     static const std::unordered_map<std::string, std::string>& gpu_arch_param_keys()
+//     {
+//         static const std::unordered_map<std::string, std::string> key_map = {
+//             {"arch", "gpu_arch"},
+//             {"num_cu", "gpu_num_cu"},
+//             {"num_chiplets", "gpu_num_chiplets"},
+//             {"max_threads_per_cu", "gpu_max_threads_per_cu"},
+//             {"max_threads_per_block", "gpu_max_threads_per_block"}};
+//         return key_map;
+//     }
+
+//     target get_target() const
+//     {
+//         if(target_name == "gpu")
+//         {
+//             migraphx::value opts = {{"gpu_arch", gpu_arch},
+//                                     {"gpu_num_cu", gpu_num_cu},
+//                                     {"gpu_num_chiplets", gpu_num_chiplets}};
+//             if(not gpu_arch_params.empty())
+//             {
+//                 const auto& key_map = gpu_arch_param_keys();
+//                 auto parsed         = from_json_string(convert_to_json(gpu_arch_params));
+//                 if(not parsed.is_object())
+//                     MIGRAPHX_THROW("--gpu-arch-params must be a JSON object");
+//                 for(const auto& param : parsed)
+//                 {
+//                     auto it = key_map.find(param.get_key());
+//                     if(it == key_map.end())
+//                         MIGRAPHX_THROW("Unknown --gpu-arch-params key: " + param.get_key());
+//                     if(it->second == "gpu_arch")
+//                         opts[it->second] = param.without_key().to<std::string>();
+//                     else
+//                         opts[it->second] = param.without_key().to<std::size_t>();
+//                 }
+//             }
+//             // Cross-compile only when an arch is provided, via --gpu-arch or the
+//             // arch key in --gpu-arch-params.
+//             if(not opts.at("gpu_arch").to<std::string>().empty())
+//                 return make_target(target_name, opts);
+//         }
+//         return make_target(target_name);
+//     }
+// };
+
+// struct compiler
+// {
+//     loader l;
+//     program_params parameters;
+//     compiler_target ct;
+//     compile_options co;
+//     bool to_fp16 = false;
+//     bool to_bf16 = false;
+//     bool to_fp8  = false;
+//     bool to_int8 = false;
+//     bool to_int4 = false;
+
+//     std::vector<std::string> fill0;
+//     std::vector<std::string> fill1;
+//     void parse(argument_parser& ap)
+//     {
+//         l.parse(ap);
+//         parameters.parse(ap);
+//         ct.parse(ap);
+//         ap(co.offload_copy,
+//            {"--enable-offload-copy"},
+//            ap.help("Enable implicit offload copying"),
+//            ap.set_value(true));
+//         ap(co.fast_math,
+//            {"--disable-fast-math"},
+//            ap.help("Disable fast math optimization"),
+//            ap.set_value(false));
+//         ap(co.exhaustive_tune,
+//            {"--exhaustive-tune"},
+//            ap.help("Exhastively search for best tuning parameters for kernels"),
+//            ap.set_value(true));
+//         ap(to_fp16, {"--fp16"}, ap.help("Quantize for fp16"), ap.set_value(true));
+//         ap(to_bf16, {"--bf16"}, ap.help("Quantize for bf16"), ap.set_value(true));
+//         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
+//         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
+//         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
+//     }
+
+//     auto params(const program& p)
+//     {
+//         return parameters.generate(
+//             p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims),
+//             loader::parse_dim_params(l.dim_params));
+//     }
+
+//     auto host_params(const program& p)
+//     {
+//         return parameters.generate(p, ct.get_target(), true, l.batch, {},
+//                                    loader::parse_dim_params(l.dim_params));
+//     }
+
+//     program compile()
+//     {
+//         auto p = l.load();
+//         // Dont compile if its already been compiled
+
+//         if(p.is_compiled())
+//         {
+//             if(ct.target_name == "gpu")
+//             {
+//                 if(is_offload_copy_set(p) and not co.offload_copy)
+//                 {
+//                     log::warn() << "MIGraphX program was likely compiled with offload_copy "
+//                                    "set, Try "
+//                                    "passing "
+//                                    "`--enable-offload-copy` if program run fails.";
+//                 }
+//                 else if(not is_offload_copy_set(p) and co.offload_copy)
+//                 {
+//                     log::warn() << "MIGraphX program was likely compiled without "
+//                                    "offload_copy set, Try "
+//                                    "removing "
+//                                    "`--enable-offload-copy` if program run "
+//                                    "fails.";
+//                 }
+//             }
+
+//             log::info() << "The program is already compiled, skipping compilation ...";
+//             if(to_fp16 or to_bf16 or to_int8 or to_fp8 or to_int4)
+//             {
+//                 log::warn() << "Quantization options are ignored as the program is already "
+//                                "compiled.";
+//             }
+//             return p;
+//         }
+//         auto t = ct.get_target();
+//         if(to_fp16)
+//         {
+//             log::info() << "Quantizing to fp16 ...";
+//             quantize_fp16(p);
+//         }
+//         if(to_bf16)
+//         {
+//             log::info() << "Quantizing to bf16 ...";
+//             quantize_bf16(p);
+//         }
+//         if(to_int8)
+//         {
+//             log::info() << "Quantizing to int8 ...";
+//             quantize_int8(p, t, {host_params(p)});
+//         }
+//         if(to_fp8)
+//         {
+//             log::info() << "Quantizing to fp8 ...";
+//             quantize_fp8(p, t, {host_params(p)});
+//         }
+//         if(to_int4)
+//         {
+//             log::info() << "Quantizing weights to int4 ...";
+//             quantize_int4_weights(p);
+//         }
+//         log::info() << "Compiling ...";
+//         timer c{};
+//         p.compile(t, co);
+//         auto r = c.record<std::chrono::milliseconds>();
+//         log::info() << "Compilation time: " << r << "ms";
+//         l.save(p);
+//         return p;
+//     }
+// };
+
+// struct read : command<read>
+// {
+//     loader l;
+//     void parse(argument_parser& ap) { l.parse(ap); }
+
+//     void run()
+//     {
+//         auto p = l.load();
+//         l.save(p);
+//     }
+// };
+
+// struct params : command<params>
+// {
+//     loader l;
+//     void parse(argument_parser& ap) { l.parse(ap); }
+
+//     void run()
+//     {
+//         auto p = l.load();
+//         for(auto&& param : p.get_parameter_shapes())
+//             std::cout << param.first << ": " << param.second << std::endl;
+//     }
+// };
+
+// struct verify : command<verify>
+// {
+//     compiler c;
+//     std::optional<double> rms_tol;
+//     std::optional<double> atol;
+//     std::optional<double> rtol;
+//     bool per_instruction = false;
+//     bool reduce          = false;
+//     bool bisect          = false;
+//     verify_options vo;
+//     void parse(argument_parser& ap)
+//     {
+//         c.parse(ap);
+//         ap(rms_tol, {"--rms-tol"}, ap.help("Tolerance for the RMS error"));
+//         ap(atol, {"--atol"}, ap.help("Tolerance for the elementwise absolute difference"));
+//         ap(rtol, {"--rtol"}, ap.help("Tolerance for the elementwise relative difference"));
+//         ap(per_instruction,
+//            {"-i", "--per-instruction"},
+//            ap.help("Verify each instruction"),
+//            ap.set_value(true));
+//         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
+//         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
+//         ap(vo.ref_use_double,
+//            {"--ref-use-double"},
+//            ap.help(
+//                "Convert floating point values to double on ref. Also removes Q/DQ pairs on ref."),
+//            ap.set_value(true));
+//         ap(vo.compiled_model, {"--compiled-model", "-c"}, ap.help("Compiled model to use"));
+//     }
+
+//     void run()
+//     {
+//         auto p = c.l.load();
+//         c.l.save(p);
+//         std::cout << p << std::endl;
+
+//         auto t = c.ct.get_target();
+//         auto m =
+//             c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims),
+//                                   loader::parse_dim_params(c.l.dim_params));
+
+//         if(c.to_fp16)
+//         {
+//             vo.quantize = precision::fp16;
+//         }
+//         if(c.to_bf16)
+//         {
+//             vo.quantize = precision::bf16;
+//         }
+//         if(c.to_int8)
+//         {
+//             vo.quantize = precision::int8;
+//         }
+
+//         auto tols = get_tolerances(p, vo, rms_tol, atol, rtol);
+//         log::info() << "rms_tol: " << tols.rms_tol;
+//         log::info() << "atol: " << tols.atol;
+//         log::info() << "rtol: " << tols.rtol;
+
+//         if(per_instruction)
+//         {
+//             verify_instructions(p, t, c.co, vo, tols);
+//         }
+//         else if(reduce)
+//         {
+//             verify_reduced_program(p, t, c.co, vo, m, tols);
+//         }
+//         else if(bisect)
+//         {
+//             verify_bisected_program(p, t, c.co, vo, m, tols);
+//         }
+//         else
+//         {
+//             verify_program(c.l.file, p, t, c.co, vo, m, tols);
+//         }
+//     }
+// };
+
+// struct compile : command<compile>
+// {
+//     compiler c;
+//     void parse(argument_parser& ap) { c.parse(ap); }
+
+//     void run() { c.compile(); }
+// };
+
+// struct run_cmd : command<run_cmd>
+// {
+//     compiler c;
+//     void parse(argument_parser& ap) { c.parse(ap); }
+
+//     void run()
+//     {
+//         auto p = c.compile();
+//         log::info() << "Allocating params ...";
+//         auto m = c.params(p);
+//         p.eval(m);
+//         std::cout << p << std::endl;
+//     }
+// };
+
+// struct time_cmd : command<time_cmd>
+// {
+//     compiler c;
+//     unsigned n = 100;
+//     void parse(argument_parser& ap)
+//     {
+//         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run."));
+//         c.parse(ap);
+//     }
+
+//     void run()
+//     {
+//         auto p = c.compile();
+//         log::info() << "Allocating params ...";
+//         auto m = c.params(p);
+//         log::info() << "Running ...";
+//         double t = time_run(p, m, n);
+//         std::cout << "Total time: " << t << "ms" << std::endl;
+//     }
+// };
+
+// struct perf : command<perf>
+// {
+//     compiler c;
+//     unsigned n    = 100;
+//     bool detailed = false;
+//     void parse(argument_parser& ap)
+//     {
+//         c.parse(ap);
+//         ap(n, {"--iterations", "-n"}, ap.help("Number of iterations to run for perf report"));
+//         ap(detailed,
+//            {"--detailed", "-d"},
+//            ap.help("Show a more detailed summary report"),
+//            ap.set_value(true));
+//     }
+
+//     void run()
+//     {
+//         auto p = c.compile();
+//         log::info() << "Allocating params ...";
+//         auto m = c.params(p);
+//         log::info() << "Running performance report ...";
+//         p.perf_report(std::cout, n, m, c.l.batch, detailed);
+//     }
+// };
+
+// struct roctx : command<roctx>
+// {
+//     compiler c;
+//     void parse(argument_parser& ap) { c.parse(ap); }
+
+//     void run()
+//     {
+//         auto p = c.compile();
+//         log::info() << "Allocating params ...";
+//         auto m = c.params(p);
+//         log::info() << "rocTX:\tLoading rocTX library...";
+//         auto rtx = create_marker_roctx();
+//         p.mark(m, std::move(rtx));
+//     }
+// };
+
+// struct op : command<op>
+// {
+//     bool show_ops = false;
+//     std::string op_name{};
+//     void parse(argument_parser& ap)
+//     {
+//         ap(op_name, {}, ap.metavar("<MIGraphX operator name>"));
+//         ap(show_ops,
+//            {"--list", "-l"},
+//            ap.help("List all the operators of MIGraphX"),
+//            ap.set_value(true));
+//     }
+//     void run() const
+//     {
+//         if(show_ops)
+//         {
+//             for(const auto& name : get_operators())
+//                 std::cout << name << std::endl;
+//         }
+//         else
+//         {
+//             auto op = load_op(op_name);
+//             std::cout << op_name << ":" << std::endl;
+//             std::cout << to_pretty_json_string(op.to_value()) << std::endl;
+//         }
+//     }
+// };
+
+// struct onnx : command<onnx>
+// {
+//     bool show_ops = false;
+//     void parse(argument_parser& ap)
+//     {
+//         ap(show_ops,
+//            {"--list", "-l"},
+//            ap.help("List all onnx operators supported by MIGraphX"),
+//            ap.set_value(true));
+//     }
+//     void run() const
+//     {
+//         if(show_ops)
+//         {
+//             for(const auto& name : get_onnx_operators())
+//                 std::cout << name << std::endl;
+//         }
+//     }
+// };
+
+// struct tf : command<tf>
+// {
+//     bool show_ops = false;
+//     void parse(argument_parser& ap)
+//     {
+//         ap(show_ops,
+//            {"--list", "-l"},
+//            ap.help("List all tf operators supported by MIGraphX"),
+//            ap.set_value(true));
+//     }
+//     void run() const
+//     {
+//         if(show_ops)
+//         {
+//             for(const auto& name : get_tf_operators())
+//                 std::cout << name << std::endl;
+//         }
+//     }
+// };
+
+// struct main_command
+// {
+//     static std::string get_command_help(const std::string& title = colorize(color::fg_yellow,
+//                                                                             "COMMANDS:"))
+//     {
+//         std::string result = title + "\n";
+//         std::vector<std::string> commands(get_commands().size());
+//         std::transform(get_commands().begin(),
+//                        get_commands().end(),
+//                        commands.begin(),
+//                        [](const auto& p) { return colorize(color::fg_green, p.first); });
+//         std::sort(commands.begin(), commands.end());
+//         return std::accumulate(commands.begin(),
+//                                commands.end(),
+//                                result,
+//                                [](const auto& r, auto&& s) { return r + "    " + s + "\n"; });
+//     }
+//     void parse(argument_parser& ap)
+//     {
+//         std::string version_str = get_version();
+//         ap(wrong_commands, {}, ap.metavar("<command>"), ap.append());
+//         ap(nullptr, {"-h", "--help"}, ap.help("Show help"), ap.show_help(get_command_help()));
+//         ap(nullptr,
+//            {"-v", "--version"},
+//            ap.help("Show MIGraphX version"),
+//            ap.show_help(version_str));
+//         ap(nullptr, {"--ort-sha"}, ap.help("Show MIGraphX onnx runtime SHA"));
+
+//         // Trim command off of exe name
+//         ap.set_exe_name(ap.get_exe_name().substr(0, ap.get_exe_name().size() - 5));
+//         ap.set_exe_name_to(exe_name);
+//     }
+
+//     std::vector<std::string> wrong_commands{};
+//     std::string exe_name = "<exe>";
+
+//     void run()
+//     {
+//         std::ostringstream ss;
+//         ss << color::fg_red << color::bold << "error: " << color::reset;
+//         auto it = std::find_if(wrong_commands.begin(), wrong_commands.end(), [](const auto& c) {
+//             return get_commands().count(c) > 0;
+//         });
+//         if(it == wrong_commands.end())
+//         {
+//             ss << "'" << color::fg_yellow << wrong_commands.front() << color::reset
+//                << "' is not a valid command.\n"
+//                << get_command_help("Available commands:");
+//         }
+//         else
+//         {
+//             ss << "command '" << color::fg_yellow << *it << color::reset
+//                << "' must be first argument\n\n"
+//                << color::fg_yellow << "USAGE:" << color::reset << "\n"
+//                << "    " << exe_name << " " << *it << " <options>\n";
+//         }
+//         log::error() << ss.str();
+//     }
+// };
+
+// } // namespace MIGRAPHX_INLINE_NS
+// } // namespace driver
+// } // namespace migraphx
+
+// using namespace migraphx::driver; // NOLINT
+
+// int main(int argc, const char* argv[], const char* envp[])
+// {
+//     std::vector<std::string> args(argv + 1, argv + argc);
+//     // Save original args for display purposes before they get modified
+//     const std::vector<std::string> original_args = args;
+
+//     migraphx::driver::argument_parser ap;
+
+//     // no argument, print the help infomration by default
+//     if(args.empty())
+//     {
+//         args.push_back("-h");
+//     }
+
+//     auto&& m = get_commands();
+//     auto cmd = args.front();
+
+//     if(cmd == "--ort-sha")
+//     {
+//         migraphx::log::info() << MIGRAPHX_ORT_SHA1;
+//         return 0;
+//     }
+//     if(cmd == "-v" or cmd == "--version")
+//     {
+//         migraphx::log::info() << get_version();
+//         return 0;
+//     }
+
+//     if(m.count(cmd) > 0)
+//     {
+//         logger_options log_opts;
+//         log_opts.parse(ap);
+
+//         std::string driver_invocation =
+//             std::string(argv[0]) + " " + migraphx::to_string_range(original_args, " ");
+//         ap.post_action([driver_invocation](auto&&) {
+//             migraphx::log::info() << "Running [ " << get_version() << " ]: " << driver_invocation;
+//         });
+
+//         auto start_time = std::chrono::system_clock::now();
+
+//         m.at(cmd)(ap, {args.begin() + 1, args.end()});
+
+//         // Dump all the MIGraphX (consumed) Environment Variables:
+//         const auto mgx_env_map = migraphx::get_all_envs();
+//         for(auto&& [k, v] : mgx_env_map)
+//             migraphx::log::info() << k << "=" << v
+//                                   << "\\"; // backslash(s) to facilitate cut-n-paste
+
+//         auto unused_envs = get_unrecognized_migraphx_envs(envp, mgx_env_map);
+//         for(auto&& e : unused_envs)
+//             migraphx::log::warn() << "Unused environment variable: " << e;
+
+//         auto end_time = std::chrono::system_clock::now();
+
+//         // Print total duration
+//         auto duration =
+//             std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
+//         migraphx::log::info() << "[ " << get_version() << " ] Complete(" << duration.count()
+//                               << "s): " << driver_invocation;
+//     }
+//     else
+//     {
+//         run_command<main_command>(ap, args);
+//     }
+
+//     return 0;
+// }
+
 /*
  * The MIT License (MIT)
  *
@@ -59,17 +1513,15 @@
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/register_target.hpp>
-#include <migraphx/errors.hpp>
-#include <migraphx/sym.hpp>
 
 #include <migraphx/time.hpp>
 #include <migraphx/netron_output.hpp>
 
 #include <fstream>
+#include <chrono>
 #include <optional>
 #include <set>
 #include <sstream>
-#include <unordered_set>
 
 namespace {
 
@@ -187,160 +1639,6 @@ inline static std::string get_version()
            "." MIGRAPHX_VERSION_TWEAK;
 }
 
-static void validate_static_lens_against_declared(const shape& declared, const shape& concrete)
-{
-    if(not declared.dynamic() or concrete.dynamic())
-        return;
-    const auto& dds  = declared.dyn_dims();
-    const auto& lens = concrete.lens();
-    std::cout << "validate_static_lens_against_declared: dds: " << std::endl;
-    for(auto dim : dds)
-    {
-        std::cout << dim << std::endl;
-    }
-    std::cout << "validate_static_lens_against_declared: lens: " << std::endl;
-    for(auto len : lens)
-    {
-        std::cout << len << std::endl;
-    }
-    if(dds.size() != lens.size())
-        MIGRAPHX_THROW("Parameter rank mismatch between declared and concrete shape.");
-    for(std::size_t i = 0; i < dds.size(); ++i)
-    {
-        const auto iv = dds[i].get_interval();
-        const auto len = lens[i];
-        std::cout << "validate_static_lens_against_declared: len: " << len << std::endl;
-        std::cout << "validate_static_lens_against_declared: iv.min: " << iv.min << std::endl;
-        std::cout << "validate_static_lens_against_declared: iv.max: " << iv.max << std::endl;
-        if(len < iv.min or len > iv.max)
-            MIGRAPHX_THROW("Parameter dimension " + std::to_string(len) + " at axis " +
-                           std::to_string(i) + " is outside the declared range [" +
-                           std::to_string(iv.min) + ".." + std::to_string(iv.max) + "].");
-    }
-}
-
-static bool shape_resolved_fully_by_symbol_map(
-    const shape& sh, const std::unordered_map<sym::expr, std::size_t>& symbol_map)
-{
-    if(not sh.dynamic())
-        return true;
-    for(const auto& dd : sh.dyn_dims())
-    {
-        if(dd.is_fixed())
-            continue;
-        if(dd.is_symbolic())
-        {
-            if(symbol_map.count(dd.sym_expr) == 0)
-                return false;
-        }
-        else
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-static void throw_if_unbound_symbolic_axes(const shape& sh,
-                                           const std::unordered_map<sym::expr, std::size_t>& symbol_map)
-{
-    if(not sh.dynamic())
-        return;
-    for(const auto& dd : sh.dyn_dims())
-    {
-        if(dd.is_fixed())
-            continue;
-        if(dd.is_symbolic() and symbol_map.count(dd.sym_expr) == 0)
-        {
-            auto vn = sym::variable_name(dd.sym_expr);
-            const std::string label = vn ? *vn : dd.sym_expr.to_string();
-            MIGRAPHX_THROW("Symbolic axis `" + label +
-                           "` requires `--dim-param @" + label +
-                           " <static>` (within its declared range) for this program.");
-        }
-    }
-}
-
-static std::unordered_map<sym::expr, std::size_t> build_dim_param_symbol_map(
-    const std::unordered_map<std::string, shape>& param_shapes,
-    const std::unordered_map<std::string, shape::dynamic_dimension>& dim_cli)
-{
-    std::unordered_map<std::string, std::size_t> fixed_values;
-    for(const auto& e : dim_cli)
-    {
-        if(not e.second.is_fixed())
-        {
-            MIGRAPHX_THROW("When binding symbolic axes at run time, `--dim-param @" + e.first +
-                           "` must be a single non-negative integer, not a range.");
-        }
-        fixed_values.emplace(e.first, e.second.get_interval().min);
-    }
-    if(fixed_values.empty())
-        return {};
-    std::unordered_map<sym::expr, std::size_t> symbol_map;
-    std::unordered_set<std::string> matched;
-    for(const auto& param : param_shapes)
-    {
-        if(not param.second.dynamic())
-            continue;
-        for(const auto& dd : param.second.dyn_dims())
-        {
-            if(not dd.is_symbolic())
-                continue;
-            auto vname = sym::variable_name(dd.sym_expr);
-            if(not vname)
-                continue;
-            auto it = fixed_values.find(*vname);
-            if(it == fixed_values.end())
-                continue;
-            symbol_map[dd.sym_expr] = it->second;
-            matched.insert(*vname);
-        }
-    }
-    for(const auto& e : fixed_values)
-    {
-        if(not contains(matched, e.first))
-            log::warn() << "DIM_PARAM: `" << e.first
-                         << "` does not match any symbolic axis in this program; ignoring.";
-    }
-    return symbol_map;
-}
-
-static shape resolve_concrete_parameter_shape(
-    const std::string& pname,
-    const shape& declared,
-    unsigned batch,
-    const dims_map& map_input_dims,
-    const std::unordered_map<sym::expr, std::size_t>& symbol_map)
-{
-    std::cout << "resolve_concrete_parameter_shape: pname: " << pname << std::endl;
-    std::cout << "resolve_concrete_parameter_shape: declared: " << declared << std::endl;
-    if(contains(map_input_dims, pname))
-    {
-        auto concrete = shape{declared.type(), map_input_dims.at(pname)};
-        std::cout << "resolve_concrete_parameter_shape: concrete: " << concrete << std::endl;
-        if(declared.dynamic())
-            validate_static_lens_against_declared(declared, concrete);
-        return concrete;
-    }
-    if(declared.dynamic())
-    {
-        if(shape_resolved_fully_by_symbol_map(declared, symbol_map))
-        {
-            auto concrete = declared.to_static(symbol_map);
-            std::cout << "resolve_concrete_parameter_shape: concrete: " << concrete << std::endl;
-            validate_static_lens_against_declared(declared, concrete);
-            return concrete;
-        }
-        throw_if_unbound_symbolic_axes(declared, symbol_map);
-        auto concrete = declared.to_static(batch);
-        std::cout << "resolve_concrete_parameter_shape: concrete: " << concrete << std::endl;
-        validate_static_lens_against_declared(declared, concrete);
-        return concrete;
-    }
-    return declared;
-}
-
 struct loader
 {
     std::string file;
@@ -399,18 +1697,14 @@ struct loader
         ap(trim_size, {"--trim-size", "-s"}, ap.help("Number of instructions in the trim model"));
         ap(param_dims,
            {"--input-dim"},
-           ap.help("Static shape for a parameter: \"@name d1 d2 ...\". When the program declares "
-                   "dynamic axes, each dimension must fall within the declared min/max. Overrides "
-                   "per-axis `--dim-param` bindings for that parameter when both are supplied."),
+           ap.help("Dim of a parameter (format: \"@name d1 d2 dn\")"),
            ap.append(),
            ap.nargs(2));
         ap(dim_params,
            {"--dim-param"},
-           ap.help("ONNX symbolic dimension: at parse time, \"@name\" with a range JSON sets "
-                   "bounds and preserves the name through .mxr; a single integer fixes the size. "
-                   "When loading a saved program, \"@name N\" binds symbolic axis `name` to "
-                   "static N (must lie in the saved range). `--input-dim` overrides full tensor "
-                   "shapes when both are set."),
+           ap.help("Symbolic parameter dimension name (fixed / dynamic) - "
+                   "(fixed format): \"@dim_param_name\" \"x\" / "
+                   "(dynamic format): \"@dim_param_name\" \"{min:x, max:y, optimals:[o1,o2]}\""),
            ap.append(),
            ap.nargs(2));
         ap(dyn_param_dims,
@@ -812,22 +2106,22 @@ struct program_params
                   const target& t,
                   bool offload,
                   unsigned batch,
-                  dims_map map_input_dims                       = {},
-                  std::unordered_map<std::string, shape::dynamic_dimension> dim_param_bindings =
-                      {}) const
+                  dims_map map_input_dims = {})
     {
         parameter_map m;
         auto param_shapes = p.get_parameter_shapes();
-        const auto symbol_map = build_dim_param_symbol_map(param_shapes, dim_param_bindings);
         std::unordered_map<std::string, shape> static_param_shapes;
         for(auto&& param : param_shapes)
         {
-            static_param_shapes[param.first] =
-                resolve_concrete_parameter_shape(param.first,
-                                                 param.second,
-                                                 batch,
-                                                 map_input_dims,
-                                                 symbol_map);
+            if(contains(map_input_dims, param.first))
+                static_param_shapes[param.first] = {param.second.type(),
+                                                    map_input_dims[param.first]};
+            else if(contains(param.first, "#output_") and param.second.dynamic())
+                // Range-based output buffers must be large enough for runtime concat/grow ops;
+                // to_static(batch) can undersize them (e.g. [2..65] with batch=1 -> dim 1).
+                static_param_shapes[param.first] = {param.second.type(), param.second.max_lens()};
+            else
+                static_param_shapes[param.first] = param.second.to_static(batch);
         }
 
         for(auto&& s : fill0)
@@ -980,14 +2274,12 @@ struct compiler
     auto params(const program& p)
     {
         return parameters.generate(
-            p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims),
-            loader::parse_dim_params(l.dim_params));
+            p, ct.get_target(), co.offload_copy, l.batch, loader::parse_param_dims(l.param_dims));
     }
 
     auto host_params(const program& p)
     {
-        return parameters.generate(p, ct.get_target(), true, l.batch, {},
-                                   loader::parse_dim_params(l.dim_params));
+        return parameters.generate(p, ct.get_target(), true, l.batch);
     }
 
     program compile()
@@ -1123,8 +2415,7 @@ struct verify : command<verify>
 
         auto t = c.ct.get_target();
         auto m =
-            c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims),
-                                  loader::parse_dim_params(c.l.dim_params));
+            c.parameters.generate(p, t, true, c.l.batch, loader::parse_param_dims(c.l.param_dims));
 
         if(c.to_fp16)
         {

@@ -161,6 +161,15 @@ struct miopen_apply
         }
     }
 
+    instruction_ref lower_dimensions_of_to_gpu(instruction_ref ins) const
+    {
+        // dimensions_of::compute allocates host memory; GPU consumers need device buffers.
+        auto cpu_out   = mod->insert_instruction(ins, ins->get_operator(), ins->inputs());
+        auto gpu_alloc = insert_allocation(ins, ins->get_shape());
+        return mod->replace_instruction(
+            ins, mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, gpu_alloc));
+    }
+
     void apply()
     {
         init();
@@ -171,6 +180,10 @@ struct miopen_apply
             if(apply_map.count(it->name()) > 0)
             {
                 check_shape(s, apply_map.at(it->name())(it));
+            }
+            else if(it->name() == "dimensions_of")
+            {
+                check_shape(s, lower_dimensions_of_to_gpu(it));
             }
             else if(has_compiler_for(it->name()))
             {

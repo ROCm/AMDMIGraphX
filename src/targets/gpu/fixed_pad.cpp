@@ -24,6 +24,7 @@
 #include <migraphx/gpu/fixed_pad.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/device/fixed_pad.hpp>
+#include <migraphx/gpu/hip.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,7 +42,13 @@ argument hip_fixed_pad::compute(context& ctx, const shape&, const std::vector<ar
     if(args.front().get_shape() == args.back().get_shape())
         return args.front();
 
-    return device::fixed_pad(ctx.get_stream().get(), args.back(), args.front());
+    const auto& input  = args.front();
+    const auto& output = args.back();
+    argument gpu_input = input;
+    if(input.data() != nullptr and not is_gpu_device_ptr(input.data()))
+        gpu_input = to_gpu(input);
+
+    return device::fixed_pad(ctx.get_stream().get(), output, gpu_input);
 }
 
 } // namespace gpu

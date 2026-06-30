@@ -33,6 +33,7 @@
 #include <migraphx/filesystem.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/errors.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -179,6 +180,11 @@ struct module_pm : module_pass_manager
         try
         {
             f();
+        }
+        catch(const benchmark_mxr_dumped& e)
+        {
+            log::info() << "Benchmark MXR dump " << p.name() << ": " << e.what();
+            throw;
         }
         catch(const std::exception& e)
         {

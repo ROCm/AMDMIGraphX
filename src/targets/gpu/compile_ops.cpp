@@ -34,6 +34,7 @@
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/memory_coloring.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/builtin.hpp>
 #include <migraphx/load_save.hpp>
@@ -586,7 +587,7 @@ struct compile_manager
         // root module has had a chance to dump its benchmark MXR files.
         if(dump_mxr and is_root)
         {
-            MIGRAPHX_THROW(
+            MIGRAPHX_THROW_BENCHMARK_MXR_DUMPED(
                 "Benchmark MXR files dumped to " + mxr_path +
                 ". Run the MXR files to create a problem cache, then recompile with the cache.");
         }

@@ -47,6 +47,7 @@
 #include <migraphx/version.h>
 #include <migraphx/env.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/errors.hpp>
 
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_identity.hpp>
@@ -1255,7 +1256,13 @@ int main(int argc, const char* argv[], const char* envp[])
 
         auto start_time = std::chrono::system_clock::now();
 
-        m.at(cmd)(ap, {args.begin() + 1, args.end()});
+        try
+        {
+            m.at(cmd)(ap, {args.begin() + 1, args.end()});
+        }
+        catch(const migraphx::benchmark_mxr_dumped&)
+        {
+        }
 
         // Dump all the MIGraphX (consumed) Environment Variables:
         const auto mgx_env_map = migraphx::get_all_envs();

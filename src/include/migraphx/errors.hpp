@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,6 +41,11 @@ struct exception : std::runtime_error
     }
 };
 
+struct benchmark_mxr_dumped : exception
+{
+    benchmark_mxr_dumped(unsigned int e = 0, const std::string& msg = "") : exception(e, msg) {}
+};
+
 /**
  * @brief Create an exception object
  *
@@ -55,6 +60,19 @@ inline exception make_exception(const std::string& context, const std::string& m
 
 inline exception
 make_exception(const std::string& context, unsigned int e, const std::string& message = "")
+{
+    return {e, context + ": " + message};
+}
+
+inline benchmark_mxr_dumped make_benchmark_mxr_dumped_exception(const std::string& context,
+                                                                const std::string& message = "")
+{
+    return {0, context + ": " + message};
+}
+
+inline benchmark_mxr_dumped make_benchmark_mxr_dumped_exception(const std::string& context,
+                                                                unsigned int e,
+                                                                const std::string& message = "")
 {
     return {e, context + ": " + message};
 }
@@ -79,6 +97,8 @@ inline std::string make_source_context(const std::string& file, int line, const 
  * @brief Throw an exception with context information
  */
 #define MIGRAPHX_THROW(...) throw migraphx::make_exception(MIGRAPHX_MAKE_SOURCE_CTX(), __VA_ARGS__)
+#define MIGRAPHX_THROW_BENCHMARK_MXR_DUMPED(...) \
+    throw migraphx::make_benchmark_mxr_dumped_exception(MIGRAPHX_MAKE_SOURCE_CTX(), __VA_ARGS__)
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

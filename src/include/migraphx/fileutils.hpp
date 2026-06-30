@@ -26,6 +26,7 @@
 #define MIGRAPHX_GUARD_MIGRAPHLIB_FILEUTILS_HPP
 
 #include <migraphx/filesystem.hpp>
+#include <string>
 #include <string_view>
 
 namespace migraphx {

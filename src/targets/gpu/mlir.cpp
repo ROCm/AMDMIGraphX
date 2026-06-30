@@ -29,6 +29,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/eliminate_barrier.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
@@ -1140,7 +1141,7 @@ struct mlir_program
     std::string sym_name;
 };
 
-static void prepare(module& m) { run_passes(m, {prepare_mlir{}}); }
+static void prepare(module& m) { run_passes(m, {prepare_mlir{}, eliminate_barrier{}}); }
 
 bool is_module_fusible(const module& m, const context& migraphx_ctx, const value& solution)
 {

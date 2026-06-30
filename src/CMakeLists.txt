@@ -68,6 +68,7 @@ add_library(migraphx
     eliminate_allocation.cpp
     eliminate_common_subexpression.cpp
     eliminate_concat.cpp
+    eliminate_barrier.cpp
     eliminate_contiguous.cpp
     eliminate_convert.cpp
     eliminate_data_type.cpp
@@ -194,6 +195,7 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
+    barrier
     bit_cast
     bitwise_and
     broadcast

@@ -31,6 +31,7 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/rewrite_quantization.hpp>
+#include <migraphx/eliminate_barrier.hpp>
 #include <migraphx/optimize_module.hpp>
 #include <migraphx/cpp_generator.hpp>
 #include <migraphx/pass_manager.hpp>
@@ -241,7 +242,7 @@ tile tile::elements(const std::vector<shape>& inputs, std::size_t noutputs)
         return {};
 
     result.ntiles = s.elements() / tile_size;
-    result.inner = s.lens();
+    result.inner  = s.lens();
     std::fill(result.inner.begin(), result.inner.end(), 1);
     result.inner[result.axis] = dim1;
     result.inner.back()       = dim2;
@@ -312,7 +313,10 @@ static void generate_pointwise(cpp_generator& gg,
                                bool always_return_tuple = false)
 {
     module m = pm;
-    run_passes(m, {rewrite_quantization{}, optimize_module{}});
+    // optimize_module runs the last convert elimination over the kernel; afterwards the
+    // fp16 round-trip can no longer be folded, so the barriers protecting it (e.g. from
+    // fast_mm) are no longer needed and are removed before code generation.
+    run_passes(m, {rewrite_quantization{}, optimize_module{}, eliminate_barrier{}});
     m.sort();
     cpp_generator g;
     g.always_return_tuple(always_return_tuple);
@@ -537,7 +541,7 @@ std::string generate_reduce(module m, const std::string& name)
                 return "auto " + s;
             });
             return interpolate_string(inner_template,
-                                      {{"inner", inner_name},
+                                             {{"inner", inner_name},
                                        {"params", join_strings(params, ", ")},
                                        {"args", join_strings(args, ", ")},
                                        {"call", call_function}});
@@ -551,7 +555,7 @@ std::string generate_reduce(module m, const std::string& name)
             const auto& x = names.at(ins->inputs().front());
             auto index    = ins->get_operator().to_value()["index"].to<std::size_t>();
             return interpolate_string("${x}[_c<${index}>]",
-                                          {{"x", x}, {"index", std::to_string(index)}});
+                                             {{"x", x}, {"index", std::to_string(index)}});
         }
         if(ins->name() == "gpu::make_indices")
         {

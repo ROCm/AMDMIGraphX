@@ -190,11 +190,6 @@ struct pipeline_factory
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
-            // Strip the identity barriers fast_mm inserts to protect its fp16 round-trip
-            // converts from eliminate_convert. The convert passes have all run by now, so
-            // the converts are free to fuse into a single pointwise kernel.
-            eliminate_identity{},
-            dead_code_elimination{},
             fuse_mlss{get_context()},
             fuse_pointwise_reduce{},
             dead_code_elimination{},

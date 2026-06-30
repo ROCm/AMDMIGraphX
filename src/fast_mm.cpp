@@ -40,21 +40,19 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
-// Round `x` to fp16 (x_hi) and back to fp32 (x_hi_f), returning both. An identity is
-// inserted between the two converts so eliminate_convert's find_nested_convert does not
-// fold the lossy fp32 -> fp16 -> fp32 round-trip back to x (which would zero out the
-// residual the split below relies on). Unlike a no-op such as contiguous, the identity
-// is not cleaned up by simplify_reshapes, so it survives the optimize_module that runs
-// before fusion; fast_mm runs after propagate_precision so that pass (which would see
-// through the pointwise identity) never reaches the round-trip. The identity folds away
-// with the rest of a constant operand and is stripped before fusion for the non-constant
-// one (eliminate_identity).
+// Round `x` to fp16 (x_hi) and back to fp32 (x_hi_f), returning both. A barrier is
+// inserted between the two converts so the lossy fp32 -> fp16 -> fp32 round-trip is not
+// rewritten back to x (which would zero out the residual the split below relies on): it
+// blocks eliminate_convert's find_nested_convert and precision propagation, and it
+// survives fusion into the pointwise kernel. The barrier folds away with the rest of a
+// constant operand, and is removed by eliminate_barrier before code generation for the
+// non-constant one.
 std::pair<instruction_ref, instruction_ref>
 fp16_round_trip(module& m, instruction_ref pos, instruction_ref x)
 {
     auto x_hi =
         m.insert_instruction(pos, make_op("convert", {{"target_type", shape::half_type}}), x);
-    auto x_hi_barrier = m.insert_instruction(pos, make_op("identity"), x_hi);
+    auto x_hi_barrier = m.insert_instruction(pos, make_op("barrier", {{"tag", "fast_mm"}}), x_hi);
     auto x_hi_f       = m.insert_instruction(
         pos, make_op("convert", {{"target_type", shape::float_type}}), x_hi_barrier);
     return {x_hi, x_hi_f};

@@ -94,10 +94,10 @@ struct precision
 
 static bool is_pointwise_or_reduce(instruction_ref ins)
 {
-    // identity is used as a precision barrier (e.g. by fast_mm, to preserve a
-    // deliberate fp32 -> fp16 -> fp32 round-trip); don't propagate precision across it,
-    // which would otherwise upgrade the round-trip away and change the result.
-    if(ins->name() == "identity")
+    // A barrier (e.g. inserted by fast_mm to preserve a deliberate fp32 -> fp16 -> fp32
+    // round-trip) must not have precision propagated across it, which would otherwise
+    // upgrade the round-trip away and change the result.
+    if(ins->name() == "barrier")
         return false;
     return contains(ins->name(), "reduce") or
            ins->get_operator().attributes().get("pointwise", false);

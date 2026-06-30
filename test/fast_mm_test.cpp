@@ -57,7 +57,8 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
 
         auto w_hi_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
-        auto w_hi_b = m2.add_instruction(migraphx::make_op("identity"), w_hi_h);
+        auto w_hi_b =
+            m2.add_instruction(migraphx::make_op("barrier", {{"tag", "fast_mm"}}), w_hi_h);
         auto w_hi_f = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), w_hi_b);
         auto w_lo_f = m2.add_instruction(migraphx::make_op("sub"), w, w_hi_f);
@@ -106,7 +107,8 @@ TEST_CASE(fp32_convolution_const_weights_three_product)
         // Split the constant weights into hi/lo halves laid out as [hi, lo, hi].
         auto w_hi_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
-        auto w_hi_b = m2.add_instruction(migraphx::make_op("identity"), w_hi_h);
+        auto w_hi_b =
+            m2.add_instruction(migraphx::make_op("barrier", {{"tag", "fast_mm"}}), w_hi_h);
         auto w_hi_f = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), w_hi_b);
         auto w_lo_f = m2.add_instruction(migraphx::make_op("sub"), w, w_hi_f);
@@ -118,7 +120,7 @@ TEST_CASE(fp32_convolution_const_weights_three_product)
         // Split the input into hi/lo halves laid out as [hi, hi, lo].
         auto x_hi = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
-        auto x_hi_b = m2.add_instruction(migraphx::make_op("identity"), x_hi);
+        auto x_hi_b = m2.add_instruction(migraphx::make_op("barrier", {{"tag", "fast_mm"}}), x_hi);
         auto x_hi_f = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x_hi_b);
         auto x_lo_f = m2.add_instruction(migraphx::make_op("sub"), x, x_hi_f);
@@ -227,7 +229,8 @@ TEST_CASE(fp32_dot_const_b_rewritten)
         // Split the constant B along its contraction axis (axis 0).
         auto b_hi_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b);
-        auto b_hi_b = m2.add_instruction(migraphx::make_op("identity"), b_hi_h);
+        auto b_hi_b =
+            m2.add_instruction(migraphx::make_op("barrier", {{"tag", "fast_mm"}}), b_hi_h);
         auto b_hi_f = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), b_hi_b);
         auto b_lo_f = m2.add_instruction(migraphx::make_op("sub"), b, b_hi_f);
@@ -276,7 +279,8 @@ TEST_CASE(fp32_dot_const_a_rewritten)
         // Split the constant A along its contraction axis (axis 1).
         auto a_hi_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a);
-        auto a_hi_b = m2.add_instruction(migraphx::make_op("identity"), a_hi_h);
+        auto a_hi_b =
+            m2.add_instruction(migraphx::make_op("barrier", {{"tag", "fast_mm"}}), a_hi_h);
         auto a_hi_f = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), a_hi_b);
         auto a_lo_f = m2.add_instruction(migraphx::make_op("sub"), a, a_hi_f);
@@ -325,7 +329,8 @@ TEST_CASE(fp32_dot_const_b_three_product)
         // Split the constant B along its contraction axis (axis 0) as [hi, lo, hi].
         auto b_hi_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b);
-        auto b_hi_b = m2.add_instruction(migraphx::make_op("identity"), b_hi_h);
+        auto b_hi_b =
+            m2.add_instruction(migraphx::make_op("barrier", {{"tag", "fast_mm"}}), b_hi_h);
         auto b_hi_f = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), b_hi_b);
         auto b_lo_f = m2.add_instruction(migraphx::make_op("sub"), b, b_hi_f);
@@ -337,7 +342,7 @@ TEST_CASE(fp32_dot_const_b_three_product)
         // Split A along its contraction axis (axis 1) as [hi, hi, lo].
         auto a_hi = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a);
-        auto a_hi_b = m2.add_instruction(migraphx::make_op("identity"), a_hi);
+        auto a_hi_b = m2.add_instruction(migraphx::make_op("barrier", {{"tag", "fast_mm"}}), a_hi);
         auto a_hi_f = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), a_hi_b);
         auto a_lo_f = m2.add_instruction(migraphx::make_op("sub"), a, a_hi_f);

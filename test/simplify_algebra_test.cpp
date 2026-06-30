@@ -2646,40 +2646,51 @@ TEST_CASE(hoist_pointwise_above_slices_relu)
 
 TEST_CASE(hoist_silu_above_slices)
 {
-    // SiLU diamond (slice -> sigmoid -> mul(slice, sigmoid)) replicated across
-    // sibling slices: the constant-folding split fusion bails on the inter-group
-    // dependency, so find_splits hoists the whole sigmoid/mul chain above the
-    // slices.
-    migraphx::module m1;
+    // A SiLU (mul(x, sigmoid(x))) replicated across sibling slices that only
+    // partially tile their tensor.  The raw sigmoid/mul diamond blocks the
+    // split fusion, but once fuse_pointwise collapses each SiLU into a single
+    // pointwise op, find_splits hoists it above the slices: the SiLU is computed
+    // once on the bounding slice and each consumer re-slices its sub-range.
+    auto s = migraphx::shape{migraphx::shape::float_type, {3, 4}};
+    migraphx::program p1;
     {
-        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {3, 4}});
-        auto s0 = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), x);
-        auto s1 = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), x);
-        auto sig0 = m1.add_instruction(migraphx::make_op("sigmoid"), s0);
-        auto mul0 = m1.add_instruction(migraphx::make_op("mul"), s0, sig0);
-        auto sig1 = m1.add_instruction(migraphx::make_op("sigmoid"), s1);
-        auto mul1 = m1.add_instruction(migraphx::make_op("mul"), s1, sig1);
-        m1.add_return({mul0, mul1});
+        auto* mm   = p1.get_main_module();
+        auto input = mm->add_parameter("x", s);
+        auto s0    = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto s1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sig0 = mm->add_instruction(migraphx::make_op("sigmoid"), s0);
+        auto mul0 = mm->add_instruction(migraphx::make_op("mul"), s0, sig0);
+        auto sig1 = mm->add_instruction(migraphx::make_op("sigmoid"), s1);
+        auto mul1 = mm->add_instruction(migraphx::make_op("mul"), s1, sig1);
+        mm->add_return({mul0, mul1});
     }
-    run_pass(m1);
+    migraphx::run_passes(p1,
+                         {migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::fuse_pointwise{},
+                          migraphx::dead_code_elimination{},
+                          migraphx::simplify_algebra{},
+                          migraphx::dead_code_elimination{}});
 
-    migraphx::module m2;
+    migraphx::program p2;
     {
-        auto x   = m2.add_parameter("x", {migraphx::shape::float_type, {3, 4}});
-        auto big = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), x);
-        auto sigb = m2.add_instruction(migraphx::make_op("sigmoid"), big);
-        auto mulb = m2.add_instruction(migraphx::make_op("mul"), big, sigb);
-        auto sub0 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), mulb);
-        auto sub1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), mulb);
-        m2.add_return({sub0, sub1});
+        auto* mm   = p2.get_main_module();
+        auto input = mm->add_parameter("x", s);
+        auto big   = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), input);
+        auto silu = add_pointwise(p2, "main:pointwise0", {big}, [=](auto* pm, const auto& inputs) {
+            auto sig = pm->add_instruction(migraphx::make_op("sigmoid"), inputs[0]);
+            return pm->add_instruction(migraphx::make_op("mul"), inputs[0], sig);
+        });
+        auto sub0 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), silu);
+        auto sub1 = mm->add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), silu);
+        mm->add_return({sub0, sub1});
     }
-
-    EXPECT(m1.sort() == m2.sort());
+    EXPECT(p1 == p2);
 }
 
 TEST_CASE(hoist_no_tile_gap_unchanged)

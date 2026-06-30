@@ -22,10 +22,12 @@
  * THE SOFTWARE.
  */
 #include <migraphx/fuse_horizontal.hpp>
+#include <migraphx/fuse_pointwise.hpp>
 #include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/program.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
@@ -1153,15 +1155,17 @@ TEST_CASE(dot_horiz_fusion_mismatched_shapes_unchanged)
     EXPECT(m1.sort() == before.sort());
 }
 
-// End-to-end: the pointwise-chain hoist in find_splits (simplify_algebra) and
-// dot_horizontal_fusion (fuse_horizontal) cooperate in one pipeline.  The
-// module contains both opportunities and both reductions must occur.  This
-// mirrors the GPU pipeline ordering where optimize_module (simplify_algebra)
-// runs before fuse_horizontal.
-static void run_mlp_pipeline(migraphx::module& m)
+// End-to-end: the pointwise hoist in find_splits (simplify_algebra) and
+// dot_horizontal_fusion (fuse_horizontal) cooperate in one pipeline.  The module
+// contains both opportunities and both reductions must occur.  This mirrors the
+// GPU pipeline ordering where fuse_pointwise collapses each per-slice SiLU into
+// a single pointwise op, simplify_algebra (optimize_module) then hoists it above
+// the slices, and fuse_horizontal batches the parallel dots.
+static void run_mlp_pipeline(migraphx::program& p)
 {
-    migraphx::run_passes(m,
-                         {migraphx::simplify_reshapes{},
+    migraphx::run_passes(p,
+                         {migraphx::fuse_pointwise{},
+                          migraphx::dead_code_elimination{},
                           migraphx::simplify_algebra{},
                           migraphx::dead_code_elimination{},
                           migraphx::fuse_horizontal{},
@@ -1170,54 +1174,52 @@ static void run_mlp_pipeline(migraphx::module& m)
 
 TEST_CASE(hoist_and_dot_fusion_end_to_end)
 {
-    migraphx::module m;
+    migraphx::program p;
     {
+        auto* m = p.get_main_module();
         // Hoist target: a SiLU (sigmoid * x) replicated across sibling row
         // slices of a common tensor that exactly tile it.
-        auto t = m.add_parameter("t", {migraphx::shape::float_type, {4, 8}});
+        auto t = m->add_parameter("t", {migraphx::shape::float_type, {4, 8}});
         std::vector<migraphx::instruction_ref> outs;
         for(int i = 0; i < 4; ++i)
         {
-            auto s = m.add_instruction(
+            auto s = m->add_instruction(
                 migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), t);
-            auto sig = m.add_instruction(migraphx::make_op("sigmoid"), s);
-            outs.push_back(m.add_instruction(migraphx::make_op("mul"), s, sig));
+            auto sig = m->add_instruction(migraphx::make_op("sigmoid"), s);
+            outs.push_back(m->add_instruction(migraphx::make_op("mul"), s, sig));
         }
 
         // Dot-fusion target: parallel constant-weight dots with identical shapes.
         for(int i = 0; i < 3; ++i)
         {
             auto x =
-                m.add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 3}});
+                m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 3}});
             auto w =
-                m.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 5}}, i));
-            outs.push_back(m.add_instruction(migraphx::make_op("dot"), x, w));
+                m->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 5}}, i));
+            outs.push_back(m->add_instruction(migraphx::make_op("dot"), x, w));
         }
 
-        m.add_return(outs);
+        m->add_return(outs);
     }
-    run_mlp_pipeline(m);
+    run_mlp_pipeline(p);
 
-    std::size_t n_dot     = 0;
-    std::size_t n_sigmoid = 0;
-    std::size_t n_mul     = 0;
-    for(auto ins : iterator_for(m))
+    std::size_t n_dot       = 0;
+    std::size_t n_pointwise = 0;
+    for(auto ins : iterator_for(*p.get_main_module()))
     {
         const auto& name = ins->name();
         if(name == "dot")
             ++n_dot;
-        else if(name == "sigmoid")
-            ++n_sigmoid;
-        else if(name == "mul")
-            ++n_mul;
+        else if(name == "pointwise")
+            ++n_pointwise;
     }
 
     // dot_horizontal_fusion collapses the 3 towers into a single batched GEMM.
     EXPECT(n_dot == 1);
-    // hoist_pointwise_above_slices collapses the 4 per-slice SiLUs into one
-    // sigmoid/mul pair computed on the bounding slice.
-    EXPECT(n_sigmoid == 1);
-    EXPECT(n_mul == 1);
+    // fuse_pointwise turns each per-slice SiLU into one pointwise op, which the
+    // find_splits hoist then collapses into a single pointwise on the bounding
+    // slice.
+    EXPECT(n_pointwise == 1);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

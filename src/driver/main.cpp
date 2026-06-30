@@ -1260,8 +1260,9 @@ int main(int argc, const char* argv[], const char* envp[])
         {
             m.at(cmd)(ap, {args.begin() + 1, args.end()});
         }
-        catch(const migraphx::benchmark_mxr_dumped&)
+        catch(const migraphx::benchmark_mxr_dumped& e)
         {
+            (void)e;
         }
 
         // Dump all the MIGraphX (consumed) Environment Variables:

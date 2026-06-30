@@ -311,7 +311,8 @@ TEST_CASE(zip_random_access_reverse)
     using it_type = decltype(view.begin());
     static_assert(std::is_same<it_type::iterator_category, std::random_access_iterator_tag>{},
                   "random-access underlying ranges should produce a random-access zip iterator");
-    static_assert(has_predecrement<it_type>{}, "a random-access zip iterator must be decrementable");
+    static_assert(has_predecrement<it_type>{},
+                  "a random-access zip iterator must be decrementable");
 
     std::vector<int> seen0;
     std::vector<int> seen1;
@@ -367,8 +368,8 @@ TEST_CASE(zip_random_access_ordering_consistency)
     std::vector<int> b = {10, 20, 30};
     auto view          = migraphx::views::zip(a, b);
 
-    auto first         = view.begin();
-    auto last          = view.end();
+    auto first                    = view.begin();
+    auto last                     = view.end();
     const std::ptrdiff_t shortest = 3;
 
     EXPECT((last - first) == shortest);

@@ -65,9 +65,10 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
 
         // Bidirectional iterators become forward iterators because
         // decrementing from ragged ends doesnt work correctly without
-        // needing a larger overhead/complexity. 
-        using iterator_category =
-            std::conditional_t<is_bidirectional and not is_random_access, std::forward_iterator_tag, common_category>;
+        // needing a larger overhead/complexity.
+        using iterator_category = std::conditional_t<is_bidirectional and not is_random_access,
+                                                     std::forward_iterator_tag,
+                                                     common_category>;
         using difference_type =
             std::common_type_t<typename std::iterator_traits<BaseIterators>::difference_type...>;
         using pointer = std::add_pointer_t<std::remove_reference_t<reference>>;
@@ -89,9 +90,8 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
 
         // Only random-access zips decrement (keyed off U so the SFINAE is dependent).
         template <class U,
-                  MIGRAPHX_REQUIRES(
-                      std::is_base_of<std::random_access_iterator_tag,
-                                      typename U::iterator_category>{})>
+                  MIGRAPHX_REQUIRES(std::is_base_of<std::random_access_iterator_tag,
+                                                    typename U::iterator_category>{})>
         static void decrement(U& x)
         {
             migraphx::unpack([](auto&... its) { (--its, ...); }, x.current);

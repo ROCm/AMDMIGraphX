@@ -28,10 +28,9 @@
 #include <migraphx/config.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/requires.hpp>
 #include <migraphx/utility_operators.hpp>
 #include <algorithm>
-#include <array>
-#include <cstdlib>
 #include <iterator>
 #include <tuple>
 #include <type_traits>
@@ -56,10 +55,19 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
         using reference  = std::tuple<typename std::iterator_traits<BaseIterators>::reference...>;
         using value_type = std::tuple<typename std::iterator_traits<BaseIterators>::value_type...>;
 
-        // The weakest category among the underlying iterators governs the zip, and
-        // std::common_type of the tags yields it (each tag derives from the weaker one).
-        using iterator_category =
+        // Weakest underlying category governs the zip (each tag derives from the weaker one).
+        using common_category =
             std::common_type_t<typename std::iterator_traits<BaseIterators>::iterator_category...>;
+        static constexpr bool is_random_access =
+            std::is_base_of<std::random_access_iterator_tag, common_category>{};
+        static constexpr bool is_bidirectional =
+            std::is_base_of<std::bidirectional_iterator_tag, common_category>{};
+
+        // Bidirectional iterators become forward iterators because
+        // decrementing from ragged ends doesnt work correctly without
+        // needing a larger overhead/complexity. 
+        using iterator_category =
+            std::conditional_t<is_bidirectional and not is_random_access, std::forward_iterator_tag, common_category>;
         using difference_type =
             std::common_type_t<typename std::iterator_traits<BaseIterators>::difference_type...>;
         using pointer = std::add_pointer_t<std::remove_reference_t<reference>>;
@@ -79,7 +87,11 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
             migraphx::unpack([](auto&... its) { (++its, ...); }, x.current);
         }
 
-        template <class U>
+        // Only random-access zips decrement (keyed off U so the SFINAE is dependent).
+        template <class U,
+                  MIGRAPHX_REQUIRES(
+                      std::is_base_of<std::random_access_iterator_tag,
+                                      typename U::iterator_category>{})>
         static void decrement(U& x)
         {
             migraphx::unpack([](auto&... its) { (--its, ...); }, x.current);
@@ -94,36 +106,31 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
         template <class U, class V>
         static auto distance(const U& x, const V& y)
         {
-            // A zip stops at its shortest range, so the smallest-magnitude per-iterator
-            // distance is the number of valid steps between the two iterators.
-            return migraphx::unpack(
-                [&](const auto&... xits) {
-                    return migraphx::unpack(
-                        [&](const auto&... yits) {
-                            using diff = std::common_type_t<decltype(yits - xits)...>;
-                            const std::array<diff, sizeof...(yits)> dists = {
-                                static_cast<diff>(yits - xits)...};
-                            return *std::min_element(
-                                dists.begin(), dists.end(), [](diff a, diff b) {
-                                    return std::abs(a) < std::abs(b);
-                                });
-                        },
-                        y.current);
-                },
-                x.current);
+            // Random-access only: iterators are in lockstep, so any one pair gives the distance.
+            // Ill-formed for weaker iterators, which removes operator-/< (a forward zip has none).
+            return std::get<0>(y.current) - std::get<0>(x.current);
         }
 
         template <class U, class V>
         static bool equal(const U& x, const V& y)
         {
-            // Equal when any underlying iterator matches so that iteration stops as soon
-            // as the shortest underlying range is exhausted.
-            return migraphx::unpack(
-                [&](const auto&... xits) {
-                    return migraphx::unpack(
-                        [&](const auto&... yits) { return ((xits == yits) or ...); }, y.current);
-                },
-                x.current);
+            if constexpr(is_random_access)
+            {
+                // Truncated end is in lockstep, so plain tuple equality.
+                return x.current == y.current;
+            }
+            else
+            {
+                // Ragged end, forward-only: match if any pair matches (stops at the shortest
+                // range). No decrement means no mixed-offset iterators, so no false matches.
+                return migraphx::unpack(
+                    [&](const auto&... xits) {
+                        return migraphx::unpack(
+                            [&](const auto&... yits) { return ((xits == yits) or ...); },
+                            y.current);
+                    },
+                    x.current);
+            }
         }
 
         private:
@@ -136,6 +143,37 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
         return iterator<BaseIterators...>{std::move(its)};
     }
 
+    // Random-access end: advance begins by the shortest length (O(1)) so end is in lockstep.
+    template <class Its, class Ends>
+    static auto truncated_end(Its its, const Ends& ends)
+    {
+        const auto n = migraphx::unpack(
+            [&](auto&... bs) {
+                return migraphx::unpack(
+                    [&](auto&... es) {
+                        using diff = std::common_type_t<typename std::iterator_traits<
+                            std::decay_t<decltype(bs)>>::difference_type...>;
+                        return std::min({static_cast<diff>(std::distance(bs, es))...});
+                    },
+                    ends);
+            },
+            its);
+        migraphx::unpack([&](auto&... bs) { (std::advance(bs, n), ...); }, its);
+        return make_iterator(std::move(its));
+    }
+
+    // Truncated (in-lockstep) end for random-access ranges, ragged end otherwise.
+    template <class... Is, class Ends>
+    static auto make_end_iterator(std::tuple<Is...> begins, Ends ends)
+    {
+        using category =
+            std::common_type_t<typename std::iterator_traits<Is>::iterator_category...>;
+        if constexpr(std::is_base_of<std::random_access_iterator_tag, category>{})
+            return truncated_end(std::move(begins), ends);
+        else
+            return make_iterator(std::move(ends));
+    }
+
     auto begin()
     {
         return migraphx::unpack(
@@ -144,11 +182,14 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
     auto end()
     {
         return migraphx::unpack(
-            [](auto*... rs) { return make_iterator(std::make_tuple(std::end(*rs)...)); }, rng);
+            [](auto*... rs) {
+                return make_end_iterator(std::make_tuple(std::begin(*rs)...),
+                                         std::make_tuple(std::end(*rs)...));
+            },
+            rng);
     }
 
-    // rng holds plain pointers, so const does not propagate on its own; view each range as const
-    // (like transform_view's base() const) so the const overloads yield const iterators.
+    // rng is plain pointers, so const doesn't propagate; view ranges as const for const iterators.
     auto begin() const
     {
         return migraphx::unpack(
@@ -161,7 +202,8 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
     {
         return migraphx::unpack(
             [](auto*... rs) {
-                return make_iterator(std::make_tuple(std::end(std::as_const(*rs))...));
+                return make_end_iterator(std::make_tuple(std::begin(std::as_const(*rs))...),
+                                         std::make_tuple(std::end(std::as_const(*rs))...));
             },
             rng);
     }

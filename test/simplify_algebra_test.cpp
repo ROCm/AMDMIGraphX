@@ -1305,6 +1305,179 @@ TEST_CASE(simplify_concat_clip)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(simplify_concat_relu_multi_use)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", s);
+        auto b      = m1.add_parameter("b", s);
+        auto ra     = m1.add_instruction(migraphx::make_op("relu"), a);
+        auto rb     = m1.add_instruction(migraphx::make_op("relu"), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ra, rb);
+        auto neg    = m1.add_instruction(migraphx::make_op("neg"), ra);
+        m1.add_return({concat, neg});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a        = m2.add_parameter("a", s);
+        auto b        = m2.add_parameter("b", s);
+        auto cat_ab   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto fused    = m2.add_instruction(migraphx::make_op("relu"), cat_ab);
+        auto slice_ra = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), fused);
+        auto neg = m2.add_instruction(migraphx::make_op("neg"), slice_ra);
+        m2.add_return({fused, neg});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(simplify_concat_relu_multi_use_both)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        auto a      = m1.add_parameter("a", s);
+        auto b      = m1.add_parameter("b", s);
+        auto ra     = m1.add_instruction(migraphx::make_op("relu"), a);
+        auto rb     = m1.add_instruction(migraphx::make_op("relu"), b);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ra, rb);
+        m1.add_return({concat, ra, rb});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a        = m2.add_parameter("a", s);
+        auto b        = m2.add_parameter("b", s);
+        auto cat_ab   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto fused    = m2.add_instruction(migraphx::make_op("relu"), cat_ab);
+        auto slice_ra = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), fused);
+        auto slice_rb = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), fused);
+        m2.add_return({fused, slice_ra, slice_rb});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(simplify_concat_add_relu_multi_use)
+{
+    auto s = migraphx::shape{migraphx::shape::int32_type, {1}};
+    migraphx::module m1;
+    {
+        auto x      = m1.add_parameter("x", s);
+        auto y      = m1.add_parameter("y", s);
+        auto one    = m1.add_literal({s, {1}});
+        auto two    = m1.add_literal({s, {2}});
+        auto sum1   = m1.add_instruction(migraphx::make_op("add"), x, one);
+        auto relu1  = m1.add_instruction(migraphx::make_op("relu"), sum1);
+        auto sum2   = m1.add_instruction(migraphx::make_op("add"), y, two);
+        auto relu2  = m1.add_instruction(migraphx::make_op("relu"), sum2);
+        auto concat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), relu1, relu2);
+        auto neg    = m1.add_instruction(migraphx::make_op("neg"), relu1);
+        m1.add_return({concat, neg});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x        = m2.add_parameter("x", s);
+        auto y        = m2.add_parameter("y", s);
+        auto one      = m2.add_literal({s, {1}});
+        auto two      = m2.add_literal({s, {2}});
+        auto concat1  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), x, y);
+        auto concat2  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), one, two);
+        auto sum      = m2.add_instruction(migraphx::make_op("add"), concat1, concat2);
+        auto relu     = m2.add_instruction(migraphx::make_op("relu"), sum);
+        auto slice_r1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), relu);
+        auto neg = m2.add_instruction(migraphx::make_op("neg"), slice_r1);
+        m2.add_return({relu, neg});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// DenseNet-like pattern: a feeds into cat1, which feeds into b.
+// Both a and b are concat inputs. Fusing would redundantly recompute a
+// since a can't be replaced with a slice (interdependency). Skip the group.
+TEST_CASE(simplify_concat_multi_use_dependency)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 4, 2, 2}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto a    = m1.add_instruction(migraphx::make_op("relu"), x);
+        auto cat1 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a);
+        auto b    = m1.add_instruction(migraphx::make_op("sqrt"), cat1); // shape {1, 8, 2, 2}
+        auto cat2 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a, b);
+        m1.add_return({cat2});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+
+    // Module unchanged — fusion skipped due to interdependency
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Multi-use input has an output (neg) before the concat in instruction
+// order, but that output is independent of the other group members.
+// The pass should move neg after the fused result and replace with a slice.
+TEST_CASE(simplify_concat_multi_use_move)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", s);
+        auto b   = m1.add_parameter("b", s);
+        auto ra  = m1.add_instruction(migraphx::make_op("relu"), a);
+        auto neg = m1.add_instruction(migraphx::make_op("neg"), ra); // before rb and concat
+        auto rb  = m1.add_instruction(migraphx::make_op("relu"), b);
+        auto cat = m1.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ra, rb);
+        m1.add_return({cat, neg});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a        = m2.add_parameter("a", s);
+        auto b        = m2.add_parameter("b", s);
+        auto cat_ab   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), a, b);
+        auto fused    = m2.add_instruction(migraphx::make_op("relu"), cat_ab);
+        auto slice_ra = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), fused);
+        auto neg = m2.add_instruction(migraphx::make_op("neg"), slice_ra);
+        m2.add_return({fused, neg});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Cascading DenseNet pattern: x -> a -> cat1 -> b -> cat2 -> c -> cat3.
+// Each concat reuses earlier results. Verify no invalid module is produced.
+TEST_CASE(simplify_concat_densenet_cascade)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {1, 4, 2, 2}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto a    = m1.add_instruction(migraphx::make_op("relu"), x);
+        auto cat1 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a);
+        auto b    = m1.add_instruction(migraphx::make_op("relu"), cat1);
+        auto cat2 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a, b);
+        auto c    = m1.add_instruction(migraphx::make_op("relu"), cat2);
+        auto cat3 = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, a, b, c);
+        m1.add_return({cat3});
+    }
+    // Verify the pass does not crash and produces a valid module.
+    // The exact optimization depends on which groups form and which slices
+    // are safe, so just check the module is valid by running the pass.
+    run_pass(m1);
+
+    EXPECT(m1.validate() == m1.end());
+}
+
 TEST_CASE(concat_convert_fusion)
 {
     auto s = migraphx::shape{migraphx::shape::float_type, {64}};
@@ -4859,6 +5032,63 @@ TEST_CASE(conv_concat_group)
         m2.add_instruction(migraphx::make_op("exp"), conv);
     }
     run_pass(m1);
+
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// conv_a(X) and conv_b(concat(X, extra)) can be horizontally fused:
+// fused = conv(X, concat(w_a, slice(w_b, prefix)))
+// conv_b = slice(fused, b_part) + conv(extra, slice(w_b, suffix))
+TEST_CASE(conv_horizontal_fuse)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 8, 4, 4}};
+    migraphx::shape w1s{migraphx::shape::float_type, {4, 8, 3, 3}};
+    migraphx::shape w2s{migraphx::shape::float_type, {4, 12, 3, 3}};
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", xs);
+        auto w1 = m1.add_literal(migraphx::generate_literal(w1s, 1));
+        auto w2 = m1.add_literal(migraphx::generate_literal(w2s, 2));
+        auto conv1 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, w1);
+        auto act1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
+        auto cat  = m1.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x, act1);
+        auto conv2 =
+            m1.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), cat, w2);
+        m1.add_return({conv2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", xs);
+        auto w1 = m2.add_literal(migraphx::generate_literal(w1s, 1));
+        auto w2 = m2.add_literal(migraphx::generate_literal(w2s, 2));
+        // conv2's weights are split along the input-channel axis: the prefix (the
+        // channels that consume x) is concatenated with conv1's weights so both
+        // convolutions run as a single fused convolution, while the suffix (the
+        // channels that consume act1) stays as a separate convolution.
+        auto w2_prefix = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {8}}}), w2);
+        auto wcat   = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), w1, w2_prefix);
+        auto wcat_c = m2.add_instruction(migraphx::make_op("contiguous"), wcat);
+        auto fused_conv =
+            m2.add_instruction(migraphx::make_op("convolution", {{"padding", {1, 1}}}), x, wcat_c);
+        auto conv1_out = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}),
+            fused_conv);
+        auto conv2_prefix = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}),
+            fused_conv);
+        auto act1      = m2.add_instruction(migraphx::make_op("relu"), conv1_out);
+        auto w2_suffix = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {8}}, {"ends", {12}}}), w2);
+        auto w2_suffix_c  = m2.add_instruction(migraphx::make_op("contiguous"), w2_suffix);
+        auto conv2_suffix = m2.add_instruction(
+            migraphx::make_op("convolution", {{"padding", {1, 1}}}), act1, w2_suffix_c);
+        auto sum = m2.add_instruction(migraphx::make_op("add"), conv2_prefix, conv2_suffix);
+        m2.add_return({sum});
+    }
 
     EXPECT(m1.sort() == m2.sort());
 }

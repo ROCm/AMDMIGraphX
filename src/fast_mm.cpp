@@ -27,9 +27,13 @@
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/shape_for_each.hpp>
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <functional>
 #include <numeric>
 #include <utility>
@@ -118,10 +122,71 @@ instruction_ref split_input(module& m, instruction_ref pos, instruction_ref x, s
     return m.insert_instruction(pos, make_op("concat", {{"axis", axis}}), x_hi, x_hi, x_lo);
 }
 
+// Largest L2 norm, over output rows, of a constant operand's weights along its
+// contraction axes. An output element is a dot of one input vector with one such row,
+// so this bounds how much the activation's fp16 rounding can accumulate into a single
+// output element.
+double max_row_l2(const argument& w, const std::vector<std::size_t>& contraction_axes)
+{
+    const auto& s    = w.get_shape();
+    const auto& lens = s.lens();
+    std::vector<std::size_t> row_lens;
+    for(auto i : range(lens.size()))
+    {
+        if(not contains(contraction_axes, i))
+            row_lens.push_back(lens[i]);
+    }
+    if(row_lens.empty())
+        row_lens.push_back(1);
+    shape row_shape{shape::float_type, row_lens};
+    std::vector<double> sum_sq(row_shape.elements(), 0.0);
+    w.visit([&](auto t) {
+        shape_for_each(s, [&](const auto& idx) {
+            std::vector<std::size_t> row_idx;
+            for(auto i : range(idx.size()))
+            {
+                if(not contains(contraction_axes, i))
+                    row_idx.push_back(idx[i]);
+            }
+            double v = t(idx.begin(), idx.end());
+            sum_sq[row_shape.index(row_idx)] += v * v;
+        });
+    });
+    return std::sqrt(*std::max_element(sum_sq.begin(), sum_sq.end()));
+}
+
+// Estimate the worst-case 2-product error: the activation stays at plain fp16, so an
+// output element's absolute error is ~ fp16_unit_roundoff * input_bound * max_row||w||_2.
+double estimate_two_product_error(instruction_ref w,
+                                  const std::vector<std::size_t>& contraction_axes,
+                                  double input_bound)
+{
+    constexpr double fp16_unit_roundoff = 0x1p-11; // half mantissa: 2^-11
+    return fp16_unit_roundoff * input_bound * max_row_l2(w->eval(), contraction_axes);
+}
+
+// Decide the emulation scheme for one op from its estimated 2-product error. Returns
+// whether to rewrite at all (false keeps the op in fp32) and, if so, whether to use the
+// 3-product scheme. Ops below the threshold use 2-product; precision-sensitive ones use
+// 3-product when enabled, otherwise are left in fp32.
+struct scheme
+{
+    bool rewrite;
+    bool three_product;
+};
+scheme select_scheme(double two_product_error, double error_threshold, bool three_product)
+{
+    if(two_product_error <= error_threshold)
+        return {true, false};
+    return {three_product, three_product};
+}
+
 void process_convolution(module& m,
                          instruction_ref ins,
                          std::size_t skip_small_k,
-                         bool three_product)
+                         bool three_product,
+                         double input_bound,
+                         double error_threshold)
 {
     auto inputs = ins->inputs();
     auto x      = inputs[0];
@@ -144,11 +209,21 @@ void process_convolution(module& m,
     if(reduction < skip_small_k)
         return;
 
+    // The convolution contracts over the input-channel and kernel axes (everything but
+    // the output-channel axis 0). Pick the scheme from the estimated 2-product error.
+    std::vector<std::size_t> contraction_axes(w_shape.lens().size() - 1);
+    std::iota(contraction_axes.begin(), contraction_axes.end(), 1);
+    auto s = select_scheme(estimate_two_product_error(w, contraction_axes, input_bound),
+                           error_threshold,
+                           three_product);
+    if(not s.rewrite)
+        return;
+
     // Split the constant weights and duplicate the input along the input-channel
     // axis (axis 1), the convolution's contraction axis. The 3-product scheme also
     // splits the input into hi/lo halves to recover its dropped mantissa bits.
-    auto w_concat  = split_fp16(m, ins, w, 1, three_product);
-    auto x_doubled = three_product ? split_input(m, ins, x, 1) : duplicate_axis(m, ins, x, 1);
+    auto w_concat  = split_fp16(m, ins, w, 1, s.three_product);
+    auto x_doubled = s.three_product ? split_input(m, ins, x, 1) : duplicate_axis(m, ins, x, 1);
 
     // quant_convolution takes the fp16 operands and accumulates directly into the
     // fp32 output, so no trailing convert is needed.
@@ -158,7 +233,12 @@ void process_convolution(module& m,
     m.replace_instruction(ins, quant_conv);
 }
 
-void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k, bool three_product)
+void process_dot(module& m,
+                 instruction_ref ins,
+                 std::size_t skip_small_k,
+                 bool three_product,
+                 double input_bound,
+                 double error_threshold)
 {
     auto inputs           = ins->inputs();
     auto a                = inputs[0];
@@ -175,6 +255,15 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k, bool 
     if(k < skip_small_k)
         return;
 
+    // Pick the scheme from the 2-product error of whichever operand is constant; the
+    // constant contracts over its K axis (last for A, second-to-last for B).
+    auto w        = b_can_eval ? b : a;
+    auto contract = b_can_eval ? rank - 2 : rank - 1;
+    auto s        = select_scheme(
+        estimate_two_product_error(w, {contract}, input_bound), error_threshold, three_product);
+    if(not s.rewrite)
+        return;
+
     // Split whichever operand is constant and duplicate the other along its
     // matching contraction axis so the contraction computes A*B_hi + A*B_lo
     // (or A_hi*B + A_lo*B), recovering the constant's dropped mantissa bits. The
@@ -183,15 +272,15 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k, bool 
     instruction_ref new_b;
     if(b_can_eval)
     {
-        new_b = split_fp16(m, ins, b, rank - 2, three_product);
-        new_a =
-            three_product ? split_input(m, ins, a, rank - 1) : duplicate_axis(m, ins, a, rank - 1);
+        new_b = split_fp16(m, ins, b, rank - 2, s.three_product);
+        new_a = s.three_product ? split_input(m, ins, a, rank - 1)
+                                : duplicate_axis(m, ins, a, rank - 1);
     }
     else
     {
-        new_a = split_fp16(m, ins, a, rank - 1, three_product);
-        new_b =
-            three_product ? split_input(m, ins, b, rank - 2) : duplicate_axis(m, ins, b, rank - 2);
+        new_a = split_fp16(m, ins, a, rank - 1, s.three_product);
+        new_b = s.three_product ? split_input(m, ins, b, rank - 2)
+                                : duplicate_axis(m, ins, b, rank - 2);
     }
 
     // quant_dot takes the fp16 operands and accumulates directly into the fp32
@@ -213,9 +302,9 @@ void fast_mm::apply(module& m) const
         if(ins->get_shape().dynamic())
             continue;
         if(ins->name() == "convolution")
-            process_convolution(m, ins, skip_small_k, three_product);
+            process_convolution(m, ins, skip_small_k, three_product, input_bound, error_threshold);
         else if(ins->name() == "dot")
-            process_dot(m, ins, skip_small_k, three_product);
+            process_dot(m, ins, skip_small_k, three_product, input_bound, error_threshold);
     }
 }
 

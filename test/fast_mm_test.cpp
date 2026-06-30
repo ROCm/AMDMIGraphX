@@ -48,7 +48,7 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
         auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
         m1.add_return({conv});
     }
-    run_pass(m1, {.skip_small_k = 0});
+    run_pass(m1, {.skip_small_k = 0, .error_threshold = 0.01});
 
     migraphx::module m2;
     {
@@ -97,7 +97,9 @@ TEST_CASE(fp32_convolution_const_weights_three_product)
         auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
         m1.add_return({conv});
     }
-    run_pass(m1, {.skip_small_k = 0, .three_product = true});
+    // error_threshold = 0 forces every op onto the precision-sensitive path so the
+    // three_product flag drives the scheme (here: 3-product).
+    run_pass(m1, {.skip_small_k = 0, .three_product = true, .error_threshold = 0});
 
     migraphx::module m2;
     {
@@ -133,6 +135,49 @@ TEST_CASE(fp32_convolution_const_weights_three_product)
         auto conv = m2.add_instruction(migraphx::make_op("quant_convolution"), x_side, w_concat);
         m2.add_return({conv});
     }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_convolution_sensitive_kept_in_fp32)
+{
+    // A precision-sensitive op (forced via error_threshold = 0) is left in fp32 when the
+    // three_product flag is not set, rather than falling back to the 2-product scheme.
+    migraphx::shape xs{migraphx::shape::float_type, {1, 3, 8, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+    std::vector<float> w_data(ws.elements(), 0.5f);
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", xs);
+        auto w    = m1.add_literal(migraphx::literal{ws, w_data});
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    auto m2 = m1;
+    run_pass(m1, {.skip_small_k = 0, .three_product = false, .error_threshold = 0});
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_convolution_heuristic_uses_two_product)
+{
+    // With benign weights the estimated 2-product error is below the threshold, so the
+    // op uses 2-product regardless of the three_product flag.
+    migraphx::shape xs{migraphx::shape::float_type, {1, 3, 8, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+    std::vector<float> w_data(ws.elements(), 0.5f);
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", xs);
+        auto w    = m1.add_literal(migraphx::literal{ws, w_data});
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    auto m2 = m1;
+    // Below error_threshold the op is not precision-sensitive, so both flag settings
+    // produce the same 2-product rewrite.
+    run_pass(m1, {.skip_small_k = 0, .three_product = true, .error_threshold = 0.01});
+    run_pass(m2, {.skip_small_k = 0, .three_product = false, .error_threshold = 0.01});
     EXPECT(m1 == m2);
 }
 
@@ -219,7 +264,7 @@ TEST_CASE(fp32_dot_const_b_rewritten)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         m1.add_return({dot});
     }
-    run_pass(m1, {.skip_small_k = 0});
+    run_pass(m1, {.skip_small_k = 0, .error_threshold = 0.01});
 
     migraphx::module m2;
     {
@@ -269,7 +314,7 @@ TEST_CASE(fp32_dot_const_a_rewritten)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         m1.add_return({dot});
     }
-    run_pass(m1, {.skip_small_k = 0});
+    run_pass(m1, {.skip_small_k = 0, .error_threshold = 0.01});
 
     migraphx::module m2;
     {
@@ -319,7 +364,9 @@ TEST_CASE(fp32_dot_const_b_three_product)
         auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
         m1.add_return({dot});
     }
-    run_pass(m1, {.skip_small_k = 0, .three_product = true});
+    // error_threshold = 0 forces every op onto the precision-sensitive path so the
+    // three_product flag drives the scheme (here: 3-product).
+    run_pass(m1, {.skip_small_k = 0, .three_product = true, .error_threshold = 0});
 
     migraphx::module m2;
     {
@@ -371,7 +418,7 @@ TEST_CASE(fp32_dot_param_operands_unchanged)
         m1.add_return({dot});
     }
     auto m2 = m1;
-    run_pass(m1, {.skip_small_k = 0});
+    run_pass(m1, {.skip_small_k = 0, .error_threshold = 0.01});
     EXPECT(m1 == m2);
 }
 

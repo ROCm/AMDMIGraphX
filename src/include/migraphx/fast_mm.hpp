@@ -35,12 +35,19 @@ struct module;
 struct MIGRAPHX_EXPORT fast_mm
 {
     std::size_t skip_small_k = 64;
-    // Selects the emulation scheme. The default 2-product scheme splits only the
-    // constant operand into fp16 hi/lo halves, leaving the non-constant operand at
-    // plain fp16 (~2^-11 relative error). The 3-product scheme also splits the
-    // non-constant operand and adds its cross term, recovering both operands' dropped
-    // mantissa bits (~2^-22 residual) at the cost of a 3x (vs 2x) contraction axis.
+    // A weight-based heuristic decides whether the cheap 2-product scheme (split only the
+    // constant operand, leave the activation at plain fp16) is accurate enough for each
+    // op: the estimated 2-product error is ~ fp16_unit_roundoff * input_bound *
+    // max_row||w||_2. When it stays under error_threshold the op uses 2-product. When it
+    // exceeds the threshold the op is precision-sensitive, and three_product selects what
+    // to do with it: if set, use the 3-product scheme (also split the activation, ~2^-22
+    // residual, at 3x vs 2x the contraction); if not, skip the rewrite and leave the op
+    // in fp32.
     bool three_product = false;
+    // Assumed bound on the magnitude of the (unknown) activation operand.
+    double input_bound = 1.0;
+    // Estimated 2-product error above which an op is treated as precision-sensitive.
+    double error_threshold = 1.3e-3;
     std::string name() const { return "fast_mm"; }
     void apply(module& m) const;
 };

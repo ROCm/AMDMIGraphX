@@ -1194,8 +1194,8 @@ TEST_CASE(hoist_and_dot_fusion_end_to_end)
         {
             auto x =
                 m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 3}});
-            auto w =
-                m->add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 5}}, i));
+            auto w = m->add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {3, 5}}, i));
             outs.push_back(m->add_instruction(migraphx::make_op("dot"), x, w));
         }
 

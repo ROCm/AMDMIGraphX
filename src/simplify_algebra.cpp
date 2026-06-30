@@ -1487,7 +1487,9 @@ struct find_splits
 
         auto ip        = std::next(ins);
         auto big_slice = m.insert_instruction(
-            ip, make_op("slice", {{"axes", {bs.axis}}, {"starts", {bs.lo}}, {"ends", {bs.hi}}}), ins);
+            ip,
+            make_op("slice", {{"axes", {bs.axis}}, {"starts", {bs.lo}}, {"ends", {bs.hi}}}),
+            ins);
 
         bool changed = false;
         for(const auto& group : groups)
@@ -1499,8 +1501,8 @@ struct find_splits
             if(start->inputs().size() != 1 or not is_fusable(start, bs.slices.front()))
                 continue;
 
-            auto c =
-                m.insert_instruction(ip, start->get_operator(), {big_slice}, start->module_inputs());
+            auto c = m.insert_instruction(
+                ip, start->get_operator(), {big_slice}, start->module_inputs());
 
             for(auto i : group)
             {

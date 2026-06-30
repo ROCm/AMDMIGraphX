@@ -35,6 +35,12 @@ struct module;
 struct MIGRAPHX_EXPORT fast_mm
 {
     std::size_t skip_small_k = 64;
+    // Selects the emulation scheme. The default 2-product scheme splits only the
+    // constant operand into fp16 hi/lo halves, leaving the non-constant operand at
+    // plain fp16 (~2^-11 relative error). The 3-product scheme also splits the
+    // non-constant operand and adds its cross term, recovering both operands' dropped
+    // mantissa bits (~2^-22 residual) at the cost of a 3x (vs 2x) contraction axis.
+    bool three_product = false;
     std::string name() const { return "fast_mm"; }
     void apply(module& m) const;
 };

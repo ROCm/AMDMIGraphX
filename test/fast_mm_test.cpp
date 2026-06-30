@@ -57,8 +57,9 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
 
         auto w_hi_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
+        auto w_hi_b = m2.add_instruction(migraphx::make_op("identity"), w_hi_h);
         auto w_hi_f = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), w_hi_h);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), w_hi_b);
         auto w_lo_f = m2.add_instruction(migraphx::make_op("sub"), w, w_hi_f);
         auto w_lo_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w_lo_f);
@@ -77,6 +78,57 @@ TEST_CASE(fp32_convolution_const_weights_rewritten)
 
         // quant_convolution consumes the fp16 operands and produces the fp32 output directly.
         auto conv = m2.add_instruction(migraphx::make_op("quant_convolution"), x_doubled, w_concat);
+        m2.add_return({conv});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_convolution_const_weights_three_product)
+{
+    migraphx::shape xs{migraphx::shape::float_type, {1, 3, 8, 8}};
+    migraphx::shape ws{migraphx::shape::float_type, {4, 3, 3, 3}};
+    std::vector<float> w_data(ws.elements(), 0.5f);
+
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", xs);
+        auto w    = m1.add_literal(migraphx::literal{ws, w_data});
+        auto conv = m1.add_instruction(migraphx::make_op("convolution"), x, w);
+        m1.add_return({conv});
+    }
+    run_pass(m1, {.skip_small_k = 0, .three_product = true});
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", xs);
+        auto w = m2.add_literal(migraphx::literal{ws, w_data});
+
+        // Split the constant weights into hi/lo halves laid out as [hi, lo, hi].
+        auto w_hi_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w);
+        auto w_hi_b = m2.add_instruction(migraphx::make_op("identity"), w_hi_h);
+        auto w_hi_f = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), w_hi_b);
+        auto w_lo_f = m2.add_instruction(migraphx::make_op("sub"), w, w_hi_f);
+        auto w_lo_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), w_lo_f);
+        auto w_concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), w_hi_h, w_lo_h, w_hi_h);
+
+        // Split the input into hi/lo halves laid out as [hi, hi, lo].
+        auto x_hi = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
+        auto x_hi_b = m2.add_instruction(migraphx::make_op("identity"), x_hi);
+        auto x_hi_f = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), x_hi_b);
+        auto x_lo_f = m2.add_instruction(migraphx::make_op("sub"), x, x_hi_f);
+        auto x_lo   = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x_lo_f);
+        auto x_side =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), x_hi, x_hi, x_lo);
+
+        // quant_convolution consumes the fp16 operands and produces the fp32 output directly.
+        auto conv = m2.add_instruction(migraphx::make_op("quant_convolution"), x_side, w_concat);
         m2.add_return({conv});
     }
     EXPECT(m1 == m2);
@@ -175,8 +227,9 @@ TEST_CASE(fp32_dot_const_b_rewritten)
         // Split the constant B along its contraction axis (axis 0).
         auto b_hi_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b);
+        auto b_hi_b = m2.add_instruction(migraphx::make_op("identity"), b_hi_h);
         auto b_hi_f = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), b_hi_h);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), b_hi_b);
         auto b_lo_f = m2.add_instruction(migraphx::make_op("sub"), b, b_hi_f);
         auto b_lo_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b_lo_f);
@@ -223,8 +276,9 @@ TEST_CASE(fp32_dot_const_a_rewritten)
         // Split the constant A along its contraction axis (axis 1).
         auto a_hi_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a);
+        auto a_hi_b = m2.add_instruction(migraphx::make_op("identity"), a_hi_h);
         auto a_hi_f = m2.add_instruction(
-            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), a_hi_h);
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), a_hi_b);
         auto a_lo_f = m2.add_instruction(migraphx::make_op("sub"), a, a_hi_f);
         auto a_lo_h = m2.add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a_lo_f);
@@ -243,6 +297,57 @@ TEST_CASE(fp32_dot_const_a_rewritten)
 
         // quant_dot consumes the fp16 operands and produces the fp32 output directly.
         auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), a_concat, b_doubled);
+        m2.add_return({dot});
+    }
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_dot_const_b_three_product)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape bs{migraphx::shape::float_type, {8, 4}};
+    std::vector<float> b_data(bs.elements(), 0.5f);
+
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", as);
+        auto b   = m1.add_literal(migraphx::literal{bs, b_data});
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), a, b);
+        m1.add_return({dot});
+    }
+    run_pass(m1, {.skip_small_k = 0, .three_product = true});
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("a", as);
+        auto b = m2.add_literal(migraphx::literal{bs, b_data});
+
+        // Split the constant B along its contraction axis (axis 0) as [hi, lo, hi].
+        auto b_hi_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b);
+        auto b_hi_b = m2.add_instruction(migraphx::make_op("identity"), b_hi_h);
+        auto b_hi_f = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), b_hi_b);
+        auto b_lo_f = m2.add_instruction(migraphx::make_op("sub"), b, b_hi_f);
+        auto b_lo_h = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), b_lo_f);
+        auto b_concat =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), b_hi_h, b_lo_h, b_hi_h);
+
+        // Split A along its contraction axis (axis 1) as [hi, hi, lo].
+        auto a_hi = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a);
+        auto a_hi_b = m2.add_instruction(migraphx::make_op("identity"), a_hi);
+        auto a_hi_f = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), a_hi_b);
+        auto a_lo_f = m2.add_instruction(migraphx::make_op("sub"), a, a_hi_f);
+        auto a_lo   = m2.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), a_lo_f);
+        auto a_side =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 1}}), a_hi, a_hi, a_lo);
+
+        // quant_dot consumes the fp16 operands and produces the fp32 output directly.
+        auto dot = m2.add_instruction(migraphx::make_op("quant_dot"), a_side, b_concat);
         m2.add_return({dot});
     }
     EXPECT(m1 == m2);

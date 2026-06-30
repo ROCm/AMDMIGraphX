@@ -270,4 +270,26 @@ TEST_CASE(propagate_no_crossover_through_bool_int_chain)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// An identity acts as a precision barrier: precision must not propagate across it, so a
+// deliberate fp32 -> fp16 -> fp32 round-trip guarded by an identity (as fast_mm emits) is
+// left intact instead of being upgraded away into a no-op.
+TEST_CASE(no_propagate_across_identity)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module m1;
+    {
+        auto x    = m1.add_parameter("x", s);
+        auto x_hi = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), x);
+        auto id     = m1.add_instruction(migraphx::make_op("identity"), x_hi);
+        auto x_hi_f = m1.add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), id);
+        auto sub = m1.add_instruction(migraphx::make_op("sub"), x, x_hi_f);
+        m1.add_return({sub});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

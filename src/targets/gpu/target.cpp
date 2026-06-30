@@ -165,7 +165,7 @@ struct pipeline_factory
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},
-            enable_pass(missing_fp32_mma and options.fast_math, fast_mm{}),
+            enable_pass(missing_fp32_mma and options.fast_math, fast_mm{.three_product = true}),
             dead_code_elimination{},
             prefuse_ops{get_context()},
             dead_code_elimination{},
@@ -190,6 +190,11 @@ struct pipeline_factory
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
+            // Strip the identity barriers fast_mm inserts to protect its fp16 round-trip
+            // converts from eliminate_convert. The convert passes have all run by now, so
+            // the converts are free to fuse into a single pointwise kernel.
+            eliminate_identity{},
+            dead_code_elimination{},
             fuse_mlss{get_context()},
             fuse_pointwise_reduce{},
             dead_code_elimination{},

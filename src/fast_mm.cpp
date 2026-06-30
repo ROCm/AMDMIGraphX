@@ -32,6 +32,7 @@
 #include <cassert>
 #include <functional>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 namespace migraphx {
@@ -39,20 +40,43 @@ inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
 
+// Round `x` to fp16 (x_hi) and back to fp32 (x_hi_f), returning both. An identity is
+// inserted between the two converts so eliminate_convert's find_nested_convert does not
+// fold the lossy fp32 -> fp16 -> fp32 round-trip back to x (which would zero out the
+// residual the split below relies on). Unlike a no-op such as contiguous, the identity
+// is not cleaned up by simplify_reshapes, so it survives the optimize_module that runs
+// before fusion; fast_mm runs after propagate_precision so that pass (which would see
+// through the pointwise identity) never reaches the round-trip. The identity folds away
+// with the rest of a constant operand and is stripped before fusion for the non-constant
+// one (eliminate_identity).
+std::pair<instruction_ref, instruction_ref>
+fp16_round_trip(module& m, instruction_ref pos, instruction_ref x)
+{
+    auto x_hi =
+        m.insert_instruction(pos, make_op("convert", {{"target_type", shape::half_type}}), x);
+    auto x_hi_barrier = m.insert_instruction(pos, make_op("identity"), x_hi);
+    auto x_hi_f       = m.insert_instruction(
+        pos, make_op("convert", {{"target_type", shape::float_type}}), x_hi_barrier);
+    return {x_hi, x_hi_f};
+}
+
 // Split a constant tensor C into C = C_hi + C_lo where C_hi = fp16-rounded C and
-// C_lo = fp16-rounded residual, returning concat(C_hi, C_lo) along `axis` as fp16.
+// C_lo = fp16-rounded residual, returning the fp16 halves concatenated along `axis`:
+// concat(C_hi, C_lo) for the 2-product scheme, or concat(C_hi, C_lo, C_hi) for the
+// 3-product scheme (the trailing C_hi pairs with the other operand's low half).
 // All folds at compile time since C is constant. Pairing this against the other
 // operand duplicated along its matching contraction axis recovers, in the quant
 // op's contraction, the mantissa bits that a plain fp16 cast of C would have dropped.
-instruction_ref split_fp16(module& m, instruction_ref pos, instruction_ref c, std::size_t axis)
+instruction_ref
+split_fp16(module& m, instruction_ref pos, instruction_ref c, std::size_t axis, bool three_product)
 {
-    auto c_hi_h =
-        m.insert_instruction(pos, make_op("convert", {{"target_type", shape::half_type}}), c);
-    auto c_hi_f =
-        m.insert_instruction(pos, make_op("convert", {{"target_type", shape::float_type}}), c_hi_h);
-    auto c_lo_f = m.insert_instruction(pos, make_op("sub"), c, c_hi_f);
+    auto [c_hi_h, c_hi_f] = fp16_round_trip(m, pos, c);
+    auto c_lo_f           = m.insert_instruction(pos, make_op("sub"), c, c_hi_f);
     auto c_lo_h =
         m.insert_instruction(pos, make_op("convert", {{"target_type", shape::half_type}}), c_lo_f);
+    if(three_product)
+        return m.insert_instruction(
+            pos, make_op("concat", {{"axis", axis}}), c_hi_h, c_lo_h, c_hi_h);
     return m.insert_instruction(pos, make_op("concat", {{"axis", axis}}), c_hi_h, c_lo_h);
 }
 
@@ -80,7 +104,26 @@ instruction_ref duplicate_axis(module& m, instruction_ref pos, instruction_ref x
     return m.insert_instruction(pos, make_op("reshape", {{"dims", reshape_dims}}), x_bc);
 }
 
-void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_k)
+// 3-product counterpart of duplicate_axis for the non-constant operand X: split X
+// into fp16 hi/lo halves (X_hi = fp16(X), X_lo = fp16(X - fp32(X_hi))) and lay them
+// out along the contraction `axis` as concat(X_hi, X_hi, X_lo). Paired against a
+// constant split as concat(C_hi, C_lo, C_hi), the contraction computes
+// X_hi*C_hi + X_hi*C_lo + X_lo*C_hi, recovering both operands' dropped mantissa bits
+// (the omitted X_lo*C_lo term is ~2^-22 of the result). Unlike split_fp16 this runs
+// at eval time since X is not constant.
+instruction_ref split_input(module& m, instruction_ref pos, instruction_ref x, std::size_t axis)
+{
+    auto [x_hi, x_hi_f] = fp16_round_trip(m, pos, x);
+    auto x_lo_f         = m.insert_instruction(pos, make_op("sub"), x, x_hi_f);
+    auto x_lo =
+        m.insert_instruction(pos, make_op("convert", {{"target_type", shape::half_type}}), x_lo_f);
+    return m.insert_instruction(pos, make_op("concat", {{"axis", axis}}), x_hi, x_hi, x_lo);
+}
+
+void process_convolution(module& m,
+                         instruction_ref ins,
+                         std::size_t skip_small_k,
+                         bool three_product)
 {
     auto inputs = ins->inputs();
     auto x      = inputs[0];
@@ -104,9 +147,10 @@ void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_
         return;
 
     // Split the constant weights and duplicate the input along the input-channel
-    // axis (axis 1), the convolution's contraction axis.
-    auto w_concat  = split_fp16(m, ins, w, 1);
-    auto x_doubled = duplicate_axis(m, ins, x, 1);
+    // axis (axis 1), the convolution's contraction axis. The 3-product scheme also
+    // splits the input into hi/lo halves to recover its dropped mantissa bits.
+    auto w_concat  = split_fp16(m, ins, w, 1, three_product);
+    auto x_doubled = three_product ? split_input(m, ins, x, 1) : duplicate_axis(m, ins, x, 1);
 
     // quant_convolution takes the fp16 operands and accumulates directly into the
     // fp32 output, so no trailing convert is needed.
@@ -116,7 +160,7 @@ void process_convolution(module& m, instruction_ref ins, std::size_t skip_small_
     m.replace_instruction(ins, quant_conv);
 }
 
-void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
+void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k, bool three_product)
 {
     auto inputs           = ins->inputs();
     auto a                = inputs[0];
@@ -135,18 +179,21 @@ void process_dot(module& m, instruction_ref ins, std::size_t skip_small_k)
 
     // Split whichever operand is constant and duplicate the other along its
     // matching contraction axis so the contraction computes A*B_hi + A*B_lo
-    // (or A_hi*B + A_lo*B), recovering the constant's dropped mantissa bits.
+    // (or A_hi*B + A_lo*B), recovering the constant's dropped mantissa bits. The
+    // 3-product scheme also splits the non-constant operand to recover its bits.
     instruction_ref new_a;
     instruction_ref new_b;
     if(b_can_eval)
     {
-        new_b = split_fp16(m, ins, b, rank - 2);
-        new_a = duplicate_axis(m, ins, a, rank - 1);
+        new_b = split_fp16(m, ins, b, rank - 2, three_product);
+        new_a =
+            three_product ? split_input(m, ins, a, rank - 1) : duplicate_axis(m, ins, a, rank - 1);
     }
     else
     {
-        new_a = split_fp16(m, ins, a, rank - 1);
-        new_b = duplicate_axis(m, ins, b, rank - 2);
+        new_a = split_fp16(m, ins, a, rank - 1, three_product);
+        new_b =
+            three_product ? split_input(m, ins, b, rank - 2) : duplicate_axis(m, ins, b, rank - 2);
     }
 
     // quant_dot takes the fp16 operands and accumulates directly into the fp32
@@ -168,9 +215,9 @@ void fast_mm::apply(module& m) const
         if(ins->get_shape().dynamic())
             continue;
         if(ins->name() == "convolution")
-            process_convolution(m, ins, skip_small_k);
+            process_convolution(m, ins, skip_small_k, three_product);
         else if(ins->name() == "dot")
-            process_dot(m, ins, skip_small_k);
+            process_dot(m, ins, skip_small_k, three_product);
     }
 }
 

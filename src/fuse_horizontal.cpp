@@ -362,9 +362,23 @@ struct gather_horizontal_fusion
 // batched dot output is sliced and squeezed back into the individual results.
 // ---------------------------------------------------------------------------
 
+// A dot whose sole consumer is a pointwise op gets that op folded into its GEMM
+// epilogue by fuse_mlir/fuse_ops (e.g. mlir_dot_add, mlir_dot_add_sigmoid_mul).
+// Horizontally batching such a dot inserts a slice+squeeze between the batched
+// dot and the pointwise, which is a fusion boundary, so the epilogue would fall
+// out as a separate kernel.  Skip these to avoid regressing epilogue fusion.
+static bool feeds_fusable_pointwise(instruction_ref ins)
+{
+    if(ins->outputs().size() != 1)
+        return false;
+    return ins->outputs().front()->get_operator().attributes().contains("pointwise");
+}
+
 struct dot_horizontal_fusion
 {
-    std::size_t min_group_size() const { return 2; }
+    // Batching adds N unsqueeze + 1 concat + N slice + N squeeze of glue, so only
+    // pay it for groups large enough to be worthwhile.
+    std::size_t min_group_size() const { return 3; }
 
     bool is_candidate(instruction_ref ins) const
     {
@@ -373,6 +387,9 @@ struct dot_horizontal_fusion
         if(ins->get_shape().dynamic())
             return false;
         if(ins->get_shape().ndim() < 2)
+            return false;
+        // Don't break an existing GEMM-epilogue fusion (see helper).
+        if(feeds_fusable_pointwise(ins))
             return false;
         // Only fold when the weight is a compile-time constant so the batched
         // weight tensor can be materialized.

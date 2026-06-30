@@ -38,6 +38,7 @@
 #include <migraphx/builtin.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/fileutils.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>

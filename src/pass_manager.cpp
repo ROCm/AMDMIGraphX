@@ -31,6 +31,7 @@
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/fileutils.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/logger.hpp>
 #include <iostream>

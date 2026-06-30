@@ -36,6 +36,7 @@ MIGRAPHX_EXPORT fs::path make_shared_object_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path make_object_file_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path make_static_library_filename(std::string_view name);
 MIGRAPHX_EXPORT fs::path append_extension(const fs::path& path, std::string_view ext);
+MIGRAPHX_EXPORT std::string sanitize_filename(std::string s);
 
 inline std::string operator+(std::string l, const fs::path& r) { return std::move(l) + r.string(); }
 

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,9 +25,6 @@
 #define MIGRAPHX_GUARD_RTGLIB_FILESYSTEM_HPP
 
 #include <migraphx/config.hpp>
-#include <algorithm>
-#include <string>
-#include <string_view>
 
 #if defined(CPPCHECK)
 #define MIGRAPHX_HAS_FILESYSTEM 1
@@ -75,15 +72,6 @@ namespace fs = ::std::filesystem;
 #elif MIGRAPHX_HAS_FILESYSTEM_TS
 namespace fs = ::std::experimental::filesystem;
 #endif
-
-// Replace invalid characters for Windows with '_'.
-inline std::string sanitize_filename(std::string s)
-{
-    static constexpr std::string_view invalid = "<>:\"/\\|?*";
-    std::replace_if(
-        s.begin(), s.end(), [](char c) { return invalid.find(c) != std::string_view::npos; }, '_');
-    return s;
-}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

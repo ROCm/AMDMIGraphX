@@ -1362,6 +1362,53 @@ TEST_CASE(split_pointwise_slices)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(split_pointwise_slices_dynamic)
+{
+    // Dynamic slices (the 2-4 input form) must not be split through, since the
+    // optimization only applies to the single-input (static) slice form. The add
+    // and each neg are still fused, but the slices stay in between.
+    migraphx::shape s{migraphx::shape::float_type, {2, 6}};
+    migraphx::shape si{migraphx::shape::int64_type, {1}};
+    migraphx::program p1;
+    {
+        auto* mm     = p1.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", s);
+        auto starts0 = mm->add_parameter("starts0", si);
+        auto ends0   = mm->add_parameter("ends0", si);
+        auto starts1 = mm->add_parameter("starts1", si);
+        auto ends1   = mm->add_parameter("ends1", si);
+        auto add1    = mm->add_instruction(migraphx::make_op("add"), x, y);
+        auto s1 =
+            mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}}), add1, starts0, ends0);
+        auto s2 =
+            mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}}), add1, starts1, ends1);
+        auto neg1 = mm->add_instruction(migraphx::make_op("neg"), s1);
+        auto neg2 = mm->add_instruction(migraphx::make_op("neg"), s2);
+        mm->add_return({neg1, neg2});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm     = p2.get_main_module();
+        auto x       = mm->add_parameter("x", s);
+        auto y       = mm->add_parameter("y", s);
+        auto starts0 = mm->add_parameter("starts0", si);
+        auto ends0   = mm->add_parameter("ends0", si);
+        auto starts1 = mm->add_parameter("starts1", si);
+        auto ends1   = mm->add_parameter("ends1", si);
+        auto add1    = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
+        auto s1 =
+            mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}}), add1, starts0, ends0);
+        auto s2 =
+            mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}}), add1, starts1, ends1);
+        auto neg1 = add_pointwise(p2, "main:pointwise1", {s1}, single_pointwise("neg"));
+        auto neg2 = add_pointwise(p2, "main:pointwise2", {s2}, single_pointwise("neg"));
+        mm->add_return({neg1, neg2});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 TEST_CASE(split_pointwise_slices_3way)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 9}};

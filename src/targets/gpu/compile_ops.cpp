@@ -516,9 +516,8 @@ struct compile_plan
 
             mm->add_instruction(builtin::comment{comment_text}, {});
             auto problem_hash = std::hash<std::string>{}(to_string(config->problem));
-            // Sanitize the op name for use in a filename. Replace "::" with "__".
-            auto op_filename = replace_string(preop.name(), "::", "__");
-            auto mxr_file = mxr_dir / (op_filename + "_" + std::to_string(i) + "_" +
+            auto op_filename  = sanitize_filename(preop.name());
+            auto mxr_file     = mxr_dir / (op_filename + "_" + std::to_string(i) + "_" +
                                        std::to_string(problem_hash) + ".mxr");
             log::info() << "Saving benchmark binary: " << mxr_file;
             save(bench_prog, mxr_file.string());

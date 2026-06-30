@@ -21,28 +21,36 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
 
-#include <migraphx/gpu/export.h>
-#include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
-#include <string>
+#include "verify_program.hpp"
+#include <migraphx/program.hpp>
+#include <migraphx/generate.hpp>
+#include <migraphx/serialize.hpp>
 
-namespace migraphx {
-inline namespace MIGRAPHX_INLINE_NS {
-namespace gpu {
+#include <migraphx/make_op.hpp>
 
-/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present.
-MIGRAPHX_GPU_EXPORT hipDeviceProp_t
-make_cross_compile_device_props(const std::string& arch_name,
-                                std::size_t cu_count,
-                                std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024);
+// These tests verify the deref operation by using addressof to generate
+// valid pointers at runtime, then dereferencing them back to the original values.
+// This pattern works across all targets (ref, CPU, GPU) because the pointers
+// are generated on each target's memory space.
 
-} // namespace gpu
-} // namespace MIGRAPHX_INLINE_NS
-} // namespace migraphx
+template <migraphx::shape::type_t DType>
+struct test_deref : verify_program<test_deref<DType>>
+{
+    migraphx::program create_program() const
+    {
+        migraphx::program p;
+        auto* mm = p.get_main_module();
 
-#endif
+        migraphx::shape s{DType, {2, 4}};
+        auto param = mm->add_parameter("x", s);
+        auto addrs = mm->add_instruction(migraphx::make_op("addressof"), param);
+        mm->add_instruction(
+            migraphx::make_op("deref", {{"target_type", migraphx::to_value(DType)}}), addrs);
+        return p;
+    }
+};
+
+template struct test_deref<migraphx::shape::float_type>;
+template struct test_deref<migraphx::shape::half_type>;
+template struct test_deref<migraphx::shape::double_type>;

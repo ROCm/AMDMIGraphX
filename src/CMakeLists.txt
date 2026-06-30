@@ -183,6 +183,7 @@ register_migraphx_ops(
     acosh
     acos
     add
+    addressof
     allocate
     argmax
     argmin
@@ -208,6 +209,7 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    deref
     dimensions_of
     div
     dot

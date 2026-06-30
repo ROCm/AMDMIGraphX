@@ -41,6 +41,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace views {
 
+// zip_view is a range adaptor that takes one or more ranges, and produces a
+// view whose ith element is a tuple-like value consisting of the ith
+// elements of all ranges. The size of produced view is the minimum of sizes
+// of all adapted ranges.
 template <class... Ranges>
 struct zip_view : totally_ordered<zip_view<Ranges...>>
 {

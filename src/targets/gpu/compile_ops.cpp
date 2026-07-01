@@ -351,8 +351,10 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or ctx->is_cross_compile() or
-                   solutions.size() == 1)
+                const bool dump_mxr =
+                    not string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}).empty();
+                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
+                   (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);

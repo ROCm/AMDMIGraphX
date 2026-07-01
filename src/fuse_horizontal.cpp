@@ -435,16 +435,117 @@ struct dot_horizontal_fusion
     }
 };
 
+// ---------------------------------------------------------------------------
+// Dot + pointwise-epilogue horizontal fusion
+//
+// Batches structurally-identical dots that share a single primitive pointwise
+// epilogue with a constant other operand (e.g. a bias add: add(dot, bias)).  The
+// epilogue is applied on the *batched* dot before slicing, so fuse_mlir/fuse_ops
+// keep it fused into one GEMM kernel (mlir_dot_add[...]) instead of leaving N
+// standalone pointwise kernels after the unstacking slices.  The candidate is
+// the epilogue op (not the dot), so the framework replaces exactly those ops and
+// the now-unused dots fall away with dead_code_elimination.
+// ---------------------------------------------------------------------------
+
+// Index (0 or 1) of the operand of `ins` that is a fusable constant-weight dot
+// for a bias-style epilogue, or 2 when `ins` is not such an epilogue.  Requires
+// a 2-input primitive pointwise op, exactly one operand a single-output static
+// dot with a constant weight, and the other operand a stackable constant.
+static std::size_t dot_operand_index(instruction_ref ins)
+{
+    if(not ins->get_operator().attributes().contains("pointwise"))
+        return 2;
+    if(not ins->module_inputs().empty() or ins->inputs().size() != 2)
+        return 2;
+    if(ins->get_shape().dynamic())
+        return 2;
+    auto qualifies = [](instruction_ref d) {
+        return d->name() == "dot" and d->outputs().size() == 1 and
+               not d->get_shape().dynamic() and d->get_shape().ndim() >= 2 and
+               d->inputs().at(1)->can_eval();
+    };
+    auto a = ins->inputs().at(0);
+    auto b = ins->inputs().at(1);
+    if(qualifies(a) and b->can_eval())
+        return 0;
+    if(qualifies(b) and a->can_eval())
+        return 1;
+    return 2;
+}
+
+struct dot_pointwise_horizontal_fusion
+{
+    std::size_t min_group_size() const { return 3; }
+
+    bool is_candidate(instruction_ref ins) const { return dot_operand_index(ins) != 2; }
+
+    auto group_key(instruction_ref ins) const
+    {
+        auto di  = dot_operand_index(ins);
+        auto dot = ins->inputs().at(di);
+        // Same epilogue op, same dot side, and identical dot operand shapes so
+        // the stacked epilogue operand and batched dot share a leading axis.
+        return std::make_tuple(ins->get_operator().name(),
+                               di,
+                               dot->inputs().at(0)->get_shape().lens(),
+                               dot->inputs().at(1)->get_shape().lens(),
+                               ins->get_shape().type());
+    }
+
+    std::vector<instruction_ref>
+    fuse(module& m, const std::vector<instruction_ref>& epis, instruction_ref insert_pt) const
+    {
+        auto di = dot_operand_index(epis.front());
+
+        // Stack get(e) of every epilogue along a new leading axis 0.
+        auto stack = [&](auto get) {
+            std::vector<instruction_ref> unsqueezed(epis.size());
+            std::transform(epis.begin(), epis.end(), unsqueezed.begin(), [&](auto e) {
+                return m.insert_instruction(
+                    insert_pt, make_op("unsqueeze", {{"axes", {0}}}), get(e));
+            });
+            return m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), unsqueezed);
+        };
+
+        auto batched_act = stack([&](auto e) { return e->inputs().at(di)->inputs().at(0); });
+        auto batched_wt  = stack([&](auto e) { return e->inputs().at(di)->inputs().at(1); });
+        auto batched_dot = m.insert_instruction(insert_pt, make_op("dot"), batched_act, batched_wt);
+
+        // Stack the constant epilogue operands and apply the epilogue on the
+        // batched dot so it stays fusable, then unstack each result.
+        auto batched_other = stack([&](auto e) { return e->inputs().at(1 - di); });
+        std::vector<instruction_ref> args(2);
+        args[di]       = batched_dot;
+        args[1 - di]   = batched_other;
+        auto batched_epi = m.insert_instruction(insert_pt, epis.front()->get_operator(), args);
+
+        std::vector<instruction_ref> results(epis.size());
+        for(std::size_t i = 0; i < epis.size(); ++i)
+        {
+            auto sliced = m.insert_instruction(
+                insert_pt,
+                make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}),
+                batched_epi);
+            results[i] =
+                m.insert_instruction(insert_pt, make_op("squeeze", {{"axes", {0}}}), sliced);
+        }
+        return results;
+    }
+};
+
 void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
     // Collapse gathers that share the same table first; any sibling gathers left
-    // across *different* tables then fall through to cross-table fusion.  Finally
-    // batch structurally-identical dots into a single GEMM.
+    // across *different* tables then fall through to cross-table fusion.  Next
+    // batch dots that share a stackable pointwise epilogue (keeping the epilogue
+    // fused into the batched GEMM), then batch any remaining structurally
+    // identical dots that have no fusable epilogue.
     fuse_horizontal_ops(m,
                         same_table_gather_horizontal_fusion{},
                         gather_horizontal_fusion{},
+                        dot_pointwise_horizontal_fusion{},
                         dot_horizontal_fusion{});
 }
 

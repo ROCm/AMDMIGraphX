@@ -809,7 +809,9 @@ struct find_kv_cache_attention
         auto greater = match::name("greater")(match::arg(1)(match::any().bind("total_sl")));
         auto conv_greater =
             match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
-        auto bc_greater = match::name("broadcast")(match::arg(0)(conv_greater));
+        auto broadcast_greater = match::name("broadcast")(match::arg(0)(conv_greater));
+        auto multibroadcast_greater = match::name("multibroadcast")(match::arg(0)(broadcast_greater));
+        auto bc_greater = match::any_of(broadcast_greater, multibroadcast_greater);
         auto mask       = match::name("where")(
             match::arg(0)(bc_greater),
             match::arg(2)(match::any_of(local_window_mask, causal_mask, scale, gemm1_maybe_cvt)));
@@ -966,6 +968,7 @@ struct find_kv_cache_attention
                                                 make_op("group", {{"tag", "kv_cache_attention"}}),
                                                 new_inputs,
                                                 {mpm_attn});
+
         mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
     }
 };

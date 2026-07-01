@@ -688,7 +688,11 @@ std::vector<argument> program::eval(const parameter_map& params,
             if(trace_level > 0)
             {
                 ctx.finish();
-                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                auto it = ins_out.find(ins);
+                if(it != ins_out.end())
+                    std::cout << "Run instruction: " << it->second << std::endl;
+                else
+                    std::cout << "Run instruction: " << ins->name() << std::endl;
             }
             timer t{};
             auto result = f();

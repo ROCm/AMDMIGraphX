@@ -65,8 +65,6 @@ struct rotary_embedding : op_builder<rotary_embedding>
                                                              instruction_ref cos_cache,
                                                              instruction_ref sin_cache) const
     {
-        // auto in_lens = in->get_shape().lens();
-
         auto in_shape = in->get_shape();
         auto in_dyn_shape = in_shape.to_dynamic();
         auto in_dyn_dims = in_dyn_shape.dyn_dims();
@@ -191,7 +189,6 @@ struct rotary_embedding : op_builder<rotary_embedding>
                                                 instruction_ref cos,
                                                 instruction_ref sin) const
     {
-        // auto in_lens = in->get_shape().lens();
         auto in_shape = in->get_shape();
         auto in_dyn_shape = in_shape.to_dynamic();
         auto in_dyn_dims = in_dyn_shape.dyn_dims();

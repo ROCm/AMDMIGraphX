@@ -997,7 +997,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             if(k_shape.dyn_dims().size() != 4 or k_shape.dyn_dims()[2].is_fixed())
             {
                 MIGRAPHX_THROW("MultiHeadAttention: dynamic key and value must have the correct shape");
-                //to do: replace error with shape correction
             }
             auto key_out = key;
             auto value_out = value;

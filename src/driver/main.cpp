@@ -44,6 +44,7 @@
 #include <migraphx/convert_to_json.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/json.hpp>
+#include <migraphx/ort_mxr_naming.hpp>
 #include <migraphx/version.h>
 #include <migraphx/env.hpp>
 #include <migraphx/logger.hpp>
@@ -203,6 +204,10 @@ struct loader
     bool use_debug_symbols      = false;
     std::string output_type;
     std::string output;
+    bool ort_hash = false;
+    std::string ort_cache_dir;
+    std::string ort_manifest;
+    std::string ort_prefix;
     std::string default_dyn_dim;
     std::vector<std::string> param_dims;
     std::vector<std::string> dim_params;
@@ -305,6 +310,25 @@ struct loader
            ap.help("Print out program as ONNX protobuf binary viewable in Netron."),
            ap.set_value("netron"));
         ap(output, {"--output", "-o"}, ap.help("Output to file."));
+        ap(ort_hash,
+           {"--ort-hash"},
+           ap.help("Save the compiled program using the ONNXRuntime MIGraphX EP .mxr cache file "
+                   "naming convention so the EP can consume it as a precompiled cache without "
+                   "recompiling on first inference. Requires --ort-manifest or --ort-prefix."),
+           ap.set_value(true));
+        ap(ort_cache_dir,
+           {"--ort-cache-dir"},
+           ap.help("Directory to write the ORT-named .mxr file into (default: current directory). "
+                   "Point the EP's model_cache_dir here."));
+        ap(ort_manifest,
+           {"--ort-manifest"},
+           ap.help("Path to the .ortmanifest.json emitted by the ORT MIGraphX EP. Provides the "
+                   "authoritative file-name prefix (<version>-<graph_id>-<arch_hash>-) and the "
+                   "input ordering used to compute the shape hash."));
+        ap(ort_prefix,
+           {"--ort-prefix"},
+           ap.help("ORT .mxr file-name prefix to use directly instead of a manifest "
+                   "(format: \"<version>-<graph_id>-<arch_hash>-\")."));
     }
 
     static auto parse_param_dims(const std::vector<std::string>& param_dims_info)
@@ -546,8 +570,109 @@ struct loader
         os.write(buffer.data(), buffer.size());
     }
 
+    // Resolve the ORT-compatible file-name prefix and the input ordering used to
+    // compute the shape hash. The prefix (<version>-<graph_id>-<arch_hash>-) and
+    // the input ordering are authoritative only when they come from the EP, so a
+    // manifest is strongly preferred; --ort-prefix is a manual escape hatch.
+    void resolve_ort_prefix(std::string& prefix, std::vector<std::string>& input_order) const
+    {
+        if(not ort_manifest.empty())
+        {
+            std::ifstream mfs(ort_manifest);
+            if(not mfs)
+                MIGRAPHX_THROW("Unable to open --ort-manifest file: " + ort_manifest);
+            std::stringstream ss;
+            ss << mfs.rdbuf();
+            auto manifest = migraphx::from_json_string(ss.str());
+            if(manifest.contains("prefix"))
+                prefix = manifest.at("prefix").to<std::string>();
+            if(manifest.contains("input_order"))
+            {
+                for(const auto& item : manifest.at("input_order"))
+                    input_order.push_back(item.to<std::string>());
+            }
+        }
+        // An explicit --ort-prefix overrides the manifest prefix when both are given.
+        if(not ort_prefix.empty())
+            prefix = ort_prefix;
+        if(prefix.empty())
+            MIGRAPHX_THROW("--ort-hash requires a file-name prefix; provide --ort-manifest "
+                           "(emitted by the ORT MIGraphX EP) or --ort-prefix.");
+    }
+
+    // Build the ORT shape hash key: the per-input dimensions concatenated in the
+    // EP's iteration order, then hashed exactly as the EP does.
+    static std::string compute_ort_shape_hash(const program& p,
+                                              const std::vector<std::string>& input_order)
+    {
+        auto param_shapes = p.get_parameter_shapes();
+        std::vector<std::int64_t> all_input_shapes;
+
+        auto append_lens = [&](const migraphx::shape& s, const std::string& name) {
+            if(s.dynamic())
+                MIGRAPHX_THROW("--ort-hash needs static input shapes; parameter '" + name +
+                               "' is dynamic. Fix the shape with --input-dim @" + name +
+                               " d1 d2 ...");
+            for(auto d : s.lens())
+                all_input_shapes.push_back(static_cast<std::int64_t>(d));
+        };
+
+        if(not input_order.empty())
+        {
+            for(const auto& name : input_order)
+            {
+                auto it = param_shapes.find(name);
+                if(it == param_shapes.end())
+                {
+                    log::warn() << "[ort-hash] manifest input '" << name
+                                << "' is not a program parameter; skipping. The shape hash may "
+                                   "not match the EP.";
+                    continue;
+                }
+                append_lens(it->second, name);
+            }
+        }
+        else
+        {
+            if(param_shapes.size() > 1)
+                log::warn() << "[ort-hash] no manifest input ordering supplied and the model has "
+                            << param_shapes.size()
+                            << " inputs; the shape hash depends on input order and may not match "
+                               "the EP. Supply --ort-manifest.";
+            for(const auto& [name, s] : param_shapes)
+                append_lens(s, name);
+        }
+
+        return migraphx::ort_mxr::shape_hash(all_input_shapes);
+    }
+
+    // Returns true if --ort-hash handled saving the program.
+    bool save_ort_mxr(const program& p) const
+    {
+        if(not ort_hash)
+            return false;
+
+        std::string prefix;
+        std::vector<std::string> input_order;
+        resolve_ort_prefix(prefix, input_order);
+
+        auto sh       = compute_ort_shape_hash(p, input_order);
+        auto fname    = migraphx::ort_mxr::mxr_filename(prefix, sh);
+        auto out_path = ort_cache_dir.empty() ? fname : (ort_cache_dir + "/" + fname);
+
+        std::ofstream fs(out_path, std::ios::binary);
+        if(not fs)
+            MIGRAPHX_THROW("Unable to open ORT cache output file: " + out_path);
+        write(fs, save_buffer(p));
+        log::info() << "[ort-hash] wrote ORT-compatible cache file: " << out_path;
+        return true;
+    }
+
     void save(const program& p) const
     {
+        if(save_ort_mxr(p))
+            return;
+
         std::string type = output_type;
         if(type.empty())
         {

@@ -425,6 +425,14 @@ Debug settings for passes.
 
       | Default: The ``schedule`` pass is run.
 
+  * - | ``MIGRAPHX_GPU_LOWER_HIP_OPS``
+      | When set, ``hip::fill`` and ``hip::copy`` memory operations are lowered to HIP code objects.
+
+    - | ``1``: ``hip::fill`` and ``hip::copy`` are lowered to HIP code objects.
+      | ``0``: Returns to default behavior.
+
+      | Default: ``hip::fill`` and ``hip::copy`` are not lowered to HIP code objects.
+
   * - | ``MIGRAPHX_DISABLE_REDUCE_FUSION``
       | When set, the ``fuse_reduce`` pass isn't run.
 

@@ -25,10 +25,28 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
+
+static operation compile_fill_kernel(context& ctx,
+                                     const std::vector<shape>& inputs,
+                                     const value& v,
+                                     const std::string& src,
+                                     const std::string& kernel_name)
+{
+    assert(not inputs.empty());
+    hip_compile_options options;
+    const auto& out_s = inputs.back();
+    options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
+    options.inputs         = inputs;
+    options.output         = out_s;
+    options.kernel_name    = kernel_name;
+    options.virtual_inputs = inputs;
+    return compile_hip_code_object(ctx, src, options);
+}
 
 // NOLINTNEXTLINE
 static const char* const fill_kernel = R"__migraphx__(
@@ -62,15 +80,50 @@ struct fill_compiler : compiler<fill_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        hip_compile_options options;
-        const auto& out_s = inputs.back();
-        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
-        options.inputs         = inputs;
-        options.output         = out_s;
-        options.kernel_name    = "fill_kernel";
-        options.virtual_inputs = inputs;
+        return compile_fill_kernel(ctx, inputs, v, fill_kernel, "fill_kernel");
+    }
 
-        return compile_hip_code_object(ctx, fill_kernel, options);
+    compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
+    {
+        return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+    }
+};
+
+// NOLINTNEXTLINE
+static const char* const hip_fill_kernel = R"__migraphx__(
+#include <migraphx/kernels/index.hpp>
+#include <args.hpp>
+
+namespace migraphx {
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void hip_fill_kernel(void* data_ptr)
+{
+    make_tensors()(data_ptr)([](auto data) {
+        auto idx = make_index();
+        idx.global_stride(data.get_shape().elements(), [&](auto i) {
+            data[i] = ${value};
+        });
+    });
+}
+
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
+// hip::fill has a single in-place buffer input; its value is a compile-time attribute.
+struct hip_fill_compiler : compiler<hip_fill_compiler>
+{
+    std::vector<std::string> names() const { return {"hip::fill"}; }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        auto src = interpolate_string(hip_fill_kernel,
+                                      {{"value", std::to_string(v.at("value").to<int>())}});
+        return compile_fill_kernel(ctx, inputs, v, src, "hip_fill_kernel");
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const

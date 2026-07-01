@@ -40,6 +40,8 @@ subtrees:
           - file: dev/tools
           - file: dev/debug_symbols
             title: Using debug symbols
+          - file: dev/cross_compilation
+            title: Cross-compilation
   
   - caption: Examples
     entries: 

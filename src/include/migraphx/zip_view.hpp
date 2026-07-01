@@ -150,6 +150,7 @@ struct zip_view : totally_ordered<zip_view<Ranges...>>
         const auto n = migraphx::unpack(
             [&](auto&... bs) {
                 return migraphx::unpack(
+                    // cppcheck-suppress constParameterReference
                     [&](auto&... es) {
                         using diff = std::common_type_t<typename std::iterator_traits<
                             std::decay_t<decltype(bs)>>::difference_type...>;

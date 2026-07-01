@@ -155,14 +155,19 @@ double max_row_l2(const argument& w, const std::vector<std::size_t>& contraction
     return std::sqrt(*std::max_element(sum_sq.begin(), sum_sq.end()));
 }
 
-// Estimate the worst-case 2-product error: the activation stays at plain fp16, so an
-// output element's absolute error is ~ fp16_unit_roundoff * input_bound * max_row||w||_2.
+// Estimate the largest 2-product error over the op's output: the activation stays at
+// plain fp16, so a single output element's error has magnitude ~ fp16_unit_roundoff *
+// input_bound * max_row||w||_2. allclose checks every element, so the worst of n_outputs
+// roughly-gaussian elements scales by another sqrt(2 ln n) factor -- a config with the
+// same weights but many more outputs is more likely to hit a precision-sensitive element.
 double estimate_two_product_error(instruction_ref w,
                                   const std::vector<std::size_t>& contraction_axes,
-                                  double input_bound)
+                                  double input_bound,
+                                  std::size_t n_outputs)
 {
     constexpr double fp16_unit_roundoff = 0x1p-11; // half mantissa: 2^-11
-    return fp16_unit_roundoff * input_bound * max_row_l2(w->eval(), contraction_axes);
+    double worst_of_n = std::sqrt(2.0 * std::log(std::max<std::size_t>(n_outputs, 2)));
+    return fp16_unit_roundoff * input_bound * max_row_l2(w->eval(), contraction_axes) * worst_of_n;
 }
 
 // Decide the emulation scheme for one op from its estimated 2-product error. Returns
@@ -213,9 +218,9 @@ void process_convolution(module& m,
     // the output-channel axis 0). Pick the scheme from the estimated 2-product error.
     std::vector<std::size_t> contraction_axes(w_shape.lens().size() - 1);
     std::iota(contraction_axes.begin(), contraction_axes.end(), 1);
-    auto s = select_scheme(estimate_two_product_error(w, contraction_axes, input_bound),
-                           error_threshold,
-                           three_product);
+    auto err =
+        estimate_two_product_error(w, contraction_axes, input_bound, ins->get_shape().elements());
+    auto s = select_scheme(err, error_threshold, three_product);
     if(not s.rewrite)
         return;
 
@@ -259,8 +264,8 @@ void process_dot(module& m,
     // constant contracts over its K axis (last for A, second-to-last for B).
     auto w        = b_can_eval ? b : a;
     auto contract = b_can_eval ? rank - 2 : rank - 1;
-    auto s        = select_scheme(
-        estimate_two_product_error(w, {contract}, input_bound), error_threshold, three_product);
+    auto err = estimate_two_product_error(w, {contract}, input_bound, ins->get_shape().elements());
+    auto s   = select_scheme(err, error_threshold, three_product);
     if(not s.rewrite)
         return;
 

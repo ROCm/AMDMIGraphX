@@ -38,16 +38,21 @@ struct MIGRAPHX_EXPORT fast_mm
     // A weight-based heuristic decides whether the cheap 2-product scheme (split only the
     // constant operand, leave the activation at plain fp16) is accurate enough for each
     // op: the estimated 2-product error is ~ fp16_unit_roundoff * input_bound *
-    // max_row||w||_2. When it stays under error_threshold the op uses 2-product. When it
-    // exceeds the threshold the op is precision-sensitive, and three_product selects what
-    // to do with it: if set, use the 3-product scheme (also split the activation, ~2^-22
-    // residual, at 3x vs 2x the contraction); if not, skip the rewrite and leave the op
-    // in fp32.
+    // max_row||w||_2 * sqrt(2 ln n_outputs) (the last factor accounts for allclose taking
+    // the worst over every output element). When it stays under error_threshold the op
+    // uses 2-product. When it exceeds the threshold the op is precision-sensitive, and
+    // three_product selects what to do with it: if set, use the 3-product scheme (also
+    // split the activation, ~2^-22 residual, at 3x vs 2x the contraction); if not, skip
+    // the rewrite and leave the op in fp32.
     bool three_product = false;
     // Assumed bound on the magnitude of the (unknown) activation operand.
     double input_bound = 1.0;
     // Estimated 2-product error above which an op is treated as precision-sensitive.
-    double error_threshold = 1.3e-3;
+    // Calibrated over a sweep of fp32 mlir configs: catches all observed 2-product
+    // failures, at the cost of using the costlier scheme on a few configs that 2-product
+    // would have handled (the weight/output-size estimate cannot perfectly predict the
+    // input-dependent per-element cancellation that allclose is sensitive to).
+    double error_threshold = 6e-3;
     std::string name() const { return "fast_mm"; }
     void apply(module& m) const;
 };

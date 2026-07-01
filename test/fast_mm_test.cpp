@@ -23,10 +23,13 @@
  */
 #include <migraphx/fast_mm.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/pass_manager.hpp>
+
+#include <algorithm>
 
 #include <test.hpp>
 
@@ -179,6 +182,35 @@ TEST_CASE(fp32_convolution_heuristic_uses_two_product)
     run_pass(m1, {.skip_small_k = 0, .three_product = true, .error_threshold = 0.01});
     run_pass(m2, {.skip_small_k = 0, .three_product = false, .error_threshold = 0.01});
     EXPECT(m1 == m2);
+}
+
+TEST_CASE(fp32_convolution_heuristic_uses_output_size)
+{
+    // Identical weights, but a larger output crosses the threshold while a smaller one
+    // stays under it (allclose checks every output element, so more of them raises the
+    // estimated worst-case error). The small conv is rewritten; the large one is left in
+    // fp32 (three_product not set).
+    migraphx::shape ws{migraphx::shape::float_type, {8, 8, 1, 1}};
+    std::vector<float> w_data(ws.elements(), 1.0f);
+    auto build = [&](std::size_t hw) {
+        migraphx::module m;
+        auto x    = m.add_parameter("x", {migraphx::shape::float_type, {1, 8, hw, hw}});
+        auto w    = m.add_literal(migraphx::literal{ws, w_data});
+        auto conv = m.add_instruction(migraphx::make_op("convolution"), x, w);
+        m.add_return({conv});
+        return m;
+    };
+    auto has_quant = [](migraphx::module& m) {
+        return std::any_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
+            return ins.name() == "quant_convolution";
+        });
+    };
+    auto small = build(4);  // ~128 outputs -> est below threshold
+    auto large = build(64); // ~32768 outputs -> est above threshold
+    run_pass(small, {.skip_small_k = 0, .error_threshold = 5e-3});
+    run_pass(large, {.skip_small_k = 0, .error_threshold = 5e-3});
+    EXPECT(has_quant(small));
+    EXPECT(not has_quant(large));
 }
 
 TEST_CASE(fp32_convolution_tiny_unchanged)

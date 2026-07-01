@@ -122,8 +122,10 @@ struct multibroadcast
             {
                 if(not output_dyn_dims.empty())
                 {
-                    auto num_dims = output_dyn_dims.size();
-                    auto input_dyn_dims = inputs[0].dyn_dims();
+                    if(not inputs[0].dynamic())
+                        return {t, output_dyn_dims};
+                    auto num_dims         = output_dyn_dims.size();
+                    auto input_dyn_dims   = inputs[0].dyn_dims();
                     std::vector<shape::dynamic_dimension> new_output_dyn_dims(num_dims);
                     for(auto i = 0; i < num_dims; i++)
                     {

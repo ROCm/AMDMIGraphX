@@ -165,7 +165,7 @@ struct pipeline_factory
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},
-            enable_pass(missing_fp32_mma and options.fast_math, fast_mm{.three_product = false}),
+            enable_pass(missing_fp32_mma and options.fast_math, fast_mm{.three_product = false, .input_bound = 2}),
             dead_code_elimination{},
             prefuse_ops{get_context()},
             dead_code_elimination{},

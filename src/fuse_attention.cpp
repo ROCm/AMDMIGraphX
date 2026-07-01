@@ -784,16 +784,18 @@ struct find_kv_cache_attention
         static const std::unordered_set<std::string> skip_set = {
             "multibroadcast", "broadcast", "reshape", "unsqueeze", "squeeze"};
 
-        // auto keys =
-        //     match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
-        auto keys =
+        auto concat_k =
+            match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_k");
+        auto fixed_pad_k =
             match::skip(match::name(skip_set))(match::name("fixed_pad")).bind("pres_k");
+        auto keys = match::any_of(concat_k, fixed_pad_k);
         auto k_transpose =
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
-        auto queries = match::name("add");//match::pointwise();//match::any();//match::name("slice");
+        auto slice_q = match::name("slice");
+        auto add_q = match::name("add");
+        auto queries = match::any_of(slice_q, add_q);
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
         auto gemm1_maybe_cvt = match::skip(match::name("convert"))(gemm1);
-        // return gemm1_maybe_cvt;
         auto scale           = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
         auto broadcasted_const = match::name("multibroadcast")(match::arg(0)(match::is_constant()));
         auto attn_scores       = match::any_of(scale, gemm1_maybe_cvt);
@@ -813,10 +815,11 @@ struct find_kv_cache_attention
             match::arg(2)(match::any_of(local_window_mask, causal_mask, scale, gemm1_maybe_cvt)));
         auto attn_probabilities = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(mask)));
-        // auto values =
-        //     match::skip(match::name(skip_set))(match::name("concat_past_present")).bind("pres_v");
-        auto values =
-            match::skip(match::name(skip_set))(match::name("fixed_pad")).bind("pres_v");
+        auto concat_v =
+            match::skip(match::name(skip_set))(match::name("concat_past_present"));
+        auto fixed_pad_v =
+            match::skip(match::name(skip_set))(match::name("fixed_pad"));
+        auto values = match::any_of(concat_v, fixed_pad_v).bind("pres_v");
         auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
         auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
         return match::name("reshape")(match::arg(0)(transpose_out));
@@ -900,8 +903,6 @@ struct find_kv_cache_attention
 
     void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
-        std::cout << "Matched kv-cache attention" << std::endl;
-        // return;
         auto total_sl = r.instructions["total_sl"];
         auto reshape  = r.result;
 
@@ -965,18 +966,6 @@ struct find_kv_cache_attention
                                                 make_op("group", {{"tag", "kv_cache_attention"}}),
                                                 new_inputs,
                                                 {mpm_attn});
-        if(*counter < 2)
-        {
-            std::cout << "fused attention: " << std::endl;
-            std::cout << "inputs: " << std::endl;
-            for(auto input : new_inputs)
-            {
-                input->debug_print();
-            }
-            std::cout << "inputs end" << std::endl;
-            mpm_attn->debug_print();
-            std::cout << "fused attention end" << std::endl;
-        }
         mpm.get_module().replace_instruction(required_outputs.back(), group_ins);
     }
 };
@@ -986,17 +975,11 @@ struct find_kv_cache_attention
 void fuse_attention::apply(module_pass_manager& mpm) const
 {
     std::size_t counter = 0;
-    // if(counter == 0)
-    // {
-    //     std::cout << "fuse_attention" << std::endl;
-    //     mpm.get_module().debug_print();
-    //     std::cout << "fuse_attention end" << std::endl;
-    // }
 
     // Fuse kv-cache attention by default
-    // match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
-    // mpm.get_module().sort();
-    // mpm.run_pass(dead_code_elimination{});
+    match::find_matches(mpm, find_kv_cache_attention{.counter = &counter});
+    mpm.get_module().sort();
+    mpm.run_pass(dead_code_elimination{});
 
     // Only fuse plain attention when requested
     if(attn_enabled)

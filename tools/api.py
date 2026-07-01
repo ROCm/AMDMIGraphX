@@ -191,9 +191,10 @@ class CFunction:
 
 
 class BadParam:
-    def __init__(self, cond: str, msg: str) -> None:
+    def __init__(self, cond: str, msg: str, name: Optional[str] = None) -> None:
         self.cond = cond
         self.msg = msg
+        self.name = name
 
 
 class Parameter:
@@ -219,7 +220,7 @@ class Parameter:
         self.virtual = virtual
         self.this = this
         self.hidden = hidden
-        self.bad_param_check: Optional[BadParam] = None
+        self.bad_param_checks: List[BadParam] = []
         self.virtual_read: Optional[List[str]] = None
         self.virtual_write: Optional[str] = None
 
@@ -267,8 +268,8 @@ class Parameter:
         else:
             self.add_param('size_t', self.size_name)
 
-    def bad_param(self, cond: str, msg: str) -> None:
-        self.bad_param_check = BadParam(cond, msg)
+    def bad_param(self, cond: str, msg: str, name: Optional[str] = None) -> None:
+        self.bad_param_checks.append(BadParam(cond, msg, name))
 
     def remove_size_param(self, name):
         p = None
@@ -395,11 +396,12 @@ class Parameter:
                 cfunction.add_vlist(name)
             else:
                 cfunction.add_param(self.substitute(t), self.substitute(name))
-        if self.bad_param_check:
+        for bad_param_check in self.bad_param_checks:
             msg = 'Bad parameter {name}: {msg}'.format(
-                name=self.name, msg=self.bad_param_check.msg)
+                name=self.substitute(bad_param_check.name or self.name),
+                msg=bad_param_check.msg)
             cfunction.add_statement('if ({cond}) {body}'.format(
-                cond=self.substitute(self.bad_param_check.cond),
+                cond=self.substitute(bad_param_check.cond),
                 body=bad_param_error(msg)))
 
 
@@ -1012,6 +1014,7 @@ def string_c_wrap(p: Parameter) -> None:
             p.add_param(t)
             p.add_param('size_t', p.name + '_size')
             p.bad_param('${name} == nullptr', 'Null pointer')
+            p.bad_param('${name}_size == 0', 'zero', '${name}_size')
     else:
         p.add_param(t)
         p.bad_param('${name} == nullptr', 'Null pointer')

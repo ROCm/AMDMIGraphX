@@ -2005,6 +2005,8 @@ migraphx_operation_name(char* out, size_t out_size, migraphx_operation_t operati
     auto api_error_result = migraphx::try_([&] {
         if(out == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(out_size == 0)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out_size: zero");
         if(operation == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
         auto&& api_result = (operation->object).name();

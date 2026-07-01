@@ -1369,8 +1369,13 @@ static std::vector<instruction_ref> get_slice_outputs(instruction_ref ins)
 
 /** Search for multiple "slice" instructions in an instruction's outputs
  *  which are contiguous slices of the same tensor.
+ *
+ *  With `partial == false` the slices must tile the whole tensor (start at 0 and
+ *  the last slice must reach the axis length).  With `partial == true` those two
+ *  checks are skipped, so a contiguous run of slices covering only a sub-range is
+ *  also accepted (the gap-free adjacency check still applies).
  */
-static std::vector<instruction_ref> get_splits(instruction_ref ins)
+static std::vector<instruction_ref> get_splits(instruction_ref ins, bool partial = false)
 {
     auto result = get_slice_outputs(ins);
     if(result.size() < 2)
@@ -1387,9 +1392,9 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
     // Sort the "slice" instructions in order of starts
     std::sort(
         result.begin(), result.end(), [&](auto x, auto y) { return get_start(x) < get_start(y); });
-    if(std::any_of(get_start(result.front()).begin(), get_start(result.front()).end(), [&](auto i) {
-           return i != 0;
-       }))
+    if(not partial and std::any_of(get_start(result.front()).begin(),
+                                   get_start(result.front()).end(),
+                                   [&](auto i) { return i != 0; }))
         return {};
 
     // one slice must "start" where the last slice "end"
@@ -1397,11 +1402,14 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
         result.begin(), result.end(), [&](auto x, auto y) { return get_end(x) != get_start(y); });
     if(it != result.end())
         return {};
-    for(std::size_t i = 0; i < axes.size(); i++)
+    if(not partial)
     {
-        auto axis = axes[i];
-        if(ins->get_shape().lens()[axis] != get_slice(result.back()).ends[i])
-            return {};
+        for(std::size_t i = 0; i < axes.size(); i++)
+        {
+            auto axis = axes[i];
+            if(ins->get_shape().lens()[axis] != get_slice(result.back()).ends[i])
+                return {};
+        }
     }
     return result;
 }
@@ -1614,133 +1622,53 @@ struct find_splits
         return false;
     }
 
-    // ------------------------------------------------------------------------
-    // Relaxation of the split fusion: when sibling slices of the same tensor do
-    // not fully tile it (so get_splits and the constant-folding path do not
-    // apply), a single-input op replicated across them can still be hoisted
-    // above the slices.  The op is computed once on the bounding slice and each
-    // consumer reads its sub-range back out, collapsing N identical narrow ops
-    // into one wide one.
-    //
-    // Only single-input ops are handled here.  Multi-op chains are peeled one
-    // op per fixpoint iteration (after the first hoist the sub-slices fully tile
-    // the wide result, so get_splits then applies), and a fused pointwise op
-    // (e.g. a SiLU produced by fuse_pointwise) already appears as a single op.
-    // ------------------------------------------------------------------------
-    struct bounded_splits
-    {
-        std::vector<instruction_ref> slices; // sorted by start; empty when invalid
-        int64_t axis = 0;
-        int64_t lo   = 0;
-        int64_t hi   = 0;
-    };
-
-    // Sibling slices on one shared axis that tile a contiguous range [lo, hi)
-    // with no gaps or overlaps, without requiring the range to start at 0 or
-    // reach the full extent (that stricter, full-cover case is get_splits).
-    static bounded_splits get_bounded_splits(instruction_ref ins)
-    {
-        auto result = get_slice_outputs(ins);
-        if(result.size() < 2)
-            return {};
-        auto slice_of = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
-
-        // All slices must operate on the same single axis.
-        const auto& axes0 = slice_of(result.front()).axes;
-        if(axes0.size() != 1)
-            return {};
-        int64_t axis = axes0.front();
-        if(std::any_of(result.begin(), result.end(), [&](auto i) {
-               const auto& a = slice_of(i).axes;
-               return a.size() != 1 or a.front() != axis;
-           }))
-            return {};
-
-        std::sort(result.begin(), result.end(), [&](auto x, auto y) {
-            return slice_of(x).starts.front() < slice_of(y).starts.front();
-        });
-
-        // Contiguous with no gaps or overlaps: each slice ends where the next
-        // begins.  A gap would force the wide op to compute elements no consumer
-        // needs (and possibly with the wrong operands).
-        if(std::adjacent_find(result.begin(), result.end(), [&](auto x, auto y) {
-               return slice_of(x).ends.front() != slice_of(y).starts.front();
-           }) != result.end())
-            return {};
-
-        return {result,
-                axis,
-                slice_of(result.front()).starts.front(),
-                slice_of(result.back()).ends.front()};
-    }
-
-    // Hoist a single-input op replicated across the sibling slices of `ins`
-    // above those slices: compute it once on the bounding slice and re-slice
-    // each consumer back out.  Reuses get_split_groups for grouping.
-    bool hoist_bounded_splits(module& m, instruction_ref ins) const
-    {
-        auto bs = get_bounded_splits(ins);
-        if(bs.slices.empty())
-            return false;
-
-        // The same op replicated across every slice, with no inter-group
-        // dependency (the existing full-cover grouping/checks).
-        auto groups = get_split_groups(m, ins, bs.slices);
-        if(groups.empty() or split_groups_are_dependent(m, ins, groups))
-            return false;
-
-        auto ip        = std::next(ins);
-        auto big_slice = m.insert_instruction(
-            ip,
-            make_op("slice", {{"axes", {bs.axis}}, {"starts", {bs.lo}}, {"ends", {bs.hi}}}),
-            ins);
-
-        bool changed = false;
-        for(const auto& group : groups)
-        {
-            auto start = group.front();
-            // Only widen single-input ops; binary/constant fusion stays on the
-            // full-cover path, reachable once the sub-slices tile the wide
-            // result on a later fixpoint iteration.
-            if(start->inputs().size() != 1 or not is_fusable(start, bs.slices.front()))
-                continue;
-
-            auto c = m.insert_instruction(
-                ip, start->get_operator(), {big_slice}, start->module_inputs());
-
-            for(auto i : group)
-            {
-                auto slc = any_cast<op::slice>(i->inputs().front()->get_operator());
-                auto sub = m.insert_instruction(i,
-                                                make_op("slice",
-                                                        {{"axes", {bs.axis}},
-                                                         {"starts", {slc.starts.front() - bs.lo}},
-                                                         {"ends", {slc.ends.front() - bs.lo}}}),
-                                                c);
-                m.replace_instruction(i, sub);
-                changed = true;
-            }
-        }
-        return changed;
-    }
-
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins    = r.result;
-        auto splits = get_splits(ins);
+        auto ins     = r.result;
+        bool partial = false;
+        auto splits  = get_splits(ins);
         if(splits.empty())
         {
-            // The sibling slices only partially tile their tensor, so the
-            // full-cover split fusion does not apply; hoist a replicated
-            // single-input op above their bounding slice instead.
-            hoist_bounded_splits(m, ins);
-            return;
+            // The sibling slices only partially tile their tensor, e.g.
+            //     slice{0,1} -> pw, slice{1,2} -> pw   (over a length-3 tensor)
+            // Rewrite this as one wide op on the bounding slice with each
+            // consumer reading its sub-range back out:
+            //     slice{0,2} -> pw -> (slice{0,1}, slice{1,2})
+            splits  = get_splits(ins, /*partial=*/true);
+            partial = true;
         }
+        if(splits.empty())
+            return;
         auto split_groups = get_split_groups(m, ins, splits);
         if(split_groups_are_dependent(m, ins, split_groups))
         {
             return;
         }
+
+        // A full cover computes the op on the whole tensor; a partial cover
+        // computes it on a bounding slice spanning [lo, hi) of the shared axis
+        // and shifts each consumer's re-slice by lo.  The bounding slice is
+        // created lazily (get_base) so nothing is inserted when no group fuses.
+        auto front_slice = any_cast<op::slice>(splits.front()->get_operator());
+        auto back_slice  = any_cast<op::slice>(splits.back()->get_operator());
+        // Restrict the partial hoist to a single axis.
+        if(partial and front_slice.axes.size() != 1)
+            return;
+        instruction_ref base = ins;
+        bool base_inserted   = false;
+        auto get_base        = [&] {
+            if(partial and not base_inserted)
+            {
+                base          = m.insert_instruction(std::next(ins),
+                                            make_op("slice",
+                                                                    {{"axes", front_slice.axes},
+                                                              {"starts", front_slice.starts},
+                                                              {"ends", back_slice.ends}}),
+                                            ins);
+                base_inserted = true;
+            }
+            return base;
+        };
 
         for(const auto& group : split_groups)
         {
@@ -1760,10 +1688,16 @@ struct find_splits
             instruction_ref c = m.end();
             if(start->inputs().size() == 1)
             {
-                c = m.insert_instruction(std::next(ins), op, {ins}, start->module_inputs());
+                auto b = get_base();
+                c      = m.insert_instruction(std::next(b), op, {b}, start->module_inputs());
             }
             else if(start->inputs().size() == 2)
             {
+                // The constant-concat fusion below rewrites the op on the whole
+                // tensor, so it only applies to a full cover.
+                if(partial)
+                    continue;
+
                 assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
                     return i->name() == "slice";
                 }) and "one argument must be a split");
@@ -1825,7 +1759,30 @@ struct find_splits
                     auto split = i->inputs()[split_idx];
                     assert(split->name() == "slice");
 
-                    m.replace_instruction(i, split->get_operator(), c);
+                    if(partial)
+                    {
+                        // Re-slice the wide result relative to the bounding slice.
+                        auto s     = any_cast<op::slice>(split->get_operator());
+                        auto shift = [&](const std::vector<int64_t>& v) {
+                            std::vector<int64_t> out(v.size());
+                            std::transform(v.begin(),
+                                           v.end(),
+                                           front_slice.starts.begin(),
+                                           out.begin(),
+                                           [](int64_t a, int64_t b) { return a - b; });
+                            return out;
+                        };
+                        m.replace_instruction(i,
+                                              make_op("slice",
+                                                      {{"axes", s.axes},
+                                                       {"starts", shift(s.starts)},
+                                                       {"ends", shift(s.ends)}}),
+                                              c);
+                    }
+                    else
+                    {
+                        m.replace_instruction(i, split->get_operator(), c);
+                    }
                 }
             }
         }

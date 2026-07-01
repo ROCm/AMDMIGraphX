@@ -76,9 +76,13 @@ compute_broadcasted_dyn_dims(std::vector<shape::dynamic_dimension> dds0,
                        }
                        else
                        {
+                           std::cout << "a: " << a << std::endl;
+                           std::cout << "b: " << b << std::endl;
                            auto intersect = a.intersection(b);
                            if(intersect.has_value())
                            {
+                                // if(a.is_symbolic())
+                                //     return a;
                                return intersect.value();
                            }
                            MIGRAPHX_THROW("COMPUTE_BROADCASTED_DYN_DIMS: dynamic shapes {" +
@@ -192,19 +196,33 @@ std::vector<instruction_ref> insert_common_args(module& m,
         {
             auto c_dyn_dims = compute_common_dyn_dims(input_shapes);
 
-            auto s0 = inputs[0]->get_shape();
-            // always add both multibroadcast instructions for dynamic shapes
-            inputs[0] = m.insert_instruction(
-                ins, make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}), inputs);
-            std::transform(inputs.begin() + 1, inputs.end(), inputs.begin() + 1, [&](auto input) {
-                // uses previous input to avoid recalculating the common shape from the
-                // full set of input shapes at runtime
-                auto s = input->get_shape();
+            instruction_ref ref{};
+            for(const auto& input : inputs)
+            {
+                if(input->get_shape().dynamic())
+                {
+                    ref = input;
+                    if(input->get_shape().dyn_dims() != c_dyn_dims)
+                    {
+                        ref = m.insert_instruction(
+                            ins,
+                            make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                            ref,
+                            ref);
+                    }
+                    break;
+                }
+            }
+
+            std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+                const auto& s = input->get_shape();
+                if(s.dynamic() and s.dyn_dims() == c_dyn_dims)
+                    return input;
                 return m.insert_instruction(
                     ins,
                     make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
                     input,
-                    inputs[0]);
+                    ref);
             });
         }
         if(options.common_type)

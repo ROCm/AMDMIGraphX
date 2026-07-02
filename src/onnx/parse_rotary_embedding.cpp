@@ -123,7 +123,7 @@ struct parse_rotary_embedding : op_parser<parse_rotary_embedding>
             }
             
         }
-        // auto input_lens = input->get_shape().lens();
+
         auto input_shape = input->get_shape();
         auto input_dyn_shape = input_shape.to_dynamic();
         auto input_dyn_dims = input_dyn_shape.dyn_dims();

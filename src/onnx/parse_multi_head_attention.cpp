@@ -94,10 +94,10 @@ void mha_require_fixed_except(const shape& s, std::size_t except_axis)
     {
         if(i == except_axis)
             continue;
-        // if(not s.dyn_dims().at(i).is_fixed())
-        //     MIGRAPHX_THROW(
-        //         "MultiHeadAttention: only key/value sequence length n may be dynamic; axis " +
-        //         std::to_string(i) + " must have a fixed size.");
+        if(not s.dyn_dims().at(i).is_fixed())
+            MIGRAPHX_THROW(
+                "MultiHeadAttention: only key/value sequence length n may be dynamic; axis " +
+                std::to_string(i) + " must have a fixed size.");
     }
 }
 
@@ -219,7 +219,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         if(query_shape.dynamic() and not std::all_of(query_shape.dyn_dims().begin(), query_shape.dyn_dims().end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
             MIGRAPHX_THROW("MultiHeadAttention: dynamic query is not supported.");
 
-        // const auto query_lens = query_shape.lens();
         auto query_dyn_shape = query_shape.to_dynamic();
         auto query_dyn_dims = query_dyn_shape.dyn_dims();
         std::vector<std::size_t> query_lens(query_dyn_dims.size());
@@ -477,13 +476,6 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         {
             if(params.kv_sequence_length_dynamic)
             {
-                const auto& bs = args.at(5)->get_shape();
-                // if(bs.dynamic())
-                //     MIGRAPHX_THROW("MultiHeadAttention: dynamic attention_bias is not supported when "
-                //                    "key/value sequence length n is dynamic.");
-                // if(bs.elements() != 0)
-                //     MIGRAPHX_THROW("MultiHeadAttention: attention_bias is not supported when "
-                //                    "key/value sequence length n is dynamic.");
                 return;
             }
 
@@ -1103,10 +1095,7 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         result         = info.add_common_op("mul", result, scale_literal);
         auto qk_output = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
-        // std::cout << "dot2 inputs" << std::endl;
-        // result->debug_print();
-        // qk_output->debug_print();
-        // value->debug_print();
+        
         if(qk_output->get_shape().type() != value->get_shape().type())
         {
             qk_output = info.add_instruction(make_op("convert", {{"target_type", value->get_shape().type()}}), qk_output);

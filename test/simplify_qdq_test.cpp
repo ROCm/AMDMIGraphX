@@ -41,6 +41,7 @@ namespace match = migraphx::match;
 
 static bool is_convolution(const migraphx::instruction& ins) { return ins.name() == "convolution"; }
 static bool is_dot(const migraphx::instruction& ins) { return ins.name() == "dot"; }
+static bool is_quant_dot(const migraphx::instruction& ins) { return ins.name() == "quant_dot"; }
 
 static void run_pass(migraphx::module& m)
 {
@@ -341,6 +342,62 @@ TEST_CASE(dot_transposed)
         auto d3        = add_quantize_op(m2, "dequantizelinear", dot, out_scale);
         m2.add_return({d3});
     }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(dot_uint8_input)
+{
+    // uint8 activation with int8 weight must still become a quant_dot (uint8 rebiased to int8),
+    // not have its Q/DQ stripped.
+    migraphx::shape sh1{migraphx::shape::float_type, {4, 8}};
+    migraphx::shape sh2{migraphx::shape::float_type, {8, 6}};
+
+    migraphx::module m1;
+    {
+        auto t1      = m1.add_parameter("t1", sh1);
+        auto t2      = m1.add_parameter("t2", sh2);
+        auto a_scale = m1.add_literal(0.5f);
+        auto a_zp    = m1.add_literal(std::uint8_t{128});
+        auto w_scale = m1.add_literal(0.25f);
+        auto w_zp    = m1.add_literal(std::int8_t{0});
+
+        auto q1  = add_quantize_op(m1, "quantizelinear", t1, a_scale, a_zp);
+        auto d1  = add_quantize_op(m1, "dequantizelinear", q1, a_scale, a_zp);
+        auto q2  = add_quantize_op(m1, "quantizelinear", t2, w_scale, w_zp);
+        auto d2  = add_quantize_op(m1, "dequantizelinear", q2, w_scale, w_zp);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), d1, d2);
+        m1.add_return({dot});
+    }
+
+    run_pass(m1);
+    EXPECT(any_of(m1, &is_quant_dot));
+    EXPECT(none_of(m1, &is_dot));
+}
+
+TEST_CASE(qdq_reshape_unquantized_dot)
+{
+    // q -> reshape -> dq feeding an unquantized dot stays put: remove_qdq_pairs must not drop the
+    // reshape, which would leave the dot with mismatched ranks.
+    migraphx::shape xsh{migraphx::shape::float_type, {1, 1024, 1, 1}};
+    migraphx::shape wsh{migraphx::shape::float_type, {1024, 1000}};
+
+    migraphx::module m1;
+    {
+        auto x     = m1.add_parameter("x", xsh);
+        auto w     = m1.add_parameter("w", wsh);
+        auto scale = m1.add_literal(0.5f);
+        auto zero  = m1.add_literal(std::int8_t{1});
+
+        auto q1 = add_quantize_op(m1, "quantizelinear", x, scale, zero);
+        auto rs = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1024}}}), q1);
+        auto d1 = add_quantize_op(m1, "dequantizelinear", rs, scale, zero);
+        auto dot = m1.add_instruction(migraphx::make_op("dot"), d1, w);
+        m1.add_return({dot});
+    }
+
+    migraphx::module m2 = m1;
 
     run_pass(m1);
     EXPECT(m1 == m2);

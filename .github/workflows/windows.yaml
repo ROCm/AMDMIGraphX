@@ -107,6 +107,9 @@ jobs:
       with:
         cmake-version: 3.20.0
 
+    - name: Setup MSVC Developer Command Prompt
+      uses: ilammy/msvc-dev-cmd@v1
+
     - name: Install rbuild
       run: pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
 

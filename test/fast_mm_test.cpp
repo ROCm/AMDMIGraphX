@@ -473,4 +473,67 @@ TEST_CASE(fp32_dot_tiny_k_unchanged)
     EXPECT(m1 == m2);
 }
 
+// Build dot(activation(param), const_weights) where `add_activation` maps the parameter to
+// the dot's left operand, run fast_mm, and report whether the dot was rewritten to
+// quant_dot. With input_bound = 4 a raw parameter's estimated error is over the threshold
+// (skip); an activation whose magnitude is provably smaller narrows the bound and drops the
+// estimate below the threshold (2-product rewrite). Identical weights and threshold across
+// activations, so the only variable is the narrowed bound.
+template <class F>
+static bool narrowed_dot_is_rewritten(F add_activation)
+{
+    migraphx::shape as{migraphx::shape::float_type, {2, 8}};
+    migraphx::shape bs{migraphx::shape::float_type, {8, 4}};
+    std::vector<float> b_data(bs.elements(), 1.0f);
+
+    migraphx::module m;
+    auto a   = m.add_parameter("a", as);
+    auto act = add_activation(m, a);
+    auto b   = m.add_literal(migraphx::literal{bs, b_data});
+    auto dot = m.add_instruction(migraphx::make_op("dot"), act, b);
+    m.add_return({dot});
+    run_pass(m, {.skip_small_k = 0, .input_bound = 4, .error_threshold = 5e-3});
+    return std::any_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "quant_dot";
+    });
+}
+
+TEST_CASE(fp32_dot_activation_bound_param_not_narrowed)
+{
+    // A raw parameter has no static magnitude bound, so the pass falls back to input_bound
+    // (4); the estimated error is over the threshold and the dot is left in fp32.
+    EXPECT(not narrowed_dot_is_rewritten(
+        [](migraphx::module&, migraphx::instruction_ref a) { return a; }));
+}
+
+TEST_CASE(fp32_dot_activation_bound_narrowed_by_sigmoid)
+{
+    // sigmoid output is provably in (0, 1), narrowing the bound to 1 so the estimate drops
+    // below the threshold and the dot is rewritten with 2-product.
+    EXPECT(narrowed_dot_is_rewritten([](migraphx::module& m, migraphx::instruction_ref a) {
+        return m.add_instruction(migraphx::make_op("sigmoid"), a);
+    }));
+}
+
+TEST_CASE(fp32_dot_activation_bound_narrowed_by_softmax)
+{
+    // softmax normalizes to a probability distribution in [0, 1], so the bound narrows to 1
+    // regardless of the input magnitude and the dot is rewritten.
+    EXPECT(narrowed_dot_is_rewritten([](migraphx::module& m, migraphx::instruction_ref a) {
+        return m.add_instruction(migraphx::make_op("softmax", {{"axis", 1}}), a);
+    }));
+}
+
+TEST_CASE(fp32_dot_activation_bound_narrowed_by_clip)
+{
+    // Min-max normalization: clip bounds the activation to [-0.5, 0.5] independent of the
+    // input, narrowing the magnitude bound to 0.5 and the dot is rewritten.
+    EXPECT(narrowed_dot_is_rewritten([](migraphx::module& m, migraphx::instruction_ref a) {
+        migraphx::shape as{migraphx::shape::float_type, {2, 8}};
+        auto lo = m.add_literal(migraphx::literal{as, std::vector<float>(as.elements(), -0.5f)});
+        auto hi = m.add_literal(migraphx::literal{as, std::vector<float>(as.elements(), 0.5f)});
+        return m.add_instruction(migraphx::make_op("clip"), a, lo, hi);
+    }));
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -36,6 +36,8 @@
 #include <cmath>
 #include <functional>
 #include <numeric>
+#include <optional>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -186,12 +188,105 @@ scheme select_scheme(double two_product_error, double error_threshold, bool thre
     return {three_product, three_product};
 }
 
+using bound_cache = std::unordered_map<instruction_ref, std::optional<double>>;
+
+// Largest |element| of a constant, or nullopt if it is too large to fold cheaply.
+std::optional<double> const_magnitude(instruction_ref ins)
+{
+    if(ins->get_shape().elements() > 4096)
+        return std::nullopt;
+    double m = 0.0;
+    ins->eval().visit([&](auto t) {
+        m = std::accumulate(t.begin(), t.end(), 0.0, [](double acc, auto v) {
+            return std::max(acc, std::abs(static_cast<double>(v)));
+        });
+    });
+    return m;
+}
+
+// Static upper bound on the largest |element| of `ins`'s output, or nullopt when it
+// cannot be narrowed. The bound is rigorous: clamping ops (sigmoid/tanh/softmax/clip/
+// where) give an input-independent bound, magnitude-non-increasing ops pass their
+// input's bound through, and add/sub/mul/concat combine input bounds by interval
+// arithmetic. It deliberately does not recurse through convolution/dot (whose worst-case
+// output bound compounds across layers and is useless) or through params/div/exp/pow, so
+// callers substitute the assumed input_bound there. Memoized to keep the walk linear.
+std::optional<double> magnitude_bound(instruction_ref ins, bound_cache& cache)
+{
+    if(auto it = cache.find(ins); it != cache.end())
+        return it->second;
+    // Seed with nullopt so a shared/self-referential walk terminates safely.
+    cache.emplace(ins, std::nullopt);
+    auto memo = [&](std::optional<double> b) {
+        cache[ins] = b;
+        return b;
+    };
+    // Combine input bounds with `op`, bailing to nullopt if any input is unbounded.
+    const auto& inputs = ins->inputs();
+    auto combine       = [&](std::size_t skip, double init, auto op) -> std::optional<double> {
+        double acc = init;
+        for(auto i = inputs.begin() + skip; i != inputs.end(); ++i)
+        {
+            auto b = magnitude_bound(*i, cache);
+            if(not b)
+                return std::nullopt;
+            acc = op(acc, *b);
+        }
+        return acc;
+    };
+    auto max_op          = [](double a, double b) { return std::max(a, b); };
+    const std::string& n = ins->name();
+
+    if(inputs.empty())
+        return memo(ins->can_eval() ? const_magnitude(ins) : std::nullopt);
+
+    // Clamping ops: output range is independent of the (possibly unbounded) input.
+    if(contains({"sigmoid", "tanh", "softmax"}, n))
+        return memo(1.0);
+    // clip -> out in [min, max] (args 1,2); where -> selects arg1/arg2 elementwise.
+    if(contains({"clip", "where"}, n))
+        return memo(combine(1, 0.0, max_op));
+
+    // Magnitude-non-increasing: |f(x)| <= |x|, so pass the first input's bound through.
+    if(contains({"relu",           "abs",       "neg",     "identity",  "contiguous",  "convert",
+                 "reshape",        "transpose", "squeeze", "unsqueeze", "flatten",     "broadcast",
+                 "multibroadcast", "slice",     "gather",  "step",      "reduce_mean", "reduce_max",
+                 "reduce_min",     "pooling"},
+                n))
+        return memo(magnitude_bound(inputs.front(), cache));
+    if(n == "leaky_relu")
+    {
+        double alpha = std::abs(ins->get_operator().to_value().at("alpha").to<double>());
+        auto b       = magnitude_bound(inputs.front(), cache);
+        return memo(b ? std::optional<double>{std::max(1.0, alpha) * *b} : std::nullopt);
+    }
+
+    // Interval arithmetic over the inputs.
+    if(contains({"add", "sub"}, n))
+        return memo(combine(0, 0.0, std::plus<>{}));
+    if(n == "mul")
+        return memo(combine(0, 1.0, std::multiplies<>{}));
+    if(contains({"concat", "max", "min"}, n))
+        return memo(combine(0, 0.0, max_op));
+
+    // convolution, dot, params, div, exp, pow, ...: not narrowable here.
+    return memo(std::nullopt);
+}
+
+// Bound on the activation operand's magnitude: the narrowed static bound if available,
+// otherwise the assumed global input_bound.
+double activation_bound(instruction_ref act, double input_bound, bound_cache& cache)
+{
+    return magnitude_bound(act, cache).value_or(input_bound);
+}
+
 void process_convolution(module& m,
                          instruction_ref ins,
                          std::size_t skip_small_k,
                          bool three_product,
                          double input_bound,
-                         double error_threshold)
+                         double error_threshold,
+                         bound_cache& cache)
 {
     auto inputs = ins->inputs();
     auto x      = inputs[0];
@@ -218,9 +313,9 @@ void process_convolution(module& m,
     // the output-channel axis 0). Pick the scheme from the estimated 2-product error.
     std::vector<std::size_t> contraction_axes(w_shape.lens().size() - 1);
     std::iota(contraction_axes.begin(), contraction_axes.end(), 1);
-    auto err =
-        estimate_two_product_error(w, contraction_axes, input_bound, ins->get_shape().elements());
-    auto s = select_scheme(err, error_threshold, three_product);
+    auto bound = activation_bound(x, input_bound, cache);
+    auto err = estimate_two_product_error(w, contraction_axes, bound, ins->get_shape().elements());
+    auto s   = select_scheme(err, error_threshold, three_product);
     if(not s.rewrite)
         return;
 
@@ -243,7 +338,8 @@ void process_dot(module& m,
                  std::size_t skip_small_k,
                  bool three_product,
                  double input_bound,
-                 double error_threshold)
+                 double error_threshold,
+                 bound_cache& cache)
 {
     auto inputs           = ins->inputs();
     auto a                = inputs[0];
@@ -263,9 +359,11 @@ void process_dot(module& m,
     // Pick the scheme from the 2-product error of whichever operand is constant; the
     // constant contracts over its K axis (last for A, second-to-last for B).
     auto w        = b_can_eval ? b : a;
+    auto act      = b_can_eval ? a : b;
     auto contract = b_can_eval ? rank - 2 : rank - 1;
-    auto err = estimate_two_product_error(w, {contract}, input_bound, ins->get_shape().elements());
-    auto s   = select_scheme(err, error_threshold, three_product);
+    auto bound    = activation_bound(act, input_bound, cache);
+    auto err      = estimate_two_product_error(w, {contract}, bound, ins->get_shape().elements());
+    auto s        = select_scheme(err, error_threshold, three_product);
     if(not s.rewrite)
         return;
 
@@ -299,6 +397,7 @@ void process_dot(module& m,
 
 void fast_mm::apply(module& m) const
 {
+    bound_cache cache;
     for(auto ins : iterator_for(m))
     {
         if(ins->get_shape().type() != shape::float_type)
@@ -307,9 +406,10 @@ void fast_mm::apply(module& m) const
         if(ins->get_shape().dynamic())
             continue;
         if(ins->name() == "convolution")
-            process_convolution(m, ins, skip_small_k, three_product, input_bound, error_threshold);
+            process_convolution(
+                m, ins, skip_small_k, three_product, input_bound, error_threshold, cache);
         else if(ins->name() == "dot")
-            process_dot(m, ins, skip_small_k, three_product, input_bound, error_threshold);
+            process_dot(m, ins, skip_small_k, three_product, input_bound, error_threshold, cache);
     }
 }
 

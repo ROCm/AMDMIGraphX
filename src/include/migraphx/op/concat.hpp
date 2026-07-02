@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_CONCAT_HPP
 
 #include <array>
+#include <limits>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/stringutils.hpp>
@@ -86,10 +87,19 @@ struct concat
         // convert all shapes to dynamic to handle mixed static-dynamic case
         auto unified = shape::to_dynamic(inputs);
 
-        // Non-concat axes must agree across inputs. dynamic_dimension
-        // intersection resolves a fully-unconstrained wildcard dim (e.g. from a
-        // runtime-computed broadcast_with_dims / ONNX Expand) to the other
-        // input's constraint, and rejects genuinely incompatible dims.
+        // A fully-unconstrained dim (unbounded max == SIZE_MAX) is a wildcard:
+        // it is the output of an op whose shape is only known at runtime (e.g.
+        // broadcast_with_dims / ONNX Expand whose target shape is computed from
+        // another tensor's shape). It adopts the other input's constraint;
+        // otherwise non-concat axes must match exactly. (dynamic_dimension
+        // intersection is intentionally not used here: it drops optimals and
+        // accepts merely-overlapping ranges, which breaks concat's exact-match
+        // requirement -- see test_dyn_concat.)
+        auto is_unconstrained = [](const shape::dynamic_dimension& dd) {
+            return not dd.is_symbolic() and
+                   dd.get_interval().max == std::numeric_limits<std::size_t>::max();
+        };
+
         auto new_dds = unified.front().dyn_dims();
         for(std::size_t i = 0; i < new_dds.size(); ++i)
         {
@@ -97,12 +107,12 @@ struct concat
                 continue;
             for(const auto& s : unified)
             {
-                auto merged = new_dds[i].intersection(s.dyn_dims()[i]);
-                if(not merged)
-                    MIGRAPHX_THROW("CONCAT: incompatible dimensions in axis " + std::to_string(i) +
-                                   ": " + to_string(new_dds[i]) + " vs " +
-                                   to_string(s.dyn_dims()[i]));
-                new_dds[i] = *merged;
+                const auto& dd = s.dyn_dims()[i];
+                if(is_unconstrained(new_dds[i]))
+                    new_dds[i] = dd;
+                else if(not is_unconstrained(dd) and dd != new_dds[i])
+                    MIGRAPHX_THROW("CONCAT: all input dimensions should match in axis " +
+                                   std::to_string(i));
             }
         }
 

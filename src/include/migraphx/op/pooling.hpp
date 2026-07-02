@@ -114,7 +114,11 @@ struct pooling
             (padding.size()) != stride.size() * 2) or
            stride.size() != lengths.size() or dilations.size() != lengths.size())
         {
-            MIGRAPHX_THROW("POOLING: inconsistent attribute sizes");
+            MIGRAPHX_THROW("POOLING: inconsistent attribute sizes: padding (" +
+                           to_string(padding.size()) + "), stride (" + to_string(stride.size()) +
+                           "), lengths (" + to_string(lengths.size()) + "), dilations (" +
+                           to_string(dilations.size()) +
+                           "); stride, lengths and dilations must match");
         }
 
         const auto is_zero = [](auto el) { return el == 0; };
@@ -122,7 +126,9 @@ struct pooling
            std::any_of(stride.begin(), stride.end(), is_zero) or
            std::any_of(dilations.begin(), dilations.end(), is_zero))
         {
-            MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride or dilations");
+            MIGRAPHX_THROW("POOLING: size 0 pooling kernel or stride or dilations: lengths {" +
+                           to_string_range(lengths) + "}, stride {" + to_string_range(stride) +
+                           "}, dilations {" + to_string_range(dilations) + "}");
         }
     }
 
@@ -173,7 +179,13 @@ struct pooling
             const bool kernel_doesnt_fit = shape::is_fixed_dim(numerator) and
                                            shape::static_dim_value(numerator) < dilated_length;
             if(kernel_doesnt_fit and padding_mode == default_)
-                MIGRAPHX_THROW("POOLING: not enough padding for the given kernel size");
+                MIGRAPHX_THROW("POOLING: not enough padding for the given kernel size on spatial "
+                               "axis " +
+                               to_string(i) + ": padded input length (" +
+                               to_string(shape::static_dim_value(numerator)) +
+                               ") < dilated kernel length (" + to_string(dilated_length) +
+                               ") for kernel " + to_string(lengths[i]) + " and dilation " +
+                               to_string(dilations[i]));
 
             auto dim_size =
                 kernel_doesnt_fit ? const_dim_like(numerator, 2) : (numerator - dilated_length);
@@ -195,7 +207,9 @@ struct pooling
         auto stride_size   = stride.size();
         if(input.ndim() != stride_size + 2)
         {
-            MIGRAPHX_THROW("POOLING: input and attribute size mismatch!");
+            MIGRAPHX_THROW("POOLING: input and attribute size mismatch! input rank (" +
+                           to_string(input.ndim()) + ") must equal stride size + 2 (" +
+                           to_string(stride_size + 2) + ")");
         }
 
         // Range-based dynamic uses the dedicated path (auto-pad-aware). Static and symbolic
@@ -350,7 +364,10 @@ struct pooling
                 if(end < start)
                 {
                     // This error can be caused by misc. bad input combinations
-                    MIGRAPHX_THROW("POOLING: invalid attributes");
+                    MIGRAPHX_THROW("POOLING: invalid attributes: empty pooling window on spatial "
+                                   "axis " +
+                                   to_string(d_2) + " (window end " + to_string(end) + " < start " +
+                                   to_string(start) + ")");
                 }
                 win_size.push_back(end - start);
             }

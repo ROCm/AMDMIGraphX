@@ -51,6 +51,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Description
    *  - --help | -h
       - Prints help section.
+   *  - --json-config
+      - Sets option values from a JSON config file. Each key is an option flag (with or without leading dashes) and its value sets the corresponding option. Boolean flags use ``true``/``false``, list options use JSON arrays. Command-line flags take precedence.
    *  - --test 
       - Test MIGraphX with single layer GEMM model.
    *  - --onnx
@@ -105,6 +107,14 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Compiles on the CPU
    *  - --ref
       - Compiles on the reference implementation
+   *  - --gpu-arch
+      - Cross-compiles the ``gpu`` target for the given architecture (e.g. ``gfx942``) without requiring a physical device
+   *  - --gpu-num-cus
+      - Number of compute units to assume for cross-compilation (Default: 120, only used when ``--gpu-arch`` is set)
+   *  - --gpu-num-chiplets
+      - Number of chiplets (XCCs) to assume for cross-compilation (Default: 1, only used when ``--gpu-arch`` is set)
+   *  - --gpu-arch-params
+      - Device properties to assume for cross-compilation as a JSON object, e.g. ``"{arch:gfx942, num_cu:120, num_chiplets:1, max_threads_per_cu:2048, max_threads_per_block:1024}"`` (overrides ``--gpu-arch``, ``--gpu-num-cus`` and ``--gpu-num-chiplets``; specifying ``arch`` here enables cross-compilation without ``--gpu-arch``)
    *  - --enable-offload-copy
       - Enables implicit offload copying
    *  - --disable-fast-math
@@ -133,12 +143,48 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Sets the number of iterations to run for perf report
    *  - --list | -l
       - Lists all the MIGraphX operators
+   *  - --log-level
+      - Sets the log level (none/0, error/1, warn/2, info/3, debug/4, trace/5)
+   *  - --log-file
+      - Logs to one or more files (``--log-file file1.log file2.log ...``)
+   *  - --log-stdout
+      - Logs to ``stdout`` in addition to the default ``stderr`` (warnings and errors still go to ``stderr``)
 
 Usage
 ----------
 
 This section demonstrates the usage of MIGraphX driver tool with some commonly used options. Note that these examples use a simple
 MNIST ConvNet as the input graph for demonstration purposes as models of higher complexity generate considerably larger outputs in most cases.
+
+Option: --json-config
+***********************
+
+Any option that can be passed on the command line can instead be set from a JSON config file. The
+config file is a JSON object whose keys are option flag names (with or without leading dashes) and
+whose values set the corresponding options. Boolean flags are toggled with ``true``/``false`` and
+list options (such as ``--input-dim``) take JSON arrays. Options passed on the command line take
+precedence over the config file.
+
+Given a ``config.json`` like:
+
+.. code-block:: json
+
+   {
+     "gpu": true,
+     "fp16": true,
+     "exhaustive-tune": true,
+     "iterations": 50,
+     "input-dim": ["@input", 1, 3, 224, 224]
+   }
+
+You can run:
+
+.. code-block:: bash
+
+   $ /opt/rocm/bin/migraphx-driver perf model.onnx --json-config config.json
+
+   # Command-line flags override the config file (runs 100 iterations here):
+   $ /opt/rocm/bin/migraphx-driver perf model.onnx --json-config config.json -n 100
 
 Option: op
 ************

@@ -59,8 +59,10 @@ add_library(migraphx
     common_dims.cpp
     compile_src.cpp
     convert_to_json.cpp
+    convolution.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
+    dim_like.cpp
     dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp
@@ -138,11 +140,11 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
-    sym.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    sym.cpp
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp
@@ -174,11 +176,15 @@ function(register_migraphx_ops)
         register_op(migraphx HEADER migraphx/op/${OP}.hpp OPERATORS op::${OP})
     endforeach()
 endfunction()
+
+rocm_add_version_resource(migraphx "AMD MIGraphX" "MIGraphX Core Library - AMD Graph Optimization Engine")
+
 register_migraphx_ops(
     abs
     acosh
     acos
     add
+    addressof
     allocate
     argmax
     argmin
@@ -204,6 +210,7 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    deref
     dimensions_of
     div
     dot
@@ -219,7 +226,6 @@ register_migraphx_ops(
     gather
     gathernd
     get_tuple_elem
-    gqa_rotary_embedding
     greater
     group
     gru

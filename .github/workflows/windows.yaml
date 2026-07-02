@@ -81,3 +81,89 @@ jobs:
 
     # - name: Setup tmate session
     #   uses: mxschmitt/action-tmate@v3
+
+  windows-gpu:
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+
+    # GitHub-hosted runners have no AMD GPU, so this job only builds MIGraphX
+    # with the GPU backend; it does not run the GPU tests. The architecture is
+    # build-only, so any target with complete TheRock library support works.
+    env:
+      GPU_ARCH: gfx942
+
+    steps:
+    - uses: actions/checkout@v4.2.2
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12
+
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v1.9
+      with:
+        cmake-version: 3.20.0
+
+    - name: Install rbuild
+      run: pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+
+    - name: Install ROCm from TheRock python wheels
+      # See https://github.com/ROCm/TheRock/blob/main/RELEASES.md
+      run: |
+        pip install --pre --index-url https://rocm.nightlies.amd.com/whl-multi-arch/ \
+          "rocm[libraries,devel,device-${GPU_ARCH}]"
+        # Expand the devel tree (headers, CMake configs, compiler) and hardlink
+        # the device files from the installed device wheel into it.
+        rocm-sdk init
+
+    - name: Set up ROCm toolchain
+      run: |
+        ROCM_ROOT=$(rocm-sdk path --root)
+        # Put the ROCm LLVM toolchain (clang-cl / clang / clang++) and runtime
+        # tools on PATH so the CC/CXX picked per build step resolve to the
+        # HIP-capable compiler.
+        echo "${ROCM_ROOT}/lib/llvm/bin" >> "$GITHUB_PATH"
+        echo "${ROCM_ROOT}/bin" >> "$GITHUB_PATH"
+        # find_package() locates hip / rocblas / hipblaslt / miopen via this prefix.
+        echo "ROCM_CMAKE_PATH=$(rocm-sdk path --cmake)" >> "$GITHUB_ENV"
+
+    - name: Cache dependencies
+      continue-on-error: true
+      uses: actions/cache@v4.2.0
+      id: deps_cache
+      with:
+        path: ${{ github.workspace }}/cget
+        key: windows-cget-gpu-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
+        restore-keys: windows-cget-gpu-
+
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3
+
+    - name: Install dependencies
+      # Build the third-party dependencies (including rocMLIR) with clang-cl,
+      # matching the windows-cpu job.
+      env:
+        CC: clang-cl
+        CXX: clang-cl
+        CXXFLAGS: "/std:c++17"
+      run: |
+        rbuild prepare -d cget -s gh-win-gpu -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build
+      # Build MIGraphX itself with the ROCm HIP clang++ so the GPU backend
+      # compiles; point CMake at both the dependency prefix and the ROCm install.
+      env:
+        CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget;${{ env.ROCM_CMAKE_PATH }}
+        CC: clang
+        CXX: clang++
+      run: |
+        rbuild build -d cget -s gh-win-gpu -G Ninja -T driver \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DGPU_TARGETS=${GPU_ARCH}
+
+
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3

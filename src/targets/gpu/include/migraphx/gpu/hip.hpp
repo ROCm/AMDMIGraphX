@@ -46,6 +46,8 @@ MIGRAPHX_GPU_EXPORT argument register_on_gpu(const argument& arg);
 
 MIGRAPHX_GPU_EXPORT argument to_gpu(const argument& arg, bool host = false);
 
+MIGRAPHX_GPU_EXPORT bool is_gpu_device_ptr(const void* ptr);
+
 MIGRAPHX_GPU_EXPORT argument from_gpu(const argument& arg);
 
 MIGRAPHX_GPU_EXPORT void set_device(std::size_t id);

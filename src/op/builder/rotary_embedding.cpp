@@ -65,7 +65,18 @@ struct rotary_embedding : op_builder<rotary_embedding>
                                                              instruction_ref cos_cache,
                                                              instruction_ref sin_cache) const
     {
-        auto in_lens = in->get_shape().lens();
+        auto in_shape = in->get_shape();
+        auto in_dyn_shape = in_shape.to_dynamic();
+        auto in_dyn_dims = in_dyn_shape.dyn_dims();
+        std::vector<std::size_t> in_lens(in_dyn_dims.size());
+        if(std::all_of(in_dyn_dims.begin(), in_dyn_dims.end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+        {
+            std::transform(in_dyn_dims.begin(), in_dyn_dims.end(), in_lens.begin(), [](const shape::dynamic_dimension& dim) { return dim.get_interval().max; });
+        }
+        else
+        {
+            MIGRAPHX_THROW("RotaryEmbedding: Input must be fixed if dynamic");
+        }
         // Expect input layout: [batch, heads, seq, head_size]
         if(in_lens.size() != 4)
         {
@@ -178,7 +189,18 @@ struct rotary_embedding : op_builder<rotary_embedding>
                                                 instruction_ref cos,
                                                 instruction_ref sin) const
     {
-        auto in_lens = in->get_shape().lens();
+        auto in_shape = in->get_shape();
+        auto in_dyn_shape = in_shape.to_dynamic();
+        auto in_dyn_dims = in_dyn_shape.dyn_dims();
+        std::vector<std::size_t> in_lens(in_dyn_dims.size());
+        if(std::all_of(in_dyn_dims.begin(), in_dyn_dims.end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+        {
+            std::transform(in_dyn_dims.begin(), in_dyn_dims.end(), in_lens.begin(), [](const shape::dynamic_dimension& dim) { return dim.get_interval().max; });
+        }
+        else
+        {
+            MIGRAPHX_THROW("RotaryEmbedding: Input must be fixed if dynamic");
+        }
         auto d       = in_lens.back();
         auto half_d  = d / 2;
         auto dtype   = in->get_shape().type();

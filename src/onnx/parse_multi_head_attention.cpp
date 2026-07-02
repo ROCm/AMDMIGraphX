@@ -26,6 +26,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/shape.hpp>
 #include <string>
 
 namespace migraphx {
@@ -64,7 +65,109 @@ struct multi_head_attention_parameters
     bool qkv_biased               = false;
     float mask_filter_value       = -10000.0f;
     key_mask_mode_t key_pad_mode  = key_mask_mode_t::none;
+    /// When true, key/value axis \e n (kv sequence length) is dynamic; reshape uses 0 dims.
+    bool kv_sequence_length_dynamic = false;
 };
+
+namespace {
+
+shape::dynamic_dimension mha_dim_as_dd(const shape& s, std::size_t i)
+{
+    if(s.dynamic())
+        return s.dyn_dims().at(i);
+    const auto v = s.lens().at(i);
+    return {v, v};
+}
+
+bool mha_dd_equal_or_compatible(const shape::dynamic_dimension& a, const shape::dynamic_dimension& b)
+{
+    if(a == b)
+        return true;
+    return a.intersection(b).has_value();
+}
+
+void mha_require_fixed_except(const shape& s, std::size_t except_axis)
+{
+    if(not s.dynamic())
+        return;
+    for(std::size_t i = 0; i < s.ndim(); ++i)
+    {
+        if(i == except_axis)
+            continue;
+        if(not s.dyn_dims().at(i).is_fixed())
+            MIGRAPHX_THROW(
+                "MultiHeadAttention: only key/value sequence length n may be dynamic; axis " +
+                std::to_string(i) + " must have a fixed size.");
+    }
+}
+
+int64_t mha_fixed_dim_size(const shape& s, std::size_t i)
+{
+    const auto dd = mha_dim_as_dd(s, i);
+    if(not dd.is_fixed())
+        MIGRAPHX_THROW("MultiHeadAttention: expected a fixed-size dimension at axis " +
+                       std::to_string(i) + ".");
+    return static_cast<int64_t>(dd.get_interval().min);
+}
+
+void validate_qkv_separate_dynamic_kv_n(const shape& query_shape,
+                                        const shape& key_shape,
+                                        const shape& value_shape,
+                                        multi_head_attention_parameters& params)
+{
+    if(query_shape.dynamic() and not std::all_of(query_shape.dyn_dims().begin(), query_shape.dyn_dims().end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+        MIGRAPHX_THROW("MultiHeadAttention: query must be static when key/value sequence length "
+                       "n is dynamic.");
+
+    const auto q_seq    = mha_dim_as_dd(query_shape, 1);
+    const auto q_hidden = mha_dim_as_dd(query_shape, 2);
+    if(not q_seq.is_fixed() or not q_hidden.is_fixed())
+        MIGRAPHX_THROW("MultiHeadAttention: query sequence length and hidden size must be static "
+                       "when n is dynamic.");
+
+    if(key_shape.dynamic() != value_shape.dynamic())
+        MIGRAPHX_THROW("MultiHeadAttention: key and value must both be static or both dynamic for "
+                       "the (batch, n, hidden) layout.");
+
+    mha_require_fixed_except(key_shape, 1);
+    mha_require_fixed_except(value_shape, 1);
+
+    const auto k_n = mha_dim_as_dd(key_shape, 1);
+    const auto v_n = mha_dim_as_dd(value_shape, 1);
+    if(not mha_dd_equal_or_compatible(k_n, v_n))
+        MIGRAPHX_THROW("MultiHeadAttention: key and value must agree on sequence length n.");
+
+    if(not mha_dd_equal_or_compatible(mha_dim_as_dd(query_shape, 0), mha_dim_as_dd(key_shape, 0)) or
+        not mha_dd_equal_or_compatible(mha_dim_as_dd(query_shape, 0), mha_dim_as_dd(value_shape, 0)))
+        MIGRAPHX_THROW("MultiHeadAttention: batch_size mismatch between query, key, and value.");
+
+    if(not mha_dd_equal_or_compatible(mha_dim_as_dd(query_shape, 2), mha_dim_as_dd(key_shape, 2)))
+        MIGRAPHX_THROW("MultiHeadAttention: hidden size mismatch between query and key.");
+
+    if(not mha_dim_as_dd(value_shape, 2).is_fixed())
+        MIGRAPHX_THROW("MultiHeadAttention: value hidden_size_v must be static when n is dynamic.");
+
+    params.batch_size        = mha_fixed_dim_size(query_shape, 0);
+    params.q_sequence_length = mha_fixed_dim_size(query_shape, 1);
+    params.hidden_size       = mha_fixed_dim_size(query_shape, 2);
+    params.head_size         = params.hidden_size / params.num_heads;
+    params.hidden_size_v     = mha_fixed_dim_size(value_shape, 2);
+    params.head_size_v      = params.hidden_size_v / params.num_heads;
+    params.qkv_fomat         = qkv_fomat_t::q_k_v;
+
+    if(not k_n.is_fixed())
+    {
+        params.kv_sequence_length_dynamic = true;
+        params.kv_sequence_length         = 0;
+    }
+    else
+    {
+        params.kv_sequence_length_dynamic = false;
+        params.kv_sequence_length         = mha_fixed_dim_size(key_shape, 1);
+    }
+}
+
+} // namespace
 
 struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 {
@@ -110,11 +213,27 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     void check_query_dim(const std::vector<instruction_ref>& args,
                          multi_head_attention_parameters& params) const
     {
-        auto query_dim  = args[0]->get_shape().ndim();
-        auto query_lens = args[0]->get_shape().lens();
+        const auto& query_shape = args[0]->get_shape();
+        const auto query_dim    = query_shape.ndim();
 
-        params.batch_size        = query_lens[0];
-        params.q_sequence_length = query_lens[1];
+        if(query_shape.dynamic() and not std::all_of(query_shape.dyn_dims().begin(), query_shape.dyn_dims().end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+            MIGRAPHX_THROW("MultiHeadAttention: dynamic query is not supported.");
+
+        auto query_dyn_shape = query_shape.to_dynamic();
+        auto query_dyn_dims = query_dyn_shape.dyn_dims();
+        std::vector<std::size_t> query_lens(query_dyn_dims.size());
+        if(std::all_of(query_dyn_dims.begin(), query_dyn_dims.end(), [](const shape::dynamic_dimension& dim) { return dim.is_fixed(); }))
+        {
+            std::transform(query_dyn_dims.begin(), query_dyn_dims.end(), query_lens.begin(), [](const shape::dynamic_dimension& dim) { return dim.get_interval().max; });
+        }
+        else
+        {
+            MIGRAPHX_THROW("MultiHeadAttention: Input must be fixed if dynamic");
+        }
+
+        params.kv_sequence_length_dynamic = false;
+        params.batch_size                 = query_lens[0];
+        params.q_sequence_length          = query_lens[1];
 
         if(query_dim != 3 and query_dim != 5)
             MIGRAPHX_THROW("MultiHeadAttention: Input 'query' rank needs to be 3 or 5, current: " +
@@ -141,8 +260,12 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             params.hidden_size = query_lens[2];
             params.head_size   = query_lens[2] / params.num_heads;
 
-            auto key_dim  = args[1]->get_shape().ndim();
-            auto key_lens = args[1]->get_shape().lens();
+            const auto& key_shape = args[1]->get_shape();
+            const auto key_dim    = key_shape.ndim();
+
+            if(key_shape.dynamic() and key_dim != 3)
+                MIGRAPHX_THROW("MultiHeadAttention: dynamic key is only supported for rank-3 "
+                               "(batch, n, hidden_size) inputs.");
 
             if(key_dim < 3 or key_dim > 5)
                 MIGRAPHX_THROW(
@@ -151,6 +274,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
             if(key_dim == 5)
             {
+                if(key_shape.dynamic())
+                    MIGRAPHX_THROW("MultiHeadAttention: packed key (rank 5) does not support "
+                                   "dynamic shapes.");
+
+                const auto key_lens = key_shape.lens();
                 if(key_lens[0] != params.batch_size or key_lens[2] != params.num_heads or
                    key_lens[3] != 2 or key_lens[4] != params.head_size)
                     MIGRAPHX_THROW("MultiHeadAttention: Input 'key' shape needs to be (batch_size, "
@@ -167,8 +295,12 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                     MIGRAPHX_THROW(
                         "MultiHeadAttention: Wrong number of inputs, 'value' is missing.");
 
-                auto value_dim  = args[2]->get_shape().ndim();
-                auto value_lens = args[2]->get_shape().lens();
+                const auto& value_shape = args[2]->get_shape();
+                const auto value_dim    = value_shape.ndim();
+
+                if(value_shape.dynamic() and value_dim != 3)
+                    MIGRAPHX_THROW("MultiHeadAttention: dynamic value is only supported for rank-3 "
+                                   "(batch, n, hidden_size_v) inputs.");
 
                 if(key_dim != value_dim)
                     MIGRAPHX_THROW(
@@ -176,21 +308,38 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
                 if(key_dim == 3)
                 {
-                    if(key_lens[0] != params.batch_size or key_lens[2] != params.hidden_size)
-                        MIGRAPHX_THROW("MultiHeadAttention: Input 'key' shape needs to be "
-                                       "(batch_size, kv_sequence_length, hidden_size)");
+                    const bool kv_any_dynamic = key_shape.dynamic() or value_shape.dynamic();
+                    if(kv_any_dynamic)
+                    {
+                        validate_qkv_separate_dynamic_kv_n(
+                            query_shape, key_shape, value_shape, params);
+                    }
+                    else
+                    {
+                        const auto key_lens   = key_shape.lens();
+                        const auto value_lens = value_shape.lens();
+                        if(key_lens[0] != params.batch_size or key_lens[2] != params.hidden_size)
+                            MIGRAPHX_THROW("MultiHeadAttention: Input 'key' shape needs to be "
+                                           "(batch_size, kv_sequence_length, hidden_size)");
 
-                    if(value_lens[0] != params.batch_size or value_lens[1] != key_lens[1])
-                        MIGRAPHX_THROW("MultiHeadAttention: Input 'value' shape needs to be "
-                                       "(batch_size, kv_sequence_length, hidden_size_v)");
+                        if(value_lens[0] != params.batch_size or value_lens[1] != key_lens[1])
+                            MIGRAPHX_THROW("MultiHeadAttention: Input 'value' shape needs to be "
+                                           "(batch_size, kv_sequence_length, hidden_size_v)");
 
-                    params.kv_sequence_length = key_lens[1];
-                    params.hidden_size_v      = value_lens[2];
-                    params.head_size_v        = value_lens[2] / params.num_heads;
-                    params.qkv_fomat          = qkv_fomat_t::q_k_v;
+                        params.kv_sequence_length = key_lens[1];
+                        params.hidden_size_v      = value_lens[2];
+                        params.head_size_v        = value_lens[2] / params.num_heads;
+                        params.qkv_fomat          = qkv_fomat_t::q_k_v;
+                    }
                 }
                 else // key_dim == 4
                 {
+                    if(key_shape.dynamic() or value_shape.dynamic())
+                        MIGRAPHX_THROW("MultiHeadAttention: dynamic shapes are not supported for "
+                                       "rank-4 (cross) key/value layout.");
+
+                    const auto key_lens   = key_shape.lens();
+                    const auto value_lens = value_shape.lens();
                     if(key_lens[0] != params.batch_size or key_lens[1] != params.num_heads or
                        key_lens[3] != params.head_size)
                         MIGRAPHX_THROW("MultiHeadAttention: Input 'key' shape needs to be "
@@ -215,6 +364,18 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 4)
         {
+            if(params.kv_sequence_length_dynamic)
+            {
+                const auto& ms = args.at(4)->get_shape();
+                if(ms.dynamic())
+                    MIGRAPHX_THROW("MultiHeadAttention: dynamic key_padding_mask is not supported "
+                                   "when key/value sequence length n is dynamic.");
+                if(ms.elements() != 0)
+                    MIGRAPHX_THROW("MultiHeadAttention: key_padding_mask is not supported when "
+                                   "key/value sequence length n is dynamic.");
+                return;
+            }
+
             // Skip validation if the mask is empty (optional input not provided)
             if(args.at(4)->get_shape().elements() == 0)
                 return;
@@ -291,6 +452,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
             if(bias_lens.size() == 1)
             {
+                if(params.kv_sequence_length_dynamic)
+                    MIGRAPHX_THROW("MultiHeadAttention: QKV bias is not supported when key/value "
+                                   "sequence length n is dynamic.");
                 if(bias_lens[0] != params.hidden_size_v + (2 * params.hidden_size))
                     MIGRAPHX_THROW(
                         "MultiheadAttention: 1D Bias must be of size hidden_size + hidden_size "
@@ -310,6 +474,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() > 5)
         {
+            if(params.kv_sequence_length_dynamic)
+            {
+                return;
+            }
+
             const auto attn_bias_lens = args.at(5)->get_shape().lens();
 
             if(attn_bias_lens.size() != 4)
@@ -340,6 +509,15 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         if(args.size() <= 6)
             return;
 
+        if(params.kv_sequence_length_dynamic)
+        {
+            const auto& ps = args.at(6)->get_shape();
+            if(not ps.dynamic() and ps.elements() > 0)
+                MIGRAPHX_THROW("MultiHeadAttention: past_key is not supported when key/value "
+                               "sequence length n is dynamic.");
+            return;
+        }
+
         // Skip validation if past_key is empty (optional input not provided)
         if(args.at(6)->get_shape().elements() == 0)
             return;
@@ -363,6 +541,15 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
     {
         if(args.size() <= 7)
             return;
+
+        if(params.kv_sequence_length_dynamic)
+        {
+            const auto& ps = args.at(7)->get_shape();
+            if(not ps.dynamic() and ps.elements() > 0)
+                MIGRAPHX_THROW("MultiHeadAttention: past_value is not supported when key/value "
+                               "sequence length n is dynamic.");
+            return;
+        }
 
         // Skip validation if past_value is empty (optional input not provided)
         if(args.at(7)->get_shape().elements() == 0)
@@ -447,6 +634,10 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                    instruction_ref key,
                    instruction_ref value) const
     {
+        if(params.kv_sequence_length_dynamic)
+            MIGRAPHX_THROW("MultiHeadAttention: QKV bias is not supported when key/value sequence "
+                           "length n is dynamic.");
+
         auto bias_unsq = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), bias);
         bias_unsq      = info.add_instruction(make_op("unsqueeze", {{"axes", {0}}}), bias_unsq);
         // slice out piece of bias data for each qkv
@@ -552,8 +743,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
         else
         {
             // Query: (batch_size, q_sequence_length, hidden_size)
-            std::vector<int64_t> q_dims{
-                params.batch_size, params.q_sequence_length, params.num_heads, params.head_size};
+            // Use 0 dims so batch and q_sequence_length follow the input (needed when key/value n
+            // is dynamic and shapes are inferred from separate inputs).
+            std::vector<int64_t> q_dims{0, 0, params.num_heads, params.head_size};
             query = info.add_instruction(make_op("reshape", {{"dims", q_dims}}), query);
 
             key = args[1];
@@ -570,14 +762,9 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
                 {
                     // Key: (batch_size, kv_sequence_length, hidden_size)
                     // Value: (batch_size, kv_sequence_length, hidden_size_v)
-                    std::vector<int64_t> k_dims{params.batch_size,
-                                                params.kv_sequence_length,
-                                                params.num_heads,
-                                                params.head_size};
-                    std::vector<int64_t> v_dims{params.batch_size,
-                                                params.kv_sequence_length,
-                                                params.num_heads,
-                                                params.head_size_v};
+                    // 0 copies batch and kv sequence length n from inputs (supports dynamic n).
+                    std::vector<int64_t> k_dims{0, 0, params.num_heads, params.head_size};
+                    std::vector<int64_t> v_dims{0, 0, params.num_heads, params.head_size_v};
                     key   = info.add_instruction(make_op("reshape", {{"dims", k_dims}}), key);
                     value = info.add_instruction(make_op("reshape", {{"dims", v_dims}}), value);
                 }
@@ -790,6 +977,88 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
             }
         }
 
+        if(key->get_shape().dynamic() and value->get_shape().dynamic())
+        {
+            // Confirm that k/v have correct shape of (batch, num_heads, dyn_past_sl, head_size)
+            auto k_shape = key->get_shape();
+            auto v_shape = value->get_shape();
+            if(k_shape != v_shape)
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: dynamic key and value must have the same shape");
+            }
+            if(k_shape.dyn_dims().size() != 4 or k_shape.dyn_dims()[2].is_fixed())
+            {
+                MIGRAPHX_THROW("MultiHeadAttention: dynamic key and value must have the correct shape");
+            }
+            auto key_out = key;
+            auto value_out = value;
+            key = info.add_instruction(make_op("fixed_pad"), key);
+            value = info.add_instruction(make_op("fixed_pad"), value);
+            
+            // use dimensions_of to get the dynamic past sequence length as a runtime value
+            auto dyn_past_sl = info.add_instruction(make_op("dimensions_of", {{"start", 2}, {"end", 3}}), key_out);
+            // add one to get total sequence length
+            auto total_seq_len = info.add_instruction(make_op("add"), dyn_past_sl, info.add_literal(migraphx::literal{migraphx::shape{dyn_past_sl->get_shape().type(), {1}}, {1}}));
+            total_seq_len = info.add_instruction(make_op("multibroadcast", {{"out_lens", {params.batch_size, params.num_heads}}}), total_seq_len);
+
+
+            // insert attention op-by-op with greater/where/etc masking pattern of group_query_attention
+            auto max_seq_len = key->get_shape().lens()[2];
+
+            auto kt = info.add_instruction(make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), key);
+            auto gemm1 = info.add_instruction(make_op("dot"), query, kt);
+            
+            std::vector<int> range_vec(max_seq_len);
+            std::iota(range_vec.begin(), range_vec.end(), 0);
+            shape range_s{total_seq_len->get_shape().type(), {max_seq_len}};
+            auto range = info.add_literal(range_s, range_vec);
+            std::vector<std::size_t> bnsm{static_cast<std::size_t>(params.batch_size), static_cast<std::size_t>(params.num_heads), static_cast<std::size_t>(params.q_sequence_length), static_cast<std::size_t>(max_seq_len)};
+            auto bc_range = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), range);
+
+            auto scalar_s = shape{query->get_shape().type(), {1}};
+            auto ninf = info.add_literal(literal{scalar_s, {-std::numeric_limits<float>::infinity()}});
+            ninf = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), ninf);
+            
+            float scale = 1 / std::sqrt(params.head_size);
+            if(contains(info.attributes, "scale"))
+                scale = parser.parse_value(info.attributes.at("scale")).at<float>();
+
+            if(float_equal(scale, 0.0))
+            {
+                scale = 1.0f / std::sqrt(static_cast<float>(params.head_size));
+            }
+            auto scale_ins = info.add_literal(literal{scalar_s, {scale}});
+            scale_ins = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), scale_ins);
+            auto mul = info.add_instruction(make_op("mul"), gemm1, scale_ins);
+            
+            
+            instruction_ref seq_range;
+            if(params.q_sequence_length > 1)
+            {
+                std::vector<int> seq_range_vec(params.q_sequence_length);
+                std::iota(seq_range_vec.begin(), seq_range_vec.end(), 0);
+                shape seq_range_s{total_seq_len->get_shape().type(), {static_cast<std::size_t>(params.q_sequence_length)}};
+                seq_range = info.add_literal(seq_range_s, seq_range_vec);
+                seq_range = info.add_instruction(make_op("reshape", {{"dims", {params.q_sequence_length, 1}}}), seq_range);
+                seq_range = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), seq_range);
+                auto causal_mask = info.add_instruction(make_op("greater"), bc_range, seq_range);
+                causal_mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), causal_mask);
+                mul = info.add_instruction(make_op("where"), causal_mask, ninf, mul);
+            }
+
+            auto bc_past_sl = info.add_instruction(make_op("reshape", {{"dims", {static_cast<std::size_t>(params.batch_size), static_cast<std::size_t>(params.num_heads), 1, 1}}}), total_seq_len);
+            auto mask_comp = info.add_instruction(make_op("multibroadcast", {{"out_lens", bnsm}}), bc_past_sl);
+            auto mask = info.add_instruction(make_op("greater"), bc_range, mask_comp);
+            mask = info.add_instruction(make_op("convert", {{"target_type", shape::bool_type}}), mask);
+            auto where = info.add_instruction(make_op("where"), mask, ninf, mul);
+            auto softmax = info.add_instruction(make_op("softmax", {{"axis", 3}}), where);
+            auto scores = info.add_instruction(make_op("dot"), softmax, value);
+            auto out = info.add_instruction(make_op("transpose", {{"permutation", {0, 2, 1, 3}}}), scores);
+            out = info.add_instruction(make_op("reshape", {{"dims", {params.batch_size, params.q_sequence_length, params.hidden_size_v}}}), out);
+            return {out, key_out, value_out};
+
+        }
+
         // Set attention mask and bias when detected on input
         std::optional<instruction_ref> attn_mask;
         if(args.size() > 4)
@@ -826,6 +1095,11 @@ struct parse_multi_head_attention : op_parser<parse_multi_head_attention>
 
         result         = info.add_common_op("mul", result, scale_literal);
         auto qk_output = info.add_instruction(make_op("softmax", {{"axis", -1}}), result);
+        
+        if(qk_output->get_shape().type() != value->get_shape().type())
+        {
+            qk_output = info.add_instruction(make_op("convert", {{"target_type", value->get_shape().type()}}), qk_output);
+        }
         result         = info.add_instruction(make_op("dot"), qk_output, value);
         result = info.add_instruction(make_op("transpose", {{"permutation", perm}}), result);
         result = info.add_instruction(

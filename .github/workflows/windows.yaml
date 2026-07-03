@@ -93,6 +93,9 @@ jobs:
     # build-only, so any target with complete TheRock library support works.
     env:
       GPU_ARCH: gfx942
+      # Pinned ROCm release series (from the stable repo.amd.com wheel index,
+      # not the moving nightly channel). Bump to 7.14 etc. as needed.
+      ROCM_VERSION: "7.13"
 
     steps:
     - uses: actions/checkout@v4.2.2
@@ -105,7 +108,7 @@ jobs:
     - name: Setup cmake
       uses: jwlawson/actions-setup-cmake@v1.9
       with:
-        cmake-version: 3.20.0
+        cmake-version: 3.31.10
 
     - name: Setup MSVC Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
@@ -115,9 +118,12 @@ jobs:
 
     - name: Install ROCm from TheRock python wheels
       # See https://github.com/ROCm/TheRock/blob/main/RELEASES.md
+      # repo.amd.com/rocm/whl-multi-arch is TheRock's stable release wheel index
+      # (the therock-release-python bucket); releases are final versions, so no
+      # --pre is needed and the version is pinned to a release series.
       run: |
-        pip install --pre --index-url https://rocm.nightlies.amd.com/whl-multi-arch/ \
-          "rocm[libraries,devel,device-${GPU_ARCH}]"
+        pip install --index-url https://repo.amd.com/rocm/whl-multi-arch/ \
+          "rocm[libraries,devel,device-${GPU_ARCH}]==${ROCM_VERSION}.*"
         # Expand the devel tree (headers, CMake configs, compiler) and hardlink
         # the device files from the installed device wheel into it.
         rocm-sdk init

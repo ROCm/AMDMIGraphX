@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -60,8 +60,10 @@ struct broadcast_with_dims
         const auto& dims_shape         = inputs.at(1);
         size_t out_ndim     = std::max(input_tensor_shape.ndim(), dims_shape.lens().at(0));
         std::size_t max_int = std::numeric_limits<std::size_t>::max();
+        // A broadcast output dimension is always >= 1 (ONNX Expand only ever grows a size-1 axis),
+        // so use a lower bound of 1.
         std::vector<shape::dynamic_dimension> dyn_dims(out_ndim,
-                                                       shape::dynamic_dimension{0, max_int});
+                                                       shape::dynamic_dimension{1, max_int});
         return {input_tensor_shape.type(), dyn_dims};
     }
 

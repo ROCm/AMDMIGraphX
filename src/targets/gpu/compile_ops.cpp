@@ -44,6 +44,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
+#include <cstdlib>
 #include <functional>
 
 namespace migraphx {
@@ -588,9 +589,10 @@ struct compile_manager
         // root module has had a chance to dump its benchmark MXR files.
         if(dump_mxr and is_root)
         {
-            MIGRAPHX_THROW(
-                "Benchmark MXR files dumped to " + mxr_path +
-                ". Run the MXR files to create a problem cache, then recompile with the cache.");
+            log::info() << "Benchmark MXR files dumped to " << mxr_path
+                        << ". Run the MXR files to create a problem cache, then recompile with the "
+                           "cache.";
+            std::exit(0);
         }
 
         // Remove compile_plan already executed

@@ -112,6 +112,8 @@ jobs:
 
     - name: Setup MSVC Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
+      with:
+        vsversion: 2022 # v17.13.4
 
     - name: Install rbuild
       run: pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz

@@ -110,6 +110,9 @@ jobs:
       with:
         cmake-version: 3.31.10
 
+    - name: Install VS 2022 build tools
+      run: choco install visualstudio2022buildtools -y --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+      
     - name: Setup MSVC Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
       with:

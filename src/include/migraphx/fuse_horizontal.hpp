@@ -39,9 +39,16 @@ inline namespace MIGRAPHX_INLINE_NS {
  * embedding dimension and index layout, then fuses them into a single gather
  * over a concatenated embedding table with offset-adjusted indices.
  * The batched result is sliced back to produce the original outputs.
+ *
+ * When merge_mixed_lengths is set, same-table fusion also merges gathers on one
+ * table whose indices differ only in shape: each index is flattened to 1-D before
+ * the batched gather and each slice is reshaped back to its original output shape.
+ * Because the table is shared this introduces no index offset adjustment, and it
+ * never merges across distinct tables.  Left off by default.
  */
 struct MIGRAPHX_EXPORT fuse_horizontal
 {
+    bool merge_mixed_lengths = false;
     std::string name() const { return "fuse_horizontal"; }
     void apply(module_pass_manager& mpm) const;
 };

@@ -158,13 +158,82 @@ static std::vector<instruction_ref> slice_gather_rows(module& m,
     return results;
 }
 
+// Fuse a group of gathers whose indices may have *different* shapes.  Each index is
+// flattened to 1-D and concatenated, a single batched gather runs over `table`, then each
+// element range is sliced back out and reshaped to the original gather's output shape
+// (index dims + embedding dim).  indices[i] is the (already offset-adjusted) index for
+// gathers[i]; table is the gather data operand (a single, possibly concatenated table).
+static std::vector<instruction_ref>
+fuse_gathers_flattened(module& m,
+                       const std::vector<instruction_ref>& gathers,
+                       const std::vector<instruction_ref>& indices,
+                       instruction_ref table,
+                       instruction_ref insert_pt)
+{
+    std::vector<instruction_ref> flat_inputs(indices.size());
+    std::transform(
+        indices.begin(), indices.end(), flat_inputs.begin(), [&](instruction_ref idx) {
+            if(idx->get_shape().lens().size() == 1)
+                return idx;
+            std::int64_t n = idx->get_shape().elements();
+            return m.insert_instruction(insert_pt, make_op("reshape", {{"dims", {n}}}), idx);
+        });
+
+    auto big_idx =
+        m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), flat_inputs);
+    auto batched_gather =
+        m.insert_instruction(insert_pt, make_op("gather", {{"axis", 0}}), table, big_idx);
+
+    // Inclusive prefix sum of element counts gives each range's end; shift right and
+    // prepend 0 for the (exclusive) start offsets into the batched gather.
+    std::vector<std::size_t> slice_ends(gathers.size());
+    transform_partial_sum(
+        gathers.begin(), gathers.end(), slice_ends.begin(), std::plus<>{}, [](auto g) {
+            return g->inputs().at(1)->get_shape().elements();
+        });
+    std::vector<std::size_t> slice_starts(gathers.size());
+    slice_starts[0] = 0;
+    std::copy(slice_ends.begin(), std::prev(slice_ends.end()), slice_starts.begin() + 1);
+
+    const std::size_t emb_dim = table->get_shape().lens().back();
+    std::vector<instruction_ref> results(gathers.size());
+    std::transform(
+        gathers.begin(),
+        gathers.end(),
+        slice_starts.begin(),
+        results.begin(),
+        [&](instruction_ref g, std::size_t start) -> instruction_ref {
+            const auto& idx_lens = g->inputs().at(1)->get_shape().lens();
+            std::size_t n        = g->inputs().at(1)->get_shape().elements();
+            auto sliced          = m.insert_instruction(
+                insert_pt,
+                make_op("slice",
+                        {{"axes", {0}},
+                         {"starts", {static_cast<std::int64_t>(start)}},
+                         {"ends", {static_cast<std::int64_t>(start + n)}}}),
+                batched_gather);
+            // A 1-D index already yields {n, emb_dim}; only multi-dim indices need a
+            // reshape back to (index dims + embedding dim).
+            if(idx_lens.size() == 1)
+                return sliced;
+            std::vector<std::int64_t> out_dims(idx_lens.begin(), idx_lens.end());
+            out_dims.push_back(static_cast<std::int64_t>(emb_dim));
+            return m.insert_instruction(
+                insert_pt, make_op("reshape", {{"dims", out_dims}}), sliced);
+        });
+
+    return results;
+}
+
 // ---------------------------------------------------------------------------
 // Same-table gather horizontal fusion
 //
 // Candidates: gather(axis=0) with 2D constant embedding table and a non-scalar
 //             index whose first dim is >= min_index_batch (worthwhile batch)
 // Grouping:   by (table instruction, index type, index trailing dims) so only
-//             gathers reading the *same* table are merged
+//             gathers reading the *same* table are merged.  With merge_mixed_lengths
+//             the trailing dims are dropped, so same-table gathers with differing
+//             index shapes are merged too (via the flattened path).
 // Fusion:     concatenate the indices, single batched gather, slice rows back.
 //             No index offset adjustment is needed since the table is shared.
 // ---------------------------------------------------------------------------
@@ -173,6 +242,11 @@ struct same_table_gather_horizontal_fusion
 {
     // Minimum first index dim for the batched gather to be worthwhile.
     static constexpr std::size_t min_index_batch = 4;
+
+    // When set, merge same-table gathers whose indices differ only in shape by flattening
+    // each index (rather than requiring matching trailing dims).  Because the table is
+    // shared, no index offset adjustment is introduced.
+    bool merge_mixed_lengths = false;
 
     std::size_t min_group_size() const { return 2; }
 
@@ -211,9 +285,12 @@ struct same_table_gather_horizontal_fusion
         auto idx_type    = idx->get_shape().type();
         const auto& lens = idx->get_shape().lens();
         assert(not lens.empty());
-        // Trailing index dims (all except first) — must match for concat on axis 0.
+        // Trailing index dims (all except first) — must match for concat on axis 0.  When
+        // merging mixed lengths the indices are flattened, so trailing dims are ignored.
         // Keying on the data instruction itself restricts grouping to one table.
-        std::vector<std::size_t> trailing(lens.begin() + 1, lens.end());
+        std::vector<std::size_t> trailing;
+        if(not merge_mixed_lengths)
+            trailing.assign(lens.begin() + 1, lens.end());
         return std::make_tuple(data, idx_type, std::move(trailing));
     }
 
@@ -224,11 +301,25 @@ struct same_table_gather_horizontal_fusion
         auto data = gathers.front()->inputs().at(0);
         assert(data->get_shape().lens().size() == 2);
 
-        // Concatenate the per-gather indices into a single index tensor.
+        // Collect the per-gather indices (the table is shared, so no offset adjustment).
         std::vector<instruction_ref> idx_inputs(gathers.size());
         std::transform(gathers.begin(), gathers.end(), idx_inputs.begin(), [](auto g) {
             return g->inputs().at(1);
         });
+
+        // Mixed index shapes cannot be concatenated on axis 0; flatten each instead.  Only
+        // take the flattened path when the group is actually non-uniform, so uniform-shape
+        // groups produce the same (cheaper, reshape-free) IR regardless of the flag.
+        if(merge_mixed_lengths)
+        {
+            const auto& first_lens = gathers.front()->inputs().at(1)->get_shape().lens();
+            bool uniform           = std::all_of(gathers.begin(), gathers.end(), [&](auto g) {
+                return g->inputs().at(1)->get_shape().lens() == first_lens;
+            });
+            if(not uniform)
+                return fuse_gathers_flattened(m, gathers, idx_inputs, data, insert_pt);
+        }
+
         auto concat_idx =
             m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), idx_inputs);
 
@@ -246,8 +337,9 @@ struct same_table_gather_horizontal_fusion
 // Candidates: gather(axis=0) with 2D constant embedding table, static shapes,
 //             non-scalar index
 // Grouping:   by (embedding dimension, index type, index trailing dims)
-// Fusion:     concatenate embedding tables, adjust indices with offsets,
-//             single batched gather, slice results back
+// Fusion:     concatenate the *distinct* embedding tables (shared tables are kept
+//             once), adjust indices with per-table offsets, single batched gather,
+//             slice results back
 // ---------------------------------------------------------------------------
 
 struct gather_horizontal_fusion
@@ -296,50 +388,49 @@ struct gather_horizontal_fusion
     {
         auto idx_type = gathers.front()->inputs().at(1)->get_shape().type();
 
-        // Concatenate all embedding tables
-        std::vector<instruction_ref> emb_inputs(gathers.size());
-        std::transform(gathers.begin(), gathers.end(), emb_inputs.begin(), [](auto g) {
-            return g->inputs().at(0);
-        });
+        // Deduplicate shared tables.  Several gathers in a group may read the *same*
+        // table instruction (e.g. after same-table siblings are folded in).  Emitting
+        // one table copy per gather would replicate that data, bloating both the
+        // concatenated table literal and the batched gather.  Instead keep one copy per
+        // distinct table (in first-appearance order) and record the row offset of each.
+        std::vector<instruction_ref> unique_tables;
+        std::unordered_map<instruction_ref, std::size_t> table_offset;
+        std::size_t running_offset = 0;
+        for(auto g : gathers)
+        {
+            auto data = g->inputs().at(0);
+            if(table_offset.emplace(data, running_offset).second)
+            {
+                unique_tables.push_back(data);
+                running_offset += data->get_shape().lens().front();
+            }
+        }
+
+        // Concatenate the distinct tables (skip the concat when only one remains).
         auto concat_emb =
-            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), emb_inputs);
+            unique_tables.size() == 1
+                ? unique_tables.front()
+                : m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), unique_tables);
 
-        // Compute cumulative embedding offsets using transform_partial_sum.
-        // Inclusive partial sum gives end offsets; shift right and prepend 0
-        // to get start (exclusive) offsets.
-        std::vector<std::size_t> cum_sizes(gathers.size());
-        transform_partial_sum(
-            gathers.begin(), gathers.end(), cum_sizes.begin(), std::plus<>{}, [](auto g) {
-                return g->inputs().at(0)->get_shape().lens().front();
-            });
-
-        // Exclusive offsets: [0, cum_sizes[0], cum_sizes[1], ...]
-        std::vector<std::size_t> emb_offsets(gathers.size());
-        emb_offsets[0] = 0;
-        std::copy(cum_sizes.begin(), std::prev(cum_sizes.end()), emb_offsets.begin() + 1);
-
-        // Build adjusted indices (add offset to shift into concatenated table)
+        // Build adjusted indices (add each gather's table offset to shift into the
+        // concatenated table).  Gathers whose table lands at offset 0 need no adjustment.
         std::vector<instruction_ref> adjusted_idx_inputs;
         adjusted_idx_inputs.reserve(gathers.size());
-
-        migraphx::for_each(
-            gathers.begin(), gathers.end(), emb_offsets.begin(), [&](auto g, auto offset) {
-                auto idx = g->inputs().at(1);
+        std::transform(
+            gathers.begin(),
+            gathers.end(),
+            std::back_inserter(adjusted_idx_inputs),
+            [&](auto g) -> instruction_ref {
+                auto idx    = g->inputs().at(1);
+                auto offset = table_offset.at(g->inputs().at(0));
                 if(offset == 0)
-                {
-                    adjusted_idx_inputs.push_back(idx);
-                }
-                else
-                {
-                    auto offset_scalar    = m.add_literal(literal{shape{idx_type}, {offset}});
-                    auto offset_broadcast = m.insert_instruction(
-                        insert_pt,
-                        make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}),
-                        offset_scalar);
-                    auto adjusted_idx =
-                        m.insert_instruction(insert_pt, make_op("add"), idx, offset_broadcast);
-                    adjusted_idx_inputs.push_back(adjusted_idx);
-                }
+                    return idx;
+                auto offset_scalar    = m.add_literal(literal{shape{idx_type}, {offset}});
+                auto offset_broadcast = m.insert_instruction(
+                    insert_pt,
+                    make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}),
+                    offset_scalar);
+                return m.insert_instruction(insert_pt, make_op("add"), idx, offset_broadcast);
             });
 
         // Concatenate adjusted indices
@@ -372,9 +463,19 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    // Collapse gathers that share the same table first; any sibling gathers left
-    // across *different* tables then fall through to cross-table fusion.
-    fuse_horizontal_ops(m, same_table_gather_horizontal_fusion{}, gather_horizontal_fusion{});
+    // Run cross-embedding fusion first so a group of gathers sharing an embedding
+    // dimension is bundled together even when it spans several tables (table dedup
+    // keeps each distinct table once, so shared tables are not replicated).  Running
+    // same-table fusion first would greedily collapse the same-table subset and strand
+    // the remaining siblings below cross-table fusion's group-size threshold.  Same-table
+    // fusion then mops up the smaller same-instance groups (size 2-3) that cross-table
+    // fusion's larger threshold skips.  merge_mixed_lengths only affects same-table fusion:
+    // it lets same-table gathers with differing index shapes merge (via a flattened index)
+    // at no offset-add cost, without over-merging unrelated tables.
+    fuse_horizontal_ops(
+        m,
+        gather_horizontal_fusion{},
+        same_table_gather_horizontal_fusion{.merge_mixed_lengths = merge_mixed_lengths});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

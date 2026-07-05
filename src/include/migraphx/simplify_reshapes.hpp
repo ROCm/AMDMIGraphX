@@ -41,6 +41,10 @@ struct MIGRAPHX_EXPORT simplify_reshapes
     size_t depth = 4;
     bool enable_op_shape_transform_op = false;
     bool enable_gather_rewrite        = false;
+    // Controls find_gather_slice_concat (rewrite of concat(slice(gather)) patterns).  On by
+    // default; disabled only in the pre-fuse_horizontal GPU pass so the rewrite cannot reshape
+    // the gather/index graph that horizontal gather fusion groups on.
+    bool enable_gather_slice_concat = true;
     std::string name() const { return "simplify_reshapes"; }
     void apply(module& m) const;
 };

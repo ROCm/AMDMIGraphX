@@ -476,6 +476,206 @@ TEST_CASE(gather_horiz_fusion_shared_index)
     EXPECT(m1 == m2);
 }
 
+// Cross-table fusion where every gather reads the *same* constant table.
+// Index batch (2) is below same_table's min_index_batch (4), so the group falls
+// through to cross-table fusion.  Table dedup must keep a single table copy (no
+// concat / no offset adjustment) rather than replicating it once per gather.
+TEST_CASE(gather_horiz_fusion_dedup_single_shared_table)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {2}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {2}});
+        auto idx4 = m1.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx4);
+
+        m1.add_return({g1, g2, g3, g4});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {2}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {2}});
+        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {2}});
+        auto idx4 = m2.add_parameter("idx4", {migraphx::shape::int32_type, {2}});
+
+        // Single shared table → indices simply concatenated, gathered once, sliced back.
+        auto concat_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx1, idx2, idx3, idx4});
+
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), bg);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {6}}}), bg);
+        auto s4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {8}}}), bg);
+
+        m2.add_return({s1, s2, s3, s4});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// Cross-table fusion with two distinct tables, each read by two gathers.  Dedup
+// concatenates each table once ({3,2}+{4,2} = {7,2}); only the second table's
+// gathers get a +3 offset.  Without dedup the table would be replicated to {14,2}.
+TEST_CASE(gather_horiz_fusion_dedup_two_shared_tables)
+{
+    migraphx::module m1;
+    {
+        auto emb_a =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb_b =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+
+        auto idx_a1 = m1.add_parameter("idx_a1", {migraphx::shape::int32_type, {2}});
+        auto idx_b1 = m1.add_parameter("idx_b1", {migraphx::shape::int32_type, {2}});
+        auto idx_a2 = m1.add_parameter("idx_a2", {migraphx::shape::int32_type, {2}});
+        auto idx_b2 = m1.add_parameter("idx_b2", {migraphx::shape::int32_type, {2}});
+
+        auto ga1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_a, idx_a1);
+        auto gb1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_b, idx_b1);
+        auto ga2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_a, idx_a2);
+        auto gb2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_b, idx_b2);
+
+        m1.add_return({ga1, gb1, ga2, gb2});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto emb_a =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb_b =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+
+        auto idx_a1 = m2.add_parameter("idx_a1", {migraphx::shape::int32_type, {2}});
+        auto idx_b1 = m2.add_parameter("idx_b1", {migraphx::shape::int32_type, {2}});
+        auto idx_a2 = m2.add_parameter("idx_a2", {migraphx::shape::int32_type, {2}});
+        auto idx_b2 = m2.add_parameter("idx_b2", {migraphx::shape::int32_type, {2}});
+
+        // Distinct tables concatenated once: [3+4, 2] = [7, 2]
+        auto concat_emb = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                             std::vector<migraphx::instruction_ref>{emb_a, emb_b});
+
+        // Table B lands at offset 3; each of its gathers is shifted independently.
+        auto offb1 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto bcb1 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), offb1);
+        auto adj_b1 = m2.add_instruction(migraphx::make_op("add"), idx_b1, bcb1);
+
+        auto offb2 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto bcb2 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), offb2);
+        auto adj_b2 = m2.add_instruction(migraphx::make_op("add"), idx_b2, bcb2);
+
+        auto concat_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
+
+        auto bg =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), bg);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), bg);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {6}}}), bg);
+        auto s4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {6}}, {"ends", {8}}}), bg);
+
+        m2.add_return({s1, s2, s3, s4});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+static void run_pass_mixed(migraphx::module& m)
+{
+    migraphx::run_passes(
+        m,
+        {migraphx::fuse_horizontal{.merge_mixed_lengths = true}, migraphx::dead_code_elimination{}});
+}
+
+// merge_mixed_lengths: four gathers on the *same* table with different index shapes (so the
+// default same-table finder, which needs matching trailing dims, would not group them all)
+// are merged by flattening each index to 1-D, one batched gather, then slice + reshape back.
+// Index first dims are >= min_index_batch (4) so they qualify for same-table fusion.
+TEST_CASE(gather_horiz_fusion_mixed_index_lengths)
+{
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+        auto idx1 = m1.add_parameter("idx1", {migraphx::shape::int32_type, {4, 3}});
+        auto idx2 = m1.add_parameter("idx2", {migraphx::shape::int32_type, {5, 2}});
+        auto idx3 = m1.add_parameter("idx3", {migraphx::shape::int32_type, {4, 4}});
+        auto idx4 = m1.add_parameter("idx4", {migraphx::shape::int32_type, {6, 2}});
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx4);
+
+        m1.add_return({g1, g2, g3, g4});
+    }
+    run_pass_mixed(m1);
+
+    migraphx::module m2;
+    {
+        auto emb =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+        auto idx1 = m2.add_parameter("idx1", {migraphx::shape::int32_type, {4, 3}});
+        auto idx2 = m2.add_parameter("idx2", {migraphx::shape::int32_type, {5, 2}});
+        auto idx3 = m2.add_parameter("idx3", {migraphx::shape::int32_type, {4, 4}});
+        auto idx4 = m2.add_parameter("idx4", {migraphx::shape::int32_type, {6, 2}});
+
+        // Each 2-D index flattened to 1-D (element counts 12, 10, 16, 12).
+        auto f1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), idx1);
+        auto f2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {10}}}), idx2);
+        auto f3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {16}}}), idx3);
+        auto f4 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), idx4);
+
+        auto big_idx = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                          std::vector<migraphx::instruction_ref>{f1, f2, f3, f4});
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, big_idx);
+
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {12}}}), bg);
+        auto r1 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), s1);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {12}}, {"ends", {22}}}), bg);
+        auto r2 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {5, 2, 2}}}), s2);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {22}}, {"ends", {38}}}), bg);
+        auto r3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 4, 2}}}), s3);
+        auto s4 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {38}}, {"ends", {50}}}), bg);
+        auto r4 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 2, 2}}}), s4);
+
+        m2.add_return({r1, r2, r3, r4});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 // Dependent gathers: g2 depends on g1's output → only independent ones fuse
 // Since g1→g2 dependency exists, group_by won't group them together.
 // With only 3 remaining independent gathers, below min_group_size=4, no fusion.
@@ -848,31 +1048,41 @@ TEST_CASE(same_table_gathers_multiple_tables)
         auto idx_b1 = m2.add_parameter("idx_b1", {migraphx::shape::int32_type, {4}});
         auto idx_b2 = m2.add_parameter("idx_b2", {migraphx::shape::int32_type, {5}});
 
-        // Table A is fused first (anchor sees ga1)
-        auto concat_idx_a =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx_a1, idx_a2});
+        // Cross-embedding fusion runs first and, because both tables share the same
+        // embedding dim, bundles all four gathers into one batched gather.  Table dedup
+        // keeps each table once: concat is [3+4, 2] = [7, 2], and only table B's indices
+        // are shifted by +3 (table A's offset is 0).
+        auto concat_emb = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                             std::vector<migraphx::instruction_ref>{emb_a, emb_b});
 
-        auto bg_a =
-            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_a, concat_idx_a);
+        auto offb1 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto bcb1 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), offb1);
+        auto adj_b1 = m2.add_instruction(migraphx::make_op("add"), idx_b1, bcb1);
+
+        auto offb2 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto bcb2 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), offb2);
+        auto adj_b2 = m2.add_instruction(migraphx::make_op("add"), idx_b2, bcb2);
+
+        // Indices concatenated in gather (position) order: ga1, gb1, ga2, gb2.
+        auto concat_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
+
+        auto bg =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
 
         auto sa1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_a);
-        auto sa2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_a);
-
-        // Table B is fused next
-        auto concat_idx_b =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx_b1, idx_b2});
-
-        auto bg_b =
-            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_b, concat_idx_b);
-
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
         auto sb1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_b);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), bg);
+        auto sa2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {8}}, {"ends", {13}}}), bg);
         auto sb2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_b);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {13}}, {"ends", {18}}}), bg);
 
         m2.add_return({sa1, sb1, sa2, sb2});
     }

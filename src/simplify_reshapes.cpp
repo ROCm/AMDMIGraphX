@@ -2092,6 +2092,27 @@ struct find_slice_squeeze
         m.replace_instruction(op_ins, new_sq);
     }
 };
+struct find_squeeze_unsqueeze_roundtrip
+{
+    auto matcher() const
+    {
+        auto squeeze   = match::name("squeeze");
+        auto unsqueeze = match::name("unsqueeze");
+        auto same_shape_as_grandparent =
+            match::make_basic_pred_matcher([](instruction_ref ins) {
+                return ins->get_shape() == ins->inputs().front()->inputs().front()->get_shape();
+            });
+        return match::any_of(unsqueeze(match::arg(0)(squeeze), same_shape_as_grandparent),
+                             squeeze(match::arg(0)(unsqueeze), same_shape_as_grandparent));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto ins = mr.result;
+        m.replace_instruction(ins, ins->inputs().front()->inputs().front());
+    }
+};
+
 } // namespace
 
 void simplify_reshapes::apply(module& m) const
@@ -2101,13 +2122,18 @@ void simplify_reshapes::apply(module& m) const
     if(enable_gather_rewrite)
         match::find_matches(m, find_gather{});
     m.repeat_while_changes(depth, [&] {
+        // find_gather_slice_concat rewrites concat(slice(gather)) patterns into a gather with
+        // reordered indices.  It is on by default but disabled in the pre-fuse_horizontal GPU
+        // pass, so it cannot reshape the gather/index graph that horizontal gather fusion groups
+        // on (running it before fusion can change which fusion path a lookup takes).
+        if(enable_gather_slice_concat)
+            match::find_matches(m, find_gather_slice_concat{});
         match::find_matches(m,
                             find_nop_reshapes{},
                             find_flatten{},
                             find_reshape_cont{},
                             find_slice_shape_transforms{},
                             find_nested_shape_transforms{},
-                            find_gather_slice_concat{},
                             find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_reshape{},

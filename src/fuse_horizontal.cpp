@@ -193,7 +193,7 @@ fuse_gathers_flattened(module& m,
     slice_starts[0] = 0;
     std::copy(slice_ends.begin(), std::prev(slice_ends.end()), slice_starts.begin() + 1);
 
-    const std::size_t emb_dim = table->get_shape().lens().back();
+    const std::int64_t emb_dim = table->get_shape().lens().back();
     std::vector<instruction_ref> results(gathers.size());
     std::transform(gathers.begin(),
                    gathers.end(),
@@ -214,7 +214,7 @@ fuse_gathers_flattened(module& m,
                        if(idx_lens.size() == 1)
                            return sliced;
                        std::vector<std::int64_t> out_dims(idx_lens.begin(), idx_lens.end());
-                       out_dims.push_back(static_cast<std::int64_t>(emb_dim));
+                       out_dims.push_back(emb_dim);
                        return m.insert_instruction(
                            insert_pt, make_op("reshape", {{"dims", out_dims}}), sliced);
                    });

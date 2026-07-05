@@ -2092,25 +2092,6 @@ struct find_slice_squeeze
         m.replace_instruction(op_ins, new_sq);
     }
 };
-struct find_squeeze_unsqueeze_roundtrip
-{
-    auto matcher() const
-    {
-        auto squeeze                   = match::name("squeeze");
-        auto unsqueeze                 = match::name("unsqueeze");
-        auto same_shape_as_grandparent = match::make_basic_pred_matcher([](instruction_ref ins) {
-            return ins->get_shape() == ins->inputs().front()->inputs().front()->get_shape();
-        });
-        return match::any_of(unsqueeze(match::arg(0)(squeeze), same_shape_as_grandparent),
-                             squeeze(match::arg(0)(unsqueeze), same_shape_as_grandparent));
-    }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto ins = mr.result;
-        m.replace_instruction(ins, ins->inputs().front()->inputs().front());
-    }
-};
 
 } // namespace
 

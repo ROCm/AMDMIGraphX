@@ -171,16 +171,14 @@ fuse_gathers_flattened(module& m,
                        instruction_ref insert_pt)
 {
     std::vector<instruction_ref> flat_inputs(indices.size());
-    std::transform(
-        indices.begin(), indices.end(), flat_inputs.begin(), [&](instruction_ref idx) {
-            if(idx->get_shape().lens().size() == 1)
-                return idx;
-            std::int64_t n = idx->get_shape().elements();
-            return m.insert_instruction(insert_pt, make_op("reshape", {{"dims", {n}}}), idx);
-        });
+    std::transform(indices.begin(), indices.end(), flat_inputs.begin(), [&](instruction_ref idx) {
+        if(idx->get_shape().lens().size() == 1)
+            return idx;
+        std::int64_t n = idx->get_shape().elements();
+        return m.insert_instruction(insert_pt, make_op("reshape", {{"dims", {n}}}), idx);
+    });
 
-    auto big_idx =
-        m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), flat_inputs);
+    auto big_idx = m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), flat_inputs);
     auto batched_gather =
         m.insert_instruction(insert_pt, make_op("gather", {{"axis", 0}}), table, big_idx);
 
@@ -197,30 +195,29 @@ fuse_gathers_flattened(module& m,
 
     const std::size_t emb_dim = table->get_shape().lens().back();
     std::vector<instruction_ref> results(gathers.size());
-    std::transform(
-        gathers.begin(),
-        gathers.end(),
-        slice_starts.begin(),
-        results.begin(),
-        [&](instruction_ref g, std::size_t start) -> instruction_ref {
-            const auto& idx_lens = g->inputs().at(1)->get_shape().lens();
-            std::size_t n        = g->inputs().at(1)->get_shape().elements();
-            auto sliced          = m.insert_instruction(
-                insert_pt,
-                make_op("slice",
-                        {{"axes", {0}},
-                         {"starts", {static_cast<std::int64_t>(start)}},
-                         {"ends", {static_cast<std::int64_t>(start + n)}}}),
-                batched_gather);
-            // A 1-D index already yields {n, emb_dim}; only multi-dim indices need a
-            // reshape back to (index dims + embedding dim).
-            if(idx_lens.size() == 1)
-                return sliced;
-            std::vector<std::int64_t> out_dims(idx_lens.begin(), idx_lens.end());
-            out_dims.push_back(static_cast<std::int64_t>(emb_dim));
-            return m.insert_instruction(
-                insert_pt, make_op("reshape", {{"dims", out_dims}}), sliced);
-        });
+    std::transform(gathers.begin(),
+                   gathers.end(),
+                   slice_starts.begin(),
+                   results.begin(),
+                   [&](instruction_ref g, std::size_t start) -> instruction_ref {
+                       const auto& idx_lens = g->inputs().at(1)->get_shape().lens();
+                       std::size_t n        = g->inputs().at(1)->get_shape().elements();
+                       auto sliced          = m.insert_instruction(
+                           insert_pt,
+                           make_op("slice",
+                                            {{"axes", {0}},
+                                             {"starts", {static_cast<std::int64_t>(start)}},
+                                             {"ends", {static_cast<std::int64_t>(start + n)}}}),
+                           batched_gather);
+                       // A 1-D index already yields {n, emb_dim}; only multi-dim indices need a
+                       // reshape back to (index dims + embedding dim).
+                       if(idx_lens.size() == 1)
+                           return sliced;
+                       std::vector<std::int64_t> out_dims(idx_lens.begin(), idx_lens.end());
+                       out_dims.push_back(static_cast<std::int64_t>(emb_dim));
+                       return m.insert_instruction(
+                           insert_pt, make_op("reshape", {{"dims", out_dims}}), sliced);
+                   });
 
     return results;
 }
@@ -416,22 +413,22 @@ struct gather_horizontal_fusion
         // concatenated table).  Gathers whose table lands at offset 0 need no adjustment.
         std::vector<instruction_ref> adjusted_idx_inputs;
         adjusted_idx_inputs.reserve(gathers.size());
-        std::transform(
-            gathers.begin(),
-            gathers.end(),
-            std::back_inserter(adjusted_idx_inputs),
-            [&](auto g) -> instruction_ref {
-                auto idx    = g->inputs().at(1);
-                auto offset = table_offset.at(g->inputs().at(0));
-                if(offset == 0)
-                    return idx;
-                auto offset_scalar    = m.add_literal(literal{shape{idx_type}, {offset}});
-                auto offset_broadcast = m.insert_instruction(
-                    insert_pt,
-                    make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}),
-                    offset_scalar);
-                return m.insert_instruction(insert_pt, make_op("add"), idx, offset_broadcast);
-            });
+        std::transform(gathers.begin(),
+                       gathers.end(),
+                       std::back_inserter(adjusted_idx_inputs),
+                       [&](auto g) -> instruction_ref {
+                           auto idx    = g->inputs().at(1);
+                           auto offset = table_offset.at(g->inputs().at(0));
+                           if(offset == 0)
+                               return idx;
+                           auto offset_scalar = m.add_literal(literal{shape{idx_type}, {offset}});
+                           auto offset_broadcast = m.insert_instruction(
+                               insert_pt,
+                               make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}),
+                               offset_scalar);
+                           return m.insert_instruction(
+                               insert_pt, make_op("add"), idx, offset_broadcast);
+                       });
 
         // Concatenate adjusted indices
         auto concat_idx =

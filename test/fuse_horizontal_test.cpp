@@ -587,9 +587,9 @@ TEST_CASE(gather_horiz_fusion_dedup_two_shared_tables)
             m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2}}}), offb2);
         auto adj_b2 = m2.add_instruction(migraphx::make_op("add"), idx_b2, bcb2);
 
-        auto concat_idx =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
+        auto concat_idx = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
 
         auto bg =
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
@@ -610,9 +610,9 @@ TEST_CASE(gather_horiz_fusion_dedup_two_shared_tables)
 
 static void run_pass_mixed(migraphx::module& m)
 {
-    migraphx::run_passes(
-        m,
-        {migraphx::fuse_horizontal{.merge_mixed_lengths = true}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m,
+                         {migraphx::fuse_horizontal{.merge_mixed_lengths = true},
+                          migraphx::dead_code_elimination{}});
 }
 
 // merge_mixed_lengths: four gathers on the *same* table with different index shapes (so the
@@ -656,7 +656,7 @@ TEST_CASE(gather_horiz_fusion_mixed_index_lengths)
 
         auto big_idx = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
                                           std::vector<migraphx::instruction_ref>{f1, f2, f3, f4});
-        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, big_idx);
+        auto bg      = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, big_idx);
 
         auto s1 = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {12}}}), bg);
@@ -1068,9 +1068,9 @@ TEST_CASE(same_table_gathers_multiple_tables)
         auto adj_b2 = m2.add_instruction(migraphx::make_op("add"), idx_b2, bcb2);
 
         // Indices concatenated in gather (position) order: ga1, gb1, ga2, gb2.
-        auto concat_idx =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
+        auto concat_idx = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
 
         auto bg =
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);

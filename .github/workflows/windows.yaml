@@ -162,7 +162,7 @@ jobs:
       # rocmlirs cmake is needed.
       run: |
         rbuild prepare -d cget -s gh-win-gpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
-          -DLLVM_DISABLE_ASSEMBLY_FILES=On
+          -DLLVM_DISABLE_ASSEMBLY_FILES=On \
           -DLLVM_ENABLE_DIA_SDK=Off
 
     - name: Build

@@ -51,6 +51,7 @@ static migraphx::module make_module(const migraphx::operation& op,
 {
     migraphx::module m;
     std::vector<migraphx::instruction_ref> args;
+    args.reserve(shapes.size());
     for(std::size_t i = 0; i < shapes.size(); ++i)
         args.push_back(m.add_parameter("x" + std::to_string(i), shapes[i]));
     m.add_return({m.add_instruction(op, args)});

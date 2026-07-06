@@ -38,7 +38,12 @@ struct module_pass_manager;
  */
 struct MIGRAPHX_EXPORT layout_convolution
 {
-    bool channels_last = false;
+    enum layout_order
+    {
+        channels_first,
+        channels_last
+    };
+    layout_order order = channels_first;
     std::string name() const { return "layout_convolution"; }
     void apply(module_pass_manager& mpm) const;
 };

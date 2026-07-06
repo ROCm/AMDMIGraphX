@@ -199,7 +199,7 @@ TEST_CASE(nhwc_conv_relu)
             w);
         m1.add_instruction(migraphx::make_op("relu"), conv);
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -237,7 +237,7 @@ TEST_CASE(nhwc_conv_add)
             y);
         m1.add_instruction(migraphx::make_op("add"), conv, b);
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -279,7 +279,7 @@ TEST_CASE(nhwc_quant_conv_add)
             y);
         m1.add_instruction(migraphx::make_op("add"), conv, b);
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -329,7 +329,7 @@ TEST_CASE(nhwc_conv_conv)
         auto relu2 = m1.add_instruction(migraphx::make_op("relu"), add2);
         m1.add_return({relu2});
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -381,7 +381,7 @@ TEST_CASE(nhwc_conv_reduce)
         auto squeeze = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {2, 3}}}), reduce);
         m1.add_return({squeeze});
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {
@@ -421,7 +421,7 @@ TEST_CASE(nhwc_group_conv)
         auto relu2 = m1.add_instruction(migraphx::make_op("relu"), conv2);
         m1.add_return({relu2});
     }
-    run_pass(m1, {.channels_last = true});
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_last});
 
     migraphx::module m2;
     {

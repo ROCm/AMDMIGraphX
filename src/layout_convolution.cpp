@@ -41,7 +41,7 @@ namespace {
 std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convolution& lc)
 {
     std::vector<int64_t> perm(ins->get_shape().ndim());
-    if(lc.channels_last)
+    if(lc.order == layout_convolution::channels_last)
     {
         std::iota(perm.begin() + 1, perm.end() - 1, 2);
         perm.back() = 1;

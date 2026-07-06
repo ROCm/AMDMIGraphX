@@ -41,7 +41,8 @@ struct MIGRAPHX_EXPORT layout_convolution
     enum layout_order
     {
         channels_first,
-        channels_last
+        channels_last,
+        chennels_auto
     };
     layout_order order = channels_first;
     std::string name() const { return "layout_convolution"; }

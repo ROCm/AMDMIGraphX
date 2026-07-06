@@ -93,8 +93,6 @@ jobs:
     # build-only, so any target with complete TheRock library support works.
     env:
       GPU_ARCH: gfx942
-      # Pinned ROCm release series (from the stable repo.amd.com wheel index,
-      # not the moving nightly channel). Bump to 7.14 etc. as needed.
       ROCM_VERSION: "7.13"
 
     steps:
@@ -124,13 +122,10 @@ jobs:
     - name: Install ROCm from TheRock python wheels
       # See https://github.com/ROCm/TheRock/blob/main/RELEASES.md
       # repo.amd.com/rocm/whl-multi-arch is TheRock's stable release wheel index
-      # (the therock-release-python bucket); releases are final versions, so no
-      # --pre is needed and the version is pinned to a release series.
+      # (the therock-release-python bucket)
       run: |
         pip install --index-url https://repo.amd.com/rocm/whl-multi-arch/ \
           "rocm[libraries,devel,device-${GPU_ARCH}]==${ROCM_VERSION}.*"
-        # Expand the devel tree (headers, CMake configs, compiler) and hardlink
-        # the device files from the installed device wheel into it.
         rocm-sdk init
 
     - name: Set up ROCm toolchain
@@ -168,9 +163,9 @@ jobs:
 
     - name: Build
       # Build MIGraphX itself with the ROCm HIP clang++ so the GPU backend
-      # compiles; point CMake at both the dependency prefix and the ROCm install.
+      # compiles; point CMake at the ROCm install.
       env:
-        CMAKE_PREFIX_PATH: ${{ github.workspace }}/cget;${{ env.ROCM_CMAKE_PATH }}
+        CMAKE_PREFIX_PATH: ${{ env.ROCM_CMAKE_PATH }}
         CC: clang
         CXX: clang++
       run: |

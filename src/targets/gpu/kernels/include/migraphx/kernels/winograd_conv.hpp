@@ -164,7 +164,7 @@ __device__ inline array<half, 16> winograd_input_transform_f23(const array<half,
     // First pass B^T d: per-row sub/add of 4 columns. All 4 columns are
     // independent so we express each row as TWO packed half2 ops --
     // generates v_pk_add_f16 / v_pk_sub_f16.
-    const h2* dp   = reinterpret_cast<const h2*>(d_arr.data());
+    const h2* dp   = as_vec<2>(d_arr.data());
     const h2 d0_lo = dp[0]; // d[0,0..1]
     const h2 d0_hi = dp[1]; // d[0,2..3]
     const h2 d1_lo = dp[2];

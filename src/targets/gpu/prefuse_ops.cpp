@@ -383,8 +383,8 @@ static literal compute_winograd_weights_f23(const argument& w_arg, bool full_tra
     w_arg.visit([&](auto w_view) {
         dfor(K, C)([&](auto k, auto c) {
             float g[3][3];
-            dfor(std::size_t{3}, std::size_t{3})(
-                [&](auto i, auto j) { g[i][j] = w_view(k, c, i, j); });
+            dfor(std::size_t{3},
+                 std::size_t{3})([&](auto i, auto j) { g[i][j] = w_view(k, c, i, j); });
 
             if(full_transform)
             {

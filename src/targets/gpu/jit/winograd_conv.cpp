@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <cassert>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
@@ -54,7 +55,7 @@ static std::string post_input_cast(const module& pm)
     // the conv result feeds exactly one op and that op is a convert to a type
     // wider than the conv's half output. A convert that appears later (after
     // an add/activation/etc.) must still run at half precision first.
-    auto users = x0->outputs();
+    const auto& users = x0->outputs();
     if(users.size() != 1)
         return "half";
     auto user = users.front();
@@ -132,13 +133,14 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const bool nhwc     = x_shape.lens().size() == 4 and x_shape.strides()[1] == 1;
 
         const auto& out_lens = out_s.lens();
-        const auto N         = out_lens[0];
-        const auto K         = out_lens[1];
-        const auto H_out     = out_lens[2];
-        const auto W_out     = out_lens[3];
-        const auto tiles_h   = (H_out + 1) / 2;
-        const auto tiles_w   = (W_out + 1) / 2;
-        const auto NT_total  = N * tiles_h * tiles_w;
+        assert(out_lens.size() == 4);
+        const auto N        = out_lens[0];
+        const auto K        = out_lens[1];
+        const auto H_out    = out_lens[2];
+        const auto W_out    = out_lens[3];
+        const auto tiles_h  = (H_out + 1) / 2;
+        const auto tiles_w  = (W_out + 1) / 2;
+        const auto NT_total = N * tiles_h * tiles_w;
 
         const auto k_wg_blocks = (K + bk_wg - 1) / bk_wg;
         const auto t_blocks    = (NT_total + bt - 1) / bt;
@@ -189,7 +191,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
 
         // Wave32 WMMA configs. CB must be a multiple of WMMA K (16). KW is
         // the number of K_blocks (BK=16 each) processed per workgroup.
-        // V values now live in per-lane registers (no V_lds), so LDS budget
+        // V values live in per-lane registers, so LDS budget
         // is just U_lds = KW * 16 * 16 * CB * 2 bytes (8KB per KW=1).
         // KW=1 is usually optimal because V is already free per-lane; KW>1
         // only helps to share U across more K outputs (rarely a win).

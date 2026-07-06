@@ -368,9 +368,9 @@ MIGRAPHX_REGISTER_OP(winograd_conv);
 //     memory -- best for weight-bandwidth-bound large-channel convs.
 // The first dim differs (4 vs 3) but the byte-offset formula is identical
 // (both have a size-3 second dim). Output has C innermost (coalesced loads).
-static literal compute_winograd_weights_f23(const literal& w_lit, bool full_transform)
+static literal compute_winograd_weights_f23(const argument& w_arg, bool full_transform)
 {
-    auto sh                 = w_lit.get_shape();
+    auto sh                 = w_arg.get_shape();
     auto K                  = sh.lens()[0];
     auto C                  = sh.lens()[1];
     auto out_type           = sh.type();
@@ -379,7 +379,7 @@ static literal compute_winograd_weights_f23(const literal& w_lit, bool full_tran
 
     std::vector<float> data(nrows * 3 * K * C, 0.0f);
 
-    w_lit.visit([&](auto w_view) {
+    w_arg.visit([&](auto w_view) {
         for(std::size_t k = 0; k < K; ++k)
         {
             for(std::size_t c = 0; c < C; ++c)
@@ -390,7 +390,7 @@ static literal compute_winograd_weights_f23(const literal& w_lit, bool full_tran
                         g[i][j] = static_cast<float>(w_view(k, c, i, j));
 
                 auto store = [&](std::size_t i, std::size_t j, float v) {
-                    data[i * 3 * K * C + j * K * C + k * C + c] = v;
+                    data[w_shape.index({i, j, k, c})] = v;
                 };
                 if(full_transform)
                 {
@@ -613,8 +613,6 @@ struct find_winograd_f23
         auto weights = ins->inputs().back();
 
         auto w_arg = weights->eval();
-        if(w_arg.empty())
-            return;
 
         auto w_lens   = weights->get_shape().lens(); // [K, C, 3, 3]
         auto x_lens   = input->get_shape().lens();   // [N, C, H, W]
@@ -623,8 +621,7 @@ struct find_winograd_f23
         // the op is a drop-in replacement (no surrounding transpose changes).
         auto out_layout = find_permutation(ins->get_shape());
 
-        literal w_lit{w_arg.get_shape(), w_arg.data()};
-        auto u_lit = compute_winograd_weights_f23(w_lit, ft);
+        auto u_lit = compute_winograd_weights_f23(w_arg, ft);
         auto u_ins = m.add_literal(u_lit);
 
         m.replace_instruction(ins, winograd_conv{ft, out_layout}, input, u_ins);

@@ -1068,15 +1068,17 @@ struct find_winograd_conv_pointwise
         auto winograd_ins = r.instructions["winograd_conv"];
         if(not winograd_ins->module_inputs().empty())
             return;
+        assert(not pw_ins->module_inputs().empty());
         auto* pm       = pw_ins->module_inputs().front();
         auto pw_inputs = pw_ins->inputs();
         auto wn_pos    = std::find(pw_inputs.begin(), pw_inputs.end(), winograd_ins);
         assert(wn_pos != pw_inputs.end());
         pw_inputs.erase(wn_pos);
-        // Winograd's inputs are (x, u, output_alloc). Drop the alloc, append
-        // the remaining pointwise inputs (bias, etc.), then re-append the new
-        // output alloc that the precompile_op layer expects last.
+        // Winograd's inputs are (x, u, output_alloc). Drop that alloc, then
+        // append the remaining pointwise inputs (bias, ..., pointwise's own
+        // output_alloc) — that alloc stays last, where precompile_op expects it.
         auto inputs = winograd_ins->inputs();
+        assert(not inputs.empty());
         inputs.pop_back();
         inputs.insert(inputs.end(), pw_inputs.begin(), pw_inputs.end());
 

@@ -41,30 +41,6 @@ namespace migraphx {
 // which lets us drop the per-element bounds checks in the input transform.
 #define MIGRAPHX_BUFFER_RSRC_3RD_DWORD_GFX12 0x31004000
 
-// Pure inline-asm WMMA. Helps the compiler not reorder this across other
-// VALU ops, keeping the dependency chain tight.
-__device__ inline vec<float, 8> wmma_asm(vec<half, 8> a, vec<half, 8> b, vec<float, 8> c)
-{
-    asm volatile("v_wmma_f32_16x16x16_f16 %0, %1, %2, %0" : "+v"(c) : "v"(a), "v"(b));
-    return c;
-}
-
-// Inline-asm WMMA pair: issue both loads first, then both WMMAs back-to-back.
-// The asm block forces the compiler to keep this sequence atomic, preventing
-// it from sinking the WMMAs further apart from their loads.
-__device__ inline void wmma_pair_asm(vec<half, 8> a0,
-                                     vec<half, 8> b0,
-                                     vec<half, 8> a1,
-                                     vec<half, 8> b1,
-                                     vec<float, 8>& m0,
-                                     vec<float, 8>& m1)
-{
-    asm volatile("v_wmma_f32_16x16x16_f16 %0, %2, %3, %0\n\t"
-                 "v_wmma_f32_16x16x16_f16 %1, %4, %5, %1"
-                 : "+v"(m0), "+v"(m1)
-                 : "v"(a0), "v"(b0), "v"(a1), "v"(b1));
-}
-
 // Quad of WMMAs in a single inline-asm block. Forces the compiler to issue
 // them back-to-back (each is 8-cycle wait state but to a DIFFERENT
 // accumulator, so the next can issue ~1 cycle later). The compiler is then
@@ -389,7 +365,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const uint32_t u_byte_count =
         static_cast<uint32_t>(u.get_shape().element_space()) * sizeof(half);
     auto u_rsrc = make_input_buffer_rsrc(u_data, u_byte_count);
-    // U layout: [16, K, C] -- strides for byte offset computation.
+    // U layout: [4 or 3, 3, K, C] -- strides for byte offset computation.
     const auto u_sh = u.get_shape().strides;
 
     const auto cblocks = (C + CB - 1) / CB;
@@ -447,6 +423,13 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     const index_int cb_end_raw  = (SK == 1) ? cblocks : (cb_start + cb_per_part);
     const index_int cb_end      = (cb_end_raw < cblocks) ? cb_end_raw : cblocks;
 
+    // Loop-invariant across the cb loop below: the OOB sentinel offset, the
+    // fp16 zero, and the per-lane H/W in-bounds masks (h0/w0 are tile-fixed).
+    const int32_t oob_byte  = static_cast<int32_t>(x_byte_count);
+    const half hzero        = half(0.0f);
+    const array<bool, 4> hi = {v_hok0, v_hok1, v_hok2, v_hok3};
+    const array<bool, 4> wj = {v_wok0, v_wok1, v_wok2, v_wok3};
+
     for(index_int cb = cb_start; cb < cb_end; ++cb)
     {
         const index_int c_base = cb * CB;
@@ -467,10 +450,6 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // sw_b == 2 we keep the fast b64 load and post-mask the w-OOB
         // columns; the per-element fallback handles other strides. Inactive
         // lanes have `off == x_byte_count`, so every load returns 0.
-        const int32_t oob_byte = static_cast<int32_t>(x_byte_count);
-        const half hzero        = half(0.0f);
-        const array<bool, 4> hi = {v_hok0, v_hok1, v_hok2, v_hok3};
-        const array<bool, 4> wj = {v_wok0, v_wok1, v_wok2, v_wok3};
         if constexpr(NHWC)
         {
             // NHWC: each lane loads its tile's 8 channels per spatial position
@@ -729,8 +708,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             const vec<float, 8> s1 = m1 - m2 - m3;
             // A^T left multiply, accumulated incrementally into y. The
             // coefficients at[r][wp_i] are exactly 0 / +1 / -1, so the whole
-            // 8-row update is one packed vec add/sub (vs the old per-ki
-            // scalar extraction). With coef_r a constexpr +-1.0, the
+            // 8-row update is one packed vec add/sub. With coef_r a constexpr +-1.0, the
             // `coef_r * s` multiply folds to an identity/negate at -O3, so
             // this is bit-identical to the scalar form. y[r*2+0] takes
             // output column c=0 (s0), y[r*2+1] takes column c=1 (s1).
@@ -957,7 +935,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // tile into a vec<out_type, 2> and write via one store. Without this the
     // compiler emits two narrow stores per pair when there's a non-trivial
     // post-op `f` (it stops packing the converted j=0/j=1 store pair). That
-    // doubled the global_store count in fused kernels (e.g., 96→96 192x192
+    // doubled the global_store count in fused kernels (e.g., a 192x192 conv
     // with bias+leaky_relu went 86us unfused → 122us fused).
     //
     // Enabled for any 2-byte output type (fp16, bf16): two of them pack into
@@ -1027,7 +1005,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                                                   k,
                                                                   static_cast<index_int>(h_out),
                                                                   static_cast<index_int>(w_out)};
-                                    out_data[off + index_int{ki} * sk] = static_cast<out_type>(
+                                    output[oid] = static_cast<out_type>(
                                         f(static_cast<PostInput>(y[k_idx][oidx][index_int{ki}]),
                                           inputs[oid]...));
                                 }
@@ -1104,7 +1082,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                                                   static_cast<index_int>(k),
                                                                   static_cast<index_int>(h_out),
                                                                   static_cast<index_int>(w_out)};
-                                out_data[hbase + j * sw] = static_cast<out_type>(
+                                output[out_idx] = static_cast<out_type>(
                                     f(static_cast<PostInput>(y[k_idx][i * 2 + j][index_int{ki}]),
                                       inputs[out_idx]...));
                             }

@@ -246,8 +246,8 @@ struct same_table_gather_horizontal_fusion
 // Candidates: gather(axis=0) with 2D constant embedding table, static shapes,
 //             non-scalar index
 // Grouping:   by (embedding dimension, index type, index trailing dims)
-// Fusion:     concatenate embedding tables, adjust indices with offsets,
-//             single batched gather, slice results back
+// Fusion:     concatenate the *distinct* embedding tables (shared tables kept once),
+//             adjust indices with per-table offsets, single batched gather, slice back
 // ---------------------------------------------------------------------------
 
 struct gather_horizontal_fusion
@@ -296,51 +296,49 @@ struct gather_horizontal_fusion
     {
         auto idx_type = gathers.front()->inputs().at(1)->get_shape().type();
 
-        // Concatenate all embedding tables
-        std::vector<instruction_ref> emb_inputs(gathers.size());
-        std::transform(gathers.begin(), gathers.end(), emb_inputs.begin(), [](auto g) {
-            return g->inputs().at(0);
-        });
+        // Deduplicate shared tables.  Several gathers in a group may read the *same* table
+        // instruction; emitting one copy per gather would replicate that data and bloat the
+        // concatenated table + batched gather.  Keep one copy per distinct table (in
+        // first-appearance order) and record each table's row offset.
+        std::vector<instruction_ref> unique_tables;
+        std::unordered_map<instruction_ref, std::size_t> table_offset;
+        std::size_t running_offset = 0;
+        for(auto g : gathers)
+        {
+            auto data = g->inputs().at(0);
+            if(table_offset.emplace(data, running_offset).second)
+            {
+                unique_tables.push_back(data);
+                running_offset += data->get_shape().lens().front();
+            }
+        }
+
+        // Concatenate the distinct tables (skip the concat when only one remains).
         auto concat_emb =
-            m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), emb_inputs);
+            unique_tables.size() == 1
+                ? unique_tables.front()
+                : m.insert_instruction(insert_pt, make_op("concat", {{"axis", 0}}), unique_tables);
 
-        // Compute cumulative embedding offsets using transform_partial_sum.
-        // Inclusive partial sum gives end offsets; shift right and prepend 0
-        // to get start (exclusive) offsets.
-        std::vector<std::size_t> cum_sizes(gathers.size());
-        transform_partial_sum(
-            gathers.begin(), gathers.end(), cum_sizes.begin(), std::plus<>{}, [](auto g) {
-                return g->inputs().at(0)->get_shape().lens().front();
-            });
-
-        // Exclusive offsets: [0, cum_sizes[0], cum_sizes[1], ...]
-        std::vector<std::size_t> emb_offsets(gathers.size());
-        emb_offsets[0] = 0;
-        std::copy(cum_sizes.begin(), std::prev(cum_sizes.end()), emb_offsets.begin() + 1);
-
-        // Build adjusted indices (add offset to shift into concatenated table)
+        // Build adjusted indices (add each gather's table offset to shift into the
+        // concatenated table).  Gathers whose table lands at offset 0 need no adjustment.
         std::vector<instruction_ref> adjusted_idx_inputs;
         adjusted_idx_inputs.reserve(gathers.size());
-
-        migraphx::for_each(
-            gathers.begin(), gathers.end(), emb_offsets.begin(), [&](auto g, auto offset) {
-                auto idx = g->inputs().at(1);
-                if(offset == 0)
-                {
-                    adjusted_idx_inputs.push_back(idx);
-                }
-                else
-                {
-                    auto offset_scalar    = m.add_literal(literal{shape{idx_type}, {offset}});
-                    auto offset_broadcast = m.insert_instruction(
-                        insert_pt,
-                        make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}),
-                        offset_scalar);
-                    auto adjusted_idx =
-                        m.insert_instruction(insert_pt, make_op("add"), idx, offset_broadcast);
-                    adjusted_idx_inputs.push_back(adjusted_idx);
-                }
-            });
+        std::transform(gathers.begin(),
+                       gathers.end(),
+                       std::back_inserter(adjusted_idx_inputs),
+                       [&](auto g) -> instruction_ref {
+                           auto idx    = g->inputs().at(1);
+                           auto offset = table_offset.at(g->inputs().at(0));
+                           if(offset == 0)
+                               return idx;
+                           auto offset_scalar = m.add_literal(literal{shape{idx_type}, {offset}});
+                           auto offset_broadcast = m.insert_instruction(
+                               insert_pt,
+                               make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}),
+                               offset_scalar);
+                           return m.insert_instruction(
+                               insert_pt, make_op("add"), idx, offset_broadcast);
+                       });
 
         // Concatenate adjusted indices
         auto concat_idx =
@@ -372,9 +370,12 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    // Collapse gathers that share the same table first; any sibling gathers left
-    // across *different* tables then fall through to cross-table fusion.
-    fuse_horizontal_ops(m, same_table_gather_horizontal_fusion{}, gather_horizontal_fusion{});
+    // Run cross-embedding fusion first so a group of gathers sharing an embedding dimension
+    // is bundled together even when it spans several tables (table dedup keeps each distinct
+    // table once).  Running same-table fusion first would collapse the same-table subset and
+    // strand the remaining siblings below cross-table fusion's group-size threshold.  Same-
+    // table fusion then mops up the smaller same-instance groups it still handles.
+    fuse_horizontal_ops(m, gather_horizontal_fusion{}, same_table_gather_horizontal_fusion{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

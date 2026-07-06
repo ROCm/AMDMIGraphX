@@ -59,6 +59,7 @@ add_library(migraphx
     common_dims.cpp
     compile_src.cpp
     convert_to_json.cpp
+    convolution.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
     dim_like.cpp
@@ -183,6 +184,7 @@ register_migraphx_ops(
     acosh
     acos
     add
+    addressof
     allocate
     argmax
     argmin
@@ -208,6 +210,7 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    deref
     dimensions_of
     div
     dot

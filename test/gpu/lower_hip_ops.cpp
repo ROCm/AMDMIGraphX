@@ -108,7 +108,8 @@ TEST_CASE(hip_fill_kernel_runs)
 }
 
 // A tuple (multi-output) buffer is expanded into a per-sub-object fill so every fill becomes a
-// code object; the sub-fills are sequenced through an identity that re-forms the tuple.
+// code object; an identity returns the original tuple buffer while sequencing the sub-fills
+// before any consumer.
 TEST_CASE(lower_hip_fill_tuple)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};

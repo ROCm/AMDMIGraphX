@@ -902,6 +902,11 @@ struct verify : command<verify>
            ap.set_value(true));
         ap(reduce, {"-r", "--reduce"}, ap.help("Reduce program and verify"), ap.set_value(true));
         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
+        ap(vo.no_rebuild,
+           {"--no-rebuild"},
+           ap.help("Compare reference and target outputs layer by layer in a single run, avoiding "
+                   "recompilation for modes such as bisect (requires --debug-symbols)"),
+           ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
            ap.help(

@@ -25,8 +25,14 @@
 #define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_HPP
 
 #include "verify_options.hpp"
+#include <migraphx/argument.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/optional.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/verify.hpp>
+#include <functional>
+#include <string>
+#include <unordered_map>
 
 namespace migraphx {
 namespace driver {
@@ -37,6 +43,45 @@ verify::tolerance get_tolerances(const program& p,
                                  std::optional<double> rms_tol,
                                  std::optional<double> atol,
                                  std::optional<double> rtol);
+
+// Captures every reference output keyed by debug symbol, then compares each compiled target op
+// against the reference output of its terminal (latest) symbol. Requires debug symbols.
+struct verify_callback
+{
+    using trace_function = std::function<void(instruction_ref, const argument&)>;
+
+    struct layer_result
+    {
+        std::string symbol = {};
+        std::string op     = {};
+        std::size_t order  = 0;
+        bool passed        = false;
+    };
+
+    struct ref_output
+    {
+        argument output   = {};
+        std::size_t order = 0;
+    };
+    struct target_output
+    {
+        argument output = {};
+        std::string op  = {};
+    };
+
+    verify::tolerance tols = {};
+
+    std::size_t ref_count                                         = 0;
+    std::unordered_map<std::string, ref_output> ref_outputs       = {};
+    std::unordered_map<std::string, target_output> target_outputs = {};
+    std::unordered_map<std::string, layer_result> results         = {};
+
+    trace_function capture();
+    trace_function compare();
+    void evaluate();
+
+    optional<layer_result> first_failure() const;
+};
 
 bool verify_program(const std::string& name,
                     const program& p,

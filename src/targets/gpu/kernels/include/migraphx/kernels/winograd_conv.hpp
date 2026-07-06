@@ -572,7 +572,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             vec<half, 8> t0, t1, t2;
         };
         auto apply_gt = [&](vec<half, 8> t0, vec<half, 8> t1, vec<half, 8> t2) -> u_row {
-            const auto half_c = static_cast<half>(0.5f);
+            const half half_c = 0.5f;
             // u0 = t0; u3 = t2; u1 = 0.5*((t0+t2) + t1); u2 = 0.5*((t0+t2) - t1)
             vec<half, 8> s = t0 + t2;
             return u_row{t0, (s + t1) * half_c, (s - t1) * half_c, t2};
@@ -593,7 +593,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 const vec<half, 8> g00 = ld(0, 0), g01 = ld(0, 1), g02 = ld(0, 2);
                 const vec<half, 8> g10 = ld(1, 0), g11 = ld(1, 1), g12 = ld(1, 2);
                 const vec<half, 8> g20 = ld(2, 0), g21 = ld(2, 1), g22 = ld(2, 2);
-                const auto hc = static_cast<half>(0.5f);
+                const half hc = 0.5f;
                 r[0]          = t_triple{g00, g01, g02};
                 r[1]          = t_triple{
                     (g00 + g10 + g20) * hc, (g01 + g11 + g21) * hc, (g02 + g12 + g22) * hc};
@@ -959,19 +959,17 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 if(k_first >= K)
                     return;
                 repeat_c<2>([&](auto i_val) {
-                    constexpr int i = i_val;
-                    const int h_out = static_cast<int>(2 * th_idx) + i;
-                    if(static_cast<unsigned>(h_out) >= H_out)
+                    constexpr int i       = i_val;
+                    const index_int h_out = 2 * th_idx + i;
+                    if(h_out >= H_out)
                         return;
                     repeat_c<2>([&](auto j_val) {
-                        constexpr int j = j_val;
-                        const int w_out = static_cast<int>(2 * tw_idx) + j;
-                        if(static_cast<unsigned>(w_out) >= W_out)
+                        constexpr int j       = j_val;
+                        const index_int w_out = 2 * tw_idx + j;
+                        if(w_out >= W_out)
                             return;
                         const index_int oidx = i * 2 + j;
-                        const index_int off  = n_idx * sn + k_first * sk +
-                                              static_cast<index_int>(h_out) * sh +
-                                              static_cast<index_int>(w_out) * sw;
+                        const index_int off  = n_idx * sn + k_first * sk + h_out * sh + w_out * sw;
                         if(k_pack)
                         {
                             vec<PostInput, 8> yv;
@@ -985,11 +983,8 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                             auto in_vec8 = [&](const auto& inp) {
                                 vec<remove_reference_t<decltype(inp[array<index_int, 4>{}])>, 8> iv;
                                 repeat_c<8>([&](auto ki) {
-                                    iv[index_int{ki}] =
-                                        inp[array<index_int, 4>{n_idx,
-                                                                k_first + index_int{ki},
-                                                                static_cast<index_int>(h_out),
-                                                                static_cast<index_int>(w_out)}];
+                                    iv[index_int{ki}] = inp[array<index_int, 4>{
+                                        n_idx, k_first + index_int{ki}, h_out, w_out}];
                                 });
                                 return iv;
                             };
@@ -1001,10 +996,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                                 const index_int k = k_first + index_int{ki};
                                 if(k < K)
                                 {
-                                    const array<index_int, 4> oid{n_idx,
-                                                                  k,
-                                                                  static_cast<index_int>(h_out),
-                                                                  static_cast<index_int>(w_out)};
+                                    const array<index_int, 4> oid{n_idx, k, h_out, w_out};
                                     output[oid] = static_cast<out_type>(
                                         f(static_cast<PostInput>(y[k_idx][oidx][index_int{ki}]),
                                           inputs[oid]...));
@@ -1022,15 +1014,15 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         constexpr int k_idx         = k_idx_val;
         const index_int base_offset = n_idx * sn + (k_base + k_idx * BK + k_row_offset) * sk +
                                       (2 * th_idx) * sh + (2 * tw_idx) * sw;
-        const bool w_pair_in = (static_cast<unsigned>(2 * tw_idx + 1) < W_out) and (sw == 1);
+        const bool w_pair_in = (2 * tw_idx + 1 < W_out) and (sw == 1);
         repeat_c<8>([&](auto ki) {
             const index_int k = k_base + k_idx * BK + k_row_offset + ki;
             if(k < K)
             {
                 const index_int kbase = base_offset + ki * sk;
                 repeat_c<2>([&](auto i) {
-                    const int h_out = static_cast<int>(2 * th_idx) + static_cast<int>(i);
-                    if(static_cast<unsigned>(h_out) < H_out)
+                    const index_int h_out = 2 * th_idx + i;
+                    if(h_out < H_out)
                     {
                         const index_int hbase = kbase + i * sh;
                         // Fast path: both W in-bounds and stride_w=1 — pack
@@ -1039,16 +1031,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         {
                             if(w_pair_in)
                             {
-                                const int w_out0 = 2 * tw_idx;
-                                const int w_out1 = w_out0 + 1;
-                                const array<index_int, 4> idx0{n_idx,
-                                                               static_cast<index_int>(k),
-                                                               static_cast<index_int>(h_out),
-                                                               static_cast<index_int>(w_out0)};
-                                const array<index_int, 4> idx1{n_idx,
-                                                               static_cast<index_int>(k),
-                                                               static_cast<index_int>(h_out),
-                                                               static_cast<index_int>(w_out1)};
+                                const index_int w_out0 = 2 * tw_idx;
+                                const index_int w_out1 = w_out0 + 1;
+                                const array<index_int, 4> idx0{n_idx, k, h_out, w_out0};
+                                const array<index_int, 4> idx1{n_idx, k, h_out, w_out1};
                                 // Pack the j=0 / j=1 pair into vec<out_type, 2>
                                 // and call f once on the packed value. The
                                 // generated post_winograd_conv function is
@@ -1075,13 +1061,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         }
                         // Slow path: scalar per-j store with bounds checks.
                         repeat_c<2>([&](auto j) {
-                            const int w_out = static_cast<int>(2 * tw_idx) + static_cast<int>(j);
-                            if(static_cast<unsigned>(w_out) < W_out)
+                            const index_int w_out = 2 * tw_idx + j;
+                            if(w_out < W_out)
                             {
-                                const array<index_int, 4> out_idx{n_idx,
-                                                                  static_cast<index_int>(k),
-                                                                  static_cast<index_int>(h_out),
-                                                                  static_cast<index_int>(w_out)};
+                                const array<index_int, 4> out_idx{n_idx, k, h_out, w_out};
                                 output[out_idx] = static_cast<out_type>(
                                     f(static_cast<PostInput>(y[k_idx][i * 2 + j][index_int{ki}]),
                                       inputs[out_idx]...));

@@ -158,8 +158,12 @@ jobs:
         CC: clang-cl
         CXX: clang-cl
         CXXFLAGS: "/std:c++17"
+      # We disable the assembly files for BLAKE3 in rocmlir. An update to
+      # rocmlirs cmake is needed.
       run: |
-        rbuild prepare -d cget -s gh-win-gpu -G Ninja -DCMAKE_BUILD_TYPE=Release
+        rbuild prepare -d cget -s gh-win-gpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_DISABLE_ASSEMBLY_FILES=On
+          -DLLVM_ENABLE_DIA_SDK=Off
 
     - name: Build
       # Build MIGraphX itself with the ROCm HIP clang++ so the GPU backend

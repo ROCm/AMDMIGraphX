@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <array>
 #include <tuple>
+#include <migraphx/dfor.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
@@ -380,38 +381,28 @@ static literal compute_winograd_weights_f23(const argument& w_arg, bool full_tra
     std::vector<float> data(nrows * 3 * K * C, 0.0f);
 
     w_arg.visit([&](auto w_view) {
-        for(std::size_t k = 0; k < K; ++k)
-        {
-            for(std::size_t c = 0; c < C; ++c)
-            {
-                float g[3][3];
-                for(std::size_t i = 0; i < 3; ++i)
-                    for(std::size_t j = 0; j < 3; ++j)
-                        g[i][j] = static_cast<float>(w_view(k, c, i, j));
+        dfor(K, C)([&](auto k, auto c) {
+            float g[3][3];
+            dfor(std::size_t{3}, std::size_t{3})(
+                [&](auto i, auto j) { g[i][j] = w_view(k, c, i, j); });
 
-                auto store = [&](std::size_t i, std::size_t j, float v) {
-                    data[w_shape.index({i, j, k, c})] = v;
-                };
-                if(full_transform)
-                {
-                    for(std::size_t i = 0; i < 3; ++i)
-                        for(std::size_t j = 0; j < 3; ++j)
-                            store(i, j, g[i][j]);
-                }
-                else
-                {
-                    // T = G * g (4x3). G rows: [1,0,0], [0.5,0.5,0.5],
-                    // [0.5,-0.5,0.5], [0,0,1].
-                    for(std::size_t j = 0; j < 3; ++j)
-                    {
-                        store(0, j, g[0][j]);
-                        store(1, j, 0.5f * (g[0][j] + g[1][j] + g[2][j]));
-                        store(2, j, 0.5f * (g[0][j] - g[1][j] + g[2][j]));
-                        store(3, j, g[2][j]);
-                    }
-                }
+            if(full_transform)
+            {
+                dfor(std::size_t{3}, std::size_t{3})(
+                    [&](auto i, auto j) { data[w_shape.index({i, j, k, c})] = g[i][j]; });
             }
-        }
+            else
+            {
+                // T = G * g (4x3). G rows: [1,0,0], [0.5,0.5,0.5],
+                // [0.5,-0.5,0.5], [0,0,1].
+                dfor(std::size_t{3})([&](auto j) {
+                    data[w_shape.index({0, j, k, c})] = g[0][j];
+                    data[w_shape.index({1, j, k, c})] = 0.5f * (g[0][j] + g[1][j] + g[2][j]);
+                    data[w_shape.index({2, j, k, c})] = 0.5f * (g[0][j] - g[1][j] + g[2][j]);
+                    data[w_shape.index({3, j, k, c})] = g[2][j];
+                });
+            }
+        });
     });
 
     if(out_type == shape::half_type)

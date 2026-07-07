@@ -476,13 +476,13 @@ TEST_CASE(channels_auto_selects_channels_first)
 {
     migraphx::module m1;
     {
-        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 8, 8}});
-        auto w1 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 1, 1}}));
-        auto w2 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {8, 1, 3, 3}}));
-        auto w3 = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 1, 1}}));
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 8, 8}});
+        auto w1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 1, 1}}));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 1, 3, 3}}));
+        auto w3 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 1, 1}}));
         auto conv1 = m1.add_instruction(migraphx::make_op("convolution"), x, w1);
         auto relu1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
         auto conv2 = m1.add_instruction(

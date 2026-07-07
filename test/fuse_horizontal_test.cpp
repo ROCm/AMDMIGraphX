@@ -868,9 +868,9 @@ TEST_CASE(same_table_gathers_multiple_tables)
         auto adj_b2 = m2.add_instruction(migraphx::make_op("add"), idx_b2, bcb2);
 
         // Indices concatenated in gather (position) order: ga1, gb1, ga2, gb2.
-        auto concat_idx =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
+        auto concat_idx = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
 
         auto bg =
             m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);

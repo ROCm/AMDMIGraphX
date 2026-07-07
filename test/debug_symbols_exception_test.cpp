@@ -32,7 +32,7 @@
 struct throw_shape_op
 {
     std::string name() const { return "throw_shape_op"; }
-    migraphx::shape compute_shape(std::vector<migraphx::shape>) const
+    migraphx::shape compute_shape(std::vector<migraphx::shape>&) const
     {
         MIGRAPHX_THROW("throw_shape_op: shape failure");
     }

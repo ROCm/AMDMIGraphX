@@ -111,9 +111,10 @@ struct __attribute__((packed, may_alias)) generic_float
 
     explicit constexpr generic_float(float f = 0.0) noexcept { from_float(get_parts(f)); }
 
-    constexpr generic_float& operator=(float f) noexcept
+    template <class U, MIGRAPHX_REQUIRES(std::is_convertible<U, float>{})>
+    constexpr generic_float& operator=(U f) noexcept
     {
-        from_float(get_parts(f));
+        *this = generic_float(f);
         return *this;
     }
 

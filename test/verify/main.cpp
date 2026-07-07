@@ -159,6 +159,11 @@ int main(int argc, const char* argv[])
          "test_dynamic_gemm_pointwise<2, 16>"});
     rv.disable_test_for("gpu",
                         {
+                            // TODO: re-enable in ROCm 7.14; gfx90a Tensile kernels missing from
+                            // TheRock 7.13 rocBLAS package (hipErrorFileNotFound at runtime).
+                            "test_group_query_attention_decode_small",
+                            "test_conv_add_dot<migraphx::shape::half_type>",
+                            "test_batch_quant_dot_1<int8_t, int32_t>",
                             // These passes on MI300 but fails on others, same issue as CPU.
                             "test_batch_quant_dot_1<migraphx::fp8::fp8e4m3fnuz, float>",
                             "test_quant_dot_3args_4<migraphx::fp8::fp8e4m3fnuz, float>",

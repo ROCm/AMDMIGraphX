@@ -103,7 +103,8 @@ TEST_CASE(test_stream_sync_compare_kernel)
     EXPECT(output == input);
 }
 
-TEST_CASE(test_stream_sync)
+// TODO: re-enable in ROCm 7.14; gfx90a Tensile kernels missing from TheRock 7.13 rocBLAS package.
+TEST_CASE_SKIP(test_stream_sync, "rocBLAS Tensile kernels not available for gfx90a in ROCm 7.13")
 {
     auto binaries = migraphx::gpu::compile_hip_src(
         {make_src_file("check_stuff.cpp", compare_numbers)}, {}, migraphx::gpu::get_device_name());

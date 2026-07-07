@@ -53,7 +53,8 @@ static void run_lowering(migraphx::program& p, bool offload_copy = false)
  * rocBLAS API functions are called to quickly benchmark all the GEMM solutions
  * available in the currently installed rocBLAS library and choose the index of the fastest.
  */
-TEST_CASE(gemm_tune)
+// TODO: re-enable in ROCm 7.14; gfx90a Tensile kernels missing from TheRock 7.13 rocBLAS package.
+TEST_CASE_SKIP(gemm_tune, "rocBLAS Tensile kernels not available for gfx90a in ROCm 7.13")
 {
     migraphx::program p;
     auto* mm = p.get_main_module();

@@ -197,7 +197,7 @@ fuse_gathers_flattened(module& m,
                    results.begin(),
                    [&](instruction_ref idx, std::size_t end) -> instruction_ref {
                        const auto& lens = idx->get_shape().lens();
-                       int64_t start       = end - idx->get_shape().elements();
+                       int64_t start    = end - idx->get_shape().elements();
                        auto sliced      = m.insert_instruction(
                            insert_pt,
                            make_op("slice",

@@ -159,7 +159,7 @@ struct pipeline_factory
             optimize_module{},
             layout_convolution{.order = enabled(MIGRAPHX_ENABLE_NHWC{})
                                             ? layout_convolution::channels_last
-                                            : layout_convolution::channels_first},
+                                            : layout_convolution::channels_auto},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},

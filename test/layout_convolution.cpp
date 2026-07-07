@@ -514,8 +514,8 @@ TEST_CASE(channels_auto_allows_two_layouts_per_param)
 
     migraphx::module m2;
     {
-        auto x =
-            add_layout_nhwc(m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
+        auto x = add_layout_nhwc(
+            m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
         auto w = m2.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {3, 3, 16, 8}}));
         auto wtranspose =

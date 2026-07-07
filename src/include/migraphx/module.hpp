@@ -75,6 +75,8 @@ struct MIGRAPHX_EXPORT module
     // copy assignment operator
     module& operator=(module);
 
+    void swap(module& rhs) noexcept;
+
     ~module() noexcept;
 
     std::string name() const;

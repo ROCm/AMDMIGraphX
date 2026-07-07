@@ -38,10 +38,10 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
-std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convolution& lc)
+std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convolution::layout_order& order)
 {
     std::vector<int64_t> perm(ins->get_shape().ndim());
-    if(lc.order == layout_convolution::channels_last)
+    if(order == layout_convolution::channels_last)
     {
         std::iota(perm.begin() + 1, perm.end() - 1, 2);
         perm.back() = 1;
@@ -90,7 +90,7 @@ void preserve_output_layout(module& m)
     }
 }
 
-void transform_convolutions(module& m, const layout_convolution& lc)
+void transform_convolutions(module& m, const layout_convolution::layout_order& order)
 {
     for(auto ins : iterator_for(m))
     {
@@ -103,7 +103,7 @@ void transform_convolutions(module& m, const layout_convolution& lc)
         auto v = ins->get_operator().to_value();
         bool is_group_conv = v.at("group").to<int>() > 1;
         auto args = ins->inputs();
-        auto perm = is_group_conv ? get_default_permutation(ins) : get_permutation(ins, lc);
+        auto perm = is_group_conv ? get_default_permutation(ins) : get_permutation(ins, order);
         std::transform(args.begin(), args.end(), args.begin(), [&](const auto& i) {
             return m.insert_instruction(ins, make_op("layout", {{"permutation", perm}}), i);
         });
@@ -126,17 +126,46 @@ void remove_layout(module& m)
         m.replace_instruction(ins, ins->inputs().front());
     }
 }
+
+void apply_layout(module& m, layout_convolution::layout_order order)
+{
+    preserve_output_layout(m);
+    transform_convolutions(m, order);
+    run_passes(m, {dead_code_elimination{}, eliminate_contiguous{"contiguous"}, dead_code_elimination{}});
+    remove_layout(m);
+    run_passes(m, {dead_code_elimination{}});
+}
+
+std::size_t score(const module& m)
+{
+    return std::count_if(m.begin(), m.end(), [](const instruction& ins) {
+        return contains({"layout", "contiguous"}, ins.name());
+    });
+}
 } // namespace
 
 void layout_convolution::apply(module_pass_manager& mpm) const
 {
-    preserve_output_layout(mpm.get_module());
-    transform_convolutions(mpm.get_module(), *this);
-    mpm.run_pass(dead_code_elimination{});
-    mpm.run_pass(eliminate_contiguous{"contiguous"});
-    mpm.run_pass(dead_code_elimination{});
-    remove_layout(mpm.get_module());
-    mpm.run_pass(dead_code_elimination{});
+    if(order == layout_order::chennels_auto)
+    {
+        module m_first = mpm.get_module();
+        apply_layout(m_first, order);
+        module m_last = mpm.get_module();
+        apply_layout(m_last, order);
+        if(score(m_first) < score(m_last))
+        {
+            mpm.get_module().swap(m_first);
+        }
+        else
+        {
+            mpm.get_module().swap(m_last);
+        }
+    }
+    else
+    {
+        apply_layout(mpm.get_module(), order);
+    }
+
 }
 
 } // namespace MIGRAPHX_INLINE_NS

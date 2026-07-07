@@ -157,10 +157,7 @@ module& module::operator=(module m)
     return *this;
 }
 
-void module::swap(module& rhs) noexcept
-{
-    std::swap(impl, rhs.impl);
-}
+void module::swap(module& rhs) noexcept { std::swap(impl, rhs.impl); }
 
 std::string module::name() const { return impl->name; }
 

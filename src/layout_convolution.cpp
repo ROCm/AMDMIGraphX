@@ -38,7 +38,8 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
-std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convolution::layout_order& order)
+std::vector<int64_t> get_permutation(instruction_ref ins,
+                                     const layout_convolution::layout_order& order)
 {
     std::vector<int64_t> perm(ins->get_shape().ndim());
     if(order == layout_convolution::channels_last)
@@ -131,7 +132,8 @@ void apply_layout(module& m, layout_convolution::layout_order order)
 {
     preserve_output_layout(m);
     transform_convolutions(m, order);
-    run_passes(m, {dead_code_elimination{}, eliminate_contiguous{"contiguous"}, dead_code_elimination{}});
+    run_passes(
+        m, {dead_code_elimination{}, eliminate_contiguous{"contiguous"}, dead_code_elimination{}});
     remove_layout(m);
     run_passes(m, {dead_code_elimination{}});
 }
@@ -165,7 +167,6 @@ void layout_convolution::apply(module_pass_manager& mpm) const
     {
         apply_layout(mpm.get_module(), order);
     }
-
 }
 
 } // namespace MIGRAPHX_INLINE_NS

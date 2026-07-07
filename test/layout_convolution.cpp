@@ -468,10 +468,32 @@ TEST_CASE(channels_auto_selects_channels_last)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// The plain-NCHW input keeps channels_first cheaper (a single layout on the transposed
-// weights) than channels_last, so auto must select channels_first. The expected module is
-// the non-trivial channels_first result, so a no-op pass would not satisfy this test.
+// A plain-NCHW graph needs no layouts for channels_first but three for channels_last, which
+// exceeds the two-per-param allowance, so auto must select channels_first (a no-op here).
 TEST_CASE(channels_auto_selects_channels_first)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            w);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
+        m1.add_return({relu});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// channels_first would need one layout (on the transposed weights) versus three for
+// channels_last, but the two-layouts-per-param allowance offsets that difference, so auto
+// selects channels_last. The expected module is the non-trivial channels_last result.
+TEST_CASE(channels_auto_allows_two_layouts_per_param)
 {
     migraphx::module m1;
     {
@@ -492,20 +514,21 @@ TEST_CASE(channels_auto_selects_channels_first)
 
     migraphx::module m2;
     {
-        auto x = m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto x =
+            add_layout_nhwc(m2, m2.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}}));
         auto w = m2.add_literal(
             migraphx::generate_literal({migraphx::shape::float_type, {3, 3, 16, 8}}));
         auto wtranspose =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {2, 3, 0, 1}}}), w);
-        auto wlayout = m2.add_instruction(
-            migraphx::make_op("layout", {{"permutation", {0, 1, 2, 3}}}), wtranspose);
-        auto conv = m2.add_instruction(
+        auto wlayout = add_layout_nhwc(m2, wtranspose);
+        auto conv    = m2.add_instruction(
             migraphx::make_op("convolution",
-                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+                                 {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
             x,
             wlayout);
         auto relu = m2.add_instruction(migraphx::make_op("relu"), conv);
-        m2.add_return({relu});
+        auto out  = m2.add_instruction(layout(), relu);
+        m2.add_return({out});
     }
     EXPECT(m1.sort() == m2.sort());
 }

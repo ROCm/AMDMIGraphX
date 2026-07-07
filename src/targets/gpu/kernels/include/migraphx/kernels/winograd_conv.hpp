@@ -39,7 +39,7 @@ namespace migraphx {
 // gfx12 buffer-resource word 3 constant (from composable_kernel).
 // Setting this in the SRD makes raw_buffer_load_* return 0 for OOB accesses,
 // which lets us drop the per-element bounds checks in the input transform.
-#define MIGRAPHX_BUFFER_RSRC_3RD_DWORD_GFX12 0x31004000
+constexpr uint32_t buffer_rsrc_3rd_dword_gfx12 = 0x31004000;
 
 // Quad of WMMAs in a single inline-asm block. Forces the compiler to issue
 // them back-to-back (each is 8-cycle wait state but to a DIFFERENT
@@ -47,6 +47,7 @@ namespace migraphx {
 // free to schedule the alpha-fold v_add_f32 ops *outside* this block, which
 // gives them a continuous block of VALU cycles to fill while the matrix pipe
 // processes the WMMAs.
+// NOLINTNEXTLINE(readability-function-size): fixed 4-way WMMA unroll, one asm block
 __device__ inline void wmma_quad_asm(vec<half, 8> a0,
                                      vec<half, 8> b0,
                                      vec<half, 8> a1,
@@ -70,6 +71,7 @@ __device__ inline void wmma_quad_asm(vec<half, 8> a0,
 
 // Octet of WMMAs in a single inline-asm block. Costs 8 live fp32 vec<8>
 // accumulators (64 VGPRs) but gives the matrix pipe a continuous run.
+// NOLINTNEXTLINE(readability-function-size): fixed 8-way WMMA unroll, one asm block
 __device__ inline void wmma_octet_asm(vec<half, 8> a0,
                                       vec<half, 8> b0,
                                       vec<half, 8> a1,
@@ -124,8 +126,9 @@ __device__ inline void wmma_octet_asm(vec<half, 8> a0,
 
 __device__ inline auto make_input_buffer_rsrc(const half* p, uint32_t byte_count)
 {
-    return __builtin_amdgcn_make_buffer_rsrc(
-        const_cast<half*>(p), 0, byte_count, MIGRAPHX_BUFFER_RSRC_3RD_DWORD_GFX12);
+    // The builtin takes a non-const base pointer, but the input tensor is const.
+    auto* base = const_cast<half*>(p); // NOLINT(cppcoreguidelines-pro-type-const-cast)
+    return __builtin_amdgcn_make_buffer_rsrc(base, 0, byte_count, buffer_rsrc_3rd_dword_gfx12);
 }
 
 // Lane-indexed raw buffer load of a single fp16. OOB returns 0.
@@ -235,7 +238,7 @@ __device__ inline void winograd_input_transform_f23_vec(const array<T, 16>& d, a
 //
 // Block organization:
 //   - workgroup = NW waves * 32 lanes (wave32)
-//   - All NW waves share K_block (BK = 16 = WMMA M dim); waves split NT
+//   - All NW waves share K_block (bk = 16 = WMMA M dim); waves split NT
 //   - Per wave: 16 K x 16 NT outputs per wp = 256 / 32 lanes = 8 per lane
 //   - We stream the output transform per WMMA so we don't keep all 16 wp
 //     accumulators alive simultaneously (which would force register spill).
@@ -260,6 +263,7 @@ template <index_int NW,
           class Input,
           class Weights,
           class... Inputs>
+// NOLINTNEXTLINE(readability-function-size): single fused winograd+WMMA+writeback kernel
 __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, Inputs... inputs)
 {
     static_assert(CB % 16 == 0, "CB must be a multiple of WMMA K (16)");
@@ -267,48 +271,48 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0, "SK must divide NW evenly");
     // SK = within-WG c-axis split factor. SK waves cooperate to reduce the
     // C contraction; NW/SK independent NT-groups exist per workgroup so
-    // BT = BT_per_wave * (NW/SK). SK=1 is the original (no split) path.
+    // bt = bt_per_wave * (NW/SK). SK=1 is the original (no split) path.
     // For SK>1, KW must be 1 (LDS budget would otherwise overflow with the
     // per-wave U_lds slots).
     static_assert(SK == 1 or KW == 1, "SK>1 currently requires KW==1");
-    constexpr index_int BK          = 16;
-    constexpr index_int BT_per_wave = 16;
-    constexpr index_int NT_GROUPS   = NW / SK;
-    constexpr index_int BT          = BT_per_wave * NT_GROUPS;
-    constexpr index_int BK_WG       = BK * KW;
+    constexpr index_int bk          = 16;
+    constexpr index_int bt_per_wave = 16;
+    constexpr index_int nt_groups   = NW / SK;
+    constexpr index_int bt          = bt_per_wave * nt_groups;
+    constexpr index_int bk_wg       = bk * KW;
 
     auto idx = make_index();
 
     auto out_shape = output.get_shape();
     auto x_shape   = x.get_shape();
 
-    const auto N     = out_shape.lens[0];
-    const auto K     = out_shape.lens[1];
-    const auto H_out = out_shape.lens[2];
-    const auto W_out = out_shape.lens[3];
-    const auto C     = x_shape.lens[1];
-    const auto H_in  = x_shape.lens[2];
-    const auto W_in  = x_shape.lens[3];
+    const auto n     = out_shape.lens[0];
+    const auto out_c = out_shape.lens[1];
+    const auto out_h = out_shape.lens[2];
+    const auto out_w = out_shape.lens[3];
+    const auto in_c  = x_shape.lens[1];
+    const auto in_h  = x_shape.lens[2];
+    const auto in_w  = x_shape.lens[3];
 
-    const auto tiles_w       = (W_out + 1) / 2;
-    const auto tiles_h       = (H_out + 1) / 2;
+    const auto tiles_w       = (out_w + 1) / 2;
+    const auto tiles_h       = (out_h + 1) / 2;
     const auto tiles_per_img = tiles_h * tiles_w;
-    const auto NT_total      = N * tiles_per_img;
+    const auto nt_total      = n * tiles_per_img;
 
     // Each workgroup covers KW consecutive K_blocks for one t_block. The V
     // transform is shared across all KW k_blocks, so we only pay the
     // V-transform cost once per (t_block, c_block) instead of KW times.
-    const auto k_wg_blocks = (K + BK_WG - 1) / BK_WG;
+    const auto k_wg_blocks = (out_c + bk_wg - 1) / bk_wg;
     const auto k_wg_block  = idx.group % k_wg_blocks;
     const auto t_block     = idx.group / k_wg_blocks;
-    const auto k_base      = k_wg_block * BK_WG;
-    const auto t_base      = t_block * BT;
+    const auto k_base      = k_wg_block * bk_wg;
+    const auto t_base      = t_block * bt;
 
     const auto lane    = idx.local % 32;
     const auto wave_id = idx.local / 32;
 
     // ---- Split-c: wave_id is split into NT-group + sk-part ----
-    // For SK=1: NT_GROUPS=NW, wave_sk_part is always 0, wave_nt_idx == wave_id.
+    // For SK=1: nt_groups=NW, wave_sk_part is always 0, wave_nt_idx == wave_id.
     // For SK>1: NW/SK NT-groups; SK waves per group cooperate on c contraction.
     const index_int wave_nt_idx  = wave_id / SK;
     const index_int wave_sk_part = wave_id % SK;
@@ -317,7 +321,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // V values are kept in per-lane registers instead of LDS. The lane
     // assignment is chosen so that each lane already holds the exact 8 fp16
     // values that the WMMA B operand expects.
-    //   nt_lane = (wave_nt_idx*BT_per_wave) + lane%16  (1 nt per lane)
+    //   nt_lane = (wave_nt_idx*bt_per_wave) + lane%16  (1 nt per lane)
     //   c_lane in c_off + 0..7  with c_off = (lane/16)*8   (8 c per lane)
     static_assert(CB == 16 or CB == 32, "DPP V path supports CB=16 or CB=32");
     constexpr index_int v_chunks = CB / 16;
@@ -331,17 +335,17 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // WMMA A operand (the buffer cache handles reuse within the wave).
     constexpr bool u_via_lds       = (SK == 1);
     constexpr index_int u_slots    = u_via_lds ? KW : 1;
-    constexpr index_int u_slot_len = 16 * BK * CB;
+    constexpr index_int u_slot_len = 16 * bk * CB;
     constexpr index_int u_smem_len = u_via_lds ? u_slots * u_slot_len : 1;
     __shared__ uninitialized_buffer<half, u_smem_len> u_smem;
     // y_reduce_lds: holds per-wave y_partial during the SK>1 cross-wave
-    // reduce. NT_GROUPS groups × SK waves × 32 lanes × 32 fp32 (KW=1 only).
+    // reduce. nt_groups groups × SK waves × 32 lanes × 32 fp32 (KW=1 only).
     // Sized to 1 element for SK=1 to keep the LDS allocation valid but tiny.
-    constexpr index_int y_red_len = (SK > 1) ? (NT_GROUPS * SK * 32 * 32) : 1;
+    constexpr index_int y_red_len = (SK > 1) ? (nt_groups * SK * 32 * 32) : 1;
     __shared__ uninitialized_buffer<float, y_red_len> y_reduce_lds;
 
     auto u_cache_idx = [&](index_int slot, index_int wp, index_int k, index_int c) {
-        return slot * u_slot_len + wp * BK * CB + k * CB + c;
+        return slot * u_slot_len + wp * bk * CB + k * CB + c;
     };
 
     // alpha[wp,r,c] = A^T[r, wp/4] * A[wp%4, c]
@@ -368,7 +372,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // U layout: [4 or 3, 3, K, C] -- strides for byte offset computation.
     const auto u_sh = u.get_shape().strides;
 
-    const auto cblocks = (C + CB - 1) / CB;
+    const auto cblocks = (in_c + CB - 1) / CB;
 
     // V-in-registers storage: v_lane[c_chunk][c_in_chunk][wp].
     // For CB=16: v_chunks=1, c_in_chunk in 0..7 (lane's 8 c values).
@@ -378,16 +382,16 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // Cached per-wave / per-lane geometry. With SK>1 each NT-group occupies
     // SK consecutive waves that all map to the SAME nt range, so we use
     // wave_nt_idx (not raw wave_id) to compute the NT base.
-    const index_int wave_nt_base_in_block = wave_nt_idx * BT_per_wave;
+    const index_int wave_nt_base_in_block = wave_nt_idx * bt_per_wave;
     const index_int m_in_wave             = lane % 16;
     const index_int c_off                 = (lane / 16) * 8;
     const index_int nt_slot               = wave_nt_base_in_block + m_in_wave;
     const index_int nt_global             = t_base + nt_slot;
 
     // Lane's tile (n, th, tw). Same for all c (only c changes per tile_idx).
-    // Decompose the linear nt index over the {N, tiles_h, tiles_w} extents.
-    const bool nt_active   = (nt_global < NT_total);
-    const auto tile_idx    = nt_active ? array<index_int, 3>{N, tiles_h, tiles_w}.multi(nt_global)
+    // Decompose the linear nt index over the {n, tiles_h, tiles_w} extents.
+    const bool nt_active   = (nt_global < nt_total);
+    const auto tile_idx    = nt_active ? array<index_int, 3>{n, tiles_h, tiles_w}.multi(nt_global)
                                        : array<index_int, 3>{};
     const index_int n_idx  = tile_idx[0];
     const index_int th_idx = tile_idx[1];
@@ -403,9 +407,9 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     // tile-fixed); also pre-evaluate the 4 per-i and 4 per-j masks so the cb
     // loop's per-(i, j) check is a single AND instead of two compares.
     const int v_i0       = -h0;
-    const int v_i1       = static_cast<int>(H_in) - h0;
+    const int v_i1       = static_cast<int>(in_h) - h0;
     const int v_j0       = -w0;
-    const int v_j1       = static_cast<int>(W_in) - w0;
+    const int v_j1       = static_cast<int>(in_w) - w0;
     const int32_t hw_off = h0 * sh_b + w0 * sw_b;
     const bool v_hok0    = (0 >= v_i0 and 0 < v_i1);
     const bool v_hok1    = (1 >= v_i0 and 1 < v_i1);
@@ -458,10 +462,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             repeat_c<v_chunks>([&](auto vc_val) {
                 constexpr index_int vc  = vc_val;
                 const index_int c_start = c_base + vc * 16 + c_off;
-                const bool active       = nt_active and (c_start < C);
+                const bool active       = nt_active and (c_start < in_c);
                 const int32_t base_off =
                     n_off + static_cast<int32_t>(c_start * x_sh[1]) * sizeof(half) + hw_off;
-                const bool c_partial = (c_start + 8 > C);
+                const bool c_partial = (c_start + 8 > in_c);
                 array<vec<half, 8>, 16> d_vec;
                 repeat_c<4>([&](auto i_val) {
                     constexpr int i = i_val;
@@ -475,20 +479,20 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         if(c_partial)
                         {
                             repeat_c<8>([&](auto ci) {
-                                if(c_start + index_int{ci} >= C)
+                                if(c_start + index_int{ci} >= in_c)
                                     v8[index_int{ci}] = hzero;
                             });
                         }
                         d_vec[i * 4 + j] = v8;
                     });
                 });
-                array<vec<half, 8>, 16> V_vec;
-                winograd_input_transform_f23_vec(d_vec, V_vec);
+                array<vec<half, 8>, 16> v_vec;
+                winograd_input_transform_f23_vec(d_vec, v_vec);
                 repeat_c<8>([&](auto ci_val) {
                     constexpr index_int ci = ci_val;
                     repeat_c<16>([&](auto wp_val) {
                         constexpr index_int wp = wp_val;
-                        v_lane[vc][ci][wp]     = V_vec[wp][index_int{ci}];
+                        v_lane[vc][ci][wp]     = v_vec[wp][index_int{ci}];
                     });
                 });
             });
@@ -498,7 +502,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             auto load_d = [&](index_int vc, index_int ci) {
                 const index_int c_in_block = vc * 16 + c_off + ci;
                 const index_int c          = c_base + c_in_block;
-                const bool active          = nt_active and (c < C);
+                const bool active          = nt_active and (c < in_c);
                 const int32_t base_off = n_off + static_cast<int32_t>(c * x_sh[1]) * sizeof(half);
                 const int32_t off      = active ? (base_off + hw_off) : oob_byte;
                 array<half, 16> d;
@@ -536,8 +540,8 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 constexpr index_int vc = vc_val;
                 repeat_c<8>([&](auto ci_val) {
                     constexpr index_int ci = ci_val;
-                    auto V                 = winograd_input_transform_f23(d_buf[vc][ci]);
-                    repeat_c<16>([&](auto wp) { v_lane[vc][ci][wp] = V[wp]; });
+                    auto v                 = winograd_input_transform_f23(d_buf[vc][ci]);
+                    repeat_c<16>([&](auto wp) { v_lane[vc][ci][wp] = v[wp]; });
                 });
             });
         }
@@ -584,18 +588,24 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         auto load_trows = [&](index_int k, index_int c_abs) {
             auto ld = [&](index_int i, index_int j) {
                 const int32_t off =
-                    (k < K) ? t_off(i, j, k, c_abs) : static_cast<int32_t>(u_byte_count);
+                    (k < out_c) ? t_off(i, j, k, c_abs) : static_cast<int32_t>(u_byte_count);
                 return load_t(off);
             };
             array<t_triple, 4> r;
             if constexpr(FT)
             {
-                const vec<half, 8> g00 = ld(0, 0), g01 = ld(0, 1), g02 = ld(0, 2);
-                const vec<half, 8> g10 = ld(1, 0), g11 = ld(1, 1), g12 = ld(1, 2);
-                const vec<half, 8> g20 = ld(2, 0), g21 = ld(2, 1), g22 = ld(2, 2);
-                const half hc = 0.5f;
-                r[0]          = t_triple{g00, g01, g02};
-                r[1]          = t_triple{
+                const vec<half, 8> g00 = ld(0, 0);
+                const vec<half, 8> g01 = ld(0, 1);
+                const vec<half, 8> g02 = ld(0, 2);
+                const vec<half, 8> g10 = ld(1, 0);
+                const vec<half, 8> g11 = ld(1, 1);
+                const vec<half, 8> g12 = ld(1, 2);
+                const vec<half, 8> g20 = ld(2, 0);
+                const vec<half, 8> g21 = ld(2, 1);
+                const vec<half, 8> g22 = ld(2, 2);
+                const half hc          = 0.5f;
+                r[0]                   = t_triple{g00, g01, g02};
+                r[1]                   = t_triple{
                     (g00 + g10 + g20) * hc, (g01 + g11 + g21) * hc, (g02 + g12 + g22) * hc};
                 r[2] = t_triple{
                     (g00 - g10 + g20) * hc, (g01 - g11 + g21) * hc, (g02 - g12 + g22) * hc};
@@ -619,14 +629,14 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             {
                 // g storage: one task per (k_idx, k_in_block, c_chunk) -- load
                 // the raw 3x3 g once and write the full 4x4 U into LDS.
-                constexpr index_int U_TASKS = KW * BK * (CB / 8);
-                idx.local_stride(_c<U_TASKS>, [&](auto task) {
-                    // task decomposes over {KW, BK, CB/8} -> (k_idx, k_in_block, c_half).
-                    const auto t3              = array<index_int, 3>{KW, BK, CB / 8}.multi(task);
+                constexpr index_int u_tasks = KW * bk * (CB / 8);
+                idx.local_stride(_c<u_tasks>, [&](auto task) {
+                    // task decomposes over {KW, bk, CB/8} -> (k_idx, k_in_block, c_half).
+                    const auto t3              = array<index_int, 3>{KW, bk, CB / 8}.multi(task);
                     const index_int k_idx      = t3[0];
                     const index_int k_in_block = t3[1];
                     const index_int c_in_block = t3[2] * 8;
-                    const index_int k          = k_base + k_idx * BK + k_in_block;
+                    const index_int k          = k_base + k_idx * bk + k_in_block;
                     auto trows                 = load_trows(k, c_base + c_in_block);
                     repeat_c<4>([&](auto i_t_val) {
                         const index_int i_t = i_t_val;
@@ -651,17 +661,19 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                 // T storage: one task per (i_t, k_idx, k_in_block, c_chunk) --
                 // load one T row's 3 columns and write its 4 U columns. The
                 // extra i_t parallelism keeps more lanes issuing loads.
-                constexpr index_int U_TASKS = KW * 4 * BK * (CB / 8);
-                idx.local_stride(_c<U_TASKS>, [&](auto task) {
-                    // task decomposes over {KW, 4, BK, CB/8} -> (k_idx, i_t, k_in_block, c_half).
-                    const auto t4              = array<index_int, 4>{KW, 4, BK, CB / 8}.multi(task);
+                constexpr index_int u_tasks = KW * 4 * bk * (CB / 8);
+                idx.local_stride(_c<u_tasks>, [&](auto task) {
+                    // task decomposes over {KW, 4, bk, CB/8} -> (k_idx, i_t, k_in_block, c_half).
+                    const auto t4              = array<index_int, 4>{KW, 4, bk, CB / 8}.multi(task);
                     const index_int k_idx      = t4[0];
                     const index_int i_t        = t4[1];
                     const index_int k_in_block = t4[2];
                     const index_int c_in_block = t4[3] * 8;
-                    const index_int k          = k_base + k_idx * BK + k_in_block;
-                    vec<half, 8> t0, t1, t2;
-                    if(k < K)
+                    const index_int k          = k_base + k_idx * bk + k_in_block;
+                    vec<half, 8> t0;
+                    vec<half, 8> t1;
+                    vec<half, 8> t2;
+                    if(k < out_c)
                     {
                         t0 = load_t(t_off(i_t, 0, k, c_base + c_in_block));
                         t1 = load_t(t_off(i_t, 1, k, c_base + c_in_block));
@@ -755,7 +767,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             }
             else
             {
-                auto trows = load_trows(k_base + k_idx * BK + m_in_wave, c_base + c_offset + c_off);
+                auto trows = load_trows(k_base + k_idx * bk + m_in_wave, c_base + c_offset + c_off);
                 return apply_gt(trows[wp_i].t0, trows[wp_i].t1, trows[wp_i].t2);
             }
         };
@@ -769,7 +781,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             array<t_triple, wmma_chunks == 2 ? 8 : 4> t_buf;
             if constexpr(not u_via_lds)
             {
-                const index_int kk = k_base + k_idx * BK + m_in_wave;
+                const index_int kk = k_base + k_idx * bk + m_in_wave;
                 auto tr0           = load_trows(kk, c_base + c_off);
                 if constexpr(wmma_chunks == 2)
                 {
@@ -803,7 +815,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
             };
             repeat_c<4>([&](auto wp_i_val) {
                 constexpr int wp_i = wp_i_val;
-                vec<float, 8> m0{}, m1{}, m2{}, m3{};
+                vec<float, 8> m0{};
+                vec<float, 8> m1{};
+                vec<float, 8> m2{};
+                vec<float, 8> m3{};
                 if constexpr(wmma_chunks == 2)
                 {
                     auto u_lo = get_ur(wp_i_val, 0);
@@ -816,7 +831,10 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                     auto b5   = load_v(wp_i * 4 + 1, 16);
                     auto b6   = load_v(wp_i * 4 + 2, 16);
                     auto b7   = load_v(wp_i * 4 + 3, 16);
-                    vec<float, 8> m4{}, m5{}, m6{}, m7{};
+                    vec<float, 8> m4{};
+                    vec<float, 8> m5{};
+                    vec<float, 8> m6{};
+                    vec<float, 8> m7{};
                     wmma_octet_asm(u_lo.u0,
                                    b0,
                                    u_lo.u1,
@@ -952,21 +970,21 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
         // fall through to the packed NCHW store below.
         if(sk == 1)
         {
-            const bool k_pack = (K % 8 == 0);
+            const bool k_pack = (out_c % 8 == 0);
             repeat_c<KW>([&](auto k_idx_val) {
                 constexpr int k_idx     = k_idx_val;
-                const index_int k_first = k_base + k_idx * BK + k_row_offset;
-                if(k_first >= K)
+                const index_int k_first = k_base + k_idx * bk + k_row_offset;
+                if(k_first >= out_c)
                     return;
                 repeat_c<2>([&](auto i_val) {
                     constexpr int i       = i_val;
                     const index_int h_out = 2 * th_idx + i;
-                    if(h_out >= H_out)
+                    if(h_out >= out_h)
                         return;
                     repeat_c<2>([&](auto j_val) {
                         constexpr int j       = j_val;
                         const index_int w_out = 2 * tw_idx + j;
-                        if(w_out >= W_out)
+                        if(w_out >= out_w)
                             return;
                         const index_int oidx = i * 2 + j;
                         const index_int off  = n_idx * sn + k_first * sk + h_out * sh + w_out * sw;
@@ -994,7 +1012,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         {
                             repeat_c<8>([&](auto ki) {
                                 const index_int k = k_first + index_int{ki};
-                                if(k < K)
+                                if(k < out_c)
                                 {
                                     const array<index_int, 4> oid{n_idx, k, h_out, w_out};
                                     output[oid] = static_cast<out_type>(
@@ -1012,17 +1030,17 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
     constexpr bool packed_store_ok = sizeof(out_type) == 2;
     repeat_c<KW>([&](auto k_idx_val) {
         constexpr int k_idx         = k_idx_val;
-        const index_int base_offset = n_idx * sn + (k_base + k_idx * BK + k_row_offset) * sk +
+        const index_int base_offset = n_idx * sn + (k_base + k_idx * bk + k_row_offset) * sk +
                                       (2 * th_idx) * sh + (2 * tw_idx) * sw;
-        const bool w_pair_in = (2 * tw_idx + 1 < W_out) and (sw == 1);
+        const bool w_pair_in = (2 * tw_idx + 1 < out_w) and (sw == 1);
         repeat_c<8>([&](auto ki) {
-            const index_int k = k_base + k_idx * BK + k_row_offset + ki;
-            if(k < K)
+            const index_int k = k_base + k_idx * bk + k_row_offset + ki;
+            if(k < out_c)
             {
                 const index_int kbase = base_offset + ki * sk;
                 repeat_c<2>([&](auto i) {
                     const index_int h_out = 2 * th_idx + i;
-                    if(h_out < H_out)
+                    if(h_out < out_h)
                     {
                         const index_int hbase = kbase + i * sh;
                         // Fast path: both W in-bounds and stride_w=1 — pack
@@ -1062,7 +1080,7 @@ __device__ void winograd_conv_f23_wmma(F f, Output output, Input x, Weights u, I
                         // Slow path: scalar per-j store with bounds checks.
                         repeat_c<2>([&](auto j) {
                             const index_int w_out = 2 * tw_idx + j;
-                            if(w_out < W_out)
+                            if(w_out < out_w)
                             {
                                 const array<index_int, 4> out_idx{n_idx, k, h_out, w_out};
                                 output[out_idx] = static_cast<out_type>(

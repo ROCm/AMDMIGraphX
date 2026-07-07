@@ -352,9 +352,9 @@ struct winograd_conv
         const auto& x_shape = inputs[0];
         const auto& u_shape = inputs[1];
         auto x_lens         = x_shape.lens();
-        // u_shape is [4 or 3, 3, K, C]; lens()[2] is K either way.
-        auto K                            = u_shape.lens()[2];
-        std::vector<std::size_t> out_lens = {x_lens[0], K, x_lens[2], x_lens[3]};
+        // u_shape is [4 or 3, 3, K, C]; lens()[2] is the output channel count.
+        auto out_c                        = u_shape.lens()[2];
+        std::vector<std::size_t> out_lens = {x_lens[0], out_c, x_lens[2], x_lens[3]};
         return shape::from_permutation(x_shape.type(), out_lens, output_layout);
     }
 };
@@ -369,19 +369,19 @@ MIGRAPHX_REGISTER_OP(winograd_conv);
 //     memory -- best for weight-bandwidth-bound large-channel convs.
 // The first dim differs (4 vs 3) but the byte-offset formula is identical
 // (both have a size-3 second dim). Output has C innermost (coalesced loads).
-static literal compute_winograd_weights_f23(const argument& w_arg, bool full_transform)
+literal compute_winograd_weights_f23(const argument& w_arg, bool full_transform)
 {
     auto sh                 = w_arg.get_shape();
-    auto K                  = sh.lens()[0];
-    auto C                  = sh.lens()[1];
+    auto out_c              = sh.lens()[0];
+    auto in_c               = sh.lens()[1];
     auto out_type           = sh.type();
     const std::size_t nrows = full_transform ? 3 : 4;
-    shape w_shape{out_type, {nrows, 3, K, C}};
+    shape w_shape{out_type, {nrows, 3, out_c, in_c}};
 
-    std::vector<float> data(nrows * 3 * K * C, 0.0f);
+    std::vector<float> data(nrows * 3 * out_c * in_c, 0.0f);
 
     w_arg.visit([&](auto w_view) {
-        dfor(K, C)([&](auto k, auto c) {
+        dfor(out_c, in_c)([&](auto k, auto c) {
             float g[3][3];
             dfor(std::size_t{3},
                  std::size_t{3})([&](auto i, auto j) { g[i][j] = w_view(k, c, i, j); });
@@ -432,7 +432,7 @@ struct winograd_f23_shape
     bool use_winograd;
 };
 
-static constexpr std::array<winograd_f23_shape, 10> winograd_f23_overrides{{
+constexpr std::array<winograd_f23_shape, 10> winograd_f23_overrides{{
     {195, 192, 128, 128, true}, // 1.12x: missed win (moderate ch, large spatial)
     {768, 383, 32, 32, false},  // 0.86x: wrong pick
     {768, 383, 48, 48, false},  // 0.90x
@@ -468,7 +468,7 @@ static constexpr std::array<winograd_f23_shape, 10> winograd_f23_overrides{{
 //     transform-bound and lose.
 // A channel-collapsing conv (e.g. 512->8) keeps min(C,K) small, so it is not
 // caught by the large-channel rules and still wins ~2x as it should.
-static bool winograd_f23_profitable(
+bool winograd_f23_profitable(
     std::size_t in_ch, std::size_t out_ch, std::size_t height, std::size_t width, bool nhwc)
 {
     const auto spatial = std::min(height, width);
@@ -488,7 +488,7 @@ static bool winograd_f23_profitable(
     if(nhwc and min_ch >= 224)
         return false;
 
-    auto ovr = std::find_if(
+    const auto* ovr = std::find_if(
         winograd_f23_overrides.begin(), winograd_f23_overrides.end(), [&](const auto& o) {
             return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
                    std::tie(in_ch, out_ch, height, width);
@@ -517,10 +517,10 @@ static bool winograd_f23_profitable(
 // in-kernel transform VALU, which loses for VALU-bound large-spatial convs and
 // for channel-collapsing convs (tiny K) whose weights aren't the bottleneck.
 // Derived from the same gfx12 fp16 sweep as winograd_f23_profitable.
-static bool winograd_f23_full_transform(std::size_t in_ch,
-                                        std::size_t out_ch,
-                                        std::size_t height,
-                                        std::size_t width)
+bool winograd_f23_full_transform(std::size_t in_ch,
+                                 std::size_t out_ch,
+                                 std::size_t height,
+                                 std::size_t width)
 {
     // Benchmarking override: force g storage on every winograd conv.
     if(enabled(MIGRAPHX_WINOGRAD_FULL_TRANSFORM{}))
@@ -587,10 +587,8 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     // the same test the kernel uses to pick its NHWC path. layout_convolution
     // runs before this pass, so the strides already reflect the chosen layout.
     const bool nhwc = ins->inputs().front()->get_shape().strides()[1] == 1;
-    if(not enabled(MIGRAPHX_ENABLE_WINOGRAD{}) and
-       not winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc))
-        return false;
-    return true;
+    return enabled(MIGRAPHX_ENABLE_WINOGRAD{}) or
+           winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
 }
 
 struct find_winograd_f23

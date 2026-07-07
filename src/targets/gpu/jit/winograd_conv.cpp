@@ -134,16 +134,16 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
 
         const auto& out_lens = out_s.lens();
         assert(out_lens.size() == 4);
-        const auto N        = out_lens[0];
-        const auto K        = out_lens[1];
-        const auto H_out    = out_lens[2];
-        const auto W_out    = out_lens[3];
-        const auto tiles_h  = (H_out + 1) / 2;
-        const auto tiles_w  = (W_out + 1) / 2;
-        const auto NT_total = N * tiles_h * tiles_w;
+        const auto n        = out_lens[0];
+        const auto out_c    = out_lens[1];
+        const auto out_h    = out_lens[2];
+        const auto out_w    = out_lens[3];
+        const auto tiles_h  = (out_h + 1) / 2;
+        const auto tiles_w  = (out_w + 1) / 2;
+        const auto nt_total = n * tiles_h * tiles_w;
 
-        const auto k_wg_blocks = (K + bk_wg - 1) / bk_wg;
-        const auto t_blocks    = (NT_total + bt - 1) / bt;
+        const auto k_wg_blocks = (out_c + bk_wg - 1) / bk_wg;
+        const auto t_blocks    = (nt_total + bt - 1) / bt;
         const auto num_blocks  = k_wg_blocks * t_blocks;
 
         options.set_launch_params(v, num_blocks * block_size, block_size);

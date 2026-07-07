@@ -148,12 +148,12 @@ std::size_t score(const module& m)
 
 void layout_convolution::apply(module_pass_manager& mpm) const
 {
-    if(order == layout_order::chennels_auto)
+    if(order == layout_order::channels_auto)
     {
         module m_first = mpm.get_module();
-        apply_layout(m_first, order);
+        apply_layout(m_first, channels_first);
         module m_last = mpm.get_module();
-        apply_layout(m_last, order);
+        apply_layout(m_last, channels_last);
         if(score(m_first) < score(m_last))
         {
             mpm.get_module().swap(m_first);

@@ -189,7 +189,7 @@ struct find_quant_attention
     }
 };
 
-struct transposed_attention
+struct find_transposed_attention
 {
     auto matcher() const
     {
@@ -210,8 +210,9 @@ struct transposed_attention
         return match::name("dot")(match::arg(0)(input_of_dot2), match::arg(1)(transposed_softmax));
     }
 
-    void apply(module& m, const match::matcher_result& r) const
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
     {
+        auto& m                 = mpm.get_module();
         auto gemm2              = r.result;
         auto input_of_dot2      = r.instructions["input_of_dot2"];
         auto transposed_softmax = r.instructions["transposed_softmax"];
@@ -1087,7 +1088,7 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         match::find_matches(mpm, find_quant_attention{});
         mpm.run_pass(dead_code_elimination{});
 
-        match::find_matches(mpm.get_module(), transposed_attention{});
+        match::find_matches(mpm, find_transposed_attention{});
         mpm.run_pass(dead_code_elimination{});
 
         match::find_matches(mpm, find_attention{.counter = &counter});

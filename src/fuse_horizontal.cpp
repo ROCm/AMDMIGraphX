@@ -197,12 +197,12 @@ fuse_gathers_flattened(module& m,
                    results.begin(),
                    [&](instruction_ref idx, std::size_t end) -> instruction_ref {
                        const auto& lens = idx->get_shape().lens();
-                       auto start       = end - idx->get_shape().elements();
+                       int64_t start       = end - idx->get_shape().elements();
                        auto sliced      = m.insert_instruction(
                            insert_pt,
                            make_op("slice",
                                         {{"axes", {0}},
-                                         {"starts", {static_cast<std::int64_t>(start)}},
+                                         {"starts", {start}},
                                          {"ends", {static_cast<std::int64_t>(end)}}}),
                            batched_gather);
                        // A 1-D index already yields {n, emb_dim}; only multi-dim indices need

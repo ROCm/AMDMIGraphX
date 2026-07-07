@@ -1,3 +1,4 @@
+<!-- Follow the LLVM AI Tool Use Policy (https://llvm.org/docs/AIToolPolicy.html) for contributions using AI -->
 ## Motivation
 <!-- Explain the purpose of this PR and the goals it aims to achieve. -->
 

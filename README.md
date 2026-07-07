@@ -279,3 +279,7 @@ Also, githooks can be installed to format the code per-commit:
 ```bash
 ./.githooks/install
 ```
+
+## AI Tool Use Policy
+
+Follow the [LLVM AI Tool Use Policy](https://llvm.org/docs/AIToolPolicy.html) for any contributions to the codebase.

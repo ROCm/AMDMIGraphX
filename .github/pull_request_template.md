@@ -1,4 +1,3 @@
-<!-- Follow the LLVM AI Tool Use Policy (https://llvm.org/docs/AIToolPolicy.html) for contributions using AI -->
 ## Motivation
 <!-- Explain the purpose of this PR and the goals it aims to achieve. -->
 
@@ -14,3 +13,5 @@ Add a `CHANGELOG.md` entry for any option other than `Not Applicable`
 - - [ ] Optimized: Component performance that has been optimized or improved.
 - - [ ] Resolved Issues: Known issues from a previous version that have been resolved.
 - - [ ] Not Applicable: This PR is not to be included in the changelog.
+
+Follow the [LLVM AI Tool Use Policy](https://llvm.org/docs/AIToolPolicy.html) for contributions using AI.

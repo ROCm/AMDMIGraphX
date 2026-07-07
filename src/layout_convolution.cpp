@@ -32,6 +32,7 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/reshape_dims.hpp>
 #include <migraphx/stringutils.hpp>
 
 namespace migraphx {
@@ -143,7 +144,15 @@ std::size_t score(const module& m)
     return std::count_if(m.begin(), m.end(), [](const instruction& ins) {
         if(ins.can_eval())
             return false;
-        return contains({"layout", "contiguous"}, ins.name());
+        if(contains({"layout", "contiguous"}, ins.name()))
+            return true;
+        // A reshape whose collapsed dims are not contiguous cannot alias its input as a view
+        // (reshape_lazy) and needs a copy, so count it the same as a contiguous.
+        if(ins.name() == "reshape")
+            return not reshape_dims(
+                       ins.inputs().front()->get_shape(), ins.get_shape().lens(), {.lazy = true})
+                       .has_value();
+        return false;
     });
 }
 } // namespace

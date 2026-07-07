@@ -540,4 +540,33 @@ TEST_CASE(channels_auto_allows_two_layouts_per_param)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// Under channels_last the convolution output is NHWC, so a reshape that folds the channel dim
+// into the spatial dims cannot alias its input as a view (reshape_lazy) and needs a copy, so
+// it is scored like a contiguous. Two such reshapes push channels_last to a score of three,
+// past the two-per-param allowance, so auto selects channels_first (a no-op here, since a
+// standard output keeps the reshapes lazy).
+TEST_CASE(channels_auto_counts_nonlazy_reshapes)
+{
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
+        auto w = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
+        auto conv = m1.add_instruction(
+            migraphx::make_op("convolution",
+                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
+            x,
+            w);
+        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
+        auto reshape1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1024}}}), relu);
+        auto reshape2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 512}}}), relu);
+        m1.add_return({reshape1, reshape2});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});
+    EXPECT(m1.sort() == m2.sort());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

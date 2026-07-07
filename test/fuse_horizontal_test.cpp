@@ -792,9 +792,9 @@ TEST_CASE(same_table_gathers_mixed_index_shapes)
         auto f3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), idx_2d_a);
         auto f4 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {15}}}), idx_2d_b);
 
-        auto big_idx = m2.add_instruction(
-            migraphx::make_op("concat", {{"axis", 0}}),
-            std::vector<migraphx::instruction_ref>{idx_1d_a, idx_1d_b, f3, f4});
+        auto big_idx =
+            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                               std::vector<migraphx::instruction_ref>{idx_1d_a, idx_1d_b, f3, f4});
 
         auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, big_idx);
 

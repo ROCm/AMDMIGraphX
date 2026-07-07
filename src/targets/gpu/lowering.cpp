@@ -721,9 +721,11 @@ struct miopen_apply
     {
         apply_map.emplace("dimensions_of", [=](instruction_ref ins) {
             auto output = insert_allocation(ins, ins->get_shape());
-            auto sync_input = mod->insert_instruction(ins, make_op("hip::sync_stream"), ins->inputs().front());
+            auto sync_input =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), ins->inputs().front());
             auto host_out = mod->insert_instruction(ins, ins->get_operator(), sync_input);
-            auto gpu_out = mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
             return mod->replace_instruction(ins, gpu_out);
         });
     }

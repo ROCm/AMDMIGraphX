@@ -60,8 +60,7 @@ TEST_CASE(dimensions_of_lowering_default)
             migraphx::make_op("allocate", {{"shape", migraphx::to_value(out_s)}}));
         auto sync     = m2.add_instruction(migraphx::make_op("hip::sync_stream"), x);
         auto host_out = m2.add_instruction(migraphx::make_op("dimensions_of", {{"end", 3}}), sync);
-        auto gpu_out =
-            m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_out, output);
+        auto gpu_out  = m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_out, output);
         m2.add_return({gpu_out});
     }
     EXPECT(m1 == m2);
@@ -77,8 +76,8 @@ TEST_CASE(dimensions_of_lowering_start_end)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", in_s);
-        auto d = m1.add_instruction(
-            migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), x);
+        auto d =
+            m1.add_instruction(migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), x);
         m1.add_return({d});
     }
     run_lowering(m1);
@@ -91,8 +90,7 @@ TEST_CASE(dimensions_of_lowering_start_end)
         auto sync     = m2.add_instruction(migraphx::make_op("hip::sync_stream"), x);
         auto host_out = m2.add_instruction(
             migraphx::make_op("dimensions_of", {{"start", 2}, {"end", 4}}), sync);
-        auto gpu_out =
-            m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_out, output);
+        auto gpu_out = m2.add_instruction(migraphx::make_op("hip::copy_to_gpu"), host_out, output);
         m2.add_return({gpu_out});
     }
     EXPECT(m1 == m2);

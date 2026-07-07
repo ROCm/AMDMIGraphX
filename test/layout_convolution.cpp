@@ -468,22 +468,29 @@ TEST_CASE(channels_auto_selects_channels_last)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// A plain-NCHW graph needs no layouts for channels_first but three for channels_last, which
-// exceeds the two-per-param allowance, so auto must select channels_first (a no-op here).
+// A grouped convolution stays NCHW, so a normal-group-normal chain forces channels_last to
+// insert four non-foldable layouts (the input, both convolution boundaries, and the output),
+// while the layouts on the constant weights fold away and are not scored. That exceeds the
+// two-per-param allowance, so auto selects channels_first (a no-op here).
 TEST_CASE(channels_auto_selects_channels_first)
 {
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 16, 16}});
-        auto w = m1.add_literal(
-            migraphx::generate_literal({migraphx::shape::float_type, {16, 8, 3, 3}}));
-        auto conv = m1.add_instruction(
-            migraphx::make_op("convolution",
-                              {{"padding", {1, 1}}, {"stride", {2, 2}}, {"dilation", {1, 1}}}),
-            x,
-            w);
-        auto relu = m1.add_instruction(migraphx::make_op("relu"), conv);
-        m1.add_return({relu});
+        auto x  = m1.add_parameter("x", {migraphx::shape::float_type, {1, 8, 8, 8}});
+        auto w1 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 1, 1}}));
+        auto w2 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {8, 1, 3, 3}}));
+        auto w3 = m1.add_literal(
+            migraphx::generate_literal({migraphx::shape::float_type, {8, 8, 1, 1}}));
+        auto conv1 = m1.add_instruction(migraphx::make_op("convolution"), x, w1);
+        auto relu1 = m1.add_instruction(migraphx::make_op("relu"), conv1);
+        auto conv2 = m1.add_instruction(
+            migraphx::make_op("convolution", {{"group", 8}, {"padding", {1, 1}}}), relu1, w2);
+        auto relu2 = m1.add_instruction(migraphx::make_op("relu"), conv2);
+        auto conv3 = m1.add_instruction(migraphx::make_op("convolution"), relu2, w3);
+        auto relu3 = m1.add_instruction(migraphx::make_op("relu"), conv3);
+        m1.add_return({relu3});
     }
     migraphx::module m2 = m1;
     run_pass(m1, {.order = migraphx::layout_convolution::channels_auto});

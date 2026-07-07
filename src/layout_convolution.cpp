@@ -141,6 +141,8 @@ void apply_layout(module& m, layout_convolution::layout_order order)
 std::size_t score(const module& m)
 {
     return std::count_if(m.begin(), m.end(), [](const instruction& ins) {
+        if(ins.can_eval())
+            return false;
         return contains({"layout", "contiguous"}, ins.name());
     });
 }

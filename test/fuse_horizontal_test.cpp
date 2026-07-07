@@ -751,7 +751,9 @@ TEST_CASE(same_table_gathers_split_by_idx_type)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(same_table_gathers_split_by_trailing_dims)
+// Same-table gathers with differing index shapes (1-D and 2-D) now merge into a single
+// batched gather via the flattened path (indices flattened to 1-D, gathered, reshaped back).
+TEST_CASE(same_table_gathers_mixed_index_shapes)
 {
     migraphx::module m1;
     {
@@ -782,33 +784,32 @@ TEST_CASE(same_table_gathers_split_by_trailing_dims)
         auto idx_2d_a = m2.add_parameter("idx_2d_a", {migraphx::shape::int32_type, {4, 3}});
         auto idx_2d_b = m2.add_parameter("idx_2d_b", {migraphx::shape::int32_type, {5, 3}});
 
-        // 1D group fuses first (anchor sees idx_1d_a)
-        auto concat_idx_1d =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx_1d_a, idx_1d_b});
+        // All four gathers share the table but have mixed index ranks (1-D and 2-D), so they
+        // cannot be concatenated on axis 0.  They fuse via the flattened path: each 2-D index
+        // is reshaped to 1-D, all are concatenated, one batched gather runs, and each range is
+        // sliced back out and reshaped to its original output shape.  Element counts are
+        // 4, 5, 12, 15 -> ends 4, 9, 21, 36.
+        auto f3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {12}}}), idx_2d_a);
+        auto f4 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {15}}}), idx_2d_b);
 
-        auto bg_1d =
-            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx_1d);
+        auto big_idx = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{idx_1d_a, idx_1d_b, f3, f4});
+
+        auto bg = m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, big_idx);
 
         auto s1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_1d);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
         auto s2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_1d);
-
-        // 2D group fuses next
-        auto concat_idx_2d =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx_2d_a, idx_2d_b});
-
-        auto bg_2d =
-            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, concat_idx_2d);
-
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg);
         auto s3 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_2d);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {9}}, {"ends", {21}}}), bg);
+        auto r3 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 3, 2}}}), s3);
         auto s4 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_2d);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {21}}, {"ends", {36}}}), bg);
+        auto r4 = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {5, 3, 2}}}), s4);
 
-        m2.add_return({s1, s2, s3, s4});
+        m2.add_return({s1, s2, r3, r4});
     }
     EXPECT(m1.sort() == m2.sort());
 }

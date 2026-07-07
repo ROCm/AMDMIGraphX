@@ -295,6 +295,7 @@ jobs:
         mkdir build
         cd build
         CXX=/opt/rocm/llvm/bin/clang++ CC=/opt/rocm/llvm/bin/clang cmake \
+          -DCMAKE_PREFIX_PATH=/usr/local \
           -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
           -DBUILD_DEV=On \
           -DCMAKE_CXX_COMPILER_LAUNCHER=/usr/local/bin/ccache \

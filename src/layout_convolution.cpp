@@ -149,9 +149,10 @@ std::size_t score(const module& m)
         // A reshape whose collapsed dims are not contiguous cannot alias its input as a view
         // (reshape_lazy) and needs a copy, so count it the same as a contiguous.
         if(ins.name() == "reshape")
-            return not reshape_dims(
-                       ins.inputs().front()->get_shape(), ins.get_shape().lens(), {.lazy = true})
-                       .has_value();
+            return not reshape_dims(ins.inputs().front()->get_shape(),
+                                    ins.get_shape().lens(),
+                                    {.lazy = true})
+                           .has_value();
         return false;
     });
 }

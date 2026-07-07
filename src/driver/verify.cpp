@@ -227,7 +227,7 @@ void verify_instructions(const program& prog,
 static bool verify_reduced(program p,
                            int n,
                            const target& t,
-                           compile_options options,
+                           const compile_options& options,
                            const verify_options& vo,
                            const parameter_map& inputs,
                            verify::tolerance tols)
@@ -239,7 +239,7 @@ static bool verify_reduced(program p,
     log::info() << p;
     try
     {
-        return verify_program(std::to_string(n), p, t, std::move(options), vo, inputs, tols);
+        return verify_program(std::to_string(n), p, t, options, vo, inputs, tols);
     }
     catch(const std::exception& e)
     {

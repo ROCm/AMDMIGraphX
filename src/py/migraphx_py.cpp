@@ -619,17 +619,25 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
                const migraphx::target& t,
                bool offload_copy,
                bool fast_math,
-               bool exhaustive_tune) {
+               bool exhaustive_tune,
+               const py::dict& advance_backend_options) {
                 migraphx::compile_options options;
                 options.offload_copy    = offload_copy;
                 options.fast_math       = fast_math;
                 options.exhaustive_tune = exhaustive_tune;
+                for(auto opt : advance_backend_options)
+                {
+                    auto key = py::str(opt.first).cast<std::string>();
+                    migraphx::visit_py(opt.second,
+                                       [&](auto val) { options.backend_options[key] = val; });
+                }
                 p.compile(t, options);
             },
             py::arg("t"),
-            py::arg("offload_copy")    = true,
-            py::arg("fast_math")       = true,
-            py::arg("exhaustive_tune") = false)
+            py::arg("offload_copy")            = true,
+            py::arg("fast_math")               = true,
+            py::arg("exhaustive_tune")         = false,
+            py::arg("advance_backend_options") = py::dict())
         .def(
             "finalize",
             [](migraphx::program& p, const migraphx::target& t) { p.finalize(t); },

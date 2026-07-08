@@ -627,6 +627,9 @@ migraphx_compile_options_set_fast_math(migraphx_compile_options_t compile_option
 MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_exhaustive_tune_flag(
     migraphx_compile_options_t compile_options, bool value);
 
+MIGRAPHX_C_EXPORT migraphx_status migraphx_compile_options_set_advance_backend_options(
+    migraphx_compile_options_t compile_options, const char* options_json, ...);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx(migraphx_program_t* out,
                                                       const char* name,
                                                       migraphx_onnx_options_t options);

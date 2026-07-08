@@ -154,6 +154,18 @@ struct find_static_2in_broadcasts : match::supports_dynamic_shapes
     }
 };
 
+// Matches a slice whose set starts/ends bounds are all concrete ints (no
+// symbolic dim_like bounds), so the const-input rewrites can read them as ints.
+MIGRAPHX_PRED_MATCHER(slice_concrete_bounds, instruction_ref ins)
+{
+    if(ins->name() != "slice")
+        return false;
+    auto slice_op = any_cast<op::slice>(ins->get_operator());
+    auto is_int   = [](const dim_like& d) { return std::holds_alternative<int64_t>(d); };
+    return std::all_of(slice_op.starts.begin(), slice_op.starts.end(), is_int) and
+           std::all_of(slice_op.ends.begin(), slice_op.ends.end(), is_int);
+}
+
 /**
  * Simplify slice with 2 inputs to the 1 input version if inputs[1] is constant.
  * From:
@@ -165,7 +177,8 @@ struct find_const_2in_slice : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
-        return match::name("slice")(match::nargs(2), match::arg(1)(match::is_constant()));
+        return match::name("slice")(
+            match::nargs(2), match::arg(1)(match::is_constant()), slice_concrete_bounds());
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -221,7 +234,8 @@ struct find_const_3in_slice : match::supports_dynamic_shapes
     {
         return match::name("slice")(match::nargs(3),
                                     match::arg(1)(match::is_constant()),
-                                    match::arg(2)(match::is_constant()));
+                                    match::arg(2)(match::is_constant()),
+                                    slice_concrete_bounds());
     }
 
     void apply(module& m, const match::matcher_result& mr) const

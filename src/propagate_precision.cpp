@@ -54,7 +54,7 @@ enum class type_category
     non_quantized_floating,
 };
 
-static type_category get_type_category(shape::type_t t)
+type_category get_type_category(shape::type_t t)
 {
     static const std::set<shape::type_t> fp8 = fp8_types{}.get();
     if(contains(fp8, t))

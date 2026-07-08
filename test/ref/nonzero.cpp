@@ -48,3 +48,39 @@ TEST_CASE(nonzero_test)
                                  1, 1, 0, 0, 0, 0, 0, 1, 0, 2, 0, 2, 0, 2, 0, 0, 0, 0};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }
+
+TEST_CASE(nonzero_transposed_input)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    std::vector<float> data = {1.0f, 0.0f, 2.0f, 0.0f, 3.0f, 4.0f};
+    auto input              = mm->add_literal(migraphx::literal(s, data));
+    auto transposed =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), input);
+    auto ret = mm->add_instruction(migraphx::make_op("nonzero"), transposed);
+    mm->add_return({ret});
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<int64_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<int64_t> gold = {0, 1, 2, 2, 0, 0, 0, 1, 0, 1, 0, 0};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}
+
+TEST_CASE(nonzero_broadcasted_input)
+{
+    migraphx::program p;
+    auto* mm   = p.get_main_module();
+    auto input = mm->add_literal(migraphx::literal{migraphx::shape::float_type, {1.0f}});
+    auto broadcasted =
+        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {2, 3}}}), input);
+    auto ret = mm->add_instruction(migraphx::make_op("nonzero"), broadcasted);
+    mm->add_return({ret});
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    std::vector<int64_t> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    std::vector<int64_t> gold = {0, 0, 0, 1, 1, 1, 0, 1, 2, 0, 1, 2};
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
+}

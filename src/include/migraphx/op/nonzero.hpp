@@ -43,7 +43,7 @@ struct nonzero
 
     shape compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(1).standard();
+        check_shapes{inputs, *this}.has(1);
         auto elem_num                     = inputs[0].elements();
         auto dim_num                      = inputs[0].lens().size();
         std::vector<std::size_t> out_lens = {dim_num, elem_num};
@@ -56,8 +56,8 @@ struct nonzero
         std::vector<std::vector<std::size_t>> vec_idx;
         auto s = args.front().get_shape();
         args.front().visit([&](auto v) {
-            shape_for_each(s, [&](const auto& idx_v, size_t idx) {
-                if(not float_equal(v[idx], 0))
+            shape_for_each(s, [&](const auto& idx_v) {
+                if(not float_equal(v[idx_v], 0))
                 {
                     vec_idx.push_back(idx_v);
                 }

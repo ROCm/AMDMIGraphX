@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <numeric>
 #include <string>
 #include <utility>
@@ -75,6 +76,25 @@ OutputIterator transform_partial_sum(
     }
 
     return ++d_first;
+}
+
+/// Like std::unique but removes all duplicates instead of only adjacent ones, so the
+/// input need not be sorted. The order of first appearance is preserved. Returns the
+/// new logical end; elements in [result, last) are left in a moved-from state.
+template <class ForwardIterator, class BinaryPredicate = std::equal_to<>>
+ForwardIterator distinct(ForwardIterator first, ForwardIterator last, BinaryPredicate eq = {})
+{
+    auto out = first;
+    for(auto it = first; it != last; ++it)
+    {
+        if(std::none_of(first, out, [&](const auto& kept) { return eq(kept, *it); }))
+        {
+            if(out != it)
+                *out = std::move(*it);
+            ++out;
+        }
+    }
+    return out;
 }
 
 template <class Iterator, class Predicate, class Compare>

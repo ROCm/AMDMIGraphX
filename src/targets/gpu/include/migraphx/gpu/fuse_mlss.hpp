@@ -37,9 +37,9 @@ namespace gpu {
 struct MIGRAPHX_GPU_EXPORT fuse_mlss
 {
     context* ctx = nullptr;
-    // Force-enable conv fusion regardless of env-var configuration; used by tests
-    // so they don't have to mutate the process environment.
-    bool enable_conv = false;
+    // Comma-separated list of ops to force onto AMDMLSS (e.g. "conv"), supplied via
+    // compile_options. Takes effect in addition to MIGRAPHX_MLSS_USE_SPECIFIC_OPS.
+    std::string use_specific_ops = "";
     std::string name() const { return "gpu::fuse_mlss"; }
     void apply(module_pass_manager& mpm) const;
 };

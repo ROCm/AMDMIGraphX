@@ -1632,6 +1632,7 @@ struct find_splits
         return false;
     }
 
+    // NOLINT
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins     = r.result;

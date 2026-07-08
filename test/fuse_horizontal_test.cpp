@@ -848,31 +848,41 @@ TEST_CASE(same_table_gathers_multiple_tables)
         auto idx_b1 = m2.add_parameter("idx_b1", {migraphx::shape::int32_type, {4}});
         auto idx_b2 = m2.add_parameter("idx_b2", {migraphx::shape::int32_type, {5}});
 
-        // Table A is fused first (anchor sees ga1)
-        auto concat_idx_a =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx_a1, idx_a2});
+        // Cross-embedding fusion runs first and, because both tables share the same
+        // embedding dim, bundles all four gathers into one batched gather.  Table dedup keeps
+        // each table once: concat is [3+4, 2] = [7, 2], and only table B's indices are shifted
+        // by +3 (table A's offset is 0).
+        auto concat_emb = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
+                                             std::vector<migraphx::instruction_ref>{emb_a, emb_b});
 
-        auto bg_a =
-            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_a, concat_idx_a);
+        auto offb1 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto bcb1 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {4}}}), offb1);
+        auto adj_b1 = m2.add_instruction(migraphx::make_op("add"), idx_b1, bcb1);
+
+        auto offb2 = m2.add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int32_type}, {std::size_t(3)}});
+        auto bcb2 =
+            m2.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {5}}}), offb2);
+        auto adj_b2 = m2.add_instruction(migraphx::make_op("add"), idx_b2, bcb2);
+
+        // Indices concatenated in gather (position) order: ga1, gb1, ga2, gb2.
+        auto concat_idx = m2.add_instruction(
+            migraphx::make_op("concat", {{"axis", 0}}),
+            std::vector<migraphx::instruction_ref>{idx_a1, adj_b1, idx_a2, adj_b2});
+
+        auto bg =
+            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), concat_emb, concat_idx);
 
         auto sa1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_a);
-        auto sa2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_a);
-
-        // Table B is fused next
-        auto concat_idx_b =
-            m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}),
-                               std::vector<migraphx::instruction_ref>{idx_b1, idx_b2});
-
-        auto bg_b =
-            m2.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb_b, concat_idx_b);
-
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg);
         auto sb1 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), bg_b);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), bg);
+        auto sa2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {8}}, {"ends", {13}}}), bg);
         auto sb2 = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {9}}}), bg_b);
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {13}}, {"ends", {18}}}), bg);
 
         m2.add_return({sa1, sb1, sa2, sb2});
     }

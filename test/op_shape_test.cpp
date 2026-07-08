@@ -5410,11 +5410,12 @@ TEST_CASE(slice_sym_symbolic_end_static_input)
 
 TEST_CASE(slice_sym_symbolic_bounds)
 {
-    auto m = var("m", {1, 16});
-    auto n = var("n", {1, 16});
-
+    // The sliced extent (ends - starts) must be non-negative across the whole variable
+    // range, so each var range is chosen to keep end >= start.
     {
         // Symbolic end on a fixed axis: dim = n - 2; leading axis and strides preserved.
+        auto m  = var("m", {1, 16});
+        auto n  = var("n", {2, 16});
         auto op = migraphx::make_op("slice",
                                     {{"axes", {1}},
                                      {"starts", {2}},
@@ -5429,7 +5430,8 @@ TEST_CASE(slice_sym_symbolic_bounds)
                migraphx::shape{migraphx::shape::float_type, {4, 7}, {12, 1}});
     }
     {
-        // Symbolic start: dim = 8 - n.
+        // Symbolic start: dim = 8 - n (n <= 8 keeps the extent non-negative).
+        auto n  = var("n", {1, 8});
         auto op = migraphx::make_op("slice",
                                     {{"axes", {0}},
                                      {"starts", migraphx::value::array{migraphx::to_value(dd{n})}},
@@ -5443,7 +5445,9 @@ TEST_CASE(slice_sym_symbolic_bounds)
                migraphx::shape{migraphx::shape::float_type, {5, 4}, {4, 1}});
     }
     {
-        // Both bounds symbolic: dim = n - m.
+        // Both bounds symbolic: dim = n - m (ranges disjoint so n >= m always).
+        auto m  = var("m", {1, 5});
+        auto n  = var("n", {5, 16});
         auto op = migraphx::make_op("slice",
                                     {{"axes", {0}},
                                      {"starts", migraphx::value::array{migraphx::to_value(dd{m})}},

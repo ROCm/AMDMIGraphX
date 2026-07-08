@@ -35,6 +35,7 @@
 #include <vector>
 #include <unordered_map>
 #include <tuple>
+#include <iterator>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -245,8 +246,15 @@ struct same_table_gather_horizontal_fusion
         if(ins->get_operator().to_value()["axis"].to<int>() != 0)
             return false;
 
-        auto data = ins->inputs().at(0);
-        auto idx  = ins->inputs().at(1);
+        // Skip dynamic shapes: this fusion relies on static `lens()` on inputs.
+        const auto& inputs = ins->inputs();
+        if(std::any_of(inputs.begin(), inputs.end(), [](const auto& inp) {
+               return inp->get_shape().dynamic();
+           }))
+            return false;
+
+        auto data = inputs.at(0);
+        auto idx  = inputs.at(1);
 
         // Embedding must be a 2D constant: {num_rows, embedding_dim}
         if(data->get_shape().lens().size() != 2)
@@ -332,8 +340,15 @@ struct gather_horizontal_fusion
         if(ins->get_operator().to_value()["axis"].to<int>() != 0)
             return false;
 
-        auto data = ins->inputs().at(0);
-        auto idx  = ins->inputs().at(1);
+        // Skip dynamic shapes: this fusion relies on static `lens()` on inputs.
+        const auto& inputs = ins->inputs();
+        if(std::any_of(inputs.begin(), inputs.end(), [](const auto& inp) {
+               return inp->get_shape().dynamic();
+           }))
+            return false;
+
+        auto data = inputs.at(0);
+        auto idx  = inputs.at(1);
 
         // Embedding must be 2D: {num_rows, embedding_dim}
         if(data->get_shape().lens().size() != 2)
@@ -366,22 +381,31 @@ struct gather_horizontal_fusion
     {
         auto idx_type = gathers.front()->inputs().at(1)->get_shape().type();
 
-        // Deduplicate shared tables.  Several gathers in a group may read the *same* table
-        // instruction; emitting one copy per gather would replicate that data and bloat the
-        // concatenated table + batched gather.  Keep one copy per distinct table (in
-        // first-appearance order) and record each table's row offset.
+        // A group can contain several gathers that read the *same* 2D data buffer with
+        // different indices.  Concatenate each distinct buffer only once (in first-appearance
+        // order) to avoid replicating data, and record the row offset where it lands in the
+        // concatenated result.
         std::vector<instruction_ref> unique_tables;
+        std::transform(gathers.begin(),
+                       gathers.end(),
+                       std::back_inserter(unique_tables),
+                       [](auto g) { return g->inputs().at(0); });
+        unique_tables.erase(distinct(unique_tables.begin(), unique_tables.end()),
+                            unique_tables.end());
+
+        std::vector<std::size_t> offsets(unique_tables.size(), 0);
+        transform_partial_sum(unique_tables.begin(),
+                              std::prev(unique_tables.end()),
+                              std::next(offsets.begin()),
+                              std::plus<>{},
+                              [](auto t) { return t->get_shape().lens().front(); });
+
         std::unordered_map<instruction_ref, std::size_t> table_offset;
-        std::size_t running_offset = 0;
-        for(auto g : gathers)
-        {
-            auto data = g->inputs().at(0);
-            if(table_offset.emplace(data, running_offset).second)
-            {
-                unique_tables.push_back(data);
-                running_offset += data->get_shape().lens().front();
-            }
-        }
+        std::transform(unique_tables.begin(),
+                       unique_tables.end(),
+                       offsets.begin(),
+                       std::inserter(table_offset, table_offset.end()),
+                       [](auto t, std::size_t off) { return std::make_pair(t, off); });
 
         // Concatenate the distinct tables (skip the concat when only one remains).
         auto concat_emb =
@@ -440,11 +464,8 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 {
     auto& m = mpm.get_module();
 
-    // Run cross-embedding fusion first so a group of gathers sharing an embedding dimension
-    // is bundled together even when it spans several tables (table dedup keeps each distinct
-    // table once).  Running same-table fusion first would collapse the same-table subset and
-    // strand the remaining siblings below cross-table fusion's group-size threshold.  Same-
-    // table fusion then mops up the smaller same-instance groups it still handles.
+    // Fuse across distinct tables first, then same-table groups.  Running same-table
+    // fusion first can shrink cross-table groups below their size threshold and miss it.
     fuse_horizontal_ops(m, gather_horizontal_fusion{}, same_table_gather_horizontal_fusion{});
 }
 

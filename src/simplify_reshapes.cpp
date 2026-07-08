@@ -1413,10 +1413,12 @@ struct find_gather_slice_concat
 {
     static constexpr std::size_t min_run = 4;
 
-    // Skip the rewrite when the gather's table is more than this many times larger than the
-    // number of rows being reordered.  A large ratio means the fold would become a sparse
-    // re-gather from a horizontally-fused/concatenated table, undoing that bundling and adding
-    // kernels (seen as a batch-1 regression).  Heuristic; tunable.
+    // This matcher rewrites a gather whose output rows are sliced apart and concatenated
+    // back in a new order into a single gather with reordered indices.  Skip that rewrite
+    // when the gathered data buffer has far more rows than the reorder touches: such a
+    // buffer is usually the concatenation of several embedding buffers produced by
+    // horizontal fusion, and re-gathering it sparsely would undo that fusion and add
+    // kernels (observed as a batch-1 regression).  The threshold is a tunable heuristic.
     static constexpr std::size_t max_table_ratio = 32;
 
     auto matcher() const
@@ -1464,9 +1466,10 @@ struct find_gather_slice_concat
         std::size_t num_rows     = indices_lens.front();
         std::size_t batch_stride = indices_ins->get_shape().elements() / num_rows;
 
-        // Do not fold a reorder of num_rows rows into a sparse re-gather from a much larger
-        // (horizontally-fused) table.
-        if(static_cast<std::size_t>(data_lens[gather_axis]) > max_table_ratio * num_rows)
+        // data_lens[gather_axis] is the number of rows in the gathered buffer; num_rows is
+        // how many of those rows this concat reorders.  Skip the rewrite when the buffer is
+        // much larger than the reorder (see max_table_ratio above).
+        if(data_lens[gather_axis] > max_table_ratio * num_rows)
             return;
 
         const std::size_t not_slice = std::numeric_limits<std::size_t>::max();

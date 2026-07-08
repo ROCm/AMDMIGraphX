@@ -43,10 +43,10 @@ namespace {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 #endif
-// Precision must not be propagated across a type-category boundary. fp8 is a
-// low-precision floating storage type used for quantization, so it forms its
-// own category distinct from wider (non-quantized) floating-point types;
-// crossing that boundary would undo the quantization.
+
+// Precision must not be propagated across a type-category boundary.
+// fp8 is a quantization type, so it forms its own category.
+// Crossing that boundary would undo the quantization.
 enum class type_category
 {
     integral,
@@ -103,9 +103,6 @@ struct precision
     {
         return (xp > yp) or (xp == yp);
     }
-    // Two precisions share a category only if both integral, both fp8, or both
-    // non-quantized floating-point. fp8 is isolated so precision is not
-    // propagated across a quantization boundary.
     friend bool same_category(const precision& xp, const precision& yp)
     {
         return get_type_category(xp.type) == get_type_category(yp.type);

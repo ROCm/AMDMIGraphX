@@ -56,15 +56,16 @@ struct find_hip_memory_op
         auto pre = precompiled(ins->get_operator());
 
         const auto& subs = ins->get_shape().sub_shapes();
+
+        assert(std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {
+            return in->get_shape().sub_shapes().size() == subs.size();
+        }));
+
         if(subs.empty())
         {
             m.replace_instruction(ins, pre, ins->inputs());
             return;
         }
-
-        assert(std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {
-            return in->get_shape().sub_shapes().size() == subs.size();
-        }));
 
         // A code object handles one tensor, so a tuple buffer is filled/copied per sub-object
         std::vector<instruction_ref> elems = {ins->inputs().back()};

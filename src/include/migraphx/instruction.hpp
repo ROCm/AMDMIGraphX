@@ -214,6 +214,10 @@ struct MIGRAPHX_EXPORT instruction
     std::size_t target_id = 0;
 };
 
+/// Logs the instruction's debug symbols (if any) to help trace a failure back to its source.
+/// Intended to be invoked from a scope-fail guard during stack unwinding; never throws.
+MIGRAPHX_EXPORT void log_debug_symbols_on_exception(const instruction& ins) noexcept;
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

@@ -34,6 +34,7 @@ Full documentation for MIGraphX is available at
 * Added documentation for using debug symbols (#4945).
 # Added gather_slice_concat_matcher for slice/concats on data axis of gather ops (#4725)
 * Added `--log-stdout` flag to migraphx-driver to log to stdout instead of stderr (#4959).
+* Added logging of debug symbols on exception thrown (#4978).
 * Added slice squeeze matcher to propogate squeeze downstream and allow for parallel branches to merge together (#5004)
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 

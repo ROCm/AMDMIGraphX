@@ -204,13 +204,13 @@ fuse_gathers_flattened(module& m,
                            make_op("slice",
                                         {{"axes", {0}},
                                          {"starts", {start}},
-                                         {"ends", {static_cast<std::int64_t>(end)}}}),
+                                         {"ends", {end}}}),
                            batched_gather);
                        // A 1-D index already yields {n, emb_dim}; only multi-dim indices need
                        // a reshape back to (index dims + embedding dim).
                        if(lens.size() == 1)
                            return sliced;
-                       std::vector<std::int64_t> out_dims(lens.begin(), lens.end());
+                       auto out_dims = lens;
                        out_dims.push_back(emb_dim);
                        return m.insert_instruction(
                            insert_pt, make_op("reshape", {{"dims", out_dims}}), sliced);

@@ -75,7 +75,8 @@ try_merge_pairs(optional<std::pair<sym::expr, sym::expr>> p2,
             return {{elements, zero}};
         return nullopt;
     }
-    if(not sym::same_symbol(stride1 % stride2, zero))
+    // Divisible (% has no symbolic normalization, so reconstruct via /)
+    if(not sym::same_symbol((stride1 / stride2) * stride2, stride1))
         return nullopt;
     auto space = (stride1 * dim1 + stride2 * dim2 - stride1) / stride2;
     // Nonpacked
@@ -166,6 +167,16 @@ void validate_reshape_dims(const std::string& name, const std::vector<dim_like>&
                        to_string_range(dims) + "} with " + to_string(n_neg_dims) + " -1 dims");
 }
 
+optional<shape> reshape_dims(const shape& input,
+                             const std::vector<std::size_t>& rdims,
+                             reshape_dims_options options)
+{
+    std::vector<sym::expr> sym_rdims(rdims.size());
+    std::transform(
+        rdims.begin(), rdims.end(), sym_rdims.begin(), [](std::size_t d) { return sym::lit(d); });
+    return reshape_dims(input, sym_rdims, options);
+}
+
 optional<shape>
 reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_dims_options options)
 {
@@ -194,13 +205,13 @@ reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_di
     {
         auto idim = idims[i];
         auto rdim = rdims[r];
-        if(rdim == idim)
+        if(sym::same_symbol(rdim, idim))
         {
             rstrides.push_back(istrides[i]);
         }
         else
         {
-            // == handled above; an unprovable ordering bails.
+            // equality handled above; an unprovable ordering bails.
             auto rdim_gt = sym::strict_less(idim, rdim);
             auto rdim_lt = sym::strict_less(rdim, idim);
             if(not rdim_gt.has_value() or not rdim_lt.has_value())

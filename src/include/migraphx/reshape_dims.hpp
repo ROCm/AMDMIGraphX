@@ -44,6 +44,11 @@ struct reshape_dims_options
 MIGRAPHX_EXPORT optional<shape>
 reshape_dims(const shape& input, const std::vector<sym::expr>& rdims, reshape_dims_options options);
 
+// Convenience overload for concrete dims; lifts each to a literal sym::expr.
+MIGRAPHX_EXPORT optional<shape> reshape_dims(const shape& input,
+                                             const std::vector<std::size_t>& rdims,
+                                             reshape_dims_options options);
+
 // Resolve reshape `dims` entries against a symbolic input: 0 copies the input dim,
 // -1 is inferred as the leftover element count, literals/symbols are taken as-is.
 MIGRAPHX_EXPORT std::vector<shape::dynamic_dimension>

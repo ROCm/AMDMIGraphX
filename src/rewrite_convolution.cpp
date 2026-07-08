@@ -41,20 +41,50 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-// Decompose a backward-data convolution (transposed convolution) into a set of stride-1 forward
-// convolutions plus an interleave, following MIOpen's implicit-gemm backward-data v4r1 algorithm.
-//
-// The forward convolution producing y is
-//     y[oc, ht] = sum_{ic, j} x[ic, ht*S - P + j*D] * w[oc, ic, j].
-// Hence its backward-data, computing dx from dy and w, scatters
-//     dx[ic, hi] += dy[oc, ho] * w[oc, ic, j],   with hi = ho*S - P + j*D.
-//
-// Splitting the filter tap j = idot*Ytilda + itilda  (Ytilda = S/gcd(S,D)) makes
-//     hi = S*(ho + idot*(D/g)) + itilda*D - P = S*ht + itilda*D - P,
-// so for each residue `itilda` (per spatial dim) the contribution is a plain stride-1
-// cross-correlation of dy with the flipped, strided filter slice (dilation D/g), whose output
-// `ht` lands on the sub-lattice hi = S*ht + itilda*D - P.  Reassembling the residues = zero-stuff
-// each by S, shift by itilda*D, sum (residues occupy disjoint positions), then crop the padding.
+/// Decompose a backward-data convolution (transposed convolution) into a set of stride-1 forward
+/// convolutions plus an interleave, following MIOpen's implicit-gemm backward-data v4r1 algorithm.
+///
+/// For the 1D case, the forward convolution producing y is (gather form):
+///
+///      y[oc, ho] = sum_{ic, j}( x[ic, ho*S - P + j*D] * w[oc, ic, j] )
+///
+/// Where S = stride, P = padding, D = dilation, j = kernel spatial index,
+/// ic = input channel index, oc = output channel index, ho = output spatial index.
+/// sum_{ic, j}() = summation over ic and j.
+///
+/// The backward-data convolution is (scatter form):
+///  
+///      y[oc, ho] = sum_{ic, j}( x[ic, hi] * w[ic, oc, j] )
+///      ho = hin * S - P + j*D
+///
+///  Where hi = input spatial index.
+///
+/// Idea is to split the filter index to do the upsampling as strided access:
+///
+///      j = idot * Ytilda + itilda
+///      Ytilda = S / gcd(S,D)
+/// 
+/// makes
+///
+///     hi = S*hs + itilda*D - P    (eqn 1)
+///     hs = ho + idot * (D/g).
+///
+/// For a set itilda value, note how (eqn 1) becomes constant except for hs.
+/// Continuing with a set itilda value we can define:
+///
+///     x_itilda[oc, S*hs + itilda*D - P] := xdot_itilda[oc, hs]
+///
+/// where xdot_itilda is a packed matrix. Doing some rearranging and substitutions we get:
+///
+///     xdot_itilda[oc, hs] = sum_{ic, idot}( x[ic, hs - (ydot - 1) * (D/g) + idot*(D/g)] * w[ic, oc, idot * Ytilda + itilda] )
+///     ydot = Y / Ytilda
+///     Y = kernel dimension size
+///
+/// Which is a plain cross-correlation (convolution) with stride = 1, transposed filter with strided access,
+/// dilation D/g, and padding = (ydot - 1) * (D/g).
+///
+/// Reassembling the residues for each itilda by zero-stuff each by S, shift by itilda*D,
+/// sum (residues occupy disjoint positions), then crop the padding.
 namespace {
 
 // Per spatial-dim quantities shared by every residue.

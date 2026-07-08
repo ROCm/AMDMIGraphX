@@ -275,28 +275,6 @@ struct hip_device
 
     std::size_t get_wavefront_size() const { return device_props.warpSize; }
 
-    // Stable identifier for this device's properties, used as the outer key
-    // of problem_cache so a single cache file can hold solutions for multiple
-    // GPU configurations without collisions. Composed only from values
-    // already captured in device_props -- no live HIP-runtime queries -- so
-    // it is also valid for AOT cross-compilation, where the host GPU may
-    // differ from the target GPU. Returns a default-constructed key (empty
-    // strings, zero counts) when device_props was not populated
-    // (default-constructed hip_device); callers fall back to a single
-    // anonymous bucket in that case.
-    cache_device_key get_device_key() const
-    {
-        std::string arch = device_props.gcnArchName;
-        if(arch.empty())
-            return {};
-        cache_device_key key;
-        key.device_name    = arch;
-        key.gfx_name       = gpu::get_gfx_name(arch);
-        key.cu_count       = device_props.multiProcessorCount;
-        key.wavefront_size = device_props.warpSize;
-        return key;
-    }
-
     private:
     std::size_t device_id              = 0;
     std::size_t current_stream         = 0;
@@ -331,11 +309,9 @@ struct context
           finish_event(create_event()),
           pc(std::make_shared<auto_save_problem_cache>())
     {
-        // Bind the cache to this context's device snapshot. problem_cache
-        // must not query the HIP runtime itself -- in AOT cross-compilation
-        // the host GPU and target GPU differ, and only the context knows
-        // which device the cache is being populated for.
-        pc->set_device_key(current_device->get_device_key());
+        // Bind the cache to this context's device (cross-compile safe: the
+        // key is derived from the context, not a live HIP query).
+        pc->set_device_key(*this);
     }
 
     context(const std::string& arch_name,
@@ -437,7 +413,7 @@ struct context
         this->current_device = std::make_shared<hip_device>(device, n_streams);
         // Refresh the cache's device binding to match the rehydrated device.
         if(pc != nullptr)
-            pc->set_device_key(current_device->get_device_key());
+            pc->set_device_key(*this);
     }
 
     // Pure event-based synchronization point.  Records an event on the

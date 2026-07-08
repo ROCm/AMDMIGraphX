@@ -39,11 +39,7 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// Identifies the device a problem_cache bucket was populated for. Owning
-// gpu::context builds this from its already-captured hip_device properties --
-// problem_cache must not query the HIP runtime itself, so AOT cross-compilation
-// (where the host GPU differs from the target GPU) is correctly keyed by the
-// target's properties rather than the host's.
+// Identifies the device a problem_cache bucket was populated for.
 struct cache_device_key
 {
     std::string device_name    = {};
@@ -95,9 +91,12 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
+struct context;
+
 struct MIGRAPHX_GPU_EXPORT problem_cache
 {
-    void set_device_key(cache_device_key key);
+    // Build and store this cache's device key from the owning context.
+    void set_device_key(const context& ctx);
     const cache_device_key& get_device_key() const;
 
     bool has(const std::string& name, const value& problem) const;
@@ -106,20 +105,13 @@ struct MIGRAPHX_GPU_EXPORT problem_cache
     optional<value> get(const std::string& name, const value& problem) const;
     void load();
     void save() const;
-    // Outer key identifies the device whose properties produced the entries
-    // (device name, gfx name, CU count, wavefront size). Each device has its
-    // own inner map of {name, problem} -> solution. This structure lets a
-    // single cache file hold solutions for multiple GPU configurations
-    // without collisions; lookups via has/get/insert/mark implicitly key into
-    // the current device's bucket only.
+    // One {name, problem} -> solution map per device, so a single file can
+    // hold solutions for many GPUs without collisions.
     std::unordered_map<cache_device_key, std::unordered_map<value, value>> cache;
 
     private:
-    // Stable identifier for the device whose properties this cache is bound
-    // to. Set by the owning context from hip_device::get_device_key (see
-    // gpu/context.hpp). A default-constructed key (empty strings, zero
-    // counts) means the device couldn't be identified -- entries land in a
-    // single anonymous bucket, which is still deterministic but not labeled.
+    // Device these entries were tuned on; set by the owning context. Empty
+    // key = unidentified device, entries land in a single bucket.
     cache_device_key device_key{};
 };
 

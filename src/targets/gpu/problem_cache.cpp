@@ -23,6 +23,7 @@
  *
  */
 #include <migraphx/gpu/problem_cache.hpp>
+#include <migraphx/gpu/context.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/env.hpp>
@@ -44,7 +45,20 @@ static value create_key(const std::string& name, const value& problem)
     return {{"name", name}, {"problem", problem.normalize()}};
 }
 
-void problem_cache::set_device_key(cache_device_key key) { device_key = std::move(key); }
+void problem_cache::set_device_key(const context& ctx)
+{
+    const auto& dev        = ctx.get_current_device();
+    const std::string arch = dev.get_device_name();
+    if(arch.empty())
+    {
+        device_key = {};
+        return;
+    }
+    device_key.device_name    = arch;
+    device_key.gfx_name       = dev.get_gfx_name();
+    device_key.cu_count       = dev.get_cu_count();
+    device_key.wavefront_size = dev.get_wavefront_size();
+}
 
 const cache_device_key& problem_cache::get_device_key() const { return device_key; }
 

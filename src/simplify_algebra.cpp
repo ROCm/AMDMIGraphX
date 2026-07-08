@@ -1632,129 +1632,6 @@ struct find_splits
         return false;
     }
 
-    // Outcome of attempting to fuse one binary (2-input) split group.
-    enum class binary_fuse_status
-    {
-        fused, // `c` was set to the new instruction
-        skip,  // skip this group and continue with the next
-        stop   // abort the whole rewrite
-    };
-
-    /**
-     * Fuse a group of binary ops that share a split by concatenating the
-     * constant data operands and rewriting the op on the whole tensor.  On
-     * success `c` is set to the new instruction and `split_idx` to the input
-     * index carrying the split.
-     */
-    binary_fuse_status fuse_binary_split_group(module& m,
-                                               instruction_ref ins,
-                                               const std::vector<instruction_ref>& group,
-                                               const std::vector<instruction_ref>& splits,
-                                               const operation& op,
-                                               bool partial,
-                                               int& split_idx,
-                                               instruction_ref& c) const
-    {
-        // The constant-concat fusion below rewrites the op on the whole
-        // tensor, so it only applies to a full cover.
-        if(partial)
-            return binary_fuse_status::skip;
-
-        assert(not std::none_of(group.front()->inputs().begin(),
-                                group.front()->inputs().end(),
-                                [](auto i) { return i->name() == "slice"; }) and
-               "one argument must be a split");
-
-        auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
-        assert(not slice_op.axes.empty());
-        if(slice_op.axes.size() > 1)
-            return binary_fuse_status::stop;
-        auto concat_axis = slice_op.axes.front();
-        if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
-            return binary_fuse_status::stop;
-
-        split_idx = get_binary_op_split_idx(group, splits);
-        assert(split_idx < 2);
-        size_t data_idx;
-        if(split_idx < 0 and op.attributes().contains("commutative"))
-        {
-            split_idx = 0;
-            data_idx  = 1;
-            align_commutative_op_args(m, group, splits, split_idx);
-        }
-        else if(split_idx < 0)
-        {
-            return binary_fuse_status::stop;
-        }
-        else
-        {
-            data_idx = split_idx == 0 ? 1 : 0;
-        }
-
-        std::vector<instruction_ref> data_args;
-        std::transform(group.begin(),
-                       group.end(),
-                       std::back_inserter(data_args),
-                       [&](auto i) { return i->inputs()[data_idx]; });
-
-        // Data arguments must be a constant
-        if(std::any_of(
-               data_args.begin(), data_args.end(), [](auto i) { return not i->can_eval(); }))
-            return binary_fuse_status::stop;
-
-        move_instructions_back(m, ins, data_args);
-
-        // TODO: Check if axises match
-        auto concat =
-            m.insert_instruction(ins, make_op("concat", {{"axis", concat_axis}}), data_args);
-
-        std::vector<instruction_ref> args;
-        args.resize(2);
-        args[split_idx] = ins;
-        args[data_idx]  = concat;
-        c = m.insert_instruction(std::next(ins), op, {args}, group.front()->module_inputs());
-        return binary_fuse_status::fused;
-    }
-
-    /// Replace each group instruction's consumer with a read of the fused result.
-    void replace_group_consumers(module& m,
-                                 const std::vector<instruction_ref>& group,
-                                 instruction_ref c,
-                                 int split_idx,
-                                 bool partial,
-                                 const op::slice& front_slice) const
-    {
-        for(auto i : group)
-        {
-            auto split = i->inputs()[split_idx];
-            assert(split->name() == "slice");
-
-            if(not partial)
-            {
-                m.replace_instruction(i, split->get_operator(), c);
-                continue;
-            }
-
-            // Re-slice the wide result relative to the bounding slice.
-            auto s     = any_cast<op::slice>(split->get_operator());
-            auto shift = [&](const std::vector<int64_t>& v) {
-                std::vector<int64_t> out(v.size());
-                std::transform(v.begin(),
-                               v.end(),
-                               front_slice.starts.begin(),
-                               out.begin(),
-                               [](int64_t a, int64_t b) { return a - b; });
-                return out;
-            };
-            m.replace_instruction(i,
-                                  make_op("slice",
-                                          {{"axes", s.axes},
-                                           {"starts", shift(s.starts)},
-                                           {"ends", shift(s.ends)}}),
-                                  c);
-        }
-    }
-
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins     = r.result;
@@ -1826,15 +1703,98 @@ struct find_splits
             }
             else if(start->inputs().size() == 2)
             {
-                auto status =
-                    fuse_binary_split_group(m, ins, group, splits, op, partial, split_idx, c);
-                if(status == binary_fuse_status::skip)
+                // The constant-concat fusion below rewrites the op on the whole
+                // tensor, so it only applies to a full cover.
+                if(partial)
                     continue;
-                if(status == binary_fuse_status::stop)
+
+                assert(not std::none_of(start->inputs().begin(), start->inputs().end(), [](auto i) {
+                    return i->name() == "slice";
+                }) and "one argument must be a split");
+
+                auto slice_op = any_cast<op::slice>(splits.front()->get_operator());
+                assert(not slice_op.axes.empty());
+                if(slice_op.axes.size() > 1)
                     return;
+                auto concat_axis = slice_op.axes.front();
+                if(not concat_const_foldable(group.begin(), group.end(), concat_axis))
+                    return;
+
+                split_idx = get_binary_op_split_idx(group, splits);
+                assert(split_idx < 2);
+                size_t data_idx;
+                if(split_idx < 0 and op.attributes().contains("commutative"))
+                {
+                    split_idx = 0;
+                    data_idx  = 1;
+                    align_commutative_op_args(m, group, splits, split_idx);
+                }
+                else if(split_idx < 0)
+                {
+                    return;
+                }
+                else
+                {
+                    data_idx = split_idx == 0 ? 1 : 0;
+                }
+
+                std::vector<instruction_ref> data_args;
+                std::transform(group.begin(),
+                               group.end(),
+                               std::back_inserter(data_args),
+                               [&](auto i) { return i->inputs()[data_idx]; });
+
+                // Data arguments must be a constant
+                if(std::any_of(data_args.begin(), data_args.end(), [](auto i) {
+                       return not i->can_eval();
+                   }))
+                    return;
+
+                move_instructions_back(m, ins, data_args);
+
+                // TODO: Check if axises match
+                auto concat = m.insert_instruction(
+                    ins, make_op("concat", {{"axis", concat_axis}}), data_args);
+
+                std::vector<instruction_ref> args;
+                args.resize(2);
+                args[split_idx] = ins;
+                args[data_idx]  = concat;
+                c = m.insert_instruction(std::next(ins), op, {args}, start->module_inputs());
             }
             if(c != m.end())
-                replace_group_consumers(m, group, c, split_idx, partial, front_slice);
+            {
+                for(auto i : group)
+                {
+                    auto split = i->inputs()[split_idx];
+                    assert(split->name() == "slice");
+
+                    if(partial)
+                    {
+                        // Re-slice the wide result relative to the bounding slice.
+                        auto s     = any_cast<op::slice>(split->get_operator());
+                        auto shift = [&](const std::vector<int64_t>& v) {
+                            std::vector<int64_t> out(v.size());
+                            std::transform(v.begin(),
+                                           v.end(),
+                                           front_slice.starts.begin(),
+                                           out.begin(),
+                                           [](int64_t a, int64_t b) { return a - b; });
+                            return out;
+                        };
+                        m.replace_instruction(i,
+                                              make_op("slice",
+                                                      {{"axes", s.axes},
+                                                       {"starts", shift(s.starts)},
+                                                       {"ends", shift(s.ends)}}),
+                                              c);
+                    }
+                    else
+                    {
+                        m.replace_instruction(i, split->get_operator(), c);
+                    }
+                }
+            }
         }
     }
 };

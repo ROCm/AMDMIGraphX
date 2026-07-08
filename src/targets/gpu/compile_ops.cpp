@@ -38,12 +38,14 @@
 #include <migraphx/builtin.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/fileutils.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/time_op.hpp>
 #include <algorithm>
+#include <cstdlib>
 #include <functional>
 
 namespace migraphx {
@@ -173,11 +175,11 @@ struct dynamic_code_object_op
             return results.front();
         }
 
-        if(output_arg.get_shape().dynamic())
-        {
-            auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
-            static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
-        }
+        auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
+        static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
+        // Skip JIT compilation when dynamic shape resolves to 0 elements at runtime
+        if(args.front().get_shape().elements() == 0)
+            return static_args.back();
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation
         module static_submod;
@@ -351,8 +353,10 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or ctx->is_cross_compile() or
-                   solutions.size() == 1)
+                const bool dump_mxr =
+                    not string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}).empty();
+                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
+                   (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
@@ -514,7 +518,8 @@ struct compile_plan
 
             mm->add_instruction(builtin::comment{comment_text}, {});
             auto problem_hash = std::hash<std::string>{}(to_string(config->problem));
-            auto mxr_file     = mxr_dir / (preop.name() + "_" + std::to_string(i) + "_" +
+            auto op_filename  = sanitize_filename(preop.name());
+            auto mxr_file     = mxr_dir / (op_filename + "_" + std::to_string(i) + "_" +
                                        std::to_string(problem_hash) + ".mxr");
             log::info() << "Saving benchmark binary: " << mxr_file;
             save(bench_prog, mxr_file.string());
@@ -586,9 +591,10 @@ struct compile_manager
         // root module has had a chance to dump its benchmark MXR files.
         if(dump_mxr and is_root)
         {
-            MIGRAPHX_THROW(
-                "Benchmark MXR files dumped to " + mxr_path +
-                ". Run the MXR files to create a problem cache, then recompile with the cache.");
+            log::info() << "Benchmark MXR files dumped to " << mxr_path
+                        << ". Run the MXR files to create a problem cache, then recompile with the "
+                           "cache.";
+            std::exit(0);
         }
 
         // Remove compile_plan already executed

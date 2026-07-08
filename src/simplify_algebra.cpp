@@ -36,6 +36,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <migraphx/unfold.hpp>
 
 #include <migraphx/algorithm.hpp>
 #include <migraphx/output_iterator.hpp>
@@ -1375,6 +1377,14 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
     auto get_slice = [](auto& i) -> auto& { return any_cast<op::slice>(i->get_operator()); };
     auto&& axes    = get_slice(result.front()).axes;
 
+    auto is_static_slice = [&](auto i) {
+        const auto& s = get_slice(i);
+        return not s.axes.empty() and s.starts.size() == s.axes.size() and
+               s.ends.size() == s.axes.size();
+    };
+    if(not std::all_of(result.begin(), result.end(), is_static_slice))
+        return {};
+
     // "slice" instructions must all have the same axes
     if(std::any_of(result.begin(), result.end(), [&](auto i) { return get_slice(i).axes != axes; }))
         return {};
@@ -2195,11 +2205,204 @@ static bool same_ops(const std::vector<instruction_ref>& vec_ins)
 
 struct find_split_reshape
 {
+    static const auto& reshape_ops()
+    {
+        static const std::unordered_set<std::string> names = {
+            "flatten",
+            "reshape",
+            "reshape_lazy",
+            "squeeze",
+            "unsqueeze",
+        };
+        return names;
+    }
     auto matcher() const
     {
-        auto slice_bind_slice = match::arg(0)(match::name("slice").bind("slice"));
-        return match::name("reshape")(match::arg(0)(match::name("contiguous")(slice_bind_slice)))
+        auto slice_bind_slice = match::name("slice").bind("slice");
+        auto reshape          = match::name(reshape_ops());
+        auto cont_reshape     = match::any_of(match::name("contiguous"), reshape);
+        return reshape(match::arg(0)(match::skip(cont_reshape)(slice_bind_slice)),
+                       match::none_of[match::outputs()](reshape()))
             .bind("reshape");
+    }
+
+    struct linear_map
+    {
+        std::size_t src = 0;
+        std::size_t dst = 0;
+
+        bool is_valid() const
+        {
+            if(src == dst)
+                return true;
+            if(dst > src)
+                return (dst % src) == 0;
+            return (src % dst) == 0;
+        }
+
+        bool is_valid_index(std::size_t i) const
+        {
+            if(src > dst)
+                return i % (src / dst) == 0;
+            return true;
+        }
+
+        std::size_t operator()(std::size_t i) const
+        {
+            if(src == dst)
+                return i;
+            if(dst > src)
+                return i * (dst / src);
+            return i / (src / dst);
+        };
+
+        friend std::ostream& operator<<(std::ostream& s, const linear_map& lm)
+        {
+            s << "src: " << lm.src << ", dst: " << lm.dst;
+            return s;
+        }
+    };
+
+    static bool is_reshape(instruction_ref ins)
+    {
+        return contains(reshape_ops(), ins->name()) or ins->name() == "contiguous";
+    }
+
+    static auto get_reshapes(instruction_ref ins)
+    {
+        return unfold(ins, [](instruction_ref out) -> std::optional<instruction_ref> {
+            if(out->outputs().size() != 1)
+                return std::nullopt;
+            auto next = out->outputs().front();
+            if(not contains(reshape_ops(), next->name()) or next->name() == "contiguous")
+                return std::nullopt;
+            return next;
+        });
+    }
+
+    // Collect the reshape descriptor for each split whose reshaped output
+    // targets the same shape as the matched reshape. Returns false if any
+    // candidate cannot be described as a shape transform.
+    static bool collect_descriptors(instruction_ref slc,
+                                    instruction_ref rsp,
+                                    const std::vector<instruction_ref>& splits,
+                                    std::vector<shape_transform_descriptor>& descs,
+                                    std::vector<instruction_ref>& slices,
+                                    std::vector<instruction_ref>& terminals)
+    {
+        for(auto split : splits)
+        {
+            if(split->get_shape().lens() != slc->get_shape().lens())
+                continue;
+            auto it = find_if(split->outputs(), [&](instruction_ref out) {
+                if(not is_reshape(out))
+                    return false;
+                auto last = find_last(get_reshapes(out));
+                if((*last)->outputs().empty())
+                    return false;
+                return (*last)->get_shape().lens() == rsp->get_shape().lens();
+            });
+            if(it == split->outputs().end())
+                continue;
+
+            auto inss  = get_reshapes(*it);
+            auto idims = split->get_shape().lens();
+            std::vector<operation> ops;
+            std::transform(inss.begin(), inss.end(), std::back_inserter(ops), [](auto i) {
+                return i->get_operator();
+            });
+            auto desc = shape_transform_descriptor::create(idims, ops);
+            if(desc.empty())
+                return false;
+            descs.push_back(desc);
+            slices.push_back(split);
+            terminals.push_back(*std::next(inss.begin(), ops.size() - 1));
+        }
+        return true;
+    }
+
+    // Map each sliced axis onto the merged destination axis and its linear
+    // scaling, growing dims accordingly. Returns false for any layout that
+    // cannot be expressed as a single reshape of the sliced input.
+    static bool compute_slice_axes(const shape_transform_descriptor& desc,
+                                   const std::vector<std::size_t>& op_axes,
+                                   const std::vector<std::size_t>& input_lens,
+                                   const std::vector<std::size_t>& slc_lens,
+                                   std::vector<std::size_t>& dims,
+                                   std::vector<std::size_t>& axes,
+                                   std::vector<linear_map>& linears)
+    {
+        auto am = desc.axes_map_from_src(true);
+        for(auto op_axis : op_axes)
+        {
+            auto mapped = am[op_axis];
+            if(mapped.empty())
+                return false;
+            auto axis = *std::min_element(mapped.begin(), mapped.end());
+            if(contains(axes, axis))
+                return false;
+            // The sliced axis must be the outermost subdimension in the
+            // destination dimension. If a subdimension from a different
+            // axis with len > 1 precedes it, slicing would produce a
+            // strided (non-contiguous) access pattern in the merged
+            // dimension.
+            const auto& subs = desc.dimensions[axis].subdimensions;
+            for(const auto& s : subs)
+            {
+                if(s.origin_axis().empty())
+                    continue;
+                if(s.origin_axis().front() == op_axis)
+                    break;
+                if(s.len > 1)
+                    return false;
+            }
+            auto per_axis_nslices = input_lens.at(op_axis) / slc_lens.at(op_axis);
+            dims[axis] *= per_axis_nslices;
+            linear_map linear{.src = input_lens.at(op_axis), .dst = dims[axis]};
+            if(not linear.is_valid())
+                return false;
+            axes.push_back(axis);
+            linears.push_back(linear);
+        }
+        return true;
+    }
+
+    // Translate each per-split slice into an equivalent slice on the merged
+    // axes. Returns false if a slice boundary does not align with the merge.
+    static bool build_new_slices(const std::vector<instruction_ref>& slices,
+                                 const std::vector<std::size_t>& axes,
+                                 const std::vector<linear_map>& linears,
+                                 std::vector<operation>& new_slices)
+    {
+        for(auto slice : slices)
+        {
+            auto v         = slice->get_operator().to_value();
+            auto op_starts = v.at("starts").to_vector<std::size_t>();
+            auto op_ends   = v.at("ends").to_vector<std::size_t>();
+
+            auto is_invalid_index = [&](auto i) {
+                return not linears[i].is_valid_index(op_starts[i]) or
+                       not linears[i].is_valid_index(op_ends[i]);
+            };
+            if(any_of(range(linears.size()), is_invalid_index))
+                return false;
+            std::vector<std::size_t> new_starts(linears.size());
+            std::vector<std::size_t> new_ends(linears.size());
+            std::transform(linears.begin(),
+                           linears.end(),
+                           op_starts.begin(),
+                           new_starts.begin(),
+                           [](const auto& lm, auto s) { return lm(s); });
+            std::transform(linears.begin(),
+                           linears.end(),
+                           op_ends.begin(),
+                           new_ends.begin(),
+                           [](const auto& lm, auto e) { return lm(e); });
+
+            new_slices.push_back(
+                make_op("slice", {{"axes", axes}, {"starts", new_starts}, {"ends", new_ends}}));
+        }
+        return true;
     }
 
     void apply(module& m, const match::matcher_result& r) const
@@ -2208,156 +2411,48 @@ struct find_split_reshape
         auto rsp   = r.instructions["reshape"];
         auto input = slc->inputs().front();
 
-        // Only apply simplification when slices are on a single axis
-        auto axes = any_cast<op::slice>(slc->get_operator()).axes;
-        if(axes.size() > 1)
-        {
+        auto splits = get_splits(input);
+        if(splits.size() < 2)
             return;
-        }
 
-        auto split_outputs = get_splits(input);
-        if(split_outputs.empty())
-        {
+        std::vector<shape_transform_descriptor> descs;
+        std::vector<instruction_ref> terminals;
+        std::vector<instruction_ref> slices;
+        if(not collect_descriptors(slc, rsp, splits, descs, slices, terminals))
             return;
-        }
 
-        // Find all the reshapes (similar to rsp) that can be simplified
-        std::vector<instruction_ref> conts;
-        std::vector<instruction_ref> vec_rsp;
-
-        // Iterate through slice and contiguous outputs to allow simplifications when
-        // slice is followed by multiple reshapes
-        for(auto& i : split_outputs)
-        {
-            std::copy_if(i->outputs().begin(),
-                         i->outputs().end(),
-                         std::back_inserter(conts),
-                         [](auto j) { return j->name() == "contiguous"; });
-        }
-
-        for(auto& i : conts)
-        {
-            std::copy_if(i->outputs().begin(),
-                         i->outputs().end(),
-                         std::back_inserter(vec_rsp),
-                         [&](auto j) { return j->get_operator() == rsp->get_operator(); });
-        }
-
-        // No simplification needed if there is only one slice -> cont -> reshape
-        if(vec_rsp.size() <= 1)
-        {
+        if(slices.size() < 2)
             return;
-        }
 
-        // ensure reshape happens after the axis dimension
-        auto axis         = axes[0];
-        auto slc_lens     = slc->get_shape().lens();
-        auto slc_dim_size = std::accumulate(
-            slc_lens.begin() + axis, slc_lens.end(), 1, std::multiplies<std::size_t>());
-        auto input_lens   = input->get_shape().lens();
-        auto input_size   = input->get_shape().elements();
-        auto slc_axis_len = input_lens[axis];
-
-        // search the reshape output (standard shape) to decide which axis are
-        // in its output corresponding to the slc_dim_size
-        auto rsp_lens    = rsp->get_shape().lens();
-        auto rsp_strides = rsp->get_shape().strides();
-        rsp_strides.insert(rsp_strides.begin(), rsp_strides[0] * rsp_lens[0]);
-
-        auto ait     = std::find(rsp_strides.begin(), rsp_strides.end(), slc_dim_size);
-        int rsp_axis = -1;
-        if(ait == rsp_strides.end())
-        {
+        // Check if all the reshape descriptors are the same
+        if(not std::all_of(
+               descs.begin() + 1, descs.end(), [&](auto i) { return i == descs.front(); }))
             return;
-        }
-        else if(ait == rsp_strides.end() - 1)
-        {
-            // edge case
-            // slice_dim == 1, in that case it could match with last stride of 1.
-            // it should accumulate lengths from last dim in that case. discount 1 to avoid going
-            // out of bounds.
-            assert(slc_dim_size == 1);
-            rsp_axis = std::distance(rsp_strides.begin(), ait) - 1;
-        }
-        else
-        {
-            rsp_axis = std::distance(rsp_strides.begin(), ait);
-        }
 
-        // Calculate reshape output shape
-        // Need to find a reshape such that data represented by instructions in vec_rsp can be
-        // written as slices of this new reshape. This is done by holding all the dims constant in
-        // rsp_lens to compute the required dim for rsp_axis (axis that will be sliced)
+        auto desc = descs.front();
 
-        // ex 1:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
-        //        Reshape Outputs: {2, 2, 2, 4}, {2, 2, 2, 4}, {2, 2, 2, 4}
-        //        rsp_axis = 1, rsp_out_lens (initial) = {2, 1, 2, 4}, rsp_fixed_size = 2*1*2*4 = 16
-        //        rsp_axis_len = 2*12*4 / 16 = 6
-        //        rsp_out_lens (final) = {2, 6, 2, 4}
-
-        // ex 2:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
-        //        Reshape Outputs: {2, 16}, {2, 16}, {2, 16}
-        //        rsp_axis = 1, rsp_out_lens (initial) = {2, 1}, rsp_fixed_size = 2*1 = 2
-        //        rsp_axis_len = 2*12*4 / 2 = 48
-        //        rsp_out_lens (final) = {2, 48}
-
-        std::vector<int64_t> rsp_out_lens(rsp_lens.begin(), rsp_lens.end());
-        rsp_out_lens[rsp_axis] = 1;
-        auto rsp_fixed_size    = std::accumulate(
-            rsp_out_lens.begin(), rsp_out_lens.end(), 1, std::multiplies<std::size_t>());
-
-        // cannot create a valid reshape for simplification
-        if(input_size % rsp_fixed_size != 0)
-        {
+        auto slc_val = slc->get_operator().to_value();
+        auto op_axes = slc_val.at("axes").to_vector<std::size_t>();
+        std::vector<std::size_t> axes;
+        std::vector<linear_map> linears;
+        auto dims       = desc.lens();
+        auto input_lens = input->get_shape().lens();
+        auto slc_lens   = slc->get_shape().lens();
+        if(not compute_slice_axes(desc, op_axes, input_lens, slc_lens, dims, axes, linears))
             return;
-        }
-        auto rsp_axis_len      = input_size / rsp_fixed_size;
-        rsp_out_lens[rsp_axis] = rsp_axis_len;
 
-        // Calculate new slice start and end indices. Indices are scaled using the new reshape axis
-        // and the original slice axis. See examples:
+        std::vector<operation> new_slices;
+        if(not build_new_slices(slices, axes, linears, new_slices))
+            return;
 
-        // ex 1:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
-        //        Reshape Outputs: {2, 2, 2, 4}, {2, 2, 2, 4}, {2, 2, 2, 4}
-        //        slc_axis_len = 12, rsp_axis_len = 6
-        //        New Starts: {0*6/12, 4*6/12,  8*6/12} = {0, 2, 4}
-        //        New Ends:   {4*6/12, 8*6/12, 12*6/12} = {2, 4, 6}
+        auto reshape =
+            m.insert_instruction(std::next(input), make_op("reshape", {{"dims", dims}}), input);
 
-        // ex 2:  Input Shape: {2, 12, 4}, Slice Axis: 1, Slices are: (0:4), (4:8), (8:12),
-        //        Reshape Outputs: {2, 16}, {2, 16}, {2, 16}
-        //        slc_axis_len = 12, rsp_axis_len = 48
-        //        New Starts: {0*48/12, 4*48/12,  8*48/12} = { 0, 16, 32}
-        //        New Ends:   {4*48/12, 8*48/12, 12*48/12} = {16, 32, 48}
-
-        std::vector<int64_t> new_starts(vec_rsp.size());
-        std::transform(vec_rsp.begin(), vec_rsp.end(), new_starts.begin(), [&](auto is) {
-            auto cont   = is->inputs().front();
-            auto og_slc = cont->inputs().front();
-            return std::get<int64_t>(any_cast<op::slice>(og_slc->get_operator()).starts[0]) *
-                   rsp_axis_len / slc_axis_len;
-        });
-
-        std::vector<int64_t> new_ends(vec_rsp.size());
-        std::transform(vec_rsp.begin(), vec_rsp.end(), new_ends.begin(), [&](auto is) {
-            auto cont   = is->inputs().front();
-            auto og_slc = cont->inputs().front();
-            return std::get<int64_t>(any_cast<op::slice>(og_slc->get_operator()).ends[0]) *
-                   rsp_axis_len / slc_axis_len;
-        });
-
-        auto rsp_ins = m.insert_instruction(
-            std::next(input), make_op("reshape", {{"dims", rsp_out_lens}}), input);
-
-        // replace the original reshape with slice
-        for(std::size_t i = 0; i < vec_rsp.size(); ++i)
-        {
-            m.replace_instruction(
-                vec_rsp[i],
-                make_op(
-                    "slice",
-                    {{"axes", {rsp_axis}}, {"starts", {new_starts[i]}}, {"ends", {new_ends[i]}}}),
-                rsp_ins);
-        }
+        for_each(terminals.begin(),
+                 terminals.end(),
+                 new_slices.begin(),
+                 new_slices.end(),
+                 [&](auto terminal, auto op) { m.replace_instruction(terminal, op, reshape); });
     }
 };
 

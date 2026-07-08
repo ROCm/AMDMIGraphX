@@ -201,10 +201,7 @@ fuse_gathers_flattened(module& m,
                        int64_t start    = end - idx->get_shape().elements();
                        auto sliced      = m.insert_instruction(
                            insert_pt,
-                           make_op("slice",
-                                        {{"axes", {0}},
-                                         {"starts", {start}},
-                                         {"ends", {end}}}),
+                           make_op("slice", {{"axes", {0}}, {"starts", {start}}, {"ends", {end}}}),
                            batched_gather);
                        // A 1-D index already yields {n, emb_dim}; only multi-dim indices need
                        // a reshape back to (index dims + embedding dim).

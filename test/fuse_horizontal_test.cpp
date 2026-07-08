@@ -1128,7 +1128,7 @@ TEST_CASE(gather_horiz_no_fusion_dynamic_index)
     EXPECT(m1 == m2);
 }
 
-// Two independent dots with identical activation/weight shapes and constant
+// Independent dots with identical activation/weight shapes and constant
 // weights should batch into a single GEMM, then slice+squeeze back.
 TEST_CASE(dot_horiz_fusion_basic)
 {
@@ -1136,13 +1136,17 @@ TEST_CASE(dot_horiz_fusion_basic)
     {
         auto a0 = m1.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
         auto a1 = m1.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto a2 = m1.add_parameter("a2", {migraphx::shape::float_type, {2, 3}});
         auto w0 =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
         auto w1 =
             m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 1));
+        auto w2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 2));
         auto d0 = m1.add_instruction(migraphx::make_op("dot"), a0, w0);
         auto d1 = m1.add_instruction(migraphx::make_op("dot"), a1, w1);
-        m1.add_return({d0, d1});
+        auto d2 = m1.add_instruction(migraphx::make_op("dot"), a2, w2);
+        m1.add_return({d0, d1, d2});
     }
     run_pass(m1);
 
@@ -1150,17 +1154,22 @@ TEST_CASE(dot_horiz_fusion_basic)
     {
         auto a0 = m2.add_parameter("a0", {migraphx::shape::float_type, {2, 3}});
         auto a1 = m2.add_parameter("a1", {migraphx::shape::float_type, {2, 3}});
+        auto a2 = m2.add_parameter("a2", {migraphx::shape::float_type, {2, 3}});
         auto w0 =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 0));
         auto w1 =
             m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 1));
+        auto w2 =
+            m2.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 4}}, 2));
 
         auto ua0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a0);
         auto ua1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a1);
-        auto bact = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua0, ua1);
+        auto ua2  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), a2);
+        auto bact = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), ua0, ua1, ua2);
         auto uw0  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w0);
         auto uw1  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w1);
-        auto bwt  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw0, uw1);
+        auto uw2  = m2.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), w2);
+        auto bwt  = m2.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), uw0, uw1, uw2);
         auto bd   = m2.add_instruction(migraphx::make_op("dot"), bact, bwt);
 
         auto s0 = m2.add_instruction(
@@ -1169,7 +1178,10 @@ TEST_CASE(dot_horiz_fusion_basic)
         auto s1  = m2.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), bd);
         auto sq1 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
-        m2.add_return({sq0, sq1});
+        auto s2  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), bd);
+        auto sq2 = m2.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
+        m2.add_return({sq0, sq1, sq2});
     }
 
     EXPECT(m1.sort() == m2.sort());

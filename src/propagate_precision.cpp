@@ -31,6 +31,7 @@
 #include <migraphx/functional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/eliminate_convert.hpp>
+#include <migraphx/fp8_types.hpp>
 #include <unordered_set>
 #include <unordered_map>
 
@@ -42,6 +43,27 @@ namespace {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-function"
 #endif
+// Precision must not be propagated across a type-category boundary. fp8 is a
+// low-precision floating storage type used for quantization, so it forms its
+// own category distinct from wider (non-quantized) floating-point types;
+// crossing that boundary would undo the quantization.
+enum class type_category
+{
+    integral,
+    fp8,
+    non_quantized_floating,
+};
+
+static type_category get_type_category(shape::type_t t)
+{
+    static const std::set<shape::type_t> fp8 = fp8_types{}.get();
+    if(contains(fp8, t))
+        return type_category::fp8;
+    if(shape::is_integral(t))
+        return type_category::integral;
+    return type_category::non_quantized_floating;
+}
+
 // Class wrappper so we can compare precision using comparison operators
 struct precision
 {
@@ -81,10 +103,12 @@ struct precision
     {
         return (xp > yp) or (xp == yp);
     }
-    // Check if two precisions are in the same category (both integral or both floating-point)
+    // Two precisions share a category only if both integral, both fp8, or both
+    // non-quantized floating-point. fp8 is isolated so precision is not
+    // propagated across a quantization boundary.
     friend bool same_category(const precision& xp, const precision& yp)
     {
-        return shape::is_integral(xp.type) == shape::is_integral(yp.type);
+        return get_type_category(xp.type) == get_type_category(yp.type);
     }
 };
 #ifdef __clang__
@@ -134,7 +158,7 @@ static std::unordered_set<instruction_ref> find_adjacent_inputs(instruction_ref 
             return;
         if(contains(result, ins))
             return;
-        // Stop at div when crossing type category boundary (e.g., int to float)
+        // Stop when crossing a type category boundary (e.g., int or fp8 to float)
         if(not same_category(precision{ins->get_shape().type()}, target))
             return;
         auto next = get_next_input(ins);
@@ -160,7 +184,7 @@ static std::unordered_set<instruction_ref> find_adjacent_outputs(instruction_ref
                 continue;
             if(contains(result, output))
                 continue;
-            // Stop at div when crossing type category boundary (e.g., int to float)
+            // Stop when crossing a type category boundary (e.g., int or fp8 to float)
             if(not same_category(precision{output->get_shape().type()}, target))
                 continue;
             auto next = get_next_input(output);

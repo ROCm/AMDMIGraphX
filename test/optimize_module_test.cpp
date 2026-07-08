@@ -203,6 +203,8 @@ TEST_CASE(slice_squeeze_pw_unary)
     }
     run_pass(m1);
 
+    // find_split_reshape then merges the two slice+squeeze pairs into a single
+    // reshape followed by slices on the merged axis.
     migraphx::module m2;
     {
         auto input   = m2.add_parameter("input", s);
@@ -239,6 +241,8 @@ TEST_CASE(slice_squeeze_pw_unary_3d)
     }
     run_pass(m1);
 
+    // find_split_reshape then merges the three slice+squeeze pairs into a single
+    // reshape followed by slices on the merged axis.
     migraphx::module m2;
     {
         auto input   = m2.add_parameter("input", s);
@@ -292,6 +296,8 @@ TEST_CASE(slice_squeeze_pw_binary_const)
         stacked_lit = migraphx::literal(ev.get_shape(), ev.data());
     }
 
+    // find_split_reshape then merges the two slice+squeeze pairs into a single
+    // reshape followed by slices on the merged axis.
     migraphx::module m2;
     {
         auto input   = m2.add_parameter("input", s);
@@ -325,6 +331,8 @@ TEST_CASE(slice_squeeze_non_zero_axis)
         m1.add_return({rel0, rel1});
     }
     run_pass(m1);
+    // find_split_reshape then merges the two slice+squeeze pairs into a single
+    // reshape followed by slices on the merged (non-zero) axis.
     migraphx::module m2;
     {
         auto input   = m2.add_parameter("input", s);

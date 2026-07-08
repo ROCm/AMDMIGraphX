@@ -49,12 +49,14 @@
 #include <migraphx/par.hpp>
 
 #include <array>
+#include <functional>
 #include <map>
 #include <numeric>
 #include <set>
 #include <limits>
 #include <variant>
 #include <memory>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -1394,6 +1396,187 @@ struct find_gather_scalar
     }
 };
 
+std::optional<std::pair<int64_t, int64_t>> parse_unit_slice(const instruction_ref& inp)
+{
+    if(inp->name() != "slice")
+        return std::nullopt;
+    auto sop    = inp->get_operator().to_value();
+    auto axes   = sop.at("axes").to_vector<int64_t>();
+    auto starts = sop.at("starts").to_vector<int64_t>();
+    auto ends   = sop.at("ends").to_vector<int64_t>();
+    if(axes.size() != 1 or ends.front() - starts.front() != 1)
+        return std::nullopt;
+    return std::make_pair(axes.front(), starts.front());
+}
+
+struct find_gather_slice_concat
+{
+    static constexpr std::size_t min_run = 4;
+
+    auto matcher() const
+    {
+        auto gather_match = match::args(match::name("gather"));
+        return match::name("concat")(
+            match::any_of[match::inputs()](match::name("slice")(match::used_once(), gather_match)));
+    }
+
+    void apply(module& m, const match::matcher_result& mr) const
+    {
+        auto concat_ins        = mr.result;
+        auto concat_axis       = concat_ins->get_operator().to_value().at("axis").to<int64_t>();
+        const auto& all_inputs = concat_ins->inputs();
+
+        auto rep = std::find_if(all_inputs.begin(), all_inputs.end(), [&](const auto& inp) {
+            return parse_unit_slice(inp) and inp->inputs().at(0)->name() == "gather";
+        });
+        if(rep == all_inputs.end())
+            return;
+        auto gather_ins          = (*rep)->inputs().at(0);
+        const int64_t slice_axis = parse_unit_slice(*rep)->first;
+
+        auto gather_op_axis = gather_ins->get_operator().to_value().at("axis").to<int64_t>();
+        auto data_ins       = gather_ins->inputs().at(0);
+        auto indices_ins    = gather_ins->inputs().at(1);
+
+        const auto& data_lens = data_ins->get_shape().lens();
+        if(data_lens.empty())
+            return;
+
+        int64_t gather_axis = tune_axis(data_lens.size(), gather_op_axis, gather_ins->name());
+
+        if(slice_axis != gather_axis)
+            return;
+
+        int64_t indices_ndim = indices_ins->get_shape().ndim();
+        if(concat_axis != gather_axis + indices_ndim)
+            return;
+
+        if(indices_ndim < 2)
+            return;
+
+        const auto& indices_lens = indices_ins->get_shape().lens();
+        std::size_t num_rows     = indices_lens.front();
+        std::size_t batch_stride = indices_ins->get_shape().elements() / num_rows;
+
+        const std::size_t not_slice = std::numeric_limits<std::size_t>::max();
+        std::vector<std::size_t> input_rows(all_inputs.size());
+        std::transform(all_inputs.begin(),
+                       all_inputs.end(),
+                       input_rows.begin(),
+                       [&](const instruction_ref& inp) -> std::size_t {
+                           auto s = parse_unit_slice(inp);
+                           if(not s or s->first != slice_axis)
+                               return not_slice;
+                           if(inp->inputs().at(0) != gather_ins)
+                               return not_slice;
+                           std::size_t row = s->second;
+                           if(row >= num_rows)
+                               return not_slice;
+                           return row;
+                       });
+
+        struct run_t
+        {
+            std::size_t gap; // passthrough inputs preceding this run since the last recorded run
+            std::vector<std::size_t> rows;
+        };
+        std::vector<run_t> runs;
+        std::size_t prev_end = 0;
+        group_find(
+            input_rows.begin(),
+            input_rows.end(),
+            [&](std::size_t r) { return r != not_slice; },
+            [&](auto first, auto last) {
+                std::size_t run_len = std::distance(first, last);
+                if(run_len < min_run)
+                    return;
+                std::size_t start_pos = std::distance(input_rows.begin(), first);
+                runs.push_back({start_pos - prev_end, std::vector<std::size_t>(first, last)});
+                prev_end = start_pos + run_len;
+            });
+
+        if(runs.empty())
+            return;
+
+        // Each run consumes its leading passthrough gap plus its own rows, so the inclusive
+        // prefix sum of those spans yields the absolute end position of every run within
+        // all_inputs (and, shifted by one, the start of the next passthrough segment).
+        std::vector<std::size_t> run_ends(runs.size());
+        transform_partial_sum(
+            runs.begin(), runs.end(), run_ends.begin(), std::plus<>{}, [](const run_t& r) {
+                return r.gap + r.rows.size();
+            });
+
+        std::vector<std::int64_t> trans_perm(indices_ndim);
+        std::iota(trans_perm.begin(), trans_perm.end(), 0);
+        std::rotate(trans_perm.begin(), trans_perm.begin() + 1, trans_perm.end());
+
+        // Collapse each run into a single gather+reshape. run_ends[i] is the run's end position
+        // within all_inputs, so run_ends[i] - rows.size() is where its unit slices begin.
+        std::vector<instruction_ref> rewritten(runs.size());
+        std::transform(
+            runs.begin(),
+            runs.end(),
+            run_ends.begin(),
+            rewritten.begin(),
+            [&](const run_t& run, std::size_t run_end) {
+                const std::size_t n     = run.rows.size();
+                const std::size_t start = run_end - n;
+                assert(not run.rows.empty());
+                assert(start < all_inputs.size());
+
+                std::vector<std::int32_t> perm_values(run.rows.begin(), run.rows.end());
+                shape perm_shape{shape::int32_type, {n}};
+                auto perm_lit =
+                    m.add_literal(literal{perm_shape, perm_values.begin(), perm_values.end()});
+
+                auto idx_subset = m.insert_instruction(
+                    concat_ins, make_op("gather", {{"axis", 0}}), indices_ins, perm_lit);
+
+                auto idx_transposed = m.insert_instruction(
+                    concat_ins, make_op("transpose", {{"permutation", trans_perm}}), idx_subset);
+
+                std::int64_t flat_len = batch_stride * n;
+                auto idx_flat         = m.insert_instruction(
+                    concat_ins, make_op("reshape", {{"dims", {flat_len}}}), idx_transposed);
+
+                auto new_gather = m.insert_instruction(
+                    concat_ins, make_op("gather", {{"axis", gather_axis}}), data_ins, idx_flat);
+
+                const auto& unit_lens = all_inputs[start]->get_shape().lens();
+                assert(concat_axis >= 0);
+                std::vector<std::int64_t> target_dims(unit_lens.begin(), unit_lens.end());
+                target_dims[concat_axis] = n * unit_lens[concat_axis];
+
+                return m.insert_instruction(
+                    concat_ins, make_op("reshape", {{"dims", target_dims}}), new_gather);
+            });
+
+        // Splice the rewritten runs back in, preserving the passthrough inputs around each run.
+        std::vector<instruction_ref> new_inputs;
+        std::size_t pos = 0;
+        for(std::size_t i = 0; i < runs.size(); ++i)
+        {
+            new_inputs.insert(new_inputs.end(),
+                              all_inputs.begin() + pos,
+                              all_inputs.begin() + (run_ends[i] - runs[i].rows.size()));
+            new_inputs.push_back(rewritten[i]);
+            pos = run_ends[i];
+        }
+        new_inputs.insert(new_inputs.end(), all_inputs.begin() + pos, all_inputs.end());
+
+        if(new_inputs.size() == 1)
+        {
+            m.replace_instruction(concat_ins, new_inputs.front());
+        }
+        else
+        {
+            m.replace_instruction(
+                concat_ins, make_op("concat", {{"axis", concat_axis}}), new_inputs);
+        }
+    }
+};
+
 struct find_reshape_cont
 {
     auto matcher() const
@@ -1854,6 +2037,61 @@ struct find_flatten
                               flatten->inputs());
     }
 };
+
+// Match slice->squeeze->pw/reduce where the squeeze and slice share the same
+// single axis, then rewrite to slice->pw/reduce->squeeze (unsqueezing the
+// other inputs).  find_op_shape_transform_op propagates the squeeze through
+// any downstream op chain, and find_splits in simplify_algebra merges parallel
+// branches back together.
+struct find_slice_squeeze
+{
+    auto matcher() const
+    {
+        auto match_op = match::any_of(match::pointwise(), match::reduce());
+        auto squeeze_slice =
+            match::name("squeeze")(match::arg(0)(match::name("slice").bind("slice")))
+                .bind("squeeze");
+        return match_op(match::any_of[match::inputs()](squeeze_slice));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto op_ins    = r.result;
+        auto squeeze   = r.instructions["squeeze"];
+        auto slice_ins = r.instructions["slice"];
+
+        auto sq_axes = squeeze->get_operator().to_value()["axes"].to_vector<int64_t>();
+        auto sl_axes = slice_ins->get_operator().to_value()["axes"].to_vector<int64_t>();
+        if(sq_axes.size() != 1 or sl_axes.size() != 1 or sq_axes.front() != sl_axes.front())
+            return;
+
+        auto axis = sq_axes.front();
+
+        auto inputs = op_ins->inputs();
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            if(input == squeeze)
+                return slice_ins;
+            return m.insert_instruction(op_ins, make_op("unsqueeze", {{"axes", {axis}}}), input);
+        });
+
+        // Unsqueezing the inputs shifts every axis at or after `axis` up by one.
+        // Build the source->common axes map and let find_op_shape_transform_op
+        // handle reduce/argmin/layout axis remapping (pointwise ops are inserted
+        // unchanged), instead of duplicating that logic here.
+        std::vector<std::size_t> src_axes(squeeze->get_shape().ndim());
+        std::iota(src_axes.begin(), src_axes.end(), 0);
+        std::vector<std::vector<std::size_t>> axes_map;
+        std::transform(
+            src_axes.begin(),
+            src_axes.end(),
+            std::back_inserter(axes_map),
+            [&](std::size_t i) -> std::vector<std::size_t> { return {i >= axis ? i + 1 : i}; });
+
+        auto new_op = find_op_shape_transform_op::insert(m, op_ins, inputs, axes_map);
+        auto new_sq = m.insert_instruction(op_ins, squeeze->get_operator(), new_op);
+        m.replace_instruction(op_ins, new_sq);
+    }
+};
 } // namespace
 
 void simplify_reshapes::apply(module& m) const
@@ -1869,6 +2107,7 @@ void simplify_reshapes::apply(module& m) const
                             find_reshape_cont{},
                             find_slice_shape_transforms{},
                             find_nested_shape_transforms{},
+                            find_gather_slice_concat{},
                             find_concat_slice{},
                             find_concat_transpose{},
                             find_concat_reshape{},
@@ -1877,6 +2116,7 @@ void simplify_reshapes::apply(module& m) const
                             find_nested_concat{},
                             find_transpose_slice{},
                             find_slice_transpose{},
+                            find_slice_squeeze{},
                             find_unary_shape_transforms{},
                             find_reshape_dot{},
                             find_mul_add_shape_op_dot{},

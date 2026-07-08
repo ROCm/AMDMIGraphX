@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
@@ -501,6 +502,7 @@ static std::vector<argument> generic_eval(const module* mod,
         results.emplace(ins, argument{});
 #endif
         const auto& name = ins->name();
+        auto guard       = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
         if(name == "@literal")
         {
             results.insert_or_assign(ins,

@@ -49,12 +49,12 @@ TEST_CASE(stride1_single_forward_conv)
 {
     migraphx::module m1;
     {
-        auto dy = m1.add_parameter("dy", sf({1, 2, 5}));
-        auto w  = m1.add_parameter("w", sf({2, 3, 3}));
-        auto r  = m1.add_instruction(
+        auto inp = m1.add_parameter("inp", sf({1, 2, 5}));
+        auto w   = m1.add_parameter("w", sf({2, 3, 3}));
+        auto r   = m1.add_instruction(
             migraphx::make_op("convolution_backwards",
-                               {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}, {"group", 1}}),
-            dy,
+                                {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}, {"group", 1}}),
+            inp,
             w);
         m1.add_return({r});
     }
@@ -62,8 +62,8 @@ TEST_CASE(stride1_single_forward_conv)
 
     migraphx::module m2;
     {
-        auto dy = m2.add_parameter("dy", sf({1, 2, 5}));
-        auto w  = m2.add_parameter("w", sf({2, 3, 3}));
+        auto inp = m2.add_parameter("inp", sf({1, 2, 5}));
+        auto w   = m2.add_parameter("w", sf({2, 3, 3}));
         auto t =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2}}}), w);
         auto rv = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2}}}), t);
@@ -71,7 +71,7 @@ TEST_CASE(stride1_single_forward_conv)
             migraphx::make_op(
                 "convolution",
                 {{"padding", {2, 2}}, {"stride", {1}}, {"dilation", {1}}, {"group", 1}}),
-            dy,
+            inp,
             rv);
         m2.add_return({c});
     }
@@ -84,12 +84,12 @@ TEST_CASE(stride2_two_residue_interleave)
 {
     migraphx::module m1;
     {
-        auto dy = m1.add_parameter("dy", sf({1, 1, 3}));
-        auto w  = m1.add_parameter("w", sf({1, 1, 2}));
-        auto r  = m1.add_instruction(
+        auto inp = m1.add_parameter("inp", sf({1, 1, 3}));
+        auto w   = m1.add_parameter("w", sf({1, 1, 2}));
+        auto r   = m1.add_instruction(
             migraphx::make_op("convolution_backwards",
-                               {{"padding", {0}}, {"stride", {2}}, {"dilation", {1}}, {"group", 1}}),
-            dy,
+                                {{"padding", {0}}, {"stride", {2}}, {"dilation", {1}}, {"group", 1}}),
+            inp,
             w);
         m1.add_return({r});
     }
@@ -97,8 +97,8 @@ TEST_CASE(stride2_two_residue_interleave)
 
     migraphx::module m2;
     {
-        auto dy = m2.add_parameter("dy", sf({1, 1, 3}));
-        auto w  = m2.add_parameter("w", sf({1, 1, 2}));
+        auto inp = m2.add_parameter("inp", sf({1, 1, 3}));
+        auto w   = m2.add_parameter("w", sf({1, 1, 2}));
 
         auto residue_conv = [&](migraphx::instruction_ref wslice) {
             auto st = m2.add_instruction(migraphx::make_op("step", {{"axes", {2}}, {"steps", {2}}}),
@@ -110,7 +110,7 @@ TEST_CASE(stride2_two_residue_interleave)
                 migraphx::make_op(
                     "convolution",
                     {{"padding", {0, 0}}, {"stride", {1}}, {"dilation", {1}}, {"group", 1}}),
-                dy,
+                inp,
                 rv);
         };
 
@@ -134,12 +134,12 @@ TEST_CASE(grouped_weight_reshape)
 {
     migraphx::module m1;
     {
-        auto dy = m1.add_parameter("dy", sf({1, 4, 5}));
-        auto w  = m1.add_parameter("w", sf({4, 2, 3}));
-        auto r  = m1.add_instruction(
+        auto inp = m1.add_parameter("inp", sf({1, 4, 5}));
+        auto w   = m1.add_parameter("w", sf({4, 2, 3}));
+        auto r   = m1.add_instruction(
             migraphx::make_op("convolution_backwards",
-                               {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}, {"group", 2}}),
-            dy,
+                                {{"padding", {0}}, {"stride", {1}}, {"dilation", {1}}, {"group", 2}}),
+            inp,
             w);
         m1.add_return({r});
     }
@@ -147,7 +147,7 @@ TEST_CASE(grouped_weight_reshape)
 
     migraphx::module m2;
     {
-        auto dy    = m2.add_parameter("dy", sf({1, 4, 5}));
+        auto inp   = m2.add_parameter("inp", sf({1, 4, 5}));
         auto w     = m2.add_parameter("w", sf({4, 2, 3}));
         auto split = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 3}}}), w);
         auto trans = m2.add_instruction(
@@ -158,7 +158,7 @@ TEST_CASE(grouped_weight_reshape)
             migraphx::make_op(
                 "convolution",
                 {{"padding", {2, 2}}, {"stride", {1}}, {"dilation", {1}}, {"group", 2}}),
-            dy,
+            inp,
             rv);
         m2.add_return({c});
     }
@@ -170,13 +170,13 @@ TEST_CASE(dynamic_shape_no_rewrite)
 {
     auto make = [] {
         migraphx::module m;
-        migraphx::shape dys{migraphx::shape::float_type, {{1, 1}, {1, 1}, {3, 8}}};
-        auto dy = m.add_parameter("dy", dys);
-        auto w  = m.add_parameter("w", sf({1, 1, 2}));
-        auto r  = m.add_instruction(
+        migraphx::shape inp_shape{migraphx::shape::float_type, {{1, 1}, {1, 1}, {3, 8}}};
+        auto inp = m.add_parameter("inp", inp_shape);
+        auto w   = m.add_parameter("w", sf({1, 1, 2}));
+        auto r   = m.add_instruction(
             migraphx::make_op("convolution_backwards",
-                               {{"padding", {0}}, {"stride", {2}}, {"dilation", {1}}, {"group", 1}}),
-            dy,
+                                {{"padding", {0}}, {"stride", {2}}, {"dilation", {1}}, {"group", 1}}),
+            inp,
             w);
         m.add_return({r});
         return m;
@@ -192,13 +192,13 @@ TEST_CASE(rewrite_2d_stride1)
 {
     migraphx::module m1;
     {
-        auto dy = m1.add_parameter("dy", sf({1, 2, 5, 5}));
-        auto w  = m1.add_parameter("w", sf({2, 3, 3, 3}));
-        auto r  = m1.add_instruction(
+        auto inp = m1.add_parameter("inp", sf({1, 2, 5, 5}));
+        auto w   = m1.add_parameter("w", sf({2, 3, 3, 3}));
+        auto r   = m1.add_instruction(
             migraphx::make_op(
                 "convolution_backwards",
                 {{"padding", {0, 0}}, {"stride", {1, 1}}, {"dilation", {1, 1}}, {"group", 1}}),
-            dy,
+            inp,
             w);
         m1.add_return({r});
     }
@@ -206,8 +206,8 @@ TEST_CASE(rewrite_2d_stride1)
 
     migraphx::module m2;
     {
-        auto dy = m2.add_parameter("dy", sf({1, 2, 5, 5}));
-        auto w  = m2.add_parameter("w", sf({2, 3, 3, 3}));
+        auto inp = m2.add_parameter("inp", sf({1, 2, 5, 5}));
+        auto w   = m2.add_parameter("w", sf({2, 3, 3, 3}));
         auto t =
             m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0, 2, 3}}}), w);
         auto rv = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2, 3}}}), t);
@@ -216,7 +216,7 @@ TEST_CASE(rewrite_2d_stride1)
                                                         {"stride", {1, 1}},
                                                         {"dilation", {1, 1}},
                                                         {"group", 1}}),
-                                    dy,
+                                    inp,
                                     rv);
         m2.add_return({c});
     }
@@ -228,14 +228,14 @@ TEST_CASE(rewrite_3d_stride1)
 {
     migraphx::module m1;
     {
-        auto dy = m1.add_parameter("dy", sf({1, 2, 5, 5, 5}));
-        auto w  = m1.add_parameter("w", sf({2, 3, 3, 3, 3}));
-        auto r  = m1.add_instruction(migraphx::make_op("convolution_backwards",
-                                                       {{"padding", {0, 0, 0}},
-                                                        {"stride", {1, 1, 1}},
-                                                        {"dilation", {1, 1, 1}},
-                                                        {"group", 1}}),
-                                    dy,
+        auto inp = m1.add_parameter("inp", sf({1, 2, 5, 5, 5}));
+        auto w   = m1.add_parameter("w", sf({2, 3, 3, 3, 3}));
+        auto r   = m1.add_instruction(migraphx::make_op("convolution_backwards",
+                                                        {{"padding", {0, 0, 0}},
+                                                         {"stride", {1, 1, 1}},
+                                                         {"dilation", {1, 1, 1}},
+                                                         {"group", 1}}),
+                                    inp,
                                     w);
         m1.add_return({r});
     }
@@ -243,9 +243,9 @@ TEST_CASE(rewrite_3d_stride1)
 
     migraphx::module m2;
     {
-        auto dy = m2.add_parameter("dy", sf({1, 2, 5, 5, 5}));
-        auto w  = m2.add_parameter("w", sf({2, 3, 3, 3, 3}));
-        auto t  = m2.add_instruction(
+        auto inp = m2.add_parameter("inp", sf({1, 2, 5, 5, 5}));
+        auto w   = m2.add_parameter("w", sf({2, 3, 3, 3, 3}));
+        auto t   = m2.add_instruction(
             migraphx::make_op("transpose", {{"permutation", {1, 0, 2, 3, 4}}}), w);
         auto rv = m2.add_instruction(migraphx::make_op("reverse", {{"axes", {2, 3, 4}}}), t);
         auto c  = m2.add_instruction(migraphx::make_op("convolution",
@@ -253,24 +253,25 @@ TEST_CASE(rewrite_3d_stride1)
                                                         {"stride", {1, 1, 1}},
                                                         {"dilation", {1, 1, 1}},
                                                         {"group", 1}}),
-                                    dy,
+                                    inp,
                                     rv);
         m2.add_return({c});
     }
     EXPECT(m1 == m2);
 }
 
-// Build dx = convolution_backwards(dy, w), compile on the reference target, and return the result.
+// Build out = convolution_backwards(inp, w), compile on the reference target, and return the
+// result.
 static migraphx::argument eval_conv_backwards(const migraphx::operation& op,
                                               bool rewrite,
-                                              migraphx::shape dys,
-                                              migraphx::shape ws)
+                                              migraphx::shape inp_shape,
+                                              migraphx::shape w_shape)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    auto dy  = mm->add_parameter("dy", dys);
-    auto w   = mm->add_parameter("w", ws);
-    auto r   = mm->add_instruction(op, dy, w);
+    auto inp = mm->add_parameter("inp", inp_shape);
+    auto w   = mm->add_parameter("w", w_shape);
+    auto r   = mm->add_instruction(op, inp, w);
     mm->add_return({r});
     if(rewrite)
         run_pass(*mm);
@@ -280,16 +281,17 @@ static migraphx::argument eval_conv_backwards(const migraphx::operation& op,
     EXPECT(has_bwd != rewrite);
     p.compile(migraphx::make_target("ref"));
     migraphx::parameter_map params;
-    params["dy"] = migraphx::generate_argument(dys, 1);
-    params["w"]  = migraphx::generate_argument(ws, 2);
+    params["inp"] = migraphx::generate_argument(inp_shape, 1);
+    params["w"]   = migraphx::generate_argument(w_shape, 2);
     return p.eval(params).back();
 }
 
-// The rewritten subgraph must compute the same dx as the reference convolution_backwards.
-static void verify_rewrite(const migraphx::operation& op, migraphx::shape dys, migraphx::shape ws)
+// The rewritten subgraph must compute the same out as the reference convolution_backwards.
+static void
+verify_rewrite(const migraphx::operation& op, migraphx::shape inp_shape, migraphx::shape w_shape)
 {
-    auto ref = eval_conv_backwards(op, false, dys, ws);
-    auto got = eval_conv_backwards(op, true, dys, ws);
+    auto ref = eval_conv_backwards(op, false, inp_shape, w_shape);
+    auto got = eval_conv_backwards(op, true, inp_shape, w_shape);
     std::vector<float> ref_data;
     std::vector<float> got_data;
     ref.visit([&](auto v) { ref_data.assign(v.begin(), v.end()); });

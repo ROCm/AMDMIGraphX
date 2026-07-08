@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/lower_hip_ops.hpp>
+#include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
@@ -37,13 +37,15 @@
 
 static void run_pass(migraphx::module& m)
 {
-    migraphx::run_passes(m, {migraphx::gpu::lower_hip_ops{}, migraphx::dead_code_elimination{}});
+    migraphx::run_passes(m, {migraphx::gpu::lower_device_ops{}, migraphx::dead_code_elimination{}});
 }
 
-static migraphx::operation precompile(const migraphx::operation& op)
+static migraphx::operation precompile(const migraphx::operation& op,
+                                      std::size_t additional_args = 0)
 {
-    return migraphx::make_op("gpu::precompile_op",
-                             {{"op", migraphx::to_value(op)}, {"additional_args", 0}});
+    return migraphx::make_op(
+        "gpu::precompile_op",
+        {{"op", migraphx::to_value(op)}, {"additional_args", additional_args}});
 }
 
 static migraphx::module make_module(const migraphx::operation& op,
@@ -75,6 +77,39 @@ TEST_CASE(lower_hip_fill)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};
     check_lowered(migraphx::make_op("hip::fill", {{"value", 0}}), {s});
+}
+
+TEST_CASE(lower_gpu_contiguous)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", s);
+        auto t = m1.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto alloc = m1.add_instruction(
+            migraphx::make_op("allocate",
+                              {{"shape",
+                                migraphx::to_value(migraphx::shape{migraphx::shape::float_type,
+                                                                   t->get_shape().lens()})}}));
+        m1.add_return({m1.add_instruction(migraphx::make_op("gpu::contiguous"), t, alloc)});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", s);
+        auto t = m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), x);
+        auto alloc = m2.add_instruction(
+            migraphx::make_op("allocate",
+                              {{"shape",
+                                migraphx::to_value(migraphx::shape{migraphx::shape::float_type,
+                                                                   t->get_shape().lens()})}}));
+        m2.add_return(
+            {m2.add_instruction(precompile(migraphx::make_op("contiguous"), 1), t, alloc)});
+    }
+
+    EXPECT(m1 == m2);
 }
 
 // Dynamic shapes must be left untouched.

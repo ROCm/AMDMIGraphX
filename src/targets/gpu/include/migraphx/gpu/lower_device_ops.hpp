@@ -21,8 +21,8 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_LOWER_HIP_OPS_HPP
-#define MIGRAPHX_GUARD_GPU_LOWER_HIP_OPS_HPP
+#ifndef MIGRAPHX_GUARD_GPU_LOWER_DEVICE_OPS_HPP
+#define MIGRAPHX_GUARD_GPU_LOWER_DEVICE_OPS_HPP
 
 #include <migraphx/gpu/config.hpp>
 #include <string>
@@ -34,9 +34,9 @@ struct module;
 
 namespace gpu {
 
-struct MIGRAPHX_GPU_EXPORT lower_hip_ops
+struct MIGRAPHX_GPU_EXPORT lower_device_ops
 {
-    std::string name() const { return "gpu::lower_hip_ops"; }
+    std::string name() const { return "gpu::lower_device_ops"; }
     void apply(module& m) const;
 };
 
@@ -44,4 +44,4 @@ struct MIGRAPHX_GPU_EXPORT lower_hip_ops
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif // MIGRAPHX_GUARD_GPU_LOWER_HIP_OPS_HPP
+#endif // MIGRAPHX_GUARD_GPU_LOWER_DEVICE_OPS_HPP

@@ -74,7 +74,7 @@
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
-#include <migraphx/gpu/lower_hip_ops.hpp>
+#include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/propagate_reshape_layout.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
@@ -96,7 +96,6 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_CK)
 #endif
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_LOWER_HIP_OPS)
 
 namespace {
 struct pipeline_factory
@@ -230,7 +229,7 @@ struct pipeline_factory
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
-            enable_pass(enabled(MIGRAPHX_GPU_LOWER_HIP_OPS{}), lower_hip_ops{}),
+            lower_device_ops{},
             compile_ops{get_context(), options.exhaustive_tune},
             dead_code_elimination{},
             promote_literals{},

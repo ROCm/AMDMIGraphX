@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#include <migraphx/gpu/lower_hip_ops.hpp>
+#include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
@@ -36,16 +36,20 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 namespace {
-operation precompiled(const operation& op)
+operation precompiled(instruction_ref ins)
 {
-    // additional_args == 0 since hip::fill/hip::copy already include their output buffer as an
-    // input
-    return make_op("gpu::precompile_op", {{"op", to_value(op)}, {"additional_args", 0}});
+    // gpu::contiguous appends a separate output allocation (additional_args == 1) and compiles as
+    // the "contiguous" kernel; hip::fill/hip::copy already include their output buffer as an input
+    if(ins->name() == "gpu::contiguous")
+        return make_op("gpu::precompile_op",
+                       {{"op", to_value(make_op("contiguous"))}, {"additional_args", 1}});
+    return make_op("gpu::precompile_op",
+                   {{"op", to_value(ins->get_operator())}, {"additional_args", 0}});
 }
 
-struct find_hip_memory_op
+struct find_device_memory_op
 {
-    auto matcher() const { return match::name("hip::fill", "hip::copy"); }
+    auto matcher() const { return match::name("hip::fill", "hip::copy", "gpu::contiguous"); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
@@ -53,7 +57,6 @@ struct find_hip_memory_op
         if(ins->get_shape().dynamic())
             return;
         assert(not ins->inputs().empty());
-        auto pre = precompiled(ins->get_operator());
 
         const auto& subs = ins->get_shape().sub_shapes();
 
@@ -61,6 +64,7 @@ struct find_hip_memory_op
             return in->get_shape().sub_shapes().size() == subs.size();
         }));
 
+        auto pre = precompiled(ins);
         if(subs.empty())
         {
             m.replace_instruction(ins, pre, ins->inputs());
@@ -86,7 +90,7 @@ struct find_hip_memory_op
 };
 } // namespace
 
-void lower_hip_ops::apply(module& m) const { match::find_matches(m, find_hip_memory_op{}); }
+void lower_device_ops::apply(module& m) const { match::find_matches(m, find_device_memory_op{}); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

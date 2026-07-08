@@ -42,46 +42,50 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 /// Decompose a backward-data convolution (transposed convolution) into a set of stride-1 forward
-/// convolutions plus an interleave, following MIOpen's implicit-gemm backward-data v4r1 algorithm.
+/// convolutions, following MIOpen's implicit-gemm backward-data v4r1 algorithm.
 ///
-/// For the 1D case, the forward convolution producing y is (gather form):
+/// For the 1D case, forward convolution producing out is (gather form):
 ///
-///      y[oc, ho] = sum_{ic, j}( x[ic, ho*S - P + j*D] * w[oc, ic, j] )
+///      out[oc, ho] = sum_{ic, j}( in[ic, ho*S - P + j*D] * w[oc, ic, j] )
 ///
 /// Where S = stride, P = padding, D = dilation, j = kernel spatial index,
 /// ic = input channel index, oc = output channel index, ho = output spatial index.
 /// sum_{ic, j}() = summation over ic and j.
 ///
-/// The backward-data convolution is (scatter form):
+/// Backward-data convolution is (scatter form):
 ///  
-///      y[oc, ho] = sum_{ic, j}( x[ic, hi] * w[ic, oc, j] )
-///      ho = hin * S - P + j*D
+///      out[oc, ho] = sum_{ic, j}( in[ic, hi] * w[ic, oc, j] )
+///      ho = hi * S - P + j*D
 ///
-///  Where hi = input spatial index.
+/// Where hi = input spatial index.
 ///
 /// Idea is to split the filter index to do the upsampling as strided access:
 ///
-///      j = idot * Ytilda + itilda
-///      Ytilda = S / gcd(S,D)
+///      j = idot * ytilda + itilda
+///      ytilda = S / gcd(S,D)
 /// 
-/// makes
+/// making:
 ///
-///     hi = S*hs + itilda*D - P    (eqn 1)
-///     hs = ho + idot * (D/g).
+///     ho = S*hs + itilda*D - P    (eqn 1)
+///     hs = hi + idot * (D/g)
 ///
 /// For a set itilda value, note how (eqn 1) becomes constant except for hs.
 /// Continuing with a set itilda value we can define:
 ///
-///     x_itilda[oc, S*hs + itilda*D - P] := xdot_itilda[oc, hs]
+///     out_itilda[oc, S*hs + itilda*D - P] := outdot_itilda[oc, hs]
 ///
-/// where xdot_itilda is a packed matrix. Doing some rearranging and substitutions we get:
+/// where outdot_itilda is a packed matrix. Doing some rearranging, substitutions, and flipping the spatial index we get:
 ///
-///     xdot_itilda[oc, hs] = sum_{ic, idot}( x[ic, hs - (ydot - 1) * (D/g) + idot*(D/g)] * w[ic, oc, idot * Ytilda + itilda] )
-///     ydot = Y / Ytilda
-///     Y = kernel dimension size
+///     outdot_itilda[oc, hs] = sum_{ic, idot}( in[ic, hs - (ydot - 1) * (D/g) + idot*(D/g)] * w[ic, oc, (ydot - 1 - idot) * ytilda + itilda] )
+///     ydot = ceil(y / ytilda)
+///     y = kernel dimension size
 ///
-/// Which is a plain cross-correlation (convolution) with stride = 1, transposed filter with strided access,
-/// dilation D/g, and padding = (ydot - 1) * (D/g).
+/// Which is a plain cross-correlation (convolution) with:
+///     stride = 1
+///     transposed filter with strided access
+///     spatial flip
+///     dilation = D/g
+///     pad = (ydot - 1) * (D/g) [indices beyond the filter are dropped]
 ///
 /// Reassembling the residues for each itilda by zero-stuff each by S, shift by itilda*D,
 /// sum (residues occupy disjoint positions), then crop the padding.
@@ -93,7 +97,7 @@ struct dim_info
     std::size_t stride;
     std::size_t dilation;
     std::size_t ytilda; // S / gcd(S, D)        -> number of residues along this dim
-    std::size_t ydot;   // ceil(Y / ytilda)     -> max taps per residue
+    std::size_t ydot;   // ceil(y / ytilda)     -> max taps per residue
     std::size_t dd;     // D / gcd(S, D)        -> per-residue conv dilation
     std::size_t htilda; // common per-residue conv output length
     std::size_t y;      // filter length
@@ -210,8 +214,8 @@ instruction_ref make_residue_partial(module& m,
                 ins, make_op("step", {{"axes", {2 + d}}, {"steps", {di.ytilda}}}), wsl);
     }
 
-    // Reshape the [K, C_pg, *Ydot] backward filter into the forward-conv weight
-    // [C_total, K/group, *Ydot] (swap in/out channels, keeping groups intact).
+    // Reshape the [K, C_pg, *ydot] backward filter into the forward-conv weight
+    // [C_total, K/group, *ydot] (swap in/out channels, keeping groups intact).
     instruction_ref cw;
     if(group == 1)
     {

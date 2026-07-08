@@ -38,6 +38,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/match/dq_helpers.hpp>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -462,18 +463,29 @@ struct match_concat_qlinear
         auto scale = ins->inputs()[1];
         auto zp    = ins->inputs()[2];
 
+        if(scale->get_shape().lens() != ins->get_shape().lens() or
+           zp->get_shape().lens() != ins->get_shape().lens())
+        {
+            return;
+        }
+
         auto slices = get_slices(cat_ins);
         std::vector<instruction_ref> new_cat_inputs;
-        std::transform(
-            cat_ins->inputs().begin(),
-            cat_ins->inputs().end(),
-            slices.begin(),
-            std::back_inserter(new_cat_inputs),
-            [&](auto i, const auto& slc) {
-                auto scale_slc = m.insert_instruction(ins, make_op("slice", slc), {scale});
-                auto zp_slc    = m.insert_instruction(ins, make_op("slice", slc), {zp});
-                return m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc});
-            });
+        auto cat_inputs = cat_ins->inputs();
+        for(std::size_t idx = 0; idx < cat_inputs.size(); ++idx)
+        {
+            auto i          = cat_inputs[idx];
+            const auto& slc = slices[idx];
+            auto scale_slc  = m.insert_instruction(ins, make_op("slice", slc), {scale});
+            auto zp_slc     = m.insert_instruction(ins, make_op("slice", slc), {zp});
+            if(scale_slc->get_shape().lens() != i->get_shape().lens() or
+               zp_slc->get_shape().lens() != i->get_shape().lens())
+            {
+                return;
+            }
+            new_cat_inputs.push_back(
+                m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc}));
+        }
 
         m.replace_instruction(ins, cat_ins->get_operator(), new_cat_inputs);
     }
@@ -536,25 +548,65 @@ bool is_any_input_int4(instruction_ref a)
  */
 struct remove_qdq_pairs
 {
+    static const std::unordered_set<std::string>& skip_ops()
+    {
+        static const std::unordered_set<std::string> ops = {
+            "pack_fp4", "unpack_fp4", "broadcast", "slice", "reshape", "reshape_lazy", "pad"};
+        return ops;
+    }
+
+    static const std::unordered_set<std::string>& replay_ops()
+    {
+        static const std::unordered_set<std::string> ops = {
+            "broadcast", "slice", "reshape", "reshape_lazy"};
+        return ops;
+    }
+
+    static std::optional<instruction_ref>
+    make_replacement(module& m, instruction_ref dq_ins, instruction_ref q_ins)
+    {
+        auto replacement = q_ins->inputs().front();
+        std::vector<operation> ops;
+        auto x               = dq_ins->inputs().front();
+        bool has_pack_unpack = false;
+        while(x != q_ins)
+        {
+            if(x->inputs().size() != 1)
+                return std::nullopt;
+            if(contains({"pack_fp4", "unpack_fp4"}, x->name()))
+                has_pack_unpack = true;
+            else if(contains(replay_ops(), x->name()))
+                ops.push_back(x->get_operator());
+            else if(has_pack_unpack and contains(skip_ops(), x->name()))
+            {
+                // Padding/slicing around fp4 pack/unpack only adapts odd extents for packing.
+                // Dropping the full fake-quant chain should drop those adapters as well.
+            }
+            else
+                return std::nullopt;
+            x = x->inputs().front();
+        }
+        if(not has_pack_unpack)
+        {
+            std::reverse(ops.begin(), ops.end());
+            for(const auto& op : ops)
+            {
+                replacement = m.insert_instruction(dq_ins, op, replacement);
+            }
+        }
+        if(replacement->get_shape() != dq_ins->get_shape())
+            return std::nullopt;
+        return replacement;
+    }
+
     auto matcher() const
     {
-        // clang-format off
-        static const std::unordered_set<std::string> skip_set = {
-            "pack_fp4",
-            "unpack_fp4",
-            "broadcast",
-            "slice",
-            "reshape",
-            "reshape_lazy",
-            "pad",
-        };
-        // clang-format on
         auto q_ins =
-            match::skip(match::name(skip_set))(match::name("quantizelinear").bind("q_ins"));
+            match::skip(match::name(skip_ops()))(match::name("quantizelinear").bind("q_ins"));
         return match::name("dequantizelinear")(match::arg(0)(q_ins));
     }
 
-    auto apply(module&, const match::matcher_result& r) const
+    auto apply(module& m, const match::matcher_result& r) const
     {
         auto dq_ins = r.result;
         auto q_ins  = r.instructions["q_ins"];
@@ -562,11 +614,16 @@ struct remove_qdq_pairs
         {
             return;
         }
+        auto replacement = make_replacement(m, dq_ins, q_ins);
+        if(not replacement.has_value())
+        {
+            return;
+        }
         // Need to copy outputs since will be modifying dq_ins outputs
         std::vector<instruction_ref> dq_outputs = dq_ins->outputs();
         for(auto out : dq_outputs)
         {
-            instruction::replace_argument(out, dq_ins, q_ins->inputs().front());
+            instruction::replace_argument(out, dq_ins, *replacement);
         }
     }
 };

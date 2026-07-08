@@ -95,6 +95,42 @@ TEST_CASE(remove_qdq)
     EXPECT(m1 == m2);
 }
 
+TEST_CASE(remove_qdq_preserve_shape_ops)
+{
+    migraphx::shape input_shape{migraphx::shape::float_type, {4, 4}};
+    migraphx::shape output_shape{migraphx::shape::float_type, {4, 2}};
+
+    migraphx::module m1;
+    {
+        auto a     = m1.add_parameter("a", input_shape);
+        auto b     = m1.add_parameter("b", output_shape);
+        auto scale = m1.add_literal(0.5f);
+        auto zero  = m1.add_literal(std::int8_t{0});
+
+        auto q = add_quantize_op(m1, "quantizelinear", a, scale, zero);
+        auto s = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), q);
+        auto r   = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 2}}}), s);
+        auto dq  = add_quantize_op(m1, "dequantizelinear", r, scale, zero);
+        auto add = m1.add_instruction(migraphx::make_op("add"), dq, b);
+        m1.add_return({add});
+    }
+
+    migraphx::module m2;
+    {
+        auto a = m2.add_parameter("a", input_shape);
+        auto b = m2.add_parameter("b", output_shape);
+        auto s = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), a);
+        auto r   = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4, 2}}}), s);
+        auto add = m2.add_instruction(migraphx::make_op("add"), r, b);
+        m2.add_return({add});
+    }
+
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 TEST_CASE(qdq_different_scales)
 {
     migraphx::shape sh1{migraphx::shape::float_type, {100, 100}};

@@ -1292,7 +1292,7 @@ struct find_gather
             return;
 
         const std::size_t axis_index = tune_axis(dlens.size(), gather_op.axis, gather_op.name());
-        const auto axis_len = dlens.at(axis_index);
+        const auto axis_len          = dlens.at(axis_index);
         if(axis_len == 0)
             return;
 
@@ -1852,7 +1852,7 @@ struct find_transpose_slice
                                       sdistance.begin(),
                                       0,
                                       std::plus<>{},
-                                      [&](auto x, auto d) -> uint64_t {
+                                      [&](const auto& x, auto d) -> uint64_t {
                                           if(d == 0)
                                               return 1;
                                           return f(x) % d;

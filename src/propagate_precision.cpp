@@ -51,7 +51,7 @@ enum class type_category
 {
     integral,
     fp8,
-    non_quantized_floating,
+    standard_float,
 };
 
 type_category get_type_category(shape::type_t t)
@@ -61,7 +61,7 @@ type_category get_type_category(shape::type_t t)
         return type_category::fp8;
     if(shape::is_integral(t))
         return type_category::integral;
-    return type_category::non_quantized_floating;
+    return type_category::standard_float;
 }
 
 // Class wrappper so we can compare precision using comparison operators

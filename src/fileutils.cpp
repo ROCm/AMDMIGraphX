@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,9 @@
  */
 
 #include <migraphx/fileutils.hpp>
+#include <algorithm>
+#include <string>
+#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -64,6 +67,14 @@ fs::path make_static_library_filename(std::string_view name)
 fs::path append_extension(const fs::path& path, std::string_view ext)
 {
     return fs::path{path}.replace_extension(path.extension().string().append(ext));
+}
+
+std::string sanitize_filename(std::string s)
+{
+    static constexpr std::string_view invalid = "<>:\"/\\|?*";
+    std::replace_if(
+        s.begin(), s.end(), [](char c) { return invalid.find(c) != std::string_view::npos; }, '_');
+    return s;
 }
 
 } // namespace MIGRAPHX_INLINE_NS

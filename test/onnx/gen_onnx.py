@@ -18630,6 +18630,21 @@ def topk_test():
     return ([node], [x], [val, ind], [k_tensor])
 
 
+@onnx_test()
+def topk_var_k_test():
+    x = helper.make_tensor_value_info('data', TensorProto.FLOAT, [2, 4])
+    k = helper.make_tensor_value_info('k', TensorProto.INT64, [1])
+    val = helper.make_tensor_value_info('val', TensorProto.FLOAT, [2, 4])
+    ind = helper.make_tensor_value_info('indices', TensorProto.INT64, [2, 4])
+
+    node = onnx.helper.make_node('TopK',
+                                 inputs=['data', 'k'],
+                                 outputs=['val', 'indices'],
+                                 axis=1)
+    # `k` is a graph input (not an initializer), so it stays a runtime value
+    return ([node], [x, k], [val, ind])
+
+
 def transpose_default_perm_test():
     x = helper.make_tensor_value_info('0', TensorProto.FLOAT, [1, 5, 2, 3])
     y = helper.make_tensor_value_info('1', TensorProto.FLOAT, [3, 2, 5, 1])

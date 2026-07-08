@@ -1068,6 +1068,66 @@ TEST_CASE(same_table_gathers_idempotent)
     EXPECT(m1.sort() == snapshot.sort());
 }
 
+// Same-table gathers with dynamic-shaped indices → no fusion.
+TEST_CASE(same_table_gathers_no_rewrite_dynamic_index)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape idx_s{migraphx::shape::int32_type, {dd{4, 8}}};
+
+    migraphx::module m1;
+    {
+        auto emb =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {6, 2}}, 0));
+
+        auto idx1 = m1.add_parameter("idx1", idx_s);
+        auto idx2 = m1.add_parameter("idx2", idx_s);
+        auto idx3 = m1.add_parameter("idx3", idx_s);
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb, idx3);
+
+        m1.add_return({g1, g2, g3});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// Cross-embedding fusion candidates with dynamic-shaped indices → no fusion.
+TEST_CASE(gather_horiz_no_fusion_dynamic_index)
+{
+    using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape idx_s{migraphx::shape::int32_type, {dd{1, 8}}};
+
+    migraphx::module m1;
+    {
+        auto emb1 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {3, 2}}, 0));
+        auto emb2 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {4, 2}}, 1));
+        auto emb3 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {2, 2}}, 2));
+        auto emb4 =
+            m1.add_literal(migraphx::generate_literal({migraphx::shape::float_type, {5, 2}}, 3));
+
+        auto idx1 = m1.add_parameter("idx1", idx_s);
+        auto idx2 = m1.add_parameter("idx2", idx_s);
+        auto idx3 = m1.add_parameter("idx3", idx_s);
+        auto idx4 = m1.add_parameter("idx4", idx_s);
+
+        auto g1 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb1, idx1);
+        auto g2 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb2, idx2);
+        auto g3 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb3, idx3);
+        auto g4 = m1.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), emb4, idx4);
+
+        m1.add_return({g1, g2, g3, g4});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 // Two independent dots with identical activation/weight shapes and constant
 // weights should batch into a single GEMM, then slice+squeeze back.
 TEST_CASE(dot_horiz_fusion_basic)

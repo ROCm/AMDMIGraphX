@@ -46,7 +46,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 ///
 /// For the 1D case, forward convolution producing out is (gather form):
 ///
-///      out[oc, ho] = sum_{ic, j}( in[ic, ho*S - P + j*D] * w[oc, ic, j] )
+///      out[oc, ho] = sum_{ic, j}( inp[ic, ho*S - P + j*D] * w[oc, ic, j] )
 ///
 /// Where S = stride, P = padding, D = dilation, j = kernel spatial index,
 /// ic = input channel index, oc = output channel index, ho = output spatial index.
@@ -54,7 +54,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 ///
 /// Backward-data convolution is (scatter form):
 ///  
-///      out[oc, ho] = sum_{ic, j}( in[ic, hi] * w[ic, oc, j] )
+///      out[oc, ho] = sum_{ic, j}( inp[ic, hi] * w[ic, oc, j] )
 ///      ho = hi * S - P + j*D
 ///
 /// Where hi = input spatial index.
@@ -76,7 +76,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 ///
 /// where outdot_itilda is a packed matrix. Doing some rearranging, substitutions, and flipping the spatial index we get:
 ///
-///     outdot_itilda[oc, hs] = sum_{ic, idot}( in[ic, hs - (ydot - 1) * (D/g) + idot*(D/g)] * w[ic, oc, (ydot - 1 - idot) * ytilda + itilda] )
+///     outdot_itilda[oc, hs] = sum_{ic, idot}( inp[ic, hs - (ydot - 1) * (D/g) + idot*(D/g)] * w[ic, oc, (ydot - 1 - idot) * ytilda + itilda] )
 ///     ydot = ceil(y / ytilda)
 ///     y = kernel dimension size
 ///
@@ -142,25 +142,25 @@ zero_stuff(module& m, instruction_ref ins, instruction_ref t, std::size_t axis, 
     return m.insert_instruction(ins, make_op("reshape", {{"dims", rdims}}), u);
 }
 
-// Per spatial-dim v4r1 quantities derived from the backward-conv attributes and the dy/filter
+// Per spatial-dim v4r1 quantities derived from the backward-conv attributes and the inp/filter
 // sizes.
 std::vector<dim_info> compute_dims(const std::vector<std::size_t>& stride,
                                    const std::vector<std::size_t>& dilation,
-                                   const std::vector<std::size_t>& dy_lens,
+                                   const std::vector<std::size_t>& inp_lens,
                                    const std::vector<std::size_t>& w_lens)
 {
     const std::size_t nsp = stride.size();
-    // dy/w carry two leading (batch, channel) axes; their spatial sizes align with stride/dilation.
-    auto ho_sp = range(dy_lens.begin() + 2, dy_lens.end());
+    // inp/w carry two leading (batch, channel) axes; spatial sizes align with stride/dilation.
+    auto hi_sp = range(inp_lens.begin() + 2, inp_lens.end());
     auto y_sp  = range(w_lens.begin() + 2, w_lens.end());
 
     std::vector<dim_info> dims;
     dims.reserve(nsp);
-    auto per_dim = views::zip(stride, dilation, ho_sp, y_sp);
+    auto per_dim = views::zip(stride, dilation, hi_sp, y_sp);
     std::transform(per_dim.begin(),
                    per_dim.end(),
                    std::back_inserter(dims),
-                   unpack([](auto s, auto dil, auto ho, auto y) {
+                   unpack([](auto s, auto dil, auto hi, auto y) {
                        dim_info di;
                        di.stride           = s;
                        di.dilation         = dil;
@@ -169,17 +169,17 @@ std::vector<dim_info> compute_dims(const std::vector<std::size_t>& stride,
                        di.ytilda           = s / g;
                        di.dd               = dil / g;
                        di.ydot             = integer_divide_ceil(y, di.ytilda);
-                       di.htilda           = ho + (di.ydot - 1) * di.dd;
+                       di.htilda           = hi + (di.ydot - 1) * di.dd;
                        return di;
                    }));
     return dims;
 }
 
 // Build one residue's stride-1 forward convolution: a strided tap-slice of the filter, reshaped
-// into forward-conv weight layout (in/out channels swapped) and flipped, then convolved with dy.
+// into forward-conv weight layout (in/out channels swapped) and flipped, then convolved with inp.
 instruction_ref make_residue_partial(module& m,
                                      instruction_ref ins,
-                                     instruction_ref dy,
+                                     instruction_ref inp,
                                      instruction_ref w,
                                      const std::vector<dim_info>& dims,
                                      const std::vector<std::size_t>& itilda,
@@ -275,14 +275,14 @@ instruction_ref make_residue_partial(module& m,
                                          {"stride", conv_str},
                                          {"dilation", conv_dil},
                                          {"group", group}}),
-                                dy,
+                                inp,
                                 cw);
 }
 
 // Loop the mixed-radix residue grid, building a partial forward conv per non-empty residue.
 residue_set build_partials(module& m,
                            instruction_ref ins,
-                           instruction_ref dy,
+                           instruction_ref inp,
                            instruction_ref w,
                            const shape& residue_grid,
                            const std::vector<dim_info>& dims,
@@ -307,7 +307,7 @@ residue_set build_partials(module& m,
             continue;
 
         out.partials.push_back(
-            make_residue_partial(m, ins, dy, w, dims, itilda, group, k_chan, c_pg));
+            make_residue_partial(m, ins, inp, w, dims, itilda, group, k_chan, c_pg));
         out.itildas.push_back(itilda);
     }
     return out;
@@ -406,16 +406,16 @@ instruction_ref reassemble_general(module& m,
 // Decompose a single convolution_backwards instruction into the v4r1 forward-conv subgraph.
 void rewrite_conv_backwards(module& m, instruction_ref ins)
 {
-    const auto val  = ins->get_operator().to_value();
-    auto dy         = ins->inputs().at(0);
-    auto w          = ins->inputs().at(1);
-    const auto& dys = dy->get_shape();
-    const auto& ws  = w->get_shape();
-    const auto& os  = ins->get_shape();
+    const auto val        = ins->get_operator().to_value();
+    auto inp              = ins->inputs().at(0);
+    auto w                = ins->inputs().at(1);
+    const auto& inp_shape = inp->get_shape();
+    const auto& w_shape   = w->get_shape();
+    const auto& out_shape = ins->get_shape();
 
     // The decomposition needs concrete spatial/kernel sizes; leave dynamic shapes untouched so the
     // existing (MLIR / reference) path handles them.
-    if(dys.dynamic() or ws.dynamic() or os.dynamic())
+    if(inp_shape.dynamic() or w_shape.dynamic() or out_shape.dynamic())
         return;
 
     const auto stride   = val.at("stride").to_vector<std::size_t>();
@@ -424,20 +424,20 @@ void rewrite_conv_backwards(module& m, instruction_ref ins)
     const int group     = val.at("group").to<int>();
 
     const std::size_t nsp    = stride.size();
-    const auto& dy_lens      = dys.lens();
-    const auto& w_lens       = ws.lens();
-    const auto& out_lens     = os.lens();
-    const std::size_t k_chan = dy_lens.at(1); // dy channels == forward output channels
-    const std::size_t c_pg   = w_lens.at(1);  // output channels per group
+    const auto& inp_lens     = inp_shape.lens();
+    const auto& w_lens       = w_shape.lens();
+    const auto& out_lens     = out_shape.lens();
+    const std::size_t k_chan = inp_lens.at(1); // inp channels == forward output channels
+    const std::size_t c_pg   = w_lens.at(1);   // output channels per group
     if(group <= 0 or k_chan % group != 0)
         return;
 
     // stride/dilation/padding and the tensor spatial axes all share the rank nsp; the zips in
     // compute_dims and the per-dim indexing below assume it.
-    assert(dilation.size() == nsp and padding.size() >= nsp and dy_lens.size() == nsp + 2 and
+    assert(dilation.size() == nsp and padding.size() >= nsp and inp_lens.size() == nsp + 2 and
            w_lens.size() == nsp + 2 and out_lens.size() == nsp + 2);
 
-    const auto dims = compute_dims(stride, dilation, dy_lens, w_lens);
+    const auto dims = compute_dims(stride, dilation, inp_lens, w_lens);
 
     // The residues form a mixed-radix grid, one axis per spatial dim with radix ytilda. A shape
     // over those lengths maps each linear residue index `r` back to its per-dim `itilda`.
@@ -447,7 +447,7 @@ void rewrite_conv_backwards(module& m, instruction_ref ins)
     });
     const shape residue_grid{shape::uint32_type, ytilda_lens};
 
-    const auto res = build_partials(m, ins, dy, w, residue_grid, dims, group, k_chan, c_pg);
+    const auto res = build_partials(m, ins, inp, w, residue_grid, dims, group, k_chan, c_pg);
 
     // Residue 0 (itilda all zero) is never empty since every filter axis has length >= 1, so the
     // reassembly always has at least one partial to start from.
@@ -467,11 +467,11 @@ void rewrite_conv_backwards(module& m, instruction_ref ins)
     if(no_upsample)
         acc = res.partials.front();
     else if(interleave)
-        acc = reassemble_interleave(m, ins, res.partials, dims, dy_lens[0], c_pg * group);
+        acc = reassemble_interleave(m, ins, res.partials, dims, inp_lens[0], c_pg * group);
     else
         acc = reassemble_general(m, ins, res, dims);
 
-    // Crop the padding region to produce dx.
+    // Crop the padding region to produce out.
     const auto idx = range(nsp);
     for(auto&& [d, pad] : views::zip(idx, padding))
     {

@@ -2253,4 +2253,56 @@ TEST_CASE(erase_range_all_debug_symbols)
     EXPECT(not m.has_debug_symbols());
 }
 
+TEST_CASE(module_copy_destructor_detaches_from_referenced_module)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module parent;
+    auto x = parent.add_parameter("x", s);
+
+    migraphx::module child;
+    child.add_return({child.add_instruction(migraphx::make_op("neg"), x)});
+    const std::size_t base = x->outputs().size();
+
+    {
+        migraphx::module copy = child;
+        EXPECT(x->outputs().size() == base + 1);
+    }
+    // The copy's back-reference on x is removed when it is destroyed.
+    EXPECT(x->outputs().size() == base);
+}
+
+TEST_CASE(module_copy_assign_detaches_from_referenced_module)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module parent;
+    auto x = parent.add_parameter("x", s);
+
+    migraphx::module child;
+    child.add_return({child.add_instruction(migraphx::make_op("neg"), x)});
+    const std::size_t base = x->outputs().size();
+
+    {
+        migraphx::module copy;
+        copy = child;
+        EXPECT(x->outputs().size() == base + 1);
+    }
+    EXPECT(x->outputs().size() == base);
+}
+
+TEST_CASE(module_assign_clears_previous_foreign_outputs)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 3}};
+    migraphx::module parent;
+    auto x = parent.add_parameter("x", s);
+    EXPECT(x->outputs().empty());
+
+    migraphx::module a;
+    a.add_return({a.add_instruction(migraphx::make_op("neg"), x)});
+    EXPECT(x->outputs().size() == 1);
+
+    // Assigning over a drops the instruction that referenced x.
+    a = migraphx::module{};
+    EXPECT(x->outputs().empty());
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

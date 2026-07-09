@@ -145,7 +145,7 @@ Enum from_string(const std::string& name)
 //     std::string s = to_string(green);                     // "green"
 //     color c       = migraphx::from_string<color>("blue"); // blue
 //
-// Supports explicit enumerator values and up to 16 enumerators. When used in a .cpp rather than a
+// Supports explicit enumerator values and up to 63 enumerators. When used in a .cpp rather than a
 // header, place it in an anonymous namespace so the generated helpers get internal linkage.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_ENUM(name, ...)                                                        \

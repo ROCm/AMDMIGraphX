@@ -39,8 +39,71 @@ MIGRAPHX_ENUM(solo, only_one)
 // Expression-valued enumerators, including one that references a previous enumerator.
 MIGRAPHX_ENUM(flags, none = 0, bit0 = 1, bit1 = 2, both = bit0 + bit1)
 
-// Sixteen enumerators, the maximum supported by the underlying pp.hpp transform.
-MIGRAPHX_ENUM(sixteen, s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15)
+// Sixty-three enumerators, the maximum supported by the underlying pp.hpp transform.
+MIGRAPHX_ENUM(many,
+              m0,
+              m1,
+              m2,
+              m3,
+              m4,
+              m5,
+              m6,
+              m7,
+              m8,
+              m9,
+              m10,
+              m11,
+              m12,
+              m13,
+              m14,
+              m15,
+              m16,
+              m17,
+              m18,
+              m19,
+              m20,
+              m21,
+              m22,
+              m23,
+              m24,
+              m25,
+              m26,
+              m27,
+              m28,
+              m29,
+              m30,
+              m31,
+              m32,
+              m33,
+              m34,
+              m35,
+              m36,
+              m37,
+              m38,
+              m39,
+              m40,
+              m41,
+              m42,
+              m43,
+              m44,
+              m45,
+              m46,
+              m47,
+              m48,
+              m49,
+              m50,
+              m51,
+              m52,
+              m53,
+              m54,
+              m55,
+              m56,
+              m57,
+              m58,
+              m59,
+              m60,
+              m61,
+              m62)
 } // namespace
 
 namespace migraphx {
@@ -108,13 +171,13 @@ TEST_CASE(round_trip)
 
 TEST_CASE(max_enumerators)
 {
-    auto entries = migraphx::enum_entries<sixteen>();
-    EXPECT(entries.size() == 16);
-    EXPECT(entries.front() == std::make_pair(std::string("s0"), s0));
-    EXPECT(entries.back() == std::make_pair(std::string("s15"), s15));
-    EXPECT(static_cast<int>(s15) == 15);
-    EXPECT(to_string(s7) == "s7");
-    EXPECT(migraphx::from_string<sixteen>("s11") == s11);
+    auto entries = migraphx::enum_entries<many>();
+    EXPECT(entries.size() == 63);
+    EXPECT(entries.front() == std::make_pair(std::string("m0"), m0));
+    EXPECT(entries.back() == std::make_pair(std::string("m62"), m62));
+    EXPECT(static_cast<int>(m62) == 62);
+    EXPECT(to_string(m32) == "m32");
+    EXPECT(migraphx::from_string<many>("m47") == m47);
 }
 
 TEST_CASE(from_string_unknown_throws)

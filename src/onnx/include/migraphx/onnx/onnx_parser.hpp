@@ -54,6 +54,7 @@ struct onnx_parser
         // unique identifier for MIGX, not given ONNX node name
         std::string name = "";
         module* mod      = nullptr;
+        std::vector<std::vector<std::size_t>> zero_input_axes{};
         instruction_ref make_contiguous(instruction_ref ins) const;
         instruction_ref add_bias(const std::vector<instruction_ref>& args,
                                  instruction_ref curr_ins,

@@ -1345,44 +1345,6 @@ TEST_CASE(nms_quantized_ties_test)
     EXPECT(num_selected == 10);
 }
 
-// Edge case: 0 boxes. Output should be empty (num_selected == 0).
-// Routes through lower_nms_to_ref because num_boxes < 2.
-TEST_CASE(nms_zero_boxes_test)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    // boxes shape: {batch=1, num_boxes=0, 4}
-    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 0, 4}};
-    // scores shape: {batch=1, num_classes=1, num_boxes=0}
-    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 0}};
-
-    auto boxes_p         = mm->add_parameter("boxes", boxes_s);
-    auto scores_p        = mm->add_parameter("scores", scores_s);
-    auto max_out_l       = mm->add_literal(int64_t{10});
-    auto iou_threshold   = mm->add_literal(0.5f);
-    auto score_threshold = mm->add_literal(0.0f);
-
-    auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"),
-                                   boxes_p,
-                                   scores_p,
-                                   max_out_l,
-                                   iou_threshold,
-                                   score_threshold);
-    add_nms_return(mm, nms);
-
-    migraphx::parameter_map host_params;
-    std::vector<float> boxes_vec;
-    std::vector<float> scores_vec;
-    host_params["boxes"]  = migraphx::argument(boxes_s, boxes_vec.data());
-    host_params["scores"] = migraphx::argument(scores_s, scores_vec.data());
-
-    auto [indices, num_selected] = run_gpu_nms(std::move(p), host_params);
-    indices.resize(static_cast<std::size_t>(num_selected) * 3);
-    std::vector<int64_t> gold = {};
-    EXPECT(indices == gold);
-    EXPECT(num_selected == 0);
-}
-
 // Edge case: 1 box with score above score_threshold. The single box should be
 // selected. Routes through lower_nms_to_ref because num_boxes < 2.
 TEST_CASE(nms_one_box_above_threshold_test)

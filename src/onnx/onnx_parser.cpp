@@ -440,6 +440,50 @@ parse_inputs(const onnx_parser& parser,
     return mod_insts;
 }
 
+static std::vector<std::size_t> find_zero_dim_axes(const onnx::ValueInfoProto& value_info)
+{
+    std::vector<std::size_t> result;
+    const auto& dims = value_info.type().tensor_type().shape().dim();
+    auto axes        = range(dims.size());
+    std::copy_if(axes.begin(), axes.end(), std::back_inserter(result), [&](auto i) {
+        return dims.Get(i).has_dim_value() and dims.Get(i).dim_value() == 0;
+    });
+    return result;
+}
+
+static std::vector<std::size_t> find_zero_dim_axes(const onnx::TensorProto& tensor)
+{
+    std::vector<std::size_t> result;
+    const auto& dims = tensor.dims();
+    auto axes        = range(dims.size());
+    std::copy_if(axes.begin(), axes.end(), std::back_inserter(result), [&](auto i) {
+        return dims.Get(i) == 0;
+    });
+    return result;
+}
+
+static std::unordered_map<std::string, std::vector<std::size_t>>
+get_zero_input_axes(const onnx_parser& parser, const onnx::GraphProto& graph)
+{
+    std::unordered_map<std::string, std::vector<std::size_t>> result;
+    for(const auto& input : graph.input())
+    {
+        if(contains(parser.map_input_dims, input.name()) or
+           contains(parser.map_dyn_input_dims, input.name()))
+            continue;
+        auto zero_axes = find_zero_dim_axes(input);
+        if(not zero_axes.empty())
+            result[input.name()] = zero_axes;
+    }
+    for(const auto& initializer : graph.initializer())
+    {
+        auto zero_axes = find_zero_dim_axes(initializer);
+        if(not zero_axes.empty())
+            result[initializer.name()] = zero_axes;
+    }
+    return result;
+}
+
 struct node_maps
 {
     std::unordered_map<std::string, std::vector<size_t>> input_to_node_map;
@@ -636,7 +680,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     std::unordered_map<std::string, instruction_ref> mod_insts =
         parse_initializer(*this, mod, graph);
 
-    mod_insts = parse_inputs(*this, mod, graph, mod_insts);
+    mod_insts            = parse_inputs(*this, mod, graph, mod_insts);
+    auto zero_input_axes = get_zero_input_axes(*this, graph);
 
     std::copy(mod_insts.begin(), mod_insts.end(), std::inserter(instructions, instructions.end()));
 
@@ -682,8 +727,19 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
         else
         {
+            std::vector<std::vector<std::size_t>> node_zero_input_axes;
+            std::transform(node.input().begin(),
+                           node.input().end(),
+                           std::back_inserter(node_zero_input_axes),
+                           [&](const auto& input) {
+                               if(contains(zero_input_axes, input))
+                                   return zero_input_axes.at(input);
+                               return std::vector<std::size_t>{};
+                           });
             result = ops[node.op_type()](
-                *this, {get_attributes(node), output_num, node_name, mod}, args);
+                *this,
+                {get_attributes(node), output_num, node_name, mod, node_zero_input_axes},
+                args);
         }
         output_num = std::min<std::size_t>(output_num, result.size());
         std::transform(node.output().begin(),

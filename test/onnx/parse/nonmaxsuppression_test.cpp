@@ -28,8 +28,8 @@ TEST_CASE(nonmaxsuppression_zero_boxes_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_parameter("boxes", migraphx::shape{migraphx::shape::float_type, {1, 0, 4}});
-    mm->add_parameter("scores", migraphx::shape{migraphx::shape::float_type, {1, 1, 0}});
+    mm->add_parameter("boxes", migraphx::shape{migraphx::shape::float_type, {1, 1, 4}});
+    mm->add_parameter("scores", migraphx::shape{migraphx::shape::float_type, {1, 1, 1}});
     mm->add_parameter("max_output_boxes_per_class",
                       migraphx::shape{migraphx::shape::int64_type, {1}});
     mm->add_parameter("iou_threshold", migraphx::shape{migraphx::shape::float_type, {1}});

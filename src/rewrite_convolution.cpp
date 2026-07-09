@@ -53,18 +53,18 @@ inline namespace MIGRAPHX_INLINE_NS {
 /// sum_{ic, j}() = summation over ic and j.
 ///
 /// Backward-data convolution is (scatter form):
-///  
+///
 ///      out[oc, ho] = sum_{ic, j}( inp[ic, hi] * w[ic, oc, j] )
 ///      ho = hi * S - P + j*D
 ///
-/// Where hi = input spatial index. In this form, the inp/out are the backward convolution's input/output, so
-/// the channel and pstial roles and swapped vs. the forward convolution.
+/// Where hi = input spatial index. In this form, the inp/out are the backward convolution's
+/// input/output, so the channel and pstial roles and swapped vs. the forward convolution.
 ///
 /// Idea is to split the filter index to do the upsampling as strided access:
 ///
 ///      j = idot * ytilda + itilda
 ///      ytilda = S / gcd(S,D)
-/// 
+///
 /// making:
 ///
 ///     ho = S*htilda + itilda*D - P    (eqn 1)
@@ -75,10 +75,12 @@ inline namespace MIGRAPHX_INLINE_NS {
 ///
 ///     out_itilda[oc, S*htilda + itilda*D - P] := outdot_itilda[oc, htilda]
 ///
-/// where outdot_itilda is a packed matrix. Doing some rearranging, substitutions, and flipping the spatial index we get:
+/// where outdot_itilda is a packed matrix. Doing some rearranging, substitutions, and flipping the
+/// spatial index we get:
 ///
 ///     outdot_itilda[oc, htilda] = sum_{ic, idot}(
-///         inp[ic, htilda - (ydot - 1) * (D/g) + idot*(D/g)] * w[ic, oc, (ydot - 1 - idot) * ytilda + itilda]
+///         inp[ic, htilda - (ydot - 1) * (D/g) + idot*(D/g)] * w[ic, oc, (ydot - 1 - idot) * ytilda
+///         + itilda]
 ///     )
 ///     ydot = ceil(y / ytilda)
 ///     y = kernel dimension size

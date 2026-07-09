@@ -23,6 +23,7 @@
  */
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
@@ -38,6 +39,7 @@
 #include <migraphx/register_op.hpp>
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/match/dq_helpers.hpp>
+#include <algorithm>
 #include <optional>
 
 namespace migraphx {
@@ -470,24 +472,40 @@ struct match_concat_qlinear
         }
 
         auto slices = get_slices(cat_ins);
-        std::vector<instruction_ref> new_cat_inputs;
         auto cat_inputs = cat_ins->inputs();
-        for(std::size_t idx = 0; idx < cat_inputs.size(); ++idx)
-        {
-            auto i          = cat_inputs[idx];
-            const auto& slc = slices[idx];
-            auto scale_slc  = m.insert_instruction(ins, make_op("slice", slc), {scale});
-            auto zp_slc     = m.insert_instruction(ins, make_op("slice", slc), {zp});
-            if(scale_slc->get_shape().lens() != i->get_shape().lens() or
-               zp_slc->get_shape().lens() != i->get_shape().lens())
+        auto make_cat_input = [&](auto i, const auto& slc) -> std::optional<instruction_ref> {
+            auto scale_slc    = m.insert_instruction(ins, make_op("slice", slc), {scale});
+            auto zp_slc       = m.insert_instruction(ins, make_op("slice", slc), {zp});
+            const auto& i_lens = i->get_shape().lens();
+            auto same_lens     = [&](auto slc_ins) {
+                const auto& slc_lens = slc_ins->get_shape().lens();
+                return std::equal(slc_lens.begin(), slc_lens.end(), i_lens.begin(), i_lens.end());
+            };
+            if(not same_lens(scale_slc) or not same_lens(zp_slc))
             {
-                return;
+                return std::nullopt;
             }
-            new_cat_inputs.push_back(
-                m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc}));
-        }
+            return m.insert_instruction(ins, ins->get_operator(), {i, scale_slc, zp_slc});
+        };
 
-        m.replace_instruction(ins, cat_ins->get_operator(), new_cat_inputs);
+        std::vector<std::optional<instruction_ref>> new_cat_inputs(cat_inputs.size());
+        std::transform(cat_inputs.begin(),
+                       cat_inputs.end(),
+                       slices.begin(),
+                       new_cat_inputs.begin(),
+                       make_cat_input);
+
+        if(std::any_of(new_cat_inputs.begin(), new_cat_inputs.end(), [](const auto& input) {
+               return not input.has_value();
+           }))
+            return;
+
+        std::vector<instruction_ref> replacement_inputs(new_cat_inputs.size());
+        std::transform(new_cat_inputs.begin(),
+                       new_cat_inputs.end(),
+                       replacement_inputs.begin(),
+                       [](const auto& input) { return *input; });
+        m.replace_instruction(ins, cat_ins->get_operator(), replacement_inputs);
     }
 };
 
@@ -567,24 +585,31 @@ struct remove_qdq_pairs
     {
         auto replacement = q_ins->inputs().front();
         std::vector<operation> ops;
-        auto x               = dq_ins->inputs().front();
-        bool has_pack_unpack = false;
-        while(x != q_ins)
+        auto input_path = get_input_path(dq_ins->inputs().front());
+        auto q_pos      = std::find(input_path.begin(), input_path.end(), q_ins);
+        if(q_pos == input_path.end())
+            return std::nullopt;
+        auto is_pack_unpack = [](auto x) {
+            return contains({"pack_fp4", "unpack_fp4"}, x->name());
+        };
+        bool has_pack_unpack = std::any_of(input_path.begin(), q_pos, is_pack_unpack);
+        for(auto x : range(input_path.begin(), q_pos))
         {
-            if(x->inputs().size() != 1)
-                return std::nullopt;
-            if(contains({"pack_fp4", "unpack_fp4"}, x->name()))
-                has_pack_unpack = true;
+            if(is_pack_unpack(x))
+                continue;
             else if(contains(replay_ops(), x->name()))
-                ops.push_back(x->get_operator());
+            {
+                if(not has_pack_unpack)
+                    ops.push_back(x->get_operator());
+            }
             else if(has_pack_unpack and contains(skip_ops(), x->name()))
             {
                 // Padding/slicing around fp4 pack/unpack only adapts odd extents for packing.
                 // Dropping the full fake-quant chain should drop those adapters as well.
+                continue;
             }
             else
                 return std::nullopt;
-            x = x->inputs().front();
         }
         if(not has_pack_unpack)
         {

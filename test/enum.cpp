@@ -25,6 +25,9 @@
 #include <algorithm>
 #include "test.hpp"
 
+// These enums are test-local fixtures; the anonymous namespace gives the macro-generated helper
+// functions internal linkage.
+namespace {
 MIGRAPHX_ENUM(color, red, green = 5, blue)
 
 // The example from the feature request: an explicit value on the last enumerator.
@@ -34,11 +37,16 @@ MIGRAPHX_ENUM(my_enum, first, last = 10)
 MIGRAPHX_ENUM(solo, only_one)
 
 // Expression-valued enumerators, including one that references a previous enumerator.
-MIGRAPHX_ENUM(flags, none = 0, bit0 = 1 << 0, bit1 = 1 << 1, both = bit0 + bit1)
+MIGRAPHX_ENUM(flags, none = 0, bit0 = 1, bit1 = 2, both = bit0 + bit1)
+
+// Sixteen enumerators, the maximum supported by the underlying pp.hpp transform.
+MIGRAPHX_ENUM(sixteen, s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15)
+} // namespace
 
 namespace migraphx {
-// Declared inside the migraphx namespace to make sure the generated to_string(status) does not
-// become ambiguous with the generic migraphx::to_string(const T&).
+// Declared with external linkage inside the migraphx namespace (as a real header would) so we can
+// check that the generated to_string(status) is not ambiguous with migraphx::to_string(const T&).
+// NOLINTNEXTLINE(misc-use-internal-linkage)
 MIGRAPHX_ENUM(status, ok, busy = 4, done)
 } // namespace migraphx
 
@@ -96,6 +104,17 @@ TEST_CASE(round_trip)
     EXPECT(std::all_of(entries.begin(), entries.end(), [](const auto& p) {
         return migraphx::from_string<color>(p.first) == p.second and to_string(p.second) == p.first;
     }));
+}
+
+TEST_CASE(max_enumerators)
+{
+    auto entries = migraphx::enum_entries<sixteen>();
+    EXPECT(entries.size() == 16);
+    EXPECT(entries.front() == std::make_pair(std::string("s0"), s0));
+    EXPECT(entries.back() == std::make_pair(std::string("s15"), s15));
+    EXPECT(static_cast<int>(s15) == 15);
+    EXPECT(to_string(s7) == "s7");
+    EXPECT(migraphx::from_string<sixteen>("s11") == s11);
 }
 
 TEST_CASE(from_string_unknown_throws)

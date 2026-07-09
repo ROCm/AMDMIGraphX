@@ -33,6 +33,7 @@
 #include <type_traits>
 #include <migraphx/config.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/pp.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/type_name.hpp>
 
@@ -42,10 +43,10 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace detail {
 
 // enum_capture and enum_capturer implement the value capturing used by MIGRAPHX_ENUM. Each
-// enumerator `e` in the list is rewritten to `enum_capturer{}->*name::e`. Since operator->*
-// binds more tightly than assignment, `enum_capturer{}->*name::e = 42` parses as
-// `(enum_capturer{}->*name::e) = 42`: operator->* captures the real value of the enumerator
-// (which already accounts for the `= 42`), and operator= simply swallows the initializer.
+// enumerator `e` in the list is rewritten to `enum_capturer{}->*e`. Since operator->* binds
+// more tightly than assignment, `enum_capturer{}->*e = 42` parses as
+// `(enum_capturer{}->*e) = 42`: operator->* captures the real value of the enumerator (which
+// already accounts for the `= 42`), and operator= simply swallows the initializer.
 template <class T>
 struct enum_capture
 {
@@ -129,122 +130,9 @@ Enum from_string(const std::string& name)
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-// Preprocessor machinery: apply a macro to each enumerator in the list. The names use the
-// `_PP_` infix so they are recognized as pure preprocessor helpers by clang-tidy.
-
-#define MIGRAPHX_ENUM_PP_ARG_N(_1,  \
-                               _2,  \
-                               _3,  \
-                               _4,  \
-                               _5,  \
-                               _6,  \
-                               _7,  \
-                               _8,  \
-                               _9,  \
-                               _10, \
-                               _11, \
-                               _12, \
-                               _13, \
-                               _14, \
-                               _15, \
-                               _16, \
-                               _17, \
-                               _18, \
-                               _19, \
-                               _20, \
-                               _21, \
-                               _22, \
-                               _23, \
-                               _24, \
-                               _25, \
-                               _26, \
-                               _27, \
-                               _28, \
-                               _29, \
-                               _30, \
-                               _31, \
-                               _32, \
-                               N,   \
-                               ...) \
-    N
-#define MIGRAPHX_ENUM_PP_RSEQ()                                                                    \
-    32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, \
-        8, 7, 6, 5, 4, 3, 2, 1, 0
-#define MIGRAPHX_ENUM_PP_NARG(...) MIGRAPHX_ENUM_PP_NARG_IMPL(__VA_ARGS__, MIGRAPHX_ENUM_PP_RSEQ())
-#define MIGRAPHX_ENUM_PP_NARG_IMPL(...) MIGRAPHX_ENUM_PP_ARG_N(__VA_ARGS__)
-
-#define MIGRAPHX_ENUM_PP_CONCAT(a, b) MIGRAPHX_ENUM_PP_CONCAT_IMPL(a, b)
-#define MIGRAPHX_ENUM_PP_CONCAT_IMPL(a, b) a##b
-
-#define MIGRAPHX_ENUM_PP_CAPTURE(name, x) (migraphx::detail::enum_capturer{}->*name::x)
-
-#define MIGRAPHX_ENUM_PP_EACH(m, name, ...)                                             \
-    MIGRAPHX_ENUM_PP_CONCAT(MIGRAPHX_ENUM_PP_EACH_, MIGRAPHX_ENUM_PP_NARG(__VA_ARGS__)) \
-    (m, name, __VA_ARGS__)
-
-#define MIGRAPHX_ENUM_PP_EACH_1(m, name, x) m(name, x)
-#define MIGRAPHX_ENUM_PP_EACH_2(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_1(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_3(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_2(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_4(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_3(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_5(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_4(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_6(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_5(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_7(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_6(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_8(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_7(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_9(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_8(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_10(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_9(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_11(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_10(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_12(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_11(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_13(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_12(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_14(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_13(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_15(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_14(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_16(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_15(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_17(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_16(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_18(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_17(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_19(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_18(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_20(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_19(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_21(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_20(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_22(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_21(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_23(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_22(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_24(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_23(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_25(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_24(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_26(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_25(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_27(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_26(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_28(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_27(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_29(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_28(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_30(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_29(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_31(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_30(m, name, __VA_ARGS__)
-#define MIGRAPHX_ENUM_PP_EACH_32(m, name, x, ...) \
-    m(name, x), MIGRAPHX_ENUM_PP_EACH_31(m, name, __VA_ARGS__)
+// Rewrites a single enumerator `x` (which may include an `= value`) so that operator->* captures
+// its value. See the note on enum_capture above for why operator->* is used here.
+#define MIGRAPHX_ENUM_PP_CAPTURE(x) (migraphx::detail::enum_capturer{}->*x)
 
 // Declares an unscoped enum together with `to_string(name)` and `migraphx::from_string<name>`
 // helpers for converting the enumerators to and from their names. Use it at namespace scope:
@@ -254,10 +142,11 @@ Enum from_string(const std::string& name)
 //         green = 5,
 //         blue)
 //
-//     std::string s = to_string(green);              // "green"
+//     std::string s = to_string(green);                     // "green"
 //     color c       = migraphx::from_string<color>("blue"); // blue
 //
-// Supports explicit enumerator values and up to 32 enumerators.
+// Supports explicit enumerator values and up to 16 enumerators. When used in a .cpp rather than a
+// header, place it in an anonymous namespace so the generated helpers get internal linkage.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define MIGRAPHX_ENUM(name, ...)                                                        \
     enum name                                                                           \
@@ -269,7 +158,7 @@ Enum from_string(const std::string& name)
         static const std::vector<std::pair<std::string, name>> entries =                \
             migraphx::detail::make_enum_entries<name>(                                  \
                 #__VA_ARGS__,                                                           \
-                {MIGRAPHX_ENUM_PP_EACH(MIGRAPHX_ENUM_PP_CAPTURE, name, __VA_ARGS__)});  \
+                {MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_ENUM_PP_CAPTURE, __VA_ARGS__)});   \
         return entries;                                                                 \
     }                                                                                   \
     inline std::string to_string(name value) { return migraphx::detail::enum_to_string(value); }

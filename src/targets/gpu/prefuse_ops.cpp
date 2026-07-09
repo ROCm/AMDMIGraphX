@@ -488,7 +488,8 @@ bool winograd_f23_profitable(
     if(nhwc and min_ch >= 224)
         return false;
 
-    const auto* ovr = std::find_if(
+    // NOLINTNEXTLINE(readability-qualified-auto)
+    const auto ovr = std::find_if(
         winograd_f23_overrides.begin(), winograd_f23_overrides.end(), [&](const auto& o) {
             return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
                    std::tie(in_ch, out_ch, height, width);

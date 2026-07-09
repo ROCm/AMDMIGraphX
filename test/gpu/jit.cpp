@@ -249,6 +249,16 @@ TEST_CASE(cross_compile_wavefront_size)
     EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx942", 1).warpSize == 64);
 }
 
+TEST_CASE(cross_compile_fp8_intrinsics)
+{
+    migraphx::gpu::context gfx1170_ctx{"gfx1170", 4, 1};
+    EXPECT(migraphx::gpu::gfx_has_fp8ocp_intrinsics(gfx1170_ctx));
+    EXPECT(not migraphx::gpu::gfx_has_fp8fnuz_intrinsics(gfx1170_ctx));
+
+    migraphx::gpu::context gfx1101_ctx{"gfx1101", 60, 1};
+    EXPECT(not migraphx::gpu::gfx_has_fp8ocp_intrinsics(gfx1101_ctx));
+}
+
 TEST_CASE(compile_errors)
 {
     EXPECT(test::throws([&] {

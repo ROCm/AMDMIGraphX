@@ -79,9 +79,10 @@ bool gfx_has_fp8fnuz_intrinsics(const context& ctx)
 
 static bool gfx_has_fp8ocp_intrinsics_impl(const std::string& gfx_name)
 {
-    bool is_navi_with_fp8ocp = starts_with(gfx_name, "gfx12") and gfx_name >= "gfx1200";
-    bool is_mi_with_fp8ocp   = starts_with(gfx_name, "gfx9") and gfx_name >= "gfx950";
-    return (is_navi_with_fp8ocp or is_mi_with_fp8ocp);
+    bool is_gfx1170_with_fp8ocp = gfx_name == "gfx1170";
+    bool is_navi_with_fp8ocp    = starts_with(gfx_name, "gfx12") and gfx_name >= "gfx1200";
+    bool is_mi_with_fp8ocp      = starts_with(gfx_name, "gfx9") and gfx_name >= "gfx950";
+    return (is_gfx1170_with_fp8ocp or is_navi_with_fp8ocp or is_mi_with_fp8ocp);
 }
 
 bool gfx_has_fp8ocp_intrinsics()

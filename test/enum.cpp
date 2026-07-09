@@ -156,16 +156,16 @@ TEST_CASE(entries_table)
 {
     auto entries = migraphx::enum_entries<color>();
     EXPECT(entries.size() == 3);
-    EXPECT(entries[0] == std::make_pair(std::string("red"), red));
-    EXPECT(entries[1] == std::make_pair(std::string("green"), green));
-    EXPECT(entries[2] == std::make_pair(std::string("blue"), blue));
+    EXPECT(entries[0] == red);
+    EXPECT(entries[1] == green);
+    EXPECT(entries[2] == blue);
 }
 
 TEST_CASE(round_trip)
 {
     auto entries = migraphx::enum_entries<color>();
-    EXPECT(std::all_of(entries.begin(), entries.end(), [](const auto& p) {
-        return migraphx::from_string<color>(p.first) == p.second and to_string(p.second) == p.first;
+    EXPECT(std::all_of(entries.begin(), entries.end(), [](color value) {
+        return migraphx::from_string<color>(to_string(value)) == value;
     }));
 }
 
@@ -173,8 +173,8 @@ TEST_CASE(max_enumerators)
 {
     auto entries = migraphx::enum_entries<many>();
     EXPECT(entries.size() == 63);
-    EXPECT(entries.front() == std::make_pair(std::string("m0"), m0));
-    EXPECT(entries.back() == std::make_pair(std::string("m62"), m62));
+    EXPECT(entries.front() == m0);
+    EXPECT(entries.back() == m62);
     EXPECT(static_cast<int>(m62) == 62);
     EXPECT(to_string(m32) == "m32");
     EXPECT(migraphx::from_string<many>("m47") == m47);

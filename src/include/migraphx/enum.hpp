@@ -25,12 +25,13 @@
 #define MIGRAPHX_GUARD_MIGRAPHX_ENUM_HPP
 
 #include <algorithm>
-#include <initializer_list>
+#include <array>
 #include <iterator>
 #include <string>
-#include <utility>
-#include <vector>
 #include <type_traits>
+#include <unordered_map>
+#include <utility>
+#include <migraphx/array.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/pp.hpp>
@@ -70,59 +71,51 @@ struct enum_capturer
     }
 };
 
-// Zip the stringized enumerator names (split on commas, dropping any `= value` suffix) with
-// their captured values into a lookup table.
+// Looks up the name of an enumerator. The entries array (from migraphx_enum_entries) holds only
+// the values, so the name is the correspondingly-positioned token from the stringized enumerator
+// list, with any `= value` suffix stripped.
 template <class Enum>
-std::vector<std::pair<std::string, Enum>> make_enum_entries(const std::string& names,
-                                                            std::initializer_list<Enum> values)
+std::string enum_to_string(const std::string& names, Enum value)
 {
-    auto parts = split_string(names, ',');
-    if(parts.size() != values.size())
-        MIGRAPHX_THROW("MIGRAPHX_ENUM: number of names does not match number of values");
-    std::vector<std::pair<std::string, Enum>> entries;
-    entries.reserve(values.size());
-    std::transform(parts.begin(),
-                   parts.end(),
-                   values.begin(),
-                   std::back_inserter(entries),
-                   [](const std::string& part, Enum value) {
-                       auto pos  = part.find('=');
-                       auto text = pos == std::string::npos ? part : part.substr(0, pos);
-                       return std::make_pair(trim(text), value);
-                   });
-    return entries;
-}
-
-template <class Enum>
-std::string enum_to_string(Enum value)
-{
-    const auto& entries = migraphx_enum_entries(value);
-    auto it             = std::find_if(
-        entries.begin(), entries.end(), [&](const auto& p) { return p.second == value; });
+    const auto entries = migraphx_enum_entries(value);
+    auto parts         = split_string(names, ',');
+    if(parts.size() != entries.size())
+        MIGRAPHX_THROW("MIGRAPHX_ENUM: too many enumerators for " + get_type_name<Enum>());
+    const auto* it = std::find(entries.begin(), entries.end(), value);
     if(it == entries.end())
         MIGRAPHX_THROW("Invalid value for enum " + get_type_name<Enum>());
-    return it->first;
+    const auto& part = parts[it - entries.begin()];
+    auto pos         = part.find('=');
+    return trim(pos == std::string::npos ? part : part.substr(0, pos));
 }
 
 } // namespace detail
 
-// Returns the name/value table for an enum declared with MIGRAPHX_ENUM.
+// Returns the array of enumerator values for an enum declared with MIGRAPHX_ENUM.
 template <class Enum>
-const std::vector<std::pair<std::string, Enum>>& enum_entries()
+auto enum_entries()
 {
     static_assert(std::is_enum<Enum>{}, "enum_entries<Enum> requires an enum type");
     return migraphx_enum_entries(Enum{});
 }
 
-// Converts the name of an enumerator back into its value, throwing when the name is unknown.
+// Converts the name of an enumerator back into its value, throwing when the name is unknown. The
+// name -> value table is built once per enum from migraphx_enum_entries so lookups are O(1).
 template <class Enum>
 Enum from_string(const std::string& name)
 {
     static_assert(std::is_enum<Enum>{}, "from_string<Enum> requires an enum type");
-    const auto& entries = migraphx_enum_entries(Enum{});
-    auto it             = std::find_if(
-        entries.begin(), entries.end(), [&](const auto& p) { return p.first == name; });
-    if(it == entries.end())
+    static const auto lookup = [] {
+        const auto entries = migraphx_enum_entries(Enum{});
+        std::unordered_map<std::string, Enum> result;
+        std::transform(entries.begin(),
+                       entries.end(),
+                       std::inserter(result, result.end()),
+                       [](Enum value) { return std::make_pair(to_string(value), value); });
+        return result;
+    }();
+    auto it = lookup.find(name);
+    if(it == lookup.end())
         MIGRAPHX_THROW("Invalid name '" + name + "' for enum " + get_type_name<Enum>());
     return it->second;
 }
@@ -145,22 +138,25 @@ Enum from_string(const std::string& name)
 //     std::string s = to_string(green);                     // "green"
 //     color c       = migraphx::from_string<color>("blue"); // blue
 //
+// migraphx_enum_entries returns just the array of enumerator values; the names are recovered on
+// demand from the stringized enumerator list by to_string.
+//
 // Supports explicit enumerator values and up to 63 enumerators. When used in a .cpp rather than a
 // header, place it in an anonymous namespace so the generated helpers get internal linkage.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define MIGRAPHX_ENUM(name, ...)                                                        \
-    enum name                                                                           \
-    {                                                                                   \
-        __VA_ARGS__                                                                     \
-    };                                                                                  \
-    inline const std::vector<std::pair<std::string, name>>& migraphx_enum_entries(name) \
-    {                                                                                   \
-        static const std::vector<std::pair<std::string, name>> entries =                \
-            migraphx::detail::make_enum_entries<name>(                                  \
-                #__VA_ARGS__,                                                           \
-                {MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_ENUM_PP_CAPTURE, __VA_ARGS__)});   \
-        return entries;                                                                 \
-    }                                                                                   \
-    inline std::string to_string(name value) { return migraphx::detail::enum_to_string(value); }
+#define MIGRAPHX_ENUM(name, ...)                                                \
+    enum name                                                                   \
+    {                                                                           \
+        __VA_ARGS__                                                             \
+    };                                                                          \
+    inline auto migraphx_enum_entries(name)                                     \
+    {                                                                           \
+        return migraphx::make_array<name>(                                      \
+            MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_ENUM_PP_CAPTURE, __VA_ARGS__)); \
+    }                                                                           \
+    inline std::string to_string(name value)                                    \
+    {                                                                           \
+        return migraphx::detail::enum_to_string(#__VA_ARGS__, value);           \
+    }
 
 #endif // MIGRAPHX_GUARD_MIGRAPHX_ENUM_HPP

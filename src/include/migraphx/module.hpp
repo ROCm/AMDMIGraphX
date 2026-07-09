@@ -77,6 +77,11 @@ struct MIGRAPHX_EXPORT module
 
     void swap(module& rhs) noexcept;
 
+    /// For tear down: breaks cross-module references so a group of modules
+    /// can be destroyed in any order. Clears the arguments of any
+    /// instruction with an input from another module.
+    void clear_foreign_inputs_for_program();
+
     ~module() noexcept;
 
     std::string name() const;

@@ -162,6 +162,9 @@ void layout_convolution::apply(module_pass_manager& mpm) const
 {
     if(order == layout_order::channels_auto)
     {
+        // Score each candidate layout on a copy, then transform the live module in
+        // place with the cheaper one. A copy is not swapped in because its parameters
+        // have fresh identities, which would orphan submodules capturing the originals.
         module m_first = mpm.get_module();
         apply_layout(m_first, channels_first);
         module m_last = mpm.get_module();
@@ -169,14 +172,8 @@ void layout_convolution::apply(module_pass_manager& mpm) const
         // channels_last converts each parameter to NHWC and back, so allow up to two extra
         // layouts per parameter before preferring channels_first.
         auto allowance = 2 * mpm.get_module().get_parameters().size();
-        if(score(m_first) + allowance < score(m_last))
-        {
-            mpm.get_module().swap(m_first);
-        }
-        else
-        {
-            mpm.get_module().swap(m_last);
-        }
+        auto chosen = (score(m_first) + allowance < score(m_last)) ? channels_first : channels_last;
+        apply_layout(mpm.get_module(), chosen);
     }
     else
     {

@@ -79,6 +79,20 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
+
+    program_impl()                               = default;
+    program_impl(const program_impl&)            = default;
+    program_impl& operator=(const program_impl&) = default;
+    program_impl(program_impl&&)                 = default;
+    program_impl& operator=(program_impl&&)      = default;
+
+    ~program_impl()
+    {
+        // The map destroys modules in an unspecified order, so break cross-module
+        // references first while every module is still alive.
+        for(auto& p : modules)
+            p.second.clear_foreign_inputs_for_program();
+    }
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }

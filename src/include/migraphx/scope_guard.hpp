@@ -21,51 +21,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
-#define MIGRAPHX_GUARD_RTGLIB_COMPILE_OPTIONS_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_SCOPE_GUARD_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_SCOPE_GUARD_HPP
 
 #include <migraphx/config.hpp>
-#include <migraphx/tracer.hpp>
-#include <migraphx/value.hpp>
-#include <string>
-#include <unordered_map>
+#include <exception>
+#include <type_traits>
+#include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct compile_options
+// Runs the action only if the scope is exited via an exception.
+template <class F>
+struct scope_fail_guard
 {
-    /**
-     * Have MIGX allocate memory for parameters and add instructions
-     * to copy parameters and output to/from an offload device like a GPU.
-     */
-    bool offload_copy = false;
+    static_assert(std::is_nothrow_invocable<F&>{}, "scope_fail action must be noexcept");
 
-    bool fast_math       = true;
-    bool exhaustive_tune = false;
+    F action;
+    int uncaught = std::uncaught_exceptions();
 
-    /**
-     * Backend-specific options keyed by name. Targets can read these to
-     * configure compilation in a way that is opaque to the core engine.
-     */
-    std::unordered_map<std::string, value> backend_options;
+    explicit scope_fail_guard(F f) : action(std::move(f)) {}
 
-    tracer trace{};
+    scope_fail_guard(const scope_fail_guard&) = delete;
+
+    ~scope_fail_guard()
+    {
+        if(std::uncaught_exceptions() > uncaught)
+            action();
+    }
 };
 
-/**
- * Merge the backend options from an object value into the compile options.
- * Each top-level key of the object becomes an entry in backend_options.
- */
-inline void set_backend_options(compile_options& options, const value& v)
+template <class F>
+scope_fail_guard<F> on_scope_fail(F f)
 {
-    if(not v.is_object())
-        MIGRAPHX_THROW("set_backend_options expects an object value");
-    for(const auto& opt : v)
-        options.backend_options[opt.get_key()] = opt.without_key();
+    return scope_fail_guard<F>{std::move(f)};
 }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_MIGRAPHX_SCOPE_GUARD_HPP

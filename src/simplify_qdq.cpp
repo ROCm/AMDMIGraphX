@@ -597,19 +597,17 @@ struct remove_qdq_pairs
         {
             if(is_pack_unpack(x))
                 continue;
-            else if(contains(replay_ops(), x->name()))
+            if(contains(replay_ops(), x->name()))
             {
                 if(not has_pack_unpack)
                     ops.push_back(x->get_operator());
-            }
-            else if(has_pack_unpack and contains(skip_ops(), x->name()))
-            {
-                // Padding/slicing around fp4 pack/unpack only adapts odd extents for packing.
-                // Dropping the full fake-quant chain should drop those adapters as well.
                 continue;
             }
-            else
-                return std::nullopt;
+            // Padding/slicing around fp4 pack/unpack only adapts odd extents for packing.
+            // Dropping the full fake-quant chain should drop those adapters as well.
+            if(has_pack_unpack and contains(skip_ops(), x->name()))
+                continue;
+            return std::nullopt;
         }
         if(not has_pack_unpack)
         {

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -182,6 +182,168 @@ TEST_CASE(mul_add_transpose_dot)
         m2.add_return({add});
     }
 
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_pw_unary)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto rel0 = m1.add_instruction(migraphx::make_op("relu"), sq0);
+        auto s1   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto rel1 = m1.add_instruction(migraphx::make_op("relu"), sq1);
+        m1.add_return({rel0, rel1});
+    }
+    run_pass(m1);
+
+    // find_split_reshape then merges the two slice+squeeze pairs into a single
+    // reshape followed by slices on the merged axis.
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto relu    = m2.add_instruction(migraphx::make_op("relu"), input);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), relu);
+        auto s0      = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), reshape);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), reshape);
+        m2.add_return({s0, s1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_pw_unary_3d)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3, 2, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto rel0 = m1.add_instruction(migraphx::make_op("relu"), sq0);
+        auto s1   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto rel1 = m1.add_instruction(migraphx::make_op("relu"), sq1);
+        auto s2   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), input);
+        auto sq2  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s2);
+        auto rel2 = m1.add_instruction(migraphx::make_op("relu"), sq2);
+        m1.add_return({rel0, rel1, rel2});
+    }
+    run_pass(m1);
+
+    // find_split_reshape then merges the three slice+squeeze pairs into a single
+    // reshape followed by slices on the merged axis.
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto relu    = m2.add_instruction(migraphx::make_op("relu"), input);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), relu);
+        auto s0      = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}}), reshape);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {4}}}), reshape);
+        auto s2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {6}}}), reshape);
+        m2.add_return({s0, s1, s2});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+TEST_CASE(slice_squeeze_pw_binary_const)
+{
+    migraphx::shape s{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape bs{migraphx::shape::float_type, {4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto b0    = m1.add_literal(migraphx::generate_literal(bs, 0));
+        auto b1    = m1.add_literal(migraphx::generate_literal(bs, 1));
+
+        auto s0 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s0);
+        auto add0 = m1.add_instruction(migraphx::make_op("add"), sq0, b0);
+
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+        auto add1 = m1.add_instruction(migraphx::make_op("add"), sq1, b1);
+
+        m1.add_return({add0, add1});
+    }
+    run_pass(m1);
+
+    // propagate_constant folds unsqueeze+concat of literals into one literal
+    migraphx::literal stacked_lit;
+    {
+        migraphx::module tmp;
+        auto b0     = tmp.add_literal(migraphx::generate_literal(bs, 0));
+        auto b1     = tmp.add_literal(migraphx::generate_literal(bs, 1));
+        auto bu0    = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b0);
+        auto bu1    = tmp.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0}}}), b1);
+        auto cat    = tmp.add_instruction(migraphx::make_op("concat", {{"axis", 0}}), bu0, bu1);
+        auto ev     = cat->eval();
+        stacked_lit = migraphx::literal(ev.get_shape(), ev.data());
+    }
+
+    // find_split_reshape then merges the two slice+squeeze pairs into a single
+    // reshape followed by slices on the merged axis.
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto stacked = m2.add_literal(stacked_lit);
+        auto add     = m2.add_instruction(migraphx::make_op("add"), input, stacked);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8}}}), add);
+
+        auto s0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {4}}}), reshape);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {4}}, {"ends", {8}}}), reshape);
+
+        m2.add_return({s0, s1});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+TEST_CASE(slice_squeeze_non_zero_axis)
+{
+    migraphx::shape s{migraphx::shape::float_type, {3, 2, 4}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto sq0  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), s0);
+        auto rel0 = m1.add_instruction(migraphx::make_op("relu"), sq0);
+        auto s1   = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto sq1  = m1.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), s1);
+        auto rel1 = m1.add_instruction(migraphx::make_op("relu"), sq1);
+        m1.add_return({rel0, rel1});
+    }
+    run_pass(m1);
+    // find_split_reshape then merges the two slice+squeeze pairs into a single
+    // reshape followed by slices on the merged (non-zero) axis.
+    migraphx::module m2;
+    {
+        auto input   = m2.add_parameter("input", s);
+        auto relu    = m2.add_instruction(migraphx::make_op("relu"), input);
+        auto reshape = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {3, 8}}}), relu);
+        auto s0      = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {4}}}), reshape);
+        auto s1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {4}}, {"ends", {8}}}), reshape);
+        m2.add_return({s0, s1});
+    }
     EXPECT(m1.sort() == m2.sort());
 }
 

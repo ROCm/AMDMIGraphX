@@ -29,6 +29,8 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/logger.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/pmr/unordered_map.hpp>
@@ -99,6 +101,7 @@ void instruction::replace(const shape& r)
             instruction_ref ins = q.top();
             q.pop();
             assert(ins->name() == "@return" or ins->name().front() != '@');
+            auto guard  = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
             shape new_r = compute_shape(ins->op, ins->arguments, ins->module_args);
             if(new_r != ins->result)
             {
@@ -116,7 +119,11 @@ void instruction::replace(operation o)
     recompute_shape();
 }
 
-void instruction::recompute_shape() { replace(compute_shape(op, arguments, module_args)); }
+void instruction::recompute_shape()
+{
+    auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*this); });
+    replace(compute_shape(op, arguments, module_args));
+}
 
 void instruction::clear_arguments()
 {
@@ -630,6 +637,22 @@ std::vector<instruction_ref> get_added_instructions(const std::vector<instructio
         }
     })(ends);
     return added;
+}
+
+void log_debug_symbols_on_exception(const instruction& ins) noexcept
+{
+    try
+    {
+        const auto& symbols = ins.get_debug_symbols();
+        if(symbols.empty())
+            return;
+        log::debug() << "Exception thrown for instruction '" << ins.name()
+                     << "' with debug symbols: " << join_strings(symbols, ", ");
+    }
+    // cppcheck-suppress migraphx-EmptyCatchStatement
+    catch(...) // logging must not replace the original exception
+    {
+    }
 }
 
 migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept

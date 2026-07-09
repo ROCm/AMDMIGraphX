@@ -150,20 +150,35 @@ static target get_target(const std::string& name) { return make_target(name); }
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
 #endif
 
-static target
-get_target_with_options(const std::string& name, const char* options_json, va_list vlist)
+// Format `options_json` as a printf-style string using `vlist` and parse the
+// result into a value. `options_json` accepts a relaxed JSON object where bare
+// identifiers are treated as strings (see convert_to_json).
+static value parse_json_options(const char* options_json, va_list vlist)
 {
-    if(options_json == nullptr or *options_json == '\0')
-        return make_target(name);
-    std::string soptions = options_json;
-    std::vector<char> buffer(soptions.size() * 2);
-    std::vsnprintf(buffer.data(), buffer.size(), soptions.c_str(), vlist);
-    return make_target(name, from_json_string(convert_to_json(std::string(buffer.data()))));
+    va_list vlist_copy;
+    va_copy(vlist_copy, vlist);
+    const int len = std::vsnprintf(nullptr, 0, options_json, vlist_copy);
+    va_end(vlist_copy);
+    if(len < 0)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Invalid format string for options_json");
+    std::vector<char> buffer(len + 1);
+    va_copy(vlist_copy, vlist);
+    std::vsnprintf(buffer.data(), buffer.size(), options_json, vlist_copy);
+    va_end(vlist_copy);
+    return from_json_string(convert_to_json(std::string(buffer.data())));
 }
 
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
+
+static target
+get_target_with_options(const std::string& name, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return make_target(name);
+    return make_target(name, parse_json_options(options_json, vlist));
+}
 
 static void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
@@ -172,6 +187,15 @@ static void set_fast_math(compile_options& options, bool value) { options.fast_m
 static void set_exhaustive_tune_flag(compile_options& options, bool value)
 {
     options.exhaustive_tune = value;
+}
+
+// Parse the backend options from `options_json` and merge them into the
+// compile options. See migraphx::set_backend_options for the merge semantics.
+static void set_backend_options(compile_options& options, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return;
+    set_backend_options(options, parse_json_options(options_json, vlist));
 }
 
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
@@ -2000,6 +2024,8 @@ migraphx_operation_name(char* out, size_t out_size, migraphx_operation_t operati
     auto api_error_result = migraphx::try_([&] {
         if(out == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(out_size == 0)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out_size: zero");
         if(operation == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
         auto&& api_result = (operation->object).name();
@@ -2243,6 +2269,21 @@ migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t com
                            "Bad parameter compile_options: Null pointer");
         migraphx::set_exhaustive_tune_flag((compile_options->object), (value));
     });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_compile_options_set_advance_backend_options(
+    migraphx_compile_options_t compile_options, const char* options_json, ...)
+{
+    va_list vlist;
+    va_start(vlist, options_json);
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_backend_options((compile_options->object), (options_json), (vlist));
+    });
+    va_end(vlist);
     return api_error_result;
 }
 

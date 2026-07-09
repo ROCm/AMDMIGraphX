@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
 
 #include <string>
+#include <vector>
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/context.hpp>
 
@@ -38,9 +39,9 @@ namespace gpu {
 struct MIGRAPHX_GPU_EXPORT fuse_mlss
 {
     context* ctx = nullptr;
-    // Comma-separated list of ops to force onto AMDMLSS (e.g. "conv"), supplied via
-    // compile_options. Takes effect in addition to MIGRAPHX_MLSS_USE_SPECIFIC_OPS.
-    std::string use_specific_ops = "";
+    // List of ops to force onto AMDMLSS (e.g. "conv"), supplied via compile_options.
+    // Takes effect in addition to MIGRAPHX_MLSS_USE_SPECIFIC_OPS.
+    std::vector<std::string> use_specific_ops = {};
     std::string name() const { return "gpu::fuse_mlss"; }
     void apply(module_pass_manager& mpm) const;
 };

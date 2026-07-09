@@ -44,7 +44,7 @@ static void run_pass(migraphx::program& p)
 {
     migraphx::run_passes(
         p,
-        {migraphx::gpu::fuse_mlss{.ctx = &get_context(), .use_specific_ops = "conv"},
+        {migraphx::gpu::fuse_mlss{.ctx = &get_context(), .use_specific_ops = {"conv"}},
          migraphx::dead_code_elimination{}});
 }
 

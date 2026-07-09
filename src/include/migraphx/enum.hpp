@@ -125,12 +125,12 @@ Enum from_string(const std::string& name)
 
 // Rewrites a single enumerator `x` (which may include an `= value`) so that operator->* captures
 // its value. See the note on enum_capture above for why operator->* is used here.
-#define MIGRAPHX_ENUM_PP_CAPTURE(x) (migraphx::detail::enum_capturer{}->*x)
+#define MIGRAPHX_DETAIL_ENUM_CAPTURE(x) (migraphx::detail::enum_capturer{}->*x)
 
 // The scoped-enum variant qualifies the enumerator with `enum_scope`, a local alias for the enum
 // type that MIGRAPHX_ENUM_CLASS declares in the entries function (scoped enumerators are not
 // visible unqualified).
-#define MIGRAPHX_ENUM_CLASS_PP_CAPTURE(x) (migraphx::detail::enum_capturer{}->*enum_scope::x)
+#define MIGRAPHX_DETAIL_ENUM_CLASS_CAPTURE(x) (migraphx::detail::enum_capturer{}->*enum_scope::x)
 
 // Generates the ADL hooks (migraphx_enum_entries + to_string) shared by the MIGRAPHX_ENUM family.
 // `linkage` is `inline` for a namespace-scope enum or `friend` for a class-scope (nested) enum;
@@ -138,7 +138,7 @@ Enum from_string(const std::string& name)
 // used by the scoped variants to declare the enum_scope alias. migraphx_enum_entries returns just
 // the array of enumerator values; the names are recovered on demand from the stringized enumerator
 // list by to_string.
-#define MIGRAPHX_ENUM_DEFINE_HELPERS(linkage, name, capture, prologue, ...) \
+#define MIGRAPHX_DETAIL_ENUM_HELPERS(linkage, name, capture, prologue, ...) \
     linkage auto migraphx_enum_entries(name)                                \
     {                                                                       \
         prologue return migraphx::make_array<name>(                         \
@@ -168,7 +168,7 @@ Enum from_string(const std::string& name)
     {                            \
         __VA_ARGS__              \
     };                           \
-    MIGRAPHX_ENUM_DEFINE_HELPERS(inline, name, MIGRAPHX_ENUM_PP_CAPTURE, , __VA_ARGS__)
+    MIGRAPHX_DETAIL_ENUM_HELPERS(inline, name, MIGRAPHX_DETAIL_ENUM_CAPTURE, , __VA_ARGS__)
 
 // Like MIGRAPHX_ENUM, but declares a scoped enum (enum class). The enumerators are captured through
 // a local `enum_scope` alias since they are not visible unqualified. Explicit enumerator values
@@ -189,8 +189,8 @@ Enum from_string(const std::string& name)
     {                                  \
         __VA_ARGS__                    \
     };                                 \
-    MIGRAPHX_ENUM_DEFINE_HELPERS(      \
-        inline, name, MIGRAPHX_ENUM_CLASS_PP_CAPTURE, using enum_scope = name;, __VA_ARGS__)
+    MIGRAPHX_DETAIL_ENUM_HELPERS(      \
+        inline, name, MIGRAPHX_DETAIL_ENUM_CLASS_CAPTURE, using enum_scope = name;, __VA_ARGS__)
 
 // Like MIGRAPHX_ENUM, but for an enum declared inside a class or struct. The helpers are declared
 // as hidden friends instead of free functions so that argument-dependent lookup still finds them
@@ -210,7 +210,7 @@ Enum from_string(const std::string& name)
     {                                   \
         __VA_ARGS__                     \
     };                                  \
-    MIGRAPHX_ENUM_DEFINE_HELPERS(friend, name, MIGRAPHX_ENUM_PP_CAPTURE, , __VA_ARGS__)
+    MIGRAPHX_DETAIL_ENUM_HELPERS(friend, name, MIGRAPHX_DETAIL_ENUM_CAPTURE, , __VA_ARGS__)
 
 // Like MIGRAPHX_ENUM_CLASS, but for a scoped enum declared inside a class or struct (see
 // MIGRAPHX_NESTED_ENUM). Must be used inside a class/struct body.
@@ -220,7 +220,7 @@ Enum from_string(const std::string& name)
     {                                         \
         __VA_ARGS__                           \
     };                                        \
-    MIGRAPHX_ENUM_DEFINE_HELPERS(             \
-        friend, name, MIGRAPHX_ENUM_CLASS_PP_CAPTURE, using enum_scope = name;, __VA_ARGS__)
+    MIGRAPHX_DETAIL_ENUM_HELPERS(             \
+        friend, name, MIGRAPHX_DETAIL_ENUM_CLASS_CAPTURE, using enum_scope = name;, __VA_ARGS__)
 
 #endif // MIGRAPHX_GUARD_MIGRAPHX_ENUM_HPP

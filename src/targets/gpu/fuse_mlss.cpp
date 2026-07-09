@@ -56,8 +56,7 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLSS_USE_SPECIFIC_OPS);
 
 static bool op_in_list(const std::vector<std::string>& list, std::string_view op_name)
 {
-    return std::any_of(
-        list.begin(), list.end(), [&](const auto& opt) { return opt == op_name; });
+    return std::any_of(list.begin(), list.end(), [&](const auto& opt) { return opt == op_name; });
 }
 
 static bool mlss_specific_op(std::string_view op_name)

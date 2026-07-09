@@ -1617,8 +1617,8 @@ struct find_reshape_cont
         }
 
         if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
-            return i->get_shape().standard();
-        }))
+               return i->get_shape().standard();
+           }))
             return;
 
         auto out_lens = ins->get_shape().lens();

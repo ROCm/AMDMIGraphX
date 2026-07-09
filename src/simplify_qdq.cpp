@@ -593,20 +593,21 @@ struct remove_qdq_pairs
             return contains({"pack_fp4", "unpack_fp4"}, x->name());
         };
         bool has_pack_unpack = std::any_of(input_path.begin(), q_pos, is_pack_unpack);
-        for(auto x : range(input_path.begin(), q_pos))
-        {
+        auto add_replay_op   = [&](auto x) {
             if(is_pack_unpack(x))
-                continue;
+                return true;
             if(contains(replay_ops(), x->name()))
             {
                 if(not has_pack_unpack)
                     ops.push_back(x->get_operator());
-                continue;
+                return true;
             }
             // Padding/slicing around fp4 pack/unpack only adapts odd extents for packing.
             // Dropping the full fake-quant chain should drop those adapters as well.
-            if(has_pack_unpack and contains(skip_ops(), x->name()))
-                continue;
+            return has_pack_unpack and contains(skip_ops(), x->name());
+        };
+        if(not std::all_of(input_path.begin(), q_pos, add_replay_op))
+        {
             return std::nullopt;
         }
         if(not has_pack_unpack)

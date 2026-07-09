@@ -472,10 +472,10 @@ struct match_concat_qlinear
         }
 
         auto slices = get_slices(cat_ins);
-        auto cat_inputs = cat_ins->inputs();
+        auto cat_inputs     = cat_ins->inputs();
         auto make_cat_input = [&](auto i, const auto& slc) -> std::optional<instruction_ref> {
-            auto scale_slc    = m.insert_instruction(ins, make_op("slice", slc), {scale});
-            auto zp_slc       = m.insert_instruction(ins, make_op("slice", slc), {zp});
+            auto scale_slc     = m.insert_instruction(ins, make_op("slice", slc), {scale});
+            auto zp_slc        = m.insert_instruction(ins, make_op("slice", slc), {zp});
             const auto& i_lens = i->get_shape().lens();
             auto same_lens     = [&](auto slc_ins) {
                 const auto& slc_lens = slc_ins->get_shape().lens();

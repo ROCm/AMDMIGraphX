@@ -127,6 +127,11 @@ Enum from_string(const std::string& name)
 // its value. See the note on enum_capture above for why operator->* is used here.
 #define MIGRAPHX_ENUM_PP_CAPTURE(x) (migraphx::detail::enum_capturer{}->*x)
 
+// The scoped-enum variant qualifies the enumerator with `enum_scope`, a local alias for the enum
+// type that MIGRAPHX_ENUM_CLASS declares in the entries function (scoped enumerators are not
+// visible unqualified).
+#define MIGRAPHX_ENUM_CLASS_PP_CAPTURE(x) (migraphx::detail::enum_capturer{}->*enum_scope::x)
+
 // Declares an unscoped enum together with `to_string(name)` and `migraphx::from_string<name>`
 // helpers for converting the enumerators to and from their names. Use it at namespace scope:
 //
@@ -157,6 +162,39 @@ Enum from_string(const std::string& name)
     inline std::string to_string(name value)                                    \
     {                                                                           \
         return migraphx::detail::enum_to_string(#__VA_ARGS__, value);           \
+    }
+
+// Like MIGRAPHX_ENUM, but declares a scoped enum (enum class). The enumerators are captured
+// through a local `enum_scope` alias since they are not visible unqualified. to_string and
+// migraphx::from_string work the same way:
+//
+//     MIGRAPHX_ENUM_CLASS(color,
+//         red,
+//         green = 5,
+//         blue)
+//
+//     std::string s = to_string(color::green);              // "green"
+//     color c       = migraphx::from_string<color>("blue"); // color::blue
+//
+// Explicit enumerator values must be self-contained (literals or expressions that do not reference
+// other enumerators, which are not visible unqualified in a scoped enum). Supports up to 63
+// enumerators. When used in a .cpp rather than a header, place it in an anonymous namespace so the
+// generated helpers get internal linkage.
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define MIGRAPHX_ENUM_CLASS(name, ...)                                                \
+    enum class name                                                                   \
+    {                                                                                 \
+        __VA_ARGS__                                                                   \
+    };                                                                                \
+    inline auto migraphx_enum_entries(name)                                           \
+    {                                                                                 \
+        using enum_scope = name;                                                      \
+        return migraphx::make_array<name>(                                            \
+            MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_ENUM_CLASS_PP_CAPTURE, __VA_ARGS__)); \
+    }                                                                                 \
+    inline std::string to_string(name value)                                          \
+    {                                                                                 \
+        return migraphx::detail::enum_to_string(#__VA_ARGS__, value);                 \
     }
 
 #endif // MIGRAPHX_GUARD_MIGRAPHX_ENUM_HPP

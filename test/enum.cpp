@@ -23,6 +23,7 @@
  */
 #include <migraphx/enum.hpp>
 #include <algorithm>
+#include <type_traits>
 #include "test.hpp"
 
 // These enums are test-local fixtures; the anonymous namespace gives the macro-generated helper
@@ -38,6 +39,9 @@ MIGRAPHX_ENUM(solo, only_one)
 
 // Expression-valued enumerators, including one that references a previous enumerator.
 MIGRAPHX_ENUM(flags, none = 0, bit0 = 1, bit1 = 2, both = bit0 + bit1)
+
+// Scoped enum (enum class) with an explicit value.
+MIGRAPHX_ENUM_CLASS(scoped_color, cyan, magenta = 7, yellow)
 
 // Sixty-three enumerators, the maximum supported by the underlying pp.hpp transform.
 MIGRAPHX_ENUM(many,
@@ -197,6 +201,38 @@ TEST_CASE(namespace_scoped_enum)
     EXPECT(migraphx::to_string(migraphx::busy) == "busy");
     EXPECT(static_cast<int>(migraphx::done) == 5);
     EXPECT(migraphx::from_string<migraphx::status>("done") == migraphx::done);
+}
+
+TEST_CASE(enum_class_values_and_strings)
+{
+    EXPECT(static_cast<int>(scoped_color::cyan) == 0);
+    EXPECT(static_cast<int>(scoped_color::magenta) == 7);
+    // Value continues incrementing after an explicit enumerator.
+    EXPECT(static_cast<int>(scoped_color::yellow) == 8);
+    EXPECT(to_string(scoped_color::cyan) == "cyan");
+    EXPECT(to_string(scoped_color::magenta) == "magenta");
+    EXPECT(migraphx::from_string<scoped_color>("yellow") == scoped_color::yellow);
+}
+
+TEST_CASE(enum_class_entries)
+{
+    auto entries = migraphx::enum_entries<scoped_color>();
+    EXPECT(entries.size() == 3);
+    EXPECT(entries[0] == scoped_color::cyan);
+    EXPECT(entries[1] == scoped_color::magenta);
+    EXPECT(entries[2] == scoped_color::yellow);
+}
+
+TEST_CASE(enum_class_is_scoped)
+{
+    // A real scoped enum is not implicitly convertible to its underlying type.
+    EXPECT(not std::is_convertible<scoped_color, int>{});
+}
+
+TEST_CASE(enum_class_unknown_throws)
+{
+    EXPECT(test::throws([] { migraphx::from_string<scoped_color>("black"); }));
+    EXPECT(test::throws([] { to_string(static_cast<scoped_color>(999)); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

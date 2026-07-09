@@ -90,6 +90,7 @@ Full documentation for MIGraphX is available at
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 * Add matcher to `fuse_attention` that removes Q/DQ pairs from attention blocks (#4900).
+* Added a pass `fast_mm` (fast matrix multiplication) that is enabled for Navi GPUs and if the `fast_math` compile option is used. Improves performance by using FP16 for GEMMs and convolutions since FP32 WMMAs are not avaiable on Navi.
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).

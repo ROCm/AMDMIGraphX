@@ -31,6 +31,7 @@
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/eliminate_pad.hpp>
 #include <migraphx/fp8_ocp_to_fnuz.hpp>
+#include <migraphx/fast_mm.hpp>
 #include <migraphx/fuse_attention.hpp>
 #include <migraphx/fuse_concat.hpp>
 #include <migraphx/fuse_horizontal.hpp>
@@ -154,12 +155,17 @@ struct pipeline_factory
 
     std::vector<pass> optimize_rewrite_pipeline() const
     {
+        auto gfx_name = get_context()->get_current_device().get_gfx_name();
+        const bool missing_fp32_mma =
+            starts_with(gfx_name, "gfx11") or starts_with(gfx_name, "gfx12");
         return {
             rewrite_gelu{options.fast_math},
             optimize_module{},
             layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
+            dead_code_elimination{},
+            enable_pass(missing_fp32_mma and options.fast_math, fast_mm{}),
             dead_code_elimination{},
             prefuse_ops{get_context()},
             dead_code_elimination{},

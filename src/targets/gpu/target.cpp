@@ -184,7 +184,9 @@ struct pipeline_factory
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
-            fuse_mlss{get_context()},
+            fuse_mlss{.ctx = get_context(),
+                      .use_specific_ops =
+                          get_backend_option(options, "mlss_use_specific_ops", std::string{})},
             fuse_pointwise_reduce{},
             dead_code_elimination{},
 #ifndef _WIN32

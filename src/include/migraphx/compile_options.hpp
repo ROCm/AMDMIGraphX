@@ -65,6 +65,21 @@ inline void set_backend_options(compile_options& options, const value& v)
         options.backend_options[opt.get_key()] = opt.without_key();
 }
 
+/**
+ * Read a backend option by name, converting it to `To`. Returns `default_value`
+ * when the option is not present.
+ */
+template <class To>
+To get_backend_option(const compile_options& options,
+                      const std::string& name,
+                      const To& default_value)
+{
+    auto it = options.backend_options.find(name);
+    if(it == options.backend_options.end())
+        return default_value;
+    return it->second.to<To>();
+}
+
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 

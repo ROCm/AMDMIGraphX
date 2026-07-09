@@ -2264,6 +2264,7 @@ TEST_CASE(module_copy_destructor_detaches_from_referenced_module)
     const std::size_t base = x->outputs().size();
 
     {
+        // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
         migraphx::module copy = child;
         EXPECT(x->outputs().size() == base + 1);
     }

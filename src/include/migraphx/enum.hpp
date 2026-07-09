@@ -132,6 +132,23 @@ Enum from_string(const std::string& name)
 // visible unqualified).
 #define MIGRAPHX_ENUM_CLASS_PP_CAPTURE(x) (migraphx::detail::enum_capturer{}->*enum_scope::x)
 
+// Generates the ADL hooks (migraphx_enum_entries + to_string) shared by the MIGRAPHX_ENUM family.
+// `linkage` is `inline` for a namespace-scope enum or `friend` for a class-scope (nested) enum;
+// `capture` is the per-enumerator capture macro; `prologue` runs before the capture list and is
+// used by the scoped variants to declare the enum_scope alias. migraphx_enum_entries returns just
+// the array of enumerator values; the names are recovered on demand from the stringized enumerator
+// list by to_string.
+#define MIGRAPHX_ENUM_DEFINE_HELPERS(linkage, name, capture, prologue, ...) \
+    linkage auto migraphx_enum_entries(name)                                \
+    {                                                                       \
+        prologue return migraphx::make_array<name>(                         \
+            MIGRAPHX_PP_TRANSFORM_ARGS(capture, __VA_ARGS__));              \
+    }                                                                       \
+    linkage std::string to_string(name value)                               \
+    {                                                                       \
+        return migraphx::detail::enum_to_string(#__VA_ARGS__, value);       \
+    }
+
 // Declares an unscoped enum together with `to_string(name)` and `migraphx::from_string<name>`
 // helpers for converting the enumerators to and from their names. Use it at namespace scope:
 //
@@ -143,30 +160,20 @@ Enum from_string(const std::string& name)
 //     std::string s = to_string(green);                     // "green"
 //     color c       = migraphx::from_string<color>("blue"); // blue
 //
-// migraphx_enum_entries returns just the array of enumerator values; the names are recovered on
-// demand from the stringized enumerator list by to_string.
-//
 // Supports explicit enumerator values and up to 63 enumerators. When used in a .cpp rather than a
 // header, place it in an anonymous namespace so the generated helpers get internal linkage.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define MIGRAPHX_ENUM(name, ...)                                                \
-    enum name                                                                   \
-    {                                                                           \
-        __VA_ARGS__                                                             \
-    };                                                                          \
-    inline auto migraphx_enum_entries(name)                                     \
-    {                                                                           \
-        return migraphx::make_array<name>(                                      \
-            MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_ENUM_PP_CAPTURE, __VA_ARGS__)); \
-    }                                                                           \
-    inline std::string to_string(name value)                                    \
-    {                                                                           \
-        return migraphx::detail::enum_to_string(#__VA_ARGS__, value);           \
-    }
+#define MIGRAPHX_ENUM(name, ...) \
+    enum name                    \
+    {                            \
+        __VA_ARGS__              \
+    };                           \
+    MIGRAPHX_ENUM_DEFINE_HELPERS(inline, name, MIGRAPHX_ENUM_PP_CAPTURE, , __VA_ARGS__)
 
-// Like MIGRAPHX_ENUM, but declares a scoped enum (enum class). The enumerators are captured
-// through a local `enum_scope` alias since they are not visible unqualified. to_string and
-// migraphx::from_string work the same way:
+// Like MIGRAPHX_ENUM, but declares a scoped enum (enum class). The enumerators are captured through
+// a local `enum_scope` alias since they are not visible unqualified. Explicit enumerator values
+// must be self-contained (literals or expressions that do not reference other enumerators, which
+// are not visible unqualified in a scoped enum):
 //
 //     MIGRAPHX_ENUM_CLASS(color,
 //         red,
@@ -176,25 +183,44 @@ Enum from_string(const std::string& name)
 //     std::string s = to_string(color::green);              // "green"
 //     color c       = migraphx::from_string<color>("blue"); // color::blue
 //
-// Explicit enumerator values must be self-contained (literals or expressions that do not reference
-// other enumerators, which are not visible unqualified in a scoped enum). Supports up to 63
-// enumerators. When used in a .cpp rather than a header, place it in an anonymous namespace so the
-// generated helpers get internal linkage.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define MIGRAPHX_ENUM_CLASS(name, ...)                                                \
-    enum class name                                                                   \
-    {                                                                                 \
-        __VA_ARGS__                                                                   \
-    };                                                                                \
-    inline auto migraphx_enum_entries(name)                                           \
-    {                                                                                 \
-        using enum_scope = name;                                                      \
-        return migraphx::make_array<name>(                                            \
-            MIGRAPHX_PP_TRANSFORM_ARGS(MIGRAPHX_ENUM_CLASS_PP_CAPTURE, __VA_ARGS__)); \
-    }                                                                                 \
-    inline std::string to_string(name value)                                          \
-    {                                                                                 \
-        return migraphx::detail::enum_to_string(#__VA_ARGS__, value);                 \
-    }
+#define MIGRAPHX_ENUM_CLASS(name, ...) \
+    enum class name                    \
+    {                                  \
+        __VA_ARGS__                    \
+    };                                 \
+    MIGRAPHX_ENUM_DEFINE_HELPERS(      \
+        inline, name, MIGRAPHX_ENUM_CLASS_PP_CAPTURE, using enum_scope = name;, __VA_ARGS__)
+
+// Like MIGRAPHX_ENUM, but for an enum declared inside a class or struct. The helpers are declared
+// as hidden friends instead of free functions so that argument-dependent lookup still finds them
+// for the nested enum type. Must be used inside a class/struct body:
+//
+//     struct widget
+//     {
+//         MIGRAPHX_NESTED_ENUM(mode, off, on = 3, standby)
+//     };
+//
+//     std::string s = to_string(widget::on);                  // "on"
+//     widget::mode m = migraphx::from_string<widget::mode>("off");
+//
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define MIGRAPHX_NESTED_ENUM(name, ...) \
+    enum name                           \
+    {                                   \
+        __VA_ARGS__                     \
+    };                                  \
+    MIGRAPHX_ENUM_DEFINE_HELPERS(friend, name, MIGRAPHX_ENUM_PP_CAPTURE, , __VA_ARGS__)
+
+// Like MIGRAPHX_ENUM_CLASS, but for a scoped enum declared inside a class or struct (see
+// MIGRAPHX_NESTED_ENUM). Must be used inside a class/struct body.
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define MIGRAPHX_NESTED_ENUM_CLASS(name, ...) \
+    enum class name                           \
+    {                                         \
+        __VA_ARGS__                           \
+    };                                        \
+    MIGRAPHX_ENUM_DEFINE_HELPERS(             \
+        friend, name, MIGRAPHX_ENUM_CLASS_PP_CAPTURE, using enum_scope = name;, __VA_ARGS__)
 
 #endif // MIGRAPHX_GUARD_MIGRAPHX_ENUM_HPP

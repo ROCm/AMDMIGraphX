@@ -43,6 +43,13 @@ MIGRAPHX_ENUM(flags, none = 0, bit0 = 1, bit1 = 2, both = bit0 + bit1)
 // Scoped enum (enum class) with an explicit value.
 MIGRAPHX_ENUM_CLASS(scoped_color, cyan, magenta = 7, yellow)
 
+// Enums nested in a struct, exercising the friend-based (MIGRAPHX_NESTED_*) variants.
+struct gadget
+{
+    MIGRAPHX_NESTED_ENUM(mode, off, on = 3, standby)
+    MIGRAPHX_NESTED_ENUM_CLASS(unit, mm, cm = 10, m)
+};
+
 // Sixty-three enumerators, the maximum supported by the underlying pp.hpp transform.
 MIGRAPHX_ENUM(many,
               m0,
@@ -233,6 +240,30 @@ TEST_CASE(enum_class_unknown_throws)
 {
     EXPECT(test::throws([] { migraphx::from_string<scoped_color>("black"); }));
     EXPECT(test::throws([] { to_string(static_cast<scoped_color>(999)); }));
+}
+
+TEST_CASE(nested_enum)
+{
+    EXPECT(static_cast<int>(gadget::off) == 0);
+    EXPECT(static_cast<int>(gadget::on) == 3);
+    EXPECT(static_cast<int>(gadget::standby) == 4);
+    EXPECT(to_string(gadget::on) == "on");
+    EXPECT(migraphx::from_string<gadget::mode>("standby") == gadget::standby);
+    auto entries = migraphx::enum_entries<gadget::mode>();
+    EXPECT(entries.size() == 3);
+    EXPECT(entries[0] == gadget::off);
+    EXPECT(entries[2] == gadget::standby);
+}
+
+TEST_CASE(nested_enum_class)
+{
+    EXPECT(not std::is_convertible<gadget::unit, int>{});
+    EXPECT(static_cast<int>(gadget::unit::mm) == 0);
+    EXPECT(static_cast<int>(gadget::unit::cm) == 10);
+    EXPECT(static_cast<int>(gadget::unit::m) == 11);
+    EXPECT(to_string(gadget::unit::cm) == "cm");
+    EXPECT(migraphx::from_string<gadget::unit>("m") == gadget::unit::m);
+    EXPECT(test::throws([] { migraphx::from_string<gadget::unit>("km"); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

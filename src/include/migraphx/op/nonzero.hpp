@@ -48,6 +48,8 @@ struct nonzero
         auto dim_num                      = inputs[0].lens().size();
         std::vector<std::size_t> out_lens = {dim_num, elem_num};
 
+        if(inputs[0].ndim() == out_lens.size())
+            return inputs[0].with_lens(shape::int64_type, out_lens);
         return {shape::int64_type, out_lens};
     }
 
@@ -70,7 +72,7 @@ struct nonzero
             par_for(vec_idx.size(), [&](auto i) {
                 for(std::size_t j = 0; j < vec_idx.front().size(); ++j)
                 {
-                    output[output_shape.index({j, i})] = vec_idx[i][j];
+                    output(j, i) = vec_idx[i][j];
                 }
             });
         });

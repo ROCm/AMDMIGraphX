@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/enum.hpp>
+#include <migraphx/value.hpp>
 #include <algorithm>
 #include <string>
 #include <type_traits>
@@ -285,6 +286,50 @@ TEST_CASE(is_named_enum_trait)
     EXPECT(not migraphx::is_named_enum<plain_enum>{});
     EXPECT(not migraphx::is_named_enum<int>{});
     EXPECT(not migraphx::is_named_enum<std::string>{});
+}
+
+TEST_CASE(value_stores_named_enum_as_string)
+{
+    migraphx::value v = green;
+    EXPECT(v.is_string());
+    EXPECT(v.get_string() == "green");
+    EXPECT(v.to<color>() == green);
+}
+
+TEST_CASE(value_retrieves_named_enum_from_string)
+{
+    migraphx::value v = "blue";
+    EXPECT(v.to<color>() == blue);
+}
+
+TEST_CASE(value_retrieves_named_enum_from_int)
+{
+    migraphx::value v = 5;
+    EXPECT(v.to<color>() == green);
+}
+
+TEST_CASE(value_assign_named_enum)
+{
+    migraphx::value v;
+    v = green;
+    EXPECT(v.is_string() and v.get_string() == "green");
+}
+
+TEST_CASE(value_keyed_named_enum)
+{
+    migraphx::value v("c", blue);
+    EXPECT(v.get_key() == "c");
+    EXPECT(v.is_string() and v.get_string() == "blue");
+    EXPECT(v.to<color>() == blue);
+}
+
+TEST_CASE(value_scoped_named_enum_round_trip)
+{
+    migraphx::value v = scoped_color::magenta;
+    EXPECT(v.is_string() and v.get_string() == "magenta");
+    EXPECT(v.to<scoped_color>() == scoped_color::magenta);
+    migraphx::value vi = 7;
+    EXPECT(vi.to<scoped_color>() == scoped_color::magenta);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

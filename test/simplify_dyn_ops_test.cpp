@@ -28,7 +28,11 @@
 #include <migraphx/program.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
+#include <migraphx/float_equal.hpp>
 #include <test.hpp>
+#include <limits>
 
 static void run_pass(migraphx::module& m)
 {
@@ -1074,6 +1078,144 @@ TEST_CASE(select_module_update2)
     }
 
     EXPECT(p0 == p1);
+}
+
+// Build boxes/scores -> nonmaxsuppression -> gather scores -> topk in `m`, returning the nms,
+// gather, and topk-output instructions so the tests can inspect the rewrite.
+static void make_nms_gather_topk(migraphx::module& m,
+                                 migraphx::instruction_ref& nms_out,
+                                 migraphx::instruction_ref& gather_out,
+                                 migraphx::instruction_ref& tv_out,
+                                 bool largest)
+{
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 4, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 4}};
+    auto boxes     = m.add_parameter("boxes", boxes_s);
+    auto scores    = m.add_parameter("scores", scores_s);
+    auto max_out   = m.add_literal(int64_t{4});
+    auto iou       = m.add_literal(0.5f);
+    auto score_thr = m.add_literal(0.0f);
+    auto nms       = m.add_instruction(
+        migraphx::make_op("nonmaxsuppression"), boxes, scores, max_out, iou, score_thr);
+    auto indices = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    // box-index column of the [max_boxes, 3] selected indices
+    auto box_col = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), indices);
+    auto box_col_1d  = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), box_col);
+    auto scores_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), scores);
+    auto gather =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), scores_flat, box_col_1d);
+    auto topk = m.add_instruction(
+        migraphx::make_op("topk", {{"k", 4}, {"axis", 0}, {"largest", largest ? 1 : 0}}), gather);
+    auto tv = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
+    m.add_return({tv});
+    nms_out    = nms;
+    gather_out = gather;
+    tv_out     = tv;
+}
+
+static float sentinel_value(migraphx::instruction_ref lit)
+{
+    float value = 0;
+    lit->get_literal().visit([&](auto v) { value = v.front(); });
+    return value;
+}
+
+TEST_CASE(nms_gather_topk_largest)
+{
+    migraphx::module m;
+    migraphx::instruction_ref nms;
+    migraphx::instruction_ref gather;
+    migraphx::instruction_ref tv;
+    make_nms_gather_topk(m, nms, gather, tv, true);
+    run_pass(m);
+
+    // topk now consumes a where instead of the gather directly
+    auto topk = tv->inputs().at(0);
+    EXPECT(topk->name() == "topk");
+    auto where = topk->inputs().at(0);
+    EXPECT(where->name() == "where");
+    EXPECT(where->inputs().size() == 3);
+
+    // the valid branch is the original gather
+    EXPECT(where->inputs().at(1) == gather);
+
+    // condition is convert-to-bool of less(iota, broadcast(num_selected))
+    auto cond = where->inputs().at(0);
+    EXPECT(cond->name() == "convert");
+    EXPECT(cond->get_shape().type() == migraphx::shape::bool_type);
+    auto less = cond->inputs().at(0);
+    EXPECT(less->name() == "less");
+    EXPECT(less->inputs().at(0)->name() == "@literal");
+
+    // num_selected is get_tuple_elem[index=1] of the nms
+    auto num_selected = less->inputs().at(1)->inputs().at(0);
+    EXPECT(num_selected->name() == "get_tuple_elem");
+    EXPECT(num_selected->get_operator().to_value().at("index").to<int>() == 1);
+    EXPECT(num_selected->inputs().at(0) == nms);
+
+    // sentinel is the lowest float for a largest topk
+    auto sentinel_bc = where->inputs().at(2);
+    EXPECT(sentinel_bc->name() == "multibroadcast");
+    auto sentinel = sentinel_bc->inputs().at(0);
+    EXPECT(sentinel->name() == "@literal");
+    EXPECT(migraphx::float_equal(sentinel_value(sentinel), std::numeric_limits<float>::lowest()));
+}
+
+TEST_CASE(nms_gather_topk_smallest)
+{
+    migraphx::module m;
+    migraphx::instruction_ref nms;
+    migraphx::instruction_ref gather;
+    migraphx::instruction_ref tv;
+    make_nms_gather_topk(m, nms, gather, tv, false);
+    run_pass(m);
+
+    auto topk = tv->inputs().at(0);
+    EXPECT(topk->name() == "topk");
+    auto where = topk->inputs().at(0);
+    EXPECT(where->name() == "where");
+    EXPECT(where->inputs().at(1) == gather);
+
+    // sentinel is the highest float for a smallest topk
+    auto sentinel_bc = where->inputs().at(2);
+    EXPECT(sentinel_bc->name() == "multibroadcast");
+    auto sentinel = sentinel_bc->inputs().at(0);
+    EXPECT(sentinel->name() == "@literal");
+    EXPECT(migraphx::float_equal(sentinel_value(sentinel), std::numeric_limits<float>::max()));
+}
+
+// A second nonmaxsuppression in the module makes the ancestor cone ambiguous, so the rewrite must
+// not fire.
+TEST_CASE(nms_gather_topk_two_nms_no_change)
+{
+    migraphx::module m;
+    migraphx::instruction_ref nms;
+    migraphx::instruction_ref gather;
+    migraphx::instruction_ref tv;
+    make_nms_gather_topk(m, nms, gather, tv, true);
+    // add an unrelated second nms feeding the gather's index path
+    migraphx::shape boxes_s{migraphx::shape::float_type, {1, 4, 4}};
+    migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 4}};
+    auto boxes2  = m.add_parameter("boxes2", boxes_s);
+    auto scores2 = m.add_parameter("scores2", scores_s);
+    auto nms2    = m.add_instruction(
+        migraphx::make_op("nonmaxsuppression"), boxes2, scores2, m.add_literal(int64_t{4}));
+    auto indices2 = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms2);
+    auto box_col2 = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), indices2);
+    auto box_col2_1d = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), box_col2);
+    // fold the extra index path into the existing gather's index input
+    auto gather_idx = gather->inputs().at(1);
+    auto combined = m.insert_instruction(gather, migraphx::make_op("add"), gather_idx, box_col2_1d);
+    m.replace_instruction(gather, gather->get_operator(), gather->inputs().at(0), combined);
+
+    run_pass(m);
+
+    auto topk = tv->inputs().at(0);
+    EXPECT(topk->name() == "topk");
+    // still a gather (no where inserted) because two NMS are in the ancestor cone
+    EXPECT(topk->inputs().at(0)->name() == "gather");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

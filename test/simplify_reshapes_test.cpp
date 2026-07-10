@@ -1682,9 +1682,9 @@ TEST_CASE(optimize_resize_ndims_unequal)
         auto rsp_y =
               m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 3}}}), iny);
         auto trans_x = m2.add_instruction(
-              migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1}}}), inx);
-         auto mb = m2.add_instruction(
-              migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 3}}}), trans_x);
+            migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1}}}), inx);
+        auto mb = m2.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 3}}}), trans_x);
         auto sub = m2.add_instruction(migraphx::make_op("sub"), rsp_y, mb);
         auto rsp_out =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 3, 2}}}), sub);

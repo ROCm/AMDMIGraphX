@@ -35,6 +35,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/pp.hpp>
+#include <migraphx/requires.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/type_name.hpp>
 
@@ -91,20 +92,31 @@ std::string enum_to_string(const std::string& names, Enum value)
 
 } // namespace detail
 
+// Detects enums declared with the MIGRAPHX_ENUM family: those provide a migraphx_enum_entries hook
+// and therefore support to_string and migraphx::from_string.
+template <class T, class = void>
+struct is_named_enum : std::false_type
+{
+};
+
+template <class T>
+struct is_named_enum<T, std::void_t<decltype(migraphx_enum_entries(std::declval<T>()))>>
+    : std::true_type
+{
+};
+
 // Returns the array of enumerator values for an enum declared with MIGRAPHX_ENUM.
-template <class Enum>
+template <class Enum, MIGRAPHX_REQUIRES(is_named_enum<Enum>{})>
 auto enum_entries()
 {
-    static_assert(std::is_enum<Enum>{}, "enum_entries<Enum> requires an enum type");
     return migraphx_enum_entries(Enum{});
 }
 
 // Converts the name of an enumerator back into its value, throwing when the name is unknown. The
 // name -> value table is built once per enum from migraphx_enum_entries so lookups are O(1).
-template <class Enum>
+template <class Enum, MIGRAPHX_REQUIRES(is_named_enum<Enum>{})>
 Enum from_string(const std::string& name)
 {
-    static_assert(std::is_enum<Enum>{}, "from_string<Enum> requires an enum type");
     static const auto lookup = [] {
         const auto entries = migraphx_enum_entries(Enum{});
         std::unordered_map<std::string, Enum> result;

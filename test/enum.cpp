@@ -23,6 +23,7 @@
  */
 #include <migraphx/enum.hpp>
 #include <algorithm>
+#include <string>
 #include <type_traits>
 #include "test.hpp"
 
@@ -48,6 +49,13 @@ struct gadget
 {
     MIGRAPHX_NESTED_ENUM(mode, off, on = 3, standby)
     MIGRAPHX_NESTED_ENUM_CLASS(unit, mm, cm = 10, m)
+};
+
+// A plain enum declared without the macro, for the negative is_named_enum case.
+enum plain_enum
+{
+    plain_a,
+    plain_b
 };
 
 // Sixty-three enumerators, the maximum supported by the underlying pp.hpp transform.
@@ -264,6 +272,19 @@ TEST_CASE(nested_enum_class)
     EXPECT(to_string(gadget::unit::cm) == "cm");
     EXPECT(migraphx::from_string<gadget::unit>("m") == gadget::unit::m);
     EXPECT(test::throws([] { migraphx::from_string<gadget::unit>("km"); }));
+}
+
+TEST_CASE(is_named_enum_trait)
+{
+    // True for every MIGRAPHX_ENUM variant, including nested ones.
+    EXPECT(migraphx::is_named_enum<color>{});
+    EXPECT(migraphx::is_named_enum<scoped_color>{});
+    EXPECT(migraphx::is_named_enum<gadget::mode>{});
+    EXPECT(migraphx::is_named_enum<gadget::unit>{});
+    // False for plain enums and non-enum types.
+    EXPECT(not migraphx::is_named_enum<plain_enum>{});
+    EXPECT(not migraphx::is_named_enum<int>{});
+    EXPECT(not migraphx::is_named_enum<std::string>{});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

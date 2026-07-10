@@ -23,6 +23,7 @@
  */
 #include <migraphx/enum.hpp>
 #include <migraphx/value.hpp>
+#include <migraphx/serialize.hpp>
 #include <algorithm>
 #include <string>
 #include <type_traits>
@@ -57,6 +58,22 @@ enum plain_enum
 {
     plain_a,
     plain_b
+};
+
+// A reflectable struct with named-enum fields, for the serialize round-trip.
+struct config
+{
+    MIGRAPHX_NESTED_ENUM(mode, off, on = 3, standby)
+    MIGRAPHX_NESTED_ENUM_CLASS(unit, mm, cm = 10, m)
+    mode active_mode = on;
+    unit length_unit = unit::cm;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return migraphx::pack(f(self.active_mode, "active_mode"),
+                              f(self.length_unit, "length_unit"));
+    }
 };
 
 // Sixty-three enumerators, the maximum supported by the underlying pp.hpp transform.
@@ -330,6 +347,36 @@ TEST_CASE(value_scoped_named_enum_round_trip)
     EXPECT(v.to<scoped_color>() == scoped_color::magenta);
     migraphx::value vi = 7;
     EXPECT(vi.to<scoped_color>() == scoped_color::magenta);
+}
+
+TEST_CASE(serialize_standalone_named_enum)
+{
+    // to_value stores the enum as its name.
+    EXPECT(migraphx::to_value(green).is_string());
+    EXPECT(migraphx::to_value(green).get_string() == "green");
+    // from_value recovers it from the name string...
+    EXPECT(migraphx::from_value<color>(migraphx::to_value(green)) == green);
+    // ...and from an integer value.
+    migraphx::value vi = 5;
+    EXPECT(migraphx::from_value<color>(vi) == green);
+}
+
+TEST_CASE(serialize_named_enum_field)
+{
+    config c;
+    c.active_mode = config::standby;
+    c.length_unit = config::unit::m;
+
+    migraphx::value v = migraphx::to_value(c);
+    // The named-enum fields are serialized as their names.
+    EXPECT(v.at("active_mode").is_string());
+    EXPECT(v.at("active_mode").get_string() == "standby");
+    EXPECT(v.at("length_unit").get_string() == "m");
+
+    // And they round-trip back.
+    auto c2 = migraphx::from_value<config>(v);
+    EXPECT(c2.active_mode == config::standby);
+    EXPECT(c2.length_unit == config::unit::m);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

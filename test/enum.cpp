@@ -224,7 +224,9 @@ TEST_CASE(from_string_unknown_throws)
 
 TEST_CASE(to_string_unknown_throws)
 {
-    EXPECT(test::throws([] { to_string(static_cast<color>(999)); }));
+    // 4 is within color's representable range [0, 7] but is not a named enumerator, so it is an
+    // unknown value without the undefined behavior of casting an out-of-range integer to the enum.
+    EXPECT(test::throws([] { to_string(static_cast<color>(4)); }));
 }
 
 TEST_CASE(namespace_scoped_enum)

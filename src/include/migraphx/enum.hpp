@@ -34,6 +34,7 @@
 #include <migraphx/array.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/errors.hpp>
+#include <migraphx/functional.hpp>
 #include <migraphx/pp.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/stringutils.hpp>
@@ -72,22 +73,56 @@ struct enum_capturer
     }
 };
 
-// Looks up the name of an enumerator. The entries array (from migraphx_enum_entries) holds only
-// the values, so the name is the correspondingly-positioned token from the stringized enumerator
-// list, with any `= value` suffix stripped.
-template <class Enum>
-std::string enum_to_string(const std::string& names, Enum value)
+// Wraps an enumerator as a type so that get_type_name renders it as its name: the compiler spells
+// a named enumerator as its own identifier, e.g. get_type_name<enum_value<color, green>>() is
+// "...enum_value<color, green>".
+template <class T, T X>
+struct enum_value
 {
-    const auto entries = migraphx_enum_entries(value);
-    auto parts         = split_string(names, ',');
-    if(parts.size() != entries.size())
-        MIGRAPHX_THROW("MIGRAPHX_ENUM: too many enumerators for " + get_type_name<Enum>());
-    const auto* it = std::find(entries.begin(), entries.end(), value);
-    if(it == entries.end())
+};
+
+// Recovers the enumerator name from that type name, e.g. "green" from "...enum_value<color, green>"
+// or "on" from "...enum_value<mode, mode::on>" (scoped and nested enumerators are qualified).
+template <class T, T X>
+std::string enum_value_name()
+{
+    const std::string& full = get_type_name<enum_value<T, X>>();
+    auto begin              = full.find(',', full.find('<')) + 1;
+    auto name               = trim(full.substr(begin, full.rfind('>') - begin));
+    auto scope              = name.rfind("::");
+    return scope == std::string::npos ? name : name.substr(scope + 2);
+}
+
+template <class Enum, std::size_t N>
+auto enum_value_names()
+{
+    return sequence_c<N>([](auto... is) {
+        constexpr auto entries = migraphx_enum_entries(Enum{});
+        return make_array<std::string>(enum_value_name<Enum, entries[is]>()...);
+    });
+}
+
+// Maps an enumerator value to its name. The value set comes from migraphx_enum_entries, but the
+// names are derived from the values through get_type_name rather than from any stored strings. The
+// value -> name table is built once per enum so lookups are O(1).
+template <class Enum>
+std::string enum_to_string(Enum value)
+{
+    static const auto lookup = [] {
+        constexpr auto entries = migraphx_enum_entries(Enum{});
+        const auto names       = enum_value_names<Enum, entries.size()>();
+        std::unordered_map<Enum, std::string> result;
+        std::transform(entries.begin(),
+                       entries.end(),
+                       names.begin(),
+                       std::inserter(result, result.end()),
+                       [](Enum v, const std::string& n) { return std::make_pair(v, n); });
+        return result;
+    }();
+    auto it = lookup.find(value);
+    if(it == lookup.end())
         MIGRAPHX_THROW("Invalid value for enum " + get_type_name<Enum>());
-    const auto& part = parts[it - entries.begin()];
-    auto pos         = part.find('=');
-    return trim(pos == std::string::npos ? part : part.substr(0, pos));
+    return it->second;
 }
 
 } // namespace detail
@@ -148,18 +183,14 @@ Enum from_string(const std::string& name)
 // `linkage` is `inline` for a namespace-scope enum or `friend` for a class-scope (nested) enum;
 // `capture` is the per-enumerator capture macro; `prologue` runs before the capture list and is
 // used by the scoped variants to declare the enum_scope alias. migraphx_enum_entries returns just
-// the array of enumerator values; the names are recovered on demand from the stringized enumerator
-// list by to_string.
+// the array of enumerator values; to_string recovers the names from those values via get_type_name.
 #define MIGRAPHX_DETAIL_ENUM_HELPERS(linkage, name, capture, prologue, ...) \
-    linkage auto migraphx_enum_entries(name)                                \
+    linkage constexpr auto migraphx_enum_entries(name)                      \
     {                                                                       \
         prologue return migraphx::make_array<name>(                         \
             MIGRAPHX_PP_TRANSFORM_ARGS(capture, __VA_ARGS__));              \
     }                                                                       \
-    linkage std::string to_string(name value)                               \
-    {                                                                       \
-        return migraphx::detail::enum_to_string(#__VA_ARGS__, value);       \
-    }
+    linkage std::string to_string(name value) { return migraphx::detail::enum_to_string(value); }
 
 // Declares an unscoped enum and generates `to_string` and `migraphx::from_string` helpers that
 // convert its enumerators to and from their names. Use it at namespace scope:

@@ -1222,10 +1222,13 @@ TEST_CASE(nms_gather_topk_two_nms_no_change)
     auto box_col2 = m.add_instruction(
         migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), selected2);
     auto box_col2_1d = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), box_col2);
-    // fold the extra index path into the existing gather's index input
-    auto gather_idx = gather->inputs().at(1);
-    auto combined = m.insert_instruction(gather, migraphx::make_op("add"), gather_idx, box_col2_1d);
-    m.replace_instruction(gather, gather->get_operator(), gather->inputs().at(0), combined);
+    // Mask R-CNN concatenates the selected box indices from multiple NMS ops before the final
+    // gather/topk; concatenate the second NMS's indices onto the first so the gather's ancestor
+    // cone contains two NMS slices.
+    auto gather_idx   = gather->inputs().at(1);
+    auto concatenated = m.insert_instruction(
+        gather, migraphx::make_op("concat", {{"axis", 0}}), gather_idx, box_col2_1d);
+    m.replace_instruction(gather, gather->get_operator(), gather->inputs().at(0), concatenated);
 
     run_pass(m);
 

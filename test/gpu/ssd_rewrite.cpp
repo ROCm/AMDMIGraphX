@@ -76,9 +76,15 @@ TEST_CASE(test_ssd_rewrite)
     auto nms = mm->add_instruction(
         migraphx::make_op("nonmaxsuppression"), boxes, scores, max_out_l, iou_l, score_l);
     auto indices = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
-    // box-index column (column 2) of the [max_boxes, 3] selected indices
+    auto num_selected =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    // variable-end slice trimming the padded indices to num_selected, exactly as the ONNX NMS
+    // parser emits; find_nms_gather_topk rewrites this into a static, mask-based form.
+    auto selected = mm->add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
+    // box-index column (column 2) of the [num_selected, 3] selected indices
     auto box_col = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), indices);
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), selected);
     auto box_col_1d  = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), box_col);
     auto scores_flat = mm->add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), scores);
     auto gathered =

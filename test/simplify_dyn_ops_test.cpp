@@ -1080,8 +1080,22 @@ TEST_CASE(select_module_update2)
     EXPECT(p0 == p1);
 }
 
-// Build boxes/scores -> nonmaxsuppression -> gather scores -> topk in `m`, returning the nms,
-// gather, and topk-output instructions so the tests can inspect the rewrite.
+// Extract the box-index column from a (dynamic) [num_selected, 3] NMS indices tensor and gather the
+// matching scores, returning the gather instruction.
+static migraphx::instruction_ref add_gather_scores(migraphx::module& m,
+                                                   migraphx::instruction_ref selected,
+                                                   migraphx::instruction_ref scores)
+{
+    auto box_col = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), selected);
+    auto box_col_1d  = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), box_col);
+    auto scores_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), scores);
+    return m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), scores_flat, box_col_1d);
+}
+
+// Build boxes/scores -> nonmaxsuppression -> dynamic slice -> gather scores -> topk in `m`
+// (matching what the ONNX NMS parser emits), returning the nms, gather, and topk-output
+// instructions so the tests can inspect the rewrite.
 static void make_nms_gather_topk(migraphx::module& m,
                                  migraphx::instruction_ref& nms_out,
                                  migraphx::instruction_ref& gather_out,
@@ -1097,15 +1111,13 @@ static void make_nms_gather_topk(migraphx::module& m,
     auto score_thr = m.add_literal(0.0f);
     auto nms       = m.add_instruction(
         migraphx::make_op("nonmaxsuppression"), boxes, scores, max_out, iou, score_thr);
-    auto indices = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
-    // box-index column of the [max_boxes, 3] selected indices
-    auto box_col = m.add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), indices);
-    auto box_col_1d  = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), box_col);
-    auto scores_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), scores);
-    auto gather =
-        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), scores_flat, box_col_1d);
-    auto topk = m.add_instruction(
+    auto indices      = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto num_selected = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    // variable-end slice that trims the padded indices to num_selected (dynamic)
+    auto selected = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
+    auto gather = add_gather_scores(m, selected, scores);
+    auto topk   = m.add_instruction(
         migraphx::make_op("topk", {{"k", 4}, {"axis", 0}, {"largest", largest ? 1 : 0}}), gather);
     auto tv = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
     m.add_return({tv});
@@ -1137,8 +1149,10 @@ TEST_CASE(nms_gather_topk_largest)
     EXPECT(where->name() == "where");
     EXPECT(where->inputs().size() == 3);
 
-    // the valid branch is the original gather
+    // the valid branch is the original gather, and the dynamic slice has been bypassed so it is
+    // now statically shaped
     EXPECT(where->inputs().at(1) == gather);
+    EXPECT(not gather->get_shape().dynamic());
 
     // condition is convert-to-bool of less(iota, broadcast(num_selected))
     auto cond = where->inputs().at(0);
@@ -1185,8 +1199,7 @@ TEST_CASE(nms_gather_topk_smallest)
     EXPECT(migraphx::float_equal(sentinel_value(sentinel), std::numeric_limits<float>::max()));
 }
 
-// A second nonmaxsuppression in the module makes the ancestor cone ambiguous, so the rewrite must
-// not fire.
+// A second dynamic NMS slice in the ancestor cone makes it ambiguous, so the rewrite must not fire.
 TEST_CASE(nms_gather_topk_two_nms_no_change)
 {
     migraphx::module m;
@@ -1194,7 +1207,7 @@ TEST_CASE(nms_gather_topk_two_nms_no_change)
     migraphx::instruction_ref gather;
     migraphx::instruction_ref tv;
     make_nms_gather_topk(m, nms, gather, tv, true);
-    // add an unrelated second nms feeding the gather's index path
+    // add an unrelated second nms + dynamic slice feeding the gather's index path
     migraphx::shape boxes_s{migraphx::shape::float_type, {1, 4, 4}};
     migraphx::shape scores_s{migraphx::shape::float_type, {1, 1, 4}};
     auto boxes2  = m.add_parameter("boxes2", boxes_s);
@@ -1202,8 +1215,12 @@ TEST_CASE(nms_gather_topk_two_nms_no_change)
     auto nms2    = m.add_instruction(
         migraphx::make_op("nonmaxsuppression"), boxes2, scores2, m.add_literal(int64_t{4}));
     auto indices2 = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms2);
+    auto num_selected2 =
+        m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms2);
+    auto selected2 = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices2, num_selected2);
     auto box_col2 = m.add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), indices2);
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), selected2);
     auto box_col2_1d = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), box_col2);
     // fold the extra index path into the existing gather's index input
     auto gather_idx = gather->inputs().at(1);
@@ -1214,7 +1231,7 @@ TEST_CASE(nms_gather_topk_two_nms_no_change)
 
     auto topk = tv->inputs().at(0);
     EXPECT(topk->name() == "topk");
-    // still a gather (no where inserted) because two NMS are in the ancestor cone
+    // still a gather (no where inserted) because two NMS slices are in the ancestor cone
     EXPECT(topk->inputs().at(0)->name() == "gather");
 }
 

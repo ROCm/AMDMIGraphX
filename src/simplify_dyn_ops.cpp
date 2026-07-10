@@ -532,20 +532,21 @@ struct find_static_onehot : match::supports_dynamic_shapes
 };
 
 /**
- * Mask the zero-padded rows of a nonmaxsuppression (NMS) output before a topk.
+ * Rewrite the dynamic nonmaxsuppression (NMS) slice feeding a topk into a static, mask-based form.
  *
- * NMS produces a static [max_boxes, 3] tensor of selected indices where only the first
- * num_selected rows are valid; the remaining rows are zero-padded and therefore point at box 0.
- * When those indices are used to gather scores that feed a topk, the padded rows pull in box 0's
- * score and can displace the real detections. This inserts a `where` before the topk that replaces
- * the padded rows with a sentinel (the lowest representable value for a largest topk, the highest
- * for a smallest topk) so they can never be selected.
+ * The ONNX parser emits `slice(get_tuple_elem[0](nms), get_tuple_elem[1](nms))`, a variable-end
+ * slice that trims the zero-padded [max_boxes, 3] indices tensor down to the num_selected valid
+ * rows. That slice makes the whole downstream gather/topk chain dynamically shaped. To keep static
+ * shapes, this matcher bypasses the dynamic slice (restoring the padded [max_boxes, 3] indices) and
+ * compensates by masking the gathered scores before the topk: the padded rows (which resolve to
+ * box 0) are replaced with a sentinel (the lowest representable value for a largest topk, the
+ * highest for a smallest topk) so they can never be selected.
  *
  * From:
- *   topk(gather(scores, nms_derived_indices))
+ *   topk(gather(scores, ...slice(get_tuple_elem[0](nms), get_tuple_elem[1](nms))...))
  * To:
  *   mask = less([0, 1, ..., max_boxes - 1], num_selected)
- *   topk(where(mask, gather(scores, nms_derived_indices), sentinel))
+ *   topk(where(mask, gather(scores, ...get_tuple_elem[0](nms)...), sentinel))
  */
 struct find_nms_gather_topk : match::supports_dynamic_shapes
 {
@@ -554,29 +555,48 @@ struct find_nms_gather_topk : match::supports_dynamic_shapes
         return match::name("topk")(match::arg(0)(match::name("gather").bind("gather")));
     }
 
-    // Backward search over the inputs of `start` for nonmaxsuppression instructions, treating each
-    // NMS as terminal (its own inputs are not traversed). Returns every NMS reached so the caller
-    // can require that exactly one drives this gather.
-    static std::vector<instruction_ref> find_nms_ancestors(instruction_ref start)
+    // A `slice(get_tuple_elem[index=0](nms), get_tuple_elem[index=1](nms))`: the variable-end slice
+    // the NMS parser emits to trim the padded indices to num_selected.
+    static bool is_nms_tuple_elem(instruction_ref ins, std::size_t index)
+    {
+        return ins->name() == "get_tuple_elem" and
+               ins->get_operator().to_value().at("index").to<std::size_t>() == index and
+               ins->inputs().at(0)->name() == "nonmaxsuppression";
+    }
+
+    static bool is_nms_slice(instruction_ref ins)
+    {
+        if(ins->name() != "slice" or ins->inputs().size() != 2)
+            return false;
+        auto data = ins->inputs().at(0);
+        auto ends = ins->inputs().at(1);
+        return is_nms_tuple_elem(data, 0) and is_nms_tuple_elem(ends, 1) and
+               data->inputs().at(0) == ends->inputs().at(0);
+    }
+
+    // Backward search over the inputs of `start` for the dynamic NMS slice, treating each as
+    // terminal (its inputs are not traversed). Returns every one reached so the caller can require
+    // that exactly one drives this gather.
+    static std::vector<instruction_ref> find_nms_slices(instruction_ref start)
     {
         std::unordered_set<instruction_ref> seen;
         std::vector<instruction_ref> stack{start};
-        std::vector<instruction_ref> nms_ancestors;
+        std::vector<instruction_ref> nms_slices;
         while(not stack.empty())
         {
             auto ins = stack.back();
             stack.pop_back();
             if(not seen.insert(ins).second)
                 continue;
-            if(ins->name() == "nonmaxsuppression")
+            if(is_nms_slice(ins))
             {
-                nms_ancestors.push_back(ins);
+                nms_slices.push_back(ins);
                 continue;
             }
             const auto& ins_inputs = ins->inputs();
             stack.insert(stack.end(), ins_inputs.begin(), ins_inputs.end());
         }
-        return nms_ancestors;
+        return nms_slices;
     }
 
     void apply(module& m, const match::matcher_result& mr) const
@@ -584,33 +604,39 @@ struct find_nms_gather_topk : match::supports_dynamic_shapes
         auto topk_ins   = mr.result;
         auto gather_ins = mr.instructions["gather"];
 
-        // Only rewrite when a single NMS drives this gather.
-        auto nms_ancestors = find_nms_ancestors(gather_ins);
-        if(nms_ancestors.size() != 1)
+        // Only rewrite when a single dynamic NMS slice drives this gather.
+        auto nms_slices = find_nms_slices(gather_ins);
+        if(nms_slices.size() != 1)
             return;
-        auto nms_ins = nms_ancestors.front();
+        auto slice_ins    = nms_slices.front();
+        auto indices      = slice_ins->inputs().at(0); // static [max_boxes, 3] get_tuple_elem[0]
+        auto num_selected = slice_ins->inputs().at(1); // [1] get_tuple_elem[1]
+        auto nms_ins      = indices->inputs().at(0);
 
         // max_boxes is the static leading dimension of the NMS selected-indices output.
         auto max_boxes = nms_ins->get_shape().sub_shapes().at(0).lens().at(0);
 
         // Only the 1D gathered-scores case (SSD post-processing) is handled; the mask then lines up
-        // with the topk axis directly.
-        auto data_shape = gather_ins->get_shape();
-        if(data_shape.ndim() != 1 or data_shape.lens().at(0) != max_boxes)
+        // with the topk axis directly. The gather is still dynamic here, so check its max length.
+        auto pre_shape = gather_ins->get_shape();
+        if(pre_shape.ndim() != 1 or pre_shape.max_lens().at(0) != max_boxes)
             return;
 
-        auto largest = topk_ins->get_operator().to_value().at("largest").to<bool>();
+        // Bypass the dynamic slice so the padded indices flow straight through, then re-derive
+        // shapes along the (now static) chain so the gathered scores become static [max_boxes].
+        m.replace_instruction(slice_ins, indices);
+        for(auto it = slice_ins; it != m.end(); ++it)
+            it->recompute_shape();
+
+        auto data_shape = gather_ins->get_shape();
+        auto largest    = topk_ins->get_operator().to_value().at("largest").to<bool>();
 
         // literal counting up 0, 1, ..., max_boxes - 1
         std::vector<int64_t> iota_data(max_boxes);
         std::iota(iota_data.begin(), iota_data.end(), 0);
         auto iota_lit = m.add_literal(literal{shape{shape::int64_type, {max_boxes}}, iota_data});
 
-        // num_selected is the second element of the NMS output tuple
-        auto num_selected =
-            m.insert_instruction(topk_ins, make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
-
-        // mask[i] = i < num_selected
+        // mask[i] = i < num_selected (num_selected is the slice's variable-end input)
         auto mask = insert_common_op(m, topk_ins, make_op("less"), {iota_lit, num_selected});
         mask      = m.insert_instruction(
             topk_ins, make_op("convert", {{"target_type", shape::bool_type}}), mask);

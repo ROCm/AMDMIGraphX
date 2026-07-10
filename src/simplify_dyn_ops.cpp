@@ -555,8 +555,7 @@ struct find_nms_gather_topk : match::supports_dynamic_shapes
         return match::name("topk")(match::arg(0)(match::name("gather").bind("gather")));
     }
 
-    // A `slice(get_tuple_elem[index=0](nms), get_tuple_elem[index=1](nms))`: the variable-end slice
-    // the NMS parser emits to trim the padded indices to num_selected.
+    // True when `ins` is `get_tuple_elem[index]` fed directly by a nonmaxsuppression.
     static bool is_nms_tuple_elem(instruction_ref ins, std::size_t index)
     {
         return ins->name() == "get_tuple_elem" and
@@ -564,6 +563,8 @@ struct find_nms_gather_topk : match::supports_dynamic_shapes
                ins->inputs().at(0)->name() == "nonmaxsuppression";
     }
 
+    // The variable-end `slice(get_tuple_elem[0](nms), get_tuple_elem[1](nms))` the NMS parser emits
+    // to trim the padded indices down to num_selected.
     static bool is_nms_slice(instruction_ref ins)
     {
         if(ins->name() != "slice" or ins->inputs().size() != 2)
@@ -612,24 +613,25 @@ struct find_nms_gather_topk : match::supports_dynamic_shapes
         auto indices      = slice_ins->inputs().at(0); // static [max_boxes, 3] get_tuple_elem[0]
         auto num_selected = slice_ins->inputs().at(1); // [1] get_tuple_elem[1]
         auto nms_ins      = indices->inputs().at(0);
+        // The mask relies on num_selected being a scalar count that broadcasts against the iota.
+        assert(num_selected->get_shape().elements() == 1);
 
         // max_boxes is the static leading dimension of the NMS selected-indices output.
         auto max_boxes = nms_ins->get_shape().sub_shapes().at(0).lens().at(0);
 
         // Only the 1D gathered-scores case (SSD post-processing) is handled; the mask then lines up
         // with the topk axis directly. The gather is still dynamic here, so check its max length.
-        auto pre_shape = gather_ins->get_shape();
+        const auto& pre_shape = gather_ins->get_shape();
         if(pre_shape.ndim() != 1 or pre_shape.max_lens().at(0) != max_boxes)
             return;
 
-        // Bypass the dynamic slice so the padded indices flow straight through, then re-derive
-        // shapes along the (now static) chain so the gathered scores become static [max_boxes].
+        // Bypass the dynamic slice so the padded indices flow straight through; replace_instruction
+        // propagates the now-static shapes down the chain, so the gathered scores become static
+        // [max_boxes].
         m.replace_instruction(slice_ins, indices);
-        for(auto it = slice_ins; it != m.end(); ++it)
-            it->recompute_shape();
 
-        auto data_shape = gather_ins->get_shape();
-        auto largest    = topk_ins->get_operator().to_value().at("largest").to<bool>();
+        const auto& data_shape = gather_ins->get_shape();
+        auto largest           = topk_ins->get_operator().to_value().at("largest").to<bool>();
 
         // literal counting up 0, 1, ..., max_boxes - 1
         std::vector<int64_t> iota_data(max_boxes);

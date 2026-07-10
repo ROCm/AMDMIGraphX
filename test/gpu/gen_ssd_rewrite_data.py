@@ -41,7 +41,7 @@ from onnx import helper, TensorProto
 
 
 def build_model(n, k, iou, score_thr, center_point_box):
-    """NonMaxSuppression -> Slice(box col) -> Squeeze -> Gather(scores) -> TopK."""
+    """NonMaxSuppression -> Slice(box col) -> Squeeze -> Reshape(scores) -> Gather -> TopK."""
     boxes  = helper.make_tensor_value_info("boxes", TensorProto.FLOAT, [1, n, 4])
     scores = helper.make_tensor_value_info("scores", TensorProto.FLOAT, [1, 1, n])
     values = helper.make_tensor_value_info("values", TensorProto.FLOAT, [k])

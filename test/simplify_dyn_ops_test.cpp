@@ -1080,19 +1080,6 @@ TEST_CASE(select_module_update2)
     EXPECT(p0 == p1);
 }
 
-// Extract the box-index column from a (dynamic) [num_selected, 3] NMS indices tensor and gather the
-// matching scores, returning the gather instruction.
-static migraphx::instruction_ref add_gather_scores(migraphx::module& m,
-                                                   migraphx::instruction_ref selected,
-                                                   migraphx::instruction_ref scores)
-{
-    auto box_col = m.add_instruction(
-        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), selected);
-    auto box_col_1d  = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), box_col);
-    auto scores_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), scores);
-    return m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), scores_flat, box_col_1d);
-}
-
 // Build boxes/scores -> nonmaxsuppression -> dynamic slice -> gather scores -> topk in `m`
 // (matching what the ONNX NMS parser emits), returning the nms, gather, and topk-output
 // instructions so the tests can inspect the rewrite.
@@ -1116,8 +1103,14 @@ static void make_nms_gather_topk(migraphx::module& m,
     // variable-end slice that trims the padded indices to num_selected (dynamic)
     auto selected = m.add_instruction(
         migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
-    auto gather = add_gather_scores(m, selected, scores);
-    auto topk   = m.add_instruction(
+    // extract the box-index column and gather the matching scores
+    auto box_col = m.add_instruction(
+        migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), selected);
+    auto box_col_1d  = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), box_col);
+    auto scores_flat = m.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), scores);
+    auto gather =
+        m.add_instruction(migraphx::make_op("gather", {{"axis", 0}}), scores_flat, box_col_1d);
+    auto topk = m.add_instruction(
         migraphx::make_op("topk", {{"k", 4}, {"axis", 0}, {"largest", largest ? 1 : 0}}), gather);
     auto tv = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), topk);
     m.add_return({tv});

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -101,7 +101,7 @@ MIGRAPHX_EXPORT
 std::vector<std::size_t> compute_common_lens(const std::vector<shape>& shapes);
 
 /**
- * @ brief Compute the common (broadcasted) dynamic dimensions of a list of dynamic shapes
+ * @brief Compute the common (broadcasted) dynamic dimensions of a list of dynamic shapes
  */
 MIGRAPHX_EXPORT
 std::vector<shape::dynamic_dimension> compute_common_dyn_dims(const std::vector<shape>& shapes);
@@ -152,6 +152,21 @@ instruction_ref add_common_op(module& m,
  */
 MIGRAPHX_EXPORT
 shape make_bcast_shape(const shape& input_shape, const std::vector<std::size_t>& bcast_lens);
+
+/**
+ * Calculates the broadcasted shape from a symbolic broadcast target. The input shape MUST
+ * already be symbolic (`input_shape.symbolic()`); callers bridging from a static shape
+ * should promote via `shape::to_symbolic()` first. Mirrors the single-modality contract of
+ * the static overload above. Broadcast axes receive `sym::lit(0)`; matching axes propagate
+ * the input's symbolic stride.
+ *
+ * @param input_shape symbolic dynamic shape to broadcast
+ * @param bcast_dyn_dims symbolic dynamic dimensions to broadcast to
+ * @return broadcasted shape with symbolic dyn_strides
+ */
+MIGRAPHX_EXPORT
+shape make_bcast_shape(const shape& input_shape,
+                       const std::vector<shape::dynamic_dimension>& bcast_dyn_dims);
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

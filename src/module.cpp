@@ -25,8 +25,10 @@
 #include <migraphx/algorithm.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/bit_signal.hpp>
+#include <migraphx/shape.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
@@ -39,6 +41,7 @@
 #include <migraphx/register_target.hpp>
 #include <migraphx/json.hpp>
 #include <migraphx/fp8_types.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -61,6 +64,7 @@ struct module_impl
     uint32_t nparams = 0;
     bool bypass      = false; // used for skipping compiler passes
     bit_signal<64> changed{};
+    std::size_t num_ins_with_debug_symbols = 0;
 
     bool contains(instruction_ref ins) const
     {
@@ -93,7 +97,8 @@ struct module_impl
         changed.notify();
         instructions.clear();
         instruction_set.clear();
-        nparams = 0;
+        nparams                    = 0;
+        num_ins_with_debug_symbols = 0;
     }
 
     void push_front(const instruction& ins) { insert(instructions.begin(), ins); }
@@ -116,20 +121,26 @@ struct module_impl
     {
         changed.notify();
         instruction_set.erase(std::addressof(*pos));
+        if(num_ins_with_debug_symbols > 0 and not pos->get_debug_symbols().empty())
+            --num_ins_with_debug_symbols;
         return instructions.erase(pos);
     }
 
     instruction_ref erase(instruction_ref start, instruction_ref last)
     {
         changed.notify();
-        std::for_each(start, last, [&](auto& ins) { instruction_set.erase(std::addressof(ins)); });
+        std::for_each(start, last, [&](auto& ins) {
+            instruction_set.erase(std::addressof(ins));
+            if(num_ins_with_debug_symbols > 0 and not ins.get_debug_symbols().empty())
+                --num_ins_with_debug_symbols;
+        });
         return instructions.erase(start, last);
     }
 };
 
 const operation& get_operation(instruction_ref ins) { return ins->get_operator(); }
 
-module::module(const std::string& name) : impl(std::make_unique<module_impl>())
+module::module(const std::string& name) :impl(std::make_unique<module_impl>())
 {
     impl->name = name;
 }
@@ -153,6 +164,29 @@ void module::set_name(const std::string& name) { impl->name = name; }
 
 bool module::bypass() const { return impl->bypass; }
 void module::set_bypass(bool b) { impl->bypass = b; }
+
+bool module::has_debug_symbols() const { return impl->num_ins_with_debug_symbols > 0; }
+
+void module::add_debug_symbols(instruction_ref ins, const std::set<std::string>& symbols)
+{
+    if(symbols.empty())
+        return;
+    if(ins->get_debug_symbols().empty())
+    {
+        impl->num_ins_with_debug_symbols++;
+    }
+    ins->add_debug_symbols(symbols);
+}
+
+void module::remove_debug_symbols(instruction_ref ins)
+{
+    assert(ins->get_debug_symbols().empty() or impl->num_ins_with_debug_symbols > 0);
+    if(not ins->get_debug_symbols().empty() and impl->num_ins_with_debug_symbols > 0)
+    {
+        impl->num_ins_with_debug_symbols--;
+    }
+    ins->remove_debug_symbols();
+}
 
 void module::assign(const module& m)
 {
@@ -182,7 +216,7 @@ void module::assign(const module& m)
             auto order  = any_cast<builtin::param>(ins->get_operator()).order;
             auto s      = ins->get_shape();
             copy_ins    = impl->insert(impl->instructions.end(),
-                                    {builtin::param{name, order}, std::move(s), {}});
+                                       {builtin::param{name, order}, std::move(s), {}});
             impl->nparams++;
         }
         else if(ins->name() == "@outline")
@@ -209,7 +243,7 @@ void module::assign(const module& m)
                 copy_ins = add_instruction(ins->get_operator(), copy_inputs, module_args);
             }
         }
-
+        add_debug_symbols(copy_ins, ins->get_debug_symbols());
         ins_map[ins] = copy_ins;
     }
 }
@@ -292,12 +326,13 @@ instruction_ref module::add_instruction(const operation& op, std::vector<instruc
 {
     return insert_instruction(this->insert_end(), op, std::move(args));
 }
+
 instruction_ref module::insert_instruction(instruction_ref ins,
                                            const operation& op,
                                            std::vector<instruction_ref> args)
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
-    assert(not starts_with(op.name(), "@"));
+    assert(not starts_with(op.name(), "@") or op.name() == "@comment");
     shape r     = compute_shape(op, args);
     auto result = impl->insert(ins, {op, r, std::move(args)});
     instruction::backreference(result);
@@ -318,7 +353,7 @@ instruction_ref module::insert_instruction(instruction_ref ins,
                                            std::vector<module_ref> module_args)
 {
     assert(has_instruction(ins) or is_end(ins, this->end()));
-    assert(not starts_with(op.name(), "@"));
+    assert(not starts_with(op.name(), "@") or op.name() == "@comment");
     auto out_shape = compute_shape(op, args, module_args);
     auto result    = impl->insert(ins, {op, out_shape, std::move(args), std::move(module_args)});
     instruction::backreference(result);
@@ -326,30 +361,145 @@ instruction_ref module::insert_instruction(instruction_ref ins,
     return result;
 }
 
+/**
+ * Traverse inputs of `ins` and gather instructions that output only to `ins`.
+ * This splice is the total possibility of instructions that could be spliced by a
+ * replace_instruction and including the first not solely dependent instruction.
+ * stops : optional set of instructions to stop search on if encountered.
+ **/
+static std::unordered_set<instruction_ref> gather_max_splice(
+    const_module_ref m, instruction_ref ins, std::unordered_set<instruction_ref> stops = {})
+{
+    std::unordered_set<instruction_ref> result = {ins};
+    fix<void>([&](auto self, const std::vector<instruction_ref>& inputs) {
+        for(auto input : inputs)
+        {
+            if(not m->has_instruction(input))
+                continue;
+            if(contains(result, input))
+                continue;
+            result.insert(input);
+            if(contains(stops, input) or any_of(input->outputs(), [&](instruction_ref output) {
+                   return not contains(result, output);
+               }))
+            {
+                // include first instruction that is not solely dependent or in stops
+                continue;
+            }
+            self(input->inputs());
+        }
+    })(ins->inputs());
+    return result;
+}
+
+// Figure out the instructions actually being spliced (min splice).
+// end: instruction at end of splice
+static std::unordered_set<instruction_ref>
+deduce_min_splice(std::vector<instruction_ref> ends,
+                  const std::unordered_set<instruction_ref>& max_splice,
+                  const std::unordered_set<instruction_ref>& common_ancestors)
+{
+    std::unordered_set<instruction_ref> min_splice;
+    min_splice.insert(ends.begin(), ends.end());
+    if(common_ancestors.empty())
+        return min_splice;
+
+    // make min_splice by gathering outputs of common_ancestors within the max_splice
+    for(auto anc : common_ancestors)
+    {
+        fix<void>([&](auto self, const auto& outputs) {
+            for(auto output : outputs)
+            {
+                if(not contains(max_splice, output))
+                    continue;
+                if(contains(min_splice, output))
+                    continue;
+                if(contains(common_ancestors, output))
+                    continue;
+                min_splice.insert(output);
+                self(output->outputs());
+            }
+        })(anc->outputs());
+    }
+    return min_splice;
+}
+
+// ins: instruction that was/will be replaced
+// rep: replacing instruction
+static void propagate_debug_symbols(module_ref m,
+                                    instruction_ref ins,
+                                    instruction_ref rep,
+                                    const std::unordered_set<instruction_ref>& new_max_splice,
+                                    const std::unordered_set<instruction_ref>& old_max_splice)
+{
+    // TODO: can get common ancestors within gather_max_splice as an optimization
+    // Find the common instructions between old_max_splice and new_max_splice.
+    // {old_max_splice} ∩ {new_max_splice}
+    // This is like calculating the lowest common ancestors
+    std::unordered_set<instruction_ref> common_ancestors;
+    std::copy_if(old_max_splice.cbegin(),
+                 old_max_splice.cend(),
+                 std::inserter(common_ancestors, common_ancestors.begin()),
+                 [&new_max_splice](auto old_ins) { return contains(new_max_splice, old_ins); });
+
+    // Deduce the correct (minimum) splice from the max splice and the intersection
+    std::unordered_set<instruction_ref> old_splice =
+        deduce_min_splice({ins}, old_max_splice, common_ancestors);
+    std::unordered_set<instruction_ref> new_splice =
+        deduce_min_splice({rep}, new_max_splice, common_ancestors);
+
+    std::set<std::string> symbols;
+    for(auto x : old_splice)
+    {
+        copy(x->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
+    }
+    for(auto x : new_splice)
+    {
+        m->add_debug_symbols(x, symbols);
+    }
+}
+
+// Adds a placeholder identity instruction for when replacing an instruction in place.
+static void propagate_debug_symbols_with_placeholder(module_ref m,
+                                                     instruction_ref ins,
+                                                     const std::vector<instruction_ref>& prev_args)
+{
+    auto id_ins = m->insert_instruction(ins, make_op("identity"), prev_args);
+    // Get old_max_splice after replacement to get smallest dependent splice
+    std::unordered_set<instruction_ref> old_max_splice = gather_max_splice(m, id_ins);
+    // TODO: if there are no common ancestors, this may traverse the majority of the graph
+    std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(m, ins, old_max_splice);
+    propagate_debug_symbols(m, ins, id_ins, new_max_splice, old_max_splice);
+    m->remove_instruction(id_ins);
+}
+
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
-                                            std::vector<instruction_ref> args) MIGRAPHX_TIDY_CONST
+                                            std::vector<instruction_ref> args)
 {
-    impl->changed.notify();
-    assert(has_instruction(ins));
-    assert(not starts_with(op.name(), "@"));
-
-    shape r = compute_shape(op, args);
-    instruction::replace(ins, op, r, std::move(args));
-    assert(ins->valid(begin()));
-    return ins;
+    return replace_instruction(ins, op, std::move(args), {});
 }
 
 instruction_ref module::replace_instruction(instruction_ref ins,
                                             const operation& op,
                                             std::vector<instruction_ref> args,
-                                            std::vector<module_ref> module_args) MIGRAPHX_TIDY_CONST
+                                            std::vector<module_ref> module_args)
 {
     impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
+    auto guard     = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
     auto out_shape = compute_shape(op, args, module_args);
+    std::vector<instruction_ref> prev_args;
+    if(has_debug_symbols())
+    {
+        prev_args = ins->inputs();
+    }
     instruction::replace(ins, op, out_shape, std::move(args), std::move(module_args));
+    if(has_debug_symbols() and not prev_args.empty())
+    {
+        propagate_debug_symbols_with_placeholder(this, ins, prev_args);
+    }
     assert(ins->valid(begin()));
     return ins;
 }
@@ -372,6 +522,15 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     {
         return rep;
     }
+
+    if(has_debug_symbols())
+    {
+        std::unordered_set<instruction_ref> new_max_splice = gather_max_splice(this, rep);
+        std::unordered_set<instruction_ref> old_max_splice =
+            gather_max_splice(this, ins, new_max_splice);
+        propagate_debug_symbols(this, ins, rep, new_max_splice, old_max_splice);
+    }
+
     // Make a copy of outputs which can be changed when calling replace_argument
     auto outputs = ins->outputs();
     for(auto out : outputs)
@@ -383,6 +542,7 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
         }
         assert(out->valid(begin()));
     }
+
     // Replacement should not be dead code unless its the last instruction
     assert(not rep->outputs().empty() or rep == std::prev(end()));
     // Output of the original instruction should only be the replacement or empty
@@ -392,6 +552,86 @@ instruction_ref module::replace_instruction(instruction_ref ins, instruction_ref
     assert(ins->valid(begin()));
     assert(rep->valid(begin()));
     return rep;
+}
+
+// For replacing multiple instructions within a single matcher.
+// Handles debug symbol propagation by having all old splice debug symbols propagate
+// to the new splice instructions.
+std::vector<instruction_ref>
+module::batch_replace_instruction(const std::vector<instruction_replacement>& replacers)
+{
+    impl->changed.notify();
+    std::vector<instruction_ref> ret;
+    std::unordered_set<instruction_ref> old_max_splices;
+    std::unordered_set<instruction_ref> new_max_splices;
+    std::vector<instruction_ref> id_instructions;
+    for(const auto& replacer : replacers)
+    {
+        assert(has_instruction(replacer.ins));
+        assert(not starts_with(replacer.op.name(), "@"));
+        std::vector<instruction_ref> prev_args;
+        if(has_debug_symbols())
+        {
+            prev_args = replacer.ins->inputs();
+        }
+        auto guard =
+            on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*replacer.ins); });
+        auto out_shape = compute_shape(replacer.op, replacer.args, replacer.module_args);
+        instruction::replace(
+            replacer.ins, replacer.op, out_shape, replacer.args, replacer.module_args);
+        ret.push_back(replacer.ins);
+        if(has_debug_symbols() and not prev_args.empty())
+        {
+            auto id_ins = insert_instruction(replacer.ins, make_op("identity"), prev_args);
+            id_instructions.push_back(id_ins);
+            auto old_ms = gather_max_splice(this, id_ins);
+            auto new_ms = gather_max_splice(this, replacer.ins, old_ms);
+            old_max_splices.insert(old_ms.begin(), old_ms.end());
+            new_max_splices.insert(new_ms.begin(), new_ms.end());
+        }
+    }
+    if(has_debug_symbols())
+    {
+        std::unordered_set<instruction_ref> common_ancestors;
+        std::copy_if(
+            old_max_splices.cbegin(),
+            old_max_splices.cend(),
+            std::inserter(common_ancestors, common_ancestors.begin()),
+            [&new_max_splices](auto old_ins) { return contains(new_max_splices, old_ins); });
+
+        std::vector<instruction_ref> ends;
+        std::transform(replacers.begin(),
+                       replacers.end(),
+                       std::back_inserter(ends),
+                       [](const auto& rep) { return rep.ins; });
+
+        std::unordered_set<instruction_ref> old_splice =
+            deduce_min_splice(ends, old_max_splices, common_ancestors);
+        std::unordered_set<instruction_ref> new_splice =
+            deduce_min_splice(ends, new_max_splices, common_ancestors);
+
+        // include in-place debug symbols if they're there
+        std::set<std::string> symbols;
+        for(const auto& replacer : replacers)
+        {
+            const auto& ds = replacer.ins->get_debug_symbols();
+            symbols.insert(ds.begin(), ds.end());
+        }
+        for(auto old_ins : old_splice)
+        {
+            copy(old_ins->get_debug_symbols(), std::inserter(symbols, symbols.begin()));
+        }
+        for(auto new_ins : new_splice)
+        {
+            add_debug_symbols(new_ins, symbols);
+        }
+        // clean up the identity placeholder instructions
+        for(auto id_ins : id_instructions)
+        {
+            remove_instruction(id_ins);
+        }
+    }
+    return ret;
 }
 
 instruction_ref module::remove_instruction(instruction_ref ins)
@@ -608,7 +848,8 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
         return this->add_return(args);
     }
 
-    shape r = compute_shape(last->get_operator(), args);
+    auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*last); });
+    shape r    = compute_shape(last->get_operator(), args);
     instruction::replace(last, last->get_operator(), r, std::move(args));
     assert(last->valid(begin()));
 
@@ -803,6 +1044,7 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                            [&](auto in) { return ins_shapes.at(in); });
             if(ins->name() == "@return")
                 return input_shapes;
+            auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
             ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes, ins->module_inputs());
         }
     }
@@ -895,8 +1137,7 @@ void module::finalize(std::vector<context>& contexts)
     // Warn when an instruction is not normalized
     auto ins = std::find_if(begin(), end(), [](auto& i) { return i.need_normalization(); });
     if(ins != end())
-        std::cerr << "WARNING: Instruction needs normalization, performance may be affected."
-                  << std::endl;
+        log::warn() << "Instruction needs normalization, performance may be affected.";
 }
 
 std::unordered_map<instruction_ref, instruction_ref>
@@ -1241,7 +1482,7 @@ std::unordered_map<instruction_ref, std::string> module::print(
     std::unordered_map<instruction_ref, std::string> names) const
 {
     const bool is_root = names.empty();
-    int count = 0;
+    int count          = 0;
     for(auto ins : iterator_for(*this))
     {
         std::string var_name;
@@ -1361,6 +1602,48 @@ static void print_cpp_shape(std::ostream& os, const migraphx::shape& s)
     os << "}";
 }
 
+// Returns true when every element of the literal holds the same value, which lets
+// large literals be reproduced with a compact fill_argument instead of a seeded one.
+static bool literal_is_fill(const literal& lit, double fill_value)
+{
+    bool is_fill = false;
+    lit.visit([&](auto v) {
+        is_fill =
+            std::all_of(v.begin() + 1, v.end(), [&](auto x) { return float_equal(x, fill_value); });
+    });
+    return is_fill;
+}
+
+static void print_py_literal(std::ostream& os,
+                             const std::string& mname,
+                             const literal& lit,
+                             const shape& s,
+                             unsigned long& seed)
+{
+    os << mname << ".add_literal(";
+    if(s.elements() < 1024)
+    {
+        os << "migraphx.create_argument(";
+        print_py_shape(os, s);
+        os << ", [" << lit << "])";
+    }
+    else if(literal_is_fill(lit, lit.at<double>()))
+    {
+        os << "migraphx.fill_argument(";
+        print_py_shape(os, s);
+        os << ", " << lit.at<double>() << ")";
+        seed++;
+    }
+    else
+    {
+        os << "migraphx.generate_argument(";
+        print_py_shape(os, s);
+        os << ", " << seed << ")";
+        seed++;
+    }
+    os << ")" << std::endl;
+}
+
 std::unordered_map<instruction_ref, std::string>
 module::print_py(std::ostream& os,
                  const std::string& mname,
@@ -1380,30 +1663,7 @@ module::print_py(std::ostream& os,
                 os << cpp_var_name(ins_names.at(ins)) << " = ";
             if(ins->name() == "@literal")
             {
-                os << mname << ".add_literal(";
-                if(ins->get_shape().elements() < 1024)
-                {
-                    os << "migraphx.create_argument(";
-                    print_py_shape(os, ins->get_shape());
-                    os << ", [" << ins->get_literal() << "])";
-                }
-                else
-                {
-                    const bool use_abs = false;
-                    // Disable abs for now
-                    // ins->get_literal().visit([&](auto v) {
-                    //     use_abs = std::none_of(v.begin(), v.end(), [](auto x) { return x < 0; });
-                    // });
-                    if(use_abs)
-                        os << "migraphx.abs_literal(";
-                    os << "migraphx.generate_argument(";
-                    print_py_shape(os, ins->get_shape());
-                    os << ", " << seed << ")";
-                    if(use_abs)
-                        os << ")";
-                    seed++;
-                }
-                os << ")" << std::endl;
+                print_py_literal(os, mname, ins->get_literal(), ins->get_shape(), seed);
             }
             else if(ins->name() == "@param")
             {
@@ -1525,6 +1785,37 @@ std::vector<module_ref> module::get_sub_modules(bool shallow) const
     }
 
     return vec_modules;
+}
+
+module module::with_static_shapes(const std::unordered_map<std::string, shape>& input_shapes)
+{
+    // This routine creates a new module with the same instructions but with different input shapes.
+    // The sequence of instructions (operators and interconnectivity) is copied, but all input
+    // parameter shapes are replaced with new "input_shapes".
+
+    // ensure input_shapes is the same length as the parameters.
+    auto param_names = this->get_parameter_names();
+    assert(param_names.size() == input_shapes.size());
+
+    module new_mod;
+    std::unordered_map<instruction_ref, instruction_ref> ins_map;
+
+    // create parameters with new shapes in new_mod and fill ins_map for params
+    for(auto ins : iterator_for(*this))
+    {
+        if(ins->name() == "@param")
+        {
+            auto pname = any_cast<builtin::param>(ins->get_operator()).parameter;
+            assert(input_shapes.count(pname) > 0);
+            ins_map[ins] = new_mod.add_parameter(pname, input_shapes.at(pname));
+        }
+    }
+
+    // Copy remaining instructions in order
+    auto ret = new_mod.insert_instructions(new_mod.end(), this, &ins_map);
+    new_mod.add_return(ret);
+
+    return new_mod;
 }
 
 module& module::sort()

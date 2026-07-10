@@ -817,6 +817,7 @@ MIGRAPHX_PRED_MATCHER(not_standard_shape, instruction_ref ins)
 }
 MIGRAPHX_PRED_MATCHER(dynamic_shape, instruction_ref ins) { return ins->get_shape().dynamic(); }
 MIGRAPHX_PRED_MATCHER(static_shape, instruction_ref ins) { return not ins->get_shape().dynamic(); }
+MIGRAPHX_PRED_MATCHER(symbolic_shape, instruction_ref ins) { return ins->get_shape().symbolic(); }
 MIGRAPHX_PRED_MATCHER(broadcast_shape, instruction_ref ins)
 {
     return ins->get_shape().broadcasted();
@@ -1028,6 +1029,7 @@ auto args(Ms... ms)
 {
     return sequence_c<sizeof...(Ms)>([=](auto... is) {
         // It needs to be written as `decltype(is)::value` for gcc 5
+        // cppcheck-suppress migraphx-AvoidNestedValue
         return args_impl(args_impl_ints<decltype(is)::value...>{}, ms...);
     });
 }
@@ -1128,6 +1130,26 @@ auto same_shape(Ms... ms)
     return all_of(same_shape(ms)...);
 }
 
+template <class M>
+auto same_lens(M m)
+{
+    return make_basic_fun_matcher(
+        [=](matcher_context& ctx, instruction_ref ins) -> optional<instruction_ref> {
+            auto i = m.match(ctx, ins);
+            if(not i)
+                return nullopt;
+            if(shape::same_lens((*i)->get_shape(), ins->get_shape()))
+                return ins;
+            return nullopt;
+        });
+}
+
+template <class... Ms>
+auto same_lens(Ms... ms)
+{
+    return all_of(same_lens(ms)...);
+}
+
 template <class... Ms>
 auto skip_broadcasts(Ms... ms)
 {
@@ -1210,7 +1232,11 @@ auto pointwise(Ms... ms)
     return match::has_attribute("pointwise")(ms...);
 }
 
-MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins) { return starts_with(ins->name(), "reduce_"); }
+MIGRAPHX_PRED_MATCHER(reduce, instruction_ref ins)
+{
+    return starts_with(ins->name(), "reduce_") or ins->name() == "argmin" or
+           ins->name() == "argmax";
+}
 
 } // namespace match
 } // namespace MIGRAPHX_INLINE_NS

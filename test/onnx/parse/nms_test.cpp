@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -43,8 +43,9 @@ TEST_CASE(nms_test)
     migraphx::shape sst{migraphx::shape::float_type, {1}};
     auto st = mm->add_parameter("score_threshold", sst);
 
-    auto ret = mm->add_instruction(
+    auto nms = mm->add_instruction(
         migraphx::make_op("nonmaxsuppression", {{"center_point_box", true}}), b, s, mo, iou, st);
+    auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
     mm->add_return({ret});
 
     auto prog = read_onnx("nms_test.onnx");

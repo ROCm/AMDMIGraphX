@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -87,6 +87,14 @@ def addn_single_test(g1):
         g1_input = tf.compat.v1.placeholder(tf.float32, shape=(2, 3), name='0')
 
         tf.math.add_n([g1_input], name='addn1')
+
+@tf_test
+def addn_with_many_elements_test(g1):
+    with g1.as_default():
+        input_list = []
+        for i in range(10):
+            input_list.append(tf.compat.v1.placeholder(tf.float32, shape=(1, 1648), name=str(i)))
+        tf.math.add_n(input_list, name='addn1')
 
 
 @tf_test

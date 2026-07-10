@@ -23,6 +23,7 @@
  *
  */
 // Test for UnnecessaryEmptyCondition check
+// cppcheck-suppress-file knownConditionTrueFalse
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -57,12 +58,11 @@ void test_positive_cases()
     }
 }
 
-void test_negative_cases()
+void test_different_containers_should_not_trigger()
 {
-    std::vector<int> container = {1, 2, 3, 4, 5};
-
-    // Should not trigger: different containers
+    std::vector<int> container       = {1, 2, 3, 4, 5};
     std::vector<int> other_container = {6, 7, 8};
+
     if(not container.empty())
     {
         for(auto item : other_container)
@@ -71,15 +71,22 @@ void test_negative_cases()
             (void)x;
         }
     }
+}
 
-    // Should not trigger: no empty check
+void test_no_empty_check_should_not_trigger()
+{
+    std::vector<int> container = {1, 2, 3, 4, 5};
     for(auto item : container)
     {
         int x = item * 2;
         (void)x;
     }
+}
 
-    // Should not trigger: traditional for loop
+void test_traditional_for_should_not_trigger()
+{
+    std::vector<int> container = {1, 2, 3, 4, 5};
+
     if(not container.empty())
     {
         for(size_t i = 0; i < container.size(); i++)
@@ -88,8 +95,12 @@ void test_negative_cases()
             (void)x;
         }
     }
+}
 
-    // Should not trigger: checking size instead of empty
+void test_size_check_should_not_trigger()
+{
+    std::vector<int> container = {1, 2, 3, 4, 5};
+
     if(container.size() > 0)
     {
         for(auto item : container)

@@ -31,13 +31,13 @@
 #include <migraphx/time.hpp>
 #include <migraphx/iterator_for.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/fileutils.hpp>
 #include <migraphx/load_save.hpp>
+#include <migraphx/logger.hpp>
 #include <iostream>
 #include <sstream>
-#include <algorithm>
 #include <utility>
 #include <string>
-#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -158,14 +158,6 @@ struct module_pm : module_pass_manager
         validate_pass(*mod, p, *t);
     }
 
-    static void sanitize(std::string& s)
-    {
-        static constexpr std::string_view invalid = "<>:\"/\\|?*";
-
-        std::replace_if(
-            s.begin(), s.end(), [](char c) { return invalid.find(c) != std::string::npos; }, '_');
-    }
-
     template <class F>
     void try_and_dump_on_error(const pass& p, F f) const
     {
@@ -181,17 +173,17 @@ struct module_pm : module_pass_manager
         }
         catch(const std::exception& e)
         {
-            std::cerr << "Error " << p.name() << ": " << e.what() << std::endl;
+            log::error() << "Error " << p.name() << ": " << e.what();
             auto clk         = std::chrono::steady_clock::now().time_since_epoch().count();
             fs::path dirname = fs::temp_directory_path() / "migraphx";
             fs::create_directories(dirname);
             std::string base = p.name() + std::to_string(clk) + ".mxr";
 #if defined(_WIN32)
             // On Windows, some pass names may contain invalid characters for filenames
-            sanitize(base);
+            base = sanitize_filename(std::move(base));
 #endif
             fs::path fname = dirname / base;
-            std::cerr << "Dump: " << fname << std::endl;
+            log::error() << "Dump: " << fname;
             save(*prog, fname.string());
             throw;
         }

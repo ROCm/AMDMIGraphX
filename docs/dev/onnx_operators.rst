@@ -457,13 +457,13 @@ Operator Support Matrix
 +--------------------------+-----------+-----------------+------------------------------+
 | MaxPool                  | ✅        | FP32, FP16,     | ``storage_order``            |
 |                          |           | FP8, INT8       | not supported,               |
-|                          |           |                 | ``dialtion`` is              |
+|                          |           |                 | ``dilation`` is              |
 |                          |           |                 | partially                    |
 |                          |           |                 | supported on                 |
 |                          |           |                 | GPU (MIOpen                  |
 |                          |           |                 | limitation),                 |
 |                          |           |                 | ``indices`` 2nd              |
-|                          |           |                 | ouput not                    |
+|                          |           |                 | output not                   |
 |                          |           |                 | supported                    |
 +--------------------------+-----------+-----------------+------------------------------+
 | MaxRoiPool               | ❌        |                 |                              |
@@ -511,15 +511,15 @@ Operator Support Matrix
 +--------------------------+-----------+-----------------+------------------------------+
 | NegativeLogLikelihoodLoss| ❌        |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| NonMaxSuppression        | ✅        | FP8, FP16,      | fixed output                 |
-|                          |           | FP32, FP64      | size unless                  |
-|                          |           |                 | ``use_dyn_output``           |
-|                          |           |                 | set                          |
+| NonMaxSuppression        | ✅        | FP8, FP16,      | Different from ONNX          |
+|                          |           | FP32, FP64      | specification: Fixed output  |
+|                          |           |                 | size with arbitrary padding. |
+|                          |           |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| NonZero                  | ✅        | FP8, FP16,      | fixed output                 |
-|                          |           | FP32, FP64      | size unless                  |
-|                          |           |                 | ``use_dyn_output``           |
-|                          |           |                 | set                          |
+| NonZero                  | ✅        | FP8, FP16,      | Different from ONNX          |
+|                          |           | FP32, FP64      | specification: Fixed output  |
+|                          |           |                 | size with arbitrary padding. |
+|                          |           |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
 | Not                      | ✅        | BOOL            |                              |
 +--------------------------+-----------+-----------------+------------------------------+

@@ -115,8 +115,8 @@ struct parse_rnn : op_parser<parse_rnn>
             vec_names.resize(1);
         }
 
-        auto num_actv_functions = dirct == op::rnn_direction::bidirectional ? 2 : 1;
-        if(vec_names.size() != static_cast<size_t>(num_actv_functions))
+        std::size_t num_actv_functions = dirct == op::rnn_direction::bidirectional ? 2 : 1;
+        if(vec_names.size() != num_actv_functions)
         {
             MIGRAPHX_THROW("RNN: Invalid activation functions number, should be: " +
                            to_string(num_actv_functions));

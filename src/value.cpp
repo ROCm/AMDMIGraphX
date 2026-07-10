@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,8 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <iterator>
+#include <limits>
 #include <migraphx/cloneable.hpp>
 #include <migraphx/errors.hpp>
 #include <migraphx/stringutils.hpp>
@@ -383,6 +386,7 @@ const value& value::operator[](std::size_t i) const
     assert(i < this->size());
     return *(begin() + i);
 }
+// cppcheck-suppress returnTempReference
 value& value::operator[](const std::string& pkey) { return *emplace(pkey, nullptr).first; }
 
 void value::clear() { get_array_throw(x).clear(); }
@@ -435,6 +439,35 @@ value value::without_key() const
     value result = *this;
     result.key   = "";
     return result;
+}
+
+// Normalize integer scalars to a signed representation: any uint64 value that
+// fits in int64 is converted to int64.
+value value::normalize() const
+{
+    if(this->is_object())
+    {
+        value result = value::object{};
+        for(const auto& child : *this)
+            result[child.get_key()] = child.normalize();
+        return result;
+    }
+    if(this->is_array())
+    {
+        value result = value::array{};
+        std::transform(this->begin(),
+                       this->end(),
+                       std::back_inserter(result),
+                       [](const value& child) { return child.normalize(); });
+        return result;
+    }
+    if(this->is_uint64())
+    {
+        auto u = this->get_uint64();
+        if(u <= std::numeric_limits<std::int64_t>::max())
+            return static_cast<std::int64_t>(u);
+    }
+    return *this;
 }
 
 value value::with_key(const std::string& pkey) const

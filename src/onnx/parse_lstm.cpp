@@ -138,8 +138,8 @@ struct parse_lstm : op_parser<parse_lstm>
             });
         }
 
-        auto num_actv_functions = dirct == op::rnn_direction::bidirectional ? 6 : 3;
-        if(vec_names.size() != static_cast<size_t>(num_actv_functions))
+        std::size_t num_actv_functions = dirct == op::rnn_direction::bidirectional ? 6 : 3;
+        if(vec_names.size() != num_actv_functions)
         {
             MIGRAPHX_THROW("LSTM: Invalid activation functions number, should be: " +
                            to_string(num_actv_functions));

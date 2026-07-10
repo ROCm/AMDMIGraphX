@@ -22,7 +22,14 @@
  * THE SOFTWARE.
  */
 #include <migraphx/migraphx.h>
+#include <stdlib.h>
 #include <string.h>
+
+void expect_status(migraphx_status x, migraphx_status y)
+{
+    if(x != y)
+        abort();
+}
 
 void expect_equal(const char* x, const char* y)
 {
@@ -33,9 +40,16 @@ void expect_equal(const char* x, const char* y)
 int main(void)
 {
     char name[1024];
+    char truncated_name[2];
     migraphx_operation_t op;
-    migraphx_operation_create(&op, "add", 0);
-    migraphx_operation_name(name, 1024, op);
-    migraphx_operation_destroy(op);
+    expect_status(migraphx_operation_create(&op, "add", 0), migraphx_status_success);
+
+    expect_status(migraphx_operation_name(NULL, 1024, op), migraphx_status_bad_param);
+    expect_status(migraphx_operation_name(name, 0, op), migraphx_status_bad_param);
+    expect_status(migraphx_operation_name(truncated_name, 2, op), migraphx_status_success);
+    expect_equal(truncated_name, "a");
+
+    expect_status(migraphx_operation_name(name, 1024, op), migraphx_status_success);
+    expect_status(migraphx_operation_destroy(op), migraphx_status_success);
     expect_equal(name, "add");
 }

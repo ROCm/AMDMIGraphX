@@ -27,6 +27,7 @@
 
 #include <migraphx/manage_ptr.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/stringutils.hpp>
@@ -57,7 +58,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MIOPEN_POOLING)
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_MIOPEN_POOLING)
 
 struct miopen_apply
 {
@@ -92,17 +93,7 @@ struct miopen_apply
 #endif
         offload_copy = (mod == mpm->get_root_module()) ? pass->offload_copy : false;
 
-        add_extend_op("argmax");
-        add_extend_op("argmin");
         add_extend_op("fixed_pad");
-        add_extend_op("logsoftmax");
-        add_extend_op("multinomial");
-        add_extend_op("nonzero");
-        add_extend_op("prefix_scan_sum");
-        add_extend_op("reverse");
-        add_extend_op("rnn_var_sl_last_output");
-        add_extend_op("rnn_var_sl_shift_output");
-        add_extend_op("rnn_var_sl_shift_sequence");
         add_generic_op("contiguous");
         add_pooling_op();
 #if MIGRAPHX_USE_MIOPEN
@@ -118,13 +109,16 @@ struct miopen_apply
         add_if_op();
         add_loop_op();
         add_neg_op();
-        add_nms_op();
         add_lrn_op();
+        add_nms_op();
         add_convolution_backwards_op();
         add_select_module_op();
         add_reshape_lazy_op();
         add_concat_past_present_op();
         add_scan_slice_op();
+        add_fill_op();
+        add_dyn_slice_op();
+        add_dimensions_of_op();
     }
 
     void copy_params() const
@@ -182,6 +176,7 @@ struct miopen_apply
             else if(has_compiler_for(it->name()))
             {
                 check_shape(s, insert_precompile_op(it));
+                check_shape(s, insert_dynamic_code_object_op(it));
             }
             else if(attrs.contains("target"))
             {
@@ -240,6 +235,20 @@ struct miopen_apply
             ins,
             make_op("gpu::precompile_op", {{"op", to_value(ins->get_operator())}}),
             refs,
+            ins->module_inputs());
+    }
+
+    instruction_ref insert_dynamic_code_object_op(instruction_ref ins) const
+    {
+        assert(ins->get_operator().name() == "gpu::precompile_op");
+        // some op returns a tuple shape e.g. TopK
+        if(not ins->get_shape().any_of_dynamic())
+            return ins;
+
+        return mod->replace_instruction(
+            ins,
+            make_op("gpu::dynamic_code_object_op", {{"pre_op", to_value(ins->get_operator())}}),
+            ins->inputs(),
             ins->module_inputs());
     }
 
@@ -336,8 +345,11 @@ struct miopen_apply
 
     static bool use_miopen_pooling(instruction_ref ins)
     {
-        if(enabled(MIGRAPHX_DISABLE_MIOPEN_POOLING{}) or
-           not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
+        if(not enabled(MIGRAPHX_ENABLE_MIOPEN_POOLING{}))
+            return false;
+        if(not contains({shape::float_type, shape::half_type}, ins->get_shape().type()))
+            return false;
+        if(ins->get_shape().dynamic())
             return false;
         auto&& op   = ins->get_operator();
         auto op_val = op.to_value();
@@ -358,15 +370,19 @@ struct miopen_apply
     {
         apply_map.emplace("pooling", [=](instruction_ref ins) {
             if(not use_miopen_pooling(ins))
-                return insert_precompile_op(ins);
+            {
+                auto preop = insert_precompile_op(ins);
+                return insert_dynamic_code_object_op(preop);
+            }
 #if MIGRAPHX_USE_MIOPEN
             auto output                       = insert_allocation(ins, ins->get_shape());
             std::vector<instruction_ref> refs = ins->inputs();
             auto&& op                         = ins->get_operator();
             refs.push_back(output);
             return mod->replace_instruction(ins, make_op("gpu::pooling", op.to_value()), refs);
-#else 
-            return insert_precompile_op(ins);
+#else
+            auto preop = insert_precompile_op(ins);
+            return insert_dynamic_code_object_op(preop);
 #endif
         });
     }
@@ -433,24 +449,131 @@ struct miopen_apply
         });
     }
 
+    // Lowers `nonmaxsuppression` to the gpu::nms_sort -> nms_filter ->
+    // nms_compact pipeline, or to a host ref-op fallback when either input
+    // shape is dynamic (the kernels bake compile-time sizes).
     void add_nms_op()
     {
         apply_map.emplace("nonmaxsuppression", [=](instruction_ref ins) {
-            auto s      = ins->get_shape();
-            auto output = insert_allocation(ins, s);
-            std::vector<instruction_ref> cpu_inputs;
-            auto inputs = ins->inputs();
-            std::transform(
-                inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
-                    return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
-                });
-            cpu_inputs.front() =
-                mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
-            auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
-            auto gpu_out =
-                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_out, output);
-            return mod->replace_instruction(ins, gpu_out);
+            const auto& boxes_s  = ins->inputs()[0]->get_shape();
+            const auto& scores_s = ins->inputs()[1]->get_shape();
+            if(boxes_s.dynamic() or scores_s.dynamic())
+                return lower_nms_to_ref(ins);
+            const auto num_boxes = boxes_s.lens().at(1);
+            const auto num_bc    = boxes_s.lens().at(0) * scores_s.lens().at(1);
+            // bound on (batch, class) from shared memory limit on compact kernel
+            if(num_boxes < 2 or num_bc > 8192)
+                return lower_nms_to_ref(ins);
+            return lower_nms_to_gpu_pipeline(ins);
         });
+    }
+
+    // Static GPU pipeline. Each gpu::nms_* is wrapped in precompile_op inline
+    // because the main lowering loop walks forward and would skip them.
+    instruction_ref lower_nms_to_gpu_pipeline(instruction_ref ins) const
+    {
+        auto inputs            = ins->inputs();
+        const auto& boxes_s    = inputs[0]->get_shape();
+        const auto& scores_s   = inputs[1]->get_shape();
+        const auto num_batches = boxes_s.lens()[0];
+        const auto num_boxes   = boxes_s.lens()[1];
+        const auto num_classes = scores_s.lens()[1];
+        assert(num_boxes > 0);
+        const auto iou_packed = num_boxes * (num_boxes - 1) / 2;
+
+        // Fill in missing optional scalar inputs with default literals.
+        const shape default_max_s{shape::int64_type, {1}};
+        const shape default_iou_s{shape::float_type, {1}};
+        const shape default_thr_s{shape::float_type, {1}};
+        if(inputs.size() < 3)
+            inputs.push_back(mod->insert_literal(ins, literal{default_max_s, {std::int64_t{0}}}));
+        if(inputs.size() < 4)
+            inputs.push_back(mod->insert_literal(ins, literal{default_iou_s, {0.0f}}));
+        if(inputs.size() < 5)
+            inputs.push_back(mod->insert_literal(ins, literal{default_thr_s, {0.0f}}));
+
+        bool center_point_box = ins->get_operator().to_value().at("center_point_box").to<bool>();
+
+        // Scratch mask; replace_allocate later turns it into hip::allocate.
+        shape mask_shape{shape::uint8_type, {num_batches * num_classes, iou_packed}};
+        auto mask_alloc = insert_allocation(ins, mask_shape);
+
+        auto sorted = mod->insert_instruction(
+            ins,
+            make_op("gpu::nms_sort", {{"center_point_box", center_point_box}}),
+            inputs[0],
+            inputs[1]);
+        sorted = insert_precompile_op(sorted);
+
+        auto filter = mod->insert_instruction(ins,
+                                              make_op("gpu::nms_filter",
+                                                      {{"num_batches", num_batches},
+                                                       {"num_classes", num_classes},
+                                                       {"num_boxes", num_boxes}}),
+                                              sorted,
+                                              inputs[2],
+                                              inputs[3],
+                                              inputs[4],
+                                              mask_alloc);
+        filter      = insert_precompile_op(filter);
+
+        auto raw_output =
+            mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", 0}}), filter);
+        auto bc_counts =
+            mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", 1}}), filter);
+
+        auto compact =
+            mod->insert_instruction(ins, make_op("gpu::nms_compact"), bc_counts, raw_output);
+        compact = insert_precompile_op(compact);
+        insert_fill(compact, 0);
+
+        return mod->replace_instruction(ins, compact);
+    }
+
+    // Dynamic-shape fallback: run the ref op on the host. The tuple has to be
+    // split host-side before copy_to_gpu (which is not tuple-aware), and the
+    // downstream get_tuple_elem consumers are rewritten in place.
+    instruction_ref lower_nms_to_ref(instruction_ref ins) const
+    {
+        auto inputs = ins->inputs();
+        std::vector<instruction_ref> cpu_inputs;
+        cpu_inputs.reserve(inputs.size());
+        std::transform(inputs.begin(), inputs.end(), std::back_inserter(cpu_inputs), [&](auto in) {
+            return mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), in);
+        });
+        cpu_inputs.front() = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+
+        auto cpu_out = mod->insert_instruction(ins, ins->get_operator(), cpu_inputs);
+
+        const auto& sub_shapes = ins->get_shape().sub_shapes();
+        std::vector<instruction_ref> gpu_subs;
+        gpu_subs.reserve(sub_shapes.size());
+        for(std::size_t i = 0; i < sub_shapes.size(); ++i)
+        {
+            auto cpu_sub =
+                mod->insert_instruction(ins, make_op("get_tuple_elem", {{"index", i}}), cpu_out);
+            auto gpu_alloc = insert_allocation(ins, sub_shapes[i]);
+            gpu_subs.push_back(
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), cpu_sub, gpu_alloc));
+        }
+
+        // TODO: this needs cleanup
+        // Snapshot since we mutate the graph below.
+        auto consumers = ins->outputs();
+        for(auto consumer : consumers)
+        {
+            if(consumer->name() != "get_tuple_elem")
+                MIGRAPHX_THROW("gpu::add_nms_op: dynamic NMS fallback expects only "
+                               "get_tuple_elem consumers of nonmaxsuppression; got: " +
+                               consumer->name());
+            auto idx = consumer->get_operator().to_value().at("index").to<std::size_t>();
+            assert(idx < gpu_subs.size());
+            mod->replace_instruction(consumer, gpu_subs[idx]);
+        }
+
+        // Leave `ins` for dead_code_elimination; return it so the apply-loop
+        // tuple-shape check passes.
+        return ins;
     }
 
     void add_lrn_op()
@@ -552,6 +675,58 @@ struct miopen_apply
             inputs[1]    = mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_idx);
             return mod->replace_instruction(
                 ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
+        });
+    }
+
+    void add_fill_op()
+    {
+        apply_map.emplace("fill", [=](instruction_ref ins) {
+            return mod->replace_instruction(ins,
+                                            make_op("gpu::precompile_op",
+                                                    {{"op", to_value(ins->get_operator())},
+                                                     {"output_shape", to_value(ins->get_shape())}}),
+                                            ins->inputs());
+        });
+    }
+
+    void add_dyn_slice_op()
+    {
+        apply_map.emplace("slice", [=](instruction_ref ins) {
+            auto inputs = ins->inputs();
+            if(inputs.size() > 1)
+            {
+                std::vector<instruction_ref> cpu_inputs;
+                // Copy only the small runtime metadata inputs (starts/ends/axes) to CPU.
+                // inputs[0] (data) stays on GPU since slice creates an aliased view into it.
+                for(std::size_t i = 1; i < inputs.size(); ++i)
+                {
+                    cpu_inputs.push_back(
+                        mod->insert_instruction(ins, make_op("hip::copy_from_gpu"), inputs[i]));
+                }
+                cpu_inputs.front() =
+                    mod->insert_instruction(ins, make_op("hip::sync_stream"), cpu_inputs);
+                for(std::size_t i = 1; i < inputs.size(); ++i)
+                {
+                    inputs[i] = cpu_inputs[i - 1];
+                }
+                return mod->replace_instruction(
+                    ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
+            }
+            return ins;
+        });
+    }
+
+    // Get the argument's shape dimensions on host and then copy to gpu
+    void add_dimensions_of_op()
+    {
+        apply_map.emplace("dimensions_of", [=](instruction_ref ins) {
+            auto output = insert_allocation(ins, ins->get_shape());
+            auto sync_input =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), ins->inputs().front());
+            auto host_out = mod->insert_instruction(ins, ins->get_operator(), sync_input);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
+            return mod->replace_instruction(ins, gpu_out);
         });
     }
 };

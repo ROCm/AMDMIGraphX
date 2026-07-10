@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,6 +37,8 @@
 #include <vector>
 #include <cassert>
 #include <iostream>
+#include <sstream>
+#include <string>
 
 namespace migraphx {
 #ifndef DOXYGEN
@@ -890,6 +892,17 @@ struct target : MIGRAPHX_HANDLE_BASE(target)
 
     /// Construct a target from its name
     target(const char* name) { this->make_handle(&migraphx_target_create, name); }
+
+    /// Construct a target from its name and configuration options. `options_json`
+    /// is a JSON object (e.g. `{"gpu_arch":"gfx942"}`) whose keys are reflected
+    /// onto the target's data members. Accepts printf-style format specifiers
+    /// in `options_json` followed by their substitution values, e.g.
+    /// `target("gpu", "{gpu_arch: %s}", "gfx942")`.
+    template <class... Ts>
+    target(const char* name, const char* options_json, Ts... xs)
+    {
+        this->make_handle(&migraphx_target_create_with_options, name, options_json, xs...);
+    }
 };
 
 struct program_parameter_shapes : MIGRAPHX_HANDLE_BASE(program_parameter_shapes)
@@ -1138,6 +1151,34 @@ struct context : handle_lookup<context, migraphx_context>
     std::shared_ptr<migraphx_context> ctx;
 };
 
+struct trace_info : MIGRAPHX_HANDLE_BASE(trace_info)
+{
+    trace_info() { this->make_handle(&migraphx_trace_info_create); }
+
+    MIGRAPHX_HANDLE_CONSTRUCTOR(trace_info)
+
+    std::size_t get_index() const
+    {
+        std::size_t pout;
+        call(&migraphx_trace_info_get_index, &pout, this->get_handle_ptr());
+        return pout;
+    }
+
+    std::string get_name() const
+    {
+        const char* out_name;
+        call(&migraphx_trace_info_get_name, &out_name, this->get_handle_ptr());
+        return {out_name};
+    }
+
+    argument get_result() const
+    {
+        const_migraphx_argument_t pout;
+        call(&migraphx_trace_info_get_result, &pout, this->get_handle_ptr());
+        return {pout, this->share_handle()};
+    }
+};
+
 struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
 {
     compile_options() { this->make_handle(&migraphx_compile_options_create); }
@@ -1164,6 +1205,51 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     void set_exhaustive_tune_flag(bool value = true)
     {
         call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
+    }
+
+    /// Set backend-specific options that targets can read to configure
+    /// compilation. `json_str` is a relaxed JSON object (bare identifiers are
+    /// treated as strings) and accepts printf-style format specifiers followed
+    /// by their substitution values, e.g.
+    /// `set_advance_backend_options("{option1:%i}", i)`.
+    template <class... Ts>
+    void set_advance_backend_options(const char* json_str, Ts... xs)
+    {
+        call(&migraphx_compile_options_set_advance_backend_options,
+             this->get_handle_ptr(),
+             json_str,
+             xs...);
+    }
+
+    /// Set a single backend option, lexically converting the value to a string.
+    template <class T>
+    void set_advance_backend_option(const std::string& name, T x)
+    {
+        std::ostringstream ss;
+        ss << std::boolalpha;
+        ss << x;
+        const std::string option = "{" + name + ":%s}";
+        const std::string value  = ss.str();
+        this->set_advance_backend_options(option.c_str(), value.c_str());
+    }
+
+    /// Set a single backend option to an array, lexically converting each value.
+    template <class T>
+    void set_advance_backend_option(const std::string& name, const std::vector<T>& x)
+    {
+        std::ostringstream ss;
+        ss << std::boolalpha;
+        ss << "[";
+        for(std::size_t i = 0; i < x.size(); ++i)
+        {
+            if(i != 0)
+                ss << ",";
+            ss << x[i];
+        }
+        ss << "]";
+        const std::string option = "{" + name + ":%s}";
+        const std::string value  = ss.str();
+        this->set_advance_backend_options(option.c_str(), value.c_str());
     }
 };
 
@@ -1213,6 +1299,33 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
     {
         migraphx_arguments_t pout;
         call(&migraphx_program_run, &pout, this->get_handle_ptr(), pparams.get_handle_ptr());
+        return arguments(pout, own{});
+    }
+
+    /// Run the program with a per-instruction callback for buffer inspection
+    template <class F>
+    arguments run_trace(const program_parameters& pparams, F callback) const
+    {
+        migraphx_trace_callback_t c_callback = [](migraphx_trace_info_t info,
+                                                  void* data) -> migraphx_status {
+            auto* fn = static_cast<F*>(data);
+            try
+            {
+                (*fn)(trace_info(info, borrow{}));
+            }
+            catch(...)
+            {
+                return migraphx_status_unknown_error;
+            }
+            return migraphx_status_success;
+        };
+        migraphx_arguments_t pout;
+        call(&migraphx_program_run_trace,
+             &pout,
+             this->get_handle_ptr(),
+             pparams.get_handle_ptr(),
+             c_callback,
+             &callback);
         return arguments(pout, own{});
     }
 
@@ -1365,6 +1478,12 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
         call(&migraphx_onnx_options_set_external_data_path,
              this->get_handle_ptr(),
              external_data_path.c_str());
+    }
+
+    /// Enable debug symbols from ONNX node names
+    void set_use_debug_symbols(bool value = true)
+    {
+        call(&migraphx_onnx_options_set_use_debug_symbols, this->get_handle_ptr(), value);
     }
 };
 

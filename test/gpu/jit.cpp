@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,9 +25,11 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/generate.hpp>
+#include <migraphx/instruction.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/gpu/kernel.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/context.hpp>
@@ -35,7 +37,7 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
-#include <migraphx_kernels.hpp>
+#include <migraphx/gpu/cross_compile_device.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
@@ -227,6 +229,24 @@ TEST_CASE(compile_target)
 {
     EXPECT(not check_target("gfx900").empty());
     EXPECT(not check_target("gfx906").empty());
+}
+
+TEST_CASE(cross_compile_gpu_target_gfx1101)
+{
+    // Verify a cross-compile gpu::context produces a code object for the requested arch.
+    // ctx args: (arch: gfx1101, cu_count: 60, chiplets: 1).
+    migraphx::gpu::context ctx{"gfx1101", 60, 1};
+    auto binaries = migraphx::gpu::compile_hip_src(
+        {make_src_file("main.cpp", add_2s_binary)}, {}, ctx.get_current_device().get_device_name());
+    EXPECT(binaries.size() == 1);
+    std::string_view bin{binaries.front().data(), binaries.front().size()};
+    EXPECT(bin.find("gfx1101") != std::string_view::npos);
+}
+
+TEST_CASE(cross_compile_wavefront_size)
+{
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx1101", 1).warpSize == 32);
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx942", 1).warpSize == 64);
 }
 
 TEST_CASE(compile_errors)
@@ -444,7 +464,6 @@ int main() {}
 
 TEST_CASE(assert_type_min_max)
 {
-    std::vector<std::string> data_types;
     migraphx::gpu::hip_compile_options options;
     migraphx::gpu::context ctx;
     for(auto&& t : migraphx::shape::types())

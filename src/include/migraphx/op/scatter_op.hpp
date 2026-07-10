@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 
 #include <array>
 #include <migraphx/check_shapes.hpp>
+#include <migraphx/dyn_output.hpp>
 #include <migraphx/shape_for_each.hpp>
 #include <migraphx/config.hpp>
 #include <migraphx/value.hpp>
@@ -47,7 +48,7 @@ template <typename Derived>
 struct scatter_op : op_name<Derived>
 {
     int64_t axis = 0;
-    // skip scattering indicies that are out of bounds
+    // skip scattering indices that are out of bounds
     bool skip_out_of_bounds = false;
 
     template <class Self, class F>
@@ -65,9 +66,17 @@ struct scatter_op : op_name<Derived>
 
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
-        check_shapes{inputs, *this}.has(3);
-        // If non-packed, this converts to a packed output while preserving permutation of tensor
-        return inputs.front().with_lens(inputs.front().lens());
+        check_shapes{inputs, *this, true}.has(3);
+        const auto& data = inputs.front();
+        // range-dyn carries no permutation; passthrough
+        if(data.dynamic() and not data.symbolic())
+            return data;
+        // broadcasted: drop 0-strides and return packed default layout
+        if(data.broadcasted())
+            return data.symbolic() ? shape{data.type(), data.dyn_dims()}
+                                   : shape{data.type(), data.lens()};
+        // otherwise re-pack preserving data's permutation
+        return data.symbolic() ? data.with_lens(data.dyn_dims()) : data.with_lens(data.lens());
     }
 
     // iterate through items in shape
@@ -109,9 +118,9 @@ struct scatter_op : op_name<Derived>
         });
     }
 
-    argument compute(const shape& output_shape, std::vector<argument> args) const
+    argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        argument result{output_shape};
+        argument result{dyn_out.computed_shape};
 
         visit_all(result, args[0], args[2])([&](auto output, auto data, auto update) {
             std::copy(data.begin(), data.end(), output.begin());

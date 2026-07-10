@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,8 +54,7 @@ TEST_CASE(host_same_buffer_copy)
     std::vector<float> a_vec(ss.elements(), -1);
     std::vector<float> b_vec(ss.elements(), 2);
     pp["a"] = migraphx::argument(ss, a_vec.data());
-    pp["b"] = migraphx::argument(ss, b_vec.data());
-    std::vector<float> gpu_result;
+    pp["b"]                = migraphx::argument(ss, b_vec.data());
     migraphx::target gpu_t = migraphx::make_target("gpu");
     migraphx::compile_options options;
     options.offload_copy = true;

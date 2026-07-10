@@ -30,6 +30,7 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction_ref.hpp>
+#include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -299,16 +300,39 @@ struct miopen_apply
 #endif
 
 #if MIGRAPHX_USE_MIOPEN
+    instruction_ref insert_contiguous(instruction_ref pos, instruction_ref input) const
+    {
+        if(input->get_shape().standard())
+            return input;
+        const auto& s = input->get_shape();
+        auto alloc    = insert_allocation(pos, shape{s.type(), s.lens()});
+        return mod->insert_instruction(pos, make_op("gpu::contiguous"), input, alloc);
+    }
+
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
+            auto inputs    = ins->inputs();
+            auto out_shape = ins->get_shape();
+            // MIOpen requires the data and weights to share a layout. When they differ
+            // (e.g. a constant weight folded to a different layout than the data), make
+            // both contiguous so they use the standard layout.
+            if(find_permutation(inputs.at(0)->get_shape()) !=
+               find_permutation(inputs.at(1)->get_shape()))
+            {
+                std::transform(
+                    inputs.begin(), inputs.end(), inputs.begin(), [&](instruction_ref input) {
+                        return insert_contiguous(ins, input);
+                    });
+                out_shape = shape{out_shape.type(), out_shape.lens()};
+            }
             operation conv = make_op("gpu::" + name, {{"op", ins->get_operator().to_value()}});
-            auto output    = insert_allocation(ins, ins->get_shape());
+            auto output    = insert_allocation(ins, out_shape);
 
             return mod->replace_instruction(ins,
                                             make_op("gpu::miopen_op", {{"op", to_value(conv)}}),
-                                            ins->inputs().at(0),
-                                            ins->inputs().at(1),
+                                            inputs.at(0),
+                                            inputs.at(1),
                                             output);
         });
     }

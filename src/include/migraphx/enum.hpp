@@ -110,7 +110,8 @@ std::string enum_to_string(Enum value)
 {
     static const auto lookup = [] {
         constexpr auto entries = migraphx_enum_entries(Enum{});
-        const auto names       = enum_value_names<Enum, entries.size()>();
+        constexpr auto n       = entries.size();
+        const auto names       = enum_value_names<Enum, n>();
         std::unordered_map<Enum, std::string> result;
         std::transform(entries.begin(),
                        entries.end(),
@@ -184,6 +185,16 @@ Enum from_string(const std::string& name)
 // `capture` is the per-enumerator capture macro; `prologue` runs before the capture list and is
 // used by the scoped variants to declare the enum_scope alias. migraphx_enum_entries returns just
 // the array of enumerator values; to_string recovers the names from those values via get_type_name.
+#ifdef CPPCHECK
+// cppcheck's preprocessor cannot expand the recursive MIGRAPHX_PP_TRANSFORM_ARGS, so generate the
+// hooks without it; the captured values are irrelevant to static analysis.
+#define MIGRAPHX_DETAIL_ENUM_HELPERS(linkage, name, capture, prologue, ...) \
+    linkage constexpr auto migraphx_enum_entries(name)                      \
+    {                                                                       \
+        return migraphx::make_array<name>(name{});                          \
+    }                                                                       \
+    linkage std::string to_string(name value) { return migraphx::detail::enum_to_string(value); }
+#else
 #define MIGRAPHX_DETAIL_ENUM_HELPERS(linkage, name, capture, prologue, ...) \
     linkage constexpr auto migraphx_enum_entries(name)                      \
     {                                                                       \
@@ -191,6 +202,7 @@ Enum from_string(const std::string& name)
             MIGRAPHX_PP_TRANSFORM_ARGS(capture, __VA_ARGS__));              \
     }                                                                       \
     linkage std::string to_string(name value) { return migraphx::detail::enum_to_string(value); }
+#endif
 
 // Declares an unscoped enum and generates `to_string` and `migraphx::from_string` helpers that
 // convert its enumerators to and from their names. Use it at namespace scope:

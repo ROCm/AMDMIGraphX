@@ -219,272 +219,271 @@ struct graph_node_patch
         slots.push_back({off,
                          static_cast<std::size_t>(std::distance(bounds.begin(), it)),
                          static_cast<std::size_t>(p_addr - (*it).first)});
-    };
+    }
+};
 
-    // Records the work of a submodule into a HIP graph the first time it is run and
-    // then replays the instantiated graph on every subsequent run. This amortizes
-    // the per-launch CPU overhead of issuing many kernels/library calls. Construct
-    // via make_op("hip::graph").
-    struct hip_graph_op
+// Records the work of a submodule into a HIP graph the first time it is run and
+// then replays the instantiated graph on every subsequent run. This amortizes
+// the per-launch CPU overhead of issuing many kernels/library calls. Construct
+// via make_op("hip::graph").
+struct hip_graph_op
+{
+    struct graph_state
     {
-        struct graph_state
+        hip_graph graph{};
+        hip_graph::exec exec{};
+        bool captured = false;
+        std::vector<argument> outputs{};
+        // The packed return value (single output or a tuple), cached so the replay
+        // path does not rebuild it each eval. Refreshed whenever `outputs` is.
+        argument result{};
+        // Addresses of the movable (program-parameter) leaves currently bound in
+        // the captured graph, used to detect when a parameter buffer has moved.
+        // Empty when the op has no movable inputs, so nothing is ever re-bound.
+        std::vector<const void*> applied_ptrs{};
+        // True when every movable parameter is consumed only by code-object
+        // kernels we can patch; `patches` then lists, per such node, the slots to
+        // rewrite. False (a parameter reaches a library kernel) -> re-record.
+        bool patchable = false;
+        std::vector<graph_node_patch> patches{};
+
+        // Capture `f`'s device work into a fresh graph and cache the packed result.
+        // `f` returns the submodule outputs; capturing only records the launches,
+        // so the buffers are filled when the instantiated graph is later launched.
+        template <class F>
+        void record(hipStream_t stream, F f)
         {
-            hip_graph graph{};
-            hip_graph::exec exec{};
-            bool captured = false;
-            std::vector<argument> outputs{};
-            // The packed return value (single output or a tuple), cached so the replay
-            // path does not rebuild it each eval. Refreshed whenever `outputs` is.
-            argument result{};
-            // Addresses of the movable (program-parameter) leaves currently bound in
-            // the captured graph, used to detect when a parameter buffer has moved.
-            // Empty when the op has no movable inputs, so nothing is ever re-bound.
-            std::vector<const void*> applied_ptrs{};
-            // True when every movable parameter is consumed only by code-object
-            // kernels we can patch; `patches` then lists, per such node, the slots to
-            // rewrite. False (a parameter reaches a library kernel) -> re-record.
-            bool patchable = false;
-            std::vector<graph_node_patch> patches{};
-
-            // Capture `f`'s device work into a fresh graph and cache the packed result.
-            // `f` returns the submodule outputs; capturing only records the launches,
-            // so the buffers are filled when the instantiated graph is later launched.
-            template <class F>
-            void record(hipStream_t stream, F f)
-            {
-                graph  = hip_graph::capture(stream, [&] { outputs = f(); });
-                result = pack_outputs(outputs);
-            }
-        };
-
-        // Created in finalize() rather than at construction: operation handles are
-        // copy-on-write, so a construction-time state would be shared by every copy
-        // of the operator made during compilation. finalize() runs once per
-        // instruction (after the handle is cloned), giving each its own state.
-        std::shared_ptr<graph_state> state{};
-
-        // Indices of the inputs that the captured outputs are written into (and so
-        // alias). The submodule writes each output into one of these passed-in
-        // buffers, so they have global lifetime and can be returned safely.
-        std::vector<std::size_t> aliases{};
-
-        // Indices of the inputs whose buffer the caller can rebind between runs (the
-        // program parameters). Every other input is a fixed allocation/constant.
-        // hipgraphify fills this in; when it is empty the captured graph is bound to
-        // stable addresses and is replayed without ever inspecting its nodes.
-        std::vector<std::size_t> replace_inputs{};
-
-        template <class Self, class F>
-        static auto reflect(Self& self, F f)
-        {
-            // The captured graph is runtime-only state and is excluded.
-            return pack(f(self.aliases, "aliases"), f(self.replace_inputs, "replace_inputs"));
-        }
-
-        std::string name() const { return "hip::graph"; }
-
-        std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return aliases; }
-
-        shape compute_shape(std::vector<shape>, std::vector<module_ref> mods) const
-        {
-            if(mods.size() != 1)
-                MIGRAPHX_THROW("hip::graph: expected exactly one submodule");
-            auto out_shapes = mods.front()->get_output_shapes();
-            if(out_shapes.size() == 1)
-                return out_shapes.front();
-            return shape(out_shapes);
-        }
-
-        void finalize(context&, const shape&, const std::vector<shape>&)
-        {
-            state = std::make_shared<graph_state>();
-        }
-
-        // The movable (program-parameter) inputs flattened to their leaf arguments, in
-        // replace_inputs order. A tuple has no single data pointer, so the rebind logic
-        // tracks its leaves; these are the only addresses that can change between runs.
-        std::vector<argument> movable_leaves(const std::vector<argument>& args) const
-        {
-            std::vector<argument> leaves;
-            std::transform(replace_inputs.begin(),
-                           replace_inputs.end(),
-                           join_back_inserter(leaves),
-                           [&](std::size_t idx) { return flatten({args[idx]}); });
-            return leaves;
-        }
-
-        // Walk forward from a movable parameter through alias (view) ops, adding each
-        // code-object kernel that consumes it -- keyed by function handle -- to `out`.
-        // Returns false if the parameter reaches a non-code-object kernel consumer (a
-        // library gemm/conv), whose argument buffer we cannot interpret and so must
-        // re-record rather than patch.
-        static bool collect_param_code_objects(
-            instruction_ref param,
-            std::unordered_map<void*, const std::map<std::size_t, kernel_argument_value>*>& out)
-        {
-            bool patchable = true;
-            std::unordered_set<instruction_ref> visited;
-            fix([&](auto self, instruction_ref ins) {
-                if(not visited.insert(ins).second)
-                    return;
-                for(auto consumer : ins->outputs())
-                {
-                    if(consumer->name() == "gpu::code_object")
-                    {
-                        const auto& cop = any_cast<code_object_op>(consumer->get_operator());
-                        out.emplace(cop.k.get_function(), &cop.kernel_args);
-                    }
-                    else if(aliases_input(consumer, ins))
-                    {
-                        // A view passes the buffer through; keep following it.
-                        self(consumer);
-                    }
-                    else if(not starts_with(consumer->name(), "@"))
-                    {
-                        // A non-code-object, non-view consumer (a library kernel) we
-                        // cannot interpret; a builtin (e.g. @return) is skipped.
-                        patchable = false;
-                    }
-                }
-            })(param);
-            return patchable;
-        }
-
-        // Build the per-node patch plan. Only the code-object kernels that actually
-        // consume a movable parameter are considered (found by walking forward from
-        // each parameter); a node is matched to one by function handle and its
-        // kernel_args layout used to inspect only its pointer slots, skipping the
-        // inlined scalars (so a scalar can never be mistaken for a moved pointer).
-        // Nodes that consume no movable parameter are left alone. Returns false (re-
-        // bind by re-recording) when a parameter is consumed by a kernel we cannot
-        // patch -- a library gemm/conv (see collect_param_code_objects).
-        bool build_patch_plan(const std::vector<argument>& args, const_module_ref sub) const
-        {
-            auto leaves = movable_leaves(args);
-
-            // The code-object kernels consuming a movable parameter, keyed by their
-            // function handle so a captured node can be matched back to one.
-            std::unordered_map<void*, const std::map<std::size_t, kernel_argument_value>*>
-                code_object_args;
-            auto param_names = sub->get_parameter_names();
-            for(auto idx : replace_inputs)
-            {
-                if(not collect_param_code_objects(sub->get_parameter(param_names.at(idx)),
-                                                  code_object_args))
-                    return false;
-            }
-
-            std::vector<graph_node_patch> patches;
-            for(const auto& node : state->graph.nodes())
-            {
-                // Only kernel nodes carry packed arguments; others hold no parameter.
-                if(node.type() != hipGraphNodeTypeKernel)
-                    continue;
-                auto params = node.get_kernel_node_params();
-                auto cobj   = code_object_args.find(params.func);
-                if(cobj == code_object_args.end())
-                    continue; // does not consume a movable parameter
-
-                graph_node_patch np;
-                np.node = node;
-                for(const auto& [off, p] : unpack_kernel_config(params.extra, *cobj->second))
-                    np.record_slot(off, p, leaves);
-                if(not np.slots.empty())
-                    patches.push_back(std::move(np));
-            }
-
-            state->patches = std::move(patches);
-            return true;
-        }
-
-        // Apply the prebuilt plan to the captured graph: for each recorded node, copy
-        // its argument buffer, overwrite only the movable-parameter slots with the
-        // current parameter address (plus the captured within-buffer offset), and
-        // write it back to the node. All other words are left untouched. The caller
-        // re-syncs the executable graph afterwards.
-        void patch_kernel_nodes(const std::vector<const void*>& current_ptrs) const
-        {
-            for(const auto& np : state->patches)
-            {
-                auto params = np.node.get_kernel_node_params();
-                // build_patch_plan already verified every node parses.
-                auto buf = unpack_kernel_config(params.extra);
-                assert(not buf.empty());
-                for(const auto& slot : np.slots)
-                {
-                    assert(slot.leaf < current_ptrs.size());
-                    assert(slot.offset + sizeof(char*) <= buf.size());
-                    const char* p =
-                        static_cast<const char*>(current_ptrs[slot.leaf]) + slot.ptr_offset;
-                    const auto* bytes = reinterpret_cast<const char*>(&p);
-                    std::copy(bytes, bytes + sizeof(char*), buf.data() + slot.offset);
-                }
-                std::size_t bytes   = buf.size();
-                auto extra          = pack_kernel_config(buf.data(), &bytes);
-                params.extra        = extra.data();
-                params.kernelParams = nullptr;
-                np.node.set_kernel_node_params(params);
-            }
-        }
-
-        argument
-        compute(context& ctx,
-                const shape&,
-                const std::vector<argument>& args,
-                const std::vector<module_ref>& mods,
-                const std::function<std::vector<argument>(
-                    module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
-        {
-            assert(mods.size() == 1);
-            module_ref sub = mods.front();
-
-            hipStream_t stream = ctx.get_stream().get();
-            // The legacy/null stream cannot be captured; fall back to a normal run.
-            if(stream == nullptr)
-                return pack_outputs(run(sub, create_params(sub, args)));
-
-            // Capturing only records the kernel launches into the graph (it does not
-            // execute them); the returned arguments are views into stable buffers that
-            // get filled when the instantiated graph is launched below.
-            if(not state->captured)
-            {
-                state->record(stream, [&] { return run(sub, create_params(sub, args)); });
-                state->exec = state->graph.instantiate();
-                // Only inspect the captured nodes when a parameter can actually move;
-                // with no movable inputs the graph stays bound to stable buffers.
-                if(not replace_inputs.empty())
-                {
-                    state->patchable    = build_patch_plan(args, sub);
-                    state->applied_ptrs = leaf_ptrs(movable_leaves(args));
-                }
-                state->captured = true;
-            }
-            else if(not replace_inputs.empty())
-            {
-                // Re-bind only when a parameter buffer has moved since the last run.
-                auto current_ptrs = leaf_ptrs(movable_leaves(args));
-                if(current_ptrs != state->applied_ptrs)
-                {
-                    // Re-bind the moved parameter by patching the captured graph's
-                    // kernel nodes in place; for a non-patchable graph re-record it.
-                    // Either way re-sync the executable graph, re-instantiating if it
-                    // cannot be updated in place.
-                    if(state->patchable)
-                        patch_kernel_nodes(current_ptrs);
-                    else
-                        state->record(stream, [&] { return run(sub, create_params(sub, args)); });
-                    if(not state->exec.update(state->graph))
-                        state->exec = state->graph.instantiate();
-                    state->applied_ptrs = std::move(current_ptrs);
-                }
-            }
-
-            state->exec.launch(stream);
-            return state->result;
+            graph  = hip_graph::capture(stream, [&] { outputs = f(); });
+            result = pack_outputs(outputs);
         }
     };
 
-    MIGRAPHX_REGISTER_OP(hip_graph_op)
+    // Created in finalize() rather than at construction: operation handles are
+    // copy-on-write, so a construction-time state would be shared by every copy
+    // of the operator made during compilation. finalize() runs once per
+    // instruction (after the handle is cloned), giving each its own state.
+    std::shared_ptr<graph_state> state{};
+
+    // Indices of the inputs that the captured outputs are written into (and so
+    // alias). The submodule writes each output into one of these passed-in
+    // buffers, so they have global lifetime and can be returned safely.
+    std::vector<std::size_t> aliases{};
+
+    // Indices of the inputs whose buffer the caller can rebind between runs (the
+    // program parameters). Every other input is a fixed allocation/constant.
+    // hipgraphify fills this in; when it is empty the captured graph is bound to
+    // stable addresses and is replayed without ever inspecting its nodes.
+    std::vector<std::size_t> replace_inputs{};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        // The captured graph is runtime-only state and is excluded.
+        return pack(f(self.aliases, "aliases"), f(self.replace_inputs, "replace_inputs"));
+    }
+
+    std::string name() const { return "hip::graph"; }
+
+    std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return aliases; }
+
+    shape compute_shape(std::vector<shape>, std::vector<module_ref> mods) const
+    {
+        if(mods.size() != 1)
+            MIGRAPHX_THROW("hip::graph: expected exactly one submodule");
+        auto out_shapes = mods.front()->get_output_shapes();
+        if(out_shapes.size() == 1)
+            return out_shapes.front();
+        return shape(out_shapes);
+    }
+
+    void finalize(context&, const shape&, const std::vector<shape>&)
+    {
+        state = std::make_shared<graph_state>();
+    }
+
+    // The movable (program-parameter) inputs flattened to their leaf arguments, in
+    // replace_inputs order. A tuple has no single data pointer, so the rebind logic
+    // tracks its leaves; these are the only addresses that can change between runs.
+    std::vector<argument> movable_leaves(const std::vector<argument>& args) const
+    {
+        std::vector<argument> leaves;
+        std::transform(replace_inputs.begin(),
+                       replace_inputs.end(),
+                       join_back_inserter(leaves),
+                       [&](std::size_t idx) { return flatten({args[idx]}); });
+        return leaves;
+    }
+
+    // Walk forward from a movable parameter through alias (view) ops, adding each
+    // code-object kernel that consumes it -- keyed by function handle -- to `out`.
+    // Returns false if the parameter reaches a non-code-object kernel consumer (a
+    // library gemm/conv), whose argument buffer we cannot interpret and so must
+    // re-record rather than patch.
+    static bool collect_param_code_objects(
+        instruction_ref param,
+        std::unordered_map<void*, const std::map<std::size_t, kernel_argument_value>*>& out)
+    {
+        bool patchable = true;
+        std::unordered_set<instruction_ref> visited;
+        fix([&](auto self, instruction_ref ins) {
+            if(not visited.insert(ins).second)
+                return;
+            for(auto consumer : ins->outputs())
+            {
+                if(consumer->name() == "gpu::code_object")
+                {
+                    const auto& cop = any_cast<code_object_op>(consumer->get_operator());
+                    out.emplace(cop.k.get_function(), &cop.kernel_args);
+                }
+                else if(aliases_input(consumer, ins))
+                {
+                    // A view passes the buffer through; keep following it.
+                    self(consumer);
+                }
+                else if(not starts_with(consumer->name(), "@"))
+                {
+                    // A non-code-object, non-view consumer (a library kernel) we
+                    // cannot interpret; a builtin (e.g. @return) is skipped.
+                    patchable = false;
+                }
+            }
+        })(param);
+        return patchable;
+    }
+
+    // Build the per-node patch plan. Only the code-object kernels that actually
+    // consume a movable parameter are considered (found by walking forward from
+    // each parameter); a node is matched to one by function handle and its
+    // kernel_args layout used to inspect only its pointer slots, skipping the
+    // inlined scalars (so a scalar can never be mistaken for a moved pointer).
+    // Nodes that consume no movable parameter are left alone. Returns false (re-
+    // bind by re-recording) when a parameter is consumed by a kernel we cannot
+    // patch -- a library gemm/conv (see collect_param_code_objects).
+    bool build_patch_plan(const std::vector<argument>& args, const_module_ref sub) const
+    {
+        auto leaves = movable_leaves(args);
+
+        // The code-object kernels consuming a movable parameter, keyed by their
+        // function handle so a captured node can be matched back to one.
+        std::unordered_map<void*, const std::map<std::size_t, kernel_argument_value>*>
+            code_object_args;
+        auto param_names = sub->get_parameter_names();
+        for(auto idx : replace_inputs)
+        {
+            if(not collect_param_code_objects(sub->get_parameter(param_names.at(idx)),
+                                              code_object_args))
+                return false;
+        }
+
+        std::vector<graph_node_patch> patches;
+        for(const auto& node : state->graph.nodes())
+        {
+            // Only kernel nodes carry packed arguments; others hold no parameter.
+            if(node.type() != hipGraphNodeTypeKernel)
+                continue;
+            auto params = node.get_kernel_node_params();
+            auto cobj   = code_object_args.find(params.func);
+            if(cobj == code_object_args.end())
+                continue; // does not consume a movable parameter
+
+            graph_node_patch np;
+            np.node = node;
+            for(const auto& [off, p] : unpack_kernel_config(params.extra, *cobj->second))
+                np.record_slot(off, p, leaves);
+            if(not np.slots.empty())
+                patches.push_back(std::move(np));
+        }
+
+        state->patches = std::move(patches);
+        return true;
+    }
+
+    // Apply the prebuilt plan to the captured graph: for each recorded node, copy
+    // its argument buffer, overwrite only the movable-parameter slots with the
+    // current parameter address (plus the captured within-buffer offset), and
+    // write it back to the node. All other words are left untouched. The caller
+    // re-syncs the executable graph afterwards.
+    void patch_kernel_nodes(const std::vector<const void*>& current_ptrs) const
+    {
+        for(const auto& np : state->patches)
+        {
+            auto params = np.node.get_kernel_node_params();
+            // build_patch_plan already verified every node parses.
+            auto buf = unpack_kernel_config(params.extra);
+            assert(not buf.empty());
+            for(const auto& slot : np.slots)
+            {
+                assert(slot.leaf < current_ptrs.size());
+                assert(slot.offset + sizeof(char*) <= buf.size());
+                const char* p = static_cast<const char*>(current_ptrs[slot.leaf]) + slot.ptr_offset;
+                const auto* bytes = reinterpret_cast<const char*>(&p);
+                std::copy(bytes, bytes + sizeof(char*), buf.data() + slot.offset);
+            }
+            std::size_t bytes   = buf.size();
+            auto extra          = pack_kernel_config(buf.data(), &bytes);
+            params.extra        = extra.data();
+            params.kernelParams = nullptr;
+            np.node.set_kernel_node_params(params);
+        }
+    }
+
+    argument compute(context& ctx,
+                     const shape&,
+                     const std::vector<argument>& args,
+                     const std::vector<module_ref>& mods,
+                     const std::function<std::vector<argument>(
+                         module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
+    {
+        assert(mods.size() == 1);
+        module_ref sub = mods.front();
+
+        hipStream_t stream = ctx.get_stream().get();
+        // The legacy/null stream cannot be captured; fall back to a normal run.
+        if(stream == nullptr)
+            return pack_outputs(run(sub, create_params(sub, args)));
+
+        // Capturing only records the kernel launches into the graph (it does not
+        // execute them); the returned arguments are views into stable buffers that
+        // get filled when the instantiated graph is launched below.
+        if(not state->captured)
+        {
+            state->record(stream, [&] { return run(sub, create_params(sub, args)); });
+            state->exec = state->graph.instantiate();
+            // Only inspect the captured nodes when a parameter can actually move;
+            // with no movable inputs the graph stays bound to stable buffers.
+            if(not replace_inputs.empty())
+            {
+                state->patchable    = build_patch_plan(args, sub);
+                state->applied_ptrs = leaf_ptrs(movable_leaves(args));
+            }
+            state->captured = true;
+        }
+        else if(not replace_inputs.empty())
+        {
+            // Re-bind only when a parameter buffer has moved since the last run.
+            auto current_ptrs = leaf_ptrs(movable_leaves(args));
+            if(current_ptrs != state->applied_ptrs)
+            {
+                // Re-bind the moved parameter by patching the captured graph's
+                // kernel nodes in place; for a non-patchable graph re-record it.
+                // Either way re-sync the executable graph, re-instantiating if it
+                // cannot be updated in place.
+                if(state->patchable)
+                    patch_kernel_nodes(current_ptrs);
+                else
+                    state->record(stream, [&] { return run(sub, create_params(sub, args)); });
+                if(not state->exec.update(state->graph))
+                    state->exec = state->graph.instantiate();
+                state->applied_ptrs = std::move(current_ptrs);
+            }
+        }
+
+        state->exec.launch(stream);
+        return state->result;
+    }
+};
+
+MIGRAPHX_REGISTER_OP(hip_graph_op)
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

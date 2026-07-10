@@ -1679,15 +1679,16 @@ TEST_CASE(optimize_resize_ndims_unequal)
         auto inx = m2.add_parameter("X", sx);
         auto iny = m2.add_parameter("Y", sy);
 
-        auto rsp_x = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {4}}}), inx);
-        auto rsp_x2 =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 1, 2, 1}}}), rsp_x);
-        auto mb = m2.add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 3}}}), rsp_x2);
-        auto rsp_mb =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 3, 2}}}), mb);
-        auto sub = m2.add_instruction(migraphx::make_op("sub"), iny, rsp_mb);
-        m2.add_return({sub});
+        auto rsp_y =
+              m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2, 2, 3}}}), iny);
+        auto trans_x = m2.add_instruction(
+              migraphx::make_op("transpose", {{"permutation", {2, 0, 3, 1}}}), inx);
+         auto mb = m2.add_instruction(
+              migraphx::make_op("multibroadcast", {{"out_lens", {2, 2, 2, 3}}}), trans_x);
+        auto sub = m2.add_instruction(migraphx::make_op("sub"), rsp_y, mb);
+        auto rsp_out =
+            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 1, 4, 3, 2}}}), sub);
+        m2.add_return({rsp_out});
     }
 
     EXPECT(m1.sort() == m2.sort());
@@ -4016,6 +4017,7 @@ TEST_CASE(transpose_contiguous_reshape_binary_packed)
         m1.add_instruction(pass_op{}, add_ins);
     }
     run_pass(m1);
+
     migraphx::module m2;
     {
         auto x  = m2.add_parameter("x", {migraphx::shape::float_type, {2, 128, 28, 28}});
@@ -4034,16 +4036,14 @@ TEST_CASE(transpose_contiguous_reshape_binary_packed)
             conv1,
             w2); // (2, 512, 14, 14)
 
-        auto conv2_rsp = m2.add_instruction(
+        auto conv2_rsp1 = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", {2, 2, 2, 128, 14, 14}}}), conv2);
         auto conv2_trans = m2.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), conv2_rsp);
-        auto x_rsp =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 14, 2, 14, 2}}}), x);
-        auto add_ins = m2.add_instruction(migraphx::make_op("add"), conv2_trans, x_rsp);
-        auto add_rsp =
-            m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 128, 28, 28}}}), add_ins);
-        m2.add_instruction(pass_op{}, add_rsp);
+            migraphx::make_op("transpose", {{"permutation", {0, 3, 4, 1, 5, 2}}}), conv2_rsp1);
+        auto conv2_rsp2 = m2.add_instruction(
+            migraphx::make_op("reshape", {{"dims", {2, 128, 28, 28}}}), conv2_trans);
+        auto add_ins = m2.add_instruction(migraphx::make_op("add"), conv2_rsp2, x);
+        m2.add_instruction(pass_op{}, add_ins);
     }
     EXPECT(m1 == m2);
 }
@@ -4066,23 +4066,28 @@ TEST_CASE(transpose_contiguous_reshape_binary_broadcast)
         auto r = m1.add_instruction(migraphx::make_op("add"), y_rsp, x_brcst);
         m1.add_return({r});
     }
+    migraphx::module m2 = m1;
     run_pass(m1);
-    migraphx::module m2;
-    {
-        migraphx::shape sx{migraphx::shape::float_type, {4}};
-        migraphx::shape sy{migraphx::shape::float_type, {2, 6, 2, 2}};
+    // TODO: Disabled optimization check - find_reshape_cont guards restored to fix
+    // system reboot (TDR) on non-standard tensor layouts (see PR #5052).
+    // Re-enable when find_reshape_cont can safely handle non-standard shapes.
 
-        auto x = m2.add_parameter("x", sx);
-        auto y = m2.add_parameter("y", sy);
-        auto y_trans =
-            m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
-        auto x_rsp   = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2}}}), x);
-        auto x_brcst = m2.add_instruction(
-            migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 2, 2, 6}}}), x_rsp);
-        auto add_ins = m2.add_instruction(migraphx::make_op("add"), y_trans, x_brcst);
-        auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), add_ins);
-        m2.add_return({r});
-    }
+    // migraphx::module m2;
+    // {
+    //     migraphx::shape sx{migraphx::shape::float_type, {4}};
+    //     migraphx::shape sy{migraphx::shape::float_type, {2, 6, 2, 2}};
+
+    //     auto x = m2.add_parameter("x", sx);
+    //     auto y = m2.add_parameter("y", sy);
+    //     auto y_trans =
+    //         m2.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 3, 1}}}), y);
+    //     auto x_rsp   = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2}}}), x);
+    //     auto x_brcst = m2.add_instruction(
+    //         migraphx::make_op("broadcast", {{"axis", 1}, {"out_lens", {2, 2, 2, 6}}}), x_rsp);
+    //     auto add_ins = m2.add_instruction(migraphx::make_op("add"), y_trans, x_brcst);
+    //     auto r = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 4, 6}}}), add_ins);
+    //     m2.add_return({r});
+    // }
     EXPECT(m1 == m2);
 }
 

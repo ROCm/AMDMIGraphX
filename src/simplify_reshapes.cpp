@@ -1291,7 +1291,7 @@ struct find_gather
             return;
 
         const std::size_t axis_index = tune_axis(dlens.size(), gather_op.axis, gather_op.name());
-        const auto axis_len = dlens.at(axis_index);
+        const auto axis_len          = dlens.at(axis_index);
         if(axis_len == 0)
             return;
 
@@ -1617,8 +1617,8 @@ struct find_reshape_cont
         }
 
         if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
-            return i->get_shape().standard();
-        }))
+               return i->get_shape().standard();
+           }))
             return;
 
         auto out_lens = ins->get_shape().lens();

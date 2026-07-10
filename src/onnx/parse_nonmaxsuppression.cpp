@@ -40,16 +40,22 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
     bool has_zero_boxes(const onnx_parser::node_info& info,
                         const std::vector<instruction_ref>& args) const
     {
-        if(not info.zero_input_axes.empty() and
-           contains(info.zero_input_axes.front(), std::size_t{1}))
+        auto input_has_zero_axis = [&](std::size_t input, std::size_t axis) {
+            return info.zero_input_axes.size() > input and
+                   contains(info.zero_input_axes[input], axis);
+        };
+        if(input_has_zero_axis(0, 1) or input_has_zero_axis(1, 2))
             return true;
 
-        const auto& boxes_shape = args.at(0)->get_shape();
-        if(boxes_shape.dynamic())
+        const auto& boxes_shape  = args.at(0)->get_shape();
+        const auto& scores_shape = args.at(1)->get_shape();
+        if(boxes_shape.dynamic() or scores_shape.dynamic())
             return false;
 
-        const auto& boxes_lens = boxes_shape.lens();
-        return boxes_lens.size() > 1 and boxes_lens.at(1) == 0;
+        const auto& boxes_lens  = boxes_shape.lens();
+        const auto& scores_lens = scores_shape.lens();
+        return (boxes_lens.size() > 1 and boxes_lens.at(1) == 0) or
+               (scores_lens.size() > 2 and scores_lens.at(2) == 0);
     }
 
     instruction_ref parse(const op_desc& opd,

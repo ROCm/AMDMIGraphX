@@ -314,42 +314,69 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
+namespace {
+struct fused_reduce_plan
+{
+    std::vector<shape> finputs        = {};
+    std::vector<shape> virtual_inputs = {};
+    shape reduce_output_shape         = {};
+    vectorize vec                     = {};
+    std::string algo                  = {};
+    std::string assign                = {};
+    std::size_t relements             = 0;
+};
+
+// Computes the virtual inputs, default reduction algorithm, vectorization, and vectorized
+// number of reduction elements. This is shared by both compilation and tuning so that the
+// tuning config's default solution matches what compile_op would pick on its own.
+fused_reduce_plan
+compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const value& v)
+{
+    fused_reduce_plan plan;
+    plan.assign         = v.get("assign", "assign_none");
+    auto axes           = v.at("axes").to_vector<std::size_t>();
+    plan.finputs        = flatten_tuple_shapes(inputs);
+    auto virtual_inputs = plan.finputs;
+    virtual_inputs.push_back(get_reduced_shape(get_input_shape(plan.finputs), axes));
+    virtual_inputs.push_back(get_output_shape(get_input_shape(plan.finputs), axes));
+    virtual_inputs = reduce_dims(normalize_permutation(virtual_inputs));
+    if(plan.assign != "assign_none")
+        virtual_inputs = split_reduce(virtual_inputs);
+    plan.reduce_output_shape = virtual_inputs.back();
+    virtual_inputs.pop_back();
+    auto reduction_shape = virtual_inputs.back();
+    virtual_inputs.pop_back();
+    plan.virtual_inputs = virtual_inputs;
+
+    auto faxis = find_fast_axis({plan.virtual_inputs.front()});
+    plan.algo  = v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, reduction_shape.lens()));
+    bool no_vectorize = v.get("no_vectorize", false);
+    if((plan.algo == "block" or plan.algo == "wave") and
+       plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
+        plan.vec = vectorize::elements(ctx, faxis, plan.virtual_inputs);
+    plan.relements = reduction_shape.elements() / plan.vec.size;
+    return plan;
+}
+} // namespace
+
 struct fused_reduce_compiler : compiler<fused_reduce_compiler>
 {
     std::vector<std::string> names() const { return {"fused_reduce", "split_fused_reduce"}; }
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        auto assign         = v.get("assign", "assign_none");
-        auto axes           = v.at("axes").to_vector<std::size_t>();
-        auto finputs        = flatten_tuple_shapes(inputs);
-        auto noutputs       = finputs.size() - inputs.size() + 1;
-        auto virtual_inputs = finputs;
-        virtual_inputs.push_back(get_reduced_shape(get_input_shape(finputs), axes));
-        virtual_inputs.push_back(get_output_shape(get_input_shape(finputs), axes));
-        virtual_inputs = reduce_dims(normalize_permutation(virtual_inputs));
-        if(assign != "assign_none")
-            virtual_inputs = split_reduce(virtual_inputs);
-        auto reduce_output_shape = virtual_inputs.back();
-        virtual_inputs.pop_back();
-        auto reduction_shape = virtual_inputs.back();
-        virtual_inputs.pop_back();
+        auto plan      = compute_fused_reduce_plan(ctx, inputs, v);
+        auto noutputs  = plan.finputs.size() - inputs.size() + 1;
+        auto algo      = plan.algo;
+        auto relements = plan.relements;
+        auto nelements = plan.reduce_output_shape.elements();
 
         hip_compile_options options;
-        options.inputs         = finputs;
+        options.inputs         = plan.finputs;
         options.output         = inputs.back();
-        options.virtual_inputs = virtual_inputs;
-        auto faxis             = find_fast_axis({options.virtual_inputs.front()});
-        vectorize vec{};
-        auto nelements = reduce_output_shape.elements();
-        auto algo =
-            v.get("algo", get_reduce_algo(ctx, options.virtual_inputs, reduction_shape.lens()));
-        bool no_vectorize = v.get("no_vectorize", false);
+        options.virtual_inputs = plan.virtual_inputs;
         if(algo == "block" or algo == "wave")
         {
-            if(reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
-                vec = vectorize::elements(ctx, faxis, options.virtual_inputs);
-            auto relements = reduction_shape.elements() / vec.size;
             if(algo == "block")
             {
                 auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
@@ -377,18 +404,19 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             MIGRAPHX_THROW("Unknown reduce algo: " + algo);
         }
         options.kernel_name = v.get("kernel", "reduce_kernel");
-        auto src            = interpolate_string(
-            fused_reduce_kernel,
-            {{"kernel", options.kernel_name},
-                        {"params", enum_params(finputs.size(), "void * private_p")},
-                        {"args", enum_params(finputs.size(), "private_p")},
-                        {"assign", assign},
-                        {"algo", algo},
-                        {"reduced", "decltype(" + generate_make_shape(reduce_output_shape) + ")"},
-                        {"lambda", v.at("lambda").to<std::string>()},
-                        {"transformers", make_transformer_args(vec)},
-                        {"noutputs", std::to_string(noutputs)},
-                        {"preamble", v.get("preamble", std::string{})}});
+        auto reduced        = "decltype(" + generate_make_shape(plan.reduce_output_shape) + ")";
+        auto src =
+            interpolate_string(fused_reduce_kernel,
+                               {{"kernel", options.kernel_name},
+                                {"params", enum_params(plan.finputs.size(), "void * private_p")},
+                                {"args", enum_params(plan.finputs.size(), "private_p")},
+                                {"assign", plan.assign},
+                                {"algo", algo},
+                                {"reduced", reduced},
+                                {"lambda", v.at("lambda").to<std::string>()},
+                                {"transformers", make_transformer_args(plan.vec)},
+                                {"noutputs", std::to_string(noutputs)},
+                                {"preamble", v.get("preamble", std::string{})}});
         options.emplace_param("-Wno-float-equal");
         return compile_hip_code_object(ctx, src, options);
     }
@@ -408,18 +436,33 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_op(ctx, shapes, v);
     }
 
-    optional<tuning_config> get_tuning_config(const context& ctx,
-                                              instruction_ref ins,
-                                              const operation& op,
-                                              bool exhaustive) const
+    optional<tuning_config>
+    get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
     {
-        if(not exhaustive)
-            return nullopt;
         if(op.name() != "fused_reduce")
             return nullopt;
         tuning_config tc;
-        auto shapes       = to_shapes(ins->inputs());
-        tc.problem        = to_value(shapes);
+        auto shapes = to_shapes(ins->inputs());
+        tc.problem  = to_value(shapes);
+        if(not exhaustive)
+        {
+            // Without exhaustive tuning, offer the default plus, when the algo is block, an
+            // additional candidate that allows a larger block size (max 1024 instead of 256).
+            auto plan = compute_fused_reduce_plan(ctx, shapes, op.to_value());
+            if(plan.algo == "block")
+            {
+                auto block_size       = compute_block_size(ctx, plan.relements, 256);
+                auto large_block_size = compute_block_size(ctx, plan.relements, 1024);
+                tc.solutions.push_back({{"algo", "block"}, {"block_size", block_size}});
+                if(large_block_size != block_size)
+                    tc.solutions.push_back({{"algo", "block"}, {"block_size", large_block_size}});
+            }
+            else
+            {
+                tc.solutions.push_back({{"algo", plan.algo}});
+            }
+            return tc;
+        }
         auto axes         = op.to_value().at("axes").to_vector<std::size_t>();
         auto input_shape  = get_input_shape(shapes);
         auto reduce_shape = get_reduced_shape(input_shape, axes);

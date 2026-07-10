@@ -34,8 +34,11 @@ Full documentation for MIGraphX is available at
 * Added documentation for using debug symbols (#4945).
 # Added gather_slice_concat_matcher for slice/concats on data axis of gather ops (#4725)
 * Added `--log-stdout` flag to migraphx-driver to log to stdout instead of stderr (#4959).
+* Added logging of debug symbols on exception thrown (#4978).
 * Added slice squeeze matcher to propogate squeeze downstream and allow for parallel branches to merge together (#5004)
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
+* Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
+
 
 ### Changed
 
@@ -72,7 +75,7 @@ Full documentation for MIGraphX is available at
 * Fixed a crash in `simplify_reshapes` when a reshape splits an `argmax`/`argmin` reduction axis (#5013).
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
-
+* Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
 ### Optimized
 * Reduced tuning time by scaling the per-candidate benchmark bundle to the candidate's op count (#4989).
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).
@@ -87,6 +90,7 @@ Full documentation for MIGraphX is available at
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 * Add matcher to `fuse_attention` that removes Q/DQ pairs from attention blocks (#4900).
+* Added a pass `rewrite_convolution` to rewrite `convolution_backwards` to match the v4r1 algorithm used in MIOpen for performance (#4929)
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).

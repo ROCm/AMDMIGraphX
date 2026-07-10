@@ -546,10 +546,11 @@ pipeline {
                         script {
                             rocmtest(setup: setuppackage, docker_args: '-u root', image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
                                 sh '''
-                                    apt install half
+                                    apt-get update
+                                    apt-get install -y half
                                     #ls -lR
                                     md5sum ./build/*.deb
-                                    apt install -y --allow-unauthenticated ./build/*.deb
+                                    apt-get install -y --allow-unauthenticated ./build/*.deb
                                     env
                                     cd /onnxruntime && ./build_and_test_onnxrt.sh
                                 '''

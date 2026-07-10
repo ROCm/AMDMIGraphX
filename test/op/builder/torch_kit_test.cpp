@@ -30,9 +30,10 @@
 #include <migraphx/value.hpp>
 
 // The torch_kit registers builders under the "tm::" prefix. The custom builder
-// "tm::lstm" expands into an lstm op plus the rnn_last_hs_output and
-// rnn_last_cell_output ops; the remaining builders are thin wrappers around
-// native ops, either with common (broadcast/convert) handling or without.
+// "tm::lstm" delegates to the "lstm" op builder -- filling in torch's default
+// activation set -- which decomposes into primitive ops and returns the torch
+// lstm outputs (output, h_n, c_n); the remaining builders are thin wrappers
+// around native ops, either with common (broadcast/convert) handling or without.
 
 namespace {
 struct param_spec
@@ -73,15 +74,8 @@ TEST_CASE(torch_lstm_forward_op_builder_test)
     // A forward lstm defaults to the {sigmoid, tanh, tanh} activation set.
     std::vector<migraphx::operation> actv_funcs{
         migraphx::make_op("sigmoid"), migraphx::make_op("tanh"), migraphx::make_op("tanh")};
-
-    auto hs = mm.add_instruction(
-        migraphx::make_op(
-            "lstm", {{"hidden_size", hidden_size}, {"actv_func", migraphx::to_value(actv_funcs)}}),
-        x,
-        w,
-        r);
-    mm.add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-    mm.add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+    migraphx::op::builder::add(
+        "lstm", mm, {x, w, r}, {{"actv_func", migraphx::to_value(actv_funcs)}});
 
     EXPECT(mm == make_op_module("tm::lstm", {{"hidden_size", hidden_size}}, mm.get_parameters()));
 }
@@ -102,17 +96,11 @@ TEST_CASE(torch_lstm_bidirectional_op_builder_test)
                                                 migraphx::make_op("sigmoid"),
                                                 migraphx::make_op("tanh"),
                                                 migraphx::make_op("tanh")};
-
-    auto hs = mm.add_instruction(
-        migraphx::make_op("lstm",
-                          {{"hidden_size", hidden_size},
-                           {"actv_func", migraphx::to_value(actv_funcs)},
-                           {"direction", migraphx::op::rnn_direction::bidirectional}}),
-        x,
-        w,
-        r);
-    mm.add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-    mm.add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+    migraphx::op::builder::add("lstm",
+                               mm,
+                               {x, w, r},
+                               {{"actv_func", migraphx::to_value(actv_funcs)},
+                                {"direction", migraphx::op::rnn_direction::bidirectional}});
 
     migraphx::value options{{"hidden_size", hidden_size},
                             {"direction", migraphx::op::rnn_direction::bidirectional}};
@@ -131,12 +119,11 @@ TEST_CASE(torch_lstm_custom_actv_funcs_op_builder_test)
                             {"actv_func", migraphx::to_value(actv_funcs)}};
 
     migraphx::module mm;
-    auto x  = mm.add_parameter("x", {migraphx::shape::float_type, {3, 4, 5}});
-    auto w  = mm.add_parameter("w", {migraphx::shape::float_type, {1, 8, 5}});
-    auto r  = mm.add_parameter("r", {migraphx::shape::float_type, {1, 8, 2}});
-    auto hs = mm.add_instruction(migraphx::make_op("lstm", options), x, w, r);
-    mm.add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
-    mm.add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+    auto x = mm.add_parameter("x", {migraphx::shape::float_type, {3, 4, 5}});
+    auto w = mm.add_parameter("w", {migraphx::shape::float_type, {1, 8, 5}});
+    auto r = mm.add_parameter("r", {migraphx::shape::float_type, {1, 8, 2}});
+    migraphx::op::builder::add(
+        "lstm", mm, {x, w, r}, {{"actv_func", migraphx::to_value(actv_funcs)}});
 
     EXPECT(mm == make_op_module("tm::lstm", options, mm.get_parameters()));
 }

@@ -5730,6 +5730,42 @@ TEST_CASE(gather_slice_concat_indices_1d_no_rewrite)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(gather_slice_concat_large_table_no_rewrite)
+{
+    // The gathered data buffer has 200 rows while the concat only reorders
+    // num_rows = 4. Since 200 > max_table_ratio (32) * 4 = 128, apply() treats
+    // the buffer as a horizontally-fused table and skips the rewrite to avoid
+    // turning the batched gather back into a sparse re-gather (batch-1 regression).
+    //
+    //   data[3,200,7] indices[4,2]
+    //          \      /
+    //        gather(axis=1) -> [3,4,2,7]
+    //        /   |   |   \
+    //   slice slice slice slice   (axis=1, width 1) -> each [3,1,2,7]
+    //   [0:1] [1:2] [2:3] [3:4]
+    //        \   |   |   /
+    //        concat(axis=3) -> [3,1,2,28]
+    migraphx::module m1;
+    {
+        auto data    = m1.add_parameter("data", {migraphx::shape::float_type, {3, 200, 7}});
+        auto indices = m1.add_parameter("indices", {migraphx::shape::int32_type, {4, 2}});
+        auto gather = m1.add_instruction(migraphx::make_op("gather", {{"axis", 1}}), data, indices);
+        auto s0     = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}), gather);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {2}}}), gather);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {2}}, {"ends", {3}}}), gather);
+        auto s3 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {1}}, {"starts", {3}}, {"ends", {4}}}), gather);
+        auto c = m1.add_instruction(migraphx::make_op("concat", {{"axis", 3}}), s0, s1, s2, s3);
+        m1.add_return({c});
+    }
+    auto m2 = m1;
+    run_pass(m1);
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(slice_multibroadcast_over_sliced_axis)
 {
     migraphx::module m1;

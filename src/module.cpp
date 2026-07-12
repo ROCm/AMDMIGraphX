@@ -28,6 +28,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
 #include <migraphx/ranges.hpp>
@@ -487,6 +488,7 @@ instruction_ref module::replace_instruction(instruction_ref ins,
     impl->changed.notify();
     assert(has_instruction(ins));
     assert(not starts_with(op.name(), "@"));
+    auto guard     = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
     auto out_shape = compute_shape(op, args, module_args);
     std::vector<instruction_ref> prev_args;
     if(has_debug_symbols())
@@ -572,6 +574,8 @@ module::batch_replace_instruction(const std::vector<instruction_replacement>& re
         {
             prev_args = replacer.ins->inputs();
         }
+        auto guard =
+            on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*replacer.ins); });
         auto out_shape = compute_shape(replacer.op, replacer.args, replacer.module_args);
         instruction::replace(
             replacer.ins, replacer.op, out_shape, replacer.args, replacer.module_args);
@@ -844,7 +848,8 @@ instruction_ref module::replace_return(std::vector<instruction_ref> args)
         return this->add_return(args);
     }
 
-    shape r = compute_shape(last->get_operator(), args);
+    auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*last); });
+    shape r    = compute_shape(last->get_operator(), args);
     instruction::replace(last, last->get_operator(), r, std::move(args));
     assert(last->valid(begin()));
 
@@ -1039,6 +1044,7 @@ std::vector<shape> module::compute_shapes(const std::vector<shape>& inputs,
                            [&](auto in) { return ins_shapes.at(in); });
             if(ins->name() == "@return")
                 return input_shapes;
+            auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
             ins_shapes[ins] = ins->get_operator().compute_shape(input_shapes, ins->module_inputs());
         }
     }

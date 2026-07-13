@@ -21,33 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_MATH_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_MATH_HPP
 
-#include <string>
-#include <vector>
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
+#include <cstddef>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
-
-namespace gpu {
-
-struct MIGRAPHX_GPU_EXPORT fuse_mlss
+// Divide x by y, rounding up: the smallest integer >= x / y.
+constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
 {
-    context* ctx = nullptr;
-    // List of ops to force onto AMDMLSS (e.g. "conv"), supplied via compile_options.
-    // Takes effect in addition to MIGRAPHX_MLSS_USE_SPECIFIC_OPS.
-    std::vector<std::string> use_specific_ops = {};
-    std::string name() const { return "gpu::fuse_mlss"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    return (x + y - std::size_t{1}) / y;
+}
 
-} // namespace gpu
+// The smallest multiple of y that is greater than or equal to x (i.e. y * ceil(x / y)).
+constexpr std::size_t ceil_mul_of(std::size_t x, std::size_t y)
+{
+    return y * integer_divide_ceil(x, y);
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_MATH_HPP

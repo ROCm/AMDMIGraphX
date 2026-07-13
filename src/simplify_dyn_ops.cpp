@@ -531,23 +531,15 @@ struct find_static_onehot : match::supports_dynamic_shapes
     }
 };
 
-/**
- * Rewrite the dynamic nonmaxsuppression (NMS) slice feeding a topk into a static, mask-based form.
- *
- * The ONNX parser emits `slice(get_tuple_elem[0](nms), get_tuple_elem[1](nms))`, a variable-end
- * slice that trims the zero-padded [max_boxes, 3] indices tensor down to the num_selected valid
- * rows. That slice makes the whole downstream gather/topk chain dynamically shaped. To keep static
- * shapes, this matcher bypasses the dynamic slice (restoring the padded [max_boxes, 3] indices) and
- * compensates by masking the gathered scores before the topk: the padded rows (which resolve to
- * box 0) are replaced with a sentinel (the lowest representable value for a largest topk, the
- * highest for a smallest topk) so they can never be selected.
- *
- * From:
- *   topk(gather(scores, ...slice(get_tuple_elem[0](nms), get_tuple_elem[1](nms))...))
- * To:
- *   mask = less([0, 1, ..., max_boxes - 1], num_selected)
- *   topk(where(mask, gather(scores, ...get_tuple_elem[0](nms)...), sentinel))
- */
+/// Rewrite the dynamic nonmaxsuppression (NMS) slice feeding a topk into a static, mask-based form.
+/// Common pattern seen in SSD models.
+///
+/// From:
+///     topk(gather(scores, ...slice(get_tuple_elem[0](nms), get_tuple_elem[1](nms))...))
+/// To:
+///     mask = less([0, 1, ..., max_boxes - 1], num_selected)
+///     topk(where(mask, gather(scores, ...get_tuple_elem[0](nms)...), sentinel))
+///
 struct find_nms_gather_topk : match::supports_dynamic_shapes
 {
     auto matcher() const
@@ -613,21 +605,20 @@ struct find_nms_gather_topk : match::supports_dynamic_shapes
         auto indices      = slice_ins->inputs().at(0); // static [max_boxes, 3] get_tuple_elem[0]
         auto num_selected = slice_ins->inputs().at(1); // [1] get_tuple_elem[1]
         auto nms_ins      = indices->inputs().at(0);
-        // The mask relies on num_selected being a scalar count that broadcasts against the iota.
         assert(num_selected->get_shape().elements() == 1);
 
         // max_boxes is the static leading dimension of the NMS selected-indices output.
         auto max_boxes = nms_ins->get_shape().sub_shapes().at(0).lens().at(0);
 
-        // Only the 1D gathered-scores case (SSD post-processing) is handled; the mask then lines up
-        // with the topk axis directly. The gather is still dynamic here, so check its max length.
+        // Only the 1D gathered-scores case (SSD post-processing) is handled.
+        // The mask then lines up with the topk axis directly. The gather is still dynamic here, so check its max length.
         const auto& pre_shape = gather_ins->get_shape();
         if(pre_shape.ndim() != 1 or pre_shape.max_lens().at(0) != max_boxes)
             return;
 
-        // Bypass the dynamic slice so the padded indices flow straight through; replace_instruction
-        // propagates the now-static shapes down the chain, so the gathered scores become static
-        // [max_boxes].
+        // Bypass the dynamic slice so the padded indices flow straight through.
+        // replace_instruction propagates the now-static shapes down the chain,
+        // so the gathered scores become static [max_boxes].
         m.replace_instruction(slice_ins, indices);
 
         const auto& data_shape = gather_ins->get_shape();
@@ -638,7 +629,7 @@ struct find_nms_gather_topk : match::supports_dynamic_shapes
         std::iota(iota_data.begin(), iota_data.end(), 0);
         auto iota_lit = m.add_literal(literal{shape{shape::int64_type, {max_boxes}}, iota_data});
 
-        // mask[i] = i < num_selected (num_selected is the slice's variable-end input)
+        // mask[i] = i < num_selected (from NMS)
         auto mask = insert_common_op(m, topk_ins, make_op("less"), {iota_lit, num_selected});
         mask      = m.insert_instruction(
             topk_ins, make_op("convert", {{"target_type", shape::bool_type}}), mask);

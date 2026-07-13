@@ -25,8 +25,14 @@
 
 #include <algorithm>
 #include <limits>
+#include <string>
+#include <type_traits>
+#include <unordered_map>
+#include <vector>
+#include <migraphx/argument.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/op/builder/insert.hpp>
 #include <migraphx/op/builder/kit.hpp>
 #include <migraphx/op/common.hpp>
@@ -256,6 +262,160 @@ struct torch_std : op_builder<torch_std>
     }
 };
 
+// slice_scatter has no native op: scatter src into the [start:end:step] slice along `dim`.
+struct torch_slice_scatter : op_builder<torch_slice_scatter>
+{
+    int64_t dim   = 0;
+    int64_t start = 0;
+    int64_t end   = 0;
+    int64_t step  = 1;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(
+            f(self.dim, "dim"), f(self.start, "start"), f(self.end, "end"), f(self.step, "step"));
+    }
+
+    static std::vector<std::string> names() { return {"tm::slice_scatter"}; }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+        shape idx_shape{shape::int64_type, args[1]->get_shape().lens()};
+        std::vector<int64_t> data(idx_shape.elements());
+        for(std::size_t i = 0; i < data.size(); ++i)
+            data[i] = start + step * idx_shape.multi(i)[dim];
+        auto indices = m.add_literal(literal{idx_shape, data.begin(), data.end()});
+
+        auto std_input = m.insert_instruction(ins, make_op("contiguous"), args[0]);
+        auto std_src   = m.insert_instruction(ins, make_op("contiguous"), args[1]);
+        return {m.insert_instruction(
+            ins, make_op("scatter_none", {{"axis", dim}}), {std_input, indices, std_src})};
+    }
+};
+
+// index_copy has no native op: scatter src into the rows of `dim` listed in the 1-D index.
+struct torch_index_copy : op_builder<torch_index_copy>
+{
+    int64_t dim = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.dim, "dim"));
+    }
+
+    static std::vector<std::string> names() { return {"tm::index_copy"}; }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+        auto inp = args[0], idx = args[1], src = args[2];
+        auto src_lens = src->get_shape().lens();
+
+        std::vector<int64_t> rsp(src_lens.size(), 1);
+        rsp[dim] = idx->get_shape().lens().at(0);
+        auto scatter_idx = m.insert_instruction(ins, make_op("reshape", {{"dims", rsp}}), idx);
+        scatter_idx      = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", src_lens}}), scatter_idx);
+        return {m.insert_instruction(
+            ins, make_op("scatter_none", {{"axis", dim}}), {inp, scatter_idx, src})};
+    }
+};
+
+// as_strided has no native op: gather each output element from its strided storage offset
+// (storage_offset + the element's offset under `stride`).
+struct torch_as_strided : op_builder<torch_as_strided>
+{
+    std::vector<int64_t> size;
+    std::vector<int64_t> stride;
+    int64_t storage_offset = 0;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.size, "size"),
+                    f(self.stride, "stride"),
+                    f(self.storage_offset, "storage_offset"));
+    }
+
+    static std::vector<std::string> names() { return {"tm::as_strided"}; }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+        shape strided{shape::int64_type,
+                      std::vector<std::size_t>(size.begin(), size.end()),
+                      std::vector<std::size_t>(stride.begin(), stride.end())};
+        std::vector<int64_t> data(strided.elements());
+        for(std::size_t i = 0; i < data.size(); ++i)
+            data[i] = storage_offset + strided.index(i);
+        auto indices = m.add_literal(
+            literal{shape{shape::int64_type, {data.size()}}, data.begin(), data.end()});
+
+        auto flat_inp = m.insert_instruction(ins, make_op("contiguous"), args[0]);
+        flat_inp = m.insert_instruction(ins, make_op("reshape", {{"dims", {-1}}}), flat_inp);
+        auto gathered = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), flat_inp, indices);
+        return {m.insert_instruction(ins, make_op("reshape", {{"dims", size}}), gathered)};
+    }
+};
+
+// scatter_reduce has no native op: use the matching reduction scatter op; for include_self=false
+// the target positions are first overwritten with the reduction identity so they drop out.
+struct torch_scatter_reduce : op_builder<torch_scatter_reduce>
+{
+    int64_t dim        = 0;
+    std::string reduce = "sum";
+    bool include_self  = true;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(
+            f(self.dim, "dim"), f(self.reduce, "reduce"), f(self.include_self, "include_self"));
+    }
+
+    static std::vector<std::string> names() { return {"tm::scatter_reduce"}; }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+        const std::unordered_map<std::string, std::string> reduce_map = {
+            {"mean", "scatter_none"},
+            {"sum", "scatter_add"},
+            {"prod", "scatter_mul"},
+            {"amax", "scatter_max"},
+            {"amin", "scatter_min"}};
+
+        auto inp = args[0], idx = args[1], src = args[2];
+
+        if(not include_self and reduce != "mean")
+        {
+            argument id_arg{shape{inp->get_shape().type(), {1}}};
+            id_arg.visit([&](auto v) {
+                using type = std::remove_cv_t<typename decltype(v)::value_type>;
+                if(reduce == "sum")
+                    v.front() = type(0);
+                else if(reduce == "prod")
+                    v.front() = type(1);
+                else if(reduce == "amax")
+                    v.front() = std::numeric_limits<type>::lowest();
+                else
+                    v.front() = std::numeric_limits<type>::max();
+            });
+            auto identity = m.add_literal(id_arg.get_shape(), id_arg.data());
+            identity      = m.insert_instruction(
+                ins, make_op("multibroadcast", {{"out_lens", idx->get_shape().lens()}}), identity);
+            inp = m.insert_instruction(
+                ins, make_op("scatter_none", {{"axis", dim}}), {inp, idx, identity});
+        }
+
+        return {m.insert_instruction(
+            ins, make_op(reduce_map.at(reduce), {{"axis", dim}}), {inp, idx, src})};
+    }
+};
+
 struct torch_kit : kit<torch_kit>
 {
     std::string prefix() const { return "tm::"; }
@@ -313,6 +473,7 @@ struct torch_kit : kit<torch_kit>
                         "convolution",
                         "dot",
                         "floor_div",
+                        "gather_elements",
                         "gelu_erf",
                         "glu",
                         "group_norm",

@@ -1511,6 +1511,14 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             return mlir_mode::all;
         if(is_navi)
             return mlir_mode::all;
+#if !MIGRAPHX_USE_MIOPEN
+        if(option.find("conv") != std::string_view::npos)
+            return mlir_mode::all;
+#endif
+#if !MIGRAPHX_USE_ROCBLAS and !MIGRAPHX_USE_HIPBLASLT
+        if(option == "dot" or option == "fused_dot")
+            return mlir_mode::all;
+#endif
         return std::max(m1, m2);
     };
 

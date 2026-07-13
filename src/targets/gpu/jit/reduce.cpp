@@ -335,7 +335,7 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     fused_reduce_plan plan;
     plan.assign         = v.get("assign", "assign_none");
     auto axes           = v.at("axes").to_vector<std::size_t>();
-    plan.finputs = flatten_tuple_shapes(inputs);
+    plan.finputs        = flatten_tuple_shapes(inputs);
     plan.virtual_inputs = plan.finputs;
     plan.virtual_inputs.push_back(get_reduced_shape(get_input_shape(plan.finputs), axes));
     plan.virtual_inputs.push_back(get_output_shape(get_input_shape(plan.finputs), axes));

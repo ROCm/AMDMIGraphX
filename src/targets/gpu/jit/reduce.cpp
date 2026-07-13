@@ -335,18 +335,17 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
     fused_reduce_plan plan;
     plan.assign         = v.get("assign", "assign_none");
     auto axes           = v.at("axes").to_vector<std::size_t>();
-    plan.finputs        = flatten_tuple_shapes(inputs);
-    auto virtual_inputs = plan.finputs;
-    virtual_inputs.push_back(get_reduced_shape(get_input_shape(plan.finputs), axes));
-    virtual_inputs.push_back(get_output_shape(get_input_shape(plan.finputs), axes));
-    virtual_inputs = reduce_dims(normalize_permutation(virtual_inputs));
+    plan.finputs = flatten_tuple_shapes(inputs);
+    plan.virtual_inputs = plan.finputs;
+    plan.virtual_inputs.push_back(get_reduced_shape(get_input_shape(plan.finputs), axes));
+    plan.virtual_inputs.push_back(get_output_shape(get_input_shape(plan.finputs), axes));
+    plan.virtual_inputs = reduce_dims(normalize_permutation(plan.virtual_inputs));
     if(plan.assign != "assign_none")
-        virtual_inputs = split_reduce(virtual_inputs);
-    plan.reduce_output_shape = virtual_inputs.back();
-    virtual_inputs.pop_back();
-    auto reduction_shape = virtual_inputs.back();
-    virtual_inputs.pop_back();
-    plan.virtual_inputs = virtual_inputs;
+        plan.virtual_inputs = split_reduce(plan.virtual_inputs);
+    plan.reduce_output_shape = plan.virtual_inputs.back();
+    plan.virtual_inputs.pop_back();
+    auto reduction_shape = plan.virtual_inputs.back();
+    plan.virtual_inputs.pop_back();
 
     auto faxis = find_fast_axis({plan.virtual_inputs.front()});
     plan.algo  = v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, reduction_shape.lens()));

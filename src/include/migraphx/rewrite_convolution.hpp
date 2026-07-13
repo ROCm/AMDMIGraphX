@@ -21,33 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_REWRITE_CONVOLUTION_HPP
+#define MIGRAPHX_GUARD_RTGLIB_REWRITE_CONVOLUTION_HPP
 
 #include <string>
-#include <vector>
 #include <migraphx/config.hpp>
-#include <migraphx/gpu/context.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
+struct module;
 
-namespace gpu {
-
-struct MIGRAPHX_GPU_EXPORT fuse_mlss
+/**
+ * Rewrite convolution_backwards (transposed convolution) into a set of stride-1 forward
+ * convolutions plus reassembly, following MIOpen's implicit-gemm backward-data v4r1 algorithm.
+ *
+ * A backward-data convolution with stride S and dilation D is split, per spatial dim, into
+ * Ytilda = S / gcd(S, D) residue "gemms". Each residue is a dense stride-1 forward convolution on
+ * a strided slice of the (flipped) filter; the residue outputs are interleaved back into the
+ * spatial grid. This lets downstream fusion (e.g. MLIR) generate several small, efficient kernels
+ * instead of one monolithic backward convolution.
+ */
+struct MIGRAPHX_EXPORT rewrite_convolution
 {
-    context* ctx = nullptr;
-    // List of ops to force onto AMDMLSS (e.g. "conv"), supplied via compile_options.
-    // Takes effect in addition to MIGRAPHX_MLSS_USE_SPECIFIC_OPS.
-    std::vector<std::string> use_specific_ops = {};
-    std::string name() const { return "gpu::fuse_mlss"; }
-    void apply(module_pass_manager& mpm) const;
+    std::string name() const { return "rewrite_convolution"; }
+    void apply(module& m) const;
 };
-
-} // namespace gpu
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_MLSS_HPP
+
+#endif

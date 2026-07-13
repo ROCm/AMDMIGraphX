@@ -45,8 +45,10 @@
 #include <migraphx/preallocate_param.hpp>
 #include <migraphx/promote_literals.hpp>
 #include <migraphx/propagate_precision.hpp>
+#include <migraphx/reflect.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/replace_allocate.hpp>
+#include <migraphx/rewrite_convolution.hpp>
 #include <migraphx/rewrite_dot.hpp>
 #include <migraphx/rewrite_gelu.hpp>
 #include <migraphx/rewrite_low_precision.hpp>
@@ -57,6 +59,7 @@
 #include <migraphx/rewrite_rnn.hpp>
 #include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
+#include <migraphx/serialize.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -97,10 +100,24 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SET_GEMM_PROVIDER)
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_FULL_DYNAMIC)
 
 namespace {
+// Backend options recognized by the GPU target, supplied via
+// compile_options::backend_options.
+struct backend_options
+{
+    std::vector<std::string> mlss_use_specific_ops = {};
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"));
+    }
+};
+
 struct pipeline_factory
 {
     migraphx::context* gctx_ptr = nullptr;
     compile_options options;
+    backend_options backend_opts = {};
 
     migraphx::context* get_generic_context() const { return gctx_ptr; }
 
@@ -155,6 +172,8 @@ struct pipeline_factory
     std::vector<pass> optimize_rewrite_pipeline() const
     {
         return {
+            rewrite_convolution{},
+            dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
             layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
@@ -184,7 +203,7 @@ struct pipeline_factory
                                        .flash_decoding_enabled = mlir_flash_decoding_enabled()}),
             dead_code_elimination{},
             optimize_module{},
-            fuse_mlss{get_context()},
+            fuse_mlss{.ctx = get_context(), .use_specific_ops = backend_opts.mlss_use_specific_ops},
             fuse_pointwise_reduce{},
             dead_code_elimination{},
 #ifndef _WIN32
@@ -255,7 +274,7 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
     ctx.set_exhaustive_tune_flag(options.exhaustive_tune);
     ctx.load_problem_cache(); // TODO: update load_problem_cache to include gpu arch
 
-    pipeline_factory p{&gctx, options};
+    pipeline_factory p{&gctx, options, from_value<backend_options>(value(options.backend_options))};
 
     std::vector<std::vector<pass>> pipelines = {
         p.dynamic_shapes_pipeline(),

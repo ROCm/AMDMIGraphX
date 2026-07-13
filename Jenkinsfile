@@ -447,11 +447,7 @@ pipeline {
 
                 stage('HIP RTC Debug') {
                     agent {
-                        label "(rocmtest || migraphx) && gfx90a && !vm"
-                    }
-                    environment {
-                        // Disable MLIR since it doesnt work with all ub sanitizers
-                        MIGRAPHX_DISABLE_MLIR = '1'
+                        label rocmnodename('mi300+')
                     }
                     steps {
                         script {

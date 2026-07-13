@@ -21,36 +21,50 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
-#define MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+#ifndef MIGRAPHX_GUARD_GPU_MLIR_OPS_HPP
+#define MIGRAPHX_GUARD_GPU_MLIR_OPS_HPP
 
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/gpu/mlir_ops.hpp>
+#include <migraphx/config.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
-struct module_pass_manager;
-
 namespace gpu {
 
-MIGRAPHX_GPU_EXPORT bool mlir_enabled();
-MIGRAPHX_GPU_EXPORT bool mlir_attention_enabled(context* ctx, const mlir_ops_options& mlir_ops);
-MIGRAPHX_GPU_EXPORT bool mlir_flash_decoding_enabled();
-MIGRAPHX_GPU_EXPORT bool mlir_geg_multi_user_intermediates_supported();
-
-struct MIGRAPHX_GPU_EXPORT fuse_mlir
+struct mlir_ops_options
 {
-    context* ctx      = nullptr;
-    mlir_ops_options mlir_ops{};
-    bool enable_extra = false;
-    bool enable_geg_multi_out_intermediates = false;
-    std::string name() const { return "gpu::fuse_mlir"; }
-    void apply(module_pass_manager& mpm) const;
+#ifdef _WIN32
+#if defined(MIGRAPHX_USE_MIOPEN) && MIGRAPHX_USE_MIOPEN == 0
+    bool convolution           = true;
+    bool convolution_backwards = true;
+    bool fused_convolution     = true;
+#else
+    bool convolution           = false;
+    bool convolution_backwards = false;
+    bool fused_convolution     = false;
+#endif
+#if defined(MIGRAPHX_USE_HIPBLASLT) && MIGRAPHX_USE_HIPBLASLT == 0
+    bool attention = true;
+    bool dot       = true;
+    bool fused_dot = true;
+#else
+    bool attention = false;
+    bool dot       = false;
+    bool fused_dot = false;
+#endif
+
+#else
+    bool convolution           = false;
+    bool convolution_backwards = false;
+    bool fused_convolution     = false;
+    bool attention             = false;
+    bool dot                   = false;
+    bool fused_dot             = false;
+#endif
 };
 
 } // namespace gpu
-
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_FUSE_MLIR_HPP
+
+#endif // MIGRAPHX_GUARD_GPU_MLIR_OPS_HPP

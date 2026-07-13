@@ -75,8 +75,7 @@ try_merge_pairs(optional<std::pair<sym::expr, sym::expr>> p2,
             return {{elements, zero}};
         return nullopt;
     }
-    // Divisible (% has no symbolic normalization, so reconstruct via /)
-    if(not sym::same_symbol((stride1 / stride2) * stride2, stride1))
+    if(not sym::is_divisible(stride1, stride2))
         return nullopt;
     auto space = (stride1 * dim1 + stride2 * dim2 - stride1) / stride2;
     // Nonpacked

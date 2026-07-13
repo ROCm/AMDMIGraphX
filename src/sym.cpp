@@ -1623,6 +1623,24 @@ bool same_symbol(const expr& a, const expr& b)
            });
 }
 
+static bool has_float_literal(const expr& e)
+{
+    if(e.empty())
+        return false;
+    if(const auto* n = std::get_if<literal_node>(&get_node(e)))
+        return std::holds_alternative<double>(n->val);
+    return std::any_of(e.children().begin(), e.children().end(), has_float_literal);
+}
+
+bool is_divisible(const expr& dividend, const expr& divisor)
+{
+    // Float literals make the /-reconstruction rounding-dependent.
+    const bool integral = not has_float_literal(dividend) and not has_float_literal(divisor);
+    (void)integral;
+    assert(integral);
+    return same_symbol((dividend / divisor) * divisor, dividend);
+}
+
 // Number of levels in e: a leaf (literal/variable) is depth 1, empty is 0.
 static int expr_depth(const expr& e)
 {

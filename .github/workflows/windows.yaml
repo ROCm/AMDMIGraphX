@@ -148,8 +148,8 @@ jobs:
         key: windows-cget-gpu-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
         restore-keys: windows-cget-gpu-
 
-    # - name: Setup tmate session
-    #   uses: mxschmitt/action-tmate@v3
+    - name: Setup tmate session
+      uses: mxschmitt/action-tmate@v3
 
     - name: Install dependencies
       # Build the third-party dependencies (including rocMLIR) with clang-cl,

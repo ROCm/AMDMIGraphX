@@ -30,7 +30,6 @@
 #include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/instruction_ref.hpp>
-#include <migraphx/permutation.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/iterator_for.hpp>
@@ -300,33 +299,16 @@ struct miopen_apply
 #endif
 
 #if MIGRAPHX_USE_MIOPEN
-    instruction_ref insert_layout(instruction_ref pos,
-                                  instruction_ref input,
-                                  const std::vector<int64_t>& perm) const
-    {
-        auto layout =
-            mod->insert_instruction(pos, make_op("layout", {{"permutation", perm}}), input);
-        return insert_precompile_op(layout);
-    }
-
     void add_convolution_op(const std::string& name)
     {
         apply_map.emplace(name, [=](instruction_ref ins) {
-            auto inputs = ins->inputs();
-            auto perm   = find_permutation(inputs.at(0)->get_shape());
-            // MIOpen requires the data and weights to share a layout. When they differ
-            // (e.g. a constant weight folded to a different layout than the data), give
-            // the weights the data's layout so the convolution output layout is unchanged.
-            if(perm != find_permutation(inputs.at(1)->get_shape()))
-                inputs[1] = insert_layout(ins, inputs.at(1), perm);
-
             operation conv = make_op("gpu::" + name, {{"op", ins->get_operator().to_value()}});
             auto output    = insert_allocation(ins, ins->get_shape());
 
             return mod->replace_instruction(ins,
                                             make_op("gpu::miopen_op", {{"op", to_value(conv)}}),
-                                            inputs.at(0),
-                                            inputs.at(1),
+                                            ins->inputs().at(0),
+                                            ins->inputs().at(1),
                                             output);
         });
     }

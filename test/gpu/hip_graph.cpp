@@ -57,7 +57,8 @@ static void check_rebind(const migraphx::program& p, const migraphx::shape& s)
     auto p_ref = p;
 
     migraphx::compile_options options;
-    options.offload_copy = false;
+    options.offload_copy                 = false;
+    options.backend_options["hip_graph"] = true;
     p_gpu.compile(migraphx::make_target("gpu"), options);
     p_ref.compile(migraphx::make_target("ref"));
 
@@ -156,7 +157,8 @@ TEST_CASE(offload_copy_no_rebind)
     auto p_gpu = p;
     auto p_ref = p;
     migraphx::compile_options options;
-    options.offload_copy = true;
+    options.offload_copy                 = true;
+    options.backend_options["hip_graph"] = true;
     p_gpu.compile(migraphx::make_target("gpu"), options);
     p_ref.compile(migraphx::make_target("ref"));
 

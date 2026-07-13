@@ -107,11 +107,15 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    // Enable the hipgraphify pass (capture the program into a HIP graph). Also
+    // controllable via the MIGRAPHX_ENABLE_HIP_GRAPH env var.
+    bool hip_graph = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.hip_graph, "hip_graph"));
     }
 };
 
@@ -254,7 +258,8 @@ struct pipeline_factory
             promote_literals{},
             dead_code_elimination{},
             write_literals{.max_memory = max_memory},
-            enable_pass(enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}), hipgraphify{}),
+            enable_pass(enabled(MIGRAPHX_ENABLE_HIP_GRAPH{}) or backend_opts.hip_graph,
+                        hipgraphify{}),
             dead_code_elimination{},
             schedule{gpu::schedule_model{get_context()->get_current_device().nstreams()},
                      not enabled(MIGRAPHX_DISABLE_SCHEDULE_PASS{})},

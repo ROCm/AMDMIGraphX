@@ -58,7 +58,7 @@ struct glu : op_builder<glu>
         auto second = m.insert_instruction(
             ins, make_op("slice", {{"axes", {ax}}, {"starts", {half}}, {"ends", {len}}}), x);
         auto gate = m.insert_instruction(ins, make_op("sigmoid"), second);
-        return {insert_common_op(m, ins, "mul", first, gate)};
+        return {m.insert_instruction(ins, make_op("mul"), first, gate)};
     }
 };
 

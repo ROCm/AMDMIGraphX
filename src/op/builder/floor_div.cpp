@@ -32,7 +32,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-// floor_divide has no native op: floor(a / b) over common operands.
+// floor_div has no native op: floor(a / b) over common operands.
 struct floor_div : op_builder<floor_div>
 {
     std::vector<instruction_ref>

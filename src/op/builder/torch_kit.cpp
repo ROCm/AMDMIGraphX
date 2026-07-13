@@ -96,9 +96,7 @@ struct torch_linear : op_builder<torch_linear>
         if(lens.size() == 2)
             return op::builder::insert("gemm", m, ins, args, gemm_opts);
 
-        std::size_t rows = 1;
-        for(std::size_t i = 0; i + 1 < lens.size(); ++i)
-            rows *= lens[i];
+        auto rows = args[0]->get_shape().elements() / lens.back();
         std::vector<int64_t> flat = {static_cast<int64_t>(rows),
                                      static_cast<int64_t>(lens.back())};
         auto x2d = m.insert_instruction(ins, make_op("reshape", {{"dims", flat}}), args[0]);

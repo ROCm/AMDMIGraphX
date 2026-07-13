@@ -56,6 +56,7 @@ Full documentation for MIGraphX is available at
 * Updated `QLinearConv` bias handling to dequantize bias using the product of input and weight scales before adding to the convolution output.
 * Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
 * Updated python API to allow getting and adding debug symbols from instructions. (#4803)
+* Allow for 1 arg slicing over a dynamic dimension. (#5015)
 
 ### Resolved issues
 

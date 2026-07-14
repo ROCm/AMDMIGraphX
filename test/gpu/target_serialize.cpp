@@ -54,4 +54,17 @@ TEST_CASE(gpu_target_to_value_with_max_threads)
     CHECK(v.at("gpu_max_threads_per_block").without_key().to<std::size_t>() == 256);
 }
 
+TEST_CASE(gpu_target_to_value_with_wavefront_size)
+{
+    auto t = migraphx::make_target("gpu",
+                                   migraphx::value{{"gpu_arch", "gfx1200"},
+                                                   {"gpu_wavefront_size", 32}});
+    auto v = t.to_value();
+    CHECK(v.at("gpu_wavefront_size").without_key().to<std::size_t>() == 32);
+
+    auto t2 = migraphx::make_target("gpu");
+    t2.from_value(v);
+    CHECK(t2.to_value() == v);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

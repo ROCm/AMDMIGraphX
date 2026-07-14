@@ -199,6 +199,46 @@ struct mlir_compiler : compiler<mlir_compiler>
         }
     }
 
+    compiler_replace compile_split(context& ctx,
+                                   instruction_ref ins,
+                                   module_ref smod,
+                                   instruction_ref gemm_like_ins,
+                                   const value& solution) const
+    {
+        auto input_args = ins->inputs();
+        // remove alloc buffer
+        input_args.pop_back();
+        auto split_ins                               = find_final_split(gemm_like_ins);
+        std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
+        auto dot_mlir_inputs                         = to_shapes(mod_splits[0].inputs);
+        // add alloc for the gemm output
+        dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
+        mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
+        auto pw_shapes        = to_shapes(mod_splits[1].inputs);
+        if(mod_splits[1].mod.get_output_shapes().size() == 1)
+        {
+            pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
+        }
+        else
+        {
+            pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
+        }
+        assert(pw_shapes.back() == ins->get_shape());
+        auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
+        std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
+        return insert(cops, mod_splits, ins, split_ins);
+    }
+
+    compiler_replace compile_fused(context& ctx,
+                                   instruction_ref ins,
+                                   module_ref smod,
+                                   const value& solution) const
+    {
+        auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
+        set_fill_map(cr, *smod);
+        return cr;
+    }
+
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
@@ -213,35 +253,25 @@ struct mlir_compiler : compiler<mlir_compiler>
 
         // check if (a) module is fused (b) contains a "gemm/conv" instruction and (c)
         // perfConfig can not allow fused module
-        if(gemm_like_ins != smod->end() and pointwise_ins != smod->end() and
-           not is_module_fusible(*smod, ctx, solution))
+        const bool can_split = gemm_like_ins != smod->end() and pointwise_ins != smod->end();
+        if(can_split and not is_module_fusible(*smod, ctx, solution))
         {
-            auto input_args = ins->inputs();
-            // remove alloc buffer
-            input_args.pop_back();
-            auto split_ins                               = find_final_split(gemm_like_ins);
-            std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
-            auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
-            // add alloc for the gemm output
-            dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
-            mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
-            auto pw_shapes        = to_shapes(mod_splits[1].inputs);
-            if(mod_splits[1].mod.get_output_shapes().size() == 1)
-            {
-                pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
-            }
-            else
-            {
-                pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
-            }
-            assert(pw_shapes.back() == ins->get_shape());
-            auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
-            std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
-            return insert(cops, mod_splits, ins, split_ins);
+            return compile_split(ctx, ins, smod, gemm_like_ins, solution);
         }
-        auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
-        set_fill_map(cr, *smod);
-        return cr;
+        try
+        {
+            return compile_fused(ctx, ins, smod, solution);
+        }
+        catch(...)
+        {
+            if(can_split)
+            {
+                // rocMLIR can reject a cached split-k perfConfig after reporting the fused
+                // module as fusible. Fall back to separate MLIR and pointwise kernels.
+                return compile_split(ctx, ins, smod, gemm_like_ins, solution);
+            }
+            throw;
+        }
     }
 
     compiler_replace insert(const mlir_code_object& mco) const

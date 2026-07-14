@@ -427,6 +427,50 @@ literal compute_winograd_weights_f23(const argument& w_arg, bool full_transform)
     return literal{w_shape, data};
 }
 
+// Precompute the FULL Winograd filter transform U = G g G^T for the fp32 FMA/DPP
+// kernel, stored as an [4, 4, K, C] literal (indices u, v, k, c; C innermost).
+// The fp32 kernel does not transform the weight in-kernel (unlike the fp16
+// path), so the whole 4x4 winograd weight is materialized here.
+//
+// The kernel realizes the input transform's v=3 column with a sign flip
+// (d3-d1 instead of d1-d3) because that is the form a single quad DPP butterfly
+// can produce; a matching negation of U[:,3,:,:] here makes the elementwise
+// product U*V exact.
+literal compute_winograd_weights_f23_fp32(const argument& w_arg)
+{
+    const auto& sh = w_arg.get_shape();
+    auto out_c     = sh.lens()[0];
+    auto in_c      = sh.lens()[1];
+    shape u_shape{shape::float_type, {4, 4, out_c, in_c}};
+
+    // G (4x3): rows [1,0,0], [.5,.5,.5], [.5,-.5,.5], [0,0,1].
+    constexpr std::array<std::array<float, 3>, 4> gmat{{{1.0f, 0.0f, 0.0f},
+                                                        {0.5f, 0.5f, 0.5f},
+                                                        {0.5f, -0.5f, 0.5f},
+                                                        {0.0f, 0.0f, 1.0f}}};
+
+    std::vector<float> data(u_shape.elements(), 0.0f);
+    w_arg.visit([&](auto w_view) {
+        dfor(out_c, in_c)([&](auto k, auto c) {
+            float g[3][3];
+            dfor(std::size_t{3},
+                 std::size_t{3})([&](auto i, auto j) { g[i][j] = w_view(k, c, i, j); });
+
+            // Gg (4x3): (Gg)[u][j] = sum_i G[u][i] g[i][j].
+            float gg[4][3];
+            dfor(std::size_t{4}, std::size_t{3})([&](auto u, auto j) {
+                gg[u][j] = gmat[u][0] * g[0][j] + gmat[u][1] * g[1][j] + gmat[u][2] * g[2][j];
+            });
+            // U[u][v] = sum_j (Gg)[u][j] G[v][j], with the v=3 column negated.
+            dfor(std::size_t{4}, std::size_t{4})([&](auto u, auto v) {
+                float uv = gg[u][0] * gmat[v][0] + gg[u][1] * gmat[v][1] + gg[u][2] * gmat[v][2];
+                data[u_shape.index({u, v, k, c})] = (v == 3) ? -uv : uv;
+            });
+        });
+    });
+    return literal{u_shape, data};
+}
+
 // Measured per-shape overrides: exact (C, K, H, W) convolutions where the
 // analytic heuristic below mispredicts the winograd-vs-default winner by more
 // than 10% (using the better of the two weight stores). These are
@@ -581,9 +625,9 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     if(x_lens.size() != 4)
         return false;
     auto x_type = ins->inputs().front()->get_shape().type();
-    // Kernel currently only supports half_type (fp16). The fp32 path was
-    // never wired through the buffer-resource-based loads.
-    if(x_type != shape::half_type)
+    // fp16 uses the WMMA kernel; fp32 uses the FMA/DPP kernel. Other types are
+    // unsupported.
+    if(x_type != shape::half_type and x_type != shape::float_type)
         return false;
     if(ins->inputs().front()->get_shape().dynamic() or ins->inputs().back()->get_shape().dynamic())
         return false;
@@ -597,6 +641,11 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     // off everywhere. Both are for benchmarking/debugging.
     if(enabled(MIGRAPHX_DISABLE_WINOGRAD{}))
         return false;
+    // fp32 has no profitability heuristic yet: it is opt-in via
+    // MIGRAPHX_ENABLE_WINOGRAD only. fp16 uses the tuned heuristic (or the
+    // env override).
+    if(x_type == shape::float_type)
+        return enabled(MIGRAPHX_ENABLE_WINOGRAD{});
     // Channels-last (NHWC) when the conv input's channel axis is innermost --
     // the same test the kernel uses to pick its NHWC path. layout_convolution
     // runs before this pass, so the strides already reflect the chosen layout.
@@ -617,15 +666,26 @@ struct find_winograd_f23
 
         auto w_arg = weights->eval();
 
-        auto w_lens   = weights->get_shape().lens(); // [K, C, 3, 3]
-        auto x_lens   = input->get_shape().lens();   // [N, C, H, W]
-        const bool ft = winograd_f23_full_transform(w_lens[1], w_lens[0], x_lens[2], x_lens[3]);
         // Match the output layout layout_convolution chose for this conv, so
         // the op is a drop-in replacement (no surrounding transpose changes).
         auto out_layout = find_permutation(ins->get_shape());
 
-        auto u_lit = compute_winograd_weights_f23(w_arg, ft);
-        auto u_ins = m.add_literal(u_lit);
+        // fp32 uses the FMA/DPP kernel with the full G g G^T weight; fp16 uses
+        // the WMMA kernel with the T or g weight store. full_transform is unused
+        // for fp32 (precision is derived from the input type); false is just the
+        // required ctor argument.
+        if(input->get_shape().type() == shape::float_type)
+        {
+            m.replace_instruction(
+                ins, winograd_conv{false, out_layout}, input, m.add_literal(compute_winograd_weights_f23_fp32(w_arg)));
+            return;
+        }
+
+        auto w_lens   = weights->get_shape().lens(); // [K, C, 3, 3]
+        auto x_lens   = input->get_shape().lens();   // [N, C, H, W]
+        const bool ft = winograd_f23_full_transform(w_lens[1], w_lens[0], x_lens[2], x_lens[3]);
+        auto u_lit    = compute_winograd_weights_f23(w_arg, ft);
+        auto u_ins    = m.add_literal(u_lit);
 
         m.replace_instruction(ins, winograd_conv{ft, out_layout}, input, u_ins);
     }

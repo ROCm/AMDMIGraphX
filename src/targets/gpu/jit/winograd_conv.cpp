@@ -47,23 +47,26 @@ using namespace migraphx::gpu::gen; // NOLINT
 static std::string post_input_cast(const module& pm)
 {
     // Pointwise submodule params are named x0, x1, ...; x0 is arg 0, which the
-    // fusion wires to the winograd conv output.
+    // fusion wires to the winograd conv output. Its type is the conv's natural
+    // output precision (half for the fp16 kernel, float for the fp32 kernel),
+    // which is the base type the post-op computes at.
     auto x0 = pm.get_parameter("x0");
     if(x0 == pm.end())
         return "half";
+    const std::string base = shape::cpp_type(x0->get_shape().type());
     // Only treat a *leading* convert as the post-op's compute type, i.e. when
     // the conv result feeds exactly one op and that op is a convert to a type
-    // wider than the conv's half output. A convert that appears later (after
-    // an add/activation/etc.) must still run at half precision first.
+    // wider than the conv output. A convert that appears later (after an
+    // add/activation/etc.) must still run at conv precision first.
     const auto& users = x0->outputs();
     if(users.size() != 1)
-        return "half";
+        return base;
     auto user = users.front();
     if(user->name() != "convert")
-        return "half";
+        return base;
     auto t = user->get_shape().type();
-    if(shape{t}.type_size() <= shape{shape::half_type}.type_size())
-        return "half";
+    if(shape{t}.type_size() <= x0->get_shape().type_size())
+        return base;
     return shape::cpp_type(t);
 }
 
@@ -96,12 +99,97 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 
 )__migraphx__";
 
+// fp32 FMA/DPP kernel (winograd_conv_f23_fp32). Configured by nw (waves),
+// ko (output channels per lane) and tiles (winograd tiles per quad).
+// NOLINTNEXTLINE
+static const char* const winograd_conv_fp32_kernel = R"__migraphx__(
+#include <migraphx/kernels/winograd_conv_fp32.hpp>
+#include <migraphx/kernels/integral_constant.hpp>
+#include <migraphx/kernels/generic_constant.hpp>
+#include <migraphx/kernels/ops.hpp>
+#include <args.hpp>
+
+namespace migraphx {
+
+${preamble}
+
+extern "C" {
+
+MIGRAPHX_GLOBAL void ${kernel}(${params})
+{
+    transform_args(make_tensors(), rotate_last())(${args})(
+        [](auto output, auto x, auto u, auto... inputs) {
+            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${conv_cast}>(
+                ${post}, output, x, u, inputs...);
+        });
+}
+
+}
+
+} // namespace migraphx
+
+)__migraphx__";
+
 struct winograd_conv_compiler : compiler<winograd_conv_compiler>
 {
     std::vector<std::string> names() const { return {"gpu::winograd_conv", "winograd_conv"}; }
 
+    // fp32 FMA/DPP kernel: lane%4 = winograd v-column, quad = TILES tiles,
+    // each wave = 8 quads. Launch covers (tile groups) x (output-channel blocks),
+    // where a tile group is one workgroup's worth of quads.
+    operation compile_op_fp32(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        hip_compile_options options;
+        const auto& out_s      = inputs.back();
+        options.inputs         = inputs;
+        options.output         = out_s;
+        options.virtual_inputs = inputs;
+        options.kernel_name    = v.get("kernel", std::string{"winograd_conv_fp32_kernel"});
+
+        const auto nw    = v.get("nw", std::size_t{4});
+        const auto ko    = v.get("ko", std::size_t{8});
+        const auto tiles = v.get("tiles", std::size_t{2});
+
+        const std::size_t quads_per_wg = 8 * nw; // 8 quads (32 lanes / 4) per wave
+        const std::size_t block_size   = nw * 32;
+
+        const auto& out_lens = out_s.lens();
+        assert(out_lens.size() == 4);
+        const auto n        = out_lens[0];
+        const auto out_c    = out_lens[1];
+        const auto out_h    = out_lens[2];
+        const auto out_w    = out_lens[3];
+        const auto tiles_h  = (out_h + 1) / 2;
+        const auto tiles_w  = (out_w + 1) / 2;
+        const auto nt_total = n * tiles_h * tiles_w;
+
+        // One workgroup per (tile_group, k_block); its nw waves cover a
+        // contiguous run of tiles for that k_block.
+        const auto k_blocks    = (out_c + ko - 1) / ko;
+        const auto quad_groups = (nt_total + tiles - 1) / tiles;
+        const auto tile_blocks = (quad_groups + quads_per_wg - 1) / quads_per_wg;
+        const auto num_blocks  = k_blocks * tile_blocks;
+
+        options.set_launch_params(v, num_blocks * block_size, block_size);
+
+        auto src = interpolate_string(winograd_conv_fp32_kernel,
+                                      {{"kernel", options.kernel_name},
+                                       {"params", enum_params(inputs.size(), "void * private_p")},
+                                       {"args", enum_params(inputs.size(), "private_p")},
+                                       {"nw", std::to_string(nw)},
+                                       {"ko", std::to_string(ko)},
+                                       {"tiles", std::to_string(tiles)},
+                                       {"post", v.get("post", std::string{"op::id{}"})},
+                                       {"conv_cast", v.get("conv_cast", std::string{"float"})},
+                                       {"preamble", v.get("preamble", std::string{})}});
+
+        return compile_hip_code_object(ctx, src, options);
+    }
+
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
+        if(inputs.front().type() == shape::float_type)
+            return compile_op_fp32(ctx, inputs, v);
         hip_compile_options options;
         const auto& out_s      = inputs.back();
         options.inputs         = inputs;
@@ -188,6 +276,29 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         tuning_config tc;
         auto shapes = to_shapes(ins->inputs());
         tc.problem  = to_value(shapes);
+
+        // fp32 FMA/DPP configs: nw (waves), ko (out-channels/lane), tiles
+        // (winograd tiles/quad). ko*tiles is kept in ~16-32 (accumulators/lane =
+        // 4*ko*tiles = 64-128) to bound register spilling.
+        if(shapes.front().type() == shape::float_type)
+        {
+            // Larger ko amortizes the (out-channel-independent) input transform
+            // over more output channels -- important when out_c is large; larger
+            // tiles amortizes the shared weight load -- good for large in_c and
+            // small out_c.
+            tc.solutions.push_back({{"nw", 2}, {"ko", 8}, {"tiles", 2}});
+            tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 2}});
+            tc.solutions.push_back({{"nw", 8}, {"ko", 8}, {"tiles", 2}});
+            tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 1}});
+            tc.solutions.push_back({{"nw", 8}, {"ko", 8}, {"tiles", 1}});
+            tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 4}});
+            tc.solutions.push_back({{"nw", 2}, {"ko", 16}, {"tiles", 1}});
+            tc.solutions.push_back({{"nw", 4}, {"ko", 16}, {"tiles", 1}});
+            tc.solutions.push_back({{"nw", 4}, {"ko", 16}, {"tiles", 2}});
+            tc.solutions.push_back({{"nw", 2}, {"ko", 16}, {"tiles", 2}});
+            tc.solutions.push_back({{"nw", 4}, {"ko", 32}, {"tiles", 1}});
+            return tc;
+        }
 
         // Wave32 WMMA configs. CB must be a multiple of WMMA K (16). KW is
         // the number of K_blocks (BK=16 each) processed per workgroup.

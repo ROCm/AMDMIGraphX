@@ -1,6 +1,6 @@
 ---
 description: Review the changed MIGraphX code for reuse, simplification, efficiency, altitude, safety, and comment quality, then apply the fixes. Quality only — it does not hunt for correctness bugs; use /code-review for that.
-allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git merge-base:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(grep:*), Bash(find:*), Read, Edit, Write, Agent
+allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git merge-base:*), Bash(git log:*), Bash(git rev-parse:*), Bash(git branch:*), Bash(git fetch:*), Bash(grep:*), Bash(find:*), Read, Edit, Write, Agent
 ---
 
 # migraphx-simplify: Code Review and Cleanup
@@ -15,24 +15,55 @@ what `/code-review` is for.
 Determine the set of changed code under review, then hand the same diff to every
 agent so they all see identical context.
 
-1. Find the base branch (default `develop`; fall back to `main` / `master` if
-   `develop` is absent):
+The base must be the **up-to-date remote** integration branch — use
+`origin/develop`, **not** the local `develop` ref. The local `develop` is
+frequently stale (behind origin by several already-merged PRs), and feature
+branches often merge `develop` in repeatedly. Diffing against a stale local
+`develop` silently pulls already-merged upstream PRs into the diff, so you end up
+reviewing and editing files that aren't this branch's work at all.
+
+1. Resolve the base ref. Prefer `origin/develop`; if it doesn't resolve, fall
+   back in order to `origin/main`, `origin/master`, then a local `develop` /
+   `main` / `master` — but never default to a local branch when a
+   remote-tracking ref exists. Optionally `git fetch origin develop` first if the
+   network is available and you suspect `origin/develop` itself is stale.
    ```bash
    git rev-parse --abbrev-ref HEAD
-   git merge-base HEAD develop
+   git rev-parse --verify --quiet origin/develop   # confirm the base resolves
    ```
+   Use the resolved ref as `<base>` below.
+
 2. Produce the combined diff of committed-on-this-branch **and** uncommitted
    working-tree changes versus the merge base:
    ```bash
-   git diff $(git merge-base HEAD develop)
+   git merge-base HEAD <base>
+   git diff $(git merge-base HEAD <base>)
    ```
-3. If that diff is empty (e.g. you are already on the base branch), fall back to
-   the working-tree changes alone:
+
+3. Sanity-check the scope **before** launching agents. List the changed files and
+   confirm they look like *this* branch's work:
+   ```bash
+   git diff --stat $(git merge-base HEAD <base>) HEAD
+   ```
+   If the list contains files you don't expect — unrelated ops, whole subsystems,
+   or infra you didn't touch — the base is almost certainly wrong. A tell-tale
+   sign is that HEAD is a `Merge branch 'develop' into <feature>` commit (its
+   develop-side parent `HEAD^2` is usually the correct base). Confirm a suspect
+   commit is upstream (and therefore out of scope) before trusting the diff:
+   ```bash
+   git merge-base --is-ancestor <commit-sha> <base>   # exit 0 => upstream, exclude it
+   ```
+   Re-resolve `<base>` (e.g. to `HEAD^2`) until the file list matches only the
+   branch's own changes.
+
+4. If the diff against the base is empty (e.g. you are already on the base
+   branch), fall back to the working-tree changes alone:
    ```bash
    git diff HEAD
    git status --short
    ```
-4. List the changed files and note which are GPU kernel headers (under
+
+5. List the changed files and note which are GPU kernel headers (under
    `src/targets/gpu/kernels/`) versus general host C++ — the kernel-specific
    bullets below only apply to kernel files.
 

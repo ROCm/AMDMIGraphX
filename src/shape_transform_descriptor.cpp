@@ -78,8 +78,8 @@ shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::si
 }
 
 template <class Dimensions, class F>
-static auto for_each_subdimension(Dimensions&& dimensions,
-                                  F f) -> decltype(dimensions.begin()->subdimensions, void())
+static auto for_each_subdimension(Dimensions&& dimensions, F f)
+    -> decltype(dimensions.begin()->subdimensions, void())
 {
     for(auto& dim : dimensions)
     {
@@ -91,8 +91,8 @@ static auto for_each_subdimension(Dimensions&& dimensions,
 }
 
 template <class SubDimensions, class F>
-static auto for_each_subdimension(SubDimensions&& subdimensions,
-                                  F f) -> decltype(subdimensions.begin()->axis, void())
+static auto for_each_subdimension(SubDimensions&& subdimensions, F f)
+    -> decltype(subdimensions.begin()->axis, void())
 {
     for(auto& s : subdimensions)
     {
@@ -1897,6 +1897,44 @@ std::vector<std::size_t> shape_transform_descriptor::get_dst_axes_from_src(std::
         result.push_back(i);
     }
     // TODO: Put it in the correct order if there is multiple axes
+    return result;
+}
+
+std::vector<std::vector<std::size_t>>
+shape_transform_descriptor::axes_map_from_src(bool keep_partial_axes) const
+{
+    std::vector<std::vector<std::size_t>> result(rank);
+    std::unordered_set<std::size_t> invalid_axes;
+    for(auto i : range(dimensions.size()))
+    {
+        const auto& dim = dimensions[i];
+        if(dim.subdimensions.empty())
+            continue;
+        auto non_1_axis = [](const dimension::sub& s) {
+            return not s.origin_axis().empty() and s.len > 1;
+        };
+        auto n = std::count_if(dim.subdimensions.begin(), dim.subdimensions.end(), non_1_axis);
+        if(n > 1 and not keep_partial_axes)
+        {
+            transform_if(dim.subdimensions.begin(),
+                         dim.subdimensions.end(),
+                         std::inserter(invalid_axes, invalid_axes.begin()),
+                         non_1_axis,
+                         [&](const dimension::sub& s) { return s.origin_axis().front(); });
+        }
+        for(const auto& s : dim.subdimensions)
+        {
+            if(s.origin_axis().empty())
+                continue;
+            result[s.origin_axis().front()].push_back(i);
+        }
+    }
+    // split axis cannot be mapped
+    for(auto invalid_axis : invalid_axes)
+        result[invalid_axis].clear();
+    // sort the axes
+    for(auto& v : result)
+        std::sort(v.begin(), v.end());
     return result;
 }
 

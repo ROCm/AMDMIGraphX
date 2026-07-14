@@ -161,7 +161,7 @@ struct MIGRAPHX_EXPORT shape
         std::set<std::size_t> get_optimals() const
         {
             if(is_symbolic())
-                return sym_expr.eval_optimals();
+                return sym_expr.eval_optimals_uint();
             if(optimals.has_value())
                 return *optimals;
             return {};
@@ -621,7 +621,7 @@ struct MIGRAPHX_EXPORT shape
 };
 
 /// Flatten subshapes to a single vector of non-tuple type of shapes
-MIGRAPHX_EXPORT std::vector<shape> flatten(const std::vector<shape>& shapes);
+MIGRAPHX_EXPORT std::vector<shape> flatten_tuple_shapes(const std::vector<shape>& shapes);
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const shape& s);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, shape& s);

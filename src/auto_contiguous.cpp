@@ -122,6 +122,8 @@ void auto_contiguous::apply(module& m) const
         }
     }
 
+    // Both run after the loop above: the mixed-layout pass keys off the contiguous
+    // instructions that loop inserts.
     contiguous_reshape_inputs(m);
     contiguous_mixed_layout_inputs(m);
 }

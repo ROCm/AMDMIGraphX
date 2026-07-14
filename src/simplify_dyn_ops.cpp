@@ -573,22 +573,18 @@ struct find_nms_gather_topk : match::supports_dynamic_shapes
     static std::vector<instruction_ref> find_nms_slices(instruction_ref start)
     {
         std::unordered_set<instruction_ref> seen;
-        std::vector<instruction_ref> stack{start};
         std::vector<instruction_ref> nms_slices;
-        while(not stack.empty())
-        {
-            auto ins = stack.back();
-            stack.pop_back();
+        fix([&](auto self, instruction_ref ins) {
             if(not seen.insert(ins).second)
-                continue;
+                return;
             if(is_nms_slice(ins))
             {
-                nms_slices.push_back(ins);
-                continue;
+                nms_slices.push_back(ins); // terminal: do not traverse its inputs
+                return;
             }
-            const auto& ins_inputs = ins->inputs();
-            stack.insert(stack.end(), ins_inputs.begin(), ins_inputs.end());
-        }
+            for(auto input : ins->inputs())
+                self(input);
+        })(start);
         return nms_slices;
     }
 
@@ -611,7 +607,8 @@ struct find_nms_gather_topk : match::supports_dynamic_shapes
         auto max_boxes = nms_ins->get_shape().sub_shapes().at(0).lens().at(0);
 
         // Only the 1D gathered-scores case (SSD post-processing) is handled.
-        // The mask then lines up with the topk axis directly. The gather is still dynamic here, so check its max length.
+        // The mask then lines up with the topk axis directly. The gather is still dynamic here, so
+        // check its max length.
         const auto& pre_shape = gather_ins->get_shape();
         if(pre_shape.ndim() != 1 or pre_shape.max_lens().at(0) != max_boxes)
             return;

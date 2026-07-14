@@ -266,35 +266,45 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                 repeat_c<4>([&](auto uu) { v_reg[t][uu][cu] = vu[uu]; });
             });
         });
-        // Weight load (b128 over CU channels) + FMA accumulate.
+        // Weight load (b128 over CU channels) + FMA accumulate. The FMA nest is
+        // channel-outer (cu), then (k, t): each cu-iteration updates KO*TILES
+        // *independent* accumulators, so consecutive FMAs are dependency-free and
+        // the matrix pipe stays busy. Accumulating cu-inner instead would chain
+        // all CU contributions into one accumulator (a length-CU serial FMA
+        // chain), which stalls on gfx12's VALU write latency. This u's KO weight
+        // vectors are loaded up front so they can feed the cu loop.
         const int32_t coff_w = static_cast<int32_t>(c0 * sizeof(float));
         repeat_c<4>([&](auto uu) {
             constexpr index_int u = uu;
+            array<vec<float, CU>, KO> wv{};
             repeat_c<KO>([&](auto kk) {
                 constexpr index_int k    = kk;
-                const int32_t w_off_base = w_byte_off(u, k);
-                vec<float, CU> wv;
+                const int32_t w_off_base = w_byte_off(u, k) + coff_w;
                 if(nchan == CU)
                 {
-                    wv = wino_fp32_load4(w_rsrc, w_off_base + coff_w);
+                    wv[k] = wino_fp32_load4(w_rsrc, w_off_base);
                 }
                 else
                 {
                     repeat_c<CU>([&](auto cc) {
                         constexpr index_int cu = cc;
-                        wv[cu]                 = (cu < nchan)
-                                                     ? wino_fp32_load(w_rsrc,
-                                                      w_off_base + coff_w +
-                                                          static_cast<int32_t>(cu * sizeof(float)))
-                                                     : 0.0f;
+                        wv[k][cu] =
+                            (cu < nchan)
+                                ? wino_fp32_load(w_rsrc,
+                                                 w_off_base + static_cast<int32_t>(cu * sizeof(float)))
+                                : 0.0f;
                     });
                 }
-                repeat_c<TILES>([&](auto tt) {
-                    constexpr index_int t = tt;
-                    repeat_c<CU>([&](auto cc) {
-                        constexpr index_int cu = cc;
-                        if(cu < nchan)
-                            m[u][t][k] += v_reg[t][u][cu] * wv[cu];
+            });
+            repeat_c<CU>([&](auto cc) {
+                constexpr index_int cu = cc;
+                if(cu >= nchan)
+                    return;
+                repeat_c<KO>([&](auto kk) {
+                    constexpr index_int k = kk;
+                    repeat_c<TILES>([&](auto tt) {
+                        constexpr index_int t = tt;
+                        m[u][t][k] += v_reg[t][u][cu] * wv[k][cu];
                     });
                 });
             });

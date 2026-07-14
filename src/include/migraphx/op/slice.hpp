@@ -277,7 +277,20 @@ struct slice
                return not input_shape.dyn_dims()[axis].is_fixed();
            }))
         {
-            MIGRAPHX_THROW("SLICE 1_arg: slicing is not allowed on non-fixed dynamic input axis ");
+            if(input_shape.symbolic())
+            {
+                MIGRAPHX_THROW(
+                    "SLICE 1_arg: slicing is not allowed on non-fixed symbolic input axis ");
+            }
+            // Attributes are not normalized for this case, so they can be negative or
+            // out-of-bounds. Using a relaxed dimension bound for now instead of calculating the
+            // tightest possible bound.
+            auto dds = input_shape.dyn_dims();
+            for(auto axis : this->axes)
+            {
+                dds[axis] = {0, dds[axis].get_interval().max};
+            }
+            return shape{input_shape.type(), dds};
         }
 
         auto new_lens = lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes);

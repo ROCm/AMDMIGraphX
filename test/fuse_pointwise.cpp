@@ -97,6 +97,34 @@ TEST_CASE(single_dyn)
     EXPECT(p1 == p2);
 }
 
+// A scalar literal broadcast to a dynamic shape must become a pointwise-module
+// parameter instead of being folded into a literal inside the submodule.
+TEST_CASE(scalar_broadcast_dyn)
+{
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
+    migraphx::shape lit_shape{migraphx::shape::float_type, {1, 1}};
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto one  = mm->add_literal(migraphx::literal{lit_shape, {1.0f}});
+        auto mb   = mm->add_instruction(migraphx::make_op("multibroadcast"), one, x);
+        auto add1 = mm->add_instruction(migraphx::make_op("add"), x, mb);
+        mm->add_return({add1});
+    }
+    run_pass(p1);
+    migraphx::program p2;
+    {
+        auto* mm  = p2.get_main_module();
+        auto x    = mm->add_parameter("x", s);
+        auto one  = mm->add_literal(migraphx::literal{lit_shape, {1.0f}});
+        auto mb   = mm->add_instruction(migraphx::make_op("multibroadcast"), one, x);
+        auto add1 = add_pointwise(p2, "main:pointwise0", {x, mb}, single_pointwise("add"));
+        mm->add_return({add1});
+    }
+    EXPECT(p1 == p2);
+}
+
 TEST_CASE(double_add)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 3}};

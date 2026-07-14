@@ -237,6 +237,7 @@ add_library(migraphx_gpu
     pooling.cpp
     problem_cache.cpp
     propagate_reshape_layout.cpp
+    rewrite_ssd.cpp
     rocblas.cpp
     schedule_model.cpp
     sync_device.cpp

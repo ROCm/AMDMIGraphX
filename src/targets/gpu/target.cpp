@@ -75,6 +75,7 @@
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/gpu/rewrite_ssd.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/propagate_reshape_layout.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
@@ -112,6 +113,8 @@ struct pipeline_factory
     {
         return {
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
+            dead_code_elimination{},
+            gpu::rewrite_ssd{},
             dead_code_elimination{},
             simplify_dyn_ops{},
             dead_code_elimination{},

@@ -31,8 +31,6 @@
 #include <migraphx/common.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/tensor_view.hpp>
-#include <numeric>
-#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -531,124 +529,6 @@ struct find_static_onehot : match::supports_dynamic_shapes
     }
 };
 
-/// Rewrite the dynamic nonmaxsuppression (NMS) slice feeding a topk into a static, mask-based form.
-/// Common pattern seen in SSD models.
-///
-/// From:
-///     topk(gather(scores, ...slice(get_tuple_elem[0](nms), get_tuple_elem[1](nms))...))
-/// To:
-///     mask = less([0, 1, ..., max_boxes - 1], num_selected)
-///     topk(where(mask, gather(scores, ...get_tuple_elem[0](nms)...), sentinel))
-///
-struct find_nms_gather_topk : match::supports_dynamic_shapes
-{
-    auto matcher() const
-    {
-        return match::name("topk")(match::arg(0)(match::name("gather").bind("gather")));
-    }
-
-    // True when `ins` is `get_tuple_elem[index]` fed directly by a nonmaxsuppression.
-    static bool is_nms_tuple_elem(instruction_ref ins, std::size_t index)
-    {
-        return ins->name() == "get_tuple_elem" and
-               ins->get_operator().to_value().at("index").to<std::size_t>() == index and
-               ins->inputs().at(0)->name() == "nonmaxsuppression";
-    }
-
-    // The variable-end `slice(get_tuple_elem[0](nms), get_tuple_elem[1](nms))` the NMS parser emits
-    // to trim the padded indices down to num_selected.
-    static bool is_nms_slice(instruction_ref ins)
-    {
-        if(ins->name() != "slice" or ins->inputs().size() != 2)
-            return false;
-        auto data = ins->inputs().at(0);
-        auto ends = ins->inputs().at(1);
-        return is_nms_tuple_elem(data, 0) and is_nms_tuple_elem(ends, 1) and
-               data->inputs().at(0) == ends->inputs().at(0);
-    }
-
-    // Backward search over the inputs of `start` for the dynamic NMS slice, treating each as
-    // terminal (its inputs are not traversed). Returns every one reached so the caller can require
-    // that exactly one drives this gather.
-    static std::vector<instruction_ref> find_nms_slices(instruction_ref start)
-    {
-        std::unordered_set<instruction_ref> seen;
-        std::vector<instruction_ref> nms_slices;
-        fix([&](auto self, instruction_ref ins) {
-            if(not seen.insert(ins).second)
-                return;
-            if(is_nms_slice(ins))
-            {
-                nms_slices.push_back(ins); // terminal: do not traverse its inputs
-                return;
-            }
-            for(auto input : ins->inputs())
-                self(input);
-        })(start);
-        return nms_slices;
-    }
-
-    void apply(module& m, const match::matcher_result& mr) const
-    {
-        auto topk_ins   = mr.result;
-        auto gather_ins = mr.instructions["gather"];
-
-        // Only rewrite when a single dynamic NMS slice drives this gather.
-        auto nms_slices = find_nms_slices(gather_ins);
-        if(nms_slices.size() != 1)
-            return;
-        auto slice_ins    = nms_slices.front();
-        auto indices      = slice_ins->inputs().at(0); // static [max_boxes, 3] get_tuple_elem[0]
-        auto num_selected = slice_ins->inputs().at(1); // [1] get_tuple_elem[1]
-        auto nms_ins      = indices->inputs().at(0);
-        assert(num_selected->get_shape().elements() == 1);
-
-        // max_boxes is the static leading dimension of the NMS selected-indices output.
-        auto max_boxes = nms_ins->get_shape().sub_shapes().at(0).lens().at(0);
-
-        // Only the 1D gathered-scores case (SSD post-processing) is handled.
-        // The mask then lines up with the topk axis directly. The gather is still dynamic here, so
-        // check its max length.
-        const auto& pre_shape = gather_ins->get_shape();
-        if(pre_shape.ndim() != 1 or pre_shape.max_lens().at(0) != max_boxes)
-            return;
-
-        // Bypass the dynamic slice so the padded indices flow straight through.
-        // replace_instruction propagates the now-static shapes down the chain,
-        // so the gathered scores become static [max_boxes].
-        m.replace_instruction(slice_ins, indices);
-
-        const auto& data_shape = gather_ins->get_shape();
-        auto largest           = topk_ins->get_operator().to_value().at("largest").to<bool>();
-
-        // literal counting up 0, 1, ..., max_boxes - 1
-        std::vector<int64_t> iota_data(max_boxes);
-        std::iota(iota_data.begin(), iota_data.end(), 0);
-        auto iota_lit = m.add_literal(literal{shape{shape::int64_type, {max_boxes}}, iota_data});
-
-        // mask[i] = i < num_selected (from NMS)
-        auto mask = insert_common_op(m, topk_ins, make_op("less"), {iota_lit, num_selected});
-        mask      = m.insert_instruction(
-            topk_ins, make_op("convert", {{"target_type", shape::bool_type}}), mask);
-
-        // sentinel value that can never win the topk
-        instruction_ref sentinel;
-        data_shape.visit_type([&](auto dt) {
-            auto sentinel_val = largest ? dt.min() : dt.max();
-            sentinel = m.add_literal(literal{shape{data_shape.type(), {1}}, {sentinel_val}});
-        });
-        auto sentinel_bc = m.insert_instruction(
-            topk_ins, make_op("multibroadcast", {{"out_lens", data_shape.lens()}}), sentinel);
-
-        auto masked =
-            m.insert_instruction(topk_ins, make_op("where"), mask, gather_ins, sentinel_bc);
-
-        auto topk_inputs  = topk_ins->inputs();
-        topk_inputs.at(0) = masked;
-        m.replace_instruction(topk_ins, topk_ins->get_operator(), topk_inputs);
-    }
-};
-
 /**
  * Go through `select_module` instructions and update the `output_dyn_shapes` attribute.
  * Checks the submodule output shapes and determines an appropriate `output_dyn_shapes` attribute.
@@ -795,8 +675,7 @@ void simplify_dyn_ops::apply(module& m) const
                         find_const_4in_slice{},
                         find_const_alloc_fill{},
                         find_static_broadcast_for_dot{},
-                        find_static_onehot{},
-                        find_nms_gather_topk{});
+                        find_static_onehot{});
     match::find_matches(m, simplify_select_module_output_shape{});
 }
 

@@ -4648,16 +4648,12 @@ TEST_CASE(slice_dyn_shape2)
 
 TEST_CASE(slice_dyn_shape3)
 {
-    // TODO: When non-fixed dimension slicing is allowed, Slice to a size smaller than min.
-    // Until then, this action is an error.
+    // Slicing a non-fixed dynamic dimension relaxes only the sliced axis to {0, max};
+    // non-sliced axes are left unchanged.
     migraphx::shape input{migraphx::shape::int32_type, {{2, 3}, {7, 8}, {2, 3}}};
-    throws_shape(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3}, {0, 8}, {2, 3}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
                  input);
-    // clang-format off
-    //     expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3}, {1, 1}, {2, 3}}},
-    //                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {1}}}),
-    //                  input);
-    // clang-format on
 }
 
 TEST_CASE(slice_dyn_shape4)
@@ -4684,6 +4680,47 @@ TEST_CASE(slice_dyn_preserves_optimals)
     migraphx::shape input{migraphx::shape::int32_type, {dd{2, 4, {3}}, dd{7, 7}, dd{2, 5, {3, 4}}}};
     migraphx::shape expected{migraphx::shape::int32_type,
                              {dd{2, 4, {3}}, dd{3, 3}, dd{2, 5, {3, 4}}}};
+    expect_shape(expected,
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_nonfixed_axis)
+{
+    // Slicing a single non-fixed dynamic axis relaxes only that axis to {0, max}.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 3}, {7, 8}, {2, 3}}};
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 3}, {0, 8}, {2, 3}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_nonfixed_multi_axis)
+{
+    // Slicing multiple axes where one is non-fixed: only the sliced axes are relaxed,
+    // the non-sliced axis (2) is left unchanged.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 4}, {7, 8}, {2, 3}}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::int32_type, {{0, 4}, {0, 8}, {2, 3}}},
+        migraphx::make_op("slice", {{"axes", {0, 1}}, {"starts", {1, 1}}, {"ends", {2, 4}}}),
+        input);
+}
+
+TEST_CASE(slice_dyn_fixed_axis_with_nonfixed_neighbors)
+{
+    // Only a fixed axis (1) is sliced; the non-fixed neighbors (0, 2) are not sliced,
+    // so the relax branch is not taken and the slice computes normally.
+    migraphx::shape input{migraphx::shape::int32_type, {{2, 4}, {7, 7}, {2, 5}}};
+    expect_shape(migraphx::shape{migraphx::shape::int32_type, {{2, 4}, {3, 3}, {2, 5}}},
+                 migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
+                 input);
+}
+
+TEST_CASE(slice_dyn_nonfixed_keeps_other_optimals)
+{
+    // Non-sliced axes keep their optimals; the sliced non-fixed axis is relaxed to {0, max}.
+    migraphx::shape input{migraphx::shape::int32_type, {dd{2, 4, {3}}, dd{7, 8}, dd{2, 5, {3, 4}}}};
+    migraphx::shape expected{migraphx::shape::int32_type,
+                             {dd{2, 4, {3}}, dd{0, 8}, dd{2, 5, {3, 4}}}};
     expect_shape(expected,
                  migraphx::make_op("slice", {{"axes", {1}}, {"starts", {1}}, {"ends", {4}}}),
                  input);

@@ -129,7 +129,8 @@ template <index_int NW,
           class Weights,
           class... Inputs>
 // NOLINTNEXTLINE(readability-function-size)
-__device__ void winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... inputs)
+__device__ void
+winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... inputs)
 {
     static_assert(KO >= 1, "KO must be >= 1");
     static_assert(TILES >= 1, "TILES must be >= 1");
@@ -220,12 +221,11 @@ __device__ void winograd_conv_f23_fp32(F f, Output output, Input x, Weights weig
             constexpr int a = aa;
             const int hh    = h0 + a;
             const bool ok   = w_in and hh >= 0 and hh < static_cast<int>(in_h);
-            x_off[t][a] =
-                ok ? static_cast<int32_t>((n_arr[t] * x_str[0] +
-                                           static_cast<index_int>(hh) * x_str[2] +
-                                           static_cast<index_int>(ww) * x_str[3]) *
-                                          sizeof(float))
-                   : x_oob;
+            x_off[t][a]     = ok ? static_cast<int32_t>((n_arr[t] * x_str[0] +
+                                                     static_cast<index_int>(hh) * x_str[2] +
+                                                     static_cast<index_int>(ww) * x_str[3]) *
+                                                    sizeof(float))
+                                 : x_oob;
         });
     });
 
@@ -238,10 +238,9 @@ __device__ void winograd_conv_f23_fp32(F f, Output output, Input x, Weights weig
     const int32_t w_u_stride = static_cast<int32_t>(w_str[0] * sizeof(float));
     const int32_t w_k_stride = static_cast<int32_t>(w_str[2] * sizeof(float));
     auto w_byte_off          = [&](index_int u, index_int k) {
-        return (k_base + k < out_c)
-                   ? (w_lane_base + static_cast<int32_t>(u) * w_u_stride +
-                      static_cast<int32_t>(k) * w_k_stride)
-                   : w_oob;
+        return (k_base + k < out_c) ? (w_lane_base + static_cast<int32_t>(u) * w_u_stride +
+                                       static_cast<int32_t>(k) * w_k_stride)
+                                             : w_oob;
     };
 
     // Accumulators M[u][t][k].
@@ -273,7 +272,7 @@ __device__ void winograd_conv_f23_fp32(F f, Output output, Input x, Weights weig
             constexpr index_int u = uu;
             repeat_c<KO>([&](auto kk) {
                 constexpr index_int k    = kk;
-                const int32_t w_off_base  = w_byte_off(u, k);
+                const int32_t w_off_base = w_byte_off(u, k);
                 vec<float, CU> wv;
                 if(nchan == CU)
                 {
@@ -283,11 +282,11 @@ __device__ void winograd_conv_f23_fp32(F f, Output output, Input x, Weights weig
                 {
                     repeat_c<CU>([&](auto cc) {
                         constexpr index_int cu = cc;
-                        wv[cu] = (cu < nchan) ? wino_fp32_load(w_rsrc,
-                                                               w_off_base + coff_w +
-                                                                   static_cast<int32_t>(
-                                                                       cu * sizeof(float)))
-                                              : 0.0f;
+                        wv[cu]                 = (cu < nchan)
+                                                     ? wino_fp32_load(w_rsrc,
+                                                      w_off_base + coff_w +
+                                                          static_cast<int32_t>(cu * sizeof(float)))
+                                                     : 0.0f;
                     });
                 }
                 repeat_c<TILES>([&](auto tt) {
@@ -349,7 +348,7 @@ __device__ void winograd_conv_f23_fp32(F f, Output output, Input x, Weights weig
             // "-n3-n2" form equals Y[i][col1].
             const float y_i0 = (v_col == 0) ? (n_row0 + g0_1 + g0_2) : (n_row0 - g0_3 - g0_2);
             const float y_i1 = (v_col == 0) ? (n_row1 + g1_1 + g1_2) : (n_row1 - g1_3 - g1_2);
-            auto store = [&](index_int oh, float y) {
+            auto store       = [&](index_int oh, float y) {
                 const array<index_int, 4> oid{n_arr[t], k, oh, ow};
                 output[oid] = static_cast<out_type>(f(static_cast<PostInput>(y), inputs[oid]...));
             };

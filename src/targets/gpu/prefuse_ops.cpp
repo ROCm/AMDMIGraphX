@@ -444,10 +444,8 @@ literal compute_winograd_weights_f23_fp32(const argument& w_arg)
     shape u_shape{shape::float_type, {4, 4, out_c, in_c}};
 
     // G (4x3): rows [1,0,0], [.5,.5,.5], [.5,-.5,.5], [0,0,1].
-    constexpr std::array<std::array<float, 3>, 4> gmat{{{1.0f, 0.0f, 0.0f},
-                                                        {0.5f, 0.5f, 0.5f},
-                                                        {0.5f, -0.5f, 0.5f},
-                                                        {0.0f, 0.0f, 1.0f}}};
+    constexpr std::array<std::array<float, 3>, 4> gmat{
+        {{1.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
 
     std::vector<float> data(u_shape.elements(), 0.0f);
     w_arg.visit([&](auto w_view) {
@@ -676,8 +674,10 @@ struct find_winograd_f23
         // required ctor argument.
         if(input->get_shape().type() == shape::float_type)
         {
-            m.replace_instruction(
-                ins, winograd_conv{false, out_layout}, input, m.add_literal(compute_winograd_weights_f23_fp32(w_arg)));
+            m.replace_instruction(ins,
+                                  winograd_conv{false, out_layout},
+                                  input,
+                                  m.add_literal(compute_winograd_weights_f23_fp32(w_arg)));
             return;
         }
 

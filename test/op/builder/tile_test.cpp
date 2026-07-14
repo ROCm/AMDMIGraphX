@@ -27,6 +27,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/verify.hpp>
+#include <migraphx/common.hpp>
 
 namespace {
 std::vector<float>
@@ -100,6 +101,55 @@ TEST_CASE(tile_verify_2d_op_builder_test)
     };
 
     EXPECT(migraphx::verify::verify_rms_range(result_vector, expected_result));
+}
+
+TEST_CASE(tile_verify_dynamic_2d_op_builder_test)
+{
+    migraphx::module mm;
+    const migraphx::shape sh_param = migraphx::shape{
+        migraphx::shape::float_type, {{1, 1}, {1, 1}, {1, 1}, {2, 65}}};
+
+    auto a0 = mm.add_parameter("x", sh_param);
+    migraphx::op::builder::add("tile", mm, {a0}, {{"repeats", {1, 15, 1, 1}}});
+
+    std::vector<float> input_data = {1.0, 2.0, 3.0, 4.0};
+    const migraphx::shape sh_data{migraphx::shape::float_type, {1, 1, 1, 4}};
+
+    migraphx::program p{std::move(mm)};
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map pp;
+    pp["x"] = migraphx::argument(sh_data, input_data.data());
+
+    migraphx::argument result = p.eval(pp).back();
+    std::vector<float> result_vector;
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+
+    std::vector<float> expected_result;
+    expected_result.reserve(15 * input_data.size());
+    for(std::size_t i = 0; i < 15; ++i)
+        expected_result.insert(expected_result.end(), input_data.begin(), input_data.end());
+
+    EXPECT(migraphx::verify::verify_rms_range(result_vector, expected_result));
+}
+
+TEST_CASE(tile_dynamic_op_builder_test)
+{
+    migraphx::module mm;
+    auto input = mm.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {{2, 2}, {2, 2}}});
+    auto unsq  = mm.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {0, 2}}}), input);
+    std::vector<migraphx::shape::dynamic_dimension> bcast_dims{
+        {3, 3}, {2, 2}, {2, 2}, {2, 2}};
+    auto mbcast = mm.add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(bcast_dims)}}),
+        unsq,
+        unsq);
+    std::vector<migraphx::shape::dynamic_dimension> reshape_dims{
+        migraphx::shape::dynamic_dimension{6, 6}, migraphx::shape::dynamic_dimension{4, 4}};
+    mm.add_instruction(
+        migraphx::make_op("reshape", {{"dims", migraphx::to_value(reshape_dims)}}), mbcast);
+    mm.debug_print();
+    EXPECT(mm == make_op_module("tile", {{"repeats", {3, 2}}}, mm.get_parameters()));
 }
 
 TEST_CASE(tile_verify_1d_op_builder_test)

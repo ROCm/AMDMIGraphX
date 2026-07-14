@@ -122,13 +122,55 @@ struct multibroadcast
             {
                 if(not output_dyn_dims.empty())
                 {
-                    return {t, output_dyn_dims};
+                    if(not inputs[0].dynamic())
+                        return {t, output_dyn_dims};
+                    auto num_dims         = output_dyn_dims.size();
+                    auto num_input_dims   = inputs[0].ndim();
+                    auto input_dyn_dims   = inputs[0].dyn_dims();
+                    std::vector<shape::dynamic_dimension> new_output_dyn_dims(num_dims);
+                    for(auto i = 0; i < num_dims; i++)
+                    {
+                        if(i < num_input_dims and input_dyn_dims[i].is_symbolic() and not input_dyn_dims[i].is_fixed())
+                        {
+                            new_output_dyn_dims[i] = input_dyn_dims[i];
+                        }
+                        else 
+                        {
+                            new_output_dyn_dims[i] = output_dyn_dims[i];
+                        }
+                    }
+                    return {t, new_output_dyn_dims};
                 }
                 return {t, compute_common_dyn_dims(inputs)};
             }
             else
             {
                 // output_lens will not be set for 2+ input version
+                if(not output_dyn_dims.empty())
+                {
+                    const auto& in_lens = s0.lens();
+                    std::vector<std::size_t> bcast_lens(output_dyn_dims.size());
+                    for(std::size_t i = 0; i < output_dyn_dims.size(); ++i)
+                    {
+                        if(output_dyn_dims[i].is_fixed())
+                            bcast_lens[i] = shape::static_dim_value(output_dyn_dims[i]);
+                        else
+                            bcast_lens[i] = in_lens[i];
+                    }
+                    if(in_lens.size() > bcast_lens.size())
+                        MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" +
+                                       to_string(in_lens.size()) + ") should be <= output size (" +
+                                       to_string(bcast_lens.size()) + ")");
+                    auto offset = bcast_lens.size() - in_lens.size();
+                    for(std::ptrdiff_t i = in_lens.size() - 1; i >= 0; --i)
+                    {
+                        if(bcast_lens[i + offset] != in_lens[i] and in_lens[i] != 1)
+                            MIGRAPHX_THROW("MULTIBROADCAST: input shape {" +
+                                           to_string_range(in_lens) + "} cannot be broadcasted to {" +
+                                           to_string_range(bcast_lens) + "}!");
+                    }
+                    return make_bcast_shape(s0, bcast_lens);
+                }
                 auto bcast_lens = compute_common_lens(inputs);
                 return make_bcast_shape(s0, bcast_lens);
             }

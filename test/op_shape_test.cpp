@@ -6492,6 +6492,18 @@ TEST_CASE(test_unsqueeze_multiple_axes_step)
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2, 4, 5}}, {"steps", {2}}}), s1);
 }
 
+TEST_CASE(reshape_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 3}, {2, 8}, {2, 2}, {4, 6}}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{
+        migraphx::shape::dynamic_dimension{6, 24}, migraphx::shape::dynamic_dimension{8, 12}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{6, 24}, {8, 12}}},
+                 migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 migraphx::shape{migraphx::shape::float_type, {3, 2, 2, 4}});
+}
+
 TEST_CASE(transpose_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2}};

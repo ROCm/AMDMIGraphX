@@ -31,6 +31,7 @@
 #include <migraphx/kernels/tensor_view.hpp>
 #include <migraphx/kernels/vec.hpp>
 #include <migraphx/kernels/types.hpp>
+#include <migraphx/kernels/uninitialized_buffer.hpp>
 #include <migraphx/kernels/functional.hpp>
 #include <migraphx/kernels/integral_constant.hpp>
 
@@ -111,6 +112,12 @@ __device__ inline array<float, 4> wino_f23_bt_u(const array<float, 4>& p)
 //   NW    : waves per workgroup (each wave = 32 lanes = 8 quads = 8*TILES tiles).
 //   KO    : output channels held per lane (register K tile).
 //   TILES : winograd tiles processed per quad (amortizes the weight load).
+//   SK    : within-workgroup channel-split factor. The NW waves form NW/SK
+//           NT-groups; the SK waves of a group cover the SAME tiles but split
+//           the channel contraction (each does 1/SK of the channels), then
+//           reduce their partial M accumulators through LDS. SK=1 is the plain
+//           no-split path (no LDS). SK>1 fills otherwise-idle waves and cuts
+//           per-wave input traffic on shapes with few tiles + many channels.
 //
 // The channel contraction is unrolled by CU=4 so the shared weight can be read
 // with one b128 per (u,k) covering 4 channels, and so the load latency of the
@@ -122,6 +129,7 @@ __device__ inline array<float, 4> wino_f23_bt_u(const array<float, 4>& p)
 template <index_int NW,
           index_int KO,
           index_int TILES,
+          index_int SK,
           class PostInput,
           class F,
           class Output,
@@ -134,6 +142,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
 {
     static_assert(KO >= 1, "KO must be >= 1");
     static_assert(TILES >= 1, "TILES must be >= 1");
+    static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0, "SK must divide NW");
     constexpr index_int CU = 4; // channel unroll (b128 weight = 4 channels)
 
     auto idx       = make_index();
@@ -153,12 +162,14 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     const auto tiles_h  = (out_h + 1) / 2;
     const auto nt_total = n * tiles_h * tiles_w;
 
-    constexpr index_int quads_per_wave = 32 / 4; // 8 quads per wave
-    constexpr index_int quads_per_wg   = quads_per_wave * NW;
+    constexpr index_int quads_per_wave = 32 / 4;         // 8 quads per wave
+    constexpr index_int nt_groups      = NW / SK;         // independent tile groups per WG
+    constexpr index_int quads_per_wg   = quads_per_wave * nt_groups; // tiles-worth of quads
     const auto k_blocks                = (out_c + KO - 1) / KO;
 
-    // One workgroup per k_block; its NW waves cover a contiguous run of tiles.
-    // Consecutive workgroups cycle the k_block (idx.group % k_blocks) so
+    // One workgroup per k_block; its nt_groups NT-groups cover a contiguous run
+    // of tiles (the SK waves of a group split the channel contraction, not the
+    // tiles). Consecutive workgroups cycle the k_block (idx.group % k_blocks) so
     // concurrently-scheduled workgroups tend to share input tiles (same
     // tile_group, different output channels) -> input-cache reuse.
     const index_int k_block    = idx.group % k_blocks;
@@ -167,9 +178,12 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
 
     const index_int lane         = idx.local % 32;
     const index_int wave_id      = idx.local / 32;
+    const index_int wave_nt_idx  = wave_id / SK; // which NT-group (tile range)
+    const index_int wave_sk_part = wave_id % SK; // which channel subset
     const index_int v_col        = lane % 4;
     const index_int quad_in_wave = lane / 4;
-    const index_int quad_id = tile_group * quads_per_wg + wave_id * quads_per_wave + quad_in_wave;
+    const index_int quad_id =
+        tile_group * quads_per_wg + wave_nt_idx * quads_per_wave + quad_in_wave;
 
     // Shuffle-sign for the input v-axis butterfly (see wino_f23_bt_v).
     const float in_shuf_sign = (v_col == 1) ? 1.0f : -1.0f;
@@ -311,11 +325,60 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
         });
     };
 
-    index_int c = 0;
-    for(; c + CU <= in_c; c += CU)
-        do_channels(c, CU);
-    if(c < in_c)
-        do_channels(c, in_c - c);
+    // Channel loop, CU channels per step. With SK>1 the CU-blocks are split
+    // round-robin across the SK waves of this NT-group (each wave sums 1/SK of
+    // the channels into its own partial M).
+    for(index_int cb = wave_sk_part; cb * CU < in_c; cb += SK)
+    {
+        const index_int c     = cb * CU;
+        const index_int avail = in_c - c;
+        do_channels(c, avail < CU ? avail : CU);
+    }
+
+    // ---- Split-c cross-wave reduce (SK>1): sum the SK partial M accumulators
+    // of this NT-group through LDS; the wave_sk_part==0 wave ends up with the
+    // full M and does the output transform + writeback. ----
+    constexpr index_int m_per_lane = 4 * TILES * KO;
+    constexpr index_int red_len    = (SK > 1) ? (NW * 32 * m_per_lane) : 1;
+    __shared__ uninitialized_buffer<float, red_len> m_reduce;
+    if constexpr(SK > 1)
+    {
+        const index_int lane_base = (wave_id * 32 + lane) * m_per_lane;
+        repeat_c<4>([&](auto uu) {
+            constexpr index_int u = uu;
+            repeat_c<TILES>([&](auto tt) {
+                constexpr index_int t = tt;
+                repeat_c<KO>([&](auto kk) {
+                    constexpr index_int k   = kk;
+                    constexpr index_int off = u * (TILES * KO) + t * KO + k;
+                    m_reduce[lane_base + off] = m[u][t][k];
+                });
+            });
+        });
+        __syncthreads();
+        if(wave_sk_part == 0)
+        {
+            for(index_int s = 1; s < SK; ++s)
+            {
+                const index_int s_base = ((wave_nt_idx * SK + s) * 32 + lane) * m_per_lane;
+                repeat_c<4>([&](auto uu) {
+                    constexpr index_int u = uu;
+                    repeat_c<TILES>([&](auto tt) {
+                        constexpr index_int t = tt;
+                        repeat_c<KO>([&](auto kk) {
+                            constexpr index_int k   = kk;
+                            constexpr index_int off = u * (TILES * KO) + t * KO + k;
+                            m[u][t][k] += m_reduce[s_base + off];
+                        });
+                    });
+                });
+            }
+        }
+        else
+        {
+            return; // only wave_sk_part==0 writes back
+        }
+    }
 
     // ---- Output transform A^T M A + writeback ----
     using out_type = typename Output::type;

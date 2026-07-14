@@ -119,7 +119,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${conv_cast}>(
+            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -149,8 +149,12 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const auto nw    = v.get("nw", std::size_t{4});
         const auto ko    = v.get("ko", std::size_t{8});
         const auto tiles = v.get("tiles", std::size_t{2});
+        // sk = within-WG channel-split factor (must divide nw). sk>1 has nw/sk
+        // NT-groups whose sk waves split the channel contraction.
+        const auto sk = v.get("sk", std::size_t{1});
 
-        const std::size_t quads_per_wg = 8 * nw; // 8 quads (32 lanes / 4) per wave
+        // Only nw/sk NT-groups' worth of distinct tiles are covered per WG.
+        const std::size_t quads_per_wg = 8 * (nw / sk);
         const std::size_t block_size   = nw * 32;
 
         const auto& out_lens = out_s.lens();
@@ -163,7 +167,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const auto tiles_w  = (out_w + 1) / 2;
         const auto nt_total = n * tiles_h * tiles_w;
 
-        // One workgroup per (tile_group, k_block); its nw waves cover a
+        // One workgroup per (tile_group, k_block); its nw/sk NT-groups cover a
         // contiguous run of tiles for that k_block.
         const auto k_blocks    = (out_c + ko - 1) / ko;
         const auto quad_groups = (nt_total + tiles - 1) / tiles;
@@ -179,6 +183,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"nw", std::to_string(nw)},
                                        {"ko", std::to_string(ko)},
                                        {"tiles", std::to_string(tiles)},
+                                       {"sk", std::to_string(sk)},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"conv_cast", v.get("conv_cast", std::string{"float"})},
                                        {"preamble", v.get("preamble", std::string{})}});
@@ -297,6 +302,23 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
             tc.solutions.push_back({{"nw", 4}, {"ko", 16}, {"tiles", 2}});
             tc.solutions.push_back({{"nw", 2}, {"ko", 16}, {"tiles", 2}});
             tc.solutions.push_back({{"nw", 4}, {"ko", 32}, {"tiles", 1}});
+            // Channel-split (sk>1): nw/sk NT-groups whose sk waves split the
+            // channel contraction and reduce partial M through LDS. Helps shapes
+            // with few tiles + many channels (small spatial, large in_c/out_c),
+            // where the plain path leaves waves idle. LDS = nw*32*4*tiles*ko
+            // floats, so keep tiles=1, ko<=8. Only OFFERED when tiles are scarce
+            // (small nt_total): on tile-rich shapes the plain path already fills
+            // the machine, and offering sk configs there only adds tuner noise.
+            const auto& out_lens = shapes.back().lens();
+            const auto nt_total  = out_lens[0] * ((out_lens[2] + 1) / 2) * ((out_lens[3] + 1) / 2);
+            if(nt_total < 256)
+            {
+                tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 1}, {"sk", 2}});
+                tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 1}, {"sk", 4}});
+                tc.solutions.push_back({{"nw", 8}, {"ko", 8}, {"tiles", 1}, {"sk", 2}});
+                tc.solutions.push_back({{"nw", 8}, {"ko", 8}, {"tiles", 1}, {"sk", 4}});
+                tc.solutions.push_back({{"nw", 8}, {"ko", 8}, {"tiles", 1}, {"sk", 8}});
+            }
             return tc;
         }
 

@@ -113,6 +113,8 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
                                [&](instruction_ref, instruction_ref output) {
                                    return not equal(instruction::get_output_alias(output), {param});
                                });
+                           if(it == output_path.end())
+                               return param->get_shape();
                            return (*it)->get_shape();
                        });
         std::copy(inputs.begin() + new_shapes.size(), inputs.end(), std::back_inserter(new_shapes));

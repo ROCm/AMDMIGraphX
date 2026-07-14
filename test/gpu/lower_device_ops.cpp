@@ -170,4 +170,32 @@ TEST_CASE(lower_hip_fill_tuple)
     EXPECT(count("identity") == 1);
 }
 
+// device ops inserted during compile_ops should be lowered too
+TEST_CASE(compile_ops_lowers_inserted_device_ops)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape ds{migraphx::shape::float_type, {8}};
+    migraphx::shape is{migraphx::shape::int64_type, {1, 4}};
+    migraphx::shape us{migraphx::shape::float_type, {4}};
+    std::vector<int64_t> ind_vec{4, 3, 1, 7};
+
+    auto data    = mm->add_parameter("data", ds);
+    auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
+    auto t_ind =
+        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), indices);
+    auto updates = mm->add_parameter("update", us);
+    mm->add_return({mm->add_instruction(migraphx::make_op("scatternd_add"), data, t_ind, updates)});
+
+    p.compile(migraphx::make_target("gpu"), migraphx::compile_options{});
+
+    auto count = [&](const std::string& name) {
+        return std::count_if(mm->begin(), mm->end(), [&](const migraphx::instruction& i) {
+            return i.name() == name;
+        });
+    };
+    EXPECT(count("hip::copy") == 0);
+    EXPECT(count("hip::fill") == 0);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

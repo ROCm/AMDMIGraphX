@@ -5824,9 +5824,7 @@ TEST_CASE(reshape_cont_nonstandard_groupnorm)
 {
     migraphx::module m1;
     {
-        migraphx::shape sx{migraphx::shape::float_type,
-                            {1, 8, 4, 4},
-                            {128, 1, 32, 8}};
+        migraphx::shape sx{migraphx::shape::float_type, {1, 8, 4, 4}, {128, 1, 32, 8}};
         auto x = m1.add_parameter("x", sx);
         auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1, 2, 1}});
         auto y_bcast =

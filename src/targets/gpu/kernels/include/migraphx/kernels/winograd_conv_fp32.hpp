@@ -290,8 +290,8 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                         constexpr index_int cu = cc;
                         wv[k][cu] =
                             (cu < nchan)
-                                ? wino_fp32_load(w_rsrc,
-                                                 w_off_base + static_cast<int32_t>(cu * sizeof(float)))
+                                ? wino_fp32_load(
+                                      w_rsrc, w_off_base + static_cast<int32_t>(cu * sizeof(float)))
                                 : 0.0f;
                     });
                 }

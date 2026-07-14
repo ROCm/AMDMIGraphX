@@ -5820,35 +5820,25 @@ TEST_CASE(broadcast_nop_reduce_mean)
     EXPECT(m1.sort() == m2.sort());
 }
 
-TEST_CASE(reshape_cont_pattern_fail)
+TEST_CASE(reshape_cont_nonstandard_groupnorm)
 {
-    // Minimal reproduction of a model pattern that caused
-    // system reboot (TDR) when find_reshape_cont incorrectly removed
-    // contiguous on non-standard tensor layout
     migraphx::module m1;
     {
-        auto x = m1.add_parameter("x", {migraphx::shape::half_type, {1, 14400, 512}});
-        auto y = m1.add_parameter("y", {migraphx::shape::half_type, {1, 512, 90, 160}});
-        auto trans = m1.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), x);
-        auto cont = m1.add_instruction(migraphx::make_op("contiguous"), trans);
+        migraphx::shape sx{migraphx::shape::float_type,
+                            {1, 8, 4, 4},
+                            {128, 1, 32, 8}};
+        auto x = m1.add_parameter("x", sx);
+        auto y = m1.add_parameter("y", {migraphx::shape::float_type, {1, 2, 1}});
+        auto y_bcast = m1.add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 64}}}), y);
+        // Group norm reshape: {1,8,4,4} → {1,2,64}
         auto rsp = m1.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {1, 512, 90, 160}}}), cont);
-        auto add_ins = m1.add_instruction(migraphx::make_op("add"), rsp, y);
-        m1.add_return({add_ins});
+            migraphx::make_op("reshape", {{"dims", {1, 2, 64}}}), x);
+        auto sub_ins = m1.add_instruction(migraphx::make_op("sub"), rsp, y_bcast);
+        m1.add_return({sub_ins});
     }
+    migraphx::module m2 = m1;
     run_pass(m1);
-    migraphx::module m2;
-    {
-        auto x = m2.add_parameter("x", {migraphx::shape::half_type, {1, 14400, 512}});
-        auto y = m2.add_parameter("y", {migraphx::shape::half_type, {1, 512, 90, 160}});
-        auto rsp = m2.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {1, 90, 160, 512}}}), x);
-        auto trans = m2.add_instruction(
-            migraphx::make_op("transpose", {{"permutation", {0, 3, 1, 2}}}), rsp);
-        auto add_ins = m2.add_instruction(migraphx::make_op("add"), trans, y);
-        m2.add_return({add_ins});
-    }
     EXPECT(m1 == m2);
 }
 

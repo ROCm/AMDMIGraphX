@@ -2586,6 +2586,40 @@ TEST_CASE(multibroadcast_2in_static_dyn2)
                  a_shape);
 }
 
+TEST_CASE(multibroadcast_2in_static_out_dyn_dims)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 4}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {1, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> out{{3, 3}, {4, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 4}, {0, 1}},
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 a_shape,
+                 b_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_out_dyn_dims_error)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {2, 3}};
+    std::vector<migraphx::shape::dynamic_dimension> out{{4, 4}, {3, 3}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 a_shape,
+                 b_shape);
+}
+
+TEST_CASE(multibroadcast_2in_dyn_sym_preserve_out_dyn_dims)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> a{dd{lit(3)}, dd{n}, dd{lit(2)}, dd{lit(4)}};
+    migraphx::shape a_shape{migraphx::shape::float_type, a};
+    migraphx::shape b_shape{migraphx::shape::float_type, a};
+    std::vector<dd> out{dd{lit(3)}, dd{lit(7)}, dd{lit(2)}, dd{lit(4)}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(2)}, dd{lit(4)}}},
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 a_shape,
+                 b_shape);
+}
+
 TEST_CASE(multibroadcast_2in_static_dyn_intersection0)
 {
     // dynamic_dimension.intersection for first dimension
@@ -6502,6 +6536,44 @@ TEST_CASE(reshape_dyn_dim_attr)
                  input);
     throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
                  migraphx::shape{migraphx::shape::float_type, {3, 2, 2, 4}});
+}
+
+TEST_CASE(reshape_dyn_1in_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{2, 4}, {3, 6}}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{
+        migraphx::shape::dynamic_dimension{6, 12}, migraphx::shape::dynamic_dimension{1, 1}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{6, 12}, {1, 1}}},
+                 migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+}
+
+TEST_CASE(reshape_static_input_fixed_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{
+        migraphx::shape::dynamic_dimension{2, 2}, migraphx::shape::dynamic_dimension{12, 12}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 12}},
+                 migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+}
+
+TEST_CASE(reshape_static_input_unfixed_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{
+        migraphx::shape::dynamic_dimension{2, 2}, migraphx::shape::dynamic_dimension{3, 12}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 12}},
+                 migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+}
+
+TEST_CASE(reshape_static_input_dyn_dim_attr_multi_neg_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{
+        migraphx::shape::dynamic_dimension{2, 8}, migraphx::shape::dynamic_dimension{3, 12}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
 }
 
 TEST_CASE(transpose_shape)

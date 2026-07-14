@@ -5832,8 +5832,7 @@ TEST_CASE(reshape_cont_nonstandard_groupnorm)
         auto y_bcast =
             m1.add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 2, 64}}}), y);
         // Group norm reshape: {1,8,4,4} → {1,2,64}
-        auto rsp = m1.add_instruction(
-            migraphx::make_op("reshape", {{"dims", {1, 2, 64}}}), x);
+        auto rsp     = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2, 64}}}), x);
         auto sub_ins = m1.add_instruction(migraphx::make_op("sub"), rsp, y_bcast);
         m1.add_return({sub_ins});
     }

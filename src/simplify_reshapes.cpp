@@ -1291,7 +1291,7 @@ struct find_gather
             return;
 
         const std::size_t axis_index = tune_axis(dlens.size(), gather_op.axis, gather_op.name());
-        const auto axis_len = dlens.at(axis_index);
+        const auto axis_len          = dlens.at(axis_index);
         if(axis_len == 0)
             return;
 
@@ -1413,6 +1413,14 @@ struct find_gather_slice_concat
 {
     static constexpr std::size_t min_run = 4;
 
+    // This matcher rewrites a gather whose output rows are sliced apart and concatenated
+    // back in a new order into a single gather with reordered indices.  Skip that rewrite
+    // when the gathered data buffer has far more rows than the reorder touches: such a
+    // buffer is usually the concatenation of several embedding buffers produced by
+    // horizontal fusion, and re-gathering it sparsely would undo that fusion and add
+    // kernels (observed as a batch-1 regression).  The threshold is a tunable heuristic.
+    static constexpr std::size_t max_table_ratio = 32;
+
     auto matcher() const
     {
         auto gather_match = match::args(match::name("gather"));
@@ -1457,6 +1465,12 @@ struct find_gather_slice_concat
         const auto& indices_lens = indices_ins->get_shape().lens();
         std::size_t num_rows     = indices_lens.front();
         std::size_t batch_stride = indices_ins->get_shape().elements() / num_rows;
+
+        // data_lens[gather_axis] is the number of rows in the gathered buffer; num_rows is
+        // how many of those rows this concat reorders.  Skip the rewrite when the buffer is
+        // much larger than the reorder (see max_table_ratio above).
+        if(data_lens[gather_axis] > max_table_ratio * num_rows)
+            return;
 
         const std::size_t not_slice = std::numeric_limits<std::size_t>::max();
         std::vector<std::size_t> input_rows(all_inputs.size());
@@ -1597,12 +1611,14 @@ struct find_reshape_cont
         auto lens = cont_input->get_shape().lens();
         std::vector<int64_t> dims(lens.begin(), lens.end());
 
-        if(in_ins->get_shape().lens() != ins->get_shape().lens())
+        if(in_ins->get_shape() != ins->get_shape())
         {
             return;
         }
 
-        if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
+        if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [](auto i) {
+               return i->get_shape().standard();
+           }))
             return;
 
         auto out_lens = ins->get_shape().lens();

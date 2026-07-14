@@ -36,6 +36,8 @@
 #include <vector>
 #include <cassert>
 #include <iostream>
+#include <sstream>
+#include <string>
 
 namespace migraphx {
 #ifndef DOXYGEN
@@ -1202,6 +1204,51 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     void set_exhaustive_tune_flag(bool value = true)
     {
         call(&migraphx_compile_options_set_exhaustive_tune_flag, this->get_handle_ptr(), value);
+    }
+
+    /// Set backend-specific options that targets can read to configure
+    /// compilation. `json_str` is a relaxed JSON object (bare identifiers are
+    /// treated as strings) and accepts printf-style format specifiers followed
+    /// by their substitution values, e.g.
+    /// `set_advance_backend_options("{option1:%i}", i)`.
+    template <class... Ts>
+    void set_advance_backend_options(const char* json_str, Ts... xs)
+    {
+        call(&migraphx_compile_options_set_advance_backend_options,
+             this->get_handle_ptr(),
+             json_str,
+             xs...);
+    }
+
+    /// Set a single backend option, lexically converting the value to a string.
+    template <class T>
+    void set_advance_backend_option(const std::string& name, T x)
+    {
+        std::ostringstream ss;
+        ss << std::boolalpha;
+        ss << x;
+        const std::string option = "{" + name + ":%s}";
+        const std::string value  = ss.str();
+        this->set_advance_backend_options(option.c_str(), value.c_str());
+    }
+
+    /// Set a single backend option to an array, lexically converting each value.
+    template <class T>
+    void set_advance_backend_option(const std::string& name, const std::vector<T>& x)
+    {
+        std::ostringstream ss;
+        ss << std::boolalpha;
+        ss << "[";
+        for(std::size_t i = 0; i < x.size(); ++i)
+        {
+            if(i != 0)
+                ss << ",";
+            ss << x[i];
+        }
+        ss << "]";
+        const std::string option = "{" + name + ":%s}";
+        const std::string value  = ss.str();
+        this->set_advance_backend_options(option.c_str(), value.c_str());
     }
 };
 

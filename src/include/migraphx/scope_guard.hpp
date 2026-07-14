@@ -21,57 +21,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHLIB_DYN_OUTPUT_HPP
-#define MIGRAPHX_GUARD_MIGRAPHLIB_DYN_OUTPUT_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_SCOPE_GUARD_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_SCOPE_GUARD_HPP
 
-#include <migraphx/shape.hpp>
-#include <migraphx/argument.hpp>
+#include <migraphx/config.hpp>
+#include <exception>
+#include <type_traits>
 #include <utility>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct dyn_output
-{
-    // original shape from the instruction
-    shape ins_shape;
-    // shape computed at eval time using input arguments
-    shape computed_shape;
-};
-
-/**
- * Handle dynamic and static shape at evaluation time.
- * If converted to shape type, returns original ins_shape.
- * If converted to dyn_output type, will compute an output shape using the input arguments.
- */
+// Runs the action only if the scope is exited via an exception.
 template <class F>
-struct compute_output_shape
+struct scope_fail_guard
 {
-    F ins_inputs;
+    static_assert(std::is_nothrow_invocable<F&>{}, "scope_fail action must be noexcept");
 
-    operator dyn_output() const
-    {
-        return ins_inputs([](const auto& x, shape ins_shape, const std::vector<argument>& inputs) {
-            // some op returns a tuple shape e.g. TopK
-            if(ins_shape.any_of_dynamic())
-                return dyn_output{ins_shape, compute_shape(x, to_shapes(inputs))};
-            return dyn_output{ins_shape, ins_shape};
-        });
-    }
+    F action;
+    int uncaught = std::uncaught_exceptions();
 
-    operator shape() const
+    explicit scope_fail_guard(F f) : action(std::move(f)) {}
+
+    scope_fail_guard(const scope_fail_guard&) = delete;
+
+    ~scope_fail_guard()
     {
-        return ins_inputs(
-            [](const auto&, shape ins_shape, const std::vector<argument>&) { return ins_shape; });
+        if(std::uncaught_exceptions() > uncaught)
+            action();
     }
 };
 
 template <class F>
-compute_output_shape<F> make_compute_output_shape(F f)
+scope_fail_guard<F> on_scope_fail(F f)
 {
-    return {std::move(f)};
+    return scope_fail_guard<F>{std::move(f)};
 }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif
+
+#endif // MIGRAPHX_GUARD_MIGRAPHX_SCOPE_GUARD_HPP

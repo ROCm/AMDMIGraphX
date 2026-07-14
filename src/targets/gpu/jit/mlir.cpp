@@ -42,6 +42,18 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP_TO_MXR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLIR_DUMP);
 
+static bool is_pointwise_alias_op(const operation& op)
+{
+    return contains({"broadcast",
+                     "multibroadcast",
+                     "reshape",
+                     "reshape_lazy",
+                     "squeeze",
+                     "unsqueeze",
+                     "transpose"},
+                    op.name());
+}
+
 static module create_pointwise_module(module_ref in_mod)
 {
     module pw_mod;
@@ -60,6 +72,8 @@ static module create_pointwise_module(module_ref in_mod)
                                    const operation& op,
                                    const std::vector<instruction_ref>& inputs,
                                    const std::vector<module_ref>& mod_args) -> instruction_ref {
+                                    if(is_pointwise_alias_op(op))
+                                        return inputs.front();
                                     auto out_aliases = op.output_alias(to_shapes(inputs));
                                     if(out_aliases.size() == 1)
                                         return inputs.at(out_aliases[0]);
@@ -111,28 +125,6 @@ compile_pointwise_module(context& ctx, const std::vector<shape>& inputs, module_
     auto co            = any_cast<code_object_op>(cop);
     co.expected_inputs = inputs;
     return co;
-}
-
-static instruction_ref find_final_split(instruction_ref split_ins)
-{
-    auto output_path = get_output_path(split_ins);
-    auto it          = std::adjacent_find(
-        output_path.begin(), output_path.end(), [&](instruction_ref input, instruction_ref output) {
-            if(contains({"reshape", "squeeze", "unsqueeze", "transpose"}, output->name()))
-                return false;
-            if(contains({"add", "mul"}, output->name()))
-            {
-                auto aux = *std::find_if(output->inputs().begin(),
-                                         output->inputs().end(),
-                                         [&](instruction_ref i) { return i != input; });
-                if(aux->can_eval())
-                    return false;
-                auto aliases = instruction::get_output_alias(aux);
-                return aliases.size() == 1 and aliases[0]->name() != "@param";
-            }
-            return true;
-        });
-    return *it;
 }
 
 struct mlir_compiler : compiler<mlir_compiler>
@@ -208,7 +200,9 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto input_args = ins->inputs();
         // remove alloc buffer
         input_args.pop_back();
-        auto split_ins                               = find_final_split(gemm_like_ins);
+        // Split-k perf configs cannot be used with fused epilogues, so keep the MLIR side
+        // to the bare conv/gemm and compile the rest as pointwise.
+        auto split_ins                               = gemm_like_ins;
         std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
         auto dot_mlir_inputs                         = to_shapes(mod_splits[0].inputs);
         // add alloc for the gemm output
@@ -239,6 +233,18 @@ struct mlir_compiler : compiler<mlir_compiler>
         return cr;
     }
 
+    bool can_compile_fused(context& ctx, module_ref smod, const value& solution) const
+    {
+        try
+        {
+            return is_module_fusible(*smod, ctx, solution);
+        }
+        catch(...)
+        {
+            return false;
+        }
+    }
+
     compiler_replace
     compile(context& ctx, instruction_ref ins, const operation&, const value& solution) const
     {
@@ -254,7 +260,7 @@ struct mlir_compiler : compiler<mlir_compiler>
         // check if (a) module is fused (b) contains a "gemm/conv" instruction and (c)
         // perfConfig can not allow fused module
         const bool can_split = gemm_like_ins != smod->end() and pointwise_ins != smod->end();
-        if(can_split and not is_module_fusible(*smod, ctx, solution))
+        if(can_split and not can_compile_fused(ctx, smod, solution))
         {
             return compile_split(ctx, ins, smod, gemm_like_ins, solution);
         }

@@ -356,6 +356,9 @@ rocm_enable_cppcheck(
         arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
         definePrefix:*src/targets/gpu/kernels/include/migraphx/kernels/test.hpp
+        # test/pp.cpp exercises the MIGRAPHX_PP_* metaprogramming macros directly, which
+        # cppcheck's preprocessor cannot expand.
+        unknownMacro:*test/pp.cpp
         UseNamedLogicOperator:*src/targets/gpu/kernels/include/migraphx/kernels/debug.hpp
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp

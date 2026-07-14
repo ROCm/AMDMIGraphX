@@ -162,8 +162,8 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     const auto tiles_h  = (out_h + 1) / 2;
     const auto nt_total = n * tiles_h * tiles_w;
 
-    constexpr index_int quads_per_wave = 32 / 4;         // 8 quads per wave
-    constexpr index_int nt_groups      = NW / SK;         // independent tile groups per WG
+    constexpr index_int quads_per_wave = 32 / 4;  // 8 quads per wave
+    constexpr index_int nt_groups      = NW / SK; // independent tile groups per WG
     constexpr index_int quads_per_wg   = quads_per_wave * nt_groups; // tiles-worth of quads
     const auto k_blocks                = (out_c + KO - 1) / KO;
 
@@ -349,8 +349,8 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
             repeat_c<TILES>([&](auto tt) {
                 constexpr index_int t = tt;
                 repeat_c<KO>([&](auto kk) {
-                    constexpr index_int k   = kk;
-                    constexpr index_int off = u * (TILES * KO) + t * KO + k;
+                    constexpr index_int k     = kk;
+                    constexpr index_int off   = u * (TILES * KO) + t * KO + k;
                     m_reduce[lane_base + off] = m[u][t][k];
                 });
             });

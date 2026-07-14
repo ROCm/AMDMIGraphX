@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -115,8 +115,8 @@ struct parse_gru : op_parser<parse_gru>
             });
         }
 
-        auto num_actv_functions = dirct == op::rnn_direction::bidirectional ? 4 : 2;
-        if(vec_names.size() != static_cast<size_t>(num_actv_functions))
+        std::size_t num_actv_functions = dirct == op::rnn_direction::bidirectional ? 4 : 2;
+        if(vec_names.size() != num_actv_functions)
         {
             MIGRAPHX_THROW("GRU: Invalid activation functions number, should be: " +
                            to_string(num_actv_functions));

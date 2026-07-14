@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -30,7 +30,12 @@ from PIL import Image
 import numpy as np
 import argparse
 import os
+import sys
 import subprocess
+
+sys.path.insert(0,
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+from migraphx_ep import ensure_migraphx_ep
 
 #Use most upto date weights
 resnet50 = models.resnet50(weights=models.ResNet50_Weights.DEFAULT,
@@ -225,13 +230,10 @@ def main():
         input_names=['input'],  # the model's input names
         output_names=['output'])  # the model's output names
 
-    # Quantize the model
-    if flags.fp16:
-        if flags.verbose:
-            print("FP16 Quantization Enabled")
-        os.environ["ORT_MIGRAPHX_FP16_ENABLE"] = "1"  # Enable FP16 precision
-    else:
-        os.environ["ORT_MIGRAPHX_FP16_ENABLE"] = "0"  # Disable FP32 precision
+    # Quantize the model via MIGraphX EP provider options
+    if flags.fp16 and flags.verbose:
+        print("FP16 Quantization Enabled")
+    ep_options = {"migraphx_fp16_enable": "1" if flags.fp16 else "0"}
 
     session_ops = onnxruntime.SessionOptions()
     if flags.verbose:
@@ -240,7 +242,7 @@ def main():
 
     session_fp32 = onnxruntime.InferenceSession(
         "resnet50.onnx",
-        providers=['MIGraphXExecutionProvider'],
+        providers=ensure_migraphx_ep(ep_options),
         sess_options=session_ops)
 
     if flags.verbose:

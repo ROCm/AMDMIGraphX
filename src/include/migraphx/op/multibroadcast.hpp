@@ -65,9 +65,8 @@ struct multibroadcast
 
         auto validate_broadcast = [](const auto& in_dims, const auto& out_dims) {
             if(in_dims.size() > out_dims.size())
-                MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" +
-                               to_string(in_dims.size()) + ") should be <= output size (" +
-                               to_string(out_dims.size()) + ")");
+                MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" + to_string(in_dims.size()) +
+                               ") should be <= output size (" + to_string(out_dims.size()) + ")");
             auto offset = out_dims.size() - in_dims.size();
             for(std::ptrdiff_t i = in_dims.size() - 1; i >= 0; --i)
             {
@@ -123,8 +122,8 @@ struct multibroadcast
                 {
                     if(not inputs[0].dynamic())
                         return {t, output_dyn_dims};
-                    const auto num_dims       = output_dyn_dims.size();
-                    const auto num_input_dims = inputs[0].ndim();
+                    const auto num_dims        = output_dyn_dims.size();
+                    const auto num_input_dims  = inputs[0].ndim();
                     const auto& input_dyn_dims = inputs[0].dyn_dims();
                     std::vector<shape::dynamic_dimension> new_output_dyn_dims(num_dims);
                     for(std::size_t i = 0; i < num_dims; ++i)

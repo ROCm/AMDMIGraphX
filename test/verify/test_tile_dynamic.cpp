@@ -31,8 +31,8 @@ struct test_tile_dynamic : verify_program<test_tile_dynamic>
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        const migraphx::shape sh_param{
-            migraphx::shape::float_type, {{1, 1}, {1, 1}, {1, 1}, {2, 65}}};
+        const migraphx::shape sh_param{migraphx::shape::float_type,
+                                       {{1, 1}, {1, 1}, {1, 1}, {2, 65}}};
         auto input = mm->add_parameter("x", sh_param);
         auto outs  = migraphx::op::builder::add("tile", *mm, {input}, {{"repeats", {1, 15, 1, 1}}});
         mm->add_return({outs.back()});

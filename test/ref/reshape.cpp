@@ -254,8 +254,8 @@ TEST_CASE(reshape_dyn_dim_attr_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {3, 6}}};
-    std::vector<migraphx::shape::dynamic_dimension> dims{
-        migraphx::shape::dynamic_dimension{6, 12}, migraphx::shape::dynamic_dimension{1, 1}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{6, 12},
+                                                         migraphx::shape::dynamic_dimension{1, 1}};
     auto input = mm->add_parameter("X", s);
     mm->add_instruction(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
     p.compile(migraphx::make_target("ref"));
@@ -276,8 +276,8 @@ TEST_CASE(reshape_static_dyn_dim_attr_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {6, 4}};
-    std::vector<migraphx::shape::dynamic_dimension> dims{
-        migraphx::shape::dynamic_dimension{2, 2}, migraphx::shape::dynamic_dimension{3, 12}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{2, 2},
+                                                         migraphx::shape::dynamic_dimension{3, 12}};
     auto input = mm->add_literal(migraphx::literal{s, std::vector<float>(24, 1.f)});
     mm->add_instruction(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
     p.compile(migraphx::make_target("ref"));
@@ -290,11 +290,11 @@ TEST_CASE(reshape_lazy_dyn_dim_attr_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {3, 6}}};
-    std::vector<migraphx::shape::dynamic_dimension> dims{
-        migraphx::shape::dynamic_dimension{6, 12}, migraphx::shape::dynamic_dimension{1, 1}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{6, 12},
+                                                         migraphx::shape::dynamic_dimension{1, 1}};
     auto input = mm->add_parameter("X", s);
-    mm->add_instruction(
-        migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+    mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}),
+                        input);
     p.compile(migraphx::make_target("ref"));
 
     std::vector<float> gold(12);
@@ -313,11 +313,11 @@ TEST_CASE(reshape_lazy_static_dyn_dim_attr_test)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {6, 4}};
-    std::vector<migraphx::shape::dynamic_dimension> dims{
-        migraphx::shape::dynamic_dimension{2, 2}, migraphx::shape::dynamic_dimension{3, 12}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{2, 2},
+                                                         migraphx::shape::dynamic_dimension{3, 12}};
     auto input = mm->add_literal(migraphx::literal{s, std::vector<float>(24, 1.f)});
-    mm->add_instruction(
-        migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+    mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}),
+                        input);
     p.compile(migraphx::make_target("ref"));
     auto result = p.eval({}).back();
     EXPECT(result.get_shape().lens() == std::vector<std::size_t>{2, 12});

@@ -1,4 +1,5 @@
-/* The MIT License (MIT)
+/*
+ * The MIT License (MIT)
  *
  * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -21,44 +22,45 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/common.hpp>
+#include <cstdint>
+#include <vector>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-// glu has no native op: split in half along `axis`, gate the first half by sigmoid(second).
-struct glu : op_builder<glu>
+// index_copy has no native op: scatter src into the rows of `dim` listed in the 1-D index.
+struct torch_index_copy : op_builder<torch_index_copy>
 {
-    int64_t axis = -1;
+    int64_t dim = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.dim, "dim"));
     }
+
+    static std::vector<std::string> names() { return {"tm::index_copy"}; }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto x    = args[0];
-        auto lens = x->get_shape().lens();
-        auto ax   = tune_axis(lens.size(), axis, "glu");
-        auto len  = static_cast<int64_t>(lens[ax]);
-        auto half = len / 2;
+        auto inp = args[0], idx = args[1], src = args[2];
+        auto src_lens = src->get_shape().lens();
+        auto axis     = tune_axis(src_lens.size(), dim, "index_copy");
 
-        auto first = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {0}}, {"ends", {half}}}), x);
-        auto second = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {half}}, {"ends", {len}}}), x);
-        auto gate = m.insert_instruction(ins, make_op("sigmoid"), second);
-        return {m.insert_instruction(ins, make_op("mul"), first, gate)};
+        std::vector<int64_t> rsp(src_lens.size(), 1);
+        rsp[axis] = idx->get_shape().lens().at(0);
+        auto scatter_idx = m.insert_instruction(ins, make_op("reshape", {{"dims", rsp}}), idx);
+        scatter_idx      = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", src_lens}}), scatter_idx);
+        return {m.insert_instruction(
+            ins, make_op("scatter_none", {{"axis", axis}}), {inp, scatter_idx, src})};
     }
 };
 

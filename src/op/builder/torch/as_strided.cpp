@@ -1,4 +1,5 @@
-/* The MIT License (MIT)
+/*
+ * The MIT License (MIT)
  *
  * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -21,44 +22,55 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/common.hpp>
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+#include <migraphx/errors.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/tune_axis.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
-#include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-// glu has no native op: split in half along `axis`, gate the first half by sigmoid(second).
-struct glu : op_builder<glu>
+// as_strided has no native op: gather each element from its strided storage offset.
+struct torch_as_strided : op_builder<torch_as_strided>
 {
-    int64_t axis = -1;
+    std::vector<int64_t> size;
+    std::vector<int64_t> stride;
+    int64_t storage_offset = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(f(self.size, "size"),
+                    f(self.stride, "stride"),
+                    f(self.storage_offset, "storage_offset"));
     }
+
+    static std::vector<std::string> names() { return {"tm::as_strided"}; }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto x    = args[0];
-        auto lens = x->get_shape().lens();
-        auto ax   = tune_axis(lens.size(), axis, "glu");
-        auto len  = static_cast<int64_t>(lens[ax]);
-        auto half = len / 2;
+        if(size.size() != stride.size())
+            MIGRAPHX_THROW("as_strided: size and stride must have the same length");
+        shape strided{shape::int64_type,
+                      std::vector<std::size_t>(size.begin(), size.end()),
+                      std::vector<std::size_t>(stride.begin(), stride.end())};
+        std::vector<int64_t> data(strided.elements());
+        for(std::size_t i = 0; i < data.size(); ++i)
+            data[i] = storage_offset + strided.index(i);
+        auto indices = m.add_literal(
+            literal{shape{shape::int64_type, {data.size()}}, data.begin(), data.end()});
 
-        auto first = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {0}}, {"ends", {half}}}), x);
-        auto second = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {half}}, {"ends", {len}}}), x);
-        auto gate = m.insert_instruction(ins, make_op("sigmoid"), second);
-        return {m.insert_instruction(ins, make_op("mul"), first, gate)};
+        auto flat_inp = m.insert_instruction(ins, make_op("contiguous"), args[0]);
+        flat_inp = m.insert_instruction(ins, make_op("reshape", {{"dims", {-1}}}), flat_inp);
+        auto gathered = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), flat_inp, indices);
+        return {m.insert_instruction(ins, make_op("reshape", {{"dims", size}}), gathered)};
     }
 };
 

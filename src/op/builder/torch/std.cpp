@@ -1,4 +1,5 @@
-/* The MIT License (MIT)
+/*
+ * The MIT License (MIT)
  *
  * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -21,44 +22,58 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/common.hpp>
+#include <cstddef>
+#include <cstdint>
+#include <vector>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/tune_axis.hpp>
-#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-// glu has no native op: split in half along `axis`, gate the first half by sigmoid(second).
-struct glu : op_builder<glu>
+// std has no native op: sqrt of the corrected variance reduced over axes.
+struct torch_std : op_builder<torch_std>
 {
-    int64_t axis = -1;
+    std::vector<int64_t> axes = {};
+    bool keepdim              = false;
+    float correction          = 1.0f;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axis, "axis"));
+        return pack(
+            f(self.axes, "axes"), f(self.keepdim, "keepdim"), f(self.correction, "correction"));
     }
+
+    static std::vector<std::string> names() { return {"tm::std"}; }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
         auto x    = args[0];
         auto lens = x->get_shape().lens();
-        auto ax   = tune_axis(lens.size(), axis, "glu");
-        auto len  = static_cast<int64_t>(lens[ax]);
-        auto half = len / 2;
+        auto type = x->get_shape().type();
 
-        auto first = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {0}}, {"ends", {half}}}), x);
-        auto second = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {half}}, {"ends", {len}}}), x);
-        auto gate = m.insert_instruction(ins, make_op("sigmoid"), second);
-        return {m.insert_instruction(ins, make_op("mul"), first, gate)};
+        std::size_t n = 1;
+        for(auto a : axes)
+            n *= lens[tune_axis(lens.size(), a, "std")];
+
+        auto mean  = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), x);
+        auto sub   = insert_common_op(m, ins, "sub", x, mean);
+        auto sq    = insert_common_op(m, ins, "mul", sub, sub);
+        auto sum   = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", axes}}), sq);
+        auto denom = m.add_literal({type, {static_cast<float>(n) - correction}});
+        auto var   = insert_common_op(m, ins, "div", sum, denom);
+        auto out   = m.insert_instruction(ins, make_op("sqrt"), var);
+        if(not keepdim)
+            out = m.insert_instruction(ins, make_op("squeeze", {{"axes", axes}}), out);
+        return {out};
     }
 };
 

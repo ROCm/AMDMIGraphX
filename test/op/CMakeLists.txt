@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-file(GLOB OP_BUILDER_TESTS CONFIGURE_DEPENDS builder/*.cpp)
+file(GLOB OP_BUILDER_TESTS CONFIGURE_DEPENDS builder/*.cpp builder/torch/*.cpp)
 
 rocm_add_test_executable(test_op_builder_test ${OP_BUILDER_TESTS})
 target_include_directories(test_op_builder_test PUBLIC ../include include)

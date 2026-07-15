@@ -1,4 +1,5 @@
-/* The MIT License (MIT)
+/*
+ * The MIT License (MIT)
  *
  * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -21,44 +22,44 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/common.hpp>
+#include <cstdint>
+#include <vector>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/tune_axis.hpp>
-#include <migraphx/op/builder/op_builder.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-// glu has no native op: split in half along `axis`, gate the first half by sigmoid(second).
-struct glu : op_builder<glu>
+// linear reuses the gemm builder; ND inputs are flattened to rank 2.
+struct torch_linear : op_builder<torch_linear>
 {
-    int64_t axis = -1;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return pack(f(self.axis, "axis"));
-    }
+    static std::vector<std::string> names() { return {"tm::linear"}; }
 
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto x    = args[0];
-        auto lens = x->get_shape().lens();
-        auto ax   = tune_axis(lens.size(), axis, "glu");
-        auto len  = static_cast<int64_t>(lens[ax]);
-        auto half = len / 2;
+        const value gemm_opts{{"transB", true}};
+        auto lens = args[0]->get_shape().lens();
+        if(lens.size() == 2)
+            return op::builder::insert("gemm", m, ins, args, gemm_opts);
 
-        auto first = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {0}}, {"ends", {half}}}), x);
-        auto second = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {half}}, {"ends", {len}}}), x);
-        auto gate = m.insert_instruction(ins, make_op("sigmoid"), second);
-        return {m.insert_instruction(ins, make_op("mul"), first, gate)};
+        auto rows                 = args[0]->get_shape().elements() / lens.back();
+        std::vector<int64_t> flat = {static_cast<int64_t>(rows),
+                                     static_cast<int64_t>(lens.back())};
+        auto x2d = m.insert_instruction(ins, make_op("reshape", {{"dims", flat}}), args[0]);
+
+        auto gemm_args = args;
+        gemm_args[0]   = x2d;
+        auto out       = op::builder::insert("gemm", m, ins, gemm_args, gemm_opts).front();
+
+        std::vector<int64_t> out_dims(lens.begin(), lens.end() - 1);
+        out_dims.push_back(static_cast<int64_t>(out->get_shape().lens().back()));
+        return {m.insert_instruction(ins, make_op("reshape", {{"dims", out_dims}}), out)};
     }
 };
 

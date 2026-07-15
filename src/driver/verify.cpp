@@ -308,7 +308,10 @@ void verify_callback::evaluate()
                               ? target.output
                               : target.output.convert(ref.output.get_shape().type());
         double rms      = 0;
-        bool passed     = verify_args(symbol, target_arg, verify::expected{ref.output}, tols, &rms);
+        bool passed     = false;
+        visit_all(target_arg, ref.output)([&](auto t, auto r) {
+            passed = verify::verify_range_with_tolerance(t, verify::expected{r}, tols, &rms);
+        });
         results[symbol] = {symbol, target.op, target.order, rms, 0.0, passed};
     }
 

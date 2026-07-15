@@ -33,8 +33,7 @@ inline namespace MIGRAPHX_INLINE_NS {
 bool verify_args(const std::string& name,
                  const argument& target_arg,
                  const verify::expected<argument>& ref_arg,
-                 verify::tolerance tols,
-                 double* out_rms)
+                 verify::tolerance tols)
 {
     bool passed = true;
     argument t_arg = target_arg;
@@ -51,8 +50,6 @@ bool verify_args(const std::string& name,
         double rms_error;
         passed =
             verify::verify_range_with_tolerance(target, verify::expected{ref}, tols, &rms_error);
-        if(out_rms != nullptr)
-            *out_rms = rms_error;
         if(not passed)
         {
             // TODO: Check for nans

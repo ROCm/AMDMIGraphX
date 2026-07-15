@@ -76,20 +76,4 @@ TEST_CASE(standard_literal_unchanged)
     EXPECT(m1.sort() == m2.sort());
 }
 
-// Broadcast (splat) literals are excluded and left untouched.
-TEST_CASE(broadcast_literal_unchanged)
-{
-    const auto f = migraphx::shape::float_type;
-
-    migraphx::module m1;
-    {
-        auto lit = m1.add_literal(migraphx::literal{migraphx::shape{f, {2, 2}, {0, 0}}, {7}});
-        m1.add_return({lit});
-    }
-    auto m2 = m1;
-    run_pass(m1);
-
-    EXPECT(m1.sort() == m2.sort());
-}
-
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

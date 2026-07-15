@@ -1635,9 +1635,7 @@ static bool has_float_literal(const expr& e)
 bool is_divisible(const expr& dividend, const expr& divisor)
 {
     // Float literals make the /-reconstruction rounding-dependent.
-    const bool integral = not has_float_literal(dividend) and not has_float_literal(divisor);
-    (void)integral;
-    assert(integral);
+    assert(not has_float_literal(dividend) and not has_float_literal(divisor));
     return same_symbol((dividend / divisor) * divisor, dividend);
 }
 

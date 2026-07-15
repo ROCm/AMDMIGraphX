@@ -47,8 +47,7 @@ struct test_reverse_transposed_literal : verify_program<test_reverse_transposed_
         std::vector<int64_t> axes = {1};
         auto rev = mm->add_instruction(migraphx::make_op("reverse", {{"axes", axes}}), tr);
 
-        auto x = mm->add_parameter("x",
-                                   migraphx::shape{migraphx::shape::float_type, {2, 4, 3}});
+        auto x = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {2, 4, 3}});
         mm->add_instruction(migraphx::make_op("add"), rev, x);
         return p;
     }

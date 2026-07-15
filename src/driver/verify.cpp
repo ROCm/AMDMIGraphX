@@ -24,6 +24,7 @@
 #include "verify.hpp"
 #include "perf.hpp"
 
+#include <migraphx/algorithm.hpp>
 #include <migraphx/compile_options.hpp>
 #include <migraphx/fp_to_double.hpp>
 #include <migraphx/generate.hpp>
@@ -38,7 +39,13 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/logger.hpp>
+#include <algorithm>
+#include <cmath>
+#include <iterator>
+#include <limits>
+#include <tuple>
 #include <utility>
+#include <vector>
 
 namespace migraphx {
 namespace driver {
@@ -161,14 +168,20 @@ static bool same_type_and_lens(const argument& a, const argument& b)
            a.get_shape().lens() == b.get_shape().lens();
 }
 
-// Compile and run the reference and target programs once each, comparing outputs layer by layer.
-static verify_callback run_layerwise_compare(const program& p,
-                                             const target& t,
-                                             const compile_options& options,
-                                             const verify_options& vo,
-                                             const parameter_map& inputs,
-                                             verify::tolerance tols)
+// Runs ref and target once each; nullopt when the model has no debug symbols to compare by.
+static optional<verify_callback> run_layerwise_compare(const program& p,
+                                                       const target& t,
+                                                       const compile_options& options,
+                                                       const verify_options& vo,
+                                                       const parameter_map& inputs,
+                                                       verify::tolerance tols)
 {
+    if(not any_of(p.get_modules(), [](auto* m) { return m->has_debug_symbols(); }))
+    {
+        log::error() << "Layer-wise comparison (--no-rebuild) requires debug symbols; reload the "
+                        "model with --debug-symbols.";
+        return nullopt;
+    }
     verify_callback vcb{};
     vcb.tols = tols;
     run_ref(p, options, vo, inputs, &vcb);
@@ -177,18 +190,9 @@ static verify_callback run_layerwise_compare(const program& p,
     return vcb;
 }
 
-static bool check_debug_symbols(const program& p)
-{
-    if(any_of(p.get_modules(), [](auto* m) { return m->has_debug_symbols(); }))
-        return true;
-    log::error() << "Layer-wise comparison (--no-rebuild) requires debug symbols; reload the "
-                    "model with --debug-symbols.";
-    return false;
-}
-
 static bool report_layerwise(const std::string& name, const verify_callback& vcb)
 {
-    auto failure = vcb.first_failure();
+    auto failure = vcb.source_failure();
     if(not failure)
     {
         log::info() << "MIGraphX verification passed successfully.";
@@ -210,9 +214,10 @@ bool verify_program(const std::string& name,
 {
     if(vo.no_rebuild)
     {
-        if(not check_debug_symbols(p))
+        auto vcb = run_layerwise_compare(p, t, options, vo, inputs, tols);
+        if(not vcb)
             return false;
-        return report_layerwise(name, run_layerwise_compare(p, t, options, vo, inputs, tols));
+        return report_layerwise(name, *vcb);
     }
 
     auto ref_outs    = run_ref(p, options, vo, inputs);
@@ -242,35 +247,54 @@ verify_callback::trace_function verify_callback::capture()
 {
     return [this](instruction_ref ins, const argument& output) {
         auto order = ref_count++;
-        // Copy once and share across all of this instruction's symbols.
-        auto buf = output.copy();
+        auto buf   = output.copy();
         for(const auto& symbol : ins->get_debug_symbols())
             ref_outputs[symbol] = {buf, order};
     };
 }
 
+std::pair<std::string, std::size_t> verify_callback::terminal(instruction_ref ins) const
+{
+    std::string symbol;
+    std::size_t order = 0;
+    bool found        = false;
+    for(const auto& s : ins->get_debug_symbols())
+    {
+        auto it = ref_outputs.find(s);
+        if(it == ref_outputs.end())
+            continue;
+        if(not found or it->second.order > order)
+        {
+            symbol = s;
+            order  = it->second.order;
+            found  = true;
+        }
+    }
+    return {std::move(symbol), order};
+}
+
 verify_callback::trace_function verify_callback::compare()
 {
     return [this](instruction_ref ins, const argument& output) {
-        std::string symbol;
-        std::size_t order = 0;
-        bool found        = false;
-        for(const auto& s : ins->get_debug_symbols())
-        {
-            auto it = ref_outputs.find(s);
-            if(it == ref_outputs.end())
-                continue;
-            if(not found or it->second.order > order)
-            {
-                symbol = s;
-                order  = it->second.order;
-                found  = true;
-            }
-        }
-        if(not found)
+        // Constants (weights/biases/broadcasts) carry an op's symbol but don't produce its tensor.
+        if(ins->can_eval())
             return;
-        // Keyed by symbol, so the last (latest-executed) target op for the symbol wins.
-        target_outputs[symbol] = {output.copy(), ins->name()};
+        auto [symbol, order] = terminal(ins);
+        if(symbol.empty())
+            return;
+        // Skip shape-changing views so they can't overwrite the real producer.
+        if(ref_outputs.at(symbol).output.get_shape().lens() != output.get_shape().lens())
+            return;
+        // Record input edges as symbols now; instruction_refs don't outlive the target program.
+        std::vector<std::string> inputs;
+        for(auto in : ins->inputs())
+        {
+            auto s = terminal(in).first;
+            if(not s.empty() and s != symbol)
+                inputs.push_back(std::move(s));
+        }
+        // Last-writer-wins on the symbol keeps the fused op's final value, not an interior one.
+        target_outputs[symbol] = {output.copy(), ins->name(), order, std::move(inputs)};
     };
 }
 
@@ -278,30 +302,64 @@ void verify_callback::evaluate()
 {
     for(const auto& [symbol, target] : target_outputs)
     {
-        assert(ref_outputs.count(symbol) > 0);
         const auto& ref = ref_outputs.at(symbol);
-        // The reference may run at a different precision (e.g. --ref-use-double), so match the
-        // target to the reference type before comparing (verify_args requires equal types).
+        // Match target to the reference type (differs with --ref-use-double) before comparing.
         auto target_arg = ref.output.get_shape().type() == target.output.get_shape().type()
                               ? target.output
                               : target.output.convert(ref.output.get_shape().type());
-        bool passed     = ref.output.get_shape().lens() == target_arg.get_shape().lens() and
-                      verify_args(symbol, target_arg, verify::expected{ref.output}, tols);
-        results[symbol] = {symbol, target.op, ref.order, passed};
+        double rms      = 0;
+        bool passed     = verify_args(symbol, target_arg, verify::expected{ref.output}, tols, &rms);
+        results[symbol] = {symbol, target.op, target.order, rms, 0.0, passed};
+    }
+
+    // Noise floor from finite errors (inf/NaN excluded) for ops with untracked or clean inputs.
+    std::vector<double> errors;
+    errors.reserve(results.size());
+    transform_if(
+        results.begin(),
+        results.end(),
+        std::back_inserter(errors),
+        [](const auto& r) { return std::isfinite(r.second.rms_error); },
+        [](const auto& r) { return r.second.rms_error; });
+    double baseline = std::numeric_limits<double>::epsilon();
+    if(not errors.empty())
+    {
+        auto mid = errors.begin() + errors.size() / 2;
+        std::nth_element(errors.begin(), mid, errors.end());
+        baseline = std::max(baseline, *mid);
+    }
+    for(const auto& [symbol, target] : target_outputs)
+    {
+        auto it = results.find(symbol);
+        if(it == results.end())
+            continue;
+        double input_err = 0.0;
+        for(const auto& in : target.inputs)
+        {
+            auto rit = results.find(in);
+            if(rit != results.end())
+                input_err = std::max(input_err, rit->second.rms_error);
+        }
+        // Non-finite error is itself the divergence: rank worst and keep introduced orderable.
+        it->second.introduced = std::isfinite(it->second.rms_error)
+                                    ? it->second.rms_error / std::max(baseline, input_err)
+                                    : std::numeric_limits<double>::infinity();
     }
 }
 
-optional<verify_callback::layer_result> verify_callback::first_failure() const
+optional<verify_callback::layer_result> verify_callback::source_failure() const
 {
-    optional<layer_result> result;
+    // Max introduced error; ties (e.g. overflow) broken toward the earliest op.
+    optional<layer_result> worst;
     for(const auto& [symbol, lr] : results)
     {
         if(lr.passed)
             continue;
-        if(not result or lr.order < result->order)
-            result = lr;
+        if(not worst or
+           std::tie(worst->introduced, lr.order) < std::tie(lr.introduced, worst->order))
+            worst = lr;
     }
-    return result;
+    return worst;
 }
 
 void verify_instructions(const program& prog,
@@ -384,11 +442,11 @@ void verify_reduced_program(const program& p,
     // Single run reports every diverging layer, so nothing is recompiled per step.
     if(vo.no_rebuild)
     {
-        if(not check_debug_symbols(p))
+        auto vcb = run_layerwise_compare(p, t, options, vo, inputs, tols);
+        if(not vcb)
             return;
-        auto vcb        = run_layerwise_compare(p, t, options, vo, inputs, tols);
         bool any_failed = false;
-        for(const auto& [symbol, lr] : vcb.results)
+        for(const auto& [symbol, lr] : vcb->results)
         {
             if(not lr.passed)
             {
@@ -474,15 +532,15 @@ void verify_bisected_program(const program& p,
                              const parameter_map& inputs,
                              verify::tolerance tols)
 {
-    // Single run finds the first diverging layer, so nothing is recompiled per bisect step.
+    // Single run reports the divergence source, so nothing is recompiled per bisect step.
     if(vo.no_rebuild)
     {
-        if(not check_debug_symbols(p))
+        auto vcb = run_layerwise_compare(p, t, options, vo, inputs, tols);
+        if(not vcb)
             return;
-        auto vcb     = run_layerwise_compare(p, t, options, vo, inputs, tols);
-        auto failure = vcb.first_failure();
+        auto failure = vcb->source_failure();
         if(failure)
-            std::cout << "Failure starts at: " << failure->symbol << " (" << failure->op << ")"
+            std::cout << "Failure introduced at: " << failure->symbol << " (" << failure->op << ")"
                       << std::endl;
         else
             log::info() << "MIGraphX verification passed successfully.";

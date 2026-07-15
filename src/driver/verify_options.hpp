@@ -42,8 +42,7 @@ struct verify_options
     bool ref_use_double = false;
 
     /**
-     * Compare reference and target outputs layer by layer in a single compile+run of each program,
-     * so modes such as `bisect` locate the first diverging layer without recompiling per step.
+     * Compare reference and target outputs layer by layer in a single compile of each program.
      */
     bool no_rebuild = false;
 

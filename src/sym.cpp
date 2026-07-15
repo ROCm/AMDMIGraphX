@@ -1623,7 +1623,7 @@ bool same_symbol(const expr& a, const expr& b)
            });
 }
 
-static bool has_float_literal(const expr& e)
+[[maybe_unused]] static bool has_float_literal(const expr& e)
 {
     if(e.empty())
         return false;

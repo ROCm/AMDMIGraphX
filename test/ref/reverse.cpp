@@ -69,10 +69,6 @@ TEST_CASE(reverse_test_axis1)
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 
-// reverse over a non-standard-strided literal (as produced by folding a transposed constant);
-// reverse must index the input by its logical coordinates, not the output shape's strides.
-// Evaluated uncompiled so the reference op runs on the non-standard input directly; a target
-// compile would first rewrite the literal to a standard shape and mask the bug.
 TEST_CASE(reverse_nonstandard_literal)
 {
     migraphx::shape in_shape{migraphx::shape::float_type, {2, 3}, {1, 2}};

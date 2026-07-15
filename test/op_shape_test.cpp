@@ -29,6 +29,7 @@
 #include <migraphx/sym.hpp>
 #include <sstream>
 #include <migraphx/make_op.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/serialize.hpp>
 
 #include "test.hpp"
@@ -4672,6 +4673,34 @@ TEST_CASE(reshape_lazy_static_input_dyn_dim_attr_multi_neg_error)
     std::vector<migraphx::shape::dynamic_dimension> dims{
         migraphx::shape::dynamic_dimension{2, 8}, migraphx::shape::dynamic_dimension{3, 12}};
     throws_shape(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_dyn_1arg_mixed_dims_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {2, 8}, {2, 8}}};
+    std::vector<migraphx::dim_like> dims_attr = {
+        migraphx::dim_like{0}, dd{12, 12}, migraphx::dim_like{0}, migraphx::dim_like{-1}};
+    std::vector<dd> out_dyn_dims = {{1, 4}, {12, 12}, {2, 8}, {4, 16}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, out_dyn_dims},
+                 migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims_attr)}}),
+                 input);
+}
+
+TEST_CASE(reshape_lazy_dyn_1arg_int64_and_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
+    std::vector<migraphx::dim_like> dims_attr = {
+        migraphx::dim_like{2}, dd{1, 1}, dd{1, 1}, migraphx::dim_like{24}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{2, 2}, {1, 1}, {1, 1}, {24, 24}}},
+                 migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims_attr)}}),
+                 input);
+}
+
+TEST_CASE(reshape_lazy_output_alias)
+{
+    auto op = migraphx::make_op("reshape_lazy", {{"dims", {2, 12}}});
+    EXPECT(op.output_alias({migraphx::shape{migraphx::shape::float_type, {6, 4}}}) ==
+           std::vector<std::size_t>{0});
 }
 
 TEST_CASE(resize_single_input)

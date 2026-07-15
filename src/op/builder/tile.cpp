@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include <migraphx/common.hpp>
 #include <migraphx/dim_like.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/make_op.hpp>
@@ -76,10 +75,11 @@ struct tile : op_builder<tile>
         {
             auto bcast_dyn_dims = unsq->get_shape().dyn_dims();
             std::for_each(unsq_axes.begin(), unsq_axes.end(), [&](int64_t axis_idx) {
-                const auto repeat      = static_cast<std::size_t>(repeats[axis_idx / 2]);
+                const auto repeat        = static_cast<std::size_t>(repeats[axis_idx / 2]);
                 bcast_dyn_dims[axis_idx] = shape::dynamic_dimension{repeat, repeat};
             });
 
+            // 2-input multibroadcast preserves symbolic dims from the input shape.
             auto mbcast = m.add_instruction(
                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(bcast_dyn_dims)}}),
                 unsq,

@@ -63,6 +63,21 @@ struct multibroadcast
         auto t         = inputs.at(0).type();
         const auto& s0 = inputs.at(0);
 
+        auto validate_broadcast = [](const auto& in_dims, const auto& out_dims) {
+            if(in_dims.size() > out_dims.size())
+                MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" +
+                               to_string(in_dims.size()) + ") should be <= output size (" +
+                               to_string(out_dims.size()) + ")");
+            auto offset = out_dims.size() - in_dims.size();
+            for(std::ptrdiff_t i = in_dims.size() - 1; i >= 0; --i)
+            {
+                if(out_dims[i + offset] != in_dims[i] and in_dims[i] != 1)
+                    MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(in_dims) +
+                                   "} cannot be broadcasted to {" + to_string_range(out_dims) +
+                                   "}!");
+            }
+        };
+
         if(s0.ndim() < 1)
         {
             MIGRAPHX_THROW("MULTIBROADCAST: input dimensions should be > 0 but input has rank " +
@@ -88,30 +103,14 @@ struct multibroadcast
                                "inputs. Input shape: " +
                                to_string(s0));
 
-            // Shared validation: input dims must align with target dims, with axis-1 broadcast.
-            auto validate = [](const auto& in_dims, const auto& out_dims) {
-                if(in_dims.size() > out_dims.size())
-                    MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" +
-                                   to_string(in_dims.size()) + ") should be <= output size (" +
-                                   to_string(out_dims.size()) + ")");
-                auto offset = out_dims.size() - in_dims.size();
-                for(std::ptrdiff_t i = in_dims.size() - 1; i >= 0; --i)
-                {
-                    if(out_dims[i + offset] != in_dims[i] and in_dims[i] != 1)
-                        MIGRAPHX_THROW("MULTIBROADCAST: input shape {" + to_string_range(in_dims) +
-                                       "} cannot be broadcasted to {" + to_string_range(out_dims) +
-                                       "}!");
-                }
-            };
-
             if(symbolic_target)
             {
                 auto s0_sym = s0.to_symbolic();
-                validate(s0_sym.dyn_dims(), output_dyn_dims);
+                validate_broadcast(s0_sym.dyn_dims(), output_dyn_dims);
                 return make_bcast_shape(s0_sym, output_dyn_dims);
             }
 
-            validate(s0.lens(), output_lens);
+            validate_broadcast(s0.lens(), output_lens);
             return make_bcast_shape(s0, output_lens);
         }
         else
@@ -124,20 +123,17 @@ struct multibroadcast
                 {
                     if(not inputs[0].dynamic())
                         return {t, output_dyn_dims};
-                    auto num_dims         = output_dyn_dims.size();
-                    auto num_input_dims   = inputs[0].ndim();
-                    auto input_dyn_dims   = inputs[0].dyn_dims();
+                    const auto num_dims       = output_dyn_dims.size();
+                    const auto num_input_dims = inputs[0].ndim();
+                    const auto& input_dyn_dims = inputs[0].dyn_dims();
                     std::vector<shape::dynamic_dimension> new_output_dyn_dims(num_dims);
-                    for(auto i = 0; i < num_dims; i++)
+                    for(std::size_t i = 0; i < num_dims; ++i)
                     {
-                        if(i < num_input_dims and input_dyn_dims[i].is_symbolic() and not input_dyn_dims[i].is_fixed())
-                        {
+                        if(i < num_input_dims and input_dyn_dims[i].is_symbolic() and
+                           not input_dyn_dims[i].is_fixed())
                             new_output_dyn_dims[i] = input_dyn_dims[i];
-                        }
-                        else 
-                        {
+                        else
                             new_output_dyn_dims[i] = output_dyn_dims[i];
-                        }
                     }
                     return {t, new_output_dyn_dims};
                 }
@@ -157,18 +153,7 @@ struct multibroadcast
                         else
                             bcast_lens[i] = in_lens[i];
                     }
-                    if(in_lens.size() > bcast_lens.size())
-                        MIGRAPHX_THROW("MULTIBROADCAST: input dimensions (" +
-                                       to_string(in_lens.size()) + ") should be <= output size (" +
-                                       to_string(bcast_lens.size()) + ")");
-                    auto offset = bcast_lens.size() - in_lens.size();
-                    for(std::ptrdiff_t i = in_lens.size() - 1; i >= 0; --i)
-                    {
-                        if(bcast_lens[i + offset] != in_lens[i] and in_lens[i] != 1)
-                            MIGRAPHX_THROW("MULTIBROADCAST: input shape {" +
-                                           to_string_range(in_lens) + "} cannot be broadcasted to {" +
-                                           to_string_range(bcast_lens) + "}!");
-                    }
+                    validate_broadcast(in_lens, bcast_lens);
                     return make_bcast_shape(s0, bcast_lens);
                 }
                 auto bcast_lens = compute_common_lens(inputs);

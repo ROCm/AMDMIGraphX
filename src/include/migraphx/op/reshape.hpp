@@ -209,6 +209,7 @@ struct reshape
         const auto& s0 = inputs.front();
         if(inputs.size() == 1)
         {
+            // Static input: resolve fixed dynamic_dimension entries to literals and unfixed to -1.
             if(has_dyn_dim_entries and not s0.dynamic())
             {
                 std::vector<dim_like> resolved_dims = dims;

@@ -47,8 +47,8 @@ struct instance_norm : op_builder<instance_norm>
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto x    = args[0];
-        auto rank = static_cast<int64_t>(x->get_shape().ndim());
+        auto x       = args[0];
+        int64_t rank = x->get_shape().ndim();
         if(rank < 2)
             MIGRAPHX_THROW("instance_norm op_builder: input rank must be at least 2");
 

@@ -24,6 +24,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <numeric>
 #include <vector>
 #include <migraphx/instruction.hpp>
 #include <migraphx/literal.hpp>
@@ -60,9 +61,10 @@ struct torch_std : op_builder<torch_std>
         auto lens = x->get_shape().lens();
         auto type = x->get_shape().type();
 
-        std::size_t n = 1;
-        for(auto a : axes)
-            n *= lens[tune_axis(lens.size(), a, "std")];
+        auto n = std::accumulate(
+            axes.begin(), axes.end(), std::size_t{1}, [&](std::size_t acc, int64_t a) {
+                return acc * lens[tune_axis(lens.size(), a, "std")];
+            });
 
         auto mean  = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), x);
         auto sub   = insert_common_op(m, ins, "sub", x, mean);

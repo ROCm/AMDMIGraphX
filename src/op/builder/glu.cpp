@@ -47,11 +47,11 @@ struct glu : op_builder<glu>
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto x    = args[0];
-        auto lens = x->get_shape().lens();
-        auto ax   = tune_axis(lens.size(), axis, "glu");
-        auto len  = static_cast<int64_t>(lens[ax]);
-        auto half = len / 2;
+        auto x       = args[0];
+        auto lens    = x->get_shape().lens();
+        auto ax      = tune_axis(lens.size(), axis, "glu");
+        int64_t len  = lens[ax];
+        int64_t half = len / 2;
 
         auto first = m.insert_instruction(
             ins, make_op("slice", {{"axes", {ax}}, {"starts", {0}}, {"ends", {half}}}), x);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,21 +25,29 @@
 #include <onnx_test.hpp>
 #include <migraphx/apply_alpha_beta.hpp>
 
+// Matrix x vector: the vector is unsqueezed to a column, dotted, then squeezed back.
+static void add_mv_dot(migraphx::module& m, const std::vector<migraphx::instruction_ref>& a)
+{
+    auto sl1 = m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), a[1]);
+    auto res = migraphx::add_apply_alpha_beta(m, {a[0], sl1}, migraphx::make_op("dot"), 1.0f, 0.0f);
+    auto ret = m.add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), res);
+    m.add_return({ret});
+}
+
 TEST_CASE(matmul_dyn_mv_test)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    auto l0 =
-        mm->add_parameter("1", migraphx::shape{migraphx::shape::float_type, {{4, 8, {6}}, {7, 7}}});
-    auto l1  = mm->add_parameter("2", migraphx::shape{migraphx::shape::float_type, {7}});
-    auto sl1 = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {1}}}), l1);
-    auto res = migraphx::add_apply_alpha_beta(*mm, {l0, sl1}, migraphx::make_op("dot"), 1.0f, 0.0f);
-    auto ret = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {1}}}), res);
-    mm->add_return({ret});
+    EXPECT(check_parse("matmul_dyn_mv_test.onnx",
+                       {{"1", {migraphx::shape::float_type, {{4, 8, {6}}, {7, 7}}}},
+                        {"2", {migraphx::shape::float_type, {7}}}},
+                       add_mv_dot));
+}
 
-    migraphx::onnx_options options;
-    options.map_dyn_input_dims["1"] = {{4, 8, {6}}, {7, 7}};
-    auto prog                       = read_onnx("matmul_dyn_mv_test.onnx", options);
-
-    EXPECT(p == prog);
+TEST_CASE(matmul_sym_mv_test)
+{
+    using migraphx::sym::lit;
+    using migraphx::sym::var;
+    EXPECT(check_parse("matmul_dyn_mv_test.onnx",
+                       {{"1", {migraphx::shape::float_type, sym_dims({var("m", {4, 8}), lit(7)})}},
+                        {"2", {migraphx::shape::float_type, {7}}}},
+                       add_mv_dot));
 }

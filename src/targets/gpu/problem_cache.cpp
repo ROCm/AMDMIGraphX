@@ -48,8 +48,9 @@ void problem_cache::load()
         save();
         return;
     }
-    from_value(from_json_string(read_string(pc_path)), cache);
+    from_value(from_json_string(read_string(pc_path)).normalize(), cache);
 }
+
 void problem_cache::save() const
 {
     auto pc_path = string_value_of(MIGRAPHX_PROBLEM_CACHE{});
@@ -60,7 +61,7 @@ void problem_cache::save() const
 
 static value create_key(const std::string& name, const value& problem)
 {
-    return {{"name", name}, {"problem", problem}};
+    return {{"name", name}, {"problem", problem.normalize()}};
 }
 
 bool problem_cache::has(const std::string& name, const value& problem) const

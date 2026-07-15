@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,35 +21,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_SCOPE_GUARD_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_SCOPE_GUARD_HPP
 
-#include <onnx_test.hpp>
+#include <migraphx/config.hpp>
+#include <exception>
+#include <type_traits>
+#include <utility>
 
-TEST_CASE(nms_overwrite_use_dyn_output_test)
+namespace migraphx {
+inline namespace MIGRAPHX_INLINE_NS {
+
+// Runs the action only if the scope is exited via an exception.
+template <class F>
+struct scope_fail_guard
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape sb{migraphx::shape::float_type, {1, 6, 4}};
-    auto b = mm->add_parameter("boxes", sb);
+    static_assert(std::is_nothrow_invocable<F&>{}, "scope_fail action must be noexcept");
 
-    migraphx::shape ss{migraphx::shape::float_type, {1, 1, 6}};
-    auto s = mm->add_parameter("scores", ss);
+    F action;
+    int uncaught = std::uncaught_exceptions();
 
-    migraphx::shape smo{migraphx::shape::int64_type, {1}};
-    auto mo = mm->add_parameter("max_output_boxes_per_class", smo);
+    explicit scope_fail_guard(F f) : action(std::move(f)) {}
 
-    migraphx::shape siou{migraphx::shape::float_type, {1}};
-    auto iou = mm->add_parameter("iou_threshold", siou);
+    scope_fail_guard(const scope_fail_guard&) = delete;
 
-    migraphx::shape sst{migraphx::shape::float_type, {1}};
-    auto st = mm->add_parameter("score_threshold", sst);
+    ~scope_fail_guard()
+    {
+        if(std::uncaught_exceptions() > uncaught)
+            action();
+    }
+};
 
-    auto ret = mm->add_instruction(
-        migraphx::make_op("nonmaxsuppression", {{"use_dyn_output", true}}), b, s, mo, iou, st);
-    mm->add_return({ret});
-
-    migraphx::onnx_options options;
-    options.use_dyn_output = true;
-
-    auto prog = read_onnx("nms_use_dyn_output_false_test.onnx", options);
-    EXPECT(p == prog);
+template <class F>
+scope_fail_guard<F> on_scope_fail(F f)
+{
+    return scope_fail_guard<F>{std::move(f)};
 }
+
+} // namespace MIGRAPHX_INLINE_NS
+} // namespace migraphx
+
+#endif // MIGRAPHX_GUARD_MIGRAPHX_SCOPE_GUARD_HPP

@@ -76,7 +76,7 @@ struct reverse
                 {
                     in_idx[axis] = lens[axis] - 1 - out_idx_v[axis];
                 }
-                output[out_idx] = input(in_idx.begin(), in_idx.end());
+                output[out_idx] = input[in_idx];
             });
         });
 

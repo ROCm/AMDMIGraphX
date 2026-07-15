@@ -148,8 +148,8 @@ jobs:
         key: windows-cget-gpu-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
         restore-keys: windows-cget-gpu-
 
-    - name: Setup tmate session
-      uses: mxschmitt/action-tmate@v3
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3
 
     - name: Install dependencies
       # Build the third-party dependencies (including rocMLIR) with clang-cl,
@@ -160,7 +160,21 @@ jobs:
         CXXFLAGS: "/std:c++17"
       # We disable the assembly files for BLAKE3 in rocmlir. An update to
       # rocmlirs cmake is needed.
+      #
+      # `rbuild prepare` is meant to skip rebuilding deps when the dependency
+      # hash is unchanged, but a Windows bug in that path leaves stale deps in
+      # place. Do the hash comparison ourselves against the hash cached in the
+      # cget directory and wipe cget on a mismatch (or when it is missing) so
+      # prepare rebuilds from a clean state.
       run: |
+        expected_hash=$(rbuild hash -s gh-win-gpu)
+        stored_hash=$(cat cget/hash 2>/dev/null || true)
+        if [ "$expected_hash" != "$stored_hash" ]; then
+          echo "Dependency hash mismatch (expected '$expected_hash', stored '$stored_hash'); clearing cget"
+          rm -rf cget
+        else
+          echo "Dependency hash matches ('$expected_hash'); reusing cached cget"
+        fi
         rbuild prepare -d cget -s gh-win-gpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
           -DLLVM_DISABLE_ASSEMBLY_FILES=On \
           -DLLVM_ENABLE_DIA_SDK=Off

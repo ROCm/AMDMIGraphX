@@ -109,7 +109,8 @@ static void create_pointwise_modules(module_pass_manager& mpm)
             if(contains(param_map, input))
                 continue;
             auto scalar = get_scalar(input);
-            if(scalar.empty())
+            // Have dynamic shapes always get put into a pointwise module even if scalar input
+            if(scalar.empty() or input->get_shape().dynamic())
             {
                 pointwise_inputs.push_back(input);
                 param_map[input] =

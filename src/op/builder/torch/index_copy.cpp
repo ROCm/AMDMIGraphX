@@ -50,7 +50,9 @@ struct torch_index_copy : op_builder<torch_index_copy>
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto inp = args[0], idx = args[1], src = args[2];
+        auto inp      = args[0];
+        auto idx      = args[1];
+        auto src      = args[2];
         auto src_lens = src->get_shape().lens();
         auto axis     = tune_axis(src_lens.size(), dim, "index_copy");
 

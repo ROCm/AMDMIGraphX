@@ -69,7 +69,9 @@ struct torch_scatter_reduce : op_builder<torch_scatter_reduce>
         if(reduce_map.count(reduce) == 0)
             MIGRAPHX_THROW("scatter_reduce: unsupported reduction '" + reduce + "'");
 
-        auto inp = args[0], idx = args[1], src = args[2];
+        auto inp  = args[0];
+        auto idx  = args[1];
+        auto src  = args[2];
         auto axis = tune_axis(inp->get_shape().ndim(), dim, "scatter_reduce");
 
         if(not include_self and reduce != "mean")

@@ -66,8 +66,8 @@ struct vector_norm : op_builder<vector_norm>
         else if(std::isinf(ord))
         {
             // +inf -> max(abs(x)), -inf -> min(abs(x))
-            auto reduce = ord > 0 ? "reduce_max" : "reduce_min";
-            out         = m.insert_instruction(ins, make_op(reduce, {{"axes", axes}}), abs_x);
+            const auto* reduce = ord > 0 ? "reduce_max" : "reduce_min";
+            out = m.insert_instruction(ins, make_op(reduce, {{"axes", axes}}), abs_x);
         }
         else
         {

@@ -62,7 +62,8 @@ struct gather_elements : op_builder<gather_elements>
         auto axis_stride = data_s.strides()[tuned_axis];
 
         int64_t data_elem_num = data_s.elements();
-        arg_data = m.insert_instruction(ins, make_op("reshape", {{"dims", {data_elem_num}}}), arg_data);
+        arg_data =
+            m.insert_instruction(ins, make_op("reshape", {{"dims", {data_elem_num}}}), arg_data);
 
         // flat offset of every index position, and its coordinate along the gathered axis
         std::size_t elem_num = ind_s.elements();
@@ -78,8 +79,8 @@ struct gather_elements : op_builder<gather_elements>
         auto l_shape_idx = m.add_literal(literal(ind_s, data_indices.begin(), data_indices.end()));
         auto l_dim_idx   = m.add_literal(literal(ind_s, axis_indices.begin(), axis_indices.end()));
         auto l_stride    = m.add_literal(literal{{ind_s.type(), {1}}, {axis_stride}});
-        l_stride =
-            m.insert_instruction(ins, make_op("multibroadcast", {{"out_lens", ind_s.lens()}}), l_stride);
+        l_stride         = m.insert_instruction(
+            ins, make_op("multibroadcast", {{"out_lens", ind_s.lens()}}), l_stride);
 
         auto dim_diff = m.insert_instruction(ins, make_op("sub"), arg_ind, l_dim_idx);
         auto delta    = m.insert_instruction(ins, make_op("mul"), dim_diff, l_stride);

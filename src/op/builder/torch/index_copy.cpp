@@ -55,7 +55,7 @@ struct torch_index_copy : op_builder<torch_index_copy>
         auto axis     = tune_axis(src_lens.size(), dim, "index_copy");
 
         std::vector<int64_t> rsp(src_lens.size(), 1);
-        rsp[axis] = idx->get_shape().lens().at(0);
+        rsp[axis]        = idx->get_shape().lens().at(0);
         auto scatter_idx = m.insert_instruction(ins, make_op("reshape", {{"dims", rsp}}), idx);
         scatter_idx      = m.insert_instruction(
             ins, make_op("multibroadcast", {{"out_lens", src_lens}}), scatter_idx);

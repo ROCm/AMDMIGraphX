@@ -50,6 +50,6 @@ TEST_CASE(torch_kit_layer_norm_op_builder_test)
     auto scaled   = add_common_op(mm, migraphx::make_op("mul"), {norm, scale});
     add_common_op(mm, migraphx::make_op("add"), {scaled, bias});
 
-    EXPECT(mm ==
-           make_op_module("tm::layer_norm", {{"epsilon", eps}, {"axes", axes}}, mm.get_parameters()));
+    EXPECT(mm == make_op_module(
+                     "tm::layer_norm", {{"epsilon", eps}, {"axes", axes}}, mm.get_parameters()));
 }

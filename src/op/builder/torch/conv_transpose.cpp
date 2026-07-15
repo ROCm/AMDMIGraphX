@@ -63,14 +63,13 @@ struct torch_conv_transpose : op_builder<torch_conv_transpose>
         bool crop = std::any_of(
             output_padding.begin(), output_padding.end(), [](std::size_t o) { return o != 0; });
         auto pad = crop ? std::vector<std::size_t>(padding.size(), 0) : padding;
-        auto out = m.insert_instruction(ins,
-                                        make_op("convolution_backwards",
-                                                {{"stride", stride},
-                                                 {"padding", pad},
-                                                 {"dilation", dilation},
-                                                 {"group", group}}),
-                                        args[0],
-                                        args[1]);
+        auto out = m.insert_instruction(
+            ins,
+            make_op(
+                "convolution_backwards",
+                {{"stride", stride}, {"padding", pad}, {"dilation", dilation}, {"group", group}}),
+            args[0],
+            args[1]);
 
         if(crop)
         {

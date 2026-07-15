@@ -68,8 +68,9 @@ struct torch_as_strided : op_builder<torch_as_strided>
             literal{shape{shape::int64_type, {data.size()}}, data.begin(), data.end()});
 
         auto flat_inp = m.insert_instruction(ins, make_op("contiguous"), args[0]);
-        flat_inp = m.insert_instruction(ins, make_op("reshape", {{"dims", {-1}}}), flat_inp);
-        auto gathered = m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), flat_inp, indices);
+        flat_inp      = m.insert_instruction(ins, make_op("reshape", {{"dims", {-1}}}), flat_inp);
+        auto gathered =
+            m.insert_instruction(ins, make_op("gather", {{"axis", 0}}), flat_inp, indices);
         return {m.insert_instruction(ins, make_op("reshape", {{"dims", size}}), gathered)};
     }
 };

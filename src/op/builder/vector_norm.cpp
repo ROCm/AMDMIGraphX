@@ -22,6 +22,7 @@
  */
 
 #include <cmath>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
@@ -53,7 +54,7 @@ struct vector_norm : op_builder<vector_norm>
         auto abs_x  = m.insert_instruction(ins, make_op("abs"), x);
 
         instruction_ref out;
-        if(ord == 0)
+        if(float_equal(ord, 0.0f))
         {
             // count of nonzero elements: sum(abs(x) > 0)
             auto zero    = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {0.0f}});
@@ -73,9 +74,10 @@ struct vector_norm : op_builder<vector_norm>
             // sum(abs(x) ^ ord) ^ (1 / ord)
             auto ord_lit = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {ord}});
             auto pow_x   = insert_common_op(m, ins, "pow", abs_x, ord_lit);
-            auto sum_pow = m.insert_instruction(ins, make_op("reduce_sum", {{"axes", axes}}), pow_x);
-            auto recip   = m.insert_instruction(ins, make_op("recip"), ord_lit);
-            out          = insert_common_op(m, ins, "pow", sum_pow, recip);
+            auto sum_pow =
+                m.insert_instruction(ins, make_op("reduce_sum", {{"axes", axes}}), pow_x);
+            auto recip = m.insert_instruction(ins, make_op("recip"), ord_lit);
+            out        = insert_common_op(m, ins, "pow", sum_pow, recip);
         }
 
         if(not keepdim)

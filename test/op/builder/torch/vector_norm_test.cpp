@@ -61,10 +61,11 @@ TEST_CASE(torch_kit_vector_norm_inf_op_builder_test)
     auto abs_x = mm.add_instruction(migraphx::make_op("abs"), x);
     mm.add_instruction(migraphx::make_op("reduce_max", {{"axes", axes}}), abs_x);
 
-    EXPECT(mm == make_op_module(
-                     "tm::vector_norm",
-                     {{"ord", std::numeric_limits<float>::infinity()}, {"axes", axes}, {"keepdim", true}},
-                     mm.get_parameters()));
+    EXPECT(mm ==
+           make_op_module(
+               "tm::vector_norm",
+               {{"ord", std::numeric_limits<float>::infinity()}, {"axes", axes}, {"keepdim", true}},
+               mm.get_parameters()));
 }
 
 // ord = 0 -> count of nonzero elements: sum(abs(x) > 0).

@@ -31,7 +31,7 @@
 // padding while keeping the output_padding elements, then adds the channel bias.
 TEST_CASE(torch_kit_conv_transpose_op_builder_test)
 {
-    const auto f                           = migraphx::shape::float_type;
+    const auto f                            = migraphx::shape::float_type;
     std::vector<std::size_t> stride         = {2, 2};
     std::vector<std::size_t> padding        = {1, 1};
     std::vector<std::size_t> dilation       = {1, 1};
@@ -64,7 +64,7 @@ TEST_CASE(torch_kit_conv_transpose_op_builder_test)
 // tm::conv_transpose with no output_padding passes padding straight to the op.
 TEST_CASE(torch_kit_conv_transpose_no_crop_op_builder_test)
 {
-    const auto f                           = migraphx::shape::float_type;
+    const auto f                            = migraphx::shape::float_type;
     std::vector<std::size_t> stride         = {1, 1};
     std::vector<std::size_t> padding        = {1, 1};
     std::vector<std::size_t> dilation       = {1, 1};

@@ -65,7 +65,7 @@ struct torch_nan_to_num : op_builder<torch_nan_to_num>
         // where selects per-element, so inputs are broadcast but not type-promoted
         const common_options no_promote{.common_type = false};
         const auto where = make_op("where");
-        auto select = [&](instruction_ref cond, instruction_ref val, instruction_ref other) {
+        auto select      = [&](instruction_ref cond, instruction_ref val, instruction_ref other) {
             return insert_common_op(m, ins, where, {cond, val, other}, no_promote);
         };
 

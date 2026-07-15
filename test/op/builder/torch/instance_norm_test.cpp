@@ -55,3 +55,14 @@ TEST_CASE(torch_kit_instance_norm_op_builder_test)
 
     EXPECT(mm == make_op_module("tm::instance_norm", {{"epsilon", eps}}, mm.get_parameters()));
 }
+
+// input must be at least rank 2.
+TEST_CASE(torch_kit_instance_norm_low_rank_op_builder_test)
+{
+    const auto f = migraphx::shape::float_type;
+    migraphx::module mm;
+    mm.add_parameter("x", {f, {4}});
+    EXPECT(test::throws<migraphx::exception>([&] {
+        make_op_module("tm::instance_norm", {{"epsilon", 1e-5f}}, mm.get_parameters());
+    }));
+}

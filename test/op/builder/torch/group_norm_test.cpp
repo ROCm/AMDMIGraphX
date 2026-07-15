@@ -58,3 +58,15 @@ TEST_CASE(torch_kit_group_norm_op_builder_test)
     EXPECT(mm == make_op_module(
                      "tm::group_norm", {{"epsilon", eps}, {"num_groups", 2}}, mm.get_parameters()));
 }
+
+// num_groups must divide the channel dim and the input must have spatial dims.
+TEST_CASE(torch_kit_group_norm_bad_input_op_builder_test)
+{
+    const auto f = migraphx::shape::float_type;
+    migraphx::module mm;
+    mm.add_parameter("x", {f, {2, 3, 4}}); // 3 channels not divisible by num_groups = 2
+    EXPECT(test::throws<migraphx::exception>([&] {
+        make_op_module(
+            "tm::group_norm", {{"epsilon", 1e-5f}, {"num_groups", 2}}, mm.get_parameters());
+    }));
+}

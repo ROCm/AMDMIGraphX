@@ -74,7 +74,7 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
 }
 
 static std::vector<argument> ensure_gpu_kernel_args(const std::vector<argument>& args,
-                                                      pmr::vector<argument>& temps)
+                                                    pmr::vector<argument>& temps)
 {
     std::vector<argument> gpu_args;
     gpu_args.reserve(args.size());

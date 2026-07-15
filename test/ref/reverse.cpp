@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,6 +66,26 @@ TEST_CASE(reverse_test_axis1)
     std::vector<float> gold = data;
     std::reverse(gold.begin(), gold.begin() + 16);
     std::reverse(gold.end() - 16, gold.end());
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+// reverse over a non-standard-strided literal (as produced by folding a transposed constant);
+// reverse must index the input by its logical coordinates, not the output shape's strides.
+// Evaluated uncompiled so the reference op runs on the non-standard input directly; a target
+// compile would first rewrite the literal to a standard shape and mask the bug.
+TEST_CASE(reverse_nonstandard_literal)
+{
+    migraphx::shape in_shape{migraphx::shape::float_type, {2, 3}, {1, 2}};
+    std::vector<float> data = {1, 2, 3, 4, 5, 6};
+    migraphx::program p;
+    auto* mm              = p.get_main_module();
+    auto l                = mm->add_literal(migraphx::literal{in_shape, data});
+    std::vector<int> axes = {1};
+    mm->add_instruction(migraphx::make_op("reverse", {{"axes", axes}}), l);
+    auto result = p.eval({}).back();
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    std::vector<float> gold = {3, 2, 1, 6, 5, 4};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 

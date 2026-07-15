@@ -26,7 +26,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
-#include <migraphx/op/builder/normalize.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -56,7 +55,9 @@ struct group_norm : op_builder<group_norm>
 
         std::vector<int64_t> grouped_dims = {static_cast<int64_t>(lens[0]), num_groups, -1};
         auto grouped = m.insert_instruction(ins, make_op("reshape", {{"dims", grouped_dims}}), x);
-        auto norm    = normalize(m, ins, grouped, {-1}, epsilon);
+        auto norm    = op::builder::insert(
+                        "normalize", m, ins, {grouped}, {{"axes", {-1}}, {"epsilon", epsilon}})
+                        .front();
 
         std::vector<int64_t> out_dims(lens.begin(), lens.end());
         auto norm_r = m.insert_instruction(ins, make_op("reshape", {{"dims", out_dims}}), norm);

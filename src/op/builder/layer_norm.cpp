@@ -24,7 +24,6 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
-#include <migraphx/op/builder/normalize.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -46,7 +45,9 @@ struct layer_norm : op_builder<layer_norm>
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto norm   = normalize(m, ins, args[0], axes, epsilon);
+        auto norm = op::builder::insert(
+                        "normalize", m, ins, {args[0]}, {{"axes", axes}, {"epsilon", epsilon}})
+                        .front();
         auto scaled = insert_common_op(m, ins, "mul", norm, args[1]);
         return {insert_common_op(m, ins, "add", scaled, args[2])};
     }

@@ -26,7 +26,6 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
-#include <migraphx/op/builder/normalize.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -57,7 +56,9 @@ struct instance_norm : op_builder<instance_norm>
         for(int64_t i = 2; i < rank; ++i)
             axes.push_back(i);
 
-        auto norm = normalize(m, ins, x, axes, epsilon);
+        auto norm =
+            op::builder::insert("normalize", m, ins, {x}, {{"axes", axes}, {"epsilon", epsilon}})
+                .front();
 
         // unsqueeze the per-channel scale/bias to broadcast over the spatial dims
         auto scale = args[1];

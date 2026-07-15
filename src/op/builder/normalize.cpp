@@ -1,5 +1,4 @@
-/*
- * The MIT License (MIT)
+/* The MIT License (MIT)
  *
  * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
@@ -22,11 +21,12 @@
  * THE SOFTWARE.
  */
 
-#ifndef MIGRAPHX_GUARD_AMDMIGRAPHX_OP_BUILDER_NORMALIZE_HPP
-#define MIGRAPHX_GUARD_AMDMIGRAPHX_OP_BUILDER_NORMALIZE_HPP
-
+#include <cstdint>
+#include <vector>
 #include <migraphx/instruction.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/builder/insert.hpp>
 
 namespace migraphx {
@@ -34,27 +34,36 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 namespace builder {
 
-// (x - mean) * rsqrt(var + epsilon) reduced over `axes`, with a biased variance.
-inline instruction_ref normalize(module& m,
-                                 instruction_ref ins,
-                                 instruction_ref x,
-                                 const std::vector<int64_t>& axes,
-                                 float epsilon)
+// (x - mean) * rsqrt(var + epsilon) reduced over `axes`, with a biased variance. Shared by the
+// normalization builders (layer_norm, group_norm, instance_norm).
+struct normalize : op_builder<normalize>
 {
-    auto x_type   = x->get_shape().type();
-    auto mean     = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), x);
-    auto x_sub    = insert_common_op(m, ins, "sub", x, mean);
-    auto sqdiff   = insert_common_op(m, ins, "sqdiff", x, mean);
-    auto variance = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), sqdiff);
-    auto eps      = m.add_literal(migraphx::literal{migraphx::shape{x_type}, {epsilon}});
-    auto var_eps  = insert_common_op(m, ins, "add", variance, eps);
-    auto rsqrt    = m.insert_instruction(ins, make_op("rsqrt"), var_eps);
-    return insert_common_op(m, ins, "mul", x_sub, rsqrt);
-}
+    std::vector<int64_t> axes = {};
+    float epsilon             = 1e-5f;
+
+    template <class Self, class F>
+    static auto reflect(Self& self, F f)
+    {
+        return pack(f(self.axes, "axes"), f(self.epsilon, "epsilon"));
+    }
+
+    std::vector<instruction_ref>
+    insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
+    {
+        auto x        = args[0];
+        auto x_type   = x->get_shape().type();
+        auto mean     = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), x);
+        auto x_sub    = insert_common_op(m, ins, "sub", x, mean);
+        auto sqdiff   = insert_common_op(m, ins, "sqdiff", x, mean);
+        auto variance = m.insert_instruction(ins, make_op("reduce_mean", {{"axes", axes}}), sqdiff);
+        auto eps      = m.add_literal(literal{shape{x_type}, {epsilon}});
+        auto var_eps  = insert_common_op(m, ins, "add", variance, eps);
+        auto rsqrt    = m.insert_instruction(ins, make_op("rsqrt"), var_eps);
+        return {insert_common_op(m, ins, "mul", x_sub, rsqrt)};
+    }
+};
 
 } // namespace builder
 } // namespace op
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

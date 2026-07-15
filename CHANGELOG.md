@@ -57,6 +57,7 @@ Full documentation for MIGraphX is available at
 * Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
 * Updated python API to allow getting and adding debug symbols from instructions. (#4803)
 * Allow for 1 arg slicing over a dynamic dimension. (#5015)
+* Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
 
 ### Resolved issues
 

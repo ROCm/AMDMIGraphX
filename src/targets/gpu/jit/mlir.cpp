@@ -219,9 +219,8 @@ struct mlir_compiler : compiler<mlir_compiler>
         }
     }
 
-    mlir_code_object compile_mlir_part(context& ctx,
-                                       const module_with_inputs& mwi,
-                                       const value& solution) const
+    mlir_code_object
+    compile_mlir_part(context& ctx, const module_with_inputs& mwi, const value& solution) const
     {
         auto input_shapes = to_shapes(mwi.inputs);
         input_shapes.push_back(mwi.mod.get_output_shapes().front());
@@ -262,8 +261,9 @@ struct mlir_compiler : compiler<mlir_compiler>
             auto input_args = ins->inputs();
             // remove alloc buffer
             input_args.pop_back();
-            auto tail_split                              = find_layout_tail_split(pointwise_ins);
-            auto split_ins = tail_split.has_value() ? gemm_like_ins : find_final_split(gemm_like_ins);
+            auto tail_split = find_layout_tail_split(pointwise_ins);
+            auto split_ins =
+                tail_split.has_value() ? gemm_like_ins : find_final_split(gemm_like_ins);
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
             if(not is_module_fusible(mod_splits[0].mod, ctx, solution))
             {
@@ -272,14 +272,14 @@ struct mlir_compiler : compiler<mlir_compiler>
             }
             if(tail_split.has_value())
             {
-                auto mod_splits3 = smod->split(input_args, {split_ins}, {tail_split.value()});
-                auto copy_input_shape  = mod_splits3[2].mod.get_output_shapes().front();
-                auto copy_cop = any_cast<code_object_op>(
+                auto mod_splits3      = smod->split(input_args, {split_ins}, {tail_split.value()});
+                auto copy_input_shape = mod_splits3[2].mod.get_output_shapes().front();
+                auto copy_cop         = any_cast<code_object_op>(
                     gpu::compile_op("hip::copy",
                                     ctx,
-                                    {copy_input_shape, ins->inputs().back()->get_shape()},
-                                    {{"lambda", "[](auto x) { return make_tuple(x); }"},
-                                     {"kernel", "hip_copy_kernel"}}));
+                                            {copy_input_shape, ins->inputs().back()->get_shape()},
+                                            {{"lambda", "[](auto x) { return make_tuple(x); }"},
+                                             {"kernel", "hip_copy_kernel"}}));
                 std::vector<mlir_code_object> cops = {
                     compile_mlir_part(ctx, mod_splits3[0], solution),
                     mlir_code_object{compile_pointwise_part(ctx, mod_splits3[1])},
@@ -442,7 +442,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                     return m.replace_instruction(ins, pw_ins);
 
                 auto copy_input_shape = any_cast<code_object_op>(ops[2]).expected_inputs.front();
-                auto copy_input = m.insert_instruction(
+                auto copy_input       = m.insert_instruction(
                     ins,
                     migraphx::make_op("as_shape", {{"shape", to_value(copy_input_shape)}}),
                     pw_ins);

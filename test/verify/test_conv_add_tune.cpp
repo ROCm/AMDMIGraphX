@@ -88,11 +88,11 @@ struct test_conv_add_layout_tune : verify_program<test_conv_add_layout_tune>
         migraphx::program p;
         auto* mm = p.get_main_module();
         auto x1  = mm->add_parameter("x1", {migraphx::shape::half_type, {1, 256, 16, 16}});
-        auto w1 =
-            mm->add_literal(migraphx::generate_literal({migraphx::shape::half_type, {1, 256, 3, 2}}, 1));
+        auto w1  = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::half_type, {1, 256, 3, 2}}, 1));
         auto x2 = mm->add_parameter("x2", {migraphx::shape::half_type, {1, 256, 16, 16}});
-        auto w2 =
-            mm->add_literal(migraphx::generate_literal({migraphx::shape::half_type, {1, 256, 3, 2}}, 1));
+        auto w2 = mm->add_literal(
+            migraphx::generate_literal({migraphx::shape::half_type, {1, 256, 3, 2}}, 1));
 
         auto conv1 = mm->add_instruction(
             migraphx::make_op("convolution", {{"padding", {1, 1, 1, 0}}, {"stride", {2, 2}}}),

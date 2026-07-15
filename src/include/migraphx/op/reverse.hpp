@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -76,7 +76,7 @@ struct reverse
                 {
                     in_idx[axis] = lens[axis] - 1 - out_idx_v[axis];
                 }
-                output[out_idx] = input(in_idx.begin(), in_idx.end());
+                output[out_idx] = input[s.index(in_idx)];
             });
         });
 

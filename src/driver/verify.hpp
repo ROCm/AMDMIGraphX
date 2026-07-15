@@ -25,16 +25,9 @@
 #define MIGRAPHX_GUARD_RTGLIB_DRIVER_VERIFY_HPP
 
 #include "verify_options.hpp"
-#include <migraphx/argument.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/optional.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/verify.hpp>
-#include <functional>
 #include <string>
-#include <unordered_map>
-#include <utility>
-#include <vector>
 
 namespace migraphx {
 namespace driver {
@@ -45,52 +38,6 @@ verify::tolerance get_tolerances(const program& p,
                                  std::optional<double> rms_tol,
                                  std::optional<double> atol,
                                  std::optional<double> rtol);
-
-// Captures ref outputs by debug symbol and compares each target op at its terminal symbol.
-struct verify_callback
-{
-    using trace_function = std::function<void(instruction_ref, const argument&)>;
-
-    struct layer_result
-    {
-        std::string symbol = {};
-        std::string op     = {};
-        std::size_t order  = 0;
-        double rms_error   = 0;
-        double introduced  = 0;
-        bool passed        = false;
-    };
-
-    struct ref_output
-    {
-        argument output   = {};
-        std::size_t order = 0;
-    };
-    struct target_output
-    {
-        argument output                 = {};
-        std::string op                  = {};
-        std::size_t order               = 0;
-        std::vector<std::string> inputs = {};
-    };
-
-    verify::tolerance tols = {};
-
-    std::size_t ref_count                                         = 0;
-    std::unordered_map<std::string, ref_output> ref_outputs       = {};
-    std::unordered_map<std::string, target_output> target_outputs = {};
-    std::unordered_map<std::string, layer_result> results         = {};
-
-    // Latest-reference symbol of ins and its order; empty if none was traced.
-    std::pair<std::string, std::size_t> terminal(instruction_ref ins) const;
-
-    trace_function capture();
-    trace_function compare();
-    void evaluate();
-
-    // The op introducing the most error over its inputs (the divergence source).
-    optional<layer_result> source_failure() const;
-};
 
 bool verify_program(const std::string& name,
                     const program& p,

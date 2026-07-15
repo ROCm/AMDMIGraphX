@@ -39,11 +39,17 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/argument.hpp>
+#include <migraphx/instruction_ref.hpp>
+#include <migraphx/optional.hpp>
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <iterator>
 #include <limits>
+#include <string>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -99,6 +105,56 @@ verify::tolerance get_tolerances(const program& p,
     }
     return result;
 }
+
+namespace {
+
+// Captures ref outputs by debug symbol and compares each target op at its terminal symbol.
+struct verify_callback
+{
+    using trace_function = std::function<void(instruction_ref, const argument&)>;
+
+    struct layer_result
+    {
+        std::string symbol = {};
+        std::string op     = {};
+        std::size_t order  = 0;
+        double rms_error   = 0;
+        double introduced  = 0;
+        bool passed        = false;
+    };
+
+    struct ref_output
+    {
+        argument output   = {};
+        std::size_t order = 0;
+    };
+    struct target_output
+    {
+        argument output                 = {};
+        std::string op                  = {};
+        std::size_t order               = 0;
+        std::vector<std::string> inputs = {};
+    };
+
+    verify::tolerance tols = {};
+
+    std::size_t ref_count                                         = 0;
+    std::unordered_map<std::string, ref_output> ref_outputs       = {};
+    std::unordered_map<std::string, target_output> target_outputs = {};
+    std::unordered_map<std::string, layer_result> results         = {};
+
+    // Latest-reference symbol of ins and its order; empty if none was traced.
+    std::pair<std::string, std::size_t> terminal(instruction_ref ins) const;
+
+    trace_function capture();
+    trace_function compare();
+    void evaluate();
+
+    // The op introducing the most error over its inputs (the divergence source).
+    optional<layer_result> source_failure() const;
+};
+
+} // namespace
 
 static std::vector<argument> run_ref(program p,
                                      const compile_options& options,
@@ -247,7 +303,7 @@ verify_callback::trace_function verify_callback::capture()
 {
     return [this](instruction_ref ins, const argument& output) {
         auto order = ref_count++;
-        auto buf   = output.copy();
+        auto buf   = output.share();
         for(const auto& symbol : ins->get_debug_symbols())
             ref_outputs[symbol] = {buf, order};
     };
@@ -294,7 +350,7 @@ verify_callback::trace_function verify_callback::compare()
                 inputs.push_back(std::move(s));
         }
         // Last-writer-wins on the symbol keeps the fused op's final value, not an interior one.
-        target_outputs[symbol] = {output.copy(), ins->name(), order, std::move(inputs)};
+        target_outputs[symbol] = {output.share(), ins->name(), order, std::move(inputs)};
     };
 }
 
@@ -448,16 +504,19 @@ void verify_reduced_program(const program& p,
         auto vcb = run_layerwise_compare(p, t, options, vo, inputs, tols);
         if(not vcb)
             return;
-        bool any_failed = false;
-        for(const auto& [symbol, lr] : vcb->results)
-        {
-            if(not lr.passed)
-            {
-                any_failed = true;
-                log::error() << "FAILED at " << lr.symbol << " (" << lr.op << ")";
-            }
-        }
-        if(not any_failed)
+        std::vector<verify_callback::layer_result> failures;
+        transform_if(
+            vcb->results.begin(),
+            vcb->results.end(),
+            std::back_inserter(failures),
+            [](const auto& r) { return not r.second.passed; },
+            [](const auto& r) { return r.second; });
+        std::sort(failures.begin(), failures.end(), [](const auto& a, const auto& b) {
+            return a.order < b.order;
+        });
+        for(const auto& lr : failures)
+            log::error() << "FAILED at " << lr.symbol << " (" << lr.op << ")";
+        if(failures.empty())
             log::info() << "MIGraphX verification passed successfully.";
         return;
     }

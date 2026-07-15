@@ -526,9 +526,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto nelements = plan.reduce_output_shape.elements();
 
         hip_compile_options options;
-        options.inputs         = plan.finputs;
+        options.inputs             = plan.finputs;
         options.output         = inputs.back();
-        options.virtual_inputs = plan.virtual_inputs;
+        options.virtual_inputs     = plan.virtual_inputs;
         optional<reduce_tile> tile = nullopt;
         if(plan.assign == "assign_none" and
            (algo == "block_tile" or (algo == "block" and not v.contains("algo"))))
@@ -633,9 +633,9 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         if(op.name() != "fused_reduce")
             return nullopt;
         tuning_config tc;
-        auto shapes = to_shapes(ins->inputs());
-        tc.problem  = to_value(shapes);
-        auto plan   = compute_fused_reduce_plan(ctx, shapes, op.to_value());
+        auto shapes   = to_shapes(ins->inputs());
+        tc.problem    = to_value(shapes);
+        auto plan     = compute_fused_reduce_plan(ctx, shapes, op.to_value());
         auto noutputs = plan.finputs.size() - shapes.size() + 1;
         auto tile     = find_reduce_tile(
             plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());

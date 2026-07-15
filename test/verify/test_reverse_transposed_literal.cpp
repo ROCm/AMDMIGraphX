@@ -27,12 +27,8 @@
 #include <migraphx/literal.hpp>
 #include <numeric>
 
-// Regression test for reverse::compute on a non-standard input. Transposing a
-// constant produces a non-standard-strided literal; when reverse runs on it (as
-// happens when the transpose+reverse chain is constant-folded during GPU
-// compilation) the op must still index the input by its logical coordinates.
-// Previously reverse indexed the input using the output shape's strides, which
-// yielded wrong results for non-standard input.
+// reverse over a transposed constant, which constant-folds into a non-standard
+// literal that reverse must index by its logical coordinates
 struct test_reverse_transposed_literal : verify_program<test_reverse_transposed_literal>
 {
     migraphx::program create_program() const

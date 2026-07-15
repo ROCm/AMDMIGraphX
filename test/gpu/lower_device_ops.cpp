@@ -32,7 +32,6 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/compiler.hpp>
-#include <algorithm>
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m)
@@ -143,31 +142,11 @@ TEST_CASE(hip_fill_kernel_runs)
     EXPECT(result == migraphx::literal{s, expected}.get_argument());
 }
 
-// A tuple (multi-output) buffer is expanded into a per-sub-object fill so every fill becomes a
-// code object; an identity returns the original tuple buffer while sequencing the sub-fills
-// before any consumer.
 TEST_CASE(lower_hip_fill_tuple)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     migraphx::shape tup{std::vector<migraphx::shape>{s, s}};
-
-    migraphx::module m;
-    {
-        auto alloc = m.add_instruction(
-            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(tup)}}));
-        auto fill = m.add_instruction(migraphx::make_op("hip::fill", {{"value", 0}}), alloc);
-        m.add_return({fill});
-    }
-    run_pass(m);
-
-    auto count = [&](const std::string& name) {
-        return std::count_if(
-            m.begin(), m.end(), [&](const migraphx::instruction& i) { return i.name() == name; });
-    };
-    EXPECT(count("hip::fill") == 0);
-    EXPECT(count("get_tuple_elem") == 2);
-    EXPECT(count("gpu::precompile_op") == 2);
-    EXPECT(count("identity") == 1);
+    check_lowered(migraphx::make_op("hip::fill", {{"value", 0}}), {tup});
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

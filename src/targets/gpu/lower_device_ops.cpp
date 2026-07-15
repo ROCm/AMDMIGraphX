@@ -26,10 +26,7 @@
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/ranges.hpp>
 #include <migraphx/value.hpp>
-#include <algorithm>
-#include <cassert>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -56,36 +53,7 @@ struct find_device_memory_op
         auto ins = r.result;
         if(ins->get_shape().dynamic())
             return;
-        assert(not ins->inputs().empty());
-
-        const auto& subs = ins->get_shape().sub_shapes();
-
-        assert(std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {
-            return in->get_shape().sub_shapes().size() == subs.size();
-        }));
-
-        auto pre = precompiled(ins);
-        if(subs.empty())
-        {
-            m.replace_instruction(ins, pre, ins->inputs());
-            return;
-        }
-
-        // A code object handles one tensor, so a tuple buffer is filled/copied per sub-object
-        std::vector<instruction_ref> elems = {ins->inputs().back()};
-        for(auto i : range(subs.size()))
-        {
-            std::vector<instruction_ref> sub_inputs;
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           std::back_inserter(sub_inputs),
-                           [&](auto in) {
-                               return m.insert_instruction(
-                                   ins, make_op("get_tuple_elem", {{"index", i}}), in);
-                           });
-            elems.push_back(m.insert_instruction(ins, pre, sub_inputs));
-        }
-        m.replace_instruction(ins, make_op("identity"), elems);
+        m.replace_instruction(ins, precompiled(ins), ins->inputs());
     }
 };
 } // namespace

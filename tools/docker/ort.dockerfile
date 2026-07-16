@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ARG ROCM_VERSION=7.14
 ARG GPU_ARCH=""

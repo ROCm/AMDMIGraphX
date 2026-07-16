@@ -43,8 +43,11 @@
 #                         that must run on any GPU.
 #   --whl                 Install the ROCm "amdrocm-*" components from Python
 #                         wheels (pip) instead of the system package manager.
-#   --index-url <url>     Override the pip --index-url used with --whl. Defaults
-#                         to https://rocm.prereleases.amd.com/whl-multi-arch.
+#   --index-url <url>     Override the pip --index-url used with --whl. Common
+#                         values to use would be
+#                         https://repo.amd.com/rocm/whl-multi-arch
+#                         https://rocm.prereleases.amd.com/whl-multi-arch
+#                         https://rocm.nightlies.amd.com/whl-multi-arch/
 
 set -eo pipefail
 
@@ -252,53 +255,26 @@ esac
 pkg_refresh
 pkg_install "${BUILD_PKGS[@]}"
 
-# Minimal set of ROCm components required to configure, compile, link, and
-# package MIGraphX. Only the libraries MIGraphX actually resolves via cmake
-# find_package are pulled in (HIP/HSA/hiprtc, rocBLAS/hipBLAS/hipBLASLt, MIOpen,
-# hipBLAS-common); composable_kernel and rocMLIR are built from source.
-#
-# Mapping of MIGraphX requirement -> owning amdrocm package:
-#   compiler (clang++/hipcc) + device bitcode  amdrocm-llvm      (pulled by runtime)
-#   rocm_version.h, rocminfo                    amdrocm-base      (pulled by runtime)
-#   hip / hsa-runtime64 / hiprtc                amdrocm-runtime(-dev)
-#   rocblas / hipblas / hipblaslt               amdrocm-blas(-dev)
-#   miopen                                      amdrocm-dnn(-dev)
-#   hipblas-common headers                      amdrocm-hipblas-common-dev
-#
-# amdrocm-runtime-dev transitively installs amdrocm-runtime, amdrocm-base,
-# amdrocm-llvm and amdrocm-llvm-dev, so the whole compiler/HIP stack comes with
-# it. The -dev packages for blas/dnn do NOT pull their runtime libraries, so
-# those are listed explicitly. Per-gfx device-code packages are NOT required to
-# build or package; they are only needed to run on a GPU and are added below
-# when a target architecture is supplied.
+# Install the ROCm packages, by WHL or by OS package
 if [[ "$USE_WHL" -eq 1 ]]; then
-    # Install the ROCm components from Python wheels. The index URL defaults to
-    # the prereleases channel but can be overridden with --index-url (e.g.
-    # https://repo.amd.com/rocm/whl-multi-arch).
+    # Install the ROCm components from Python wheels.
     echo "Using pip index URL: ${INDEX_URL}"
-    pip3 install --no-build-isolation   --index-url "$INDEX_URL"   "rocm[libraries,devel,device-${GPU_ARCH:-all}]"
+    python3 -m pip install --no-build-isolation   --index-url "$INDEX_URL"   "rocm[libraries,devel,device-${GPU_ARCH:-all}]"
     rocm-sdk init
 
 else
     ROCM_PKGS=(
         "amdrocm-runtime${DEV_SUFFIX}${ROCM_VERSION}"
         "amdrocm-blas${DEV_SUFFIX}${ROCM_VERSION}"
-        "amdrocm-blas${ROCM_VERSION}"
+        "amdrocm-blas-host${ROCM_VERSION}"
         "amdrocm-dnn${DEV_SUFFIX}${ROCM_VERSION}"
-        "amdrocm-dnn${ROCM_VERSION}"
+        "amdrocm-dnn-host${ROCM_VERSION}"
         "amdrocm-hipblas-common${DEV_SUFFIX}${ROCM_VERSION}"
     )
 
-    # Device code is optional for the build itself (the host libraries above are
-    # enough to configure/compile/link/package), but is required to run on a GPU.
-    # The target architecture is taken solely from --gpu; there is no rocminfo
-    # auto-detection:
-    #   * --gpu <arch> set -> add the small "skinny" per-gfx packages.
-    #     amdrocm-dnn<ver>-<arch> pulls the matching rocBLAS and solver device
-    #     code transitively.
-    #   * --gpu unset      -> add the "fat" amdrocm-core<ver> umbrella, which
-    #     carries device code for every supported architecture so the resulting
-    #     build runs on any GPU (convenient for CI).
+    #  --gpu <arch> set -> add the small "skinny" per-gfx packages.
+    #  amdrocm-dnn<ver>-<arch> pulls the matching rocBLAS and solver device
+    #  code transitively.
     if [[ -n "$GPU_ARCH" ]]; then
         echo "Adding skinny device-code packages for ${GPU_ARCH}"
         ROCM_PKGS+=(
@@ -314,6 +290,4 @@ fi
 
 python3 -m pip install setuptools wheel
 
-# rbuild is used to build the MIGraphX third-party dependencies. This pip
-# install always runs, independent of the --whl flag.
 python3 -m pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz

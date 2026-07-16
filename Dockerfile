@@ -104,7 +104,7 @@ RUN python3 -m pip install onnxruntime clang-format==22.1.5 yapf==0.28.0
 
 # Install doc requirements
 ADD docs/sphinx/requirements.txt /doc-requirements.txt
-#RUN pip3 install -r /doc-requirements.txt
+RUN pip3 install --ignore-installed -r /doc-requirements.txt
 #
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake

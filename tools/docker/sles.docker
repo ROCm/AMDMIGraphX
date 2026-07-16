@@ -1,4 +1,4 @@
-# MIGraphX build/packaging image for SLES (TheRock amdrocm-* packages, ROCm 7.13).
+# MIGraphX build/packaging image for SLES (TheRock amdrocm-* packages, ROCm 7.14).
 #
 # Mirrors the TheRock setup used by the root Dockerfile and hip-clang.docker, but
 # for SUSE Linux Enterprise using zypper/rpm. The ROCm toolchain comes from
@@ -13,7 +13,7 @@
 #
 # Build (from the repo root, which is the build context):
 #   docker build -f tools/docker/sles.docker \
-#       --build-arg ROCM_VERSION=7.13 \
+#       --build-arg ROCM_VERSION=7.14 \
 #       --build-arg GPU_ARCH=<gpu_arch> \
 #       -t migraphx-sles .
 
@@ -22,7 +22,7 @@ FROM registry.suse.com/suse/sle15:15.6
 # Install location for the prebuilt MIGraphX dependencies.
 ARG PREFIX=/usr/local
 # ROCm release version for TheRock versioned package names (e.g. amdrocm-runtime7.13).
-ARG ROCM_VERSION=7.13
+ARG ROCM_VERSION=7.14
 # GPU architecture family (e.g. gfx942); empty installs the fat (all-architecture)
 # device code, which lets the image run on any GPU.
 ARG GPU_ARCH=""

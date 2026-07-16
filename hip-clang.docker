@@ -1,4 +1,4 @@
-# MIGraphX CI build image (TheRock amdrocm-* packages, ROCm 7.13, Ubuntu 24.04).
+# MIGraphX CI build image (TheRock amdrocm-* packages, ROCm 7.14, Ubuntu 24.04).
 #
 # Built and published by .github/workflows/ci.yaml and consumed by the tidy,
 # cppcheck and format jobs. The ROCm toolchain comes from TheRock's "amdrocm-*"
@@ -10,8 +10,8 @@ FROM ubuntu:24.04
 
 # Install location for the prebuilt MIGraphX dependencies.
 ARG PREFIX=/usr/local
-# ROCm release version for TheRock versioned package names (e.g. amdrocm-runtime7.13).
-ARG ROCM_VERSION=7.13
+# ROCm release version for TheRock versioned package names (e.g. amdrocm-runtime7.14).
+ARG ROCM_VERSION=7.14
 # GPU architecture family (e.g. gfx942); empty installs the fat (all-architecture)
 # device code, which lets the image run on any GPU in CI.
 ARG GPU_ARCH=""

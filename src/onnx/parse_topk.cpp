@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/literal.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -40,18 +41,6 @@ struct parse_topk : op_parser<parse_topk>
                                        onnx_parser::node_info info,
                                        std::vector<instruction_ref> args) const
     {
-        int64_t k = 0;
-        if(args.size() == 2)
-        {
-            auto arg_k = args.at(1)->eval();
-            check_arg_empty(arg_k, "PARSE_TopK: k input must be constant");
-            k = arg_k.at<int>();
-        }
-        else if(contains(info.attributes, "k"))
-        {
-            k = info.attributes.at("k").i();
-        }
-
         bool largest = true;
         if(contains(info.attributes, "largest"))
         {
@@ -64,11 +53,47 @@ struct parse_topk : op_parser<parse_topk>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
+        bool var_k = false;
+        int64_t k  = 0;
+        if(args.size() == 2)
+        {
+            auto arg_k = args.at(1)->eval();
+            if(not arg_k.empty())
+            {
+                k = arg_k.at<int>();
+            }
+            else
+            {
+                var_k = true;
+            }
+        }
+        else if(contains(info.attributes, "k"))
+        {
+            k = info.attributes.at("k").i();
+        }
+
+        if(var_k)
+        {
+            // set `k` to axis dimension
+            auto input_shape = args.at(0)->get_shape();
+            auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
+            k                = input_shape.max_lens().at(norm_axis);
+        }
+
         auto topk_ret = info.add_instruction(
             make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
 
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
         auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
+
+        if(var_k)
+        {
+            // dynamic slice on outputs of `topk`
+            ret_val = info.add_instruction(
+                make_op("slice", {{"starts", {0}}, {"axes", {axis}}}), ret_val, args.at(1));
+            ret_ind = info.add_instruction(
+                make_op("slice", {{"starts", {0}}, {"axes", {axis}}}), ret_ind, args.at(1));
+        }
 
         return {ret_val, ret_ind};
     }

@@ -247,6 +247,11 @@ TEST_CASE(cross_compile_wavefront_size)
 {
     EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx1101", 1).warpSize == 32);
     EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx942", 1).warpSize == 64);
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx942", 1, 2048, 1024, 32).warpSize ==
+           32);
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx12xx", 1).warpSize == 32);
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx12xx", 1, 2048, 1024, 64).warpSize ==
+           64);
 }
 
 TEST_CASE(compile_errors)

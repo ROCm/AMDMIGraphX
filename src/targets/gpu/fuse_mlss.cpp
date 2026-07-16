@@ -26,6 +26,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
@@ -56,10 +57,9 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_MLSS_USE_SPECIFIC_OPS);
 
 static bool mlss_specific_op(std::string_view op_name)
 {
-    static const auto options =
+    static const auto env =
         split_string(string_value_of(MIGRAPHX_MLSS_USE_SPECIFIC_OPS{}, ""), ',');
-    return std::any_of(
-        options.begin(), options.end(), [&](const auto& opt) { return opt == op_name; });
+    return contains(env, op_name);
 }
 
 // ---------------------------------------------------------------------------
@@ -382,7 +382,7 @@ struct find_mlss_conv_bias_leaky_relu
 void fuse_mlss::apply(module_pass_manager& mpm) const
 {
 #ifdef MIGRAPHX_USE_AMDMLSS
-    if(enable_conv or mlss_specific_op("conv"))
+    if(contains(use_specific_ops, "conv") or mlss_specific_op("conv"))
     {
         // Match most-specific patterns first to avoid partial consumption.
         match::find_matches(mpm, find_mlss_conv_bias_relu{ctx});

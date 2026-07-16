@@ -59,6 +59,7 @@ add_library(migraphx
     common_dims.cpp
     compile_src.cpp
     convert_to_json.cpp
+    convolution.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
     dim_like.cpp
@@ -122,6 +123,7 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
+    rewrite_convolution.cpp
     rewrite_reduce.cpp
     rewrite_resize.cpp
     rewrite_dot.cpp

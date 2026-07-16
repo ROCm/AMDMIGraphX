@@ -791,9 +791,9 @@ struct find_kv_cache_attention
         auto keys = match::any_of(concat_k, fixed_pad_k);
         auto k_transpose =
             match::skip(match::name(skip_set))(match::name("transpose")(match::arg(0)(keys)));
-        auto slice_q = match::name("slice");
-        auto add_q = match::name("add");
-        auto queries = match::any_of(slice_q, add_q);
+        auto slice_q         = match::name("slice");
+        auto add_q           = match::name("add");
+        auto queries         = match::any_of(slice_q, add_q);
         auto gemm1   = match::name("dot")(match::arg(0)(queries), match::arg(1)(k_transpose));
         auto gemm1_maybe_cvt = match::skip(match::name("convert"))(gemm1);
         auto scale           = match::name("mul")(match::any_arg(0, 1)(gemm1_maybe_cvt));
@@ -810,18 +810,17 @@ struct find_kv_cache_attention
         auto conv_greater =
             match::skip(match::name("unsqueeze"))(match::name("convert")(match::arg(0)(greater)));
         auto broadcast_greater = match::name("broadcast")(match::arg(0)(conv_greater));
-        auto multibroadcast_greater = match::name("multibroadcast")(match::arg(0)(broadcast_greater));
+        auto multibroadcast_greater =
+            match::name("multibroadcast")(match::arg(0)(broadcast_greater));
         auto bc_greater = match::any_of(broadcast_greater, multibroadcast_greater);
         auto mask       = match::name("where")(
             match::arg(0)(bc_greater),
             match::arg(2)(match::any_of(local_window_mask, causal_mask, scale, gemm1_maybe_cvt)));
         auto attn_probabilities = match::skip(match::name("convert"))(
             match::softmax_input(match::skip(match::name("convert"))(mask)));
-        auto concat_v =
-            match::skip(match::name(skip_set))(match::name("concat_past_present"));
-        auto fixed_pad_v =
-            match::skip(match::name(skip_set))(match::name("fixed_pad"));
-        auto values = match::any_of(concat_v, fixed_pad_v).bind("pres_v");
+        auto concat_v    = match::skip(match::name(skip_set))(match::name("concat_past_present"));
+        auto fixed_pad_v = match::skip(match::name(skip_set))(match::name("fixed_pad"));
+        auto values      = match::any_of(concat_v, fixed_pad_v).bind("pres_v");
         auto gemm2 = match::name("dot")(match::arg(0)(attn_probabilities), match::arg(1)(values));
         auto transpose_out = match::name("transpose")(match::arg(0)(gemm2));
         return match::name("reshape")(match::arg(0)(transpose_out));

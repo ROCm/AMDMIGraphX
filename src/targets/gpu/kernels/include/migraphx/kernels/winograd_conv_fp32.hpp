@@ -127,8 +127,8 @@ __device__ inline array<float, 4> wino_f23_bt_u(const array<float, 4>& p)
 //           reduce their partial M accumulators through LDS. SK=1 is the plain
 //           no-split path (no LDS). SK>1 fills otherwise-idle waves and cuts
 //           per-wave input traffic on shapes with few tiles + many channels.
-//   PIPE  : 0 = simple transform-then-FMA per channel block; 1 = software-pipeline
-//           the next block's input transform into the current block's FMA loop so
+//   PIPE  : false = simple transform-then-FMA per channel block; true = software-
+//           pipeline the next block's input transform into the current block's loop so
 //           the (non-dual-issue) DPP transform ops interleave with the dual-issue
 //           FMAs instead of clustering ahead of them. PIPE=1 costs a second live
 //           v_reg -- a tuner-selected option that wins on FMA-throughput-bound
@@ -145,7 +145,7 @@ template <index_int NW,
           index_int KO,
           index_int TILES,
           index_int SK,
-          index_int PIPE,
+          bool PIPE,
           class PostInput,
           class F,
           class Output,
@@ -360,7 +360,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                     });
                 });
             });
-            if constexpr(PIPE != 0)
+            if constexpr(PIPE)
             {
                 if(has_next)
                     transform_chan(v_next, c_next, nchan_next, uu);
@@ -372,7 +372,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // Channel loop, CU channels per step. With SK>1 the CU-blocks are split
     // round-robin across the SK waves of this NT-group (each wave sums 1/SK of the
     // channels into its own partial M).
-    if constexpr(PIPE != 0)
+    if constexpr(PIPE)
     {
         // Software-pipelined: transform block N+1 while FMA-accumulating block N.
         // Costs a second live v_reg (higher VGPR) -- a tuner-selected option gated

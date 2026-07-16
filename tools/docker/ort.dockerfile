@@ -1,14 +1,18 @@
 FROM ubuntu:22.04
 
+ARG ROCM_VERSION=7.14
+ARG GPU_ARCH=""
+
 # Install rocm key
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
 
-# Add rocm repository
-RUN sh -c 'echo deb [arch=amd64 trusted=yes] http://repo.radeon.com/rocm/apt/7.2.3/ jammy main > /etc/apt/sources.list.d/rocm.list'
-
-# From docs.amd.com for installing rocm. Needed to install properly
-RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
+# Register the ROCm apt repository and its signing key.
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings && \
+    curl -fsSL https://repo.amd.com/rocm/packages/gpg/rocm.gpg | \
+        gpg --dearmor | tee /etc/apt/keyrings/amdrocm.gpg > /dev/null && \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages-multi-arch/ubuntu2404 stable main" \
+        > /etc/apt/sources.list.d/rocm.list
 
 
 ARG ONNXRUNTIME_REPO=https://github.com/microsoft/onnxruntime
@@ -23,10 +27,29 @@ COPY test/onnx/.onnxrt-commit /.onnxrt-commit
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
     gdb \
     git \
-    half \
     locales \
     pip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY tools/install_prereqs.sh /tmp/install_prereqs.sh
+RUN chmod +x /tmp/install_prereqs.sh && \
+    /tmp/install_prereqs.sh \
+        --rocm-version ${ROCM_VERSION} \
+        ${GPU_ARCH:+--gpu ${GPU_ARCH}} && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ # TheRock installs into a versioned root (/opt/rocm/core-<ver>). Expose the
+ # conventional /opt/rocm/{bin,lib,llvm,...} layout expected by MIGraphX tooling.
+ RUN mkdir -p /opt/rocm && \
+     for d in bin lib libexec include share llvm amdgcn; do \
+         ln -snf core-${ROCM_VERSION}/$d /opt/rocm/$d; \
+     done && \
+     echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf && \
+     echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf && \
+     ldconfig
+ ENV ROCM_PATH=/opt/rocm
+ ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
 
 # Workaround broken rocm packages
 RUN ln -s /opt/rocm-* /opt/rocm

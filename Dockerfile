@@ -5,6 +5,8 @@
 #   GPU_ARCH          GPU architecture family (e.g. gfx120x, gfx94x)
 #   USE_WHL           Set to a non-empty value to install ROCm from Python
 #                     wheels (pip) instead of system packages
+#   INDEX_URL         pip --index-url used when installing ROCm from wheels
+#                     (only effective together with USE_WHL)
 #
 # Build:
 #   docker build --build-arg GPU_ARCH=<gpu_arch> \
@@ -26,11 +28,18 @@ FROM ubuntu:24.04
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # ROCm release version (used in versioned package names, e.g. amdrocm-developer-tools7.13)
-ARG ROCM_VERSION="7.13"
+ARG ROCM_VERSION="7.14"
 # GPU architecture family (e.g. gfx942, gfx120x); leave empty for arch-independent packages
 ARG GPU_ARCH=""
 # Install location for the prebuilt MIGraphX dependencies.
 ARG PREFIX=/usr/local
+# Install the MIGraphX build prerequisites (system packages + ROCm components).
+# Set USE_WHL to any non-empty value to install ROCm from Python wheels instead
+# of system packages (passes --whl to the prereqs script).
+ARG USE_WHL=""
+# pip index URL for the wheel-based ROCm install (only used when USE_WHL is set).
+ARG INDEX_URL="https://repo.amd.com/rocm/whl-multi-arch/"
+
 
 # Install prerequisites needed to fetch and dearmor the ROCm signing key.
 RUN apt-get update && \
@@ -47,10 +56,6 @@ RUN mkdir --parents --mode=0755 /etc/apt/keyrings && \
     echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages-multi-arch/ubuntu2404 stable main" \
         > /etc/apt/sources.list.d/rocm.list
 
-# Install the MIGraphX build prerequisites (system packages + ROCm components).
-# Set USE_WHL to any non-empty value to install ROCm from Python wheels instead
-# of system packages (passes --whl to the prereqs script).
-ARG USE_WHL=""
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 # Install dependencies
@@ -67,6 +72,7 @@ RUN chmod +x /tmp/install_prereqs.sh && \
     /tmp/install_prereqs.sh \
         --rocm-version ${ROCM_VERSION} \
         ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
+        --index-url ${INDEX_URL} \
         ${USE_WHL:+--whl} && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -85,7 +91,7 @@ RUN chmod +x /tmp/install_prereqs.sh && \
 
 
 # Additional packages
-RUN python3 -m pip install --index-url https://repo.amd.com/rocm/whl-multi-arch \
+RUN python3 -m pip install --index-url "${INDEX_URL}" \
     "torch==2.11.0+rocm${ROCM_VERSION}.0" \
     "torchvision==0.26.0+rocm${ROCM_VERSION}.0" \
     "torchaudio==2.11.0+rocm${ROCM_VERSION}.0"

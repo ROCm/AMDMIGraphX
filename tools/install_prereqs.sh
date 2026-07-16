@@ -32,7 +32,7 @@
 # or from Python wheels when --whl is supplied.
 #
 # Usage:
-#   install_prereqs.sh [--rocm-version <ver>] [--gpu <arch>] [--whl]
+#   install_prereqs.sh [--rocm-version <ver>] [--gpu <arch>] [--whl] [--index-url <url>]
 #
 #   --rocm-version <ver>  ROCm release version used in versioned package names,
 #                         e.g. 7.13 -> amdrocm-developer-tools7.13
@@ -43,6 +43,8 @@
 #                         that must run on any GPU.
 #   --whl                 Install the ROCm "amdrocm-*" components from Python
 #                         wheels (pip) instead of the system package manager.
+#   --index-url <url>     Override the pip --index-url used with --whl. Defaults
+#                         to https://rocm.prereleases.amd.com/whl-multi-arch.
 
 set -eo pipefail
 
@@ -53,6 +55,7 @@ export PIP_BREAK_SYSTEM_PACKAGES=1
 ROCM_VERSION=""
 GPU_ARCH=""
 USE_WHL=0
+INDEX_URL="https://repo.amd.com/rocm/whl-multi-arch/"
 
 usage()
 {
@@ -90,6 +93,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --whl)
             USE_WHL=1
+            shift
+            ;;
+        --index-url)
+            require_value "$@"
+            INDEX_URL="$2"
+            shift 2
+            ;;
+        --index-url=*)
+            INDEX_URL="${1#*=}"
             shift
             ;;
         -h | --help)
@@ -260,8 +272,12 @@ pkg_install "${BUILD_PKGS[@]}"
 # build or package; they are only needed to run on a GPU and are added below
 # when a target architecture is supplied.
 if [[ "$USE_WHL" -eq 1 ]]; then
-    # Install the ROCm components from Python wheels.
-    pip3 install --index-url https://repo.amd.com/rocm/whl-multi-arch/ "rocm[libraries,devel]" --target /opt/rocm
+    # Install the ROCm components from Python wheels. The index URL defaults to
+    # the prereleases channel but can be overridden with --index-url (e.g.
+    # https://repo.amd.com/rocm/whl-multi-arch).
+    echo "Using pip index URL: ${INDEX_URL}"
+    pip3 install --no-build-isolation   --index-url "$INDEX_URL"   "rocm[libraries,devel,device-${GPU_ARCH:-all}]"
+    rocm-sdk init
 
 else
     ROCM_PKGS=(

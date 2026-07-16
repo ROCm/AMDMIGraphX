@@ -77,6 +77,7 @@
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/propagate_reshape_layout.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
@@ -249,6 +250,7 @@ struct pipeline_factory
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
+            lower_device_ops{},
             compile_ops{get_context(), options.exhaustive_tune},
             dead_code_elimination{},
             promote_literals{},

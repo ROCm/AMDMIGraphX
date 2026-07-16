@@ -85,21 +85,30 @@ __device__ inline vec<float, 4> wino_fp32_load4(__amdgpu_buffer_rsrc_t rsrc, int
     return bit_cast<vec<float, 4>>(v);
 }
 
-// quad_perm:[2,2,1,1] control byte: lane0<-2, lane1<-2, lane2<-1, lane3<-1.
-//   0b01'01'10'10 = 0x5A. Broadcasts lane2 to {0,1} and lane1 to {2,3}, which
-//   is the pair of neighbours the 4-point B^T needs on the lane (v) axis.
-constexpr unsigned int dpp_quad_2211 = 0x5A;
-
 // Input transform, v axis (across the 4 lanes of a quad). Given this lane's raw
 // datum d for one tile row, returns P = B^T applied along the v (W) axis.
 //   lane0: d0 - d2   lane1: d1 + d2   lane2: d2 - d1   lane3: d3 - d1
-// shuf_sign encodes the +/- on the shuffled neighbour (self coefficient is
-// always +1); lane3 uses -1, which yields the sign-variant d3-d1 that the host
-// weight compensates for.
+// The quad_perm:[2,2,1,1] shuffle broadcasts lane2 to {0,1} and lane1 to {2,3} --
+// the pair of neighbours the 4-point B^T needs -- and shuf_sign encodes the +/-
+// on that neighbour (self coefficient is always +1); lane3 uses -1, which yields
+// the sign-variant d3-d1 that the host weight compensates for.
 __device__ inline float wino_f23_bt_v(float d, float shuf_sign)
 {
-    float s = dpp_mov<dpp_quad_2211>(d);
-    return d + s * shuf_sign;
+    // Fused butterfly: acc = shuf_sign*dpp(d) + d in ONE v_fmac_f32_dpp. The
+    // compiler cannot emit this: GCNDPPCombine has an explicit TODO that discards
+    // MAC/FMA (the fmac DPP form has no "old" operand slot), so the intrinsic
+    // dpp_mov lowers to mov_dpp + cndmask + add (3 VALU) instead. The hand-written
+    // fused op is 1 VALU. The asm is deliberately non-volatile so it stays
+    // schedulable -- the surrounding input loads still software-pipeline (a
+    // volatile block would serialize them, which is why prior asm attempts were
+    // slower). quad_perm only sources in-quad lanes, so bound_ctrl:1 (required for
+    // the fused encoding) changes no result.
+    float acc = d;
+    asm("v_fmac_f32_dpp %[acc], %[d], %[sign] quad_perm:[2,2,1,1] row_mask:0xf "
+        "bank_mask:0xf bound_ctrl:1"
+        : [acc] "+v"(acc)
+        : [d] "v"(d), [sign] "v"(shuf_sign));
+    return acc;
 }
 
 // Input transform, u axis (across the 4 registers P[0..3]). B^T along H.
@@ -118,6 +127,12 @@ __device__ inline array<float, 4> wino_f23_bt_u(const array<float, 4>& p)
 //           reduce their partial M accumulators through LDS. SK=1 is the plain
 //           no-split path (no LDS). SK>1 fills otherwise-idle waves and cuts
 //           per-wave input traffic on shapes with few tiles + many channels.
+//   PIPE  : 0 = simple transform-then-FMA per channel block; 1 = software-pipeline
+//           the next block's input transform into the current block's FMA loop so
+//           the (non-dual-issue) DPP transform ops interleave with the dual-issue
+//           FMAs instead of clustering ahead of them. PIPE=1 costs a second live
+//           v_reg -- a tuner-selected option that wins on FMA-throughput-bound
+//           shapes; gated to small solutions since it spills for large TILES/KO.
 //
 // The channel contraction is unrolled by CU=4 so the shared weight can be read
 // with one b128 per (u,k) covering 4 channels, and so the load latency of the
@@ -130,6 +145,7 @@ template <index_int NW,
           index_int KO,
           index_int TILES,
           index_int SK,
+          index_int PIPE,
           class PostInput,
           class F,
           class Output,
@@ -260,33 +276,55 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // Accumulators M[u][t][k].
     array<array<array<float, KO>, TILES>, 4> m{};
 
-    auto do_channels = [&](index_int c0, index_int nchan) {
-        // Input transform for nchan channels -> v_reg[t][u][cu].
-        array<array<array<float, CU>, 4>, TILES> v_reg{};
+    using v_reg_t = array<array<array<float, CU>, 4>, TILES>;
+
+    // Input transform of ONE channel cu of the block at c0 (all TILES tiles) into
+    // vr. This is the DPP-heavy part (4 fmac_dpp per tile). cu is a compile-time
+    // integral_constant so it selects the fixed v_reg slot.
+    auto transform_chan = [&](v_reg_t& vr, index_int c0, index_int nchan, auto cc) {
+        constexpr index_int cu = cc;
+        if(cu >= nchan)
+            return;
+        const int32_t coff = static_cast<int32_t>((c0 + cu) * c_stride_x * sizeof(float));
         repeat_c<TILES>([&](auto tt) {
             constexpr index_int t = tt;
-            repeat_c<CU>([&](auto cc) {
-                constexpr index_int cu = cc;
-                if(cu >= nchan)
-                    return;
-                const int32_t coff = static_cast<int32_t>((c0 + cu) * c_stride_x * sizeof(float));
-                array<float, 4> p{};
-                repeat_c<4>([&](auto aa) {
-                    constexpr int a = aa;
-                    const float d   = wino_fp32_load(x_rsrc, x_off[t][a] + coff);
-                    p[a]            = wino_f23_bt_v(d, in_shuf_sign);
-                });
-                const auto vu = wino_f23_bt_u(p);
-                repeat_c<4>([&](auto uu) { v_reg[t][uu][cu] = vu[uu]; });
+            array<float, 4> p{};
+            repeat_c<4>([&](auto aa) {
+                constexpr int a = aa;
+                const float d   = wino_fp32_load(x_rsrc, x_off[t][a] + coff);
+                p[a]            = wino_f23_bt_v(d, in_shuf_sign);
             });
+            const auto vu = wino_f23_bt_u(p);
+            repeat_c<4>([&](auto uu) { vr[t][uu][cu] = vu[uu]; });
         });
-        // Weight load (b128 over CU channels) + FMA accumulate. The FMA nest is
-        // channel-outer (cu), then (k, t): each cu-iteration updates KO*TILES
-        // *independent* accumulators, so consecutive FMAs are dependency-free and
-        // the matrix pipe stays busy. Accumulating cu-inner instead would chain
-        // all CU contributions into one accumulator (a length-CU serial FMA
-        // chain), which stalls on gfx12's VALU write latency. This u's KO weight
-        // vectors are loaded up front so they can feed the cu loop.
+    };
+
+    // Full block transform (all CU channels) -- used for the pipeline prologue.
+    auto transform_block = [&](index_int c0, index_int nchan) {
+        v_reg_t vr{};
+        repeat_c<CU>([&](auto cc) { transform_chan(vr, c0, nchan, cc); });
+        return vr;
+    };
+
+    // Weight load (b128 over CU channels) + FMA accumulate for the block whose
+    // transform is in v_cur. The FMA nest is channel-outer (cu), then (k, t): each
+    // cu-iteration updates KO*TILES *independent* accumulators, so consecutive
+    // FMAs are dependency-free and the matrix pipe stays busy. This u's KO weight
+    // vectors are loaded up front so they can feed the cu loop.
+    //
+    // For PIPE!=0 and has_next, the NEXT block's transform is software-pipelined
+    // in: u-iteration u transforms next-block channel cu=u into v_next, then a
+    // sched_barrier pins it so the compiler can neither hoist/cluster the DPP ahead
+    // of the FMA stream nor over-pipeline into a spill. This interleaves the
+    // non-dual-issue DPP ops with the dual-issuable FMAs (MIOpen-style). The whole
+    // weave is compiled out for PIPE==0 (v_next is then an unused dummy).
+    auto fma_block = [&](const v_reg_t& v_cur,
+                         index_int c0,
+                         index_int nchan,
+                         bool has_next,
+                         v_reg_t& v_next,
+                         index_int c_next,
+                         index_int nchan_next) {
         const int32_t coff_w = static_cast<int32_t>(c0 * sizeof(float));
         repeat_c<4>([&](auto uu) {
             constexpr index_int u = uu;
@@ -318,21 +356,62 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                     constexpr index_int k = kk;
                     repeat_c<TILES>([&](auto tt) {
                         constexpr index_int t = tt;
-                        m[u][t][k] += v_reg[t][u][cu] * wv[k][cu];
+                        m[u][t][k] += v_cur[t][u][cu] * wv[k][cu];
                     });
                 });
             });
+            if constexpr(PIPE != 0)
+            {
+                if(has_next)
+                    transform_chan(v_next, c_next, nchan_next, uu);
+                __builtin_amdgcn_sched_barrier(0);
+            }
         });
     };
 
     // Channel loop, CU channels per step. With SK>1 the CU-blocks are split
-    // round-robin across the SK waves of this NT-group (each wave sums 1/SK of
-    // the channels into its own partial M).
-    for(index_int cb = wave_sk_part; cb * CU < in_c; cb += SK)
+    // round-robin across the SK waves of this NT-group (each wave sums 1/SK of the
+    // channels into its own partial M).
+    if constexpr(PIPE != 0)
     {
-        const index_int c     = cb * CU;
-        const index_int avail = in_c - c;
-        do_channels(c, avail < CU ? avail : CU);
+        // Software-pipelined: transform block N+1 while FMA-accumulating block N.
+        // Costs a second live v_reg (higher VGPR) -- a tuner-selected option gated
+        // to small (non-spilling) solutions; wins on FMA-throughput-bound shapes.
+        index_int cb = wave_sk_part;
+        if(cb * CU < in_c)
+        {
+            const index_int avail0 = in_c - cb * CU;
+            v_reg_t v_cur          = transform_block(cb * CU, avail0 < CU ? avail0 : CU);
+            while(cb * CU < in_c)
+            {
+                const index_int c_cur    = cb * CU;
+                const index_int avail    = in_c - c_cur;
+                const index_int nchan    = avail < CU ? avail : CU;
+                const index_int cb_next  = cb + SK;
+                const bool has_next      = cb_next * CU < in_c;
+                const index_int c_next   = cb_next * CU;
+                const index_int avail_nx = has_next ? (in_c - c_next) : 0;
+                const index_int nchan_nx = avail_nx < CU ? avail_nx : CU;
+                v_reg_t v_next{};
+                fma_block(v_cur, c_cur, nchan, has_next, v_next, c_next, nchan_nx);
+                v_cur = v_next;
+                cb    = cb_next;
+            }
+        }
+    }
+    else
+    {
+        // Simple: transform each block fully, then FMA it (no cross-block overlap).
+        // v_scratch is never touched (the weave is compiled out) -- DCE removes it.
+        v_reg_t v_scratch{};
+        for(index_int cb = wave_sk_part; cb * CU < in_c; cb += SK)
+        {
+            const index_int c     = cb * CU;
+            const index_int avail = in_c - c;
+            const index_int nchan = avail < CU ? avail : CU;
+            v_reg_t v_cur         = transform_block(c, nchan);
+            fma_block(v_cur, c, nchan, false, v_scratch, 0, 0);
+        }
     }
 
     // ---- Split-c cross-wave reduce (SK>1): sum the SK partial M accumulators

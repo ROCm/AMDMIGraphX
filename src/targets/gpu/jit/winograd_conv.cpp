@@ -119,7 +119,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${conv_cast}>(
+            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${pipe}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -152,6 +152,10 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         // sk = within-WG channel-split factor (must divide nw). sk>1 has nw/sk
         // NT-groups whose sk waves split the channel contraction.
         const auto sk = v.get("sk", std::size_t{1});
+        // pipe = software-pipeline the input transform into the FMA loop (1) vs
+        // the simple transform-then-FMA path (0). pipe=1 costs a second live
+        // v_reg, so the tuner only offers it on small (non-spilling) solutions.
+        const auto pipe = v.get("pipe", std::size_t{0});
 
         // Only nw/sk NT-groups' worth of distinct tiles are covered per WG.
         const std::size_t quads_per_wg = 8 * (nw / sk);
@@ -184,6 +188,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"ko", std::to_string(ko)},
                                        {"tiles", std::to_string(tiles)},
                                        {"sk", std::to_string(sk)},
+                                       {"pipe", std::to_string(pipe)},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"conv_cast", v.get("conv_cast", std::string{"float"})},
                                        {"preamble", v.get("preamble", std::string{})}});
@@ -302,6 +307,17 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
             tc.solutions.push_back({{"nw", 4}, {"ko", 16}, {"tiles", 2}});
             tc.solutions.push_back({{"nw", 2}, {"ko", 16}, {"tiles", 2}});
             tc.solutions.push_back({{"nw", 4}, {"ko", 32}, {"tiles", 1}});
+            // pipe=1: software-pipeline the input transform into the FMA loop so
+            // the DPP transform ops interleave with the FMAs instead of clustering
+            // ahead (helps FMA-throughput-bound shapes -- large out_c x spatial).
+            // The pipeline needs a second live v_reg, which spills for tiles>=4 or
+            // ko>=16, so only the small ko=8/tiles<=2 solutions are offered; the
+            // tuner keeps pipe=1 only where it beats the simple path.
+            tc.solutions.push_back({{"nw", 2}, {"ko", 8}, {"tiles", 2}, {"pipe", 1}});
+            tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 2}, {"pipe", 1}});
+            tc.solutions.push_back({{"nw", 8}, {"ko", 8}, {"tiles", 2}, {"pipe", 1}});
+            tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 1}, {"pipe", 1}});
+            tc.solutions.push_back({{"nw", 8}, {"ko", 8}, {"tiles", 1}, {"pipe", 1}});
             // Channel-split (sk>1): nw/sk NT-groups whose sk waves split the
             // channel contraction and reduce partial M through LDS. Helps shapes
             // with few tiles + many channels (small spatial, large in_c/out_c),

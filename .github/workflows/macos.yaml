@@ -84,6 +84,7 @@ jobs:
         cmake -S . -B build -G Ninja \
           -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} \
           -DCMAKE_PREFIX_PATH="${PREFIXES}" \
+          -DEMBED_USE=CArrays \
           -DMIGRAPHX_ENABLE_GPU=Off \
           -DMIGRAPHX_ENABLE_CPU=Off \
           -DMIGRAPHX_ENABLE_FPGA=Off \

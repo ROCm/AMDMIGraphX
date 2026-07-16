@@ -385,7 +385,11 @@ find_package(nlohmann_json 3.8.0 REQUIRED)
 target_link_libraries(migraphx PRIVATE nlohmann_json::nlohmann_json)
 
 find_package(SQLite3 REQUIRED)
-target_link_libraries(migraphx PRIVATE SQLite3::SQLite3)
+if(TARGET SQLite::SQLite3)
+    target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
+else()
+    target_link_libraries(migraphx PRIVATE SQLite3::SQLite3)
+endif()
 
 # See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
 # Prefer 6.x (msgpack-cxx)

@@ -36,7 +36,7 @@
 #include <utility>
 #include <vector>
 
-#ifdef __linux__
+#ifndef _WIN32
 #include <unistd.h>
 #endif
 

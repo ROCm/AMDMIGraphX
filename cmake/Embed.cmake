@@ -24,6 +24,8 @@
 
 include_guard(GLOBAL)
 
+set(EMBED_MODULE_DIR ${CMAKE_CURRENT_LIST_DIR} CACHE INTERNAL "Directory containing the embed cmake helpers")
+
 if(NOT BUILD_SHARED_LIBS)
     set(EMBED_USE_DEFAULT CArrays)
 elseif(WIN32)
@@ -46,33 +48,6 @@ if(EMBED_USE STREQUAL "LD")
     find_program(EMBED_LD ld REQUIRED)
     find_program(EMBED_OBJCOPY objcopy REQUIRED)
 endif()
-
-function(embed_wrap_string)
-    set(options)
-    set(oneValueArgs VARIABLE AT_COLUMN)
-    set(multiValueArgs)
-    cmake_parse_arguments(PARSE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
-    string(LENGTH ${${PARSE_VARIABLE}} string_length)
-    math(EXPR offset "0")
-
-    while(string_length GREATER 0)
-
-        if(string_length GREATER ${PARSE_AT_COLUMN})
-            math(EXPR length "${PARSE_AT_COLUMN}")
-        else()
-            math(EXPR length "${string_length}")
-        endif()
-
-        string(SUBSTRING ${${PARSE_VARIABLE}} ${offset} ${length} line)
-        set(lines "${lines}\n${line}")
-
-        math(EXPR string_length "${string_length} - ${length}")
-        math(EXPR offset "${offset} + ${length}")
-    endwhile()
-
-    set(${PARSE_VARIABLE} "${lines}" PARENT_SCOPE)
-endfunction()
 
 set(RESOURCE_ID 100 CACHE INTERNAL "" FORCE)
 
@@ -213,21 +188,18 @@ function(embed_file FILE BASE_DIRECTORY)
             VERBATIM)
         set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     elseif(EMBED_USE STREQUAL "CArrays")
-        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${FILE})
+        # Generate the byte-array source at build time (parallel and incremental)
+        # instead of at configure time, which is far faster for many/large files.
         set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
-        # reads source file contents as hex string
-        file(READ ${FILE} HEX_STRING HEX)
-        # wraps the hex string into multiple lines
-        embed_wrap_string(VARIABLE HEX_STRING AT_COLUMN 80)
-        # adds '0x' prefix and comma suffix before and after every byte respectively
-        string(REGEX REPLACE "([0-9a-f][0-9a-f])" "static_cast<char>(0x\\1), " ARRAY_VALUES ${HEX_STRING})
-        # removes trailing comma
-        string(REGEX REPLACE ", $" "" ARRAY_VALUES ${ARRAY_VALUES})
-        file(WRITE "${OUTPUT_FILE}" "
-#include <cstddef>
-extern const char _binary_${OUTPUT_SYMBOL}_start[] = { ${ARRAY_VALUES} };
-extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SYMBOL}_start);
-")
+        add_custom_command(
+            OUTPUT "${OUTPUT_FILE}"
+            COMMAND ${CMAKE_COMMAND}
+                -DEMBED_INPUT=${FILE}
+                -DEMBED_OUTPUT=${OUTPUT_FILE}
+                -DEMBED_SYMBOL=${OUTPUT_SYMBOL}
+                -P ${EMBED_MODULE_DIR}/embed_gen.cmake
+            DEPENDS "${FILE}" "${EMBED_MODULE_DIR}/embed_gen.cmake"
+            VERBATIM)
         set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     endif()
     set(OUTPUT_SYMBOL ${OUTPUT_SYMBOL} PARENT_SCOPE)

@@ -300,6 +300,7 @@ struct compiled_result
     }
 };
 
+// forward declared since it requires compile_manager
 static void replace_inserted_device_ops(context& ctx, module& m);
 
 struct compile_plan

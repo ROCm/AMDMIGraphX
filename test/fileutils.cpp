@@ -42,7 +42,11 @@ constexpr std::string_view object_file_postfix{".obj"};
 #else
 constexpr std::string_view executable_postfix{""};
 constexpr std::string_view library_prefix{"lib"};
+#ifdef __APPLE__
+constexpr std::string_view shared_object_postfix{".dylib"};
+#else
 constexpr std::string_view shared_object_postfix{".so"};
+#endif
 constexpr std::string_view static_library_postfix{".a"};
 constexpr std::string_view object_file_postfix{".o"};
 #endif

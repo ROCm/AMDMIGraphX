@@ -2,7 +2,7 @@ DOCKER_IMAGE = 'rocm/migraphx-ci-jenkins-ubuntu'
 DOCKER_IMAGE_ORT = 'rocm/migraphx-ci-jenkins-ubuntu-ort'
 
 def getgputargets() {
-    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201"
+    targets="gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1201;gfx942"
     return targets
 }
 
@@ -445,7 +445,7 @@ pipeline {
 
                 stage('HIP RTC Debug') {
                     agent {
-                        label rocmnodename('mi200+')
+                        label "(rocmtest || migraphx) && gfx90a && !vm"
                     }
                     environment {
                         // Disable MLIR since it doesnt work with all ub sanitizers
@@ -546,10 +546,11 @@ pipeline {
                         script {
                             rocmtest(setup: setuppackage, docker_args: '-u root', image: DOCKER_IMAGE_ORT, imageTag: env.IMAGE_TAG_ORT) {
                                 sh '''
-                                    apt install half
+                                    apt-get update
+                                    apt-get install -y half
                                     #ls -lR
                                     md5sum ./build/*.deb
-                                    apt install -y --allow-unauthenticated ./build/*.deb
+                                    apt-get install -y --allow-unauthenticated ./build/*.deb
                                     env
                                     cd /onnxruntime && ./build_and_test_onnxrt.sh
                                 '''

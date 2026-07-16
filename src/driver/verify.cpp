@@ -263,7 +263,7 @@ static bool report_layerwise(const std::string& name, const verify_callback& vcb
 bool verify_program(const std::string& name,
                     const program& p,
                     const target& t,
-                    compile_options options,
+                    const compile_options& options,
                     const verify_options& vo,
                     const parameter_map& inputs,
                     verify::tolerance tols)
@@ -423,7 +423,7 @@ optional<verify_callback::layer_result> verify_callback::source_failure() const
 
 void verify_instructions(const program& prog,
                          const target& t,
-                         compile_options options,
+                         const compile_options& options,
                          const verify_options& vo,
                          verify::tolerance tols)
 {
@@ -469,7 +469,7 @@ void verify_instructions(const program& prog,
 static bool verify_reduced(program p,
                            int n,
                            const target& t,
-                           compile_options options,
+                           const compile_options& options,
                            const verify_options& vo,
                            const parameter_map& inputs,
                            verify::tolerance tols)
@@ -493,7 +493,7 @@ static bool verify_reduced(program p,
 
 void verify_reduced_program(const program& p,
                             const target& t,
-                            compile_options options,
+                            const compile_options& options,
                             const verify_options& vo,
                             const parameter_map& inputs,
                             verify::tolerance tols)
@@ -589,7 +589,7 @@ static std::vector<std::size_t> find_trim_instructions(const module& m)
 
 void verify_bisected_program(const program& p,
                              const target& t,
-                             compile_options options,
+                             const compile_options& options,
                              const verify_options& vo,
                              const parameter_map& inputs,
                              verify::tolerance tols)

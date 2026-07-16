@@ -25,6 +25,7 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -82,19 +83,23 @@ struct fill_compiler : compiler<fill_compiler>
 // NOLINTNEXTLINE
 static const char* const hip_fill_kernel = R"__migraphx__(
 #include <migraphx/kernels/index.hpp>
+#include <migraphx/kernels/functional.hpp>
 #include <args.hpp>
 
 namespace migraphx {
 
 extern "C" {
 
-MIGRAPHX_GLOBAL void hip_fill_kernel(void* data_ptr)
+MIGRAPHX_GLOBAL void hip_fill_kernel(${params})
 {
-    make_tensors()(data_ptr)([](auto data) {
+    make_tensors()(${args})([](auto... datas) {
         auto idx = make_index();
-        idx.global_stride(data.get_shape().elements(), [&](auto i) {
-            data[i] = ${value};
-        });
+        each_args(
+            [&](auto data) {
+                idx.global_stride(data.get_shape().elements(),
+                                  [&](auto i) { data[i] = ${value}; });
+            },
+            datas...);
     });
 }
 
@@ -111,16 +116,26 @@ struct hip_fill_compiler : compiler<hip_fill_compiler>
 
     operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
-        hip_compile_options options;
-        const auto& out_s = inputs.back();
-        options.set_launch_params(v, compute_global_for(ctx, out_s.elements()));
-        options.inputs         = inputs;
-        options.output         = out_s;
-        options.kernel_name    = "hip_fill_kernel";
-        options.virtual_inputs = inputs;
+        auto flat_inputs  = flatten_tuple_shapes(inputs);
+        auto max_elements = std::max_element(flat_inputs.begin(),
+                                             flat_inputs.end(),
+                                             [](const shape& a, const shape& b) {
+                                                 return a.elements() < b.elements();
+                                             })
+                                ->elements();
 
-        auto src = interpolate_string(hip_fill_kernel,
-                                      {{"value", std::to_string(v.at("value").to<int>())}});
+        hip_compile_options options;
+        options.set_launch_params(v, compute_global_for(ctx, max_elements));
+        options.inputs         = flat_inputs;
+        options.output         = inputs.back();
+        options.kernel_name    = "hip_fill_kernel";
+        options.virtual_inputs = flat_inputs;
+
+        auto src =
+            interpolate_string(hip_fill_kernel,
+                               {{"value", std::to_string(v.at("value").to<int>())},
+                                {"params", enum_params(flat_inputs.size(), "void * private_p")},
+                                {"args", enum_params(flat_inputs.size(), "private_p")}});
         return compile_hip_code_object(ctx, src, options);
     }
 

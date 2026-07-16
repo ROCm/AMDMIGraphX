@@ -177,7 +177,9 @@ struct pipeline_factory
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
-            layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
+            layout_convolution{.order = enabled(MIGRAPHX_ENABLE_NHWC{})
+                                            ? layout_convolution::channels_last
+                                            : layout_convolution::channels_auto},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},

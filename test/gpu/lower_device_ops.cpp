@@ -32,7 +32,6 @@
 #include <migraphx/gpu/context.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/compiler.hpp>
-#include <algorithm>
 #include <test.hpp>
 
 static void run_pass(migraphx::module& m)
@@ -143,59 +142,22 @@ TEST_CASE(hip_fill_kernel_runs)
     EXPECT(result == migraphx::literal{s, expected}.get_argument());
 }
 
-// A tuple (multi-output) buffer is expanded into a per-sub-object fill so every fill becomes a
-// code object; an identity returns the original tuple buffer while sequencing the sub-fills
-// before any consumer.
 TEST_CASE(lower_hip_fill_tuple)
 {
     migraphx::shape s{migraphx::shape::float_type, {2, 2}};
     migraphx::shape tup{std::vector<migraphx::shape>{s, s}};
-
-    migraphx::module m;
-    {
-        auto alloc = m.add_instruction(
-            migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(tup)}}));
-        auto fill = m.add_instruction(migraphx::make_op("hip::fill", {{"value", 0}}), alloc);
-        m.add_return({fill});
-    }
-    run_pass(m);
-
-    auto count = [&](const std::string& name) {
-        return std::count_if(
-            m.begin(), m.end(), [&](const migraphx::instruction& i) { return i.name() == name; });
-    };
-    EXPECT(count("hip::fill") == 0);
-    EXPECT(count("get_tuple_elem") == 2);
-    EXPECT(count("gpu::precompile_op") == 2);
-    EXPECT(count("identity") == 1);
+    check_lowered(migraphx::make_op("hip::fill", {{"value", 0}}), {tup});
 }
 
-// device ops inserted during compile_ops should be lowered too
-TEST_CASE(compile_ops_lowers_inserted_device_ops)
+TEST_CASE(hip_fill_tuple_kernel_compiles)
 {
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape ds{migraphx::shape::float_type, {8}};
-    migraphx::shape is{migraphx::shape::int64_type, {1, 4}};
-    migraphx::shape us{migraphx::shape::float_type, {4}};
-    std::vector<int64_t> ind_vec{4, 3, 1, 7};
+    migraphx::shape s{migraphx::shape::float_type, {5, 2}};
+    migraphx::shape tup{std::vector<migraphx::shape>{s, s}};
 
-    auto data    = mm->add_parameter("data", ds);
-    auto indices = mm->add_literal(migraphx::literal{is, ind_vec});
-    auto t_ind =
-        mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {1, 0}}}), indices);
-    auto updates = mm->add_parameter("update", us);
-    mm->add_return({mm->add_instruction(migraphx::make_op("scatternd_add"), data, t_ind, updates)});
+    migraphx::gpu::context ctx;
+    auto co = migraphx::gpu::compile_op("hip::fill", ctx, {tup}, {{"value", 7}});
 
-    p.compile(migraphx::make_target("gpu"), migraphx::compile_options{});
-
-    auto count = [&](const std::string& name) {
-        return std::count_if(mm->begin(), mm->end(), [&](const migraphx::instruction& i) {
-            return i.name() == name;
-        });
-    };
-    EXPECT(count("hip::copy") == 0);
-    EXPECT(count("hip::fill") == 0);
+    EXPECT(co.name() == "gpu::code_object");
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

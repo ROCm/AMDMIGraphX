@@ -21,34 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
+#ifndef MIGRAPHX_GUARD_MIGRAPHX_MATH_HPP
+#define MIGRAPHX_GUARD_MIGRAPHX_MATH_HPP
 
-#include <string>
-#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
+#include <cstddef>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
-
-/**
- * Transform convolutions layout
- */
-struct MIGRAPHX_EXPORT layout_convolution
+// Divide x by y, rounding up: the smallest integer >= x / y.
+constexpr std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
 {
-    enum layout_order
-    {
-        channels_first,
-        channels_last,
-        channels_auto
-    };
-    layout_order order = channels_first;
-    std::string name() const { return "layout_convolution"; }
-    void apply(module_pass_manager& mpm) const;
-};
+    return (x + y - std::size_t{1}) / y;
+}
+
+// The smallest multiple of y that is greater than or equal to x (i.e. y * ceil(x / y)).
+constexpr std::size_t ceil_mul_of(std::size_t x, std::size_t y)
+{
+    return y * integer_divide_ceil(x, y);
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
+#endif // MIGRAPHX_GUARD_MIGRAPHX_MATH_HPP

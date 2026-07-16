@@ -37,6 +37,7 @@ Full documentation for MIGraphX is available at
 * Added logging of debug symbols on exception thrown (#4978).
 * Added slice squeeze matcher to propogate squeeze downstream and allow for parallel branches to merge together (#5004)
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
+* Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
 
 
 ### Changed
@@ -55,6 +56,8 @@ Full documentation for MIGraphX is available at
 * Updated `QLinearConv` bias handling to dequantize bias using the product of input and weight scales before adding to the convolution output.
 * Updated netron output to create an ONNX-like protobuff. Now also includes debug symbols if enabled. (#4701)
 * Updated python API to allow getting and adding debug symbols from instructions. (#4803)
+* Allow for 1 arg slicing over a dynamic dimension. (#5015)
+* Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
 
 ### Resolved issues
 
@@ -75,6 +78,7 @@ Full documentation for MIGraphX is available at
 * Fixed `QLinearConv` parsing for models with a bias and per-tensor weight quantization, which previously threw `same_dims: dequantizelinear: Dimensions do not match` (e.g. `resnet50_int8`); the bias scale is now broadcast to the bias shape before dequantizing.
 * Fixed the GPU problem cache failing to find entries after reload for pooling operator, resulting in redundant re-benchmarking when using a saved `MIGRAPHX_PROBLEM_CACHE`.
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
+
 ### Optimized
 * Reduced tuning time by scaling the per-candidate benchmark bundle to the candidate's op count (#4989).
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).
@@ -89,6 +93,8 @@ Full documentation for MIGraphX is available at
 * Added early return for `find_conv_dot_horiz_fusion` matcher based on if operator output size is less than two (#4662).
 * Add matcher to simplify_algebra to find and replace pow(x, 2) with mul(x, x) (#4681)
 * Add matcher to `fuse_attention` that removes Q/DQ pairs from attention blocks (#4900).
+* Added a pass `rewrite_convolution` to rewrite `convolution_backwards` to match the v4r1 algorithm used in MIOpen for performance (#4929)
+* Added tuning for maximum block size to JIT reductions. On some configs there is 2x-10x perf improvement. (#5056)
 
 ### Removed
 * Removed legacy device implementations for `argmin` and `argmax` in favor of the JIT implementations recently added (#4658).

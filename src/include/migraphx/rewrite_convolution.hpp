@@ -21,34 +21,34 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
-#define MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
+#ifndef MIGRAPHX_GUARD_RTGLIB_REWRITE_CONVOLUTION_HPP
+#define MIGRAPHX_GUARD_RTGLIB_REWRITE_CONVOLUTION_HPP
 
 #include <string>
-#include <migraphx/instruction_ref.hpp>
 #include <migraphx/config.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
-struct module_pass_manager;
+struct module;
 
 /**
- * Transform convolutions layout
+ * Rewrite convolution_backwards (transposed convolution) into a set of stride-1 forward
+ * convolutions plus reassembly, following MIOpen's implicit-gemm backward-data v4r1 algorithm.
+ *
+ * A backward-data convolution with stride S and dilation D is split, per spatial dim, into
+ * Ytilda = S / gcd(S, D) residue "gemms". Each residue is a dense stride-1 forward convolution on
+ * a strided slice of the (flipped) filter; the residue outputs are interleaved back into the
+ * spatial grid. This lets downstream fusion (e.g. MLIR) generate several small, efficient kernels
+ * instead of one monolithic backward convolution.
  */
-struct MIGRAPHX_EXPORT layout_convolution
+struct MIGRAPHX_EXPORT rewrite_convolution
 {
-    enum layout_order
-    {
-        channels_first,
-        channels_last,
-        channels_auto
-    };
-    layout_order order = channels_first;
-    std::string name() const { return "layout_convolution"; }
-    void apply(module_pass_manager& mpm) const;
+    std::string name() const { return "rewrite_convolution"; }
+    void apply(module& m) const;
 };
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_MIGRAPHX_LAYOUT_CONVOLUTION_HPP
+
+#endif

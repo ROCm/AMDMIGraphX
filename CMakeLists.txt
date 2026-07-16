@@ -62,18 +62,6 @@ detect_package_backend()
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
-include(CMakeDependentOption)
-
-cmake_dependent_option(MIGRAPHX_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF "WIN32" OFF)
-
-if(NOT MIGRAPHX_MSVC_STATIC_RUNTIME)
-    set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")
-endif()
-
-if(NOT CMAKE_MSVC_RUNTIME_LIBRARY)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
-endif()
-
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binary Analyzer" OFF)
     option(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES "Use Spectre-mitigated libraries" OFF)
@@ -96,6 +84,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
             message(WARNING "Spectre-mitigated libraries are not yet available for Clang in this project.")
         endif()
+    endif()
+    option(MIGRAPHX_USE_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF)
+    if(NOT MIGRAPHX_USE_MSVC_STATIC_RUNTIME)
+        set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")
+    endif()
+    if(NOT CMAKE_MSVC_RUNTIME_LIBRARY)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
     endif()
 endif()
 
@@ -359,6 +354,9 @@ rocm_enable_cppcheck(
         arithOperationsOnVoidPointer
         definePrefix:*test/include/test.hpp
         definePrefix:*src/targets/gpu/kernels/include/migraphx/kernels/test.hpp
+        # test/pp.cpp exercises the MIGRAPHX_PP_* metaprogramming macros directly, which
+        # cppcheck's preprocessor cannot expand.
+        unknownMacro:*test/pp.cpp
         UseNamedLogicOperator:*src/targets/gpu/kernels/include/migraphx/kernels/debug.hpp
         ctuOneDefinitionRuleViolation:*test/*
         useSmartPointer:*src/api/api.cpp

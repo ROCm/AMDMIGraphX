@@ -651,13 +651,15 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
             mins.at(j)  = min_val;
             maxes.at(j) = max_val;
         }
+        std::vector<std::size_t> mins_sz(mins.begin(), mins.end());
+        std::vector<std::size_t> maxes_sz(maxes.begin(), maxes.end());
         // fixed output shape case
         if(mins == maxes)
         {
-            return shape{shape_vec.front().type(), mins};
+            return shape{shape_vec.front().type(), mins_sz};
         }
         // dynamic output shape case
-        return shape{shape_vec.front().type(), mins, maxes, {}};
+        return shape{shape_vec.front().type(), mins_sz, maxes_sz, {}};
     }
 };
 

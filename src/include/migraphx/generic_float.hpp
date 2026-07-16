@@ -90,7 +90,7 @@ template <unsigned int MantissaSize, unsigned int ExponentSize, unsigned int Fla
 struct __attribute__((packed, may_alias)) generic_float
 {
     using type = typename unsigned_type<bit_ceil(
-        integer_divide_ceil(MantissaSize + ExponentSize + 1, 8))>::type;
+        static_cast<std::uint32_t>(integer_divide_ceil(MantissaSize + ExponentSize + 1, 8)))>::type;
 
     type mantissa : MantissaSize;
     type exponent : ExponentSize;

@@ -1,0 +1,105 @@
+name: macos
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - master
+      - 'release/**'
+
+jobs:
+  macos:
+    runs-on: macos-15
+    defaults:
+      run:
+        shell: bash
+
+    strategy:
+      matrix:
+        configuration:
+          - Release
+          - Debug
+
+    env:
+      # Pinned to the same rocm-cmake commit used in requirements.txt so the
+      # ROCmCMakeBuildTools package matches the rest of the build.
+      ROCM_CMAKE_REF: 1d4652ae2ec0e44a67a7c415dd7e51c88a6aa68d
+      ROCM_CMAKE_PREFIX: ${{ github.workspace }}/rocm-cmake-install
+
+    steps:
+    - uses: actions/checkout@v4.2.2
+
+    - name: Set up Python
+      # MIGraphX only needs a Python 3 interpreter for code generation here
+      # (Python bindings are disabled). This mirrors the python.org framework
+      # build used locally closely enough for that purpose.
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12
+
+    - name: Install dependencies (Homebrew)
+      # C++ libraries and build tools are resolved from Homebrew, matching the
+      # local macOS environment. sqlite is keg-only on macOS, so its prefix is
+      # added to CMAKE_PREFIX_PATH explicitly in the configure step.
+      run: |
+        brew update
+        brew install \
+          cmake \
+          ninja \
+          ccache \
+          pkg-config \
+          sqlite \
+          boost \
+          eigen \
+          nlohmann-json \
+          msgpack-cxx \
+          protobuf \
+          abseil \
+          pybind11
+
+    - name: Build and install rocm-cmake
+      # rocm-cmake is not available via Homebrew, so build/install it from the
+      # pinned commit into a local prefix (as done manually on the MacBook).
+      run: |
+        git clone https://github.com/ROCm/rocm-cmake.git "${RUNNER_TEMP}/rocm-cmake"
+        cd "${RUNNER_TEMP}/rocm-cmake"
+        git checkout "${ROCM_CMAKE_REF}"
+        cmake -S . -B build -G Ninja -DCMAKE_INSTALL_PREFIX="${ROCM_CMAKE_PREFIX}"
+        cmake --build build --target install
+
+    - name: Cache ccache
+      uses: actions/cache@v4.2.0
+      with:
+        path: ~/Library/Caches/ccache
+        key: macos-ccache-${{ matrix.configuration }}-${{ github.sha }}
+        restore-keys: macos-ccache-${{ matrix.configuration }}-
+
+    - name: Configure
+      env:
+        CMAKE_C_COMPILER_LAUNCHER: ccache
+        CMAKE_CXX_COMPILER_LAUNCHER: ccache
+      run: |
+        # Homebrew prefix plus keg-only sqlite so find_package() locates them.
+        PREFIXES="$(brew --prefix);$(brew --prefix sqlite);${ROCM_CMAKE_PREFIX}"
+        cmake -S . -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ matrix.configuration }} \
+          -DCMAKE_PREFIX_PATH="${PREFIXES}" \
+          -DMIGRAPHX_ENABLE_GPU=Off \
+          -DMIGRAPHX_ENABLE_CPU=Off \
+          -DMIGRAPHX_ENABLE_FPGA=Off \
+          -DMIGRAPHX_ENABLE_PYTHON=Off \
+          -DBUILD_DEV=On \
+          -DMIGRAPHX_DISABLE_LARGE_BUFFER_TESTS=On \
+          -DCTEST_TIMEOUT=5000
+
+    - name: Build
+      run: |
+        cmake --build build --target migraphx
+        cmake --build build --target driver
+        cmake --build build --target tests
+
+    - name: Test
+      run: |
+        cd build
+        ctest -j 8 --output-on-failure --timeout 5000

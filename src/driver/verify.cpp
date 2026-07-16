@@ -119,7 +119,6 @@ struct verify_callback
         std::string op     = {};
         std::size_t order  = 0;
         double rms_error   = 0;
-        double introduced  = 0;
         bool passed        = false;
     };
 
@@ -128,29 +127,20 @@ struct verify_callback
         argument output   = {};
         std::size_t order = 0;
     };
-    struct target_output
-    {
-        argument output                 = {};
-        std::string op                  = {};
-        std::size_t order               = 0;
-        std::vector<std::string> inputs = {};
-    };
 
     verify::tolerance tols = {};
 
-    std::size_t ref_count                                         = 0;
-    std::unordered_map<std::string, ref_output> ref_outputs       = {};
-    std::unordered_map<std::string, target_output> target_outputs = {};
-    std::unordered_map<std::string, layer_result> results         = {};
+    std::size_t ref_count                                   = 0;
+    std::unordered_map<std::string, ref_output> ref_outputs = {};
+    std::unordered_map<std::string, layer_result> results   = {};
 
     // Latest-reference symbol of ins and its order; empty if none was traced.
     std::pair<std::string, std::size_t> terminal(instruction_ref ins) const;
 
     trace_function capture();
     trace_function compare();
-    void evaluate();
 
-    // The op introducing the most error over its inputs (the divergence source).
+    // The worst-diverging op (the divergence source).
     optional<layer_result> source_failure() const;
 };
 
@@ -242,7 +232,6 @@ static optional<verify_callback> run_layerwise_compare(const program& p,
     vcb.tols = tols;
     run_ref(p, options, vo, inputs, &vcb);
     run_target(p, t, options, vo, inputs, &vcb);
-    vcb.evaluate();
     return vcb;
 }
 
@@ -338,84 +327,35 @@ verify_callback::trace_function verify_callback::compare()
         auto [symbol, order] = terminal(ins);
         if(symbol.empty())
             return;
-        // Skip shape-changing views so they can't overwrite the real producer.
-        if(ref_outputs.at(symbol).output.get_shape().lens() != output.get_shape().lens())
-            return;
-        // Record input edges as symbols now; instruction_refs don't outlive the target program.
-        std::vector<std::string> inputs;
-        for(auto in : ins->inputs())
-        {
-            auto s = terminal(in).first;
-            if(not s.empty() and s != symbol)
-                inputs.push_back(std::move(s));
-        }
-        // Last-writer-wins on the symbol keeps the fused op's final value, not an interior one.
-        target_outputs[symbol] = {output.share(), ins->name(), order, std::move(inputs)};
-    };
-}
-
-void verify_callback::evaluate()
-{
-    for(const auto& [symbol, target] : target_outputs)
-    {
         const auto& ref = ref_outputs.at(symbol);
-        // Match target to the reference type (differs with --ref-use-double) before comparing.
-        auto target_arg = ref.output.get_shape().type() == target.output.get_shape().type()
-                              ? target.output
-                              : target.output.convert(ref.output.get_shape().type());
+        // Skip shape-changing views so they can't overwrite the real producer (last-writer-wins).
+        if(ref.output.get_shape().lens() != output.get_shape().lens())
+            return;
+        // Match to the reference type (differs with --ref-use-double) before comparing.
+        auto target_arg = output.get_shape().type() == ref.output.get_shape().type()
+                              ? output
+                              : output.convert(ref.output.get_shape().type());
         double rms      = 0;
         bool passed     = false;
         visit_all(target_arg, ref.output)([&](auto t, auto r) {
             passed = verify::verify_range_with_tolerance(t, verify::expected{r}, tols, &rms);
         });
-        results[symbol] = {symbol, target.op, target.order, rms, 0.0, passed};
-    }
-
-    // Noise floor from finite errors (inf/NaN excluded) for ops with untracked or clean inputs.
-    std::vector<double> errors;
-    errors.reserve(results.size());
-    transform_if(
-        results.begin(),
-        results.end(),
-        std::back_inserter(errors),
-        [](const auto& r) { return std::isfinite(r.second.rms_error); },
-        [](const auto& r) { return r.second.rms_error; });
-    double baseline = std::numeric_limits<double>::epsilon();
-    if(not errors.empty())
-    {
-        auto mid = errors.begin() + errors.size() / 2;
-        std::nth_element(errors.begin(), mid, errors.end());
-        baseline = std::max(baseline, *mid);
-    }
-    for(const auto& [symbol, target] : target_outputs)
-    {
-        auto it = results.find(symbol);
-        if(it == results.end())
-            continue;
-        double input_err = 0.0;
-        for(const auto& in : target.inputs)
-        {
-            auto rit = results.find(in);
-            if(rit != results.end())
-                input_err = std::max(input_err, rit->second.rms_error);
-        }
-        // Non-finite error is itself the divergence: rank worst and keep introduced orderable.
-        it->second.introduced = std::isfinite(it->second.rms_error)
-                                    ? it->second.rms_error / std::max(baseline, input_err)
-                                    : std::numeric_limits<double>::infinity();
-    }
+        // Treat a NaN result (e.g. bad data) as maximally diverged so it ranks worst.
+        if(std::isnan(rms))
+            rms = std::numeric_limits<double>::infinity();
+        results[symbol] = {symbol, ins->name(), order, rms, passed};
+    };
 }
 
 optional<verify_callback::layer_result> verify_callback::source_failure() const
 {
-    // Max introduced error; ties (e.g. overflow) broken toward the earliest op.
+    // Worst error; ties (e.g. overflow) broken toward the earliest op.
     optional<layer_result> worst;
     for(const auto& [symbol, lr] : results)
     {
         if(lr.passed)
             continue;
-        if(not worst or
-           std::tie(worst->introduced, lr.order) < std::tie(lr.introduced, worst->order))
+        if(not worst or std::tie(worst->rms_error, lr.order) < std::tie(lr.rms_error, worst->order))
             worst = lr;
     }
     return worst;

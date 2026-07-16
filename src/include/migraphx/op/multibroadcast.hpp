@@ -114,8 +114,7 @@ struct multibroadcast
         }
 
         // 2+ inputs
-        if(std::any_of(
-                inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
+        if(std::any_of(inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
         {
             if(not output_dyn_dims.empty())
             {
@@ -128,7 +127,7 @@ struct multibroadcast
                 for(std::size_t i = 0; i < num_dims; ++i)
                 {
                     if(i < num_input_dims and input_dyn_dims[i].is_symbolic() and
-                        not input_dyn_dims[i].is_fixed())
+                       not input_dyn_dims[i].is_fixed())
                         new_output_dyn_dims[i] = input_dyn_dims[i];
                     else
                         new_output_dyn_dims[i] = output_dyn_dims[i];
@@ -137,7 +136,6 @@ struct multibroadcast
             }
             return {t, compute_common_dyn_dims(inputs)};
         }
-        
         // output_lens will not be set for 2+ input version
         if(not output_dyn_dims.empty())
         {

@@ -3,6 +3,8 @@ FROM ubuntu:24.04
 ARG ROCM_VERSION=7.14
 ARG GPU_ARCH=""
 
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
 # Install rocm key
 RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
     curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
@@ -24,7 +26,7 @@ WORKDIR /
 COPY test/onnx/.onnxrt-commit /.onnxrt-commit
 
 # Install half package and gdb required by the test stage
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     gdb \
     git \
     locales \
@@ -48,14 +50,9 @@ RUN chmod +x /tmp/install_prereqs.sh && \
      echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf && \
      echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf && \
      ldconfig
+
  ENV ROCM_PATH=/opt/rocm
  ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
-
-# Workaround broken rocm packages
-RUN ln -s /opt/rocm-* /opt/rocm
-RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
-RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
-RUN ldconfig
 
 # Prepare onnxruntime repository at /onnxruntime for build_and_test_onnxrt.sh
 RUN git clone --single-branch --branch ${ONNXRUNTIME_BRANCH} --recursive ${ONNXRUNTIME_REPO} onnxruntime && \
@@ -73,4 +70,4 @@ ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 ADD tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh
 ADD tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
 
-RUN pip install cmake==4.3.1
+RUN python3 -m pip install cmake==4.3.1

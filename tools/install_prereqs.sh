@@ -259,7 +259,8 @@ pkg_install "${BUILD_PKGS[@]}"
 if [[ "$USE_WHL" -eq 1 ]]; then
     # Install the ROCm components from Python wheels.
     echo "Using pip index URL: ${INDEX_URL}"
-    python3 -m pip install --no-build-isolation   --index-url "$INDEX_URL"   "rocm[libraries,devel,device-${GPU_ARCH:-all}]"
+    python3 -m pip install --no-build-isolation --index-url "$INDEX_URL" \
+        "rocm[libraries,devel,device-${GPU_ARCH:-all}]"
     rocm-sdk init
 
 else

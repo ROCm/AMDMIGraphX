@@ -94,8 +94,8 @@ def cmake_build = { bconf ->
         cd build
         # Pin the package's per-GPU dependency to the arch of the GPU in this node
         # so the generated .deb is installable here (empty on nogpu -> device-all deps).
-        THEROCK_GPU_ARCH=\$(/opt/rocm/bin/rocminfo | grep -o -m1 'gfx.*')
-        cmake -DCMAKE_PREFIX_PATH=/usr/local -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON -DMIGRAPHX_THEROCK_GPU_ARCH="\${THEROCK_GPU_ARCH}" ${flags} ..
+        THEROCK_GPU_ARCH=$(/opt/rocm/bin/rocminfo 2>/dev/null | grep -o -m1 'gfx[0-9a-z]*' || true)
+        cmake -DCMAKE_PREFIX_PATH=/usr/local -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DBUILD_DEV=On -DCMAKE_EXECUTE_PROCESS_COMMAND_ECHO=STDOUT -DMIGRAPHX_DISABLE_VIRTUAL_ENV=ON -DMIGRAPHX_THEROCK_GPU_ARCH="${THEROCK_GPU_ARCH}" ${flags} ..
         git diff
         git diff-index --quiet HEAD || (echo "Git repo is not clean after running cmake." && exit 1)
         make -j\$(nproc) generate VERBOSE=1

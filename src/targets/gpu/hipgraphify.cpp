@@ -49,6 +49,7 @@ static bool is_unsupported(const std::string& name)
         "hip::copy_from_gpu",
         "hip::copy_to_gpu",
         "hip::sync_stream",
+        // rocblas crashes with capturing stream
         "gpu::gemm",
     };
     return contains(unsupported, name);

@@ -30,7 +30,7 @@ static std::vector<float> run_onnx(const std::string& target)
 {
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {3, 8};
-    options.use_symbolic_shapes = true;
+    options.use_symbolic_shapes   = true;
     auto p                        = read_onnx("expand_dyn_input_static_dims_throw.onnx", options);
     p.compile(migraphx::make_target(target));
 
@@ -54,10 +54,8 @@ TEST_CASE(expand_dyn_input_static_dims_test)
         const float v = static_cast<float>(i + 1);
         std::fill_n(gold.begin() + i * 16, 16, v);
     }
-    
 
     auto ref_result = run_onnx("ref");
-    
 
     // print gold, gpu_result, ref_result
     std::cout << "gold: " << std::endl;
@@ -66,7 +64,6 @@ TEST_CASE(expand_dyn_input_static_dims_test)
         std::cout << g << " ";
     }
     std::cout << std::endl;
-    
     std::cout << "ref_result: " << std::endl;
     for(auto g : ref_result)
     {
@@ -75,8 +72,6 @@ TEST_CASE(expand_dyn_input_static_dims_test)
     std::cout << std::endl;
 
     EXPECT(migraphx::verify::verify_rms_range(ref_result, gold));
-    
-    
 
     auto gpu_result = run_onnx("gpu");
     std::cout << "gpu_result: " << std::endl;

@@ -185,7 +185,6 @@ struct MIGRAPHX_EXPORT shape
                 if(not other.is_fixed())
                     return nullopt;
             }
-            
             auto this_interval  = this->get_interval();
             auto other_interval = other.get_interval();
             auto left           = std::max(this_interval.min, other_interval.min);

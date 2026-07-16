@@ -406,7 +406,8 @@ TEST_CASE(split_with_multi_alias_alive)
 TEST_CASE(dynamic_above_threshold)
 {
     using dd = migraphx::shape::dynamic_dimension;
-    migraphx::shape s{migraphx::shape::float_type, {dd{3277, 3277}, dd{32, 32}, dd{20, 20}, dd{16, 16}}};
+    migraphx::shape s{migraphx::shape::float_type,
+                      {dd{3277, 3277}, dd{32, 32}, dd{20, 20}, dd{16, 16}}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
@@ -429,7 +430,8 @@ TEST_CASE(dynamic_above_threshold)
 TEST_CASE(dynamic_below_threshold)
 {
     using dd = migraphx::shape::dynamic_dimension;
-    migraphx::shape s{migraphx::shape::float_type, {dd{100, 100}, dd{32, 32}, dd{20, 20}, dd{16, 16}}};
+    migraphx::shape s{migraphx::shape::float_type,
+                      {dd{100, 100}, dd{32, 32}, dd{20, 20}, dd{16, 16}}};
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();

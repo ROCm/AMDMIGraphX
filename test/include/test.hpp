@@ -894,7 +894,7 @@ struct driver
         {
             const auto& start = args.at("--start-from").front();
             auto&& all        = get_test_cases();
-            auto it = std::find_if(all.begin(), all.end(), [&](const auto& tc) {
+            auto it           = std::find_if(all.begin(), all.end(), [&](const auto& tc) {
                 return tc.first == start or
                        glob_match(tc.first.begin(), tc.first.end(), start.begin(), start.end());
             });

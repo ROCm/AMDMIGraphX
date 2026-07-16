@@ -213,7 +213,7 @@ struct reshape_lazy
 
     shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
     {
-        return static_compute_shape(inputs, dims, n_neg_dims);
+        return static_compute_shape(std::move(inputs), dims, n_neg_dims);
     }
 
     shape compute_shape(std::vector<shape> inputs) const

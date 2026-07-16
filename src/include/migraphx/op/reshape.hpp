@@ -190,7 +190,7 @@ struct reshape
 
     shape static_compute_shape(std::vector<shape> inputs, std::size_t n_neg_dims) const
     {
-        return static_compute_shape(inputs, dims, n_neg_dims);
+        return static_compute_shape(std::move(inputs), dims, n_neg_dims);
     }
 
     shape compute_shape(std::vector<shape> inputs) const
@@ -207,48 +207,46 @@ struct reshape
                            to_string_range(dims) + "} with " + to_string(n_neg_dims) + " -1 dims");
 
         const auto& s0 = inputs.front();
-        if(inputs.size() == 1)
+        if(inputs.size() != 1)
         {
-            // Static input: resolve fixed dynamic_dimension entries to literals and unfixed to -1.
-            if(has_dyn_dim_entries and not s0.dynamic())
+            return inputs.back();
+        }
+
+        // Static input: resolve fixed dynamic_dimension entries to literals and unfixed to -1.
+        if(has_dyn_dim_entries and not s0.dynamic())
+        {
+            std::vector<dim_like> resolved_dims = dims;
+            std::size_t resolved_neg_dims       = n_neg_dims;
+            for(auto& d : resolved_dims)
             {
-                std::vector<dim_like> resolved_dims = dims;
-                std::size_t resolved_neg_dims       = n_neg_dims;
-                for(auto& d : resolved_dims)
+                if(std::holds_alternative<shape::dynamic_dimension>(d))
                 {
-                    if(std::holds_alternative<shape::dynamic_dimension>(d))
+                    const auto& dd = std::get<shape::dynamic_dimension>(d);
+                    if(dd.is_fixed())
                     {
-                        const auto& dd = std::get<shape::dynamic_dimension>(d);
-                        if(dd.is_fixed())
-                        {
-                            d = static_cast<int64_t>(shape::static_dim_value(dd));
-                        }
-                        else
-                        {
-                            d = dim_like{-1};
-                            ++resolved_neg_dims;
-                        }
+                        d = static_cast<int64_t>(shape::static_dim_value(dd));
+                    }
+                    else
+                    {
+                        d = dim_like{-1};
+                        ++resolved_neg_dims;
                     }
                 }
-                if(resolved_neg_dims > 1)
-                    MIGRAPHX_THROW(
-                        "Reshape: Dimensions for reshape can only have one -1 dim but given {" +
-                        to_string_range(dims) + "} with " + to_string(resolved_neg_dims) +
-                        " -1 dims");
-                return static_compute_shape(inputs, resolved_dims, resolved_neg_dims);
             }
-            if(s0.dynamic())
-            {
-                return dyn_1arg_compute_shape(s0);
-            }
-            else
-            {
-                return static_compute_shape(inputs, n_neg_dims);
-            }
+            if(resolved_neg_dims > 1)
+                MIGRAPHX_THROW(
+                    "Reshape: Dimensions for reshape can only have one -1 dim but given {" +
+                    to_string_range(dims) + "} with " + to_string(resolved_neg_dims) +
+                    " -1 dims");
+            return static_compute_shape(inputs, resolved_dims, resolved_neg_dims);
+        }
+        if(s0.dynamic())
+        {
+            return dyn_1arg_compute_shape(s0);
         }
         else
         {
-            return inputs.back();
+            return static_compute_shape(inputs, n_neg_dims);
         }
     }
 

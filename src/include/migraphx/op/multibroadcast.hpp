@@ -112,53 +112,49 @@ struct multibroadcast
             validate_broadcast(s0.lens(), output_lens);
             return make_bcast_shape(s0, output_lens);
         }
-        else
+
+        // 2+ inputs
+        if(std::any_of(
+                inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
         {
-            // 2+ inputs
-            if(std::any_of(
-                   inputs.cbegin(), inputs.cend(), [](auto input) { return input.dynamic(); }))
+            if(not output_dyn_dims.empty())
             {
-                if(not output_dyn_dims.empty())
+                if(not inputs[0].dynamic())
+                    return {t, output_dyn_dims};
+                const auto num_dims        = output_dyn_dims.size();
+                const auto num_input_dims  = inputs[0].ndim();
+                const auto& input_dyn_dims = inputs[0].dyn_dims();
+                std::vector<shape::dynamic_dimension> new_output_dyn_dims(num_dims);
+                for(std::size_t i = 0; i < num_dims; ++i)
                 {
-                    if(not inputs[0].dynamic())
-                        return {t, output_dyn_dims};
-                    const auto num_dims        = output_dyn_dims.size();
-                    const auto num_input_dims  = inputs[0].ndim();
-                    const auto& input_dyn_dims = inputs[0].dyn_dims();
-                    std::vector<shape::dynamic_dimension> new_output_dyn_dims(num_dims);
-                    for(std::size_t i = 0; i < num_dims; ++i)
-                    {
-                        if(i < num_input_dims and input_dyn_dims[i].is_symbolic() and
-                           not input_dyn_dims[i].is_fixed())
-                            new_output_dyn_dims[i] = input_dyn_dims[i];
-                        else
-                            new_output_dyn_dims[i] = output_dyn_dims[i];
-                    }
-                    return {t, new_output_dyn_dims};
+                    if(i < num_input_dims and input_dyn_dims[i].is_symbolic() and
+                        not input_dyn_dims[i].is_fixed())
+                        new_output_dyn_dims[i] = input_dyn_dims[i];
+                    else
+                        new_output_dyn_dims[i] = output_dyn_dims[i];
                 }
-                return {t, compute_common_dyn_dims(inputs)};
+                return {t, new_output_dyn_dims};
             }
-            else
-            {
-                // output_lens will not be set for 2+ input version
-                if(not output_dyn_dims.empty())
-                {
-                    const auto& in_lens = s0.lens();
-                    std::vector<std::size_t> bcast_lens(output_dyn_dims.size());
-                    for(std::size_t i = 0; i < output_dyn_dims.size(); ++i)
-                    {
-                        if(output_dyn_dims[i].is_fixed())
-                            bcast_lens[i] = shape::static_dim_value(output_dyn_dims[i]);
-                        else
-                            bcast_lens[i] = in_lens[i];
-                    }
-                    validate_broadcast(in_lens, bcast_lens);
-                    return make_bcast_shape(s0, bcast_lens);
-                }
-                auto bcast_lens = compute_common_lens(inputs);
-                return make_bcast_shape(s0, bcast_lens);
-            }
+            return {t, compute_common_dyn_dims(inputs)};
         }
+        
+        // output_lens will not be set for 2+ input version
+        if(not output_dyn_dims.empty())
+        {
+            const auto& in_lens = s0.lens();
+            std::vector<std::size_t> bcast_lens(output_dyn_dims.size());
+            for(std::size_t i = 0; i < output_dyn_dims.size(); ++i)
+            {
+                if(output_dyn_dims[i].is_fixed())
+                    bcast_lens[i] = shape::static_dim_value(output_dyn_dims[i]);
+                else
+                    bcast_lens[i] = in_lens[i];
+            }
+            validate_broadcast(in_lens, bcast_lens);
+            return make_bcast_shape(s0, bcast_lens);
+        }
+        auto bcast_lens = compute_common_lens(inputs);
+        return make_bcast_shape(s0, bcast_lens);
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

@@ -28,6 +28,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/common.hpp>
 #include <migraphx/type_traits.hpp>
@@ -591,6 +592,31 @@ static void set_return_ins_debug_symbols(module* mod,
     mod->add_debug_symbols(ret_ins, output_symbols);
 }
 
+static std::string make_node_debug_symbol(bool use_debug_symbols,
+                                          const onnx::NodeProto& node,
+                                          const std::string& node_name)
+{
+    if(not use_debug_symbols)
+        return {};
+    return node.name().empty() ? "migx_uid:" + node_name : node.name();
+}
+
+static void log_node_parse_exception(const onnx::NodeProto& node,
+                                     const std::string& debug_symbol) noexcept
+{
+    try
+    {
+        if(debug_symbol.empty())
+            return;
+        log::debug() << "Exception thrown while parsing node '" << node.op_type()
+                     << "' with debug symbols: " << debug_symbol;
+    }
+    // cppcheck-suppress migraphx-EmptyCatchStatement
+    catch(...) // logging must not replace the original exception
+    {
+    }
+}
+
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
@@ -642,8 +668,11 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
 
         std::vector<instruction_ref> result;
-        std::size_t output_num = node.output().size();
-        std::string node_name  = node.op_type() + "_" + std::to_string(mod->size());
+        std::size_t output_num   = node.output().size();
+        std::string node_name    = node.op_type() + "_" + std::to_string(mod->size());
+        std::string debug_symbol = make_node_debug_symbol(this->use_debug_symbols, node, node_name);
+        auto guard =
+            on_scope_fail([&]() noexcept { log_node_parse_exception(node, debug_symbol); });
         if(ops.count(node.op_type()) == 0)
         {
             if(skip_unknown_operators)
@@ -669,8 +698,6 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         }
         if(this->use_debug_symbols)
         {
-            std::string debug_symbol =
-                node.name().empty() ? std::string("migx_uid:") + node_name : node.name();
             for(auto ins : added_instructions)
             {
                 mod->add_debug_symbols(ins, {debug_symbol});

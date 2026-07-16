@@ -226,15 +226,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
             auto pw_shapes        = to_shapes(mod_splits[1].inputs);
-            if(mod_splits[1].mod.get_output_shapes().size() == 1)
-            {
-                pw_shapes.push_back(mod_splits[1].mod.get_output_shapes().front());
-            }
-            else
-            {
-                pw_shapes.push_back(shape{mod_splits[1].mod.get_output_shapes()});
-            }
-            assert(pw_shapes.back() == ins->get_shape());
+            pw_shapes.push_back(ins->get_shape());
             auto cop2 = compile_pointwise_module(ctx, pw_shapes, &mod_splits[1].mod);
             std::vector<mlir_code_object> cops = {cop1, mlir_code_object{cop2}};
             return insert(cops, mod_splits, ins, split_ins);

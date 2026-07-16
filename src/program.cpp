@@ -26,6 +26,7 @@
 #include <migraphx/program.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/target.hpp>
 #include <migraphx/env.hpp>
@@ -78,6 +79,20 @@ struct program_impl
     std::unordered_map<std::string, module> modules;
     std::vector<context> contexts;
     std::vector<target> targets;
+
+    program_impl()                               = default;
+    program_impl(const program_impl&)            = default;
+    program_impl& operator=(const program_impl&) = default;
+    program_impl(program_impl&&)                 = default;
+    program_impl& operator=(program_impl&&)      = default;
+
+    ~program_impl()
+    {
+        // The map destroys modules in an unspecified order, so break cross-module
+        // references first while every module is still alive.
+        for(auto& p : modules)
+            p.second.clear_foreign_inputs_for_program();
+    }
 };
 
 program::program() : impl(std::make_unique<program_impl>()) { this->create_module("main"); }
@@ -501,6 +516,7 @@ static std::vector<argument> generic_eval(const module* mod,
         results.emplace(ins, argument{});
 #endif
         const auto& name = ins->name();
+        auto guard       = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
         if(name == "@literal")
         {
             results.insert_or_assign(ins,
@@ -688,7 +704,13 @@ std::vector<argument> program::eval(const parameter_map& params,
             if(trace_level > 0)
             {
                 ctx.finish();
-                std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                // The ins_out map is populated from the main module's
+                // but when dynamic_code_object_op::compute recursively calls generic_eval
+                // on its runtime sub-module ins_out don't have it.
+                if(ins_out.find(ins) != ins_out.end())
+                    std::cout << "Run instruction: " << ins_out.at(ins) << std::endl;
+                else
+                    std::cout << "Run instruction: " << ins->name() << " (submodule)" << std::endl;
             }
             timer t{};
             auto result = f();

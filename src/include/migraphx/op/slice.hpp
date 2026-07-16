@@ -255,23 +255,18 @@ struct slice
         return shape{input_shape.type(), dds};
     }
 
-    static sym::expr bound_expr(const dim_like& d)
-    {
-        if(std::holds_alternative<shape::dynamic_dimension>(d))
-            return std::get<shape::dynamic_dimension>(d).sym_expr;
-        return sym::lit(std::get<int64_t>(d));
-    }
-
-    // Static and symbolic input share one path: promote to a symbolic shape, set
-    // each sliced axis to the extent ends - starts, carry the kept strides through,
-    // then demote back to static when the result is fully fixed (slice is a view).
+    // Static and symbolic inputs share this path; the result is demoted back to
+    // static when fully fixed (slice is a view).
     shape symbolic_compute_shape(const shape& s) const
     {
-        auto sym_in = s.to_symbolic();
-        auto dds    = sym_in.dyn_dims();
+        assert(starts.size() == axes.size() and ends.size() == axes.size());
+        auto sym_in      = s.to_symbolic();
+        auto dds         = sym_in.dyn_dims();
+        auto start_exprs = to_sym_exprs(starts);
+        auto end_exprs   = to_sym_exprs(ends);
         for(std::size_t i = 0; i < axes.size(); ++i)
-            dds[axes[i]] = shape::dynamic_dimension{bound_expr(ends[i]) - bound_expr(starts[i])};
-        shape result{s.type(), dds, sym_in.dyn_strides()};
+            dds[axes[i]] = shape::dynamic_dimension{end_exprs[i] - start_exprs[i]};
+        shape result{s.type(), std::move(dds), sym_in.dyn_strides()};
         if(not s.symbolic() and result.is_fixed())
             return result.to_static();
         return result;
@@ -291,26 +286,17 @@ struct slice
 
         if(input_shape.dynamic() and not input_shape.symbolic())
         {
-            if(input_shape.symbolic())
+            // Non-fixed sliced axis: bounds aren't normalized (can be negative or
+            // out-of-bounds), so use a relaxed [0, max] bound. (#5015)
+            if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
+                   return not input_shape.dyn_dims()[axis].is_fixed();
+               }))
             {
-                MIGRAPHX_THROW(
-                    "SLICE 1_arg: slicing is not allowed on non-fixed symbolic input axis ");
+                auto dds = input_shape.dyn_dims();
+                for(auto axis : axes)
+                    dds[axis] = {0, dds[axis].get_interval().max};
+                return shape{input_shape.type(), dds};
             }
-            // Attributes are not normalized for this case, so they can be negative or
-            // out-of-bounds. Using a relaxed dimension bound for now instead of calculating the
-            // tightest possible bound.
-            auto dds = input_shape.dyn_dims();
-            for(auto axis : this->axes)
-            {
-                dds[axis] = {0, dds[axis].get_interval().max};
-            }
-            return shape{input_shape.type(), dds};
-        }
-
-        auto new_lens = lens_calc(input_shape.max_lens(), this->starts, this->ends, this->axes);
-
-        if(not input_shape.dynamic())
-            return shape{input_shape.type(), new_lens, input_shape.strides()};
 
             auto new_lens = lens_calc(input_shape.max_lens(), to_ints(starts), to_ints(ends), axes);
             auto dds      = input_shape.dyn_dims();

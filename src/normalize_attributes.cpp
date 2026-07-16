@@ -25,10 +25,78 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/dim_like.hpp>
+#include <migraphx/sym.hpp>
+#include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/op/common.hpp>
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+// min/max that fold to one operand when the ordering is provable via intervals,
+// and only fall back to a symbolic min/max node when it is indeterminate.
+static sym::expr fold_min(const sym::expr& a, const sym::expr& b)
+{
+    auto lt = sym::strict_less(a, b);
+    if(lt.has_value())
+        return *lt ? a : b;
+    return sym::min(a, b);
+}
+static sym::expr fold_max(const sym::expr& a, const sym::expr& b)
+{
+    auto lt = sym::strict_less(a, b);
+    if(lt.has_value())
+        return *lt ? b : a;
+    return sym::max(a, b);
+}
+
+static sym::expr axis_len_expr(const shape& s, int64_t axis)
+{
+    if(not s.dynamic())
+        return sym::lit(static_cast<int64_t>(s.lens().at(axis)));
+    const auto& dd = s.dyn_dims().at(axis);
+    if(dd.is_symbolic())
+        return dd.sym_expr;
+    if(dd.is_fixed())
+        return sym::lit(static_cast<int64_t>(dd.get_interval().max));
+    MIGRAPHX_THROW("normalize_attributes: cannot normalize a symbolic bound on a non-fixed axis");
+}
+
+static dim_like to_dim_like(const sym::expr& e)
+{
+    if(e.name() == "literal")
+        return sym::to<int64_t>(e.eval({}));
+    return shape::dynamic_dimension{e};
+}
+
+// Symbolic analog of tune_attribute for dim_like bounds (clip_min/clip_max +
+// use_len). Applies the ONNX clamp norm(v) = clamp(v < 0 ? v + D : v, 0, D)
+// symbolically, folding against the interval bounds where provable.
+template <class Message>
+static value tune_attribute_sym(const std::vector<dim_like>& dims,
+                                const std::vector<int64_t>& axes,
+                                const std::vector<op::normalize_attribute>& attrs,
+                                const shape& input_shape,
+                                Message m)
+{
+    if(not contains(attrs, op::normalize_attribute::use_len))
+        MIGRAPHX_THROW(m() + "symbolic bounds are only supported with use_len normalization");
+    if(axes.size() != dims.size())
+        MIGRAPHX_THROW(m() + "symbolic bounds require one axis per bound");
+    auto zero  = sym::lit(std::int64_t{0});
+    auto exprs = to_sym_exprs(dims);
+    std::vector<dim_like> result(dims.size());
+    std::transform(
+        exprs.begin(), exprs.end(), axes.begin(), result.begin(), [&](const auto& v, auto axis) {
+            auto len = axis_len_expr(input_shape, axis);
+            auto neg = sym::strict_less(v, zero); // from-the-end (negative) index?
+            if(not neg.has_value())
+                MIGRAPHX_THROW(m() + "symbolic bound of indeterminate sign cannot be normalized");
+            auto abs_v = *neg ? v + len : v;
+            return to_dim_like(fold_min(fold_max(abs_v, zero), len));
+        });
+    return migraphx::to_value(result);
+}
 
 /**
  * Parameters:
@@ -230,14 +298,26 @@ bool normalize_attributes(operation& op, const shape& input_shape)
             auto vv      = val.at(key).without_key();
             if(vv.is_array())
             {
-                // Symbolic (dim_like) bounds serialize as objects and cannot be
-                // clamped against the input length at compile time; leave them as-is.
-                if(std::any_of(vv.begin(), vv.end(), [](const auto& e) { return e.is_object(); }))
-                    continue;
                 std::vector<int64_t> axes;
                 if(val.contains("axes"))
                 {
                     axes = val.at("axes").without_key().to_vector<int64_t>();
+                }
+                // Symbolic (dim_like) bounds serialize as objects; clamp them
+                // symbolically rather than against a compile-time length.
+                if(std::any_of(vv.begin(), vv.end(), [](const auto& e) { return e.is_object(); }))
+                {
+                    auto dims = migraphx::from_value<std::vector<dim_like>>(vv);
+                    val[key] =
+                        tune_attribute_sym(dims,
+                                           axes,
+                                           rv.without_key().to_vector<op::normalize_attribute>(),
+                                           input_shape,
+                                           message);
+                    op.from_value(val);
+                    val   = op.to_value();
+                    tuned = true;
+                    continue;
                 }
                 auto vec    = vv.to_vector<int64_t>();
                 auto result = tune_attribute(vec, axes, rv.without_key(), input_shape, message);

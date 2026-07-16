@@ -5436,8 +5436,9 @@ TEST_CASE(slice_sym_symbolic_end_static_input)
                                  {"starts", {0}},
                                  {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
 
+    // end=n is clamped to the axis length 10: dim = min(n, 10).
     migraphx::shape sin{migraphx::shape::float_type, {10}};
-    migraphx::shape sout{migraphx::shape::float_type, {dd{n}}, {lit(1)}};
+    migraphx::shape sout{migraphx::shape::float_type, {dd{migraphx::sym::min(n, lit(10))}}, {lit(1)}};
     expect_shape(sout, op, sin);
     EXPECT(sout.symbolic());
     EXPECT(not sout.is_fixed());
@@ -5450,7 +5451,7 @@ TEST_CASE(slice_sym_symbolic_bounds)
     // The sliced extent (ends - starts) must be non-negative across the whole variable
     // range, so each var range is chosen to keep end >= start.
     {
-        // Symbolic end on a fixed axis: dim = n - 2; leading axis and strides preserved.
+        // Symbolic end clamped to the axis length 12: dim = min(n, 12) - 2.
         auto m  = var("m", {1, 16});
         auto n  = var("n", {2, 16});
         auto op = migraphx::make_op("slice",
@@ -5458,13 +5459,26 @@ TEST_CASE(slice_sym_symbolic_bounds)
                                      {"starts", {2}},
                                      {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
         migraphx::shape sin{migraphx::shape::float_type, {dd{m}, dd{lit(12)}}};
-        migraphx::shape sout{
-            migraphx::shape::float_type, {dd{m}, dd{n - lit(2)}}, sin.dyn_strides()};
+        migraphx::shape sout{migraphx::shape::float_type,
+                             {dd{m}, dd{migraphx::sym::min(n, lit(12)) - lit(2)}},
+                             sin.dyn_strides()};
         expect_shape(sout, op, sin);
         EXPECT(sout.symbolic());
         EXPECT(not sout.is_fixed());
         EXPECT(sout.to_static({{m, 4}, {n, 9}}) ==
                migraphx::shape{migraphx::shape::float_type, {4, 7}, {12, 1}});
+    }
+    {
+        // Symbolic end provably >= the axis length collapses to the length: extent is concrete.
+        auto n  = var("n", {13, 20});
+        auto op = migraphx::make_op("slice",
+                                    {{"axes", {0}},
+                                     {"starts", {2}},
+                                     {"ends", migraphx::value::array{migraphx::to_value(dd{n})}}});
+        migraphx::shape sin{migraphx::shape::float_type, {dd{lit(12)}, dd{lit(4)}}};
+        migraphx::shape sout{
+            migraphx::shape::float_type, {dd{lit(10)}, dd{lit(4)}}, sin.dyn_strides()};
+        expect_shape(sout, op, sin);
     }
     {
         // Symbolic start: dim = 8 - n (n <= 8 keeps the extent non-negative).

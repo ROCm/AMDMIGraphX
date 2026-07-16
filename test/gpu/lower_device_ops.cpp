@@ -149,4 +149,15 @@ TEST_CASE(lower_hip_fill_tuple)
     check_lowered(migraphx::make_op("hip::fill", {{"value", 0}}), {tup});
 }
 
+TEST_CASE(hip_fill_tuple_kernel_compiles)
+{
+    migraphx::shape s{migraphx::shape::float_type, {5, 2}};
+    migraphx::shape tup{std::vector<migraphx::shape>{s, s}};
+
+    migraphx::gpu::context ctx;
+    auto co = migraphx::gpu::compile_op("hip::fill", ctx, {tup}, {{"value", 7}});
+
+    EXPECT(co.name() == "gpu::code_object");
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

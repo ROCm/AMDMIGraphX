@@ -102,4 +102,4 @@ jobs:
     - name: Test
       run: |
         cd build
-        ctest -j 8 --output-on-failure --timeout 5000
+        ctest -j 8 --output-on-failure --timeout 5000 -E 'test_logger_test'

@@ -59,8 +59,7 @@ jobs:
           pybind11
 
     - name: Build and install rocm-cmake
-      # rocm-cmake is not available via Homebrew, so build/install it from the
-      # pinned commit into a local prefix (as done manually on the MacBook).
+      # manually install for now
       run: |
         git clone https://github.com/ROCm/rocm-cmake.git "${RUNNER_TEMP}/rocm-cmake"
         cd "${RUNNER_TEMP}/rocm-cmake"

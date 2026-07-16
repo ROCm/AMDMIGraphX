@@ -46,7 +46,11 @@ namespace gpu {
 static bool is_unsupported(const std::string& name)
 {
     static const std::unordered_set<std::string> unsupported = {
-        "hip::copy_from_gpu", "hip::copy_to_gpu", "hip::sync_stream", "gpu::gemm",};
+        "hip::copy_from_gpu",
+        "hip::copy_to_gpu",
+        "hip::sync_stream",
+        "gpu::gemm",
+    };
     return contains(unsupported, name);
 }
 

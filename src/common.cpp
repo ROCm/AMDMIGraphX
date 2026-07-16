@@ -193,20 +193,19 @@ std::vector<instruction_ref> insert_common_args(module& m,
             auto c_dyn_dims = compute_common_dyn_dims(input_shapes);
 
             instruction_ref ref{};
-            for(const auto& input : inputs)
+            const auto it = std::find_if(inputs.begin(), inputs.end(), [](const auto& input) {
+                return input->get_shape().dynamic();
+            });
+            if(it != inputs.end())
             {
-                if(input->get_shape().dynamic())
+                ref = *it;
+                if((*it)->get_shape().dyn_dims() != c_dyn_dims)
                 {
-                    ref = input;
-                    if(input->get_shape().dyn_dims() != c_dyn_dims)
-                    {
-                        ref = m.insert_instruction(
-                            ins,
-                            make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
-                            ref,
-                            ref);
-                    }
-                    break;
+                    ref = m.insert_instruction(
+                        ins,
+                        make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                        ref,
+                        ref);
                 }
             }
 

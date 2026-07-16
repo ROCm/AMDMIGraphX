@@ -53,7 +53,7 @@ using hip_host_ptr = MIGRAPHX_MANAGE_PTR(void, hipHostUnregister);
 
 std::string hip_error(int error) { return hipGetErrorString(static_cast<hipError_t>(error)); }
 
-static bool is_device_ptr(const void* ptr)
+bool is_device_ptr(const void* ptr)
 {
     hipPointerAttribute_t attr;
     auto status = hipPointerGetAttributes(&attr, ptr);
@@ -61,6 +61,8 @@ static bool is_device_ptr(const void* ptr)
         return false;
     return attr.type == hipMemoryTypeDevice;
 }
+
+// bool is_gpu_device_ptr(const void* ptr) { return is_device_ptr(ptr); }
 
 static void* get_device_ptr(void* hptr)
 {

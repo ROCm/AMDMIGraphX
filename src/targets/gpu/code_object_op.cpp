@@ -73,23 +73,33 @@ static void visit_flatten_args(const std::vector<argument>& args, F f)
         f(args);
 }
 
+static argument ensure_gpu_arg(const argument& arg, pmr::vector<argument>& temps)
+{
+    if(arg.get_shape().type() == shape::tuple_type)
+    {
+        std::vector<argument> sub_gpu;
+        sub_gpu.reserve(arg.get_sub_objects().size());
+        for(const auto& sub : arg.get_sub_objects())
+            sub_gpu.push_back(ensure_gpu_arg(sub, temps));
+        return argument{sub_gpu};
+    }
+    char* ptr = arg.data();
+    if(ptr != nullptr and not is_device_ptr(ptr))
+    {
+        temps.push_back(to_gpu(arg));
+        return temps.back();
+    }
+    return arg;
+}
+
 static std::vector<argument> ensure_gpu_kernel_args(const std::vector<argument>& args,
                                                       pmr::vector<argument>& temps)
 {
     std::vector<argument> gpu_args;
     gpu_args.reserve(args.size());
-    for(const auto& arg : args)
-    {
-        if(arg.data() != nullptr and not is_gpu_device_ptr(arg.data()))
-        {
-            temps.push_back(to_gpu(arg));
-            gpu_args.push_back(temps.back());
-        }
-        else
-        {
-            gpu_args.push_back(arg);
-        }
-    }
+    std::transform(args.begin(), args.end(), std::back_inserter(gpu_args), [&](const argument& arg) {
+        return ensure_gpu_arg(arg, temps);
+    });
     return gpu_args;
 }
 

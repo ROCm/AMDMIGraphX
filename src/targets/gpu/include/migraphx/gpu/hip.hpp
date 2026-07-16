@@ -40,6 +40,8 @@ struct context;
 
 MIGRAPHX_GPU_EXPORT std::string hip_error(int error);
 
+MIGRAPHX_GPU_EXPORT bool is_device_ptr(const void* ptr);
+
 MIGRAPHX_GPU_EXPORT argument allocate_gpu(const shape& s, bool host = false);
 
 MIGRAPHX_GPU_EXPORT argument register_on_gpu(const argument& arg);

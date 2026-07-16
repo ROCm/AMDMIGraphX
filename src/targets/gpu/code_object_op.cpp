@@ -93,7 +93,7 @@ static argument ensure_gpu_arg(const argument& arg, pmr::vector<argument>& temps
 }
 
 static std::vector<argument> ensure_gpu_kernel_args(const std::vector<argument>& args,
-                                                      pmr::vector<argument>& temps)
+                                                    pmr::vector<argument>& temps)
 {
     std::vector<argument> gpu_args;
     gpu_args.reserve(args.size());

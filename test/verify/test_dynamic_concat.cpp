@@ -62,12 +62,13 @@ struct test_dynamic_concat_kv_cache_axis2 : verify_program<test_dynamic_concat_k
         auto psl = var("psl", {1, 64});
         using dd = migraphx::shape::dynamic_dimension;
 
-        migraphx::shape past_shape{migraphx::shape::half_type, {dd{1, 1}, dd{5, 5}, dd{psl}, dd{64, 64}}};
+        migraphx::shape past_shape{migraphx::shape::half_type,
+                                   {dd{1, 1}, dd{5, 5}, dd{psl}, dd{64, 64}}};
         migraphx::shape current_shape{migraphx::shape::half_type, {1, 5, 1, 64}};
 
         migraphx::program p;
-        auto* mm = p.get_main_module();
-        auto past_key   = mm->add_parameter("past_key_values.0.key", past_shape);
+        auto* mm         = p.get_main_module();
+        auto past_key    = mm->add_parameter("past_key_values.0.key", past_shape);
         auto current_key = mm->add_literal(migraphx::generate_literal(current_shape));
         mm->add_instruction(migraphx::make_op("concat", {{"axis", 2}}), past_key, current_key);
         return p;
@@ -75,8 +76,8 @@ struct test_dynamic_concat_kv_cache_axis2 : verify_program<test_dynamic_concat_k
 
     std::unordered_map<std::string, migraphx::shape> get_test_dims() const
     {
-        return {{"past_key_values.0.key",
-                 migraphx::shape{migraphx::shape::half_type, {1, 5, 1, 64}}}};
+        return {
+            {"past_key_values.0.key", migraphx::shape{migraphx::shape::half_type, {1, 5, 1, 64}}}};
     }
 };
 
@@ -85,10 +86,10 @@ struct test_symbolic_concat_axis0_gpu : verify_program<test_symbolic_concat_axis
     migraphx::program create_program() const
     {
         using migraphx::sym::var;
-        auto n  = var("n", {2, 3});
-        auto d0 = var("d0", {2, 4});
-        auto d1 = var("d1", {3, 4});
-        auto d2 = var("d2", {1, 5});
+        auto n   = var("n", {2, 3});
+        auto d0  = var("d0", {2, 4});
+        auto d1  = var("d1", {3, 4});
+        auto d2  = var("d2", {1, 5});
         using dd = migraphx::shape::dynamic_dimension;
 
         migraphx::shape s0{migraphx::shape::float_type, {dd{d0}, dd{n}}};

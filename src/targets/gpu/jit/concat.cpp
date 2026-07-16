@@ -88,24 +88,21 @@ struct concat_compiler : compiler<concat_compiler>
     {
         hip_compile_options options;
         const std::size_t kernel_axis = v.at("axis").to<std::size_t>();
-        const std::size_t num_concat =
-            v.get("num_concat_inputs", inputs.size());
+        const std::size_t num_concat  = v.get("num_concat_inputs", inputs.size());
         std::vector<shape> concat_shapes;
-        concat_shapes.assign(inputs.begin(),
-                             inputs.begin() + std::min(num_concat, inputs.size()));
-        shape output_shape = v.contains("output_shape") ? from_value<shape>(v.at("output_shape"))
-                                                        : inputs.back();
+        concat_shapes.assign(inputs.begin(), inputs.begin() + std::min(num_concat, inputs.size()));
+        shape output_shape =
+            v.contains("output_shape") ? from_value<shape>(v.at("output_shape")) : inputs.back();
 
-        options.inputs   = inputs;
-        options.output   = output_shape;
+        options.inputs      = inputs;
+        options.output      = output_shape;
         options.kernel_name = v.get("kernel", "concat_kernel");
 
         // normalize() rewrites axis into reduced-dim space; kernel concat<Axis> uses full tensors.
-        std::size_t fast_axis = kernel_axis;
+        std::size_t fast_axis          = kernel_axis;
         std::vector<shape> norm_concat = normalize(concat_shapes, fast_axis);
-        const bool any_dynamic =
-            std::any_of(concat_shapes.begin(), concat_shapes.end(),
-                        [](const shape& x) { return x.dynamic(); });
+        const bool any_dynamic         = std::any_of(
+            concat_shapes.begin(), concat_shapes.end(), [](const shape& x) { return x.dynamic(); });
         auto axis = any_dynamic ? kernel_axis : find_fast_axis(norm_concat);
         // virtual_inputs must match inputs for compile_hip_code_object unless empty
         options.virtual_inputs = {};
@@ -121,7 +118,7 @@ struct concat_compiler : compiler<concat_compiler>
 
         const std::size_t nelem =
             output_shape.dynamic() ? output_shape.element_space() : output_shape.elements();
-        auto nelements_per_op     = nelem / op_names.size();
+        auto nelements_per_op = nelem / op_names.size();
         options.set_launch_params(v, compute_global_for(ctx, nelements_per_op / vec.size, 256));
         options.emplace_param("-Wno-float-equal");
         std::vector<std::string> concat_params;

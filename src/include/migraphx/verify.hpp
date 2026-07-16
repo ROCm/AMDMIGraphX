@@ -100,7 +100,7 @@ struct compare_mag_fn
     template <class T, class U>
     bool operator()(T x, U y) const
     {
-        return std::fabs(x) < std::fabs(y);
+        return std::fabs(static_cast<double>(x)) < std::fabs(static_cast<double>(y));
     }
 };
 static constexpr compare_mag_fn compare_mag{};

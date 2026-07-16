@@ -75,9 +75,10 @@ TEST_CASE(expand_dyn_input_static_dims_test)
     auto* mm = p.get_main_module();
     migraphx::shape s(migraphx::shape::float_type, {{3, 8}, {1, 1}, {1, 1}});
     auto param = mm->add_parameter("x", s);
-    mm->add_literal(migraphx::literal(migraphx::shape{migraphx::shape::int32_type, {3}}, {3, 4, 4}));
+    mm->add_literal(
+        migraphx::literal(migraphx::shape{migraphx::shape::int32_type, {3}}, {3, 4, 4}));
     std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims{{3, 3}, {4, 4}, {4, 4}};
-    auto ret   = mm->add_instruction(
+    auto ret = mm->add_instruction(
         migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out_dyn_dims)}}),
         param,
         param);

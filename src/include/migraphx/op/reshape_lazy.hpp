@@ -64,11 +64,11 @@ struct reshape_lazy
         // track number of fixed elements in input and output
         std::size_t num_dims_ele = 1;
         std::size_t num_dd_ele   = 1;
-        auto max_dims = std::max(dims.size(), dyn_dims.size());
+        auto max_dims            = std::max(dims.size(), dyn_dims.size());
         for(std::size_t i = 0; i < max_dims; ++i)
         {
             if(i < dyn_dims.size())
-            {                
+            {
                 if(dyn_dims[i].is_fixed())
                 {
                     num_dd_ele *= dyn_dims[i].get_interval().min;
@@ -114,9 +114,9 @@ struct reshape_lazy
             }
             else
             {
-                output_dyn_dims[i] = shape::dynamic_dimension{
-                    static_cast<std::size_t>(std::get<int64_t>(dims[i])),
-                    static_cast<std::size_t>(std::get<int64_t>(dims[i]))};
+                output_dyn_dims[i] =
+                    shape::dynamic_dimension{static_cast<std::size_t>(std::get<int64_t>(dims[i])),
+                                             static_cast<std::size_t>(std::get<int64_t>(dims[i]))};
             }
         }
         return {s0.type(), output_dyn_dims};

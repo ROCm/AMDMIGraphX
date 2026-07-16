@@ -41,9 +41,7 @@ TEST_CASE(shape_dyn_test0)
 
     std::vector<int64_t> gold{-1, 4, -1, -1};
     std::vector<int64_t> result_vector(gold.size());
-    result.visit([&](auto output) {
-        result_vector.assign(output.begin(), output.end());
-    });
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     EXPECT(result_vector == gold);
 }
 
@@ -62,8 +60,6 @@ TEST_CASE(shape_dyn_test3)
 
     std::vector<int64_t> gold{4};
     std::vector<int64_t> result_vector(gold.size());
-    result.visit([&](auto output) {
-        result_vector.assign(output.begin(), output.end());
-    });
+    result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
     EXPECT(result_vector == gold);
 }

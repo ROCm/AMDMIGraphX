@@ -112,7 +112,7 @@ jobs:
       run: choco install visualstudio2022buildtools -y --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
       
     - name: Setup MSVC Developer Command Prompt
-      uses: ilammy/msvc-dev-cmd@v1
+      uses: ilammy/msvc-dev-cmd@v4
       with:
         vsversion: 2022 # v17.13.4
 

@@ -47,16 +47,15 @@ struct glu : op_builder<glu>
     std::vector<instruction_ref>
     insert(module& m, instruction_ref ins, const std::vector<instruction_ref>& args) const
     {
-        auto x       = args[0];
-        auto lens    = x->get_shape().lens();
-        auto ax      = tune_axis(lens.size(), axis, "glu");
-        int64_t len  = lens[ax];
-        int64_t half = len / 2;
+        auto x      = args[0];
+        auto lens   = x->get_shape().lens();
+        auto ax     = tune_axis(lens.size(), axis, "glu");
+        int64_t len = lens[ax];
 
         auto first = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {0}}, {"ends", {half}}}), x);
+            ins, make_op("slice", {{"axes", {ax}}, {"starts", {0}}, {"ends", {len / 2}}}), x);
         auto second = m.insert_instruction(
-            ins, make_op("slice", {{"axes", {ax}}, {"starts", {half}}, {"ends", {len}}}), x);
+            ins, make_op("slice", {{"axes", {ax}}, {"starts", {len / 2}}, {"ends", {len}}}), x);
         auto gate = m.insert_instruction(ins, make_op("sigmoid"), second);
         return {m.insert_instruction(ins, make_op("mul"), first, gate)};
     }

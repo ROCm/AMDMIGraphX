@@ -32,14 +32,25 @@ static std::vector<float> run_onnx(const std::string& target)
     options.default_dyn_dim_value = {3, 8};
     options.use_symbolic_shapes   = true;
     auto p                        = read_onnx("expand_dyn_input_static_dims_throw.onnx", options);
-    p.compile(migraphx::make_target(target));
+    auto t                        = migraphx::make_target(target);
+    p.compile(t);
 
     migraphx::shape sx{migraphx::shape::float_type, {3, 1, 1}};
     std::vector<float> data(sx.elements());
     std::iota(data.begin(), data.end(), 1.0f);
     migraphx::parameter_map pp;
-    pp["x"]     = migraphx::argument(sx, data.data());
-    auto result = p.eval(pp).back();
+    pp["x"] = migraphx::argument(sx, data.data());
+    if(target != "ref")
+    {
+        pp["x"] = t.copy_to(pp["x"]);
+        for(const auto& param : p.get_parameter_shapes())
+        {
+            if(pp.count(param.first) == 0)
+                pp[param.first] = t.allocate(param.second);
+        }
+    }
+    auto results = p.eval(pp);
+    auto result  = target != "ref" ? t.copy_from(results.back()) : results.back();
 
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
@@ -56,30 +67,9 @@ TEST_CASE(expand_dyn_input_static_dims_test)
     }
 
     auto ref_result = run_onnx("ref");
-
-    // print gold, gpu_result, ref_result
-    std::cout << "gold: " << std::endl;
-    for(auto g : gold)
-    {
-        std::cout << g << " ";
-    }
-    std::cout << std::endl;
-    std::cout << "ref_result: " << std::endl;
-    for(auto g : ref_result)
-    {
-        std::cout << g << " ";
-    }
-    std::cout << std::endl;
+    auto gpu_result = run_onnx("gpu");
 
     EXPECT(migraphx::verify::verify_rms_range(ref_result, gold));
-
-    auto gpu_result = run_onnx("gpu");
-    std::cout << "gpu_result: " << std::endl;
-    for(auto g : gpu_result)
-    {
-        std::cout << g << " ";
-    }
-    std::cout << std::endl;
     EXPECT(migraphx::verify::verify_rms_range(gpu_result, gold));
     EXPECT(migraphx::verify::verify_rms_range(gpu_result, ref_result));
 }

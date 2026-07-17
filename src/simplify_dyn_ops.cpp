@@ -25,6 +25,7 @@
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/onehot.hpp>
 #include <migraphx/op/resize.hpp>
+#include <migraphx/op/multibroadcast.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
@@ -145,6 +146,19 @@ struct find_static_2in_broadcasts : match::supports_dynamic_shapes
         if(broadcast_op.name() == "broadcast")
         {
             broadcast_op.from_value({{"out_lens", out_lens}});
+        }
+        else if(broadcast_op.name() == "multibroadcast")
+        {
+            const auto& mb = migraphx::any_cast<op::multibroadcast>(broadcast_op);
+            if(not mb.output_dyn_dims.empty())
+            {
+                broadcast_op.from_value(
+                    {{"out_lens", out_lens}, {"out_dyn_dims", to_value(mb.output_dyn_dims)}});
+            }
+            else
+            {
+                broadcast_op.from_value({{"out_lens", out_lens}, {"out_dyn_dims", {}}});
+            }
         }
         else
         {

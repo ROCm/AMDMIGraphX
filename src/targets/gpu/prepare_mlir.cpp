@@ -141,9 +141,11 @@ struct find_nonstandard_literal
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
-        auto c   = make_op("contiguous");
-        auto l   = c.compute(c.compute_shape({ins->get_shape()}), {ins->eval()});
-        m.replace_instruction(ins, m.add_literal(l.get_shape(), l.data()));
+        auto arg = ins->get_literal().get_argument();
+        shape s{arg.get_shape().type(), arg.get_shape().lens()};
+        literal result;
+        visit_all(arg)([&](auto x) { result = literal{s, x.to_vector()}; });
+        m.replace_instruction(ins, m.add_literal(result));
     }
 };
 

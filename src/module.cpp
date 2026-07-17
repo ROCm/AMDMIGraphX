@@ -92,13 +92,45 @@ struct module_impl
         return emplace(pos, ins);
     }
 
-    void clear()
+    // Clear the arguments of any instruction that references an instruction owned by
+    // another module, dropping the cross-module back-references.
+    void clear_foreign_inputs_for_program()
+    {
+        for(auto& ins : instructions)
+        {
+            if(std::any_of(ins.inputs().begin(), ins.inputs().end(), [&](instruction_ref input) {
+                   return instruction_set.count(std::addressof(*input)) == 0;
+               }))
+                ins.clear_arguments();
+        }
+    }
+
+    // False if any instruction is used as an input by an instruction in another
+    // module; destroying such a module would dangle those consumers.
+    bool has_no_foreign_outputs() const
+    {
+        return std::all_of(instructions.begin(), instructions.end(), [&](const instruction& ins) {
+            return std::all_of(
+                ins.outputs().begin(), ins.outputs().end(), [&](instruction_ref output) {
+                    return instruction_set.count(std::addressof(*output)) != 0;
+                });
+        });
+    }
+
+    void reset_instructions()
     {
         changed.notify();
         instructions.clear();
         instruction_set.clear();
         nparams                    = 0;
         num_ins_with_debug_symbols = 0;
+    }
+
+    void clear()
+    {
+        assert(has_no_foreign_outputs());
+        clear_foreign_inputs_for_program();
+        reset_instructions();
     }
 
     void push_front(const instruction& ins) { insert(instructions.begin(), ins); }
@@ -146,7 +178,12 @@ module::module(const std::string& name) :impl(std::make_unique<module_impl>())
 }
 
 module::module(module&&) noexcept = default;
-module::~module() noexcept        = default;
+
+module::~module() noexcept
+{
+    if(impl)
+        impl->clear();
+}
 
 // copy constructor
 module::module(const module& m) { assign(m); }
@@ -156,6 +193,14 @@ module& module::operator=(module m)
 {
     std::swap(m.impl, this->impl);
     return *this;
+}
+
+void module::swap(module& rhs) noexcept { std::swap(impl, rhs.impl); }
+
+void module::clear_foreign_inputs_for_program()
+{
+    assert(impl);
+    impl->clear_foreign_inputs_for_program();
 }
 
 std::string module::name() const { return impl->name; }
@@ -195,10 +240,10 @@ void module::assign(const module& m)
         impl = std::make_unique<module_impl>();
     *impl = *m.impl;
 
-    // clear instructions
+    // reset instructions
     if(not impl->instructions.empty())
     {
-        impl->clear();
+        impl->reset_instructions();
     }
 
     std::unordered_map<instruction_ref, instruction_ref> ins_map;

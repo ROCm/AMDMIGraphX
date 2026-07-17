@@ -77,6 +77,7 @@
 #include <migraphx/gpu/fuse_mlir.hpp>
 #include <migraphx/gpu/fuse_ops.hpp>
 #include <migraphx/gpu/prefuse_ops.hpp>
+#include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/lowering.hpp>
 #include <migraphx/gpu/propagate_reshape_layout.hpp>
 #include <migraphx/gpu/schedule_model.hpp>
@@ -176,7 +177,9 @@ struct pipeline_factory
             dead_code_elimination{},
             rewrite_gelu{options.fast_math},
             optimize_module{},
-            layout_convolution{.channels_last = enabled(MIGRAPHX_ENABLE_NHWC{})},
+            layout_convolution{.order = enabled(MIGRAPHX_ENABLE_NHWC{})
+                                            ? layout_convolution::channels_last
+                                            : layout_convolution::channels_auto},
             dead_code_elimination{},
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), fuse_horizontal{}),
             dead_code_elimination{},
@@ -247,6 +250,7 @@ struct pipeline_factory
             dead_code_elimination{},
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
+            lower_device_ops{},
             compile_ops{get_context(), options.exhaustive_tune},
             dead_code_elimination{},
             promote_literals{},
@@ -298,7 +302,8 @@ migraphx::context target::get_context() const
                        gpu_num_cu,
                        gpu_num_chiplets,
                        gpu_max_threads_per_cu,
-                       gpu_max_threads_per_block);
+                       gpu_max_threads_per_block,
+                       gpu_wavefront_size);
     return context(gpu::get_device_id());
 }
 

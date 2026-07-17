@@ -6,7 +6,7 @@
 # the MIGraphX third-party dependencies are prebuilt into PREFIX (/usr/local).
 #
 # Build args:
-#   ROCM_VERSION  ROCm release version for versioned package names (e.g. 7.13)
+#   ROCM_VERSION  ROCm release version for versioned package names (e.g. 7.14)
 #   GPU_ARCH      GPU architecture family (e.g. gfx942); empty installs the fat
 #                 (all-architecture) device code so the image runs on any GPU
 #   PREFIX        Install location for the prebuilt MIGraphX dependencies
@@ -14,17 +14,13 @@
 # Build (from the repo root, which is the build context):
 #   docker build -f tools/docker/sles.docker \
 #       --build-arg ROCM_VERSION=7.14 \
-#       --build-arg GPU_ARCH=<gpu_arch> \
+#       --build-arg GPU_ARCH=$(rocminfo 2>/dev/null | grep -o -m1 'gfx.*')
 #       -t migraphx-sles .
 
 FROM registry.suse.com/suse/sle15:15.6
 
-# Install location for the prebuilt MIGraphX dependencies.
 ARG PREFIX=/usr/local
-# ROCm release version for TheRock versioned package names (e.g. amdrocm-runtime7.13).
 ARG ROCM_VERSION=7.14
-# GPU architecture family (e.g. gfx942); empty installs the fat (all-architecture)
-# device code, which lets the image run on any GPU.
 ARG GPU_ARCH=""
 
 # pip on recent distros is externally managed; allow system-wide installs.
@@ -75,7 +71,7 @@ ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Install yapf (used by tools/format.py).
+# Install yapf
 RUN pip3 install yapf==0.28.0
 
 # Prebuild the MIGraphX third-party dependencies into PREFIX so builds can
@@ -83,12 +79,7 @@ RUN pip3 install yapf==0.28.0
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
-RUN cd / && rbuild prepare -d ${PREFIX} -s develop
-
-# NOTE: tools/requirements-py.txt (onnx/numpy/pytest for the Python onnx tests)
-# is intentionally not installed here. The SLES base image ships Python 3.6,
-# which cannot satisfy those pins (e.g. numpy==1.21.6), and the SLES CI job only
-# builds the C++ tests/driver. This matches the legacy SLES behavior, which also
-# skipped requirements-py on SLES.
 
 RUN git config --global --add safe.directory '*'
+
+RUN cd / && rbuild prepare -d ${PREFIX} -s develop

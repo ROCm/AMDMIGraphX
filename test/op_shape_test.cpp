@@ -5438,7 +5438,8 @@ TEST_CASE(slice_sym_symbolic_end_static_input)
 
     // end=n is clamped to the axis length 10: dim = min(n, 10).
     migraphx::shape sin{migraphx::shape::float_type, {10}};
-    migraphx::shape sout{migraphx::shape::float_type, {dd{migraphx::sym::min(n, lit(10))}}, {lit(1)}};
+    migraphx::shape sout{
+        migraphx::shape::float_type, {dd{migraphx::sym::min(n, lit(10))}}, {lit(1)}};
     expect_shape(sout, op, sin);
     EXPECT(sout.symbolic());
     EXPECT(not sout.is_fixed());

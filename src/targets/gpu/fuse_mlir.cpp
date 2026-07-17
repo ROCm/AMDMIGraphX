@@ -377,6 +377,9 @@ auto is_mlir_conv(mlir_mode mode)
             return true;
         if(mode == mlir_mode::all)
             return true;
+        // Always use mlir for NHWC
+        if(ins->get_shape().strides()[1] == 1)
+            return true;
         // No winograd for group convolution
         if(group > 1)
             return true;

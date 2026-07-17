@@ -32,6 +32,7 @@ add_executable(driver
     transform.cpp
     trim.cpp
     marker_roctx.cpp
+    verbose_terminate.cpp
 )
 set_target_properties(driver PROPERTIES OUTPUT_NAME migraphx-driver)
 if(NOT WIN32)

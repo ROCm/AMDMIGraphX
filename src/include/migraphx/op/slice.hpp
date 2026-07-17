@@ -208,11 +208,12 @@ struct slice
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
         check_inputs_and_attributes(inputs);
 
+        // fallback for range-based dynamic shapes. Only handling 1 arg case.
         if(input_shape.dynamic() and not input_shape.symbolic())
         {
             if(inputs.size() != 1)
             {
-                MIGRAPHX_THROW("SLICE: range-based dynamic shapes with variable inputs unsupported.");
+                MIGRAPHX_THROW("SLICE: range-based dynamic input shapes with variable inputs unsupported.");
             }
             // Non-fixed sliced axis: bounds aren't normalized (can be negative or
             // out-of-bounds), so use a relaxed [0, max] bound. (#5015)
@@ -265,194 +266,14 @@ struct slice
         return offset * s.type_size();
     }
 
-    /**
-     * Calculates the starting offset for the sliced tensor (for aliasing).
-     * Used for 2-4 inputs to `slice.
-     *
-     * \param s static input shape
-     * \param input_starts starting indices of slice
-     * \param ax_vec axes to slice on
-     */
-    template <class T>
-    auto compute_offset(const shape& s, const T& input_starts, const T& ax_vec) const
-    {
-        auto ret = 0;
-        for(std::size_t i = 0; i < ax_vec.size(); ++i)
-        {
-            auto axis = ax_vec[i];
-            ret += input_starts[i] * s.strides().at(axis);
-        }
-        return ret * s.type_size();
-    }
-
-    /**
-     * If given, normalize the inputs. Otherwise get from operator attributes.
-     * Return the values in a map.
-     *
-     * Parameters
-     * input_shape: static shape of the input
-     * input_starts: optional
-     * input_ends: optional
-     * input_ends: optional
-     */
-    std::unordered_map<std::string, std::vector<int64_t>>
-    normalize_starts_ends_axes(shape input_shape,
-                               const optional<std::vector<int64_t>>& input_starts,
-                               const optional<std::vector<int64_t>>& input_ends,
-                               const optional<std::vector<int64_t>>& input_axes) const
-    {
-        auto axes_attrs = this->attributes().at("normalize_axes");
-        std::vector<int64_t> norm_starts;
-        std::vector<int64_t> norm_ends;
-        std::vector<int64_t> norm_axes;
-        if(input_axes)
-        {
-            norm_axes = normalize_axes(input_axes.value(),
-                                       input_shape,
-                                       axes_attrs.at("axes"),
-                                       "Slice variable input_axes");
-        }
-        else
-        {
-            norm_axes = this->axes;
-        }
-        if(input_starts)
-        {
-            norm_starts = normalize_indices(input_starts.value(),
-                                            norm_axes,
-                                            input_shape,
-                                            axes_attrs.at("starts"),
-                                            "Slice variable input_starts");
-        }
-        else
-        {
-            norm_starts = to_ints(this->starts);
-        }
-        if(input_ends)
-        {
-            norm_ends = normalize_indices(input_ends.value(),
-                                          norm_axes,
-                                          input_shape,
-                                          axes_attrs.at("ends"),
-                                          "Slice variable input ends");
-        }
-        else
-        {
-            norm_ends = to_ints(this->ends);
-        }
-        return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
-    }
-
-    void resolve_data_dependent_symbolics(args, &symbolic_map)
-    {
-        // Use data from input arguments to fill in the runtime static dimension for data-dependent symbolic dimensions.
-        // Call from dyn_output?
-    }
-
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
         auto input       = args[0];
         auto input_shape = input.get_shape();
-        if(args.size() == 1)
-        {
-            std::size_t offset = compute_offset(input_shape);
-            return {dyn_out.computed_shape, [=] { return input.data() + offset; }};
-        }
-        else
-        {
-            // Note that we re-normalize both the attributes and inputs because of the non-fixed
-            // dynamic input shape case. It's possible to only re-normalize if slicing over
-            // non-fixed dynamic_dimensions.
-            auto set_attributes = get_set_attributes();
-            std::unordered_map<std::string, std::vector<int64_t>> norm_inputs;
-            if(set_attributes == ends_axes)
-            {
-                // attr ends and axes set; inputs are (data, input_starts)
-                args[1].visit([&](auto input_starts) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   input_starts.template to_vector<int64_t>(),
-                                                   to_ints(this->ends),
-                                                   this->axes);
-                });
-            }
-            else if(set_attributes == starts_axes)
-            {
-                // attr starts and axes set; inputs are (data, input_ends)
-                args[1].visit([&](auto input_ends) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   to_ints(this->starts),
-                                                   input_ends.template to_vector<int64_t>(),
-                                                   this->axes);
-                });
-            }
-            else if(set_attributes == starts_ends)
-            {
-                // attr starts and ends set; inputs are (data, input_axes)
-                args[1].visit([&](auto input_axes) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   to_ints(this->starts),
-                                                   to_ints(this->ends),
-                                                   input_axes.template to_vector<int64_t>());
-                });
-            }
-            else if(set_attributes == axes_only)
-            {
-                // attr axes set; inputs are (data, input_starts, input_ends)
-                visit_all(args[1], args[2])([&](auto input_starts, auto input_ends) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   input_starts.template to_vector<int64_t>(),
-                                                   input_ends.template to_vector<int64_t>(),
-                                                   this->axes);
-                });
-            }
-            else if(set_attributes == ends_only)
-            {
-                // attr ends set; inputs are (data, input_starts, input_axes)
-                visit_all(args[1], args[2])([&](auto input_starts, auto input_axes) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   input_starts.template to_vector<int64_t>(),
-                                                   to_ints(this->ends),
-                                                   input_axes.template to_vector<int64_t>());
-                });
-            }
-            else if(set_attributes == starts_only)
-            {
-                // attr starts set; inputs are (data, input_ends, input_axes)
-                visit_all(args[1], args[2])([&](auto input_ends, auto input_axes) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   to_ints(this->starts),
-                                                   input_ends.template to_vector<int64_t>(),
-                                                   input_axes.template to_vector<int64_t>());
-                });
-            }
-            else
-            {
-                // no attr set, all inputs
-                visit_all(args[1], args[2], args[3])(
-                    [&](auto input_starts, auto input_ends, auto input_axes) {
-                        norm_inputs =
-                            normalize_starts_ends_axes(input_shape,
-                                                       input_starts.template to_vector<int64_t>(),
-                                                       input_ends.template to_vector<int64_t>(),
-                                                       input_axes.template to_vector<int64_t>());
-                    });
-            }
-            auto offset = compute_offset(
-                input_shape, norm_inputs.at("norm_starts"), norm_inputs.at("norm_axes"));
-            shape calc_shape = shape{input_shape.type(),
-                                     lens_calc(input_shape.lens(),
-                                               norm_inputs.at("norm_starts"),
-                                               norm_inputs.at("norm_ends"),
-                                               norm_inputs.at("norm_axes")),
-                                     input_shape.strides()};
-            return {calc_shape, [=] { return input.data() + offset; }};
-        }
+        std::size_t offset = compute_offset(input_shape);
+        // For dynamic shapes, attributes will be normalized and symbolic dimensions resolved.
+        // Rerunning comput_shape() from dyn_output should give a static computed_shape.
+        return {dyn_out.computed_shape, [=] { return input.data() + offset; }};
     }
 
     std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return {0}; }

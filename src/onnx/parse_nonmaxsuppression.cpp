@@ -45,18 +45,12 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         auto nms_ins = info.add_instruction(op, args);
         // slice with variable ends to handle dynamic shape output.
         auto indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
-        if(enabled(MIGRAPHX_USE_DYNAMIC_NMS{}))
-        {
-            // TODO: planning to make this the default behavior and removing the env var.
-            auto num_selected =
-                info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
-            return info.add_instruction(
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
-        }
-        else
-        {
-            return indices;
-        }
+        auto num_selected =
+            info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
+        // create unique symbolic using node_name from onnx_parser.
+        auto num_selected_bind = info.add_instruction(make_op("bind_symbolic", {{"symbols", node_name}}), num_selected);
+        return info.add_instruction(
+            make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected_bind);
     }
 };
 

@@ -24,9 +24,7 @@
 #include <migraphx/onnx/op_parser.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/env.hpp>
-
-MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_USE_DYNAMIC_NMS)
+#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -47,10 +45,10 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         auto indices = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), nms_ins);
         auto num_selected =
             info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
-        // create unique symbolic using node_name from onnx_parser.
-        auto num_selected_bind = info.add_instruction(make_op("bind_symbolic", {{"symbols", node_name}}), num_selected);
+        auto num_selected_var = shape::dynamic_dimension{sym::var(info.name)};
+        auto num_selected_bind = info.add_instruction(make_op("bind_symbolic", {{"symbols", {to_value(num_selected_var)}}}), num_selected);
         return info.add_instruction(
-            make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected_bind);
+            make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {to_value(num_selected_var)}}, {"mode", "ends_input"}}), indices, num_selected_bind);
     }
 };
 

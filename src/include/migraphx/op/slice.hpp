@@ -32,6 +32,7 @@
 #include <migraphx/dyn_output.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/normalize_attributes.hpp>
+#include <migraphx/enum.hpp>
 #include <array>
 
 namespace migraphx {
@@ -65,8 +66,8 @@ namespace op {
  */
 struct slice
 {
-    enum class slice_mode
-    {
+    MIGRAPHX_NESTED_ENUM_CLASS(
+        slice_mode,
         one_input,
         starts_input,
         ends_input,
@@ -75,7 +76,7 @@ struct slice
         starts_axes_input,
         ends_axes_input,
         starts_ends_axes_input
-    };
+    );
 
     std::vector<dim_like> axes{};
     std::vector<dim_like> starts{};
@@ -207,7 +208,7 @@ struct slice
     {
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
         check_inputs_and_attributes(inputs);
-
+        auto input_shape = inputs[0];
         // fallback for range-based dynamic shapes. Only handling 1 arg case.
         if(input_shape.dynamic() and not input_shape.symbolic())
         {

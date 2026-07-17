@@ -194,6 +194,7 @@ register_migraphx_ops(
     as_shape
     atanh
     atan
+    bind_symbolic
     bit_cast
     bitwise_and
     broadcast

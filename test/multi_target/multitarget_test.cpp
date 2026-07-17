@@ -35,6 +35,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/compile_options.hpp>
@@ -57,6 +58,7 @@ static auto nonprefixed_ops()
                                                      "nonmaxsuppression",
                                                      "multibroadcast",
                                                      "slice",
+                                                     "bind_symbolic",
                                                      "get_tuple_elem"};
     return op_map;
 }
@@ -230,8 +232,19 @@ TEST_CASE(single_target_multi_compile)
         score_threshold);
     auto idx = gpu_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
     auto cnt = gpu_mod->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
-    auto r   = gpu_mod->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), idx, cnt);
+    auto num_selected_var =
+        migraphx::shape::dynamic_dimension{migraphx::sym::var("nms_num_selected")};
+    auto bind = gpu_mod->add_instruction(
+        migraphx::make_op("bind_symbolic", {{"symbols", {migraphx::to_value(num_selected_var)}}}),
+        cnt);
+    auto r = gpu_mod->add_instruction(
+        migraphx::make_op("slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", {migraphx::to_value(num_selected_var)}},
+                           {"mode", "ends_input"}}),
+        idx,
+        bind);
     gpu_mod->add_return({r});
 
     auto run_on_gpu = mm->add_instruction(

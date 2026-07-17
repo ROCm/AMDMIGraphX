@@ -25,6 +25,7 @@
 #define MIGRAPHX_GUARD_OPERATORS_BIND_SYMBOLIC_HPP
 
 #include <migraphx/config.hpp>
+#include <migraphx/check_shapes.hpp>
 #include <migraphx/dim_like.hpp>
 #include <migraphx/argument.hpp>
 
@@ -59,7 +60,7 @@ struct bind_symbolic
     shape compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this}.has(1).only_dims(1);
-        if(symbols.size() != inputs.lens().at(0))
+        if(symbols.size() != inputs.at(0).lens().at(0))
             MIGRAPHX_THROW("BIND_SYMBOLIC: dimension of input does not match number of symbols.");
         return inputs.at(0);
     }

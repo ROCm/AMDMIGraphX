@@ -26,6 +26,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
@@ -35,8 +36,21 @@ static migraphx::instruction_ref add_nms_dynamic_slice(migraphx::module* mm,
 {
     auto idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
     auto cnt = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    // Bind the runtime num_selected value to a symbolic variable and slice the padded indices
+    // down to it, matching the IR the NonMaxSuppression ONNX parser emits.
+    auto num_selected_var =
+        migraphx::shape::dynamic_dimension{migraphx::sym::var("nms_num_selected")};
+    auto bind = mm->add_instruction(
+        migraphx::make_op("bind_symbolic", {{"symbols", {migraphx::to_value(num_selected_var)}}}),
+        cnt);
     return mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), idx, cnt);
+        migraphx::make_op("slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", {migraphx::to_value(num_selected_var)}},
+                           {"mode", "ends_input"}}),
+        idx,
+        bind);
 }
 
 TEST_CASE(nms_dyn_out_test)

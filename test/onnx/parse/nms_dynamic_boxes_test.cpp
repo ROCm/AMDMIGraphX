@@ -39,7 +39,21 @@ TEST_CASE(nms_dynamic_boxes_test)
     migraphx::shape sst{migraphx::shape::float_type, {1}};
     auto st  = mm->add_parameter("score_threshold", sst);
     auto nms = mm->add_instruction(migraphx::make_op("nonmaxsuppression"), b, s, mo, iou, st);
-    auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
+    auto cnt = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
+    auto num_selected_var =
+        migraphx::shape::dynamic_dimension{migraphx::sym::var("NonMaxSuppression_5")};
+    auto bind = mm->add_instruction(
+        migraphx::make_op("bind_symbolic", {{"symbols", {migraphx::to_value(num_selected_var)}}}),
+        cnt);
+    auto ret = mm->add_instruction(
+        migraphx::make_op("slice",
+                          {{"axes", {0}},
+                           {"starts", {0}},
+                           {"ends", {migraphx::to_value(num_selected_var)}},
+                           {"mode", "ends_input"}}),
+        idx,
+        bind);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

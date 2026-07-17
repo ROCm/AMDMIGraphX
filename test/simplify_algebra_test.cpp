@@ -2363,6 +2363,104 @@ TEST_CASE(simplify_split_add_relu)
     EXPECT(m1.sort() == m2.sort());
 }
 
+// find_splits: when only a contiguous subset of the sibling slices share the
+// same pointwise op (here relu on the first three of four heads, with a sigmoid
+// head mixed in), the full-group hoist cannot fire because it requires every
+// slice to share the op.  The partial hoist must still lift relu over the
+// bounding slice [0, 3) of the matching heads while leaving the sigmoid head
+// untouched.  This mirrors an MLP tower whose SiLU heads are horizontally fused
+// alongside a differently-activated head.
+TEST_CASE(simplify_split_partial_pointwise_subset)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {4, 8}};
+    migraphx::module m1;
+    {
+        auto input = m1.add_parameter("input", s);
+        auto s0    = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), input);
+        auto r0 = m1.add_instruction(migraphx::make_op("relu"), s0);
+        auto s1 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), input);
+        auto r1 = m1.add_instruction(migraphx::make_op("relu"), s1);
+        auto s2 = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), input);
+        auto r2  = m1.add_instruction(migraphx::make_op("relu"), s2);
+        auto s3  = m1.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), input);
+        auto sig = m1.add_instruction(migraphx::make_op("sigmoid"), s3);
+        m1.add_return({r0, r1, r2, sig});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto input = m2.add_parameter("input", s);
+        auto base  = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), input);
+        auto r  = m2.add_instruction(migraphx::make_op("relu"), base);
+        auto o0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), r);
+        auto o1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), r);
+        auto o2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), r);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), input);
+        auto sig = m2.add_instruction(migraphx::make_op("sigmoid"), s3);
+        m2.add_return({o0, o1, o2, sig});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
+// find_splits binary partial hoist: a contiguous subset of heads feed a binary
+// pointwise whose other operand is an identically-ranged slice of a second wide
+// tensor (mirroring a fused bias+SiLU epilogue: op(bias_slice, dot_slice)).  A
+// differently-consumed head (relu) is mixed in, so the full-group path cannot
+// fire.  The binary op must be hoisted over the bounding slice [0, 3) of BOTH
+// wide tensors, leaving the relu head untouched.  A non-commutative op (sub) is
+// used so argument order is unambiguous.
+TEST_CASE(simplify_split_partial_binary_subset)
+{
+    auto s = migraphx::shape{migraphx::shape::float_type, {4, 8}};
+    migraphx::module m1;
+    {
+        auto a   = m1.add_parameter("a", s);
+        auto b   = m1.add_parameter("b", s);
+        auto slc = [&](migraphx::instruction_ref t, int i) {
+            return m1.add_instruction(
+                migraphx::make_op("slice", {{"axes", {0}}, {"starts", {i}}, {"ends", {i + 1}}}), t);
+        };
+        auto o0 = m1.add_instruction(migraphx::make_op("sub"), slc(a, 0), slc(b, 0));
+        auto o1 = m1.add_instruction(migraphx::make_op("sub"), slc(a, 1), slc(b, 1));
+        auto o2 = m1.add_instruction(migraphx::make_op("sub"), slc(a, 2), slc(b, 2));
+        auto o3 = m1.add_instruction(migraphx::make_op("relu"), slc(a, 3));
+        m1.add_return({o0, o1, o2, o3});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto a      = m2.add_parameter("a", s);
+        auto b      = m2.add_parameter("b", s);
+        auto base_a = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), a);
+        auto base_b = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {3}}}), b);
+        auto r  = m2.add_instruction(migraphx::make_op("sub"), base_a, base_b);
+        auto o0 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {1}}}), r);
+        auto o1 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {1}}, {"ends", {2}}}), r);
+        auto o2 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), r);
+        auto s3 = m2.add_instruction(
+            migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), a);
+        auto o3 = m2.add_instruction(migraphx::make_op("relu"), s3);
+        m2.add_return({o0, o1, o2, o3});
+    }
+    EXPECT(m1.sort() == m2.sort());
+}
+
 TEST_CASE(simplify_split_add_flipped_input)
 {
     auto s = migraphx::shape{migraphx::shape::int32_type, {3, 2, 4}};

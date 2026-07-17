@@ -182,7 +182,8 @@ struct MIGRAPHX_EXPORT shape
             {
                 if(this->sym_expr == other.sym_expr)
                     return *this;
-                return nullopt;
+                if(not other.is_fixed())
+                    return nullopt;
             }
             auto this_interval  = this->get_interval();
             auto other_interval = other.get_interval();

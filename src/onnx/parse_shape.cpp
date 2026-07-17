@@ -33,8 +33,7 @@ namespace onnx {
 
 /**
  * If static shape input, creates a literal in migraphx.
- * If dynamic shape input, creates a dimensions_of operator in migraphx (runtime evaluation of
- * shape).
+ * If dynamic shape input, creates a compile-time literal with -1 for non-fixed dimensions.
  */
 struct parse_shape : op_parser<parse_shape>
 {
@@ -74,8 +73,16 @@ struct parse_shape : op_parser<parse_shape>
 
         if(input_shape.dynamic())
         {
-            return info.add_instruction(make_op("dimensions_of", {{"start", start}, {"end", end}}),
-                                        args[0]);
+            std::size_t output_ndim = end - start;
+            auto dyn_dims           = input_shape.dyn_dims();
+            std::vector<int64_t> vec_shape(output_ndim);
+            std::transform(
+                dyn_dims.begin() + start,
+                dyn_dims.begin() + end,
+                vec_shape.begin(),
+                [](const auto& dd) { return dd.is_fixed() ? dd.get_interval().max : -1; });
+            return info.add_literal(migraphx::literal{
+                migraphx::shape{migraphx::shape::int64_type, {output_ndim}}, vec_shape});
         }
         else
         {

@@ -673,7 +673,10 @@ struct block_tile
 /// read coalesced like the lane algorithm, while the remaining lanes
 /// parallelize each reduction, combined per output through lds. This provides
 /// enough parallelism when there are too few outputs for the lane algorithm.
-template <index_int OutTile>
+/// When Large is set the stride loop is not unrolled and the inner storage
+/// re-reads the inputs lazily, so the reduction size is not limited by the
+/// per-thread registers.
+template <index_int OutTile, bool Large = false>
 struct block_strided
 {
     template <class Slicer>
@@ -688,7 +691,10 @@ struct block_strided
         template <class N, class F>
         __device__ void seg_stride(N n, F f) const
         {
-            index::for_stride<true>(seg_id(), n, seg_lanes(), f);
+            if constexpr(Large)
+                index::for_stride<true>(seg_id(), index_int{n}, seg_lanes(), f);
+            else
+                index::for_stride<true>(seg_id(), n, seg_lanes(), f);
         }
 
         template <class T, index_int N, class Size>
@@ -746,10 +752,17 @@ struct block_strided
         template <class R, class F, class N, class... Ts>
         __device__ auto inner_impl(F f, N n, Ts&&... xs) const
         {
-            using max_iterations = decltype(index::max_stride_iterations(n, seg_lanes()));
-            inner_storage<R, max_iterations{}, N> storage;
-            seg_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
-            return storage;
+            if constexpr(Large)
+            {
+                return make_lazy_inner_storage(n, [=](auto j, auto d) { return f(xs(j, d)...); });
+            }
+            else
+            {
+                using max_iterations = decltype(index::max_stride_iterations(n, seg_lanes()));
+                inner_storage<R, max_iterations{}, N> storage;
+                seg_stride(n, [&](auto j, auto d) { storage(j, d) = R{f(xs(j, d)...)}; });
+                return storage;
+            }
         }
     };
 

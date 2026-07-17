@@ -179,6 +179,12 @@ struct strided_tile
 {
     std::size_t block_size = 256;
     std::size_t out_tile   = 64;
+    bool large             = false;
+
+    std::string algo() const
+    {
+        return "block_strided<" + std::to_string(out_tile) + (large ? ", true" : "") + ">";
+    }
 };
 
 /// The lane algorithm needs one thread per output. When there are too few
@@ -191,9 +197,9 @@ find_strided_tile(context& ctx, std::size_t relements, std::size_t block_size)
     if(result.block_size <= result.out_tile or (result.block_size % result.out_tile) != 0)
         return nullopt;
     auto seg_lanes = result.block_size / result.out_tile;
-    // The unrolled stride loop is limited to 256 iterations
-    if((relements + seg_lanes - 1) / seg_lanes > 255)
-        return nullopt;
+    // The unrolled stride loop with per-thread register storage is limited to
+    // 256 iterations, so larger reductions re-read the inputs lazily instead
+    result.large = (relements + seg_lanes - 1) / seg_lanes > 255;
     return result;
 }
 
@@ -379,7 +385,7 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
                 stile = find_strided_tile(ctx, relements, 256);
             if(stile.has_value())
             {
-                algo         = "block_strided<" + std::to_string(stile->out_tile) + ">";
+                algo         = stile->algo();
                 auto ngroups = (nelements + stile->out_tile - 1) / stile->out_tile;
                 options.set_launch_params(v,
                                           compute_global_for(ctx, ngroups * stile->block_size, 256),
@@ -572,13 +578,12 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         else if(algo == "lane" or algo == "block_strided")
         {
             optional<strided_tile> stile;
-            if(plan.assign == "assign_none" and
-               (algo == "block_strided" or
-                (prefer_block_strided(ctx, plan, noutputs) and not v.contains("algo"))))
+            if(algo == "block_strided" or
+               (prefer_block_strided(ctx, plan, noutputs) and not v.contains("algo")))
                 stile = find_strided_tile(ctx, relements, v.get("block_size", 256));
             if(stile.has_value())
             {
-                algo         = "block_strided<" + std::to_string(stile->out_tile) + ">";
+                algo         = stile->algo();
                 auto ngroups = (nelements + stile->out_tile - 1) / stile->out_tile;
                 options.set_launch_params(v,
                                           compute_global_for(ctx, ngroups * stile->block_size, 256),
@@ -627,10 +632,22 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_op(ctx, shapes, v);
     }
 
+    /// Add a solution for the algo with the given block size, plus the
+    /// larger-block alternative when it differs
+    static void add_block_size_solutions(tuning_config& tc,
+                                         const std::string& algo,
+                                         std::size_t block_size,
+                                         std::size_t large_block_size)
+    {
+        tc.solutions.push_back({{"algo", algo}, {"block_size", block_size}});
+        if(large_block_size != block_size)
+            tc.solutions.push_back({{"algo", algo}, {"block_size", large_block_size}});
+    }
+
     optional<tuning_config>
     get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
     {
-        if(op.name() != "fused_reduce")
+        if(not contains({"fused_reduce", "split_fused_reduce"}, op.name()))
             return nullopt;
         tuning_config tc;
         auto shapes   = to_shapes(ins->inputs());
@@ -647,19 +664,29 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             // block_strided when the lane heuristics prefer it.
             if(plan.algo == "block")
             {
-                auto block_size       = compute_block_size(ctx, plan.relements, 256);
-                auto large_block_size = compute_block_size(ctx, plan.relements, 1024);
-                if(tile.has_value())
+                if(tile.has_value() and plan.assign == "assign_none")
                     tc.solutions.push_back({{"algo", "block_tile"}});
-                tc.solutions.push_back({{"algo", "block"}, {"block_size", block_size}});
-                if(large_block_size != block_size)
-                    tc.solutions.push_back({{"algo", "block"}, {"block_size", large_block_size}});
+                add_block_size_solutions(tc,
+                                         "block",
+                                         compute_block_size(ctx, plan.relements, 256),
+                                         compute_block_size(ctx, plan.relements, 1024));
             }
             else if(plan.algo == "lane" and prefer_block_strided(ctx, plan, noutputs) and
                     find_strided_tile(ctx, plan.relements, 256).has_value())
             {
-                tc.solutions.push_back({{"algo", "block_strided"}});
+                // A block_strided workgroup computes a tile of out_tile outputs at once, so
+                // its block size is fitted to the parallel work across the whole tile
+                // rather than a single reduction
+                auto swork = ctx.get_current_device().get_wavefront_size() * plan.relements;
+                add_block_size_solutions(tc,
+                                         "block_strided",
+                                         compute_block_size(ctx, swork, 256),
+                                         compute_block_size(ctx, swork, 1024));
                 tc.solutions.push_back({{"algo", "lane"}});
+                add_block_size_solutions(tc,
+                                         "block",
+                                         compute_block_size(ctx, plan.relements, 256),
+                                         compute_block_size(ctx, plan.relements, 1024));
             }
             else
             {

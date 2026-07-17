@@ -228,7 +228,7 @@ void hipgraphify::apply(module_pass_manager& mpm) const
     std::vector<std::vector<instruction_ref>> runs;
     auto range = iterator_for(m);
     group_find(range.begin(), range.end(), is_capturable, [&](auto start, auto last) {
-        if(static_cast<std::size_t>(std::distance(start, last)) >= min_partition_size)
+        if(std::distance(start, last) >= min_partition_size)
             runs.emplace_back(start, last);
     });
 

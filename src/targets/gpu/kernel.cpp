@@ -86,22 +86,23 @@ hipFunction_t kernel::get_function() const { return impl == nullptr ? nullptr : 
 
 namespace {
 // HIP_LAUNCH_PARAM_* expand to C-style pointer casts (((void*)0x01) etc.) that
-// clang-tidy rejects, so the launch-config sentinels are named once here behind
-// that workaround; everything else refers to these constants.
+// clang-tidy rejects, so the launch-config sentinels are produced here behind
+// that workaround; everything else refers to these accessors. Functions (rather
+// than globals) also keep clang-tidy from flagging a non-const global pointer.
 #ifdef MIGRAPHX_USE_CLANG_TIDY
-void* const launch_param_pointer = nullptr;
-void* const launch_param_size    = nullptr;
-void* const launch_param_end     = nullptr;
+void* launch_param_pointer() { return nullptr; }
+void* launch_param_size() { return nullptr; }
+void* launch_param_end() { return nullptr; }
 #else
-void* const launch_param_pointer = HIP_LAUNCH_PARAM_BUFFER_POINTER;
-void* const launch_param_size    = HIP_LAUNCH_PARAM_BUFFER_SIZE;
-void* const launch_param_end     = HIP_LAUNCH_PARAM_END;
+void* launch_param_pointer() { return HIP_LAUNCH_PARAM_BUFFER_POINTER; }
+void* launch_param_size() { return HIP_LAUNCH_PARAM_BUFFER_SIZE; }
+void* launch_param_end() { return HIP_LAUNCH_PARAM_END; }
 #endif
 } // namespace
 
 std::array<void*, 5> pack_kernel_config(char* buffer, std::size_t* size)
 {
-    return {launch_param_pointer, buffer, launch_param_size, size, launch_param_end};
+    return {launch_param_pointer(), buffer, launch_param_size(), size, launch_param_end()};
 }
 
 std::vector<char> unpack_kernel_config(void** extra)
@@ -114,11 +115,11 @@ std::vector<char> unpack_kernel_config(void** extra)
     // The config is a sequence of (tag, value) pairs terminated by the end
     // sentinel; the fixed cap guards against an unterminated array.
     constexpr std::size_t max_tokens = 16;
-    for(std::size_t i = 0; i < max_tokens and extra[i] != launch_param_end; i += 2)
+    for(std::size_t i = 0; i < max_tokens and extra[i] != launch_param_end(); i += 2)
     {
-        if(extra[i] == launch_param_pointer)
+        if(extra[i] == launch_param_pointer())
             buffer = static_cast<char*>(extra[i + 1]);
-        else if(extra[i] == launch_param_size)
+        else if(extra[i] == launch_param_size())
         {
             size     = *static_cast<std::size_t*>(extra[i + 1]);
             has_size = true;

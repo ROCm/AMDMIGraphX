@@ -49,8 +49,6 @@ struct host_op
     }
 };
 
-static const migraphx::shape s{migraphx::shape::float_type, {4}};
-
 static void run_pass(migraphx::program& p, std::size_t min_size = 4)
 {
     migraphx::run_passes(p,
@@ -73,7 +71,7 @@ TEST_CASE(basic_capture)
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
-        auto x   = mm->add_parameter("x", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto c   = add_chain(*mm, x, 4);
         mm->add_return({c});
     }
@@ -82,9 +80,9 @@ TEST_CASE(basic_capture)
     migraphx::program p2;
     {
         auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", s);
+        auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto* sub = p2.create_module("main:hipgraph0");
-        auto x0   = sub->add_parameter("x0", s);
+        auto x0   = sub->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         auto last = add_chain(*sub, x0, 4);
         sub->add_return({last});
         auto g = mm->add_instruction(
@@ -101,7 +99,7 @@ TEST_CASE(run_too_short)
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
-        auto x   = mm->add_parameter("x", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto c   = add_chain(*mm, x, 3);
         mm->add_return({c});
     }
@@ -110,7 +108,7 @@ TEST_CASE(run_too_short)
     migraphx::program p2;
     {
         auto* mm = p2.get_main_module();
-        auto x   = mm->add_parameter("x", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto c   = add_chain(*mm, x, 3);
         mm->add_return({c});
     }
@@ -125,7 +123,7 @@ TEST_CASE(split_by_sync)
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s);
+        auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto c    = add_chain(*mm, x, 4);
         auto sync = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, c);
         auto d    = add_chain(*mm, sync, 4);
@@ -136,15 +134,15 @@ TEST_CASE(split_by_sync)
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
-        auto x     = mm->add_parameter("x", s);
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto* sub0 = p2.create_module("main:hipgraph0");
-        auto x0    = sub0->add_parameter("x0", s);
+        auto x0    = sub0->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         sub0->add_return({add_chain(*sub0, x0, 4)});
         auto g0 = mm->add_instruction(
             migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
         auto sync  = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, g0);
         auto* sub1 = p2.create_module("main:hipgraph1");
-        auto y0    = sub1->add_parameter("x0", s);
+        auto y0    = sub1->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         sub1->add_return({add_chain(*sub1, y0, 4)});
         auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {sync}, {sub1});
         mm->add_return({g1});
@@ -159,7 +157,7 @@ TEST_CASE(host_op_boundary)
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
-        auto x   = mm->add_parameter("x", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto c   = add_chain(*mm, x, 4);
         auto h   = mm->add_instruction(host_op{}, c);
         auto d   = add_chain(*mm, h, 4);
@@ -170,15 +168,15 @@ TEST_CASE(host_op_boundary)
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
-        auto x     = mm->add_parameter("x", s);
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto* sub0 = p2.create_module("main:hipgraph0");
-        auto x0    = sub0->add_parameter("x0", s);
+        auto x0    = sub0->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         sub0->add_return({add_chain(*sub0, x0, 4)});
         auto g0 = mm->add_instruction(
             migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
         auto h     = mm->add_instruction(host_op{}, g0);
         auto* sub1 = p2.create_module("main:hipgraph1");
-        auto y0    = sub1->add_parameter("x0", s);
+        auto y0    = sub1->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         sub1->add_return({add_chain(*sub1, y0, 4)});
         auto g1 = mm->add_instruction(migraphx::make_op("hip::graph"), {h}, {sub1});
         mm->add_return({g1});
@@ -193,7 +191,7 @@ TEST_CASE(mixed_long_short)
     migraphx::program p1;
     {
         auto* mm  = p1.get_main_module();
-        auto x    = mm->add_parameter("x", s);
+        auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto c    = add_chain(*mm, x, 5);
         auto sync = mm->add_instruction(migraphx::gpu::hip_sync_stream{}, c);
         auto d    = add_chain(*mm, sync, 2);
@@ -204,9 +202,9 @@ TEST_CASE(mixed_long_short)
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
-        auto x     = mm->add_parameter("x", s);
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto* sub0 = p2.create_module("main:hipgraph0");
-        auto x0    = sub0->add_parameter("x0", s);
+        auto x0    = sub0->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         sub0->add_return({add_chain(*sub0, x0, 5)});
         auto g0 = mm->add_instruction(
             migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub0});
@@ -224,7 +222,7 @@ TEST_CASE(min_partition_size_config)
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
-        auto x   = mm->add_parameter("x", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto c   = add_chain(*mm, x, 3);
         mm->add_return({c});
     }
@@ -233,9 +231,9 @@ TEST_CASE(min_partition_size_config)
     migraphx::program p2;
     {
         auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", s);
+        auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto* sub = p2.create_module("main:hipgraph0");
-        auto x0   = sub->add_parameter("x0", s);
+        auto x0   = sub->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         sub->add_return({add_chain(*sub, x0, 3)});
         auto g = mm->add_instruction(
             migraphx::make_op("hip::graph", {{"replace_inputs", {0}}}), {x}, {sub});
@@ -251,7 +249,7 @@ TEST_CASE(multi_output)
     migraphx::program p1;
     {
         auto* mm = p1.get_main_module();
-        auto x   = mm->add_parameter("x", s);
+        auto x   = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto c0  = mm->add_instruction(unary_pass_op{}, x);
         auto c1  = mm->add_instruction(unary_pass_op{}, c0);
         auto c2  = mm->add_instruction(unary_pass_op{}, c1);
@@ -265,9 +263,9 @@ TEST_CASE(multi_output)
     migraphx::program p2;
     {
         auto* mm  = p2.get_main_module();
-        auto x    = mm->add_parameter("x", s);
+        auto x    = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto* sub = p2.create_module("main:hipgraph0");
-        auto x0   = sub->add_parameter("x0", s);
+        auto x0   = sub->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         auto sc0  = sub->add_instruction(unary_pass_op{}, x0);
         auto sc1  = sub->add_instruction(unary_pass_op{}, sc0);
         auto sc2  = sub->add_instruction(unary_pass_op{}, sc1);
@@ -291,9 +289,9 @@ TEST_CASE(root_only)
     migraphx::program p1;
     {
         auto* mm   = p1.get_main_module();
-        auto x     = mm->add_parameter("x", s);
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto* body = p1.create_module("body");
-        auto x0    = body->add_parameter("x0", s);
+        auto x0    = body->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         body->add_return({add_chain(*body, x0, 4)});
         auto r = mm->add_instruction(mod_pass_op{}, {x}, {body});
         mm->add_return({r});
@@ -303,9 +301,9 @@ TEST_CASE(root_only)
     migraphx::program p2;
     {
         auto* mm   = p2.get_main_module();
-        auto x     = mm->add_parameter("x", s);
+        auto x     = mm->add_parameter("x", migraphx::shape{migraphx::shape::float_type, {4}});
         auto* body = p2.create_module("body");
-        auto x0    = body->add_parameter("x0", s);
+        auto x0    = body->add_parameter("x0", migraphx::shape{migraphx::shape::float_type, {4}});
         body->add_return({add_chain(*body, x0, 4)});
         auto r = mm->add_instruction(mod_pass_op{}, {x}, {body});
         mm->add_return({r});

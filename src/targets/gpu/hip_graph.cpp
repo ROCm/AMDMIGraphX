@@ -70,7 +70,7 @@ static argument pack_outputs(const std::vector<argument>& outputs)
 {
     if(outputs.size() == 1)
         return outputs.front();
-    return argument(outputs);
+    return {outputs};
 }
 
 // The data pointer of each leaf argument (the buffers the kernels read/write).
@@ -286,7 +286,7 @@ struct hip_graph_op
 
     std::vector<std::size_t> output_alias(const std::vector<shape>&) const { return aliases; }
 
-    shape compute_shape(std::vector<shape>, std::vector<module_ref> mods) const
+    shape compute_shape(const std::vector<shape>&, std::vector<module_ref> mods) const
     {
         if(mods.size() != 1)
             MIGRAPHX_THROW("hip::graph: expected exactly one submodule");

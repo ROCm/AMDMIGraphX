@@ -530,7 +530,7 @@ void fuse_horizontal::apply(module_pass_manager& mpm) const
 
     // Fuse across distinct tables first, then same-table groups.  Running same-table
     // fusion first can shrink cross-table groups below their size threshold and miss it.
-    fuse_horizontal_ops(m, gather_horizontal_fusion{}, same_table_gather_horizontal_fusion{});
+    fuse_horizontal_ops(m, gather_horizontal_fusion{}, same_table_gather_horizontal_fusion{}, dot_horizontal_fusion{});
 }
 
 } // namespace MIGRAPHX_INLINE_NS

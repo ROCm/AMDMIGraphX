@@ -100,10 +100,10 @@ __device__ inline void builtin_assign(half& x, half y, op::sum)
     half* address = &x;
     if(is_aligned<float>(address))
         __builtin_amdgcn_global_atomic_fadd_v2f16(reinterpret_cast<half2*>(address),
-                                                   half2{y, half(0)});
+                                                  half2{y, half(0)});
     else
         __builtin_amdgcn_global_atomic_fadd_v2f16(reinterpret_cast<half2*>(address - 1),
-                                                   half2{half(0), y});
+                                                  half2{half(0), y});
 }
 #endif
 

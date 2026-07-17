@@ -64,6 +64,7 @@ TEST_CASE(nonzero_transposed_input)
     auto result = p.eval({}).back();
     std::vector<int64_t> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
+    // np.nonzero(data.reshape(2, 3).T), padded to nonzero output shape {2, 6}.
     std::vector<int64_t> gold = {0, 1, 2, 2, 0, 0, 0, 1, 0, 1, 0, 0};
     EXPECT(migraphx::verify::verify_rms_range(result_vector, gold));
 }

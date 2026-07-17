@@ -53,25 +53,19 @@ struct nonzero
 
     argument compute(const shape& output_shape, std::vector<argument> args) const
     {
-        std::vector<std::vector<std::size_t>> vec_idx;
         auto s = args.front().get_shape();
-        args.front().visit([&](auto v) {
-            shape_for_each(s, [&](const auto& idx_v) {
-                if(not float_equal(v[idx_v], 0))
-                {
-                    vec_idx.push_back(idx_v);
-                }
-            });
-        });
-
         argument result{output_shape};
         result.visit([&](auto output) {
             std::fill(output.begin(), output.end(), 0);
-            par_for(vec_idx.size(), [&](auto i) {
-                for(std::size_t j = 0; j < vec_idx.front().size(); ++j)
-                {
-                    output(j, i) = vec_idx[i][j];
-                }
+            args.front().visit([&](auto v) {
+                std::size_t nonzero_idx = 0;
+                shape_for_each(s, [&](const auto& idx_v) {
+                    if(not float_equal(v[idx_v], 0))
+                    {
+                        auto out_idx = nonzero_idx++;
+                        par_for(idx_v.size(), [&](auto j) { output(j, out_idx) = idx_v[j]; });
+                    }
+                });
             });
         });
 

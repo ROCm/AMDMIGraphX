@@ -40,52 +40,52 @@ namespace op {
 
 /**
  * Slice operator that accepts variable axes, starts and ends.
- * All of `starts`, `ends`, and `axes` must be supplied by either
- * their attribute or an input (but not both).
+ * All of `starts`, `ends`, and `axes` attributes must be supplied.
  *
- * Valid calls:
- * slice(input); axes, starts, ends set
- * slice(input, starts); axes, ends set
- * slice(input, ends); starts, axes set
- * slice(input, axes); starts, ends set
- * slice(input, starts, ends); axes set
- * slice(input, starts, axes); ends set
- * slice(input, ends, axes); starts set
- * slice(input, start, ends, axes); none set
+ * `mode` specifies what the inputs to slice are:
+ * one_input: slice(input); 
+ * starts_input: slice(input, starts);
+ * ends_input: slice(input, ends);
+ * axes_input: slice(input, axes);
+ * starts_ends_input: slice(input, starts, ends);
+ * starts_axes_input: slice(input, starts, axes);
+ * ends_axes_input: slice(input, ends, axes);
+ * starts_ends_axes_input: slice(input, start, ends, axes);
  *
  * Attributes:
- * axes: constant axes to slice over (optional)
- * starts: slice starting indices, constant or symbolic (optional)
- * ends: slice ending indices, constant or symbolic (optional)
+ * axes: axes to slice over
+ * starts: slice starting indices
+ * ends: slice ending indices
  *
  * Parameters:
  * data: the input tensor to slice (dynamic or static shape)
- * input_starts: starting indices of slice (optional, static shape)
- * input_ends: ending indices of slice (optional, static shape)
- * input_axes: axes to slice over (optional, static shape)
+ * starts_input: starting indices of slice (optional, static shape)
+ * ends_input: ending indices of slice (optional, static shape)
+ * axes_input: axes to slice over (optional, static shape)
  */
 struct slice
 {
-    std::vector<int64_t> axes{};
+    enum class slice_mode
+    {
+        one_input,
+        starts_input,
+        ends_input,
+        axes_input,
+        starts_ends_input,
+        starts_axes_input,
+        ends_axes_input,
+        starts_ends_axes_input
+    };
+
+    std::vector<dim_like> axes{};
     std::vector<dim_like> starts{};
     std::vector<dim_like> ends{};
-
-    /**
-     * Named arrays for the set attribute possibilities.
-     */
-    static constexpr std::array<bool, 3> all_set     = {true, true, true};
-    static constexpr std::array<bool, 3> ends_axes   = {false, true, true};
-    static constexpr std::array<bool, 3> starts_axes = {true, false, true};
-    static constexpr std::array<bool, 3> starts_ends = {true, true, false};
-    static constexpr std::array<bool, 3> axes_only   = {false, false, true};
-    static constexpr std::array<bool, 3> ends_only   = {false, true, false};
-    static constexpr std::array<bool, 3> starts_only = {true, false, false};
-    static constexpr std::array<bool, 3> none_set    = {false, false, false};
+    slice_mode mode = slice_mode::one_input;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"));
+        return pack(f(self.axes, "axes"), f(self.starts, "starts"), f(self.ends, "ends"), f(self.mode, "mode"));
     }
 
     /**
@@ -132,17 +132,19 @@ struct slice
         return new_lens;
     }
 
-    /// Get the attributes that are non-empty
-    std::array<bool, 3> get_set_attributes() const
-    {
-        return {not starts.empty(), not ends.empty(), not axes.empty()};
-    }
-
     /// Helper function for normalize_compute_shape()
-    shape compute_two_or_more(std::vector<shape> inputs) const
+    void check_inputs_and_attributes(std::vector<shape> inputs) const
     {
-        auto input_shape    = inputs[0];
-        auto set_attributes = get_set_attributes();
+        auto input_shape = inputs[0];
+        if(axes.size() != starts.size() or starts.size() != ends.size())
+            MIGRAPHX_THROW("SLICE: Invalid attributes configuration. Not the same number of dimensions. axes: " + migraphx::to_string(axes.size()) + " starts: " + migraphx::to_string(starts.size() + " ends: " + migraphx::to_string(ends.size())));
+
+        if(inputs.size() == 1)
+        {
+            if(mode != slice_mode::one_input)
+                MIGRAPHX_THROW("SLICE: Invalid mode for 1 input");
+            return;
+        }
         // check that inputs [1, end) are all 1D, have the same
         // dimension, and are static
         check_shapes{inputs.begin() + 1,
@@ -151,108 +153,36 @@ struct slice
                      false}
             .only_dims(1)
             .same_dims();
-        auto dds = input_shape.to_dynamic().dyn_dims();
+        if(inputs.at(1).lens().at(0) != axes.size())
+        {
+            MIGRAPHX_THROW("SLICE: varable input and attributes mismatch: input[1] length (" +
+                           to_string(inputs[1].lens().at(0)) + ") != attribute number of dimensions (" +
+                           to_string(axes.size()) + ")");
+        }
         if(inputs.size() == 2)
         {
-            if(set_attributes == ends_axes)
+            std::vector<slice_mode> two_input_modes = {slice_mode::starts_input, slice_mode::ends_input, slice_mode::axes_input};
+            if(not contains(two_input_modes, mode))
             {
-                // attr ends and axes set; inputs are (data, input_starts)
-                if(inputs[1].lens().at(0) != axes.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch: input_starts length (" +
-                                   to_string(inputs[1].lens().at(0)) + ") != number of axes (" +
-                                   to_string(axes.size()) + ")");
-                }
-                std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).get_interval().max};
-                });
-            }
-            else if(set_attributes == starts_axes)
-            {
-                // attr starts and axes set; inputs are (data, input_ends)
-                if(inputs[1].lens().at(0) != axes.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch: input_ends length (" +
-                                   to_string(inputs[1].lens().at(0)) + ") != number of axes (" +
-                                   to_string(axes.size()) + ")");
-                }
-                std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).get_interval().max};
-                });
-            }
-            else if(set_attributes == starts_ends)
-            {
-                // attr starts and ends set; inputs are (data, input_axes)
-                if(inputs[1].lens().at(0) != starts.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 2 input and attributes mismatch: input_axes length (" +
-                                   to_string(inputs[1].lens().at(0)) + ") != number of starts (" +
-                                   to_string(starts.size()) + ")");
-                }
-                std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                    return shape::dynamic_dimension{0, dd.get_interval().max};
-                });
-            }
-            else
-            {
-                MIGRAPHX_THROW("SLICE: Invalid 2 input and attributes configuration");
+                MIGRAPHX_THROW("SLICE: Invalid mode for 2 inputs");
             }
         }
         else if(inputs.size() == 3)
         {
-            if(set_attributes == axes_only)
+            std::vector<slice_mode> three_input_modes = {slice_mode::starts_ends_input, slice_mode::starts_axes_input, slice_mode::ends_axes_input};
+            if(not contains(three_input_modes, mode))
             {
-                // attr axes set; inputs are (data, input_starts, input_ends)
-                if(inputs[1].lens().at(0) != axes.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch: input_starts length (" +
-                                   to_string(inputs[1].lens().at(0)) + ") != number of axes (" +
-                                   to_string(axes.size()) + ")");
-                }
-                std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                    dds.at(axis) = {0, dds.at(axis).get_interval().max};
-                });
-            }
-            else if(set_attributes == ends_only)
-            {
-                // attr ends set; inputs are (data, input_starts, input_axes)
-                if(inputs[1].lens().at(0) != ends.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch: input_starts length (" +
-                                   to_string(inputs[1].lens().at(0)) + ") != number of ends (" +
-                                   to_string(ends.size()) + ")");
-                }
-                std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                    return shape::dynamic_dimension{0, dd.get_interval().max};
-                });
-            }
-            else if(set_attributes == starts_only)
-
-            {
-                // attr starts set; inputs are (data, input_ends, input_axes)
-                if(inputs[1].lens().at(0) != starts.size())
-                {
-                    MIGRAPHX_THROW("SLICE: 3 input and attributes mismatch: input_ends length (" +
-                                   to_string(inputs[1].lens().at(0)) + ") != number of starts (" +
-                                   to_string(starts.size()) + ")");
-                }
-                std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                    return shape::dynamic_dimension{0, dd.get_interval().max};
-                });
-            }
-            else
-            {
-                MIGRAPHX_THROW("Invalid 3 input and attributes configuration");
+                MIGRAPHX_THROW("SLICE: Invalid mode for 3 inputs");
             }
         }
         else
         {
-            // all 4 inputs (data, inputs_starts, input_ends, input_axes)
-            std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
-                return shape::dynamic_dimension{0, dd.get_interval().max};
-            });
+            if(mode != slice_mode::starts_ends_axes_input)
+            {
+                MIGRAPHX_THROW("SLICE: Invalid mode for 4 inputs");
+            }
         }
-        return shape{input_shape.type(), dds};
+        return;
     }
 
     // Static and symbolic inputs share this path; the result is demoted back to
@@ -276,16 +206,14 @@ struct slice
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
-        if(inputs.size() != 1)
-            return compute_two_or_more(inputs);
-
-        auto input_shape    = inputs[0];
-        auto set_attributes = get_set_attributes();
-        if(set_attributes != all_set)
-            MIGRAPHX_THROW("SLICE 1_arg: Invalid 1 input and attributes configuration");
+        check_inputs_and_attributes(inputs);
 
         if(input_shape.dynamic() and not input_shape.symbolic())
         {
+            if(inputs.size() != 1)
+            {
+                MIGRAPHX_THROW("SLICE: range-based dynamic shapes with variable inputs unsupported.");
+            }
             // Non-fixed sliced axis: bounds aren't normalized (can be negative or
             // out-of-bounds), so use a relaxed [0, max] bound. (#5015)
             if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
@@ -413,6 +341,12 @@ struct slice
             norm_ends = to_ints(this->ends);
         }
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
+    }
+
+    void resolve_data_dependent_symbolics(args, &symbolic_map)
+    {
+        // Use data from input arguments to fill in the runtime static dimension for data-dependent symbolic dimensions.
+        // Call from dyn_output?
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const

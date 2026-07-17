@@ -53,10 +53,9 @@ fixed_dyn_dims_lens(const std::vector<shape::dynamic_dimension>& dims)
 {
     std::vector<std::size_t> target_lens;
     target_lens.reserve(dims.size());
-    std::transform(dims.begin(),
-                     dims.end(),
-                     std::back_inserter(target_lens),
-                     [](const auto& d) { return shape::static_dim_value(d); });
+    std::transform(dims.begin(), dims.end(), std::back_inserter(target_lens), [](const auto& d) {
+        return shape::static_dim_value(d);
+    });
     return target_lens;
 }
 
@@ -110,9 +109,9 @@ struct multibroadcast
         {
             if(not output_dyn_dims.empty() and not s0.dynamic())
             {
-                if(std::all_of(output_dyn_dims.begin(),
-                               output_dyn_dims.end(),
-                               [](const auto& d) { return d.is_fixed(); }))
+                if(std::all_of(output_dyn_dims.begin(), output_dyn_dims.end(), [](const auto& d) {
+                       return d.is_fixed();
+                   }))
                 {
                     return broadcast_to_fixed_dims(s0, t, output_dyn_dims);
                 }
@@ -205,4 +204,3 @@ struct multibroadcast
 } // namespace migraphx
 
 #endif
-

@@ -2290,6 +2290,72 @@ TEST_CASE(fp8_quant_gemm_softmax_gemm)
     }));
 }
 
+// yolo12n attention pattern: dot(V, transpose(softmax(dot(Q, K)), [0,1,3,2]))
+TEST_CASE(transposed_attention)
+{
+    // Shapes from yolo12n model.8
+    migraphx::shape query_shape{migraphx::shape::half_type, {1, 4, 400, 32}};
+    migraphx::shape key_shape{migraphx::shape::half_type, {1, 4, 32, 400}};
+    migraphx::shape value_shape{migraphx::shape::half_type, {1, 4, 32, 400}};
+    migraphx::shape softmax_shape{migraphx::shape::half_type, {1, 4, 400, 400}};
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto q    = mm->add_parameter("q", query_shape);
+        auto k    = mm->add_parameter("k", key_shape);
+        auto v    = mm->add_parameter("v", value_shape);
+        auto dot1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), dot1);
+        rmax      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", softmax_shape.lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), dot1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", softmax_shape.lens()}}), rsum);
+        auto div                = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto transposed_softmax = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), div);
+        auto dot2 = mm->add_instruction(migraphx::make_op("dot"), v, transposed_softmax);
+        mm->add_return({dot2});
+    }
+    run_pass(p1, {.attn_enabled = true});
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto q   = mm->add_parameter("q", query_shape);
+        auto k   = mm->add_parameter("k", key_shape);
+        auto v   = mm->add_parameter("v", value_shape);
+        auto transposed_v =
+            mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), v);
+        auto group = add_group(
+            p2, "attn0", "attention", {q, k, transposed_v}, [=](auto* gm, const auto& inputs) {
+                auto dot1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), dot1);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", softmax_shape.lens()}}),
+                    rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), dot1, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", softmax_shape.lens()}}),
+                    rsum);
+                auto div  = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto dot2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                return std::vector<migraphx::instruction_ref>{dot2};
+            });
+        auto result = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), group);
+        mm->add_return({result});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
 int main(int argc, const char* argv[])
 {
     test::run(argc, argv);

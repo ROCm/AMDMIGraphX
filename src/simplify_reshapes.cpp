@@ -54,11 +54,9 @@
 #include <numeric>
 #include <set>
 #include <limits>
-#include <optional>
-#include <tuple>
-#include <utility>
 #include <variant>
 #include <memory>
+#include <optional>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {

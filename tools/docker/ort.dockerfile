@@ -5,9 +5,12 @@ ARG GPU_ARCH=""
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
-# Install rocm key
-RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
-    curl -sL http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
+# Install prerequisites needed to fetch and dearmor the ROCm signing key.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    gnupg2 \
+    curl && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Register the ROCm apt repository and its signing key.
 RUN mkdir --parents --mode=0755 /etc/apt/keyrings && \
@@ -25,12 +28,11 @@ WORKDIR /
 # Pin onnxruntime commit from AMDMIGraphX repo (used by Check ORT image tag)
 COPY test/onnx/.onnxrt-commit /.onnxrt-commit
 
-# Install half package and gdb required by the test stage
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     gdb \
     git \
     locales \
-    pip && \
+    python3-pip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY tools/install_prereqs.sh /tmp/install_prereqs.sh

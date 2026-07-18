@@ -456,7 +456,7 @@ pipeline {
                         script {
                             rocmtest([:]) {
                                 def sanitizers = "undefined"
-                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                def debug_flags = "-g -O2 -Xarch_host -fsanitize=${sanitizers} -Xarch_host -fno-sanitize=vptr,function -Xarch_host -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DMIGRAPHX_USE_HIPRTC=On -DGPU_TARGETS='${getgputargets()}'", gpu_debug: '1')
                             }
                         }
@@ -484,7 +484,7 @@ pipeline {
                             rocmtest([:]) {
                                 // Note: the -fno-sanitize= is copied from upstream LLVM_UBSAN_FLAGS.
                                 def sanitizers = "undefined"
-                                def debug_flags = "-g -O2 -fsanitize=${sanitizers} -fno-sanitize=vptr,function -fno-sanitize-recover=${sanitizers}"
+                                def debug_flags = "-g -O2 -Xarch_host -fsanitize=${sanitizers} -Xarch_host -fno-sanitize=vptr,function -Xarch_host -fno-sanitize-recover=${sanitizers}"
                                 cmake_build(flags: "-DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_BUILD_TYPE=debug -DMIGRAPHX_ENABLE_PYTHON=Off -DMIGRAPHX_ENABLE_MLIR=On -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}' -DCMAKE_C_FLAGS_DEBUG='${debug_flags}' -DGPU_TARGETS='${getgputargets()}'")
                             }
                         }

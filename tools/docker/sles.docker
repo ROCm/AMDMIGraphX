@@ -33,7 +33,6 @@ name=ROCm (TheRock)\n\
 baseurl=https://repo.amd.com/rocm/packages-multi-arch/sles15/x86_64\n\
 enabled=1\n\
 gpgcheck=0\n\
-gpgkey=https://repo.amd.com/rocm/packages/gpg/rocm.gpg\n\
 " > /etc/zypp/repos.d/rocm.repo' && \
     cat /etc/zypp/repos.d/rocm.repo
 

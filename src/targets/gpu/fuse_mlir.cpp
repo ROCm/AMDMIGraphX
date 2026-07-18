@@ -346,12 +346,8 @@ auto is_mlir_dot(mlir_mode mode)
         auto m = a.lens()[a.lens().size() - 2];
         auto n = b.lens().back();
         auto k = a.lens().back();
-        // Skipping GEMMs with a large K dimension is a coarse-grained strategy to avoid
-        // poor-performing GEMM kernels from MLIR.  The threshold is raised to 8096 so the
-        // wide horizontally-fused GEMMs (large concatenated K) stay on MLIR and can fuse
-        // their bias/SiLU epilogue instead of falling back to rocBLAS (no epilogue fusion).
         // TODO: Investigate a more precise strategy
-        if(k > 8096)
+        if(k > 1535)
             return false;
         if(k < 1024)
             return true;

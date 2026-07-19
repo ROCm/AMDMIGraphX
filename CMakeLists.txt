@@ -213,11 +213,16 @@ rocm_enable_clang_tidy(
         -bugprone-crtp-constructor-accessibility
         -bugprone-derived-method-shadowing-base-method
         -bugprone-easily-swappable-parameters
+        -bugprone-exception-escape
+        -bugprone-fold-init-type
         -bugprone-implicit-widening-of-multiplication-result
         -bugprone-macro-parentheses
         -bugprone-nondeterministic-pointer-iteration-order
+        -bugprone-random-generator-seed
         -bugprone-return-const-ref-from-parameter
+        -bugprone-signed-bitwise
         -bugprone-signed-char-misuse
+        -bugprone-std-exception-baseclass
         -bugprone-unchecked-optional-access
         -bugprone-unintended-char-ostream-output
         # Disable the aliased reserved identifiers
@@ -272,6 +277,7 @@ rocm_enable_clang_tidy(
         -misc-const-correctness
         -misc-include-cleaner
         -misc-macro-parentheses
+        -misc-multiple-inheritance
         -misc-no-recursion
         -misc-override-with-different-visibility
         -misc-use-internal-linkage
@@ -284,9 +290,12 @@ rocm_enable_clang_tidy(
         -modernize-use-override
         -modernize-use-scoped-lock
         -modernize-use-string-view
+        -modernize-use-structured-binding
         -modernize-use-trailing-return-type
         -modernize-use-transparent-functors
         -performance-avoid-endl
+        -performance-faster-string-find
+        -performance-prefer-single-char-overloads
         -performance-type-promotion-in-math-fn
         -performance-enum-size
         -performance-use-std-move

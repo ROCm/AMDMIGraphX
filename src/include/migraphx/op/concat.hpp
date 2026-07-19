@@ -90,11 +90,7 @@ struct concat
         // A fully-unconstrained dim (unbounded max == SIZE_MAX) is a wildcard:
         // it is the output of an op whose shape is only known at runtime (e.g.
         // broadcast_with_dims / ONNX Expand whose target shape is computed from
-        // another tensor's shape). It adopts the other input's constraint;
-        // otherwise non-concat axes must match exactly. (dynamic_dimension
-        // intersection is intentionally not used here: it drops optimals and
-        // accepts merely-overlapping ranges, which breaks concat's exact-match
-        // requirement -- see test_dyn_concat.)
+        // another tensor's shape).
         auto is_unconstrained = [](const shape::dynamic_dimension& dd) {
             return not dd.is_symbolic() and
                    dd.get_interval().max == std::numeric_limits<std::size_t>::max();

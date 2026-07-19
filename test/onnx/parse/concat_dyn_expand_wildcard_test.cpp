@@ -27,12 +27,7 @@
 
 TEST_CASE(concat_dyn_expand_wildcard_test)
 {
-    // Regression for #4924. ONNX Expand(qu, dims) with a runtime `dims` lowers
-    // to broadcast_with_dims, whose output carries fully-unconstrained dynamic
-    // dims. Concatenating that with the dynamic `item` previously threw
-    // "CONCAT: all input dimensions should match in axis 0" while parsing
-    // (add_instruction runs concat shape inference). #4924 treats the
-    // unconstrained dim as a wildcard, so the model now parses.
+    // Regression for #4924: concat with a fully-unconstrained (wildcard) dynamic dim parses.
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
     auto prog                     = read_onnx("concat_dyn_expand_wildcard_test.onnx", options);

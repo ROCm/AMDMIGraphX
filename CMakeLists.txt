@@ -291,6 +291,7 @@ rocm_enable_clang_tidy(
         -performance-enum-size
         -performance-use-std-move
         -readability-braces-around-statements
+        -readability-inconsistent-ifelse-braces
         -readability-container-size-empty
         -readability-avoid-nested-conditional-operator
         -readability-convert-member-functions-to-static
@@ -299,8 +300,10 @@ rocm_enable_clang_tidy(
         -readability-identifier-length
         -readability-math-missing-parentheses
         -readability-named-parameter
+        -readability-redundant-lambda-parameter-list
         -readability-redundant-member-init
         -readability-redundant-parentheses
+        -readability-redundant-qualified-alias
         -readability-redundant-string-init
         -readability-suspicious-call-argument
         -readability-trailing-comma

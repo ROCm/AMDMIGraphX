@@ -85,6 +85,24 @@ __device__ inline vec<float, 4> wino_fp32_load4(__amdgpu_buffer_rsrc_t rsrc, int
     return bit_cast<vec<float, 4>>(v);
 }
 
+// CU contiguous fp32: b128 (CU=4), b64 (CU=2), or b32 (CU=1). The channel-unroll
+// CU picks the widest weight load that still fits the pipeline's register budget
+// -- smaller CU shrinks the pipelined double-buffer at the cost of more (narrower)
+// weight loads.
+template <index_int CU>
+__device__ inline vec<float, CU> wino_fp32_load_cu(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
+{
+    if constexpr(CU == 4)
+        return bit_cast<vec<float, 4>>(
+            __builtin_amdgcn_raw_buffer_load_b128(rsrc, byte_offset, 0, 0));
+    else if constexpr(CU == 2)
+        return bit_cast<vec<float, 2>>(
+            __builtin_amdgcn_raw_buffer_load_b64(rsrc, byte_offset, 0, 0));
+    else
+        return vec<float, 1>{
+            bit_cast<float>(__builtin_amdgcn_raw_buffer_load_b32(rsrc, byte_offset, 0, 0))};
+}
+
 // Input transform, v axis (across the 4 lanes of a quad). Given this lane's raw
 // datum d for one tile row, returns P = B^T applied along the v (W) axis.
 //   lane0: d0 - d2   lane1: d1 + d2   lane2: d2 - d1   lane3: d3 - d1
@@ -133,10 +151,15 @@ __device__ inline array<float, 4> wino_f23_bt_u(const array<float, 4>& p)
 //           FMAs instead of clustering ahead of them. PIPE=1 costs a second live
 //           v_reg -- a tuner-selected option that wins on FMA-throughput-bound
 //           shapes; gated to small solutions since it spills for large TILES/KO.
+//   CU    : channel-unroll (1/2/4) = weight load width (b32/b64/b128). CU=4 reads
+//           4 channels per (u,k) with one b128. A smaller CU halves/quarters the
+//           pipelined double-buffer (v_cur+v_next) and the weight vector, trading
+//           narrower weight loads for higher occupancy -- so the pipeline can run
+//           at a higher KO without spilling. Tuner-selected with PIPE.
 //
-// The channel contraction is unrolled by CU=4 so the shared weight can be read
-// with one b128 per (u,k) covering 4 channels, and so the load latency of the
-// per-channel input transform is pipelined across 4 channels.
+// The channel contraction is unrolled by CU so the shared weight can be read with
+// one vector load per (u,k) covering CU channels, and so the load latency of the
+// per-channel input transform is pipelined across CU channels.
 //
 // PostInput / F / Inputs...: fused pointwise post-op, same contract as the
 // fp16 kernel -- f(cast(y), inputs[idx]...) is applied at each output position,
@@ -146,6 +169,7 @@ template <index_int NW,
           index_int TILES,
           index_int SK,
           bool PIPE,
+          index_int CU,
           class PostInput,
           class F,
           class Output,
@@ -159,7 +183,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     static_assert(KO >= 1, "KO must be >= 1");
     static_assert(TILES >= 1, "TILES must be >= 1");
     static_assert(SK >= 1 and SK <= NW and (NW % SK) == 0, "SK must divide NW");
-    constexpr index_int CU = 4; // channel unroll (b128 weight = 4 channels)
+    static_assert(CU == 1 or CU == 2 or CU == 4, "CU must be 1, 2, or 4");
 
     auto idx       = make_index();
     auto out_shape = output.get_shape();
@@ -334,7 +358,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                 const int32_t w_off_base = w_byte_off(u, k) + coff_w;
                 if(nchan == CU)
                 {
-                    wv[k] = wino_fp32_load4(w_rsrc, w_off_base);
+                    wv[k] = wino_fp32_load_cu<CU>(w_rsrc, w_off_base);
                 }
                 else
                 {

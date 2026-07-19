@@ -119,7 +119,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${pipe}, ${conv_cast}>(
+            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${pipe}, ${cu}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -156,6 +156,10 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         // the simple transform-then-FMA path (false). pipe costs a second live
         // v_reg, so the tuner only offers it on small (non-spilling) solutions.
         const bool pipe = v.get("pipe", false);
+        // cu = channel-unroll (weight load width): 4=b128, 2=b64, 1=b32. Smaller
+        // cu shrinks the pipelined double-buffer (finer-grained pipeline) at the
+        // cost of more, narrower weight loads.
+        const auto cu = v.get("cu", std::size_t{4});
 
         // Only nw/sk NT-groups' worth of distinct tiles are covered per WG.
         const std::size_t quads_per_wg = 8 * (nw / sk);
@@ -189,6 +193,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"tiles", std::to_string(tiles)},
                                        {"sk", std::to_string(sk)},
                                        {"pipe", pipe ? "true" : "false"},
+                                       {"cu", std::to_string(cu)},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"conv_cast", v.get("conv_cast", std::string{"float"})},
                                        {"preamble", v.get("preamble", std::string{})}});
@@ -318,6 +323,17 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
             tc.solutions.push_back({{"nw", 8}, {"ko", 8}, {"tiles", 2}, {"pipe", true}});
             tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 1}, {"pipe", true}});
             tc.solutions.push_back({{"nw", 8}, {"ko", 8}, {"tiles", 1}, {"pipe", true}});
+            // Finer-grained pipeline: cu=2 (b64 weight load) halves the pipelined
+            // double-buffer, so ko can go to 16 without spilling -- amortizing the
+            // (non-dual-issue) DPP transforms over more FMAs. Costs more, narrower
+            // weight loads; the tuner keeps it only where the trade pays off.
+            tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 2}, {"pipe", true}, {"cu", 2}});
+            tc.solutions.push_back(
+                {{"nw", 4}, {"ko", 16}, {"tiles", 1}, {"pipe", true}, {"cu", 2}});
+            tc.solutions.push_back(
+                {{"nw", 2}, {"ko", 16}, {"tiles", 2}, {"pipe", true}, {"cu", 2}});
+            tc.solutions.push_back(
+                {{"nw", 4}, {"ko", 16}, {"tiles", 2}, {"pipe", true}, {"cu", 2}});
             // Channel-split (sk>1): nw/sk NT-groups whose sk waves split the
             // channel contraction and reduce partial M through LDS. Helps shapes
             // with few tiles + many channels (small spatial, large in_c/out_c),

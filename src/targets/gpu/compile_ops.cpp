@@ -48,7 +48,6 @@
 #include <algorithm>
 #include <cstdlib>
 #include <functional>
-#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -614,16 +613,14 @@ struct compile_manager
 
 static void replace_inserted_device_ops(context& ctx, module& m)
 {
-    // only lower the device ops that are inserted by compile_ops
-    std::unordered_set<instruction_ref> preexisting;
-    for(auto ins : iterator_for(m))
-        if(ins->name() == "gpu::precompile_op")
-            preexisting.insert(ins);
+    run_passes(m, {dead_code_elimination{}});
+    assert(std::none_of(
+        m.begin(), m.end(), [](auto&& ins) { return ins.name() == "gpu::precompile_op"; }));
     run_passes(m, {lower_device_ops{}});
     compile_manager cm;
     for(auto ins : iterator_for(m))
     {
-        if(ins->name() != "gpu::precompile_op" or contains(preexisting, ins))
+        if(ins->name() != "gpu::precompile_op")
             continue;
         operation preop = any_cast<precompile_op>(ins->get_operator()).op;
         cm.add_plan(&ctx, preop, ins, &m);

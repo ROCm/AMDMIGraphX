@@ -514,7 +514,7 @@ else()
 endif()
 
 rocm_create_package(
-    NVERSION AME MIGraphX
+    NAME MIGraphX
     DESCRIPTION "AMD graph optimizer"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG

@@ -636,26 +636,52 @@ bool winograd_f23_full_transform(std::size_t in_ch,
     return true;
 }
 
+struct winograd_f23_sstore_shape
+{
+    std::size_t in_ch;
+    std::size_t out_ch;
+    std::size_t height;
+    std::size_t width;
+};
+
+// Measured (gfx1201 fp32, exhaustive-tune, tight-interleaved) shapes in the
+// spatial-16..64 high-channel band where S-store beats full U by >=5%. The band's
+// S-vs-U win/loss is micro-architecturally NON-MONOTONIC -- 512->512@16 wins but
+// 515->512@16 loses 1.5x; 192->191@64 wins but 192->192@64 loses; 768->383@32
+// wins but 384->384@32 loses -- so a smooth rule can't separate them without
+// regressing real full-U winners. Hence a measured table, like the fp16 path.
+constexpr std::array<winograd_f23_sstore_shape, 7> winograd_f23_sstore_overrides{{
+    {512, 512, 16, 16}, // S/U 0.84
+    {512, 512, 24, 24}, // 0.91
+    {195, 192, 64, 64}, // 0.94
+    {768, 383, 32, 32}, // 0.89
+    {384, 383, 32, 32}, // 0.93
+    {384, 191, 64, 64}, // 0.76
+    {192, 191, 64, 64}, // 0.82
+}};
+
 // Choose the fp32 winograd weight encoding: S-store (v-half-transformed g*G^T,
 // [3,4,K,C]) vs the full U ([4,4,K,C]). S-store cuts weight loads AND bytes 25%
 // and finishes U with a cheap register-only u-transform, so it wins the
-// weight-load-dominated shapes: high channels with very small spatial. Elsewhere
-// its extra register FMA + k-outer's lower ILP make it slower.
+// weight-load-dominated shapes: high channels with small spatial. Elsewhere its
+// extra register FMA + k-outer's lower ILP make it slower.
 //
-// The S-store-vs-U win/loss is micro-architecturally NON-MONOTONIC (a full gfx1201
-// fp32 sweep showed 192->191@64 winning but 192->192@64 losing; 512->512@16
-// winning but 515->512@16 losing hard) -- no smooth shape rule separates the
-// spatial>=16 band without turning real full-U winners into losers. So the
-// heuristic is restricted to the confirmed-safe regime only: every regressor in
-// the sweep was at spatial>=16, while the big wins (512ch@6/8/12: +40..+53 points
-// over full U, none regressed) are at spatial<=12. Broader selection would need a
-// measured per-shape override table (as the fp16 path uses), not a smooth rule.
+// Two selection paths: (1) a smooth confirmed-safe zone (very small spatial, high
+// channels) where S-store wins uniformly; (2) the measured override table above
+// for the non-monotonic spatial-16..64 band.
 bool winograd_f23_use_sstore(std::size_t in_ch,
                              std::size_t out_ch,
                              std::size_t height,
                              std::size_t width)
 {
-    return std::min(in_ch, out_ch) >= 256 and std::min(height, width) <= 12;
+    if(std::min(in_ch, out_ch) >= 256 and std::min(height, width) <= 12)
+        return true;
+    return std::any_of(winograd_f23_sstore_overrides.begin(),
+                       winograd_f23_sstore_overrides.end(),
+                       [&](const auto& o) {
+                           return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
+                                  std::tie(in_ch, out_ch, height, width);
+                       });
 }
 
 MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)

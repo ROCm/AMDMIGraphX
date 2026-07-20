@@ -28,12 +28,22 @@ TEST_CASE(nonmaxsuppression_zero_boxes_test)
 {
     migraphx::program p;
     auto* mm = p.get_main_module();
-    mm->add_parameter("boxes", migraphx::shape{migraphx::shape::float_type, {1, 1, 4}});
-    mm->add_parameter("scores", migraphx::shape{migraphx::shape::float_type, {1, 1, 1}});
+    auto boxes =
+        mm->add_parameter("boxes", migraphx::shape{migraphx::shape::float_type, {1, 6, 4}});
+    auto scores =
+        mm->add_parameter("scores", migraphx::shape{migraphx::shape::float_type, {1, 1, 6}});
     mm->add_parameter("max_output_boxes_per_class",
                       migraphx::shape{migraphx::shape::int64_type, {1}});
     mm->add_parameter("iou_threshold", migraphx::shape{migraphx::shape::float_type, {1}});
     mm->add_parameter("score_threshold", migraphx::shape{migraphx::shape::float_type, {1}});
+    mm->add_literal({{migraphx::shape::int64_type, {1}}, {0}});
+    mm->add_literal({{migraphx::shape::int64_type, {1}}, {0}});
+    mm->add_literal({{migraphx::shape::int64_type, {1}}, {1}});
+    mm->add_literal({{migraphx::shape::int64_type, {1}}, {2}});
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {0}}}),
+                        boxes);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}, {"ends", {0}}}),
+                        scores);
     auto ret = mm->add_instruction(migraphx::make_op("undefined"));
     mm->add_return({ret});
 

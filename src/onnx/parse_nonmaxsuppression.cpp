@@ -37,33 +37,15 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
 {
     std::vector<op_desc> operators() const { return {{"NonMaxSuppression", "nonmaxsuppression"}}; }
 
-    bool has_zero_boxes(const onnx_parser::node_info& info,
-                        const std::vector<instruction_ref>& args) const
-    {
-        auto input_has_zero_axis = [&](std::size_t input, std::size_t axis) {
-            return info.zero_input_axes.size() > input and
-                   contains(info.zero_input_axes[input], axis);
-        };
-        if(input_has_zero_axis(0, 1) or input_has_zero_axis(1, 2))
-            return true;
-
-        const auto& boxes_shape  = args.at(0)->get_shape();
-        const auto& scores_shape = args.at(1)->get_shape();
-        if(boxes_shape.dynamic() or scores_shape.dynamic())
-            return false;
-
-        const auto& boxes_lens  = boxes_shape.lens();
-        const auto& scores_lens = scores_shape.lens();
-        return (boxes_lens.size() > 1 and boxes_lens.at(1) == 0) or
-               (scores_lens.size() > 2 and scores_lens.at(2) == 0);
-    }
-
     instruction_ref parse(const op_desc& opd,
                           const onnx_parser& parser,
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        if(has_zero_boxes(info, args))
+        if(any_of(args, [](const auto& arg) {
+               const auto& s = arg->get_shape();
+               return not s.dynamic() and s.elements() == 0;
+           }))
             return info.add_instruction(make_op("undefined"));
 
         auto op      = parser.load(opd.op_name, info);

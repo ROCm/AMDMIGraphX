@@ -37,6 +37,36 @@ Model performance tunable variables change the compilation behavior of a model. 
 
       | Default: The rocMLIR library is used.
 
+  * - | ``MIGRAPHX_ENABLE_WINOGRAD``
+      | Forces the F(2,3) winograd convolution kernel on every eligible
+      | 3x3/stride-1/pad-1 fp16 convolution, bypassing the perf heuristic.
+      | gfx12 only.
+
+    - | ``1``: Use winograd on all eligible convolutions.
+      | ``0``: Returns to default behavior.
+
+      | Default: A per-shape heuristic decides between winograd and the
+      | default lowering.
+
+  * - | ``MIGRAPHX_DISABLE_WINOGRAD``
+      | When set, the winograd convolution kernel won't be used.
+
+    - | ``1``: The winograd kernel won't be used.
+      | ``0``: Returns to default behavior.
+
+      | Default: A per-shape heuristic decides between winograd and the
+      | default lowering.
+
+  * - | ``MIGRAPHX_WINOGRAD_FULL_TRANSFORM``
+      | Forces the winograd kernel to store the raw filter and do the full
+      | weight transform in-kernel, instead of the per-shape store heuristic.
+      | For benchmarking the two weight stores.
+
+    - | ``1``: Always use the in-kernel (raw-filter) weight transform.
+      | ``0``: Returns to default behavior.
+
+      | Default: A per-shape heuristic picks the weight store.
+
   * - | ``MIGRAPHX_ENABLE_CK``
       | When set, the Composable Kernel library is used.
       
@@ -305,6 +335,14 @@ Model performance tunable variables change the compilation behavior of a model. 
       | ``0``: Returns to default behavior.
 
       | Default: Full dynamic shape support is disabled.
+
+  * - | ``MIGRAPHX_USE_DYNAMIC_NMS``
+      | When set, the ``NonMaxSuppression`` ONNX parser performs a dynamic slice on the raw indices tensor to trim it to the number of selected boxes, producing an output with a dynamic shape.
+
+    - | ``1``: A dynamic slice is applied to the raw indices tensor, producing a dynamic-shaped output.
+      | ``0``: Returns to default behavior.
+
+      | Default: The whole raw indices tensor is returned without slicing.
 
 Matching
 **********

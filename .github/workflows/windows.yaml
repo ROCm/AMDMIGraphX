@@ -81,3 +81,116 @@ jobs:
 
     # - name: Setup tmate session
     #   uses: mxschmitt/action-tmate@v3
+
+  windows-gpu:
+    runs-on: windows-2025
+    defaults:
+      run:
+        shell: bash
+
+    # GitHub-hosted runners have no AMD GPU, so this job only builds MIGraphX
+    # with the GPU backend; it does not run the GPU tests. The architecture is
+    # build-only, so any target with complete TheRock library support works.
+    env:
+      GPU_ARCH: gfx942
+      ROCM_VERSION: "7.13"
+
+    steps:
+    - uses: actions/checkout@v4.2.2
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: 3.12
+
+    - name: Setup cmake
+      uses: jwlawson/actions-setup-cmake@v1.9
+      with:
+        cmake-version: 3.31.10
+
+    - name: Install VS 2022 build tools
+      run: choco install visualstudio2022buildtools -y --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+      
+    - name: Setup MSVC Developer Command Prompt
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        vsversion: 2022 # v17.13.4
+
+    - name: Install rbuild
+      run: pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+
+    - name: Install ROCm from TheRock python wheels
+      # See https://github.com/ROCm/TheRock/blob/main/RELEASES.md
+      # repo.amd.com/rocm/whl-multi-arch is TheRock's stable release wheel index
+      # (the therock-release-python bucket)
+      run: |
+        pip install --index-url https://repo.amd.com/rocm/whl-multi-arch/ \
+          "rocm[libraries,devel,device-${GPU_ARCH}]==${ROCM_VERSION}.*"
+        rocm-sdk init
+
+    - name: Set up ROCm toolchain
+      run: |
+        ROCM_ROOT=$(rocm-sdk path --root)
+        # Put the ROCm LLVM toolchain (clang-cl / clang / clang++) and runtime
+        # tools on PATH so the CC/CXX picked per build step resolve to the
+        # HIP-capable compiler.
+        echo "${ROCM_ROOT}/lib/llvm/bin" >> "$GITHUB_PATH"
+        echo "${ROCM_ROOT}/bin" >> "$GITHUB_PATH"
+        # find_package() locates hip / rocblas / hipblaslt / miopen via this prefix.
+        echo "ROCM_CMAKE_PATH=$(rocm-sdk path --cmake)" >> "$GITHUB_ENV"
+
+    - name: Cache dependencies
+      continue-on-error: true
+      uses: actions/cache@v4.2.0
+      id: deps_cache
+      with:
+        path: ${{ github.workspace }}/cget
+        key: windows-cget-gpu-${{ hashFiles('requirements.txt', 'dev-requirements.txt', 'rbuild.ini') }}
+        restore-keys: windows-cget-gpu-
+
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3
+
+    - name: Install dependencies
+      # Build the third-party dependencies (including rocMLIR) with clang-cl,
+      # matching the windows-cpu job.
+      env:
+        CC: clang-cl
+        CXX: clang-cl
+        CXXFLAGS: "/std:c++17"
+      # We disable the assembly files for BLAKE3 in rocmlir. An update to
+      # rocmlirs cmake is needed.
+      #
+      # `rbuild prepare` is meant to skip rebuilding deps when the dependency
+      # hash is unchanged, but a Windows bug in that path leaves stale deps in
+      # place. Do the hash comparison ourselves against the hash cached in the
+      # cget directory and wipe cget on a mismatch (or when it is missing) so
+      # prepare rebuilds from a clean state.
+      run: |
+        expected_hash=$(rbuild hash -s gh-win-gpu)
+        stored_hash=$(cat cget/hash 2>/dev/null || true)
+        if [ "$expected_hash" != "$stored_hash" ]; then
+          echo "Dependency hash mismatch (expected '$expected_hash', stored '$stored_hash'); clearing cget"
+          rm -rf cget
+        else
+          echo "Dependency hash matches ('$expected_hash'); reusing cached cget"
+        fi
+        rbuild prepare -d cget -s gh-win-gpu -G Ninja -DCMAKE_BUILD_TYPE=Release \
+          -DLLVM_DISABLE_ASSEMBLY_FILES=On \
+          -DLLVM_ENABLE_DIA_SDK=Off
+
+    - name: Build
+      # Build MIGraphX itself with the ROCm HIP clang++ so the GPU backend
+      # compiles; point CMake at the ROCm install.
+      env:
+        CMAKE_PREFIX_PATH: ${{ env.ROCM_CMAKE_PATH }}
+        CC: clang
+        CXX: clang++
+      run: |
+        rbuild build -d cget -s gh-win-gpu -G Ninja -T driver \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DGPU_TARGETS=${GPU_ARCH}
+
+
+    # - name: Setup tmate session
+    #   uses: mxschmitt/action-tmate@v3

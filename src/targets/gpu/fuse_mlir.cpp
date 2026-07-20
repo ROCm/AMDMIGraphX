@@ -406,6 +406,9 @@ auto is_mlir_conv(mlir_mode mode)
             return true;
         if(mode == mlir_mode::all)
             return true;
+        // Always use mlir for NHWC
+        if(ins->get_shape().strides()[1] == 1)
+            return true;
         // No winograd for group convolution
         if(group > 1)
             return true;
@@ -1616,6 +1619,14 @@ void fuse_mlir::apply(module_pass_manager& mpm) const
             return mlir_mode::all;
         if(is_navi)
             return mlir_mode::all;
+#if !MIGRAPHX_USE_MIOPEN
+        if(contains(option, "conv"))
+            return mlir_mode::all;
+#endif
+#if !MIGRAPHX_USE_ROCBLAS and !MIGRAPHX_USE_HIPBLASLT
+        if(contains(option, "dot") or contains(option, "fused_dot"))
+            return mlir_mode::all;
+#endif
         return std::max(m1, m2);
     };
 

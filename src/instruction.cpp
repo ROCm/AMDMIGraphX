@@ -29,10 +29,15 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/iterator.hpp>
+#include <migraphx/logger.hpp>
+#include <migraphx/scope_guard.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/iterator_for.hpp>
+#include <migraphx/pmr/unordered_map.hpp>
+#include <array>
 #include <bitset>
 #include <queue>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -96,6 +101,7 @@ void instruction::replace(const shape& r)
             instruction_ref ins = q.top();
             q.pop();
             assert(ins->name() == "@return" or ins->name().front() != '@');
+            auto guard  = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*ins); });
             shape new_r = compute_shape(ins->op, ins->arguments, ins->module_args);
             if(new_r != ins->result)
             {
@@ -113,7 +119,11 @@ void instruction::replace(operation o)
     recompute_shape();
 }
 
-void instruction::recompute_shape() { replace(compute_shape(op, arguments, module_args)); }
+void instruction::recompute_shape()
+{
+    auto guard = on_scope_fail([&]() noexcept { log_debug_symbols_on_exception(*this); });
+    replace(compute_shape(op, arguments, module_args));
+}
 
 void instruction::clear_arguments()
 {
@@ -366,38 +376,63 @@ bool instruction::is_undefined() const
 bool instruction::can_eval() const
 {
     if(op.name() == "@literal")
-    {
         return true;
-    }
-    else if(is_context_free(op))
-    {
-        return std::all_of(
-            this->inputs().begin(), this->inputs().end(), [](auto arg) { return arg->can_eval(); });
-    }
-    else
-    {
+    if(not is_context_free(op))
         return false;
-    }
+#if MIGRAPHX_HAS_PMR
+    std::array<char, 1024> storage;
+    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+    pmr::unordered_map<const instruction*, bool> cache(&resource);
+#else
+    pmr::unordered_map<const instruction*, bool> cache;
+#endif
+    return fix<bool>([&](auto self, const instruction& ins) -> bool {
+        auto it = cache.find(&ins);
+        if(it != cache.end())
+            return it->second;
+        bool evaluable = false;
+        if(ins.name() == "@literal")
+            evaluable = true;
+        else if(is_context_free(ins.get_operator()))
+            evaluable = std::all_of(
+                ins.inputs().begin(), ins.inputs().end(), [&](auto arg) { return self(*arg); });
+        cache.emplace(&ins, evaluable);
+        return evaluable;
+    })(*this);
 }
 
 argument instruction::eval(bool check_eval) const
 {
     if(op.name() == "@literal")
-    {
         return this->get_literal().get_argument();
-    }
-    if(is_context_free(op))
-    {
-        if(check_eval and not this->can_eval())
+    if(not is_context_free(op))
+        return {};
+    if(check_eval and not this->can_eval())
+        return {};
+#if MIGRAPHX_HAS_PMR
+    std::array<char, 1024> storage;
+    std::pmr::monotonic_buffer_resource resource{storage.data(), storage.size()};
+    pmr::unordered_map<const instruction*, argument> cache(&resource);
+#else
+    pmr::unordered_map<const instruction*, argument> cache;
+#endif
+    return fix<argument>([&](auto self, const instruction& ins) -> argument {
+        if(ins.name() == "@literal")
+            return ins.get_literal().get_argument();
+        if(not is_context_free(ins.get_operator()))
             return {};
+        auto it = cache.find(&ins);
+        if(it != cache.end())
+            return it->second;
         std::vector<argument> args;
-        std::transform(this->inputs().begin(),
-                       this->inputs().end(),
+        std::transform(ins.inputs().begin(),
+                       ins.inputs().end(),
                        std::back_inserter(args),
-                       [](auto arg) { return arg->eval(false); });
-        return normalized_operator().compute(result, args);
-    }
-    return {};
+                       [&](auto arg) { return self(*arg); });
+        auto value = ins.normalized_operator().compute(ins.get_shape(), args);
+        cache.emplace(&ins, value);
+        return value;
+    })(*this);
 }
 
 void instruction::finalize(context& ctx)
@@ -602,6 +637,22 @@ std::vector<instruction_ref> get_added_instructions(const std::vector<instructio
         }
     })(ends);
     return added;
+}
+
+void log_debug_symbols_on_exception(const instruction& ins) noexcept
+{
+    try
+    {
+        const auto& symbols = ins.get_debug_symbols();
+        if(symbols.empty())
+            return;
+        log::debug() << "Exception thrown for instruction '" << ins.name()
+                     << "' with debug symbols: " << join_strings(symbols, ", ");
+    }
+    // cppcheck-suppress migraphx-EmptyCatchStatement
+    catch(...) // logging must not replace the original exception
+    {
+    }
 }
 
 migraphx::instruction* as_address(const std::list<instruction>::iterator& ins) noexcept

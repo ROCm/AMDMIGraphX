@@ -116,6 +116,15 @@ __device__ __host__ auto as_vec(T* x)
         return reinterpret_cast<vec<T, N>*>(x);
 }
 
+template <index_int N, class T>
+__device__ __host__ auto as_vec(const T* x)
+{
+    if constexpr(N < 2)
+        return x;
+    else
+        return reinterpret_cast<const vec<T, N>*>(x);
+}
+
 template <class T, index_int N>
 using safe_vec = vec<conditional_t<is_same<T, bool>{}, uint8_t, T>, N>;
 

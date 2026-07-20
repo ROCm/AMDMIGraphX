@@ -119,7 +119,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${pipe}, ${cu}, ${sstore}, ${conv_cast}>(
+            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${pipe}, ${cu}, ${sstore}, ${nhwc}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -165,6 +165,9 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         // the register-only G u-transform, trading 3/4 the weight loads+bytes for a
         // few register FMAs (for weight-bandwidth-bound shapes).
         const bool sstore = inputs.at(1).lens().at(0) == 3;
+        // NHWC: the conv input has its channel axis innermost (stride 1), so the
+        // kernel loads CU contiguous channels with one b128 instead of CU b32.
+        const bool nhwc = inputs.front().strides().at(1) == 1;
 
         // Only nw/sk NT-groups' worth of distinct tiles are covered per WG.
         const std::size_t quads_per_wg = 8 * (nw / sk);
@@ -200,6 +203,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"pipe", pipe ? "true" : "false"},
                                        {"cu", std::to_string(cu)},
                                        {"sstore", sstore ? "true" : "false"},
+                                       {"nhwc", nhwc ? "true" : "false"},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"conv_cast", v.get("conv_cast", std::string{"float"})},
                                        {"preamble", v.get("preamble", std::string{})}});

@@ -171,6 +171,7 @@ template <index_int NW,
           bool PIPE,
           index_int CU,
           bool SSTORE,
+          bool NHWC,
           class PostInput,
           class F,
           class Output,
@@ -324,10 +325,51 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
         });
     };
 
-    // Full block transform (all CU channels) -- used for the pipeline prologue.
+    // Full block transform (all CU channels). For NHWC (channels innermost,
+    // stride 1) the CU channels are contiguous, so load them with one b128 per
+    // (tile, a-row) -- 4x fewer input loads than the per-channel b32 path -- then
+    // apply the same per-channel v/u transform. (NCHW channels are H*W apart, so
+    // it stays per-channel.)
+    //
+    // NOTE: on memory-bound NHWC shapes this is ~2x slower than NCHW and loses to
+    // MLIR. The b128 widens the load WITHIN a lane but the bottleneck is the
+    // CROSS-lane pattern: lane==v_col reads 4 W-columns, which are stride-1 (one
+    // cache line, coalesced) in NCHW but C-strided (4 separate lines, uncoalesced)
+    // in NHWC. Confirmed: identical compute runs 2x slower in NHWC purely from the
+    // access pattern, and a coalesced-load microbench hit ~MLIR speed. The real fix
+    // is a coalesced (lane==channel) load feeding a per-lane register transform,
+    // with a once-per-kernel quad transpose-reduce back to lane==v_col for the
+    // contraction/output -- a separate NHWC compute path, not a load-width tweak.
     auto transform_block = [&](index_int c0, index_int nchan) {
         v_reg_t vr{};
-        repeat_c<CU>([&](auto cc) { transform_chan(vr, c0, nchan, cc); });
+        if constexpr(NHWC)
+        {
+            const int32_t coff = static_cast<int32_t>(c0 * sizeof(float)); // c_stride_x == 1
+            repeat_c<TILES>([&](auto tt) {
+                constexpr index_int t = tt;
+                array<vec<float, CU>, 4> d4{}; // [a][cu], CU contiguous channels via b128
+                repeat_c<4>([&](auto aa) {
+                    constexpr int a = aa;
+                    d4[a]           = wino_fp32_load_cu<CU>(x_rsrc, x_off[t][a] + coff);
+                });
+                repeat_c<CU>([&](auto cc) {
+                    constexpr index_int cu = cc;
+                    if(cu >= nchan)
+                        return;
+                    array<float, 4> p{};
+                    repeat_c<4>([&](auto aa) {
+                        constexpr int a = aa;
+                        p[a]            = wino_f23_bt_v(d4[a][cu], in_shuf_sign);
+                    });
+                    const auto vu = wino_f23_bt_u(p);
+                    repeat_c<4>([&](auto uu) { vr[t][uu][cu] = vu[uu]; });
+                });
+            });
+        }
+        else
+        {
+            repeat_c<CU>([&](auto cc) { transform_chan(vr, c0, nchan, cc); });
+        }
         return vr;
     };
 

@@ -402,6 +402,11 @@ TEST_CASE(rnn_invalid_af_test)
     EXPECT(test::throws([&] { migraphx::parse_onnx("rnn_bi_1af_test.onnx"); }));
 }
 
+TEST_CASE(rnn_clip_not_supported_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("rnn_clip_test.onnx"); }));
+}
+
 TEST_CASE(gru_test)
 {
     std::size_t sl = 5;  // sequence len
@@ -1037,6 +1042,11 @@ TEST_CASE(gru_test_actv_funcs)
 TEST_CASE(gru_invalid_af_test)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("gru_f_1af_test.onnx"); }));
+}
+
+TEST_CASE(gru_clip_not_supported_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("gru_clip_test.onnx"); }));
 }
 
 TEST_CASE(lstm_forward)
@@ -2112,6 +2122,16 @@ TEST_CASE(lstm_bi_actv_funcs)
 TEST_CASE(lstm_invalid_af_test)
 {
     EXPECT(test::throws([&] { migraphx::parse_onnx("lstm_f_1af_test.onnx"); }));
+}
+
+TEST_CASE(lstm_clip_not_supported_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("lstm_clip_test.onnx"); }));
+}
+
+TEST_CASE(lstm_input_forget_not_supported_test)
+{
+    EXPECT(test::throws([&] { migraphx::parse_onnx("lstm_input_forget_test.onnx"); }));
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

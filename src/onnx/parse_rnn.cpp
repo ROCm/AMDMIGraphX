@@ -26,6 +26,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
@@ -136,11 +137,11 @@ struct parse_rnn : op_parser<parse_rnn>
                        vec_actv_funcs.begin(),
                        [&](const auto& fn) { return map_activation_functions().at(fn); });
 
-        // To be added later
-        float clip = 0.0;
-        if(contains(info.attributes, "clip"))
+        // clip is not yet supported by the rnn builder
+        if(contains(info.attributes, "clip") and
+           not float_equal(parser.parse_value(info.attributes.at("clip")).at<float>(), 0.0f))
         {
-            clip = parser.parse_value(info.attributes.at("clip")).at<float>();
+            MIGRAPHX_THROW("RNN: clip attribute is not supported");
         }
 
         int layout = 0;

@@ -26,6 +26,7 @@
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/builder/insert.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/float_equal.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/stringutils.hpp>
 #include <migraphx/make_op.hpp>
@@ -159,16 +160,18 @@ struct parse_lstm : op_parser<parse_lstm>
                        vec_actv_funcs.begin(),
                        [&](const auto& name) { return map_activation_functions().at(name); });
 
-        float clip = 0.0;
-        if(contains(info.attributes, "clip"))
+        // clip is not yet supported by the lstm builder
+        if(contains(info.attributes, "clip") and
+           not float_equal(parser.parse_value(info.attributes.at("clip")).at<float>(), 0.0f))
         {
-            clip = parser.parse_value(info.attributes.at("clip")).at<float>();
+            MIGRAPHX_THROW("LSTM: clip attribute is not supported");
         }
 
-        int input_forget = 0;
-        if(contains(info.attributes, "input_forget"))
+        // input_forget is not yet supported by the lstm builder
+        if(contains(info.attributes, "input_forget") and
+           parser.parse_value(info.attributes.at("input_forget")).at<int>() != 0)
         {
-            input_forget = parser.parse_value(info.attributes.at("input_forget")).at<int>();
+            MIGRAPHX_THROW("LSTM: input_forget attribute is not supported");
         }
 
         int layout = 0;

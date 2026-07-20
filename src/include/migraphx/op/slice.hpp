@@ -133,7 +133,7 @@ struct slice
         return new_lens;
     }
 
-    /// Helper function for normalize_compute_shape()
+    /// Check that the inputs, attributes, and mode are valid.
     void check_inputs_and_attributes(std::vector<shape> inputs) const
     {
         auto input_shape = inputs[0];

@@ -8511,6 +8511,48 @@ def loop_default_test():
 
 
 @onnx_test()
+def if_implicit_capture_unsorted_test():
+    # An If node whose branches implicitly capture "captured_const" from the
+    # enclosing scope, while the Constant producing "captured_const" is listed
+    # *after* the If node. The graph is therefore not topologically sorted, and
+    # the parser must account for the subgraph capture when reordering nodes.
+    then_out = helper.make_tensor_value_info('then_out', TensorProto.FLOAT, [2])
+    else_out = helper.make_tensor_value_info('else_out', TensorProto.FLOAT, [2])
+
+    then_add_node = helper.make_node('Add',
+                                     inputs=['x', 'captured_const'],
+                                     outputs=['then_out'])
+    else_sub_node = helper.make_node('Sub',
+                                     inputs=['x', 'captured_const'],
+                                     outputs=['else_out'])
+
+    then_body = helper.make_graph([then_add_node], 'then_body', [], [then_out])
+    else_body = helper.make_graph([else_sub_node], 'else_body', [], [else_out])
+
+    if_node = helper.make_node('If',
+                               inputs=['cond'],
+                               outputs=['res'],
+                               then_branch=then_body,
+                               else_branch=else_body)
+
+    const_node = helper.make_node(
+        'Constant',
+        inputs=[],
+        outputs=['captured_const'],
+        value=helper.make_tensor(name='captured_const_value',
+                                 data_type=TensorProto.FLOAT,
+                                 dims=[2],
+                                 vals=np.ones(2).astype(np.float32)))
+
+    x = helper.make_tensor_value_info('x', TensorProto.FLOAT, [2])
+    cond = helper.make_tensor_value_info('cond', TensorProto.BOOL, [1])
+    res = helper.make_tensor_value_info('res', TensorProto.FLOAT, [2])
+
+    # Note: if_node is intentionally placed before const_node.
+    return ([if_node, const_node], [x, cond], [res])
+
+
+@onnx_test()
 def loop_test():
     body = helper.make_graph([
         helper.make_node("Add", ["a", "b_in"], ["my_local"]),

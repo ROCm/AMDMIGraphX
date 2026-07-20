@@ -446,6 +446,74 @@ struct node_maps
     std::unordered_map<size_t, std::vector<std::string>> node_to_output_map;
 };
 
+// Collect the names a subgraph references from an enclosing scope, i.e. values
+// that are used inside the subgraph but not produced by its own inputs,
+// initializers, or nodes. These implicit captures (recursively including nested
+// subgraphs) act as extra dependencies of the node owning the subgraph and must
+// be respected when checking or producing a topological ordering.
+static std::unordered_set<std::string> subgraph_captures(const onnx::GraphProto& graph)
+{
+    std::unordered_set<std::string> defined;
+    for(auto&& input : graph.input())
+        defined.insert(input.name());
+    for(auto&& init : graph.initializer())
+        defined.insert(init.name());
+    for(auto&& node : graph.node())
+        defined.insert(node.output().begin(), node.output().end());
+
+    std::unordered_set<std::string> used;
+    for(auto&& node : graph.node())
+    {
+        for(auto&& input : node.input())
+        {
+            if(not input.empty())
+                used.insert(input);
+        }
+        for(auto&& attr : node.attribute())
+        {
+            if(attr.has_g())
+            {
+                auto nested = subgraph_captures(attr.g());
+                used.insert(nested.begin(), nested.end());
+            }
+            for(auto&& g : attr.graphs())
+            {
+                auto nested = subgraph_captures(g);
+                used.insert(nested.begin(), nested.end());
+            }
+        }
+    }
+
+    std::unordered_set<std::string> captures;
+    for(auto&& name : used)
+    {
+        if(not contains(defined, name))
+            captures.insert(name);
+    }
+    return captures;
+}
+
+// Gather the outer-scope values a node depends on through its subgraph
+// attributes (e.g. the body of a Loop or the branches of an If).
+static std::unordered_set<std::string> node_implicit_inputs(const onnx::NodeProto& node)
+{
+    std::unordered_set<std::string> result;
+    for(auto&& attr : node.attribute())
+    {
+        if(attr.has_g())
+        {
+            auto captures = subgraph_captures(attr.g());
+            result.insert(captures.begin(), captures.end());
+        }
+        for(auto&& g : attr.graphs())
+        {
+            auto captures = subgraph_captures(g);
+            result.insert(captures.begin(), captures.end());
+        }
+    }
+    return result;
+}
+
 static node_maps create_node_maps(const onnx::GraphProto& graph)
 {
     node_maps maps{};
@@ -471,6 +539,11 @@ static node_maps create_node_maps(const onnx::GraphProto& graph)
                 continue;
             maps.input_to_node_map[input].push_back(node_index);
         }
+
+        // Values captured from the enclosing scope by subgraph attributes are
+        // implicit dependencies of this node and must be ordered before it.
+        for(auto&& input : node_implicit_inputs(node))
+            maps.input_to_node_map[input].push_back(node_index);
 
         std::vector<std::string> node_outputs;
         std::transform(node.output().begin(),
@@ -568,6 +641,13 @@ static bool check_sorted(const onnx::GraphProto& graph,
             if(not input.empty())
                 if(not contains(visited_nodes, input))
                     return false;
+        }
+        // values captured from the enclosing scope by subgraph attributes must
+        // also already be produced for this node to be considered in order
+        for(auto&& input : node_implicit_inputs(node))
+        {
+            if(not contains(visited_nodes, input))
+                return false;
         }
         // node outputs struct is used to keep track of currently visited nodes
         visited_nodes.insert(node.output().begin(), node.output().end());

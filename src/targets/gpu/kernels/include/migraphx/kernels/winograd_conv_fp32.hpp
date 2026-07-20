@@ -170,6 +170,7 @@ template <index_int NW,
           index_int SK,
           bool PIPE,
           index_int CU,
+          bool SSTORE,
           class PostInput,
           class F,
           class Output,
@@ -393,10 +394,79 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
         });
     };
 
+    // S-store contraction (weight is the v-half-transformed S=[3,4,K,C]). k-outer:
+    // per output channel k, load this lane's 3 S[i][v_col] values (vs 4 U[u][v_col]
+    // for full U) and finish U = G S with a register-only u-transform (U0=S0,
+    // U1=.5(S0+S1+S2), U2=.5(S0-S1+S2), U3=S2; v=3 already negated in S). 25% fewer
+    // weight loads/bytes -- for weight-bandwidth-bound shapes. w_byte_off(i,k)
+    // reuses the full-U offset formula with i in 0..2 (S's dim0 stride == U's).
+    auto fma_block_sstore = [&](const v_reg_t& v_cur, index_int c0, index_int nchan) {
+        const int32_t coff_w = static_cast<int32_t>(c0 * sizeof(float));
+        repeat_c<KO>([&](auto kk) {
+            constexpr index_int k = kk;
+            array<vec<float, CU>, 3> s{};
+            repeat_c<3>([&](auto ii) {
+                constexpr index_int i    = ii;
+                const int32_t w_off_base = w_byte_off(i, k) + coff_w;
+                if(nchan == CU)
+                {
+                    s[i] = wino_fp32_load_cu<CU>(w_rsrc, w_off_base);
+                }
+                else
+                {
+                    repeat_c<CU>([&](auto cc) {
+                        constexpr index_int cu = cc;
+                        s[i][cu] =
+                            (cu < nchan)
+                                ? wino_fp32_load(
+                                      w_rsrc, w_off_base + static_cast<int32_t>(cu * sizeof(float)))
+                                : 0.0f;
+                    });
+                }
+            });
+            array<vec<float, CU>, 4> uwv{};
+            repeat_c<CU>([&](auto cc) {
+                constexpr index_int cu = cc;
+                const float s0         = s[0][cu];
+                const float s1         = s[1][cu];
+                const float s2         = s[2][cu];
+                const float a          = s0 + s2;
+                uwv[0][cu]             = s0;
+                uwv[1][cu]             = 0.5f * (a + s1);
+                uwv[2][cu]             = 0.5f * (a - s1);
+                uwv[3][cu]             = s2;
+            });
+            repeat_c<CU>([&](auto cc) {
+                constexpr index_int cu = cc;
+                if(cu >= nchan)
+                    return;
+                repeat_c<4>([&](auto uz) {
+                    constexpr index_int u = uz;
+                    repeat_c<TILES>([&](auto tt) {
+                        constexpr index_int t = tt;
+                        m[u][t][k] += v_cur[t][u][cu] * uwv[u][cu];
+                    });
+                });
+            });
+        });
+    };
+
     // Channel loop, CU channels per step. With SK>1 the CU-blocks are split
     // round-robin across the SK waves of this NT-group (each wave sums 1/SK of the
     // channels into its own partial M).
-    if constexpr(PIPE)
+    if constexpr(SSTORE)
+    {
+        // Simple per-block loop with the S-store (v-half) weight contraction.
+        for(index_int cb = wave_sk_part; cb * CU < in_c; cb += SK)
+        {
+            const index_int c     = cb * CU;
+            const index_int avail = in_c - c;
+            const index_int nchan = avail < CU ? avail : CU;
+            v_reg_t v_cur         = transform_block(c, nchan);
+            fma_block_sstore(v_cur, c, nchan);
+        }
+    }
+    else if constexpr(PIPE)
     {
         // Software-pipelined: transform block N+1 while FMA-accumulating block N.
         // Costs a second live v_reg (higher VGPR) -- a tuner-selected option gated

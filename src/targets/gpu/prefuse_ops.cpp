@@ -46,6 +46,7 @@ namespace gpu {
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_LAYERNORM_FUSION);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_MLIR);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_ENABLE_WINOGRAD);
+MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_WINOGRAD_FP32_SSTORE);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_DISABLE_WINOGRAD);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_WINOGRAD_FULL_TRANSFORM);
 
@@ -469,6 +470,40 @@ literal compute_winograd_weights_f23_fp32(const argument& w_arg)
     return literal{u_shape, data};
 }
 
+// S-store: precompute the v-half-transformed winograd weight S = g G^T, stored as
+// [3, 4, K, C] (i, v, k, c; C innermost). This is 12 values/(k,c) vs full U's 16
+// (25% less weight DRAM), and each lane loads only its v_col's 3 values (vs 4 for
+// U). The kernel finishes U = G S with a register-only u-transform (u lives in
+// registers, so no cross-lane traffic -- unlike the T-store's v-transform). The
+// v=3 column is negated here to match the input butterfly's d3-d1 sign, exactly
+// as the full-U store does.
+literal compute_winograd_weights_f23_fp32_S(const argument& w_arg)
+{
+    const auto& sh = w_arg.get_shape();
+    auto out_c     = sh.lens()[0];
+    auto in_c      = sh.lens()[1];
+    shape s_shape{shape::float_type, {3, 4, out_c, in_c}};
+
+    // G (4x3): rows [1,0,0], [.5,.5,.5], [.5,-.5,.5], [0,0,1].
+    constexpr std::array<std::array<float, 3>, 4> gmat{
+        {{1.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+
+    std::vector<float> data(s_shape.elements(), 0.0f);
+    w_arg.visit([&](auto w_view) {
+        dfor(out_c, in_c)([&](auto k, auto c) {
+            float g[3][3];
+            dfor(std::size_t{3},
+                 std::size_t{3})([&](auto i, auto j) { g[i][j] = w_view(k, c, i, j); });
+            // S[i][v] = sum_j g[i][j] G[v][j], with the v=3 column negated.
+            dfor(std::size_t{3}, std::size_t{4})([&](auto i, auto v) {
+                float sv = g[i][0] * gmat[v][0] + g[i][1] * gmat[v][1] + g[i][2] * gmat[v][2];
+                data[s_shape.index({i, v, k, c})] = (v == 3) ? -sv : sv;
+            });
+        });
+    });
+    return literal{s_shape, data};
+}
+
 // Measured per-shape overrides: exact (C, K, H, W) convolutions where the
 // analytic heuristic below mispredicts the winograd-vs-default winner by more
 // than 10% (using the better of the two weight stores). These are
@@ -601,6 +636,28 @@ bool winograd_f23_full_transform(std::size_t in_ch,
     return true;
 }
 
+// Choose the fp32 winograd weight encoding: S-store (v-half-transformed g*G^T,
+// [3,4,K,C]) vs the full U ([4,4,K,C]). S-store cuts weight loads AND bytes 25%
+// and finishes U with a cheap register-only u-transform, so it wins the
+// weight-load-dominated shapes: high channels with very small spatial. Elsewhere
+// its extra register FMA + k-outer's lower ILP make it slower.
+//
+// The S-store-vs-U win/loss is micro-architecturally NON-MONOTONIC (a full gfx1201
+// fp32 sweep showed 192->191@64 winning but 192->192@64 losing; 512->512@16
+// winning but 515->512@16 losing hard) -- no smooth shape rule separates the
+// spatial>=16 band without turning real full-U winners into losers. So the
+// heuristic is restricted to the confirmed-safe regime only: every regressor in
+// the sweep was at spatial>=16, while the big wins (512ch@6/8/12: +40..+53 points
+// over full U, none regressed) are at spatial<=12. Broader selection would need a
+// measured per-shape override table (as the fp16 path uses), not a smooth rule.
+bool winograd_f23_use_sstore(std::size_t in_ch,
+                             std::size_t out_ch,
+                             std::size_t height,
+                             std::size_t width)
+{
+    return std::min(in_ch, out_ch) >= 256 and std::min(height, width) <= 12;
+}
+
 MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
 {
     if(ins->name() != "convolution")
@@ -674,10 +731,18 @@ struct find_winograd_f23
         // required ctor argument.
         if(input->get_shape().type() == shape::float_type)
         {
-            m.replace_instruction(ins,
-                                  winograd_conv{false, out_layout},
-                                  input,
-                                  m.add_literal(compute_winograd_weights_f23_fp32(w_arg)));
+            // Pick the weight encoding: S-store (v-half g*G^T [3,4,K,C], 25% less
+            // weight DRAM+loads) on the weight-load-significant shapes, else the
+            // full U [4,4,K,C]. The JIT routes to the S path by the weight's first
+            // dim (3 vs 4). MIGRAPHX_WINOGRAD_FP32_SSTORE forces S on (benchmarking).
+            auto x_lens      = input->get_shape().lens();   // [N, C, H, W]
+            auto w_lens      = weights->get_shape().lens(); // [K, C, 3, 3]
+            const bool use_s = enabled(MIGRAPHX_WINOGRAD_FP32_SSTORE{}) or
+                               winograd_f23_use_sstore(w_lens[1], w_lens[0], x_lens[2], x_lens[3]);
+            auto u_lit = use_s ? compute_winograd_weights_f23_fp32_S(w_arg)
+                               : compute_winograd_weights_f23_fp32(w_arg);
+            m.replace_instruction(
+                ins, winograd_conv{false, out_layout}, input, m.add_literal(u_lit));
             return;
         }
 

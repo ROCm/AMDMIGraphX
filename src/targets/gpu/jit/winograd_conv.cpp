@@ -119,7 +119,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${pipe}, ${cu}, ${conv_cast}>(
+            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${pipe}, ${cu}, ${sstore}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -160,6 +160,11 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         // cu shrinks the pipelined double-buffer (finer-grained pipeline) at the
         // cost of more, narrower weight loads.
         const auto cu = v.get("cu", std::size_t{4});
+        // S-store: the winograd weight literal is the v-half-transformed S=[3,4,K,C]
+        // (dim0==3) rather than the full U=[4,4,K,C] (dim0==4); the kernel finishes
+        // the register-only G u-transform, trading 3/4 the weight loads+bytes for a
+        // few register FMAs (for weight-bandwidth-bound shapes).
+        const bool sstore = inputs.at(1).lens().at(0) == 3;
 
         // Only nw/sk NT-groups' worth of distinct tiles are covered per WG.
         const std::size_t quads_per_wg = 8 * (nw / sk);
@@ -194,6 +199,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"sk", std::to_string(sk)},
                                        {"pipe", pipe ? "true" : "false"},
                                        {"cu", std::to_string(cu)},
+                                       {"sstore", sstore ? "true" : "false"},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"conv_cast", v.get("conv_cast", std::string{"float"})},
                                        {"preamble", v.get("preamble", std::string{})}});

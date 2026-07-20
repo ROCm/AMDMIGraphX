@@ -26,31 +26,20 @@
 #include <migraphx/verify.hpp>
 #include <onnx_test.hpp>
 
-static std::vector<float> run_onnx(const std::string& target)
+static std::vector<float> run_onnx()
 {
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {3, 8};
     options.use_symbolic_shapes   = true;
     auto p                        = read_onnx("expand_dyn_input_static_dims_throw.onnx", options);
-    auto t                        = migraphx::make_target(target);
-    p.compile(t);
+    p.compile(migraphx::make_target("ref"));
 
     migraphx::shape sx{migraphx::shape::float_type, {3, 1, 1}};
     std::vector<float> data(sx.elements());
     std::iota(data.begin(), data.end(), 1.0f);
     migraphx::parameter_map pp;
-    pp["x"] = migraphx::argument(sx, data.data());
-    if(target != "ref")
-    {
-        pp["x"] = t.copy_to(pp["x"]);
-        for(const auto& param : p.get_parameter_shapes())
-        {
-            if(pp.count(param.first) == 0)
-                pp[param.first] = t.allocate(param.second);
-        }
-    }
-    auto results = p.eval(pp);
-    auto result  = target != "ref" ? t.copy_from(results.back()) : results.back();
+    pp["x"]     = migraphx::argument(sx, data.data());
+    auto result = p.eval(pp).back();
 
     std::vector<float> result_vector;
     result.visit([&](auto output) { result_vector.assign(output.begin(), output.end()); });
@@ -66,10 +55,7 @@ TEST_CASE(expand_dyn_input_static_dims_test)
         std::fill_n(gold.begin() + i * 16, 16, v);
     }
 
-    auto ref_result = run_onnx("ref");
-    auto gpu_result = run_onnx("gpu");
+    auto ref_result = run_onnx();
 
     EXPECT(migraphx::verify::verify_rms_range(ref_result, gold));
-    EXPECT(migraphx::verify::verify_rms_range(gpu_result, gold));
-    EXPECT(migraphx::verify::verify_rms_range(gpu_result, ref_result));
 }

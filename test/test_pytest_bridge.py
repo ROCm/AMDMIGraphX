@@ -85,7 +85,7 @@ def test_migraphx():
     _ensure_executable(test_dir)
     result = subprocess.run(
         ["ctest", "--test-dir", test_dir, "-j", str(os.cpu_count() or 1),
-         "--output-on-failure"],
+         "--timeout", "5000", "--output-on-failure"],
         env=_ctest_env(test_dir),
     )
     assert result.returncode == 0, f"ctest reported failures (exit {result.returncode})"

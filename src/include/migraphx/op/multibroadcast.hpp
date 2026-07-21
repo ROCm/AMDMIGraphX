@@ -74,8 +74,9 @@ struct multibroadcast
     static bool is_symbolic_target(const std::vector<shape::dynamic_dimension>& out_dyn_dims)
     {
         return not out_dyn_dims.empty() and
-               std::all_of(out_dyn_dims.begin(), out_dyn_dims.end(),
-                           [](const auto& d) { return d.is_symbolic(); });
+               std::all_of(out_dyn_dims.begin(), out_dyn_dims.end(), [](const auto& d) {
+                   return d.is_symbolic();
+               });
     }
 
     shape compute_single_input_shape(const shape& s0) const
@@ -104,8 +105,7 @@ struct multibroadcast
         return make_bcast_shape(s0, output_lens);
     }
 
-    shape compute_multi_input_dynamic_shape(shape::type_t t,
-                                            const std::vector<shape>& inputs) const
+    shape compute_multi_input_dynamic_shape(shape::type_t t, const std::vector<shape>& inputs) const
     {
         if(not output_dyn_dims.empty())
         {
@@ -128,8 +128,7 @@ struct multibroadcast
         return {t, compute_common_dyn_dims(inputs)};
     }
 
-    shape compute_multi_input_static_shape(const shape& s0,
-                                           const std::vector<shape>& inputs) const
+    shape compute_multi_input_static_shape(const shape& s0, const std::vector<shape>& inputs) const
     {
         // output_lens will not be set for 2+ input version
         if(not output_dyn_dims.empty())

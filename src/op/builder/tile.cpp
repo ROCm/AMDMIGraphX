@@ -75,7 +75,7 @@ struct tile : op_builder<tile>
         {
             auto bcast_dyn_dims = unsq->get_shape().dyn_dims();
             std::for_each(unsq_axes.begin(), unsq_axes.end(), [&](int64_t axis_idx) {
-                const std::size_t repeat        = repeats[axis_idx / 2];
+                const std::size_t repeat = repeats[axis_idx / 2];
                 bcast_dyn_dims[axis_idx] = shape::dynamic_dimension{repeat, repeat};
             });
 

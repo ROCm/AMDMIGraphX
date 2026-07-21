@@ -236,8 +236,7 @@ struct reshape
             if(resolved_neg_dims > 1)
                 MIGRAPHX_THROW(
                     "Reshape: Dimensions for reshape can only have one -1 dim but given {" +
-                    to_string_range(dims) + "} with " + to_string(resolved_neg_dims) +
-                    " -1 dims");
+                    to_string_range(dims) + "} with " + to_string(resolved_neg_dims) + " -1 dims");
             return static_compute_shape(inputs, resolved_dims, resolved_neg_dims);
         }
         if(s0.dynamic())

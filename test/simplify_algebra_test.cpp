@@ -2384,8 +2384,8 @@ TEST_CASE(simplify_split_partial_pointwise_subset)
         auto r1 = m1.add_instruction(migraphx::make_op("relu"), s1);
         auto s2 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {2}}, {"ends", {3}}}), input);
-        auto r2  = m1.add_instruction(migraphx::make_op("relu"), s2);
-        auto s3  = m1.add_instruction(
+        auto r2 = m1.add_instruction(migraphx::make_op("relu"), s2);
+        auto s3 = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {0}}, {"starts", {3}}, {"ends", {4}}}), input);
         auto sig = m1.add_instruction(migraphx::make_op("sigmoid"), s3);
         m1.add_return({r0, r1, r2, sig});

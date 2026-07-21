@@ -1712,8 +1712,8 @@ struct find_splits
                            std::size_t j,
                            std::int64_t axis) const
     {
-        auto lo   = any_cast<op::slice>(splits[i]->get_operator()).starts.front();
-        auto hi   = any_cast<op::slice>(splits[j - 1]->get_operator()).ends.front();
+        auto lo    = any_cast<op::slice>(splits[i]->get_operator()).starts.front();
+        auto hi    = any_cast<op::slice>(splits[j - 1]->get_operator()).ends.front();
         auto bound = [&](instruction_ref pos, instruction_ref t) {
             return m.insert_instruction(
                 std::next(pos),
@@ -1725,8 +1725,10 @@ struct find_splits
         instruction_ref c{};
         if(info.companion == instruction_ref{})
         {
-            c = m.insert_instruction(
-                std::next(base), info.consumer->get_operator(), {base}, info.consumer->module_inputs());
+            c = m.insert_instruction(std::next(base),
+                                     info.consumer->get_operator(),
+                                     {base},
+                                     info.consumer->module_inputs());
         }
         else
         {
@@ -1735,9 +1737,9 @@ struct find_splits
             args[info.split_pos]     = base;
             args[1 - info.split_pos] = base_comp;
             c                        = m.insert_instruction(std::next(base_comp),
-                                             info.consumer->get_operator(),
-                                             args,
-                                             info.consumer->module_inputs());
+                                     info.consumer->get_operator(),
+                                     args,
+                                     info.consumer->module_inputs());
         }
         for(std::size_t k = i; k < j; ++k)
         {
@@ -1751,15 +1753,29 @@ struct find_splits
         }
     }
 
-    // Partial version of the split-group hoist for a *full* cover with mixed
-    // consumers.  When only a contiguous subset of the sibling slices feed the
-    // same fusable op (e.g. a SiLU epilogue on some heads of a horizontally-
-    // fused dot, with a differently-consumed head -- such as a reshape -- mixed
-    // in), the full-group path cannot fire because it requires every slice to
-    // share the op.  Hoist each maximal contiguous run of >= 2 matching slices
-    // over its bounding slice instead.  Handles a unary op, or a binary op whose
-    // other operand is an identically-ranged slice of another wide tensor (e.g.
-    // a broadcast bias), which is the shape of a fused bias+SiLU epilogue.
+    // Fuse an epilogue that is replicated across a contiguous run of the sibling
+    // slices of a horizontally-batched GEMM output.  This is an extension of the
+    // split-group hoist in apply(), covering two shapes that its main paths do
+    // not (both occur in an MLP prediction tower whose heads are a bias + SiLU):
+    //
+    //   * The matching heads are a *strict subset* of the slices (a differently-
+    //     consumed head -- e.g. a reshape -- is mixed in).  get_split_groups()
+    //     discards such a group because it requires *every* slice to share the
+    //     op.
+    //
+    //   * The epilogue is *binary* and its second operand is an identically-
+    //     ranged slice of another wide tensor (a broadcast bias).  The full-cover
+    //     binary path only folds a compile-time-constant operand, so a companion
+    //     bias slice is not handled there.
+    //
+    // For each maximal matching run [i, j) the op is applied once to the bounding
+    // slice [lo, hi) of the GEMM output (and, when binary, the same bounding
+    // slice of the companion tensor) and each head is re-sliced back out -- valid
+    // because the op is elementwise/reduction over axes unrelated to the split
+    // axis.  The runs are grouped and vetted with the same is_interdependent /
+    // split_groups_are_dependent checks the main path uses, so an unsafe hoist
+    // (a head that feeds another head in the run, or one run that reaches into
+    // another) is rejected rather than reordered.
     void hoist_partial_groups(module& m,
                               instruction_ref ins,
                               const std::vector<instruction_ref>& splits) const
@@ -1774,6 +1790,11 @@ struct find_splits
         for(std::size_t k = 0; k < splits.size(); ++k)
             ok[k] = describe_consumer(splits[k], infos[k]) ? 1 : 0;
 
+        // Collect the maximal matching runs and their consumer groups first, so
+        // the shared dependency analysis can veto the whole set before anything
+        // moves.
+        std::vector<std::pair<std::size_t, std::size_t>> runs;
+        std::vector<std::vector<instruction_ref>> groups;
         std::size_t i = 0;
         while(i < splits.size())
         {
@@ -1785,12 +1806,33 @@ struct find_splits
             std::size_t j = i + 1;
             while(j < splits.size() and ok[j] == 1 and same_consumer(infos[i], infos[j]))
                 ++j;
-            // Only hoist a genuine partial run; the full-cover full-group case is
-            // handled by the main split-group path.
+            // Only a genuine partial run; the full-group case is the main path's
+            // job.
             if((j - i) >= 2 and (j - i) < splits.size())
-                hoist_partial_run(m, ins, splits, infos, i, j, axis);
+            {
+                std::vector<instruction_ref> group;
+                for(std::size_t k = i; k < j; ++k)
+                    group.push_back(infos[k].consumer);
+                // Reject a run whose heads depend on one another (they cannot
+                // share one hoisted op).
+                if(not is_interdependent(group, &m, ins))
+                {
+                    runs.emplace_back(i, j);
+                    groups.push_back(std::move(group));
+                }
+            }
             i = j;
         }
+        if(runs.empty())
+            return;
+
+        // Reuse the main path's cross-group dependency check: bail if hoisting
+        // one run would reach into another.
+        if(split_groups_are_dependent(m, ins, groups))
+            return;
+
+        for(const auto& run : runs)
+            hoist_partial_run(m, ins, splits, infos, run.first, run.second, axis);
     }
 
     // NOLINT

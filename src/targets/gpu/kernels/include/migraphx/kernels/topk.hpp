@@ -209,7 +209,10 @@ topk_impl(index idx, Compare compare, T init, Y y, YIndex y_idx, X x, XIndices..
 template <index_int Axis, class Compare, class T>
 __device__ auto topk(Compare compare, T init)
 {
-    return [=](auto output, auto out_indices, auto input, auto... in_indices) {
+    // The `k` input is consumed positionally and ignored here: compile_ops bakes a constant
+    // `k` attribute into the output shape, so the trailing `in_indices` (if any) is the
+    // optional indexing input used by rewrite_topk.
+    return [=](auto output, auto out_indices, auto input, auto, auto... in_indices) {
         auto idx = make_index();
         slice_schedule<per_block>(idx,
                                   slice_axes<Axis>())(output, out_indices, input, in_indices...)(

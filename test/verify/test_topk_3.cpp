@@ -35,8 +35,10 @@ struct test_topk_3 : verify_program<test_topk_3>
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {3, 5}};
         auto data = mm->add_parameter("data", s);
-        auto r    = mm->add_instruction(
-            migraphx::make_op("topk", {{"axis", -2}, {"k", 3}, {"largest", 0}}), data);
+        auto kk   = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {3}});
+        auto r = mm->add_instruction(
+            migraphx::make_op("topk", {{"axis", -2}, {"k", 3}, {"largest", 0}}), data, kk);
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
         mm->add_return({r0, r1});

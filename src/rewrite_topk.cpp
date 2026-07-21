@@ -43,6 +43,7 @@ struct find_large_topk
     {
         auto ins   = r.result;
         auto input = ins->inputs().front();
+        auto k_ins = ins->inputs().at(1);
         auto op    = ins->get_operator().to_value();
         auto axis  = op["axis"].to<std::int64_t>();
         auto dims  = input->get_shape().lens();
@@ -75,10 +76,10 @@ struct find_large_topk
             ins, make_op("broadcast", {{"axis", axis}, {"out_lens", dims}}), indices_lit);
         auto gindices = m.insert_instruction(ins, make_op("reshape", {{"dims", gdims}}), indices);
         auto ginput   = m.insert_instruction(ins, make_op("reshape", {{"dims", gdims}}), input);
-        auto topk1    = m.insert_instruction(ins, make_op("topk", op), ginput, gindices);
+        auto topk1    = m.insert_instruction(ins, make_op("topk", op), ginput, k_ins, gindices);
         auto finput   = insert_final(topk1, 0);
         auto findices = insert_final(topk1, 1);
-        m.replace_instruction(ins, ins->get_operator(), finput, findices);
+        m.replace_instruction(ins, ins->get_operator(), finput, k_ins, findices);
     }
 };
 

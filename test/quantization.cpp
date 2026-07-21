@@ -446,8 +446,10 @@ TEST_CASE(topk)
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {3, 5}};
         auto data = mm->add_parameter("data", s);
-        auto r    = mm->add_instruction(
-            migraphx::make_op("topk", {{"axis", 0}, {"k", 3}, {"largest", 0}}), data);
+        auto kk   = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {3}});
+        auto r = mm->add_instruction(
+            migraphx::make_op("topk", {{"axis", 0}, {"k", 3}, {"largest", 0}}), data, kk);
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
         mm->add_return({r0, r1});
@@ -460,10 +462,12 @@ TEST_CASE(topk)
         auto* mm = p.get_main_module();
         migraphx::shape s{migraphx::shape::float_type, {3, 5}};
         auto fdata = mm->add_parameter("data", s);
+        auto kk    = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {3}});
         auto hdata = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), fdata);
         auto r = mm->add_instruction(
-            migraphx::make_op("topk", {{"axis", 0}, {"k", 3}, {"largest", 0}}), hdata);
+            migraphx::make_op("topk", {{"axis", 0}, {"k", 3}, {"largest", 0}}), hdata, kk);
         auto hr0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         auto fr0 = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), hr0);

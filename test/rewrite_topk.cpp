@@ -39,7 +39,8 @@ TEST_CASE(small_topk)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {300}});
-        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}}), x);
+        auto k = m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {8}});
+        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}}), x, k);
         m1.add_return({r});
     }
     migraphx::module m2 = m1;
@@ -52,7 +53,8 @@ TEST_CASE(large_topk_no_split)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {240000}});
-        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 120000}}), x);
+        auto k = m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {120000}});
+        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 120000}}), x, k);
         m1.add_return({r});
     }
     migraphx::module m2 = m1;
@@ -66,7 +68,8 @@ TEST_CASE(split_topk_batch_1)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {n}});
-        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}}), x);
+        auto k = m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {8}});
+        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}}), x, k);
         m1.add_return({r});
     }
     run_pass(m1);
@@ -76,6 +79,7 @@ TEST_CASE(split_topk_batch_1)
         std::vector<std::uint32_t> indices(n);
         std::iota(indices.begin(), indices.end(), 0);
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {n}});
+        auto k = m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {8}});
         auto input_idx =
             m2.add_literal(migraphx::literal{{migraphx::shape::uint32_type, {n}}, indices});
         auto input_idxb = m2.add_instruction(
@@ -84,15 +88,15 @@ TEST_CASE(split_topk_batch_1)
             migraphx::make_op("reshape", {{"dims", {group, n / group}}}), input_idxb);
         auto xr =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {group, n / group}}}), x);
-        auto r1 =
-            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), xr, input_idxr);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), xr, k, input_idxr);
         auto value1 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r1);
         auto idx1   = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r1);
         auto valuer =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8 * group}}}), value1);
         auto idxr = m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8 * group}}}), idx1);
-        auto r2 =
-            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), valuer, idxr);
+        auto r2 = m2.add_instruction(
+            migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), valuer, k, idxr);
         m2.add_return({r2});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -105,7 +109,8 @@ TEST_CASE(split_topk_batch_64)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {batch, n}});
-        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), x);
+        auto k = m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {8}});
+        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), x, k);
         m1.add_return({r});
     }
     run_pass(m1);
@@ -115,6 +120,7 @@ TEST_CASE(split_topk_batch_64)
         std::vector<std::uint32_t> indices(n);
         std::iota(indices.begin(), indices.end(), 0);
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {batch, n}});
+        auto k = m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {8}});
         auto input_idx =
             m2.add_literal(migraphx::literal{{migraphx::shape::uint32_type, {n}}, indices});
         auto input_idxb = m2.add_instruction(
@@ -123,16 +129,16 @@ TEST_CASE(split_topk_batch_64)
             migraphx::make_op("reshape", {{"dims", {batch, group, n / group}}}), input_idxb);
         auto xr = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", {batch, group, n / group}}}), x);
-        auto r1 =
-            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 2}}), xr, input_idxr);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("topk", {{"k", 8}, {"axis", 2}}), xr, k, input_idxr);
         auto value1 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r1);
         auto idx1   = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r1);
         auto valuer = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", {batch, 8 * group}}}), value1);
         auto idxr =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {batch, 8 * group}}}), idx1);
-        auto r2 =
-            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), valuer, idxr);
+        auto r2 = m2.add_instruction(
+            migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), valuer, k, idxr);
         m2.add_return({r2});
     }
     EXPECT(m1.sort() == m2.sort());
@@ -145,7 +151,8 @@ TEST_CASE(split_topk_batch_64_last)
     migraphx::module m1;
     {
         auto x = m1.add_parameter("x", {migraphx::shape::float_type, {n, batch}});
-        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), x);
+        auto k = m1.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {8}});
+        auto r = m1.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), x, k);
         m1.add_return({r});
     }
     run_pass(m1);
@@ -155,6 +162,7 @@ TEST_CASE(split_topk_batch_64_last)
         std::vector<std::uint32_t> indices(n);
         std::iota(indices.begin(), indices.end(), 0);
         auto x = m2.add_parameter("x", {migraphx::shape::float_type, {n, batch}});
+        auto k = m2.add_literal(migraphx::literal{{migraphx::shape::int64_type, {1}}, {8}});
         auto input_idx =
             m2.add_literal(migraphx::literal{{migraphx::shape::uint32_type, {n}}, indices});
         auto input_idxb = m2.add_instruction(
@@ -163,16 +171,16 @@ TEST_CASE(split_topk_batch_64_last)
             migraphx::make_op("reshape", {{"dims", {group, n / group, batch}}}), input_idxb);
         auto xr = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", {group, n / group, batch}}}), x);
-        auto r1 =
-            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), xr, input_idxr);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("topk", {{"k", 8}, {"axis", 1}}), xr, k, input_idxr);
         auto value1 = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r1);
         auto idx1   = m2.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r1);
         auto valuer = m2.add_instruction(
             migraphx::make_op("reshape", {{"dims", {8 * group, batch}}}), value1);
         auto idxr =
             m2.add_instruction(migraphx::make_op("reshape", {{"dims", {8 * group, batch}}}), idx1);
-        auto r2 =
-            m2.add_instruction(migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), valuer, idxr);
+        auto r2 = m2.add_instruction(
+            migraphx::make_op("topk", {{"k", 8}, {"axis", 0}}), valuer, k, idxr);
         m2.add_return({r2});
     }
     EXPECT(m1.sort() == m2.sort());

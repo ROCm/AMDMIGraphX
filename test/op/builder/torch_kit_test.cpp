@@ -278,7 +278,8 @@ TEST_CASE(torch_kit_ops_op_builder_test)
     EXPECT(check_plain_op("softmax", {{"axis", 1}}, {{"a", {f, {4, 6}}}}));
     EXPECT(check_plain_op("squeeze", {{"axes", {0}}}, {{"a", {f, {1, 4, 6}}}}));
     EXPECT(check_plain_op("step", {{"axes", {0}}, {"steps", {2}}}, {{"a", {f, {4, 6}}}}));
-    EXPECT(check_plain_op("topk", {{"k", 2}, {"axis", 0}}, {{"a", {f, {4, 6}}}}));
+    EXPECT(
+        check_plain_op("topk", {{"k", 2}, {"axis", 0}}, {{"a", {f, {4, 6}}}, {"k", {i64, {1}}}}));
     EXPECT(check_plain_op("transpose", {{"permutation", {1, 0}}}, {{"a", {f, {4, 6}}}}));
     EXPECT(check_plain_op("undefined", obj, {}));
     EXPECT(check_plain_op("unsqueeze", {{"axes", {0}}}, {{"a", {f, {4, 6}}}}));

@@ -37,6 +37,9 @@ static auto run_program(const migraphx::value& op, bool custom_idx = false, bool
     migraphx::shape s{migraphx::shape::float_type, {3, 5}};
     auto data                                          = mm->add_parameter("data", s);
     std::vector<migraphx::instruction_ref> topk_inputs = {data};
+    auto k_val = op.at("k").to<int64_t>();
+    topk_inputs.push_back(
+        mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {k_val}}));
     if(custom_idx)
     {
         migraphx::shape is{migraphx::shape::uint16_type, {3, 5}};
@@ -155,9 +158,11 @@ TEST_CASE(topk_k_greater_than_n_dynamic)
     std::vector<migraphx::shape::dynamic_dimension> dds = {{1, 100}};
     migraphx::shape s{migraphx::shape::float_type, dds};
     auto data = mm->add_parameter("data", s);
+    auto kk   = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {100}});
     // k=100 is the max placeholder from parse time
     auto r = mm->add_instruction(
-        migraphx::make_op("topk", {{"axis", 0}, {"k", 100}, {"largest", 1}}), data);
+        migraphx::make_op("topk", {{"axis", 0}, {"k", 100}, {"largest", 1}}), data, kk);
     auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
     auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
     mm->add_return({r0, r1});
@@ -191,9 +196,11 @@ TEST_CASE(topk_k_equals_n)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {3, 5}};
     auto data = mm->add_parameter("data", s);
+    auto kk   = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {5}});
     // k=5 equals axis=1 dimension of 5
     auto r = mm->add_instruction(migraphx::make_op("topk", {{"axis", 1}, {"k", 5}, {"largest", 0}}),
-                                 data);
+                                 data, kk);
     auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
     auto r1 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), r);
     mm->add_return({r0, r1});

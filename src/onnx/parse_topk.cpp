@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -53,47 +54,68 @@ struct parse_topk : op_parser<parse_topk>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        bool var_k = false;
-        int64_t k  = 0;
-        if(args.size() == 2)
+        // opset-1 form: `k` is an attribute. Synthesize a constant `k` input so the topk
+        // operator always has (x, k) inputs.
+        if(args.size() == 1)
         {
-            auto arg_k = args.at(1)->eval();
-            if(not arg_k.empty())
+            int64_t k = 0;
+            if(contains(info.attributes, "k"))
             {
-                k = arg_k.at<int>();
+                k = info.attributes.at("k").i();
             }
-            else
-            {
-                var_k = true;
-            }
-        }
-        else if(contains(info.attributes, "k"))
-        {
-            k = info.attributes.at("k").i();
+            const shape k_shape{shape::int64_type, {1}};
+            auto k_lit    = info.add_literal(literal{k_shape, {k}});
+            auto topk_ret = info.add_instruction(
+                make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0), k_lit);
+
+            auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
+            auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
+            return {ret_val, ret_ind};
         }
 
-        if(var_k)
+        // opset-10+ form: `k` is a runtime input.
+        auto arg_k = args.at(1)->eval();
+        if(not arg_k.empty())
         {
-            // set `k` to axis dimension
-            auto input_shape = args.at(0)->get_shape();
-            auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
-            k                = input_shape.max_lens().at(norm_axis);
+            // Constant `k`: use its value for the attribute; topk output is already the exact size.
+            int64_t k     = arg_k.at<int>();
+            auto topk_ret = info.add_instruction(
+                make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0), args.at(1));
+
+            auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
+            auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
+            return {ret_val, ret_ind};
         }
+
+        // Variable (data-dependent) `k`: run topk over the whole axis dimension, bind the runtime
+        // `k` to a symbolic dimension, then slice the outputs down to it.
+        auto input_shape = args.at(0)->get_shape();
+        auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
+        int64_t k        = input_shape.max_lens().at(norm_axis);
 
         auto topk_ret = info.add_instruction(
-            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
+            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0), args.at(1));
 
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
         auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
 
-        if(var_k)
-        {
-            // dynamic slice on outputs of `topk`
-            ret_val = info.add_instruction(
-                make_op("slice", {{"starts", {0}}, {"axes", {axis}}}), ret_val, args.at(1));
-            ret_ind = info.add_instruction(
-                make_op("slice", {{"starts", {0}}, {"axes", {axis}}}), ret_ind, args.at(1));
-        }
+        auto k_var  = shape::dynamic_dimension{sym::var(info.name)};
+        auto k_bind = info.add_instruction(
+            make_op("bind_symbolic", {{"symbols", {to_value(k_var)}}}), args.at(1));
+        ret_val = info.add_instruction(make_op("slice",
+                                               {{"axes", {axis}},
+                                                {"starts", {0}},
+                                                {"ends", {to_value(k_var)}},
+                                                {"mode", "ends_input"}}),
+                                       ret_val,
+                                       k_bind);
+        ret_ind = info.add_instruction(make_op("slice",
+                                               {{"axes", {axis}},
+                                                {"starts", {0}},
+                                                {"ends", {to_value(k_var)}},
+                                                {"mode", "ends_input"}}),
+                                       ret_ind,
+                                       k_bind);
 
         return {ret_val, ret_ind};
     }

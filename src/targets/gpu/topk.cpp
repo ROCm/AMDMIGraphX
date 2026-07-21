@@ -31,23 +31,25 @@ namespace gpu {
 
 shape hip_topk::compute_shape(std::vector<shape> inputs) const
 {
-    return op.normalize_compute_shape({inputs.front()});
+    // Drop the trailing output-allocation input; topk needs the (x, k, [indexing]) inputs.
+    return op.normalize_compute_shape({inputs.begin(), inputs.end() - 1});
 }
 
 argument hip_topk::compute(context& ctx, const shape&, const std::vector<argument>& args) const
 {
     auto outputs = args.back().get_sub_objects();
+    auto k_val   = std::get<int64_t>(op.k);
     return op.largest ? device::topk_largest(ctx.get_stream().get(),
                                              outputs.front(),
                                              outputs.back(),
                                              args[0],
-                                             op.k,
+                                             k_val,
                                              op.axis)
                       : device::topk_smallest(ctx.get_stream().get(),
                                               outputs.front(),
                                               outputs.back(),
                                               args[0],
-                                              op.k,
+                                              k_val,
                                               op.axis);
 }
 

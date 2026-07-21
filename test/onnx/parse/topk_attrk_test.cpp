@@ -30,7 +30,9 @@ TEST_CASE(topk_attrk_test)
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {2, 5, 3, 2}};
     auto data = mm->add_parameter("data", s);
-    auto out  = mm->add_instruction(migraphx::make_op("topk", {{"k", 2}, {"axis", -1}}), data);
+    auto k    = mm->add_literal(
+        migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {2}});
+    auto out = mm->add_instruction(migraphx::make_op("topk", {{"k", 2}, {"axis", -1}}), data, k);
     auto val  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind  = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
     mm->add_return({val, ind});

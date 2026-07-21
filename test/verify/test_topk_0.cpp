@@ -36,8 +36,10 @@ struct test_topk_0 : verify_program<test_topk_0<DType>>
         auto* mm = p.get_main_module();
         migraphx::shape s{DType, {3, 5}};
         auto data = mm->add_parameter("data", s);
-        auto r    = mm->add_instruction(
-            migraphx::make_op("topk", {{"axis", 1}, {"k", 4}, {"largest", 1}}), data);
+        auto kk   = mm->add_literal(
+            migraphx::literal{migraphx::shape{migraphx::shape::int64_type, {1}}, {4}});
+        auto r = mm->add_instruction(
+            migraphx::make_op("topk", {{"axis", 1}, {"k", 4}, {"largest", 1}}), data, kk);
         auto r0 = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), r);
         mm->add_return({r0});
 

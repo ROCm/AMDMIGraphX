@@ -38,6 +38,7 @@ Full documentation for MIGraphX is available at
 * Added slice squeeze matcher to propogate squeeze downstream and allow for parallel branches to merge together (#5004)
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
+* Added a verbose terminate handler for exceptions on Windows (#5084).
 
 
 ### Changed

@@ -84,6 +84,14 @@ inline std::vector<sym::expr> to_sym_exprs(const std::vector<dim_like>& dims)
     return result;
 }
 
+// Check if any of the dim_like are a shape::dynamic_dimension.
+inline bool any_sym(const std::vector<dim_like>& dims)
+{
+    return std::any_of(dims.begin(), dims.end(), [](const dim_like& d) {
+        return std::holds_alternative<shape::dynamic_dimension>(d);
+    });
+}
+
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const dim_like& d);
 MIGRAPHX_EXPORT void migraphx_from_value(const value& v, dim_like& d);
 

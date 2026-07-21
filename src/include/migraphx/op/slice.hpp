@@ -141,6 +141,8 @@ struct slice
 
         if(inputs.size() == 1)
         {
+            if(any_sym(starts) or any_sym(ends))
+                MIGRAPHX_THROW("SLICE: Invalid attributes: symbolic in attribute for 1 input slice");
             if(mode != slice_mode::one_input)
                 MIGRAPHX_THROW("SLICE: Invalid mode for 1 input");
             return;

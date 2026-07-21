@@ -77,6 +77,8 @@ int main(int argc, const char* argv[])
          "test_select_module_conv",
          "test_split_single_dyn_dim",
          "test_resize_dyn",
+         "test_tile_dynamic",
+         "test_tile_dynamic_rank2",
          "test_instancenorm_large_3d<migraphx::shape::float_type>",
          "test_instancenorm_large_3d<migraphx::shape::half_type>",
          "test_isinf<migraphx::generic_float<7, 8> >",

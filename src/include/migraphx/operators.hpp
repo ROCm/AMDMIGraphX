@@ -36,7 +36,6 @@
 #include <migraphx/op/atan.hpp>
 #include <migraphx/op/atanh.hpp>
 #include <migraphx/op/binary.hpp>
-#include <migraphx/op/bind_symbolic.hpp>
 #include <migraphx/op/bitwise_and.hpp>
 #include <migraphx/op/broadcast.hpp>
 #include <migraphx/op/capture.hpp>

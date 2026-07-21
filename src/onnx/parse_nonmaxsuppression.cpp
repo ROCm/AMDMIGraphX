@@ -46,9 +46,8 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
         auto num_selected =
             info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
         auto num_selected_var = shape::dynamic_dimension{sym::var(info.name)};
-        auto num_selected_bind = info.add_instruction(make_op("bind_symbolic", {{"symbols", {to_value(num_selected_var)}}}), num_selected);
         return info.add_instruction(
-            make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {to_value(num_selected_var)}}, {"mode", "ends_input"}}), indices, num_selected_bind);
+            make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {to_value(num_selected_var)}}, {"mode", "ends_input"}}), indices, num_selected);
     }
 };
 

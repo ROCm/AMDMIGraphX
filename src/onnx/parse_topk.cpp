@@ -87,8 +87,8 @@ struct parse_topk : op_parser<parse_topk>
             return {ret_val, ret_ind};
         }
 
-        // Variable (data-dependent) `k`: run topk over the whole axis dimension, bind the runtime
-        // `k` to a symbolic dimension, then slice the outputs down to it.
+        // Variable (data-dependent) `k`: run topk over the whole axis dimension, then slice the
+        // outputs down to the runtime `k` using a symbolic dimension.
         auto input_shape = args.at(0)->get_shape();
         auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
         int64_t k        = input_shape.max_lens().at(norm_axis);
@@ -99,23 +99,21 @@ struct parse_topk : op_parser<parse_topk>
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
         auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
 
-        auto k_var  = shape::dynamic_dimension{sym::var(info.name)};
-        auto k_bind = info.add_instruction(
-            make_op("bind_symbolic", {{"symbols", {to_value(k_var)}}}), args.at(1));
-        ret_val = info.add_instruction(make_op("slice",
+        auto k_var = shape::dynamic_dimension{sym::var(info.name)};
+        ret_val    = info.add_instruction(make_op("slice",
                                                {{"axes", {axis}},
                                                 {"starts", {0}},
                                                 {"ends", {to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                                        ret_val,
-                                       k_bind);
-        ret_ind = info.add_instruction(make_op("slice",
+                                       args.at(1));
+        ret_ind    = info.add_instruction(make_op("slice",
                                                {{"axes", {axis}},
                                                 {"starts", {0}},
                                                 {"ends", {to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                                        ret_ind,
-                                       k_bind);
+                                       args.at(1));
 
         return {ret_val, ret_ind};
     }

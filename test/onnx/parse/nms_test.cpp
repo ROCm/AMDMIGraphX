@@ -49,9 +49,6 @@ TEST_CASE(nms_test)
     auto cnt = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
     auto num_selected_var =
         migraphx::shape::dynamic_dimension{migraphx::sym::var("NonMaxSuppression_5")};
-    auto bind = mm->add_instruction(
-        migraphx::make_op("bind_symbolic", {{"symbols", {migraphx::to_value(num_selected_var)}}}),
-        cnt);
     auto ret = mm->add_instruction(
         migraphx::make_op("slice",
                           {{"axes", {0}},
@@ -59,7 +56,7 @@ TEST_CASE(nms_test)
                            {"ends", {migraphx::to_value(num_selected_var)}},
                            {"mode", "ends_input"}}),
         idx,
-        bind);
+        cnt);
     mm->add_return({ret});
 
     auto prog = read_onnx("nms_test.onnx");

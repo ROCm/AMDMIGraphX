@@ -25,8 +25,8 @@
 #include <onnx_test.hpp>
 
 // `k` is a runtime input (graph input, not an initializer), so the parser takes the var_k
-// path: topk runs with k set to the axis dimension's max length, the runtime `k` is bound to a
-// symbolic dimension, then the outputs are sliced down to it.
+// path: topk runs with k set to the axis dimension's max length, then the outputs are sliced
+// down to the runtime `k` using a symbolic dimension.
 TEST_CASE(topk_var_k_test)
 {
     migraphx::program p;
@@ -38,22 +38,20 @@ TEST_CASE(topk_var_k_test)
     auto val   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
     auto k_var = migraphx::shape::dynamic_dimension{migraphx::sym::var("TopK_2")};
-    auto bind  = mm->add_instruction(
-        migraphx::make_op("bind_symbolic", {{"symbols", {migraphx::to_value(k_var)}}}), k);
     val = mm->add_instruction(migraphx::make_op("slice",
                                                {{"axes", {1}},
                                                 {"starts", {0}},
                                                 {"ends", {migraphx::to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                               val,
-                              bind);
+                              k);
     ind = mm->add_instruction(migraphx::make_op("slice",
                                                {{"axes", {1}},
                                                 {"starts", {0}},
                                                 {"ends", {migraphx::to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                               ind,
-                              bind);
+                              k);
     mm->add_return({val, ind});
 
     auto prog = read_onnx("topk_var_k_test.onnx");
@@ -74,22 +72,20 @@ TEST_CASE(topk_var_k_dynamic_test)
     auto val   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind   = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
     auto k_var = migraphx::shape::dynamic_dimension{migraphx::sym::var("TopK_2")};
-    auto bind  = mm->add_instruction(
-        migraphx::make_op("bind_symbolic", {{"symbols", {migraphx::to_value(k_var)}}}), k);
     val = mm->add_instruction(migraphx::make_op("slice",
                                                {{"axes", {1}},
                                                 {"starts", {0}},
                                                 {"ends", {migraphx::to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                               val,
-                              bind);
+                              k);
     ind = mm->add_instruction(migraphx::make_op("slice",
                                                {{"axes", {1}},
                                                 {"starts", {0}},
                                                 {"ends", {migraphx::to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                               ind,
-                              bind);
+                              k);
     mm->add_return({val, ind});
 
     migraphx::onnx_options options;

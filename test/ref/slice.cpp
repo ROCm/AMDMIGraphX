@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,8 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/register_target.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/verify.hpp>
 
 #include <test.hpp>
@@ -408,4 +410,45 @@ TEST_CASE(slice_dyn_test1)
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
     EXPECT(result.get_shape() == sresult);
+}
+
+TEST_CASE(slice_sym_resolved_input)
+{
+    // A late pass lowers `slice[axes=2, starts=0, ends=n]` to this: the symbolic end becomes a
+    // runtime input from resolve_sym_expr, the concrete start stays an attribute, and slice runs as
+    // a plain dynamic multi-input slice.
+    auto n = migraphx::sym::var("n", {1, 3});
+
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    std::vector<int> data(2 * 2 * 3);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+
+    migraphx::shape val{migraphx::shape::int64_type, {1}};
+    auto nv        = mm->add_parameter("n_val", val);
+    auto end_tuple = mm->add_instruction(
+        migraphx::make_op("resolve_sym_expr",
+                          {{"exprs", migraphx::value::array{migraphx::to_value(n)}},
+                           {"symbols", migraphx::value::array{migraphx::to_value(n)}}}),
+        nv);
+    // resolve_sym_expr returns a tuple; extract the single end value to feed slice's runtime input.
+    auto end_vals =
+        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), end_tuple);
+    // starts_axes config: attrs starts + axes set, ends arrives as the runtime input.
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}}), l0, end_vals);
+    p.compile(migraphx::make_target("ref"));
+
+    migraphx::parameter_map params;
+    std::vector<int64_t> n_data = {2}; // n = 2 -> slice axis 2 as [0, 2)
+    params["n_val"]             = migraphx::argument(val, n_data.data());
+    auto result                 = p.eval(params).back();
+
+    std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
+    std::vector<int> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+    EXPECT(result.get_shape() ==
+           migraphx::shape{migraphx::shape::int32_type, {2, 2, 2}, {6, 3, 1}});
 }

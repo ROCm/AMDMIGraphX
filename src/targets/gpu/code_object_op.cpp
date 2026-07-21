@@ -81,7 +81,7 @@ static argument ensure_gpu_arg(const argument& arg, pmr::vector<argument>& temps
         sub_gpu.reserve(arg.get_sub_objects().size());
         std::transform(arg.get_sub_objects().begin(),
                        arg.get_sub_objects().end(),
-                       sub_gpu.begin(),
+                       std::back_inserter(sub_gpu),
                        [&](const argument& sub) { return ensure_gpu_arg(sub, temps); });
         return argument{sub_gpu};
     }

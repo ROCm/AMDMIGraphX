@@ -79,11 +79,13 @@ static argument ensure_gpu_arg(const argument& arg, pmr::vector<argument>& temps
     {
         std::vector<argument> sub_gpu;
         sub_gpu.reserve(arg.get_sub_objects().size());
-        for(const auto& sub : arg.get_sub_objects())
-            sub_gpu.push_back(ensure_gpu_arg(sub, temps));
+        std::transform(arg.get_sub_objects().begin(),
+                       arg.get_sub_objects().end(),
+                       sub_gpu.begin(),
+                       [&](const argument& sub) { return ensure_gpu_arg(sub, temps); });
         return argument{sub_gpu};
     }
-    char* ptr = arg.data();
+    const char* ptr = arg.data();
     if(ptr != nullptr and not is_device_ptr(ptr))
     {
         temps.push_back(to_gpu(arg));
@@ -97,9 +99,10 @@ static std::vector<argument> ensure_gpu_kernel_args(const std::vector<argument>&
 {
     std::vector<argument> gpu_args;
     gpu_args.reserve(args.size());
-    std::transform(args.begin(), args.end(), std::back_inserter(gpu_args), [&](const argument& arg) {
-        return ensure_gpu_arg(arg, temps);
-    });
+    std::transform(args.begin(),
+                   args.end(),
+                   std::back_inserter(gpu_args),
+                   [&](const argument& arg) { return ensure_gpu_arg(arg, temps); });
     return gpu_args;
 }
 

@@ -27,10 +27,19 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
+#include <migraphx/enum.hpp>
+#include <migraphx/dim_like.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
+
+MIGRAPHX_BIT_FLAG_ENUM(slice_input_flags,
+                       std::uint8_t,
+                       none         = 0,
+                       starts_input = 1 << 0,
+                       ends_input   = 1 << 1,
+                       axes_input   = 1 << 2)
 
 struct parse_slice : op_parser<parse_slice>
 {
@@ -39,17 +48,18 @@ struct parse_slice : op_parser<parse_slice>
 
     struct slice_desc
     {
-        op::slice op;
         std::vector<instruction_ref> op_args;
+        std::vector<int64_t> axes;
+        std::vector<dim_like> starts;
+        std::vector<dim_like> ends;
         std::vector<int64_t> steps;
         std::vector<int64_t> raxes;
+        slice_input_flags flags;
 
         void always_insert(instruction_ref arg) { op_args.insert(op_args.begin(), arg); }
 
-        /**
-         * Either insert argument into `this->op_args` or return the constant value of the argument
-         */
-        std::vector<int64_t> insert(instruction_ref arg)
+        // Either insert argument into `this->op_args` or return the constant value of the argument
+        std::vector<int64_t> try_insert(instruction_ref arg)
         {
             std::vector<int64_t> result;
             migraphx::argument arg_value = arg->eval();
@@ -63,6 +73,41 @@ struct parse_slice : op_parser<parse_slice>
             }
             return result;
         }
+
+        op::slice::slice_mode get_slice_mode(slice_input_flags slice_flags)
+        {
+            switch (slice_flags)
+            {
+                case slice_input_flags::none:
+                    return op::slice::slice_mode::one_input;
+                case slice_input_flags::starts_input:
+                    return op::slice::slice_mode::starts_input;
+                case slice_input_flags::ends_input:
+                    return op::slice::slice_mode::ends_input;
+                case slice_input_flags::axes_input:
+                    return op::slice::slice_mode::axes_input;
+                case (slice_input_flags::starts_input | slice_input_flags::ends_input):
+                    return op::slice::slice_mode::starts_ends_input;
+                case (slice_input_flags::starts_input | slice_input_flags::axes_input):
+                    return op::slice::slice_mode::starts_axes_input;
+                case (slice_input_flags::ends_input | slice_input_flags::axes_input):
+                    return op::slice::slice_mode::ends_axes_input;
+                case (slice_input_flags::starts_input | slice_input_flags::ends_input | slice_input_flags::axes_input):
+                    return op::slice::slice_mode::starts_ends_axes_input;
+                default:
+                    MIGRAPHX_THROW("PARSE_SLICE: invalid slice_mode");
+            }
+        }
+
+        op::slice create_slice_operator()
+        {
+            op::slice slice_op;
+            slice_op.axes = axes;
+            slice_op.starts = starts;
+            slice_op.ends = ends;
+            slice_op.mode = get_slice_mode(flags);
+            return slice_op;
+        }
     };
 
     instruction_ref parse(const op_desc& /*opd*/,
@@ -71,7 +116,7 @@ struct parse_slice : op_parser<parse_slice>
                           const std::vector<instruction_ref>& args) const
     {
         auto sd  = construct_slice_desc(parser, info, args);
-        auto ins = info.add_instruction(sd.op, sd.op_args);
+        auto ins = info.add_instruction(sd.create_slice_operator(), sd.op_args);
         if(not sd.raxes.empty())
         {
             ins = info.add_instruction(make_op("reverse", {{"axes", sd.raxes}}), ins);
@@ -85,7 +130,7 @@ struct parse_slice : op_parser<parse_slice>
                            std::back_inserter(nsteps),
                            [](auto s) { return std::abs(s); });
             return ins = info.add_instruction(
-                       make_op("step", {{"axes", sd.op.axes}, {"steps", nsteps}}), ins);
+                       make_op("step", {{"axes", sd.axes}, {"steps", nsteps}}), ins);
         }
         else
             return ins;
@@ -97,8 +142,8 @@ struct parse_slice : op_parser<parse_slice>
     {
         slice_desc sd;
 
-        // slice can have up to 5 inputs, we first check the 5th one
-        // to decide whether MIGRAPHX can handle this slice.
+        // ONNX Slice can have up to 5 inputs, we first check the 5th one
+        // to decide whether MIGX can handle this slice.
         if(args.size() == 5)
         {
             migraphx::argument step_arg = args.back()->eval();
@@ -108,61 +153,61 @@ struct parse_slice : op_parser<parse_slice>
 
         if(args.size() >= 4)
         {
-            sd.op.axes = sd.insert(args.at(3));
+            auto _axes = sd.try_insert(args.at(3));
+            if(_axes.empty())
+                sd.flags |= slice_input_flags::axes_input;
+            sd.axes = _axes;
         }
         else if(contains(info.attributes, "axes"))
         {
             literal s = parser.parse_value(info.attributes.at("axes"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(sd.op.axes)); });
+            s.visit([&](auto v) { copy(v, std::back_inserter(sd.axes)); });
         }
 
+        // NOTE: goes through range-based dynamic shapes pathway only
         if(args.size() >= 3)
         {
-            auto ends = sd.insert(args.at(2));
-            sd.op.ends.assign(ends.begin(), ends.end());
+            auto _ends = sd.try_insert(args.at(2));
+            if(_ends.empty())
+                sd.flags |= slice_input_flags::ends_input;
+            sd.ends.assign(_ends.begin(), _ends.end());
         }
         else if(contains(info.attributes, "ends"))
         {
             literal s = parser.parse_value(info.attributes.at("ends"));
-            s.visit([&](auto v) {
-                std::transform(v.begin(), v.end(), std::back_inserter(sd.op.ends), [](auto e) {
-                    return static_cast<int64_t>(e);
-                });
-            });
+            s.visit([&](auto v) { copy(v, std::back_inserter(sd.starts)); });
         }
 
         if(args.size() >= 2)
         {
-            auto starts = sd.insert(args.at(1));
-            sd.op.starts.assign(starts.begin(), starts.end());
+            auto _starts = sd.try_insert(args.at(1));
+            if(_starts.empty())
+                sd.flags |= slice_input_flags::starts_input;
+            sd.starts.assign(_starts.begin(), _starts.end());
         }
         else if(contains(info.attributes, "starts"))
         {
             literal s = parser.parse_value(info.attributes.at("starts"));
-            s.visit([&](auto v) {
-                std::transform(v.begin(), v.end(), std::back_inserter(sd.op.starts), [](auto e) {
-                    return static_cast<int64_t>(e);
-                });
-            });
+            s.visit([&](auto v) { copy(v, std::back_inserter(sd.starts)); });
         }
 
         // data input argument
         sd.always_insert(args.at(0));
 
         // If axes arg is not given, the default is all of them.
-        if(sd.op.axes.empty() and sd.op_args.size() <= 3)
+        if(sd.axes.empty() and sd.op_args.size() <= 3)
         {
             std::vector<int64_t> axes(args[0]->get_shape().ndim());
             std::iota(axes.begin(), axes.end(), int64_t{0});
-            sd.op.axes = axes;
+            sd.axes = axes;
         }
 
         if(std::any_of(sd.steps.begin(), sd.steps.end(), [](auto s) { return s != 1; }))
         {
-            if(sd.op.starts.empty() or sd.op.ends.empty())
+            if(sd.starts.empty() or sd.ends.empty())
                 MIGRAPHX_THROW(
                     "PARSE_SLICE: steps and variable starts and/or ends is not supported");
-            if(sd.op.axes.empty())
+            if(sd.axes.empty())
                 MIGRAPHX_THROW("PARSE_SLICE: steps and variable axes is not supported");
         }
 
@@ -171,13 +216,13 @@ struct parse_slice : op_parser<parse_slice>
         {
             if(sd.steps[i] >= 0)
                 continue;
-            auto start = std::get<int64_t>(sd.op.starts[i]) + 1;
+            auto start = std::get<int64_t>(sd.starts[i]) + 1;
             if(start == 0)
                 start = INT_MAX;
-            sd.op.starts[i] = start;
-            sd.op.ends[i]   = std::get<int64_t>(sd.op.ends[i]) + 1;
-            sd.raxes.push_back(sd.op.axes[i]);
-            std::swap(sd.op.starts[i], sd.op.ends[i]);
+            sd.starts[i] = start;
+            sd.ends[i]   = std::get<int64_t>(sd.ends[i]) + 1;
+            sd.raxes.push_back(sd.axes[i]);
+            std::swap(sd.starts[i], sd.ends[i]);
         }
         return sd;
     }

@@ -148,6 +148,14 @@ namespace migraphx {
 // check that the generated to_string(status) is not ambiguous with migraphx::to_string(const T&).
 // NOLINTNEXTLINE(misc-use-internal-linkage)
 MIGRAPHX_ENUM(status, ok, busy = 4, done)
+
+// Bit-flag enums. Declared in the migraphx namespace so that argument-dependent lookup finds the
+// operators (which also live in migraphx) from the global-scope test cases below. Two widths
+// exercise the selectable underlying type.
+// NOLINTNEXTLINE(misc-use-internal-linkage)
+MIGRAPHX_BIT_FLAG_ENUM(access, std::uint8_t, none = 0, read = 1 << 0, write = 1 << 1, exec = 1 << 2)
+// NOLINTNEXTLINE(misc-use-internal-linkage)
+MIGRAPHX_BIT_FLAG_ENUM(wide_flag, std::uint16_t, none = 0, lo = 1 << 0, hi = 1 << 15)
 } // namespace migraphx
 
 TEST_CASE(underlying_values)
@@ -305,6 +313,56 @@ TEST_CASE(is_named_enum_trait)
     EXPECT(not migraphx::is_named_enum<plain_enum>{});
     EXPECT(not migraphx::is_named_enum<int>{});
     EXPECT(not migraphx::is_named_enum<std::string>{});
+}
+
+TEST_CASE(bit_flag_operators)
+{
+    auto rw = migraphx::access::read | migraphx::access::write;
+    EXPECT(has_flag(rw, migraphx::access::read));
+    EXPECT(has_flag(rw, migraphx::access::write));
+    EXPECT(not has_flag(rw, migraphx::access::exec));
+
+    // & masks, and the result stays the enum type.
+    EXPECT((rw & migraphx::access::read) == migraphx::access::read);
+    EXPECT((rw & migraphx::access::exec) == migraphx::access::none);
+
+    rw |= migraphx::access::exec;
+    EXPECT(has_flag(rw, migraphx::access::exec));
+
+    // ~ and &= clear a bit.
+    rw &= ~migraphx::access::write;
+    EXPECT(not has_flag(rw, migraphx::access::write));
+    EXPECT(has_flag(rw, migraphx::access::read));
+
+    // ^ and ^= toggle a bit.
+    EXPECT((migraphx::access::read ^ migraphx::access::read) == migraphx::access::none);
+    auto toggled = migraphx::access::none;
+    toggled ^= migraphx::access::write;
+    EXPECT(toggled == migraphx::access::write);
+}
+
+TEST_CASE(bit_flag_width_and_scoped)
+{
+    // The underlying type is honored, so the storage width is selectable.
+    EXPECT(sizeof(migraphx::access) == 1);
+    EXPECT(sizeof(migraphx::wide_flag) == 2);
+    // A bit that only fits in the wider type round-trips through the underlying value.
+    EXPECT(static_cast<int>(migraphx::wide_flag::hi) == (1 << 15));
+    // It is still a real scoped enum: no implicit conversion to its underlying type.
+    EXPECT(not std::is_convertible<migraphx::access, int>{});
+}
+
+TEST_CASE(is_bit_flag_trait)
+{
+    EXPECT(migraphx::is_bit_flag<migraphx::access>{});
+    EXPECT(migraphx::is_bit_flag<migraphx::wide_flag>{});
+    // False for named enums, plain enums, and non-enum types: the operators do not leak to them.
+    EXPECT(not migraphx::is_bit_flag<color>{});
+    EXPECT(not migraphx::is_bit_flag<scoped_color>{});
+    EXPECT(not migraphx::is_bit_flag<plain_enum>{});
+    EXPECT(not migraphx::is_bit_flag<int>{});
+    // And a bit-flag enum does not get the named-enum string helpers.
+    EXPECT(not migraphx::is_named_enum<migraphx::access>{});
 }
 
 TEST_CASE(value_stores_named_enum_as_string)

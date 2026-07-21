@@ -293,10 +293,10 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // where it helps -- [u,k,c,v] (v innermost so the 4 v_col lanes coalesce, dim1
     // == out_c != 4). Detect the layout from dim1 and pick the v/k/c stride-dim
     // indices accordingly (u is dim 0).
-    const bool w_vinner    = w_shape.lens[1] != 4;
-    const index_int WV     = w_vinner ? 3 : 1; // v-dim stride index
-    const index_int WK     = w_vinner ? 1 : 2; // k-dim stride index
-    const index_int WC     = w_vinner ? 2 : 3; // c-dim stride index
+    const bool w_vinner = w_shape.lens[1] != 4;
+    const index_int WV  = w_vinner ? 3 : 1; // v-dim stride index
+    const index_int WK  = w_vinner ? 1 : 2; // k-dim stride index
+    const index_int WC  = w_vinner ? 2 : 3; // c-dim stride index
     const int32_t w_lane_base =
         static_cast<int32_t>((v_col * w_str[WV] + k_base * w_str[WK]) * sizeof(float));
     const int32_t w_u_stride = static_cast<int32_t>(w_str[0] * sizeof(float));

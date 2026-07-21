@@ -447,9 +447,9 @@ literal compute_winograd_weights_f23_fp32(const argument& w_arg, bool vinner = f
     const auto& sh = w_arg.get_shape();
     auto out_c     = sh.lens()[0];
     auto in_c      = sh.lens()[1];
-    shape u_shape = vinner ? shape{shape::float_type, {4, out_c, in_c, 4}}  // [u,k,c,v]
-                           : shape{shape::float_type, {4, 4, out_c, in_c}}; // [u,v,k,c]
-    auto widx     = [&](std::size_t u, std::size_t v, std::size_t k, std::size_t c) {
+    shape u_shape  = vinner ? shape{shape::float_type, {4, out_c, in_c, 4}}  // [u,k,c,v]
+                            : shape{shape::float_type, {4, 4, out_c, in_c}}; // [u,v,k,c]
+    auto widx      = [&](std::size_t u, std::size_t v, std::size_t k, std::size_t c) {
         return vinner ? u_shape.index({u, k, c, v}) : u_shape.index({u, v, k, c});
     };
 
@@ -471,7 +471,7 @@ literal compute_winograd_weights_f23_fp32(const argument& w_arg, bool vinner = f
             });
             // U[u][v] = sum_j (Gg)[u][j] G[v][j], with the v=3 column negated.
             dfor(std::size_t{4}, std::size_t{4})([&](auto u, auto v) {
-                float uv       = gg[u][0] * gmat[v][0] + gg[u][1] * gmat[v][1] + gg[u][2] * gmat[v][2];
+                float uv = gg[u][0] * gmat[v][0] + gg[u][1] * gmat[v][1] + gg[u][2] * gmat[v][2];
                 data[widx(u, v, k, c)] = (v == 3) ? -uv : uv;
             });
         });
@@ -775,19 +775,19 @@ struct find_winograd_f23
             auto x_lens      = input->get_shape().lens();   // [N, C, H, W]
             auto w_lens      = weights->get_shape().lens(); // [K, C, 3, 3]
             const bool nhwc  = input->get_shape().strides()[1] == 1;
-            const bool use_s = not nhwc and
-                               (enabled(MIGRAPHX_WINOGRAD_FP32_SSTORE{}) or
-                                winograd_f23_use_sstore(w_lens[1], w_lens[0], x_lens[2], x_lens[3]));
+            const bool use_s =
+                not nhwc and (enabled(MIGRAPHX_WINOGRAD_FP32_SSTORE{}) or
+                              winograd_f23_use_sstore(w_lens[1], w_lens[0], x_lens[2], x_lens[3]));
             // v-innermost weight coalesces the NHWC weight load, relieving the
             // input/weight cache thrash -- but its strided (b32) channel load adds
             // issue overhead that regresses shapes where the weight is small and
             // cached (low out_c) or the input dominates (channel-reducing). Gate to
             // where the weight is substantial and not channel-reducing (measured).
-            const auto out_c   = w_lens[0];
-            const auto in_c    = w_lens[1];
-            const bool vinner  = nhwc and out_c >= 128 and in_c <= out_c;
-            auto u_lit = use_s ? compute_winograd_weights_f23_fp32_S(w_arg)
-                               : compute_winograd_weights_f23_fp32(w_arg, vinner);
+            const auto out_c  = w_lens[0];
+            const auto in_c   = w_lens[1];
+            const bool vinner = nhwc and out_c >= 128 and in_c <= out_c;
+            auto u_lit        = use_s ? compute_winograd_weights_f23_fp32_S(w_arg)
+                                      : compute_winograd_weights_f23_fp32(w_arg, vinner);
             m.replace_instruction(
                 ins, winograd_conv{false, out_layout}, input, m.add_literal(u_lit));
             return;

@@ -32,43 +32,42 @@ namespace migraphx {
 namespace driver {
 inline namespace MIGRAPHX_INLINE_NS {
 
-namespace {
 // Print the active exception's type and what() message, then abort (mirrors libstdc++).
-[[noreturn]] void verbose_terminate_handler()
+void install_verbose_terminate_handler()
 {
-    static bool terminating = false;
-    if(terminating)
-    {
-        std::cerr << "terminate called recursively\n";
+    std::set_terminate([] {
+        static bool terminating = false;
+        if(terminating)
+        {
+            std::cerr << "terminate called recursively\n";
+            std::abort();
+        }
+        terminating = true;
+
+        if(const std::exception_ptr eptr = std::current_exception())
+        {
+            try
+            {
+                std::rethrow_exception(eptr);
+            }
+            catch(const std::exception& e)
+            {
+                std::cerr << "terminate called after throwing an instance of '" << typeid(e).name()
+                          << "'\n  what():  " << e.what() << '\n';
+            }
+            catch(...)
+            {
+                std::cerr
+                    << "terminate called after throwing an instance of an unknown exception\n";
+            }
+        }
+        else
+        {
+            std::cerr << "terminate called without an active exception\n";
+        }
         std::abort();
-    }
-    terminating = true;
-
-    if(const std::exception_ptr eptr = std::current_exception())
-    {
-        try
-        {
-            std::rethrow_exception(eptr);
-        }
-        catch(const std::exception& e)
-        {
-            std::cerr << "terminate called after throwing an instance of '" << typeid(e).name()
-                      << "'\n  what():  " << e.what() << '\n';
-        }
-        catch(...)
-        {
-            std::cerr << "terminate called after throwing an instance of an unknown exception\n";
-        }
-    }
-    else
-    {
-        std::cerr << "terminate called without an active exception\n";
-    }
-    std::abort();
+    });
 }
-} // namespace
-
-void install_verbose_terminate_handler() { std::set_terminate(&verbose_terminate_handler); }
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace driver

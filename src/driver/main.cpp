@@ -34,9 +34,7 @@
 #include "trim.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
-#ifdef _WIN32
 #include "verbose_terminate.hpp"
-#endif
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>

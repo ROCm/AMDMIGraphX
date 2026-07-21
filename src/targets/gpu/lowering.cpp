@@ -462,8 +462,7 @@ struct miopen_apply
             const auto num_boxes = boxes_s.lens().at(1);
             const auto num_bc    = boxes_s.lens().at(0) * scores_s.lens().at(1);
             // Route to ref (CPU) when:
-            // - num_boxes == 1: single box, no sort or IoU comparison needed.
-            // - num_boxes >= 2: GPU pipeline handles the general case.
+            // - num_boxes < 2: Single box or no boxes, no sort or IoU comparison needed.
             // - num_bc > 8192: shared-memory limit on the compact kernel.
             if(num_boxes < 2 or num_bc > 8192)
                 return lower_nms_to_ref(ins);

@@ -51,7 +51,7 @@ TEST_CASE(expand_dyn_input_static_dims_test)
     std::vector<float> gold(48);
     for(std::size_t i = 0; i < 3; ++i)
     {
-        const float v = static_cast<float>(i + 1);
+        const float v = i + 1;
         std::fill_n(gold.begin() + i * 16, 16, v);
     }
 

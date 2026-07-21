@@ -29,7 +29,7 @@ TEST_CASE(shape_dyn_test1)
     migraphx::program p;
     auto* mm = p.get_main_module();
     migraphx::shape s{migraphx::shape::float_type, {{1, 4, {1, 4}}, {4, 4}, {2, 4}, {2, 4}}};
-    auto p0 = mm->add_parameter("x", s);
+    mm->add_parameter("x", s);
     migraphx::shape s_shape{migraphx::shape::int64_type, {2}};
     auto ret = mm->add_literal(migraphx::literal{s_shape, {-1, -1}});
     mm->add_return({ret});

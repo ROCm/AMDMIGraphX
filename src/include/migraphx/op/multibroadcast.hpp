@@ -35,7 +35,6 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
-namespace {
 inline bool is_broadcastable_lens(std::vector<std::size_t> s0, std::vector<std::size_t> s1)
 {
     if(s0 == s1)
@@ -68,7 +67,6 @@ inline shape broadcast_to_fixed_dims(const shape& s0,
         return make_bcast_shape(s0, compute_broadcasted_lens(s0.lens(), target_lens));
     return {t, target_lens};
 }
-} // namespace
 
 /**
  * Broadcast multiple dimensions between two tensors.

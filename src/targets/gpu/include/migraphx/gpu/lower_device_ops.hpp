@@ -21,29 +21,27 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
+#ifndef MIGRAPHX_GUARD_GPU_LOWER_DEVICE_OPS_HPP
+#define MIGRAPHX_GUARD_GPU_LOWER_DEVICE_OPS_HPP
 
-#include <migraphx/gpu/export.h>
-#include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
+#include <migraphx/gpu/config.hpp>
 #include <string>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
+
+struct module;
+
 namespace gpu {
 
-/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present.
-MIGRAPHX_GPU_EXPORT hipDeviceProp_t
-make_cross_compile_device_props(const std::string& arch_name,
-                                std::size_t cu_count,
-                                std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024,
-                                std::size_t wavefront_size        = 0);
+struct MIGRAPHX_GPU_EXPORT lower_device_ops
+{
+    std::string name() const { return "gpu::lower_device_ops"; }
+    void apply(module& m) const;
+};
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
 
-#endif
+#endif // MIGRAPHX_GUARD_GPU_LOWER_DEVICE_OPS_HPP

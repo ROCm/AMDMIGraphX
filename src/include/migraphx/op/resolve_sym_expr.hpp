@@ -70,6 +70,7 @@ struct resolve_sym_expr
     {
         assert(args.size() == symbols.size());
         std::unordered_map<sym::expr, std::size_t> smap;
+        smap.reserve(symbols.size());
         for(std::size_t i = 0; i < symbols.size(); ++i)
             smap[symbols[i]] = args[i].at<std::size_t>();
         const auto& sub_shapes = output_shape.sub_shapes();

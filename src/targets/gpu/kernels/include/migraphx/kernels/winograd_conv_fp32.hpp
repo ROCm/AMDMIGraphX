@@ -258,9 +258,10 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     const uint32_t w_byte_count = static_cast<uint32_t>(w_shape.element_space()) * sizeof(float);
     auto w_rsrc                 = wino_fp32_make_rsrc(weights.data(), w_byte_count);
     const int32_t w_oob         = static_cast<int32_t>(w_byte_count);
-    // The b128-over-channels weight load below reads 4 contiguous channels, so
-    // the weight's C axis must be innermost (stride 1) -- guaranteed by the host
-    // U literal layout [4,4,K,C].
+    // Innermost weight dim (stride 1) is C for NCHW [u,v,k,c] and v for NHWC
+    // [u,k,c,v]; either way dim 3 is packed. NHWC's v-innermost layout makes the 4
+    // v_col lanes read consecutive floats (coalesced); its channel load is then
+    // w_str[WC]-strided (see fma_block).
     MIGRAPHX_ASSERT(w_str[3] == 1);
 
     // Per (tile,row) input byte offset for channel 0 of this lane's column; the
@@ -287,12 +288,20 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
 
     // Weight byte-offset bases for this lane's v column (channel 0). Computed
     // inline in the loop rather than precomputed per (u,k) so we don't pin
-    // 4*KO offset registers live across the channel loop. w_str[3] (the c
-    // stride) is 1, so channels are contiguous -> b128 over CU.
+    // 4*KO offset registers live across the channel loop. The host stores U either
+    // packed [u,v,k,c] (c innermost, dim1 == 4) or -- for the gated NHWC configs
+    // where it helps -- [u,k,c,v] (v innermost so the 4 v_col lanes coalesce, dim1
+    // == out_c != 4). Detect the layout from dim1 and pick the v/k/c stride-dim
+    // indices accordingly (u is dim 0).
+    const bool w_vinner    = w_shape.lens[1] != 4;
+    const index_int WV     = w_vinner ? 3 : 1; // v-dim stride index
+    const index_int WK     = w_vinner ? 1 : 2; // k-dim stride index
+    const index_int WC     = w_vinner ? 2 : 3; // c-dim stride index
     const int32_t w_lane_base =
-        static_cast<int32_t>((v_col * w_str[1] + k_base * w_str[2]) * sizeof(float));
+        static_cast<int32_t>((v_col * w_str[WV] + k_base * w_str[WK]) * sizeof(float));
     const int32_t w_u_stride = static_cast<int32_t>(w_str[0] * sizeof(float));
-    const int32_t w_k_stride = static_cast<int32_t>(w_str[2] * sizeof(float));
+    const int32_t w_k_stride = static_cast<int32_t>(w_str[WK] * sizeof(float));
+    const int32_t w_c_stride = static_cast<int32_t>(w_str[WC] * sizeof(float));
     auto w_byte_off          = [&](index_int u, index_int k) {
         return (k_base + k < out_c) ? (w_lane_base + static_cast<int32_t>(u) * w_u_stride +
                                        static_cast<int32_t>(k) * w_k_stride)
@@ -331,15 +340,29 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // apply the same per-channel v/u transform. (NCHW channels are H*W apart, so
     // it stays per-channel.)
     //
-    // NOTE: on memory-bound NHWC shapes this is ~2x slower than NCHW and loses to
-    // MLIR. The b128 widens the load WITHIN a lane but the bottleneck is the
-    // CROSS-lane pattern: lane==v_col reads 4 W-columns, which are stride-1 (one
-    // cache line, coalesced) in NCHW but C-strided (4 separate lines, uncoalesced)
-    // in NHWC. Confirmed: identical compute runs 2x slower in NHWC purely from the
-    // access pattern, and a coalesced-load microbench hit ~MLIR speed. The real fix
-    // is a coalesced (lane==channel) load feeding a per-lane register transform,
-    // with a once-per-kernel quad transpose-reduce back to lane==v_col for the
-    // contraction/output -- a separate NHWC compute path, not a load-width tweak.
+    // BOTTLENECK (measured by address-isolation on 256->256@64, replacing a load's
+    // offset with a constant so it hits one cached line): full 0.698ms; with the
+    // INPUT load coalesced 0.229; with the WEIGHT load coalesced 0.239; with BOTH
+    // coalesced = pure compute 0.089ms. So the fused COMPUTE is ~3x FASTER than MLIR
+    // (0.089 vs 0.276) -- the whole gap is the two SCATTERED loads (both read
+    // lane==v_col: input W-columns are C-strided; weight U v-slices are K*C apart),
+    // which THRASH the cache super-linearly (0.698 >> 0.089+0.14+0.15). Traffic is
+    // ~23 GB/s (<<peak) so it is cache-miss latency/thrashing, not bandwidth.
+    //
+    // FIX SHIPPED for the WEIGHT scatter (the host-controllable one): U is laid out
+    // v-innermost [u,k,c,v] (see prefuse compute_winograd_weights_f23_fp32 vinner)
+    // so the 4 v_col lanes read consecutive floats -> the weight load coalesces,
+    // relieving the thrash. GATED to out_c>=128 && in_c<=out_c: its strided (b32)
+    // channel load adds issue overhead that regresses small/cached-weight shapes.
+    // Net +4.5% geomean vs the scattered path (0.878->0.918x MLIR), memory-bound
+    // configs -61%->-47..-56%. The INPUT scatter (17MB, uncacheable, no layout
+    // freedom) is the dominant residual and has no clean in-kernel fix -- real
+    // input coalescing (lane==channel rewrite, LDS spatial-blocking) was measured
+    // NET-NEUTRAL-to-LOSS, and a full fused implicit-GEMM (scratchpad/
+    // winograd_conv_fp32_gemm.hpp) helps memory-bound (~0.69x) but is a big
+    // aggregate loss (0.48x, wrecks small shapes) -- the 16 winograd positions cap
+    // its arithmetic intensity. Beating MLIR outright would need a MULTI-kernel
+    // winograd (transform kernels + a library batched GEMM on materialized V/M).
     auto transform_block = [&](index_int c0, index_int nchan) {
         v_reg_t vr{};
         if constexpr(NHWC)
@@ -392,25 +415,30 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                          v_reg_t& v_next,
                          index_int c_next,
                          index_int nchan_next) {
-        const int32_t coff_w = static_cast<int32_t>(c0 * sizeof(float));
+        // Weight channel stride in bytes: 1 float (NCHW, C innermost) or w_str[WC]
+        // (NHWC, v-innermost -> the channel dim is strided by the 4 v's).
+        const int32_t coff_w = static_cast<int32_t>(c0) * w_c_stride;
         repeat_c<4>([&](auto uu) {
             constexpr index_int u = uu;
             array<vec<float, CU>, KO> wv{};
             repeat_c<KO>([&](auto kk) {
                 constexpr index_int k    = kk;
                 const int32_t w_off_base = w_byte_off(u, k) + coff_w;
-                if(nchan == CU)
+                if(not w_vinner and nchan == CU)
                 {
+                    // C-innermost weight, full block: 4 contiguous channels in b128.
                     wv[k] = wino_fp32_load_cu<CU>(w_rsrc, w_off_base);
                 }
                 else
                 {
+                    // v-innermost weight (w_c_stride-strided channels, coalesced
+                    // across the 4 v_col lanes) or a partial block: per-channel loads.
                     repeat_c<CU>([&](auto cc) {
                         constexpr index_int cu = cc;
                         wv[k][cu] =
                             (cu < nchan)
-                                ? wino_fp32_load(
-                                      w_rsrc, w_off_base + static_cast<int32_t>(cu * sizeof(float)))
+                                ? wino_fp32_load(w_rsrc,
+                                                 w_off_base + static_cast<int32_t>(cu) * w_c_stride)
                                 : 0.0f;
                     });
                 }

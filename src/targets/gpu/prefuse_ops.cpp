@@ -437,12 +437,21 @@ literal compute_winograd_weights_f23(const argument& w_arg, bool full_transform)
 // (d3-d1 instead of d1-d3) because that is the form a single quad DPP butterfly
 // can produce; a matching negation of U[:,3,:,:] here makes the elementwise
 // product U*V exact.
-literal compute_winograd_weights_f23_fp32(const argument& w_arg)
+// vinner=true stores U packed as [u, k, c, v] (v physically INNERMOST) instead of
+// the NCHW [u, v, k, c] (c innermost). In NHWC the fp32 kernel's 4 v_col lanes then
+// read 4 *consecutive* floats -> the weight load coalesces (lane==v_col otherwise
+// scatters the weight across v-slices K*C apart, thrashing the cache with the
+// input). The kernel selects the v/k/c stride indices by layout (NHWC template).
+literal compute_winograd_weights_f23_fp32(const argument& w_arg, bool vinner = false)
 {
     const auto& sh = w_arg.get_shape();
     auto out_c     = sh.lens()[0];
     auto in_c      = sh.lens()[1];
-    shape u_shape{shape::float_type, {4, 4, out_c, in_c}};
+    shape u_shape = vinner ? shape{shape::float_type, {4, out_c, in_c, 4}}  // [u,k,c,v]
+                           : shape{shape::float_type, {4, 4, out_c, in_c}}; // [u,v,k,c]
+    auto widx     = [&](std::size_t u, std::size_t v, std::size_t k, std::size_t c) {
+        return vinner ? u_shape.index({u, k, c, v}) : u_shape.index({u, v, k, c});
+    };
 
     // G (4x3): rows [1,0,0], [.5,.5,.5], [.5,-.5,.5], [0,0,1].
     constexpr std::array<std::array<float, 3>, 4> gmat{
@@ -462,8 +471,8 @@ literal compute_winograd_weights_f23_fp32(const argument& w_arg)
             });
             // U[u][v] = sum_j (Gg)[u][j] G[v][j], with the v=3 column negated.
             dfor(std::size_t{4}, std::size_t{4})([&](auto u, auto v) {
-                float uv = gg[u][0] * gmat[v][0] + gg[u][1] * gmat[v][1] + gg[u][2] * gmat[v][2];
-                data[u_shape.index({u, v, k, c})] = (v == 3) ? -uv : uv;
+                float uv       = gg[u][0] * gmat[v][0] + gg[u][1] * gmat[v][1] + gg[u][2] * gmat[v][2];
+                data[widx(u, v, k, c)] = (v == 3) ? -uv : uv;
             });
         });
     });
@@ -761,12 +770,24 @@ struct find_winograd_f23
             // weight DRAM+loads) on the weight-load-significant shapes, else the
             // full U [4,4,K,C]. The JIT routes to the S path by the weight's first
             // dim (3 vs 4). MIGRAPHX_WINOGRAD_FP32_SSTORE forces S on (benchmarking).
+            // NHWC uses the full U laid out v-innermost so the weight load coalesces
+            // (S-store stays NCHW-only).
             auto x_lens      = input->get_shape().lens();   // [N, C, H, W]
             auto w_lens      = weights->get_shape().lens(); // [K, C, 3, 3]
-            const bool use_s = enabled(MIGRAPHX_WINOGRAD_FP32_SSTORE{}) or
-                               winograd_f23_use_sstore(w_lens[1], w_lens[0], x_lens[2], x_lens[3]);
+            const bool nhwc  = input->get_shape().strides()[1] == 1;
+            const bool use_s = not nhwc and
+                               (enabled(MIGRAPHX_WINOGRAD_FP32_SSTORE{}) or
+                                winograd_f23_use_sstore(w_lens[1], w_lens[0], x_lens[2], x_lens[3]));
+            // v-innermost weight coalesces the NHWC weight load, relieving the
+            // input/weight cache thrash -- but its strided (b32) channel load adds
+            // issue overhead that regresses shapes where the weight is small and
+            // cached (low out_c) or the input dominates (channel-reducing). Gate to
+            // where the weight is substantial and not channel-reducing (measured).
+            const auto out_c   = w_lens[0];
+            const auto in_c    = w_lens[1];
+            const bool vinner  = nhwc and out_c >= 128 and in_c <= out_c;
             auto u_lit = use_s ? compute_winograd_weights_f23_fp32_S(w_arg)
-                               : compute_winograd_weights_f23_fp32(w_arg);
+                               : compute_winograd_weights_f23_fp32(w_arg, vinner);
             m.replace_instruction(
                 ins, winograd_conv{false, out_layout}, input, m.add_literal(u_lit));
             return;

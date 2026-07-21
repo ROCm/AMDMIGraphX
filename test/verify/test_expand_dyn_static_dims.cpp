@@ -37,7 +37,8 @@ struct test_expand_dyn_static_dims : verify_program<test_expand_dyn_static_dims>
         auto param = mm->add_parameter("x", s);
         std::vector<migraphx::shape::dynamic_dimension> out_dyn_dims{{3, 3}, {4, 4}, {4, 4}};
         auto ret = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out_dyn_dims)}}),
+            migraphx::make_op("multibroadcast",
+                              {{"out_dyn_dims", migraphx::to_value(out_dyn_dims)}}),
             param);
         mm->add_return({ret});
         return p;

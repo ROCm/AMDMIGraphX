@@ -486,7 +486,7 @@ literal compute_winograd_weights_f23_fp32(const argument& w_arg, bool vinner = f
 // registers, so no cross-lane traffic -- unlike the T-store's v-transform). The
 // v=3 column is negated here to match the input butterfly's d3-d1 sign, exactly
 // as the full-U store does.
-literal compute_winograd_weights_f23_fp32_S(const argument& w_arg)
+literal compute_winograd_weights_f23_fp32_sstore(const argument& w_arg)
 {
     const auto& sh = w_arg.get_shape();
     auto out_c     = sh.lens()[0];
@@ -693,6 +693,103 @@ bool winograd_f23_use_sstore(std::size_t in_ch,
                        });
 }
 
+// Measured per-shape overrides for the fp32 F(2,3) heuristic below: exact
+// (C, K, H, W) convs where the smooth rule mispredicts winograd-vs-MLIR (gfx1201
+// fp32, exhaustive-tune, using whichever weight store the kernel auto-selects).
+// The high-channel spatial-16..32 band is micro-architecturally non-monotonic
+// (S-store flips some but not neighbours), so it needs a table like the fp16 path.
+// Reuses winograd_f23_shape (same C/K/H/W + use_winograd fields as the fp16 table).
+constexpr std::array<winograd_f23_shape, 4> winograd_f23_fp32_overrides{{
+    // Exact-square high-channel convs at their native spatial: rocBLAS/MLIR is
+    // tuned best exactly here, and the smooth min_ch>=224 rule (which wins for the
+    // off-square and larger-channel neighbours) mispredicts these.
+    {512, 512, 16, 16, false}, // 0.83x: square, S-store can't close it
+    {256, 256, 32, 32, false}, // 0.88x: square
+    // Awkward output-channel count (95, not a multiple of the KO tile) at large
+    // spatial: the winograd kernel wastes a partial output-channel block that the
+    // many tiles then pay for repeatedly, while MLIR does not. min(C,K)=95 < 128,
+    // so the smooth rule would otherwise keep them (96->96 at the same spatial wins).
+    {96, 95, 128, 128, false},  // 0.85x
+    {192, 95, 128, 128, false}, // 0.89x
+}};
+
+// Heuristic for when the fp32 FMA/DPP F(2,3) winograd kernel beats the default
+// (rocMLIR implicit-GEMM) lowering on gfx12. Derived from a 3x3/pad-1/stride-1
+// sweep of real-model shapes (tools/bench_conv.py, exhaustive-tune) with the
+// kernel's own weight-store selection (S-store / v-inner) active. Structure
+// mirrors the fp16 winograd_f23_profitable, but the thresholds differ: the fp32
+// kernel has 2.25x fewer MACs than MLIR yet a heavier input/weight scatter, so it
+// wins the compute-bound low/mid-channel shapes and loses the memory-bandwidth-
+// bound high-channel large-spatial ones.
+//   - NHWC: rocMLIR's channels-last GEMM reads the input fully coalesced and wins
+//     almost everywhere; the winograd kernel's C-strided input scatter only pays
+//     off at tiny spatial + high channels (measured geomean ~0.92x overall, wins
+//     only at spatial<=16, min_ch>=256). So NHWC is gated to that narrow zone.
+//   - NCHW: winograd wins broadly (count-weighted ~1.25x on the measured set).
+//     Excluded regions:
+//       * C*K >= 700k: bandwidth-bound big GEMMs MLIR owns (1280-channel convs).
+//       * min(C,K) >= 224: only small spatial (<=32) wins (2.25x fewer MACs);
+//         mid/large spatial is input/output-transform + weight-expansion bound.
+//       * min(C,K) >= 128 at spatial >= 128: transform-bound, loses.
+//       * spatial >= 512 with out_ch > 32: the 4x input-tile re-read dominates
+//         unless the output fits a single KO block.
+// Output-collapse (out_ch <= 3) and tiny-input (in_ch < 16) shapes are handled
+// layout-independently up front. MIGRAPHX_ENABLE/DISABLE_WINOGRAD override it.
+bool winograd_f23_fp32_profitable(
+    std::size_t in_ch, std::size_t out_ch, std::size_t height, std::size_t width, bool nhwc)
+{
+    const auto spatial = std::min(height, width);
+    const auto min_ch  = std::min(in_ch, out_ch);
+    const auto max_ch  = std::max(in_ch, out_ch);
+
+    // The next three checks are layout-independent (they hold for both NCHW and
+    // NHWC), so they run before the layout split.
+
+    // Tiny input channels (RGB-style stems) have too little contraction to
+    // amortize the winograd transforms, so they lose to a plain GEMM. (Mirrors
+    // the fp16 rule.)
+    if(in_ch < 16 and (max_ch > 16 or in_ch < 8))
+        return false;
+
+    // Output-collapse convs (out_ch <= 3, e.g. a segmentation/prediction head):
+    // the winograd output transform is nearly free on so few output channels while
+    // MLIR still runs a full small GEMM, so winograd wins ~2-6x in both layouts.
+    if(out_ch <= 3)
+        return true;
+
+    // Measured per-shape overrides (each listed shape loses in both layouts).
+    // NOLINTNEXTLINE(readability-qualified-auto)
+    const auto ovr = std::find_if(
+        winograd_f23_fp32_overrides.begin(), winograd_f23_fp32_overrides.end(), [&](const auto& o) {
+            return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
+                   std::tie(in_ch, out_ch, height, width);
+        });
+    if(ovr != winograd_f23_fp32_overrides.end())
+        return ovr->use_winograd;
+
+    // NHWC: rocMLIR's coalesced channels-last GEMM wins almost everywhere; the
+    // winograd kernel's C-strided NHWC input scatter (no host layout freedom, so
+    // it can't coalesce) only pays off at high channels with tiny spatial, where
+    // the re-read footprint is small and cached (measured geomean ~0.92x overall).
+    if(nhwc)
+        return min_ch >= 256 and spatial <= 16;
+
+    // NCHW: winograd wins broadly.
+    if(in_ch * out_ch >= 700000)
+        return false;
+    if(min_ch >= 224)
+        return spatial <= 32;
+    if(min_ch >= 128 and spatial >= 128)
+        return false;
+    // Very large spatial (the 4x winograd input-tile re-read dominates): only a
+    // single-KO-block output (out_ch <= 32) survives it -- 32->32 and 64->32 win
+    // at 512x512 but 48->47/64->64/128->64 lose. (Low/mid channel wins up to
+    // 256x256; min(C,K)>=128 large spatial already excluded above.)
+    if(spatial >= 512 and out_ch > 32)
+        return false;
+    return true;
+}
+
 MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
 {
     if(ins->name() != "convolution")
@@ -731,17 +828,18 @@ MIGRAPHX_PRED_MATCHER(conv_winograd_f23, instruction_ref ins)
     // off everywhere. Both are for benchmarking/debugging.
     if(enabled(MIGRAPHX_DISABLE_WINOGRAD{}))
         return false;
-    // fp32 has no profitability heuristic yet: it is opt-in via
-    // MIGRAPHX_ENABLE_WINOGRAD only. fp16 uses the tuned heuristic (or the
-    // env override).
-    if(x_type == shape::float_type)
-        return enabled(MIGRAPHX_ENABLE_WINOGRAD{});
     // Channels-last (NHWC) when the conv input's channel axis is innermost --
     // the same test the kernel uses to pick its NHWC path. layout_convolution
     // runs before this pass, so the strides already reflect the chosen layout.
     const bool nhwc = ins->inputs().front()->get_shape().strides()[1] == 1;
-    return enabled(MIGRAPHX_ENABLE_WINOGRAD{}) or
-           winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
+    // MIGRAPHX_ENABLE_WINOGRAD forces winograd on every eligible shape (bypassing
+    // the heuristic); otherwise the per-shape, per-dtype perf heuristic decides.
+    // fp16 uses the WMMA kernel's heuristic, fp32 the FMA/DPP kernel's.
+    if(enabled(MIGRAPHX_ENABLE_WINOGRAD{}))
+        return true;
+    if(x_type == shape::float_type)
+        return winograd_f23_fp32_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
+    return winograd_f23_profitable(w_lens[1], w_lens[0], x_lens[2], x_lens[3], nhwc);
 }
 
 struct find_winograd_f23
@@ -772,9 +870,9 @@ struct find_winograd_f23
             // dim (3 vs 4). MIGRAPHX_WINOGRAD_FP32_SSTORE forces S on (benchmarking).
             // NHWC uses the full U laid out v-innermost so the weight load coalesces
             // (S-store stays NCHW-only).
-            auto x_lens      = input->get_shape().lens();   // [N, C, H, W]
-            auto w_lens      = weights->get_shape().lens(); // [K, C, 3, 3]
-            const bool nhwc  = input->get_shape().strides()[1] == 1;
+            auto x_lens     = input->get_shape().lens();   // [N, C, H, W]
+            auto w_lens     = weights->get_shape().lens(); // [K, C, 3, 3]
+            const bool nhwc = input->get_shape().strides()[1] == 1;
             const bool use_s =
                 not nhwc and (enabled(MIGRAPHX_WINOGRAD_FP32_SSTORE{}) or
                               winograd_f23_use_sstore(w_lens[1], w_lens[0], x_lens[2], x_lens[3]));
@@ -786,7 +884,7 @@ struct find_winograd_f23
             const auto out_c  = w_lens[0];
             const auto in_c   = w_lens[1];
             const bool vinner = nhwc and out_c >= 128 and in_c <= out_c;
-            auto u_lit        = use_s ? compute_winograd_weights_f23_fp32_S(w_arg)
+            auto u_lit        = use_s ? compute_winograd_weights_f23_fp32_sstore(w_arg)
                                       : compute_winograd_weights_f23_fp32(w_arg, vinner);
             m.replace_instruction(
                 ins, winograd_conv{false, out_layout}, input, m.add_literal(u_lit));

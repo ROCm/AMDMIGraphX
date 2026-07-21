@@ -28,10 +28,11 @@
 #include <migraphx/generate.hpp>
 #include <migraphx/make_op.hpp>
 
-// fp32 F(2,3) winograd (the FMA/DPP kernel, gated on MIGRAPHX_ENABLE_WINOGRAD).
-// Odd spatial size exercises the boundary tiles (halo padding); the channel
-// count is not a multiple of the per-lane output block so the partial-KO store
-// path is covered. Without the env var this validates the default lowering.
+// fp32 F(2,3) winograd (the FMA/DPP kernel). This 20->36 @15x15 conv is selected
+// by the fp32 winograd heuristic, so it exercises the kernel by default. Odd
+// spatial size exercises the boundary tiles (halo padding); the channel count is
+// not a multiple of the per-lane output block so the partial-KO store path is
+// covered. MIGRAPHX_DISABLE_WINOGRAD forces the default lowering for comparison.
 struct test_conv_3x3_winograd_fp32 : verify_program<test_conv_3x3_winograd_fp32>
 {
     migraphx::program create_program() const

@@ -39,7 +39,8 @@ MIGRAPHX_GPU_EXPORT hipDeviceProp_t
 make_cross_compile_device_props(const std::string& arch_name,
                                 std::size_t cu_count,
                                 std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024);
+                                std::size_t max_threads_per_block = 1024,
+                                std::size_t wavefront_size        = 0);
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS

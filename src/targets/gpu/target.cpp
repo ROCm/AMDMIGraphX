@@ -302,7 +302,8 @@ migraphx::context target::get_context() const
                        gpu_num_cu,
                        gpu_num_chiplets,
                        gpu_max_threads_per_cu,
-                       gpu_max_threads_per_block);
+                       gpu_max_threads_per_block,
+                       gpu_wavefront_size);
     return context(gpu::get_device_id());
 }
 

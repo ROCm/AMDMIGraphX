@@ -49,7 +49,8 @@ namespace migraphx {
 // plain per-lane FMA accumulation with no cross-lane traffic. Only the input
 // and output transforms need to cross the v axis, and those use intra-quad
 // cross-lane shuffles (DPP for the input transform, ds_swizzle/bpermute for the
-// output) -- no shared memory (LDS) is allocated.
+// output). The base contraction uses no shared memory (LDS); only the optional
+// SK>1 channel-split reduce allocates any.
 //
 // Transforms (canonical Lavin-Gray F(2,3)):
 //   B^T = | 1  0 -1  0 |   A^T = | 1  1  1  0 |   G = | 1    0    0   |
@@ -76,13 +77,6 @@ __device__ inline float wino_fp32_load(__amdgpu_buffer_rsrc_t rsrc, int byte_off
 {
     uint32_t v = __builtin_amdgcn_raw_buffer_load_b32(rsrc, byte_offset, 0, 0);
     return bit_cast<float>(v);
-}
-
-// 4 contiguous fp32 (b128). gfx12 buffer loads tolerate 4-byte alignment.
-__device__ inline vec<float, 4> wino_fp32_load4(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
-{
-    auto v = __builtin_amdgcn_raw_buffer_load_b128(rsrc, byte_offset, 0, 0);
-    return bit_cast<vec<float, 4>>(v);
 }
 
 // CU contiguous fp32: b128 (CU=4), b64 (CU=2), or b32 (CU=1). The channel-unroll
@@ -253,6 +247,9 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     auto x_rsrc                 = wino_fp32_make_rsrc(x.data(), x_byte_count);
     const int32_t x_oob         = static_cast<int32_t>(x_byte_count);
     const index_int c_stride_x  = x_str[1];
+    // The NHWC path assumes the channel axis is innermost (packed, per-channel
+    // step 1 float); the JIT sets NHWC from strides()[1] == 1.
+    MIGRAPHX_ASSERT(not NHWC or c_stride_x == 1);
 
     const auto w_str            = w_shape.strides; // {su, sv, sk, sc}
     const uint32_t w_byte_count = static_cast<uint32_t>(w_shape.element_space()) * sizeof(float);
@@ -599,27 +596,24 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
             });
         });
         __syncthreads();
-        if(wave_sk_part == 0)
+        // Only wave_sk_part==0 sums the SK partials and writes back; the others are
+        // done once they have synced.
+        if(wave_sk_part != 0)
+            return;
+        for(index_int s = 1; s < SK; ++s)
         {
-            for(index_int s = 1; s < SK; ++s)
-            {
-                const index_int s_base = ((wave_nt_idx * SK + s) * 32 + lane) * m_per_lane;
-                repeat_c<4>([&](auto uu) {
-                    constexpr index_int u = uu;
-                    repeat_c<TILES>([&](auto tt) {
-                        constexpr index_int t = tt;
-                        repeat_c<KO>([&](auto kk) {
-                            constexpr index_int k   = kk;
-                            constexpr index_int off = u * (TILES * KO) + t * KO + k;
-                            m[u][t][k] += m_reduce[s_base + off];
-                        });
+            const index_int s_base = ((wave_nt_idx * SK + s) * 32 + lane) * m_per_lane;
+            repeat_c<4>([&](auto uu) {
+                constexpr index_int u = uu;
+                repeat_c<TILES>([&](auto tt) {
+                    constexpr index_int t = tt;
+                    repeat_c<KO>([&](auto kk) {
+                        constexpr index_int k   = kk;
+                        constexpr index_int off = u * (TILES * KO) + t * KO + k;
+                        m[u][t][k] += m_reduce[s_base + off];
                     });
                 });
-            }
-        }
-        else
-        {
-            return; // only wave_sk_part==0 writes back
+            });
         }
     }
 

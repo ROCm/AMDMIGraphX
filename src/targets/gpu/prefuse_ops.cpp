@@ -428,6 +428,11 @@ literal compute_winograd_weights_f23(const argument& w_arg, bool full_transform)
     return literal{w_shape, data};
 }
 
+// Winograd F(2,3) filter matrix G (4x3): rows [1,0,0], [.5,.5,.5], [.5,-.5,.5],
+// [0,0,1]. Shared by the fp32 full-U and S-store weight transforms below.
+constexpr std::array<std::array<float, 3>, 4> winograd_f23_gmat{
+    {{1.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+
 // Precompute the FULL Winograd filter transform U = G g G^T for the fp32 FMA/DPP
 // kernel, stored as an [4, 4, K, C] literal (indices u, v, k, c; C innermost).
 // The fp32 kernel does not transform the weight in-kernel (unlike the fp16
@@ -453,11 +458,8 @@ literal compute_winograd_weights_f23_fp32(const argument& w_arg, bool vinner = f
         return vinner ? u_shape.index({u, k, c, v}) : u_shape.index({u, v, k, c});
     };
 
-    // G (4x3): rows [1,0,0], [.5,.5,.5], [.5,-.5,.5], [0,0,1].
-    constexpr std::array<std::array<float, 3>, 4> gmat{
-        {{1.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
-
     std::vector<float> data(u_shape.elements(), 0.0f);
+    const auto& gmat = winograd_f23_gmat;
     w_arg.visit([&](auto w_view) {
         dfor(out_c, in_c)([&](auto k, auto c) {
             float g[3][3];
@@ -483,7 +485,8 @@ literal compute_winograd_weights_f23_fp32(const argument& w_arg, bool vinner = f
 // [3, 4, K, C] (i, v, k, c; C innermost). This is 12 values/(k,c) vs full U's 16
 // (25% less weight DRAM), and each lane loads only its v_col's 3 values (vs 4 for
 // U). The kernel finishes U = G S with a register-only u-transform (u lives in
-// registers, so no cross-lane traffic -- unlike the T-store's v-transform). The
+// registers, so no cross-lane traffic -- unlike a u-half g-store, which would
+// leave the kernel a cross-lane v-transform). The
 // v=3 column is negated here to match the input butterfly's d3-d1 sign, exactly
 // as the full-U store does.
 literal compute_winograd_weights_f23_fp32_sstore(const argument& w_arg)
@@ -493,11 +496,8 @@ literal compute_winograd_weights_f23_fp32_sstore(const argument& w_arg)
     auto in_c      = sh.lens()[1];
     shape s_shape{shape::float_type, {3, 4, out_c, in_c}};
 
-    // G (4x3): rows [1,0,0], [.5,.5,.5], [.5,-.5,.5], [0,0,1].
-    constexpr std::array<std::array<float, 3>, 4> gmat{
-        {{1.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.5f}, {0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
-
     std::vector<float> data(s_shape.elements(), 0.0f);
+    const auto& gmat = winograd_f23_gmat;
     w_arg.visit([&](auto w_view) {
         dfor(out_c, in_c)([&](auto k, auto c) {
             float g[3][3];
@@ -696,8 +696,9 @@ bool winograd_f23_use_sstore(std::size_t in_ch,
 // Measured per-shape overrides for the fp32 F(2,3) heuristic below: exact
 // (C, K, H, W) convs where the smooth rule mispredicts winograd-vs-MLIR (gfx1201
 // fp32, exhaustive-tune, using whichever weight store the kernel auto-selects).
-// The high-channel spatial-16..32 band is micro-architecturally non-monotonic
-// (S-store flips some but not neighbours), so it needs a table like the fp16 path.
+// Two groups need a table (like the fp16 path): high-channel square convs in the
+// spatial-16..32 band where S-store flips some but not their neighbours, and
+// awkward-out_ch convs at large spatial (see the per-entry notes below).
 // Reuses winograd_f23_shape (same C/K/H/W + use_winograd fields as the fp16 table).
 constexpr std::array<winograd_f23_shape, 4> winograd_f23_fp32_overrides{{
     // Exact-square high-channel convs at their native spatial: rocBLAS/MLIR is
@@ -858,10 +859,10 @@ struct find_winograd_f23
         // the op is a drop-in replacement (no surrounding transpose changes).
         auto out_layout = find_permutation(ins->get_shape());
 
-        // fp32 uses the FMA/DPP kernel with the full G g G^T weight; fp16 uses
-        // the WMMA kernel with the T or g weight store. full_transform is unused
-        // for fp32 (precision is derived from the input type); false is just the
-        // required ctor argument.
+        // fp32 uses the FMA/DPP kernel with the host-transformed weight (full U, or
+        // the S-store half selected below); fp16 uses the WMMA kernel with the T or
+        // g weight store. full_transform is unused for fp32 (precision is derived
+        // from the input type); false is just the required ctor argument.
         if(input->get_shape().type() == shape::float_type)
         {
             // Pick the weight encoding: S-store (v-half g*G^T [3,4,K,C], 25% less
@@ -870,9 +871,9 @@ struct find_winograd_f23
             // dim (3 vs 4). MIGRAPHX_WINOGRAD_FP32_SSTORE forces S on (benchmarking).
             // NHWC uses the full U laid out v-innermost so the weight load coalesces
             // (S-store stays NCHW-only).
-            auto x_lens     = input->get_shape().lens();   // [N, C, H, W]
-            auto w_lens     = weights->get_shape().lens(); // [K, C, 3, 3]
-            const bool nhwc = input->get_shape().strides()[1] == 1;
+            const auto& x_lens = input->get_shape().lens();   // [N, C, H, W]
+            const auto& w_lens = weights->get_shape().lens(); // [K, C, 3, 3]
+            const bool nhwc    = input->get_shape().strides()[1] == 1;
             const bool use_s =
                 not nhwc and (enabled(MIGRAPHX_WINOGRAD_FP32_SSTORE{}) or
                               winograd_f23_use_sstore(w_lens[1], w_lens[0], x_lens[2], x_lens[3]));

@@ -53,7 +53,7 @@ static std::string post_input_cast(const module& pm)
     auto x0 = pm.get_parameter("x0");
     if(x0 == pm.end())
         return "half";
-    const std::string base = shape::cpp_type(x0->get_shape().type());
+    std::string base = shape::cpp_type(x0->get_shape().type());
     // Only treat a *leading* convert as the post-op's compute type, i.e. when
     // the conv result feeds exactly one op and that op is a convert to a type
     // wider than the conv output. A convert that appears later (after an
@@ -162,8 +162,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const auto cu = v.get("cu", std::size_t{4});
         // S-store: the winograd weight literal is the v-half-transformed S=[3,4,K,C]
         // (dim0==3) rather than the full U=[4,4,K,C] (dim0==4); the kernel finishes
-        // the register-only G u-transform, trading 3/4 the weight loads+bytes for a
-        // few register FMAs (for weight-bandwidth-bound shapes).
+        // the register-only G u-transform, cutting the weight loads+bytes to 3/4
+        // (dim0 3 vs 4) for a few register FMAs (for weight-bandwidth-bound shapes).
         const bool sstore = inputs.at(1).lens().at(0) == 3;
         // NHWC: the conv input has its channel axis innermost (stride 1), so the
         // kernel loads CU contiguous channels with one b128 instead of CU b32.
@@ -303,8 +303,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         tc.problem  = to_value(shapes);
 
         // fp32 FMA/DPP configs: nw (waves), ko (out-channels/lane), tiles
-        // (winograd tiles/quad). ko*tiles is kept in ~16-32 (accumulators/lane =
-        // 4*ko*tiles = 64-128) to bound register spilling.
+        // (winograd tiles/quad). ko*tiles is kept <= 32 (accumulators/lane =
+        // 4*ko*tiles <= 128) to bound register spilling.
         if(shapes.front().type() == shape::float_type)
         {
             // Larger ko amortizes the (out-channel-independent) input transform
@@ -352,7 +352,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
             // (small nt_total): on tile-rich shapes the plain path already fills
             // the machine, and offering sk configs there only adds tuner noise.
             const auto& out_lens = shapes.back().lens();
-            const auto nt_total  = out_lens[0] * ((out_lens[2] + 1) / 2) * ((out_lens[3] + 1) / 2);
+            assert(out_lens.size() == 4);
+            const auto nt_total = out_lens[0] * ((out_lens[2] + 1) / 2) * ((out_lens[3] + 1) / 2);
             if(nt_total < 256)
             {
                 tc.solutions.push_back({{"nw", 4}, {"ko", 8}, {"tiles", 1}, {"sk", 2}});

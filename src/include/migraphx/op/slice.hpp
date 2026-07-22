@@ -74,6 +74,8 @@ struct slice
                                ends_axes_input,
                                starts_ends_axes_input);
 
+    friend std::ostream& operator<<(std::ostream& os, slice_mode v) { return os << to_string(v); }
+
     std::vector<int64_t> axes{};
     std::vector<dim_like> starts{};
     std::vector<dim_like> ends{};
@@ -132,6 +134,18 @@ struct slice
     void check_inputs_and_attributes(std::vector<shape> inputs) const
     {
         auto input_shape = inputs[0];
+        // All set (non-empty) bound attributes must agree on the number of sliced axes.
+        // A variable (input-provided) bound leaves its attribute empty, so empty attrs are skipped.
+        std::size_t attr_size = 0;
+        for(auto s : {axes.size(), starts.size(), ends.size()})
+        {
+            if(s == 0)
+                continue;
+            if(attr_size == 0)
+                attr_size = s;
+            else if(s != attr_size)
+                MIGRAPHX_THROW("SLICE: set starts/ends/axes attributes must have the same length");
+        }
         if(inputs.size() == 1)
         {
             if(any_sym(starts) or any_sym(ends))
@@ -149,19 +163,40 @@ struct slice
             .same_dims();
         if(inputs.size() == 2)
         {
-            std::vector<slice_mode> two_input_modes = {
-                slice_mode::starts_input, slice_mode::ends_input, slice_mode::axes_input};
-            if(not contains(two_input_modes, mode))
+            std::vector<slice_mode> two_input_modes_not_axes = {slice_mode::starts_input, slice_mode::ends_input};
+            if(contains(two_input_modes_not_axes, mode))
+            {
+                if(inputs[1].lens()[0] != axes.size())
+                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(axes.size()) + ")");
+            }
+            else if(mode == slice_mode::axes_input)
+            {
+                if(inputs[1].lens()[0] != starts.size())
+                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(starts.size()) + ")");
+            }
+            else
             {
                 MIGRAPHX_THROW("SLICE: Invalid mode for 2 inputs");
             }
         }
         else if(inputs.size() == 3)
         {
-            std::vector<slice_mode> three_input_modes = {slice_mode::starts_ends_input,
-                                                         slice_mode::starts_axes_input,
-                                                         slice_mode::ends_axes_input};
-            if(not contains(three_input_modes, mode))
+            if(mode == slice_mode::starts_ends_input)
+            {
+                if(inputs[1].lens()[0] != axes.size())
+                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(axes.size()) + ")");
+            }
+            else if(mode == slice_mode::starts_axes_input)
+            {
+                if(inputs[1].lens()[0] != ends.size())
+                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(ends.size()) + ")");
+            }
+            else if(mode == slice_mode::ends_axes_input)
+            {
+                if(inputs[1].lens()[0] != starts.size())
+                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(starts.size()) + ")");
+            }
+            else
             {
                 MIGRAPHX_THROW("SLICE: Invalid mode for 3 inputs");
             }
@@ -227,7 +262,8 @@ struct slice
     // static when fully fixed (slice is a view).
     shape symbolic_compute_shape(const shape& s) const
     {
-        assert(starts.size() == axes.size() and ends.size() == axes.size());
+        if(starts.size() != axes.size() or ends.size() != axes.size())
+            MIGRAPHX_THROW("SLICE: Attribute sizes do not match for symbolic_compute_shape()");
         auto sym_in      = s.to_symbolic();
         auto dds         = sym_in.dyn_dims();
         auto start_exprs = to_sym_exprs(starts);
@@ -396,13 +432,16 @@ struct slice
         else
         {
             std::unordered_map<std::string, std::vector<int64_t>> norm_inputs;
+            // Attribute-provided dims are passed as their concrete int values (via to_ints) so they
+            // are re-normalized/clamped against the runtime input shape, just like the runtime
+            // inputs. Symbolic bounds only ever appear on the input-provided dims.
             if(mode == slice_mode::starts_input)
             {
                 args[1].visit([&](auto starts_input) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
                                                    starts_input.template to_vector<int64_t>(),
-                                                   this->ends,
+                                                   to_ints(this->ends),
                                                    this->axes);
                 });
             }
@@ -411,7 +450,7 @@ struct slice
                 args[1].visit([&](auto ends_input) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
-                                                   this->starts,
+                                                   to_ints(this->starts),
                                                    ends_input.template to_vector<int64_t>(),
                                                    this->axes);
                 });
@@ -421,8 +460,8 @@ struct slice
                 args[1].visit([&](auto axes_input) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
-                                                   this->starts,
-                                                   this->ends,
+                                                   to_ints(this->starts),
+                                                   to_ints(this->ends),
                                                    axes_input.template to_vector<int64_t>());
                 });
             }
@@ -443,7 +482,7 @@ struct slice
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
                                                    starts_input.template to_vector<int64_t>(),
-                                                   this->ends,
+                                                   to_ints(this->ends),
                                                    axes_input.template to_vector<int64_t>());
                 });
             }
@@ -452,7 +491,7 @@ struct slice
                 visit_all(args[1], args[2])([&](auto ends_input, auto axes_input) {
                     norm_inputs =
                         normalize_starts_ends_axes(input_shape,
-                                                   this->starts,
+                                                   to_ints(this->starts),
                                                    ends_input.template to_vector<int64_t>(),
                                                    axes_input.template to_vector<int64_t>());
                 });

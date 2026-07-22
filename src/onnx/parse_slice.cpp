@@ -54,7 +54,7 @@ struct parse_slice : op_parser<parse_slice>
         std::vector<dim_like> ends;
         std::vector<int64_t> steps;
         std::vector<int64_t> raxes;
-        slice_input_flags flags;
+        slice_input_flags flags = slice_input_flags::none;
 
         void always_insert(instruction_ref arg) { op_args.insert(op_args.begin(), arg); }
 
@@ -175,7 +175,11 @@ struct parse_slice : op_parser<parse_slice>
         else if(contains(info.attributes, "ends"))
         {
             literal s = parser.parse_value(info.attributes.at("ends"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(sd.ends)); });
+            s.visit([&](auto v) {
+                std::transform(v.begin(), v.end(), std::back_inserter(sd.ends), [](auto e) {
+                    return static_cast<int64_t>(e);
+                });
+            });
         }
 
         if(args.size() >= 2)
@@ -188,7 +192,11 @@ struct parse_slice : op_parser<parse_slice>
         else if(contains(info.attributes, "starts"))
         {
             literal s = parser.parse_value(info.attributes.at("starts"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(sd.starts)); });
+            s.visit([&](auto v) {
+                std::transform(v.begin(), v.end(), std::back_inserter(sd.starts), [](auto e) {
+                    return static_cast<int64_t>(e);
+                });
+            });
         }
 
         // data input argument

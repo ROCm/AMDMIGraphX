@@ -45,6 +45,7 @@ inline auto get_output_path(instruction_ref ins)
 inline auto get_input_path(instruction_ref ins)
 {
     return unfold(ins, [](instruction_ref x) -> std::optional<instruction_ref> {
+        // Follow only linear input chains; branches terminate the path.
         if(x->inputs().size() != 1)
             return std::nullopt;
         return x->inputs().front();

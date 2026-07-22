@@ -157,17 +157,15 @@ struct hip_copy_to_gpu
     }
     argument compute(context& ctx, const shape&, const std::vector<argument>& args) const
     {
-        auto input = register_on_gpu(args[0]);
         if(args.size() == 1)
-            return input;
+            return register_on_gpu(args[0]);
         argument result = args[1].share();
         if(result.get_shape().dynamic())
         {
             result = result.reshape(args[0].get_shape());
         }
-        gpu_copy(ctx, input, result);
-        // Associate the input since it was registered with hip
-        return {result.get_shape(), [input, result]() mutable { return result.data(); }};
+        copy_to_gpu(ctx, args[0], result);
+        return result;
     }
     std::vector<std::size_t> output_alias(const std::vector<shape>& args) const
     {

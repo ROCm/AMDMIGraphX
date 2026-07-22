@@ -33,6 +33,7 @@
 #include <migraphx/gpu/hip.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <test.hpp>
+#include <algorithm>
 
 static void run_pass(migraphx::module& m)
 {
@@ -119,6 +120,51 @@ TEST_CASE(lower_hip_copy_dynamic_noop)
     auto expected = m;
     run_pass(m);
     EXPECT(m == expected);
+}
+
+static migraphx::module
+make_concat_precompile_module(const std::vector<migraphx::shape>& input_shapes,
+                              migraphx::shape output_shape,
+                              std::size_t axis)
+{
+    migraphx::module m;
+    std::vector<migraphx::instruction_ref> params;
+    params.reserve(input_shapes.size());
+    for(const auto& s : input_shapes)
+        params.push_back(m.add_parameter("x" + std::to_string(params.size()), s));
+    auto alloc = m.add_instruction(
+        migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(output_shape)}}));
+    params.push_back(alloc);
+    m.add_return(
+        {m.add_instruction(precompile(migraphx::make_op("concat", {{"axis", axis}}), 1), params)});
+    return m;
+}
+
+static std::size_t count_instructions(const migraphx::module& m, const std::string& name)
+{
+    return std::count_if(m.begin(), m.end(), [&](const auto& ins) { return ins.name() == name; });
+}
+
+TEST_CASE(lower_dynamic_concat_inserts_copy_to_gpu)
+{
+    migraphx::shape x{migraphx::shape::float_type, {{1, 4}, {3, 3}}};
+    migraphx::shape y{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
+    migraphx::shape out{migraphx::shape::float_type, {{3, 8}, {3, 3}}};
+
+    auto m = make_concat_precompile_module({x, y}, out, 0);
+    run_pass(m);
+    EXPECT(count_instructions(m, "hip::copy_to_gpu") == 2);
+}
+
+TEST_CASE(lower_static_concat_skips_copy_to_gpu)
+{
+    migraphx::shape x{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape y{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape out{migraphx::shape::float_type, {2, 6}};
+
+    auto m = make_concat_precompile_module({x, y}, out, 1);
+    run_pass(m);
+    EXPECT(count_instructions(m, "hip::copy_to_gpu") == 0);
 }
 
 // End-to-end: the hip::fill kernel compiles and fills the buffer in-place.

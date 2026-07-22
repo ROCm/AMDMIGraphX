@@ -34,6 +34,11 @@ struct module;
 
 namespace gpu {
 
+/**
+ * Prepare device memory ops for JIT compilation:
+ * 1. Insert hip::copy_to_gpu for host inputs to dynamic concat kernels.
+ * 2. Lower hip::fill, hip::copy, and gpu::contiguous to gpu::precompile_op.
+ */
 struct MIGRAPHX_GPU_EXPORT lower_device_ops
 {
     std::string name() const { return "gpu::lower_device_ops"; }

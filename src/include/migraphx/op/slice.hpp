@@ -132,13 +132,6 @@ struct slice
     void check_inputs_and_attributes(std::vector<shape> inputs) const
     {
         auto input_shape = inputs[0];
-        if(axes.size() != starts.size() or starts.size() != ends.size())
-            MIGRAPHX_THROW("SLICE: Invalid attributes configuration. Not the same number of "
-                           "dimensions. axes: " +
-                           migraphx::to_string(axes.size()) +
-                           " starts: " + migraphx::to_string(starts.size()) +
-                           " ends: " + migraphx::to_string(ends.size()));
-
         if(inputs.size() == 1)
         {
             if(any_sym(starts) or any_sym(ends))
@@ -147,19 +140,13 @@ struct slice
                 MIGRAPHX_THROW("SLICE: Invalid mode for 1 input");
             return;
         }
-        // check that inputs [1, end) are all 1D, have the same dimension, and are static
+        // Check that inputs [1, end) are all 1D, have the same dimension, and are static shape.
         check_shapes{inputs.begin() + 1,
                      inputs.end(),
                      std::string("SLICE: inputs (starts_input, ends_input, axes_input)"),
                      false}
             .only_dims(1)
             .same_dims();
-        if(inputs.at(1).lens().at(0) != axes.size())
-        {
-            MIGRAPHX_THROW("SLICE: varable input and attributes mismatch: input[1] length (" +
-                           to_string(inputs[1].lens().at(0)) +
-                           ") != attribute number of dimensions (" + to_string(axes.size()) + ")");
-        }
         if(inputs.size() == 2)
         {
             std::vector<slice_mode> two_input_modes = {
@@ -189,6 +176,53 @@ struct slice
         return;
     }
 
+    // TODO: remove this once range-based dynamic shapes are deprecated
+    bool use_range_based_logic() const
+    {
+        if(mode == slice_mode::starts_input and starts.empty())
+            return true;
+        else if(mode == slice_mode::ends_input and ends.empty())
+            return true;
+        else if(mode == slice_mode::axes_input and axes.empty())
+            return true;
+        else if(mode == slice_mode::starts_ends_input and starts.empty() and ends.empty())
+            return true;
+        else if(mode == slice_mode::starts_axes_input and starts.empty() and axes.empty())
+            return true;
+        else if(mode == slice_mode::ends_axes_input and ends.empty() and axes.empty())
+            return true;
+        else if(mode == slice_mode::starts_ends_axes_input and starts.empty() and ends.empty() and axes.empty())
+            return true;
+        else
+            return false;
+    }
+
+    // For when there is a variable input and the associated attribute is not set.
+    // ex: slice(data, starts) starts = {}, ends = {2, 3}, axes = {0, 1}
+    // TODO: remove this once range-based dynamic shapes are deprecated
+    shape range_based_compute_shape_for_two_or_more(shape input_shape) const
+    {
+        auto dds = input_shape.to_dynamic().dyn_dims();
+        static std::vector<slice_mode> has_axes_input = {
+            slice_mode::axes_input,
+            slice_mode::starts_axes_input,
+            slice_mode::ends_axes_input,
+            slice_mode::starts_ends_axes_input
+        };
+        if(contains(has_axes_input, mode))
+        {
+            std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
+                return shape::dynamic_dimension{0, dd.get_interval().max};
+            });
+        }
+
+        std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
+                dds.at(axis) = {0, dds.at(axis).get_interval().max};
+        });
+        return shape{input_shape.type(), dds};
+    }
+
+
     // Static and symbolic inputs share this path; the result is demoted back to
     // static when fully fixed (slice is a view).
     shape symbolic_compute_shape(const shape& s) const
@@ -211,17 +245,13 @@ struct slice
     {
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
         check_inputs_and_attributes(inputs);
-        auto input_shape = inputs[0];
-        // fallback for range-based dynamic shapes. Only handling 1 arg case.
-        if(input_shape.dynamic() and not input_shape.symbolic())
+        auto input_shape    = inputs[0];
+        if(inputs.size() == 1 and input_shape.dynamic() and not input_shape.symbolic())
         {
-            if(inputs.size() != 1)
-            {
-                MIGRAPHX_THROW(
-                    "SLICE: range-based dynamic input shapes with variable inputs unsupported.");
-            }
+            // Fallback for range-based dynamic shapes.
             // Non-fixed sliced axis: bounds aren't normalized (can be negative or
             // out-of-bounds), so use a relaxed [0, max] bound. (#5015)
+            // TODO: remove this once range-based dynamic shapes are deprecated
             if(std::any_of(axes.begin(), axes.end(), [&](auto axis) {
                    return not input_shape.dyn_dims()[axis].is_fixed();
                }))
@@ -238,8 +268,15 @@ struct slice
                 dds[axis] = shape::dynamic_dimension{new_lens[axis], new_lens[axis]};
             return shape{input_shape.type(), dds};
         }
-
-        return symbolic_compute_shape(input_shape);
+        else if(inputs.size() > 1 and use_range_based_logic())
+        {
+            // TODO: remove this once range-based dynamic shapes are deprecated
+            return range_based_compute_shape_for_two_or_more(input_shape);
+        }
+        else
+        {
+            return symbolic_compute_shape(input_shape);
+        }
     }
 
     /// Calculates the starting offset for the sliced tensor.

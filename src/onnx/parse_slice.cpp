@@ -175,7 +175,7 @@ struct parse_slice : op_parser<parse_slice>
         else if(contains(info.attributes, "ends"))
         {
             literal s = parser.parse_value(info.attributes.at("ends"));
-            s.visit([&](auto v) { copy(v, std::back_inserter(sd.starts)); });
+            s.visit([&](auto v) { copy(v, std::back_inserter(sd.ends)); });
         }
 
         if(args.size() >= 2)

@@ -445,11 +445,7 @@ foreach(py_file ${backend_files})
 endforeach(py_file)
 
 if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
-    # TheRock versioned packaging (RFC0009-OS-Packaging-Requirements):
-    #   Versioned (installed by meta-package): amdrocm-{component}{MAJOR.MINOR}[-{gpu_arch}]
-    #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
-    # We target versioned names to match what install_rocm_packages.sh actually installs.
-    # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
+    # TheRock packaging (RFC0009).
     set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
     set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
@@ -457,11 +453,8 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
 Semicolon-separated list (e.g. gfx90a;gfx942;gfx950) for per-GPU deps, \
 or empty for device-all meta-package deps.")
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
+    set(_MGX_PKG_NAME "amdrocm-migraphx")
     if(MIGRAPHX_THEROCK_GPU_ARCH)
-        # Per-arch meta packages: base 'migraphx' stays arch-neutral; each arch
-        # gets a 'migraphx-gfxNNN' meta hard-depending on base + that arch's
-        # amdrocm-* libs, and 'migraphx-all' composes them all.
-        # Placeholder file: CPack won't emit a component with no files.
         set(_MGX_META_DOC "${CMAKE_CURRENT_BINARY_DIR}/migraphx-meta-README.txt")
         file(WRITE "${_MGX_META_DOC}" "MIGraphX meta package.\n")
         set(_MGX_ARCH_COMPONENTS "")
@@ -474,27 +467,25 @@ or empty for device-all meta-package deps.")
                 list(APPEND _MGX_GPU_DEPS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
             endif()
             rocm_package_setup_component(${mgx_gpu_arch}
-                LIBRARY_NAME migraphx
+                LIBRARY_NAME ${_MGX_PKG_NAME}
                 PACKAGE_NAME ${mgx_gpu_arch}
                 DEPENDS
                     COMPONENT runtime
                     COMMON ${_MGX_GPU_DEPS})
             install(FILES ${_MGX_META_DOC}
-                    DESTINATION share/doc/migraphx-${mgx_gpu_arch}
+                    DESTINATION share/doc/${_MGX_PKG_NAME}-${mgx_gpu_arch}
                     COMPONENT ${mgx_gpu_arch})
             list(APPEND _MGX_ARCH_COMPONENTS ${mgx_gpu_arch})
         endforeach()
-        # migraphx-all: base + every per-arch meta.
         rocm_package_setup_component(all
-            LIBRARY_NAME migraphx
+            LIBRARY_NAME ${_MGX_PKG_NAME}
             PACKAGE_NAME all
             DEPENDS
                 COMPONENT runtime ${_MGX_ARCH_COMPONENTS})
         install(FILES ${_MGX_META_DOC}
-                DESTINATION share/doc/migraphx-all
+                DESTINATION share/doc/${_MGX_PKG_NAME}-all
                 COMPONENT all)
     else()
-        # No arch list: base depends on the device-all meta packages (full set).
         if(MIGRAPHX_USE_MIOPEN)
             list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}")
         endif()
@@ -508,7 +499,8 @@ or empty for device-all meta-package deps.")
     # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
     set(ROCM_DEP_ROCMCORE OFF)
 else()
-    # Default ROCm (default for ROCM packaging)
+    # Legacy ROCm packaging.
+    set(_MGX_PKG_NAME "MIGraphX")
     if(BUILD_ADDRESS_SANITIZER)
         set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan")
     else()
@@ -528,7 +520,7 @@ else()
 endif()
 
 rocm_create_package(
-    NAME MIGraphX
+    NAME ${_MGX_PKG_NAME}
     DESCRIPTION "AMD graph optimizer"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG

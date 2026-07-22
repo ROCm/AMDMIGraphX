@@ -51,7 +51,9 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
             auto num_selected =
                 info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), nms_ins);
             return info.add_instruction(
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}}), indices, num_selected);
+                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"mode", "ends_input"}}),
+                indices,
+                num_selected);
         }
         else
         {

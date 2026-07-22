@@ -154,6 +154,18 @@ struct find_static_2in_broadcasts : match::supports_dynamic_shapes
     }
 };
 
+// Matches a slice whose set starts/ends bounds are all concrete ints (no
+// symbolic dim_like bounds), so the const-input rewrites can read them as ints.
+MIGRAPHX_PRED_MATCHER(slice_concrete_bounds, instruction_ref ins)
+{
+    if(ins->name() != "slice")
+        return false;
+    auto slice_op = any_cast<op::slice>(ins->get_operator());
+    auto is_int   = [](const dim_like& d) { return std::holds_alternative<int64_t>(d); };
+    return std::all_of(slice_op.starts.begin(), slice_op.starts.end(), is_int) and
+           std::all_of(slice_op.ends.begin(), slice_op.ends.end(), is_int);
+}
+
 /**
  * Simplify slice with 2 inputs to the 1 input version if inputs[1] is constant.
  * From:
@@ -165,32 +177,32 @@ struct find_const_2in_slice : match::supports_dynamic_shapes
 {
     auto matcher() const
     {
-        return match::name("slice")(match::nargs(2), match::arg(1)(match::is_constant()));
+        return match::name("slice")(
+            match::nargs(2), match::arg(1)(match::is_constant()), slice_concrete_bounds());
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins       = mr.result;
-        auto inputs    = ins->inputs();
-        auto slice_op  = any_cast<op::slice>(ins->get_operator());
-        auto set_attrs = slice_op.get_set_attributes();
+        auto ins      = mr.result;
+        auto inputs   = ins->inputs();
+        auto slice_op = any_cast<op::slice>(ins->get_operator());
         std::vector<int64_t> starts_vec;
         std::vector<int64_t> ends_vec;
         std::vector<int64_t> axes_vec;
-        if(set_attrs == op::slice::ends_axes)
+        if(slice_op.mode == op::slice::slice_mode::starts_input)
         {
             // slice(data, starts)
             inputs.at(1)->eval().visit(
                 [&](auto output) { starts_vec.assign(output.begin(), output.end()); });
-            ends_vec = slice_op.ends;
+            ends_vec = to_ints(slice_op.ends);
             axes_vec = slice_op.axes;
         }
-        else if(set_attrs == op::slice::starts_axes)
+        else if(slice_op.mode == op::slice::slice_mode::ends_input)
         {
             // slice(data, ends)
             inputs.at(1)->eval().visit(
                 [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
-            starts_vec = slice_op.starts;
+            starts_vec = to_ints(slice_op.starts);
             axes_vec   = slice_op.axes;
         }
         else
@@ -198,8 +210,8 @@ struct find_const_2in_slice : match::supports_dynamic_shapes
             // slice(data, axes)
             inputs.at(1)->eval().visit(
                 [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
-            starts_vec = slice_op.starts;
-            ends_vec   = slice_op.ends;
+            starts_vec = to_ints(slice_op.starts);
+            ends_vec   = to_ints(slice_op.ends);
         }
         m.replace_instruction(
             ins,
@@ -221,19 +233,19 @@ struct find_const_3in_slice : match::supports_dynamic_shapes
     {
         return match::name("slice")(match::nargs(3),
                                     match::arg(1)(match::is_constant()),
-                                    match::arg(2)(match::is_constant()));
+                                    match::arg(2)(match::is_constant()),
+                                    slice_concrete_bounds());
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto ins       = mr.result;
-        auto inputs    = ins->inputs();
-        auto slice_op  = any_cast<op::slice>(ins->get_operator());
-        auto set_attrs = slice_op.get_set_attributes();
+        auto ins      = mr.result;
+        auto inputs   = ins->inputs();
+        auto slice_op = any_cast<op::slice>(ins->get_operator());
         std::vector<int64_t> starts_vec;
         std::vector<int64_t> ends_vec;
         std::vector<int64_t> axes_vec;
-        if(set_attrs == op::slice::axes_only)
+        if(slice_op.mode == op::slice::slice_mode::starts_ends_input)
         {
             // slice(data, starts, ends)
             inputs.at(1)->eval().visit(
@@ -242,14 +254,14 @@ struct find_const_3in_slice : match::supports_dynamic_shapes
                 [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
             axes_vec = slice_op.axes;
         }
-        else if(set_attrs == op::slice::ends_only)
+        else if(slice_op.mode == op::slice::slice_mode::starts_axes_input)
         {
             // slice(data, starts, axes)
             inputs.at(1)->eval().visit(
                 [&](auto output) { starts_vec.assign(output.begin(), output.end()); });
             inputs.at(2)->eval().visit(
                 [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
-            ends_vec = slice_op.ends;
+            ends_vec = to_ints(slice_op.ends);
         }
         else
         {
@@ -258,7 +270,7 @@ struct find_const_3in_slice : match::supports_dynamic_shapes
                 [&](auto output) { ends_vec.assign(output.begin(), output.end()); });
             inputs.at(2)->eval().visit(
                 [&](auto output) { axes_vec.assign(output.begin(), output.end()); });
-            starts_vec = slice_op.starts;
+            starts_vec = to_ints(slice_op.starts);
         }
         m.replace_instruction(
             ins,

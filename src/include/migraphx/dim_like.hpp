@@ -24,14 +24,17 @@
 #ifndef MIGRAPHX_GUARD_MIGRAPHLIB_DIM_LIKE_HPP
 #define MIGRAPHX_GUARD_MIGRAPHLIB_DIM_LIKE_HPP
 
+#include <algorithm>
 #include <cstdint>
 #include <ostream>
 #include <type_traits>
+#include <vector>
 
 #include <migraphx/config.hpp>
 #include <migraphx/picked_variant.hpp>
 #include <migraphx/requires.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -57,6 +60,36 @@ inline std::ostream& operator<<(std::ostream& os, const dim_like& d)
 {
     visit([&](const auto& x) { os << x; }, d);
     return os;
+}
+
+// Extracts the concrete int64_t from each entry; throws (via std::get) if any
+// entry holds a symbolic dynamic_dimension.
+inline std::vector<int64_t> to_ints(const std::vector<dim_like>& dims)
+{
+    std::vector<int64_t> result(dims.size());
+    std::transform(dims.begin(), dims.end(), result.begin(), [](const dim_like& d) {
+        return std::get<int64_t>(d);
+    });
+    return result;
+}
+
+inline std::vector<sym::expr> to_sym_exprs(const std::vector<dim_like>& dims)
+{
+    std::vector<sym::expr> result(dims.size());
+    std::transform(dims.begin(), dims.end(), result.begin(), [](const dim_like& d) -> sym::expr {
+        if(std::holds_alternative<shape::dynamic_dimension>(d))
+            return std::get<shape::dynamic_dimension>(d).sym_expr;
+        return sym::lit(std::get<int64_t>(d));
+    });
+    return result;
+}
+
+// Check if any of the dim_like are a shape::dynamic_dimension.
+inline bool any_sym(const std::vector<dim_like>& dims)
+{
+    return std::any_of(dims.begin(), dims.end(), [](const dim_like& d) {
+        return std::holds_alternative<shape::dynamic_dimension>(d);
+    });
 }
 
 MIGRAPHX_EXPORT void migraphx_to_value(value& v, const dim_like& d);

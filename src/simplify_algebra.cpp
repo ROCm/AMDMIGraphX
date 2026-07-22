@@ -205,8 +205,10 @@ struct find_mul_slice_conv
                auto sop = any_cast<op::slice>(i->get_operator());
                if(sop.axes != slice_op.axes)
                    return true;
-               if(std::max(sop.starts.front(), slice_op.starts.front()) <
-                  std::min(sop.ends.front(), slice_op.ends.front()))
+               if(std::max(std::get<int64_t>(sop.starts.front()),
+                           std::get<int64_t>(slice_op.starts.front())) <
+                  std::min(std::get<int64_t>(sop.ends.front()),
+                           std::get<int64_t>(slice_op.ends.front())))
                    return true;
                return false;
            }))
@@ -223,17 +225,19 @@ struct find_mul_slice_conv
         auto new_mul = m.insert_instruction(ins, make_op("mul"), new_a, slice_w_ins);
 
         std::vector<instruction_ref> sliced_weights;
-        if(slice_op.starts.front() != 0)
+        if(std::get<int64_t>(slice_op.starts.front()) != 0)
             sliced_weights.push_back(m.insert_instruction(
                 ins,
-                make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"ends", slice_op.starts}}),
+                make_op("slice",
+                        {{"axes", {0}}, {"starts", {0}}, {"ends", to_ints(slice_op.starts)}}),
                 w_ins));
         sliced_weights.push_back(new_mul);
         int64_t end_axis = w_ins->get_shape().lens().at(0);
-        if(slice_op.ends.front() != end_axis)
+        if(std::get<int64_t>(slice_op.ends.front()) != end_axis)
             sliced_weights.push_back(m.insert_instruction(
                 ins,
-                make_op("slice", {{"axes", {0}}, {"starts", slice_op.ends}, {"ends", {end_axis}}}),
+                make_op("slice",
+                        {{"axes", {0}}, {"starts", to_ints(slice_op.ends)}, {"ends", {end_axis}}}),
                 w_ins));
 
         auto new_weights =
@@ -1388,11 +1392,12 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
     auto get_end   = [&](auto& i) -> auto& { return get_slice(i).ends; };
 
     // Sort the "slice" instructions in order of starts
-    std::sort(
-        result.begin(), result.end(), [&](auto x, auto y) { return get_start(x) < get_start(y); });
-    if(std::any_of(get_start(result.front()).begin(), get_start(result.front()).end(), [&](auto i) {
-           return i != 0;
-       }))
+    std::sort(result.begin(), result.end(), [&](auto x, auto y) {
+        return to_ints(get_start(x)) < to_ints(get_start(y));
+    });
+    if(std::any_of(get_start(result.front()).begin(),
+                   get_start(result.front()).end(),
+                   [&](const auto& i) { return std::get<int64_t>(i) != 0; }))
         return {};
 
     // one slice must "start" where the last slice "end"
@@ -1403,7 +1408,7 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
     for(std::size_t i = 0; i < axes.size(); i++)
     {
         auto axis = axes[i];
-        if(ins->get_shape().lens()[axis] != get_slice(result.back()).ends[i])
+        if(ins->get_shape().lens()[axis] != std::get<int64_t>(get_slice(result.back()).ends[i]))
             return {};
     }
     return result;
@@ -1778,7 +1783,11 @@ struct find_split_concat
         if(not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {
                auto xop = any_cast<op::slice>(x->get_operator());
                auto yop = any_cast<op::slice>(y->get_operator());
-               return std::tie(xop.starts, xop.ends) < std::tie(yop.starts, yop.ends);
+               auto xs  = to_ints(xop.starts);
+               auto xe  = to_ints(xop.ends);
+               auto ys  = to_ints(yop.starts);
+               auto ye  = to_ints(yop.ends);
+               return std::tie(xs, xe) < std::tie(ys, ye);
            }))
             return;
 
@@ -2496,8 +2505,8 @@ struct find_split_transpose
         for(auto in : split_outputs)
         {
             auto oper    = any_cast<op::slice>(in->get_operator());
-            auto starts  = oper.starts;
-            auto ends    = oper.ends;
+            auto starts  = to_ints(oper.starts);
+            auto ends    = to_ints(oper.ends);
             auto tr_orig = in->outputs().front();
             m.replace_instruction(
                 tr_orig,

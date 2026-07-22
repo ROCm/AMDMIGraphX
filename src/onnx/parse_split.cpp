@@ -68,7 +68,7 @@ static auto parse_dyn_split(const onnx_parser::node_info& info,
         // slice(input, starts = {n * chunk_size}, ends = {(n+1) * chunk_size}); axes =
         // {tuned_axis}
         ret_ins.at(n) = info.add_instruction(
-            make_op("slice", {{"axes", {tuned_axis}}}),
+            make_op("slice", {{"axes", {tuned_axis}}, {"mode", "starts_ends_input"}}),
             args[0],
             info.add_instruction(
                 make_op("mul"), chunk_size, info.add_literal(literal{int64_scalar_shape, {n}})),
@@ -79,7 +79,10 @@ static auto parse_dyn_split(const onnx_parser::node_info& info,
     // last slice: slice(input, starts = {n * chunk_size}); ends = max_int, axes =
     // {tuned_axis}
     ret_ins.at(num_outputs - 1) = info.add_instruction(
-        make_op("slice", {{"axes", {tuned_axis}}, {"ends", {std::numeric_limits<int64_t>::max()}}}),
+        make_op("slice",
+                {{"axes", {tuned_axis}},
+                 {"ends", {std::numeric_limits<int64_t>::max()}},
+                 {"mode", "starts_input"}}),
         args[0],
         info.add_instruction(make_op("mul"),
                              chunk_size,

@@ -36,7 +36,9 @@ static migraphx::instruction_ref add_nms_dynamic_slice(migraphx::module* mm,
     auto idx = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), nms);
     auto cnt = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), nms);
     return mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}}), idx, cnt);
+        migraphx::make_op("slice", {{"axes", {0}}, {"starts", {0}}, {"mode", "ends_input"}}),
+        idx,
+        cnt);
 }
 
 TEST_CASE(nms_dyn_out_test)

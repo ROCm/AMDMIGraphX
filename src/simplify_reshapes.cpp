@@ -663,7 +663,8 @@ struct find_nested_slice
         auto op = any_cast<op::slice>(ins->get_operator());
         for(std::size_t i = 0; i < op.axes.size(); i++)
         {
-            result[op.axes[i]] = std::make_pair(op.starts[i], op.ends[i]);
+            result[op.axes[i]] =
+                std::make_pair(std::get<int64_t>(op.starts[i]), std::get<int64_t>(op.ends[i]));
         }
         return result;
     }
@@ -861,8 +862,8 @@ struct find_concat_slice
         for(const auto& sins : slice_candidates)
         {
             auto sop           = any_cast<op::slice>(sins->get_operator());
-            size_t slice_start = sop.starts.front();
-            size_t slice_len   = sop.ends.front() - slice_start;
+            size_t slice_start = std::get<int64_t>(sop.starts.front());
+            size_t slice_len   = std::get<int64_t>(sop.ends.front()) - slice_start;
             auto fii = std::find_if(prefix_scan.begin(), prefix_scan.end(), [&](const auto& j) {
                 return j == slice_start;
             });
@@ -1291,7 +1292,7 @@ struct find_gather
             return;
 
         const std::size_t axis_index = tune_axis(dlens.size(), gather_op.axis, gather_op.name());
-        const auto axis_len = dlens.at(axis_index);
+        const auto axis_len          = dlens.at(axis_index);
         if(axis_len == 0)
             return;
 
@@ -1820,8 +1821,13 @@ struct find_transpose_slice
     {
         assert(op.starts.size() == op.ends.size());
         std::vector<int64_t> result(op.starts.size());
-        std::transform(
-            op.ends.begin(), op.ends.end(), op.starts.begin(), result.begin(), std::minus<>{});
+        std::transform(op.ends.begin(),
+                       op.ends.end(),
+                       op.starts.begin(),
+                       result.begin(),
+                       [](const auto& e, const auto& s) {
+                           return std::get<int64_t>(e) - std::get<int64_t>(s);
+                       });
         return result;
     }
 
@@ -1846,14 +1852,15 @@ struct find_transpose_slice
                                       sdistance.begin(),
                                       0,
                                       std::plus<>{},
-                                      [&](auto x, auto d) -> uint64_t {
+                                      [&](const auto& x, auto d) -> uint64_t {
                                           if(d == 0)
                                               return 1;
                                           return f(x) % d;
                                       });
         };
+        auto get_int = [](const auto& x) { return std::get<int64_t>(x); };
         if(mod_by_distance(slice.axes, [&](auto x) { return ins->get_shape().lens()[x]; }) != 0 or
-           mod_by_distance(slice.starts, id{}) != 0 or mod_by_distance(slice.ends, id{}) != 0)
+           mod_by_distance(slice.starts, get_int) != 0 or mod_by_distance(slice.ends, get_int) != 0)
             return;
         // TODO: Handle multiple axes
         if(sdistance.size() != 1)
@@ -1891,8 +1898,8 @@ struct find_transpose_slice
         {
             auto op        = any_cast<op::slice>(s->get_operator());
             op.axes        = {0};
-            op.starts      = {op.starts.front() / sdistance.front()};
-            op.ends        = {op.ends.front() / sdistance.front()};
+            op.starts      = {std::get<int64_t>(op.starts.front()) / sdistance.front()};
+            op.ends        = {std::get<int64_t>(op.ends.front()) / sdistance.front()};
             auto slice_ins = m.insert_instruction(ins, op, transpose);
             auto squeeze =
                 m.insert_instruction(ins, make_op("squeeze", {{"axes", {0}}}), slice_ins);

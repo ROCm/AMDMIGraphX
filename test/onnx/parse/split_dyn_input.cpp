@@ -60,7 +60,7 @@ TEST_CASE(split_dyn_input_dyn_split_axis_test)
         mm->add_instruction(migraphx::make_op("add"), split_dim, num_outputs_minus_1_lit),
         num_outputs_lit);
     auto r1 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}}),
+        migraphx::make_op("slice", {{"axes", {0}}, {"mode", "starts_ends_input"}}),
         input,
         mm->add_instruction(migraphx::make_op("mul"),
                             chunk_size,
@@ -69,7 +69,7 @@ TEST_CASE(split_dyn_input_dyn_split_axis_test)
                             chunk_size,
                             mm->add_literal(migraphx::literal{int64_scalar_shape, {1}})));
     auto r2 = mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0}}}),
+        migraphx::make_op("slice", {{"axes", {0}}, {"mode", "starts_ends_input"}}),
         input,
         mm->add_instruction(migraphx::make_op("mul"),
                             chunk_size,
@@ -79,7 +79,9 @@ TEST_CASE(split_dyn_input_dyn_split_axis_test)
                             mm->add_literal(migraphx::literal{int64_scalar_shape, {2}})));
     auto r3 = mm->add_instruction(
         migraphx::make_op("slice",
-                          {{"axes", {0}}, {"ends", {std::numeric_limits<int64_t>::max()}}}),
+                          {{"axes", {0}},
+                           {"ends", {std::numeric_limits<int64_t>::max()}},
+                           {"mode", "starts_input"}}),
         input,
         mm->add_instruction(migraphx::make_op("mul"),
                             chunk_size,

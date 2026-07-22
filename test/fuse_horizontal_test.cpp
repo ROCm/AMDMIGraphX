@@ -35,6 +35,7 @@
 #include <migraphx/generate.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -1303,6 +1304,84 @@ TEST_CASE(hoist_and_dot_fusion_end_to_end)
     // find_splits hoist then collapses into a single pointwise on the bounding
     // slice.
     EXPECT(n_pointwise == 1);
+}
+
+// End to end: a group of independent SwiGLU expert heads -- add(dot(mul(x,
+// sigmoid(x)), W), bias) with constant W/bias -- run through the real pipeline.
+// fuse_pointwise collapses the bias add into a single `pointwise` epilogue over
+// the dot, and expert_head_horizontal_fusion then batches the parallel heads
+// into one GEMM + one pointwise.  This exercises the fused representation the
+// matcher actually keys on, not the raw ops.
+TEST_CASE(expert_head_fusion_pipeline)
+{
+    migraphx::program p;
+    {
+        auto* m = p.get_main_module();
+        std::vector<migraphx::instruction_ref> outs;
+        for(int i = 0; i < 4; ++i)
+        {
+            auto x =
+                m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 8}});
+            auto w = m->add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, i));
+            // Non-scalar bias stays a pointwise input, so the epilogue submodules
+            // stay structurally equal across heads and the group fuses.
+            auto b = m->add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {2, 8}}, 10 + i));
+            auto sig = m->add_instruction(migraphx::make_op("sigmoid"), x);
+            auto mul = m->add_instruction(migraphx::make_op("mul"), x, sig);
+            auto d   = m->add_instruction(migraphx::make_op("dot"), mul, w);
+            outs.push_back(m->add_instruction(migraphx::make_op("add"), d, b));
+        }
+        m->add_return(outs);
+    }
+    run_mlp_pipeline(p);
+
+    std::size_t n_dot = 0;
+    for(auto ins : iterator_for(*p.get_main_module()))
+    {
+        if(ins->name() == "dot")
+            ++n_dot;
+    }
+    // The four per-head epilogue dots collapse into a single batched GEMM.
+    EXPECT(n_dot == 1);
+}
+
+// A pointwise epilogue whose non-dot operand is itself a runtime value (not a
+// constant bias) cannot be folded into a batched epilogue, so expert-head fusion
+// declines it; dot_horizontal_fusion also declines (the dot feeds a pointwise),
+// so the per-head dots stay unbatched.
+TEST_CASE(expert_head_no_fusion_nonconstant_epilogue)
+{
+    migraphx::program p;
+    {
+        auto* m = p.get_main_module();
+        std::vector<migraphx::instruction_ref> outs;
+        for(int i = 0; i < 4; ++i)
+        {
+            auto x =
+                m->add_parameter("x" + std::to_string(i), {migraphx::shape::float_type, {2, 8}});
+            auto v =
+                m->add_parameter("v" + std::to_string(i), {migraphx::shape::float_type, {2, 8}});
+            auto w = m->add_literal(
+                migraphx::generate_literal({migraphx::shape::float_type, {8, 8}}, i));
+            auto sig = m->add_instruction(migraphx::make_op("sigmoid"), x);
+            auto mul = m->add_instruction(migraphx::make_op("mul"), x, sig);
+            auto d   = m->add_instruction(migraphx::make_op("dot"), mul, w);
+            outs.push_back(m->add_instruction(migraphx::make_op("add"), d, v));
+        }
+        m->add_return(outs);
+    }
+    run_mlp_pipeline(p);
+
+    std::size_t n_dot = 0;
+    for(auto ins : iterator_for(*p.get_main_module()))
+    {
+        if(ins->name() == "dot")
+            ++n_dot;
+    }
+    // No batching: each head keeps its own dot.
+    EXPECT(n_dot == 4);
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

@@ -458,29 +458,43 @@ Semicolon-separated list (e.g. gfx90a;gfx942;gfx950) for per-GPU deps, \
 or empty for device-all meta-package deps.")
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
     if(MIGRAPHX_THEROCK_GPU_ARCH)
-        # Collect per-GPU dependencies: one amdrocm-dnn/blas per arch
-        set(_MGX_GPU_DEPS "")
+        # Per-arch meta packages: base 'migraphx' stays arch-neutral; each arch
+        # gets a 'migraphx-gfxNNN' meta hard-depending on base + that arch's
+        # amdrocm-* libs, and 'migraphx-all' composes them all.
+        # Placeholder file: CPack won't emit a component with no files.
+        set(_MGX_META_DOC "${CMAKE_CURRENT_BINARY_DIR}/migraphx-meta-README.txt")
+        file(WRITE "${_MGX_META_DOC}" "MIGraphX meta package.\n")
+        set(_MGX_ARCH_COMPONENTS "")
         foreach(mgx_gpu_arch IN LISTS MIGRAPHX_THEROCK_GPU_ARCH)
+            set(_MGX_GPU_DEPS "")
             if(MIGRAPHX_USE_MIOPEN)
                 list(APPEND _MGX_GPU_DEPS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
             endif()
             if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
                 list(APPEND _MGX_GPU_DEPS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
             endif()
+            rocm_package_setup_component(${mgx_gpu_arch}
+                LIBRARY_NAME migraphx
+                PACKAGE_NAME ${mgx_gpu_arch}
+                DEPENDS
+                    COMPONENT runtime
+                    COMMON ${_MGX_GPU_DEPS})
+            install(FILES ${_MGX_META_DOC}
+                    DESTINATION share/doc/migraphx-${mgx_gpu_arch}
+                    COMPONENT ${mgx_gpu_arch})
+            list(APPEND _MGX_ARCH_COMPONENTS ${mgx_gpu_arch})
         endforeach()
-        list(LENGTH MIGRAPHX_THEROCK_GPU_ARCH _MGX_NUM_ARCHS)
-        if(_MGX_NUM_ARCHS GREATER 1)
-            # Multi-arch fat binary: per-GPU libs are Recommends (only the
-            # libs for the GPU actually present are needed at runtime).
-            string(REPLACE ";" ", " _MGX_GPU_DEPS_CSV "${_MGX_GPU_DEPS}")
-            set(CPACK_DEBIAN_RUNTIME_PACKAGE_RECOMMENDS "${_MGX_GPU_DEPS_CSV}")
-            set(CPACK_RPM_RUNTIME_PACKAGE_SUGGESTS "${_MGX_GPU_DEPS_CSV}")
-        else()
-            # Single-arch: hard dependency (user explicitly targets one GPU).
-            list(APPEND PACKAGE_DEPENDS ${_MGX_GPU_DEPS})
-        endif()
+        # migraphx-all: base + every per-arch meta.
+        rocm_package_setup_component(all
+            LIBRARY_NAME migraphx
+            PACKAGE_NAME all
+            DEPENDS
+                COMPONENT runtime ${_MGX_ARCH_COMPONENTS})
+        install(FILES ${_MGX_META_DOC}
+                DESTINATION share/doc/migraphx-all
+                COMPONENT all)
     else()
-        # Device-all: depend on arch-independent meta packages
+        # No arch list: base depends on the device-all meta packages (full set).
         if(MIGRAPHX_USE_MIOPEN)
             list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}")
         endif()

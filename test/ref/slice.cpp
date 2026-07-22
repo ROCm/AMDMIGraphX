@@ -87,11 +87,10 @@ TEST_CASE(slice_var_inputs_static0)
     migraphx::shape s1{migraphx::shape::int32_type, {1}};
     auto starts = mm->add_parameter("starts", s1);
     auto ends   = mm->add_parameter("ends", s1);
-    mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
-        l0,
-        starts,
-        ends);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
+                        l0,
+                        starts,
+                        ends);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
@@ -117,11 +116,10 @@ TEST_CASE(slice_var_inputs_static1)
     migraphx::shape s1{migraphx::shape::int32_type, {1}};
     auto starts = mm->add_parameter("starts", s1);
     auto ends   = mm->add_parameter("ends", s1);
-    mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
-        l0,
-        starts,
-        ends);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
+                        l0,
+                        starts,
+                        ends);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
@@ -259,11 +257,10 @@ TEST_CASE(slice_var_inputs_dyn3)
     migraphx::shape s1{migraphx::shape::int32_type, {1}};
     auto starts = mm->add_parameter("starts", s1);
     auto ends   = mm->add_parameter("ends", s1);
-    mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
-        input,
-        starts,
-        ends);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
+                        input,
+                        starts,
+                        ends);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
@@ -324,11 +321,10 @@ TEST_CASE(slice_var_inputs_dyn5)
     migraphx::shape s1{migraphx::shape::int32_type, {1}};
     auto ends = mm->add_parameter("ends", s1);
     auto axes = mm->add_parameter("axes", s1);
-    mm->add_instruction(
-        migraphx::make_op("slice", {{"starts", {-4}}, {"mode", "ends_axes_input"}}),
-        input,
-        ends,
-        axes);
+    mm->add_instruction(migraphx::make_op("slice", {{"starts", {-4}}, {"mode", "ends_axes_input"}}),
+                        input,
+                        ends,
+                        axes);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;
@@ -356,11 +352,10 @@ TEST_CASE(slice_var_inputs_dyn6)
     migraphx::shape s1{migraphx::shape::int32_type, {1}};
     auto starts = mm->add_parameter("starts", s1);
     auto ends   = mm->add_parameter("ends", s1);
-    mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
-        input,
-        starts,
-        ends);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
+                        input,
+                        starts,
+                        ends);
     p.compile(migraphx::make_target("ref"));
 
     migraphx::parameter_map params;

@@ -186,6 +186,9 @@ constexpr E operator~(E val)
     return static_cast<E>(~static_cast<U>(val));
 }
 
+// clang-format misparses the `E&` reference parameter as a binary-and when the template
+// is constrained with MIGRAPHX_REQUIRES, so keep these declarations formatted by hand.
+// clang-format off
 template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>
 constexpr E& operator|=(E& lhs, E rhs)
 {
@@ -203,6 +206,7 @@ constexpr E& operator^=(E& lhs, E rhs)
 {
     return lhs = lhs ^ rhs;
 }
+// clang-format on
 
 // Returns true when every bit set in flag is also set in val.
 template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>

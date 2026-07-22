@@ -534,12 +534,12 @@ TEST_CASE(const_slice_4input)
         auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
         auto input_ends   = m0.add_literal(migraphx::literal{s1, {3}});
         auto input_axes   = m0.add_literal(migraphx::literal{s1, {0}});
-        auto slice_ins    = m0.add_instruction(
-            migraphx::make_op("slice", {{"mode", "starts_ends_axes_input"}}),
-            input,
-            input_starts,
-            input_ends,
-            input_axes);
+        auto slice_ins =
+            m0.add_instruction(migraphx::make_op("slice", {{"mode", "starts_ends_axes_input"}}),
+                               input,
+                               input_starts,
+                               input_ends,
+                               input_axes);
         m0.add_return({slice_ins});
     }
     run_pass(m0);

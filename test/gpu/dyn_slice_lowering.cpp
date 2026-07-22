@@ -49,7 +49,7 @@ TEST_CASE(dyn_slice_lowering_runtime_inputs)
         auto data   = m1.add_parameter("data", data_s);
         auto starts = m1.add_parameter("starts", idx_s);
         auto ends   = m1.add_parameter("ends", idx_s);
-        auto sl = m1.add_instruction(
+        auto sl     = m1.add_instruction(
             migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
             data,
             starts,

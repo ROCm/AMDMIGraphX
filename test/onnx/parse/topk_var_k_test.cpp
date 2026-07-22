@@ -37,8 +37,14 @@ TEST_CASE(topk_var_k_test)
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    val = mm->add_instruction(migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}), val, k);
-    ind = mm->add_instruction(migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}), ind, k);
+    val      = mm->add_instruction(
+        migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}),
+        val,
+        k);
+    ind = mm->add_instruction(
+        migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}),
+        ind,
+        k);
     mm->add_return({val, ind});
 
     auto prog = read_onnx("topk_var_k_test.onnx");
@@ -58,8 +64,14 @@ TEST_CASE(topk_var_k_dynamic_test)
         migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    val = mm->add_instruction(migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}), val, k);
-    ind = mm->add_instruction(migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}), ind, k);
+    val      = mm->add_instruction(
+        migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}),
+        val,
+        k);
+    ind = mm->add_instruction(
+        migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}),
+        ind,
+        k);
     mm->add_return({val, ind});
 
     migraphx::onnx_options options;

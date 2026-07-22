@@ -149,7 +149,8 @@ struct slice
         if(inputs.size() == 1)
         {
             if(any_sym(starts) or any_sym(ends))
-                MIGRAPHX_THROW("SLICE: Invalid attributes: symbolic in attribute for 1 input slice");
+                MIGRAPHX_THROW(
+                    "SLICE: Invalid attributes: symbolic in attribute for 1 input slice");
             if(mode != slice_mode::one_input)
                 MIGRAPHX_THROW("SLICE: Invalid mode for 1 input");
             return;
@@ -163,16 +164,23 @@ struct slice
             .same_dims();
         if(inputs.size() == 2)
         {
-            std::vector<slice_mode> two_input_modes_not_axes = {slice_mode::starts_input, slice_mode::ends_input};
+            std::vector<slice_mode> two_input_modes_not_axes = {slice_mode::starts_input,
+                                                                slice_mode::ends_input};
             if(contains(two_input_modes_not_axes, mode))
             {
                 if(inputs[1].lens()[0] != axes.size())
-                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(axes.size()) + ")");
+                    MIGRAPHX_THROW("SLICE: input length (" +
+                                   migraphx::to_string(inputs[1].lens()[0]) +
+                                   ") does not match attribute length (" +
+                                   migraphx::to_string(axes.size()) + ")");
             }
             else if(mode == slice_mode::axes_input)
             {
                 if(inputs[1].lens()[0] != starts.size())
-                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(starts.size()) + ")");
+                    MIGRAPHX_THROW("SLICE: input length (" +
+                                   migraphx::to_string(inputs[1].lens()[0]) +
+                                   ") does not match attribute length (" +
+                                   migraphx::to_string(starts.size()) + ")");
             }
             else
             {
@@ -184,17 +192,26 @@ struct slice
             if(mode == slice_mode::starts_ends_input)
             {
                 if(inputs[1].lens()[0] != axes.size())
-                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(axes.size()) + ")");
+                    MIGRAPHX_THROW("SLICE: input length (" +
+                                   migraphx::to_string(inputs[1].lens()[0]) +
+                                   ") does not match attribute length (" +
+                                   migraphx::to_string(axes.size()) + ")");
             }
             else if(mode == slice_mode::starts_axes_input)
             {
                 if(inputs[1].lens()[0] != ends.size())
-                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(ends.size()) + ")");
+                    MIGRAPHX_THROW("SLICE: input length (" +
+                                   migraphx::to_string(inputs[1].lens()[0]) +
+                                   ") does not match attribute length (" +
+                                   migraphx::to_string(ends.size()) + ")");
             }
             else if(mode == slice_mode::ends_axes_input)
             {
                 if(inputs[1].lens()[0] != starts.size())
-                    MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) + ") does not match attribute length (" + migraphx::to_string(starts.size()) + ")");
+                    MIGRAPHX_THROW("SLICE: input length (" +
+                                   migraphx::to_string(inputs[1].lens()[0]) +
+                                   ") does not match attribute length (" +
+                                   migraphx::to_string(starts.size()) + ")");
             }
             else
             {
@@ -226,7 +243,8 @@ struct slice
             return true;
         else if(mode == slice_mode::ends_axes_input and ends.empty() and axes.empty())
             return true;
-        else if(mode == slice_mode::starts_ends_axes_input and starts.empty() and ends.empty() and axes.empty())
+        else if(mode == slice_mode::starts_ends_axes_input and starts.empty() and ends.empty() and
+                axes.empty())
             return true;
         else
             return false;
@@ -237,13 +255,11 @@ struct slice
     // TODO: remove this once range-based dynamic shapes are deprecated
     shape range_based_compute_shape_for_two_or_more(shape input_shape) const
     {
-        auto dds = input_shape.to_dynamic().dyn_dims();
-        static std::vector<slice_mode> has_axes_input = {
-            slice_mode::axes_input,
-            slice_mode::starts_axes_input,
-            slice_mode::ends_axes_input,
-            slice_mode::starts_ends_axes_input
-        };
+        auto dds                                      = input_shape.to_dynamic().dyn_dims();
+        static std::vector<slice_mode> has_axes_input = {slice_mode::axes_input,
+                                                         slice_mode::starts_axes_input,
+                                                         slice_mode::ends_axes_input,
+                                                         slice_mode::starts_ends_axes_input};
         if(contains(has_axes_input, mode))
         {
             std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
@@ -252,11 +268,10 @@ struct slice
         }
 
         std::for_each(axes.cbegin(), axes.cend(), [&](const auto& axis) {
-                dds.at(axis) = {0, dds.at(axis).get_interval().max};
+            dds.at(axis) = {0, dds.at(axis).get_interval().max};
         });
         return shape{input_shape.type(), dds};
     }
-
 
     // Static and symbolic inputs share this path; the result is demoted back to
     // static when fully fixed (slice is a view).

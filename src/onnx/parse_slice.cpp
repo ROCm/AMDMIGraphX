@@ -76,36 +76,32 @@ struct parse_slice : op_parser<parse_slice>
 
         op::slice::slice_mode get_slice_mode(slice_input_flags slice_flags)
         {
-            switch (slice_flags)
+            switch(slice_flags)
             {
-                case slice_input_flags::none:
-                    return op::slice::slice_mode::one_input;
-                case slice_input_flags::starts_input:
-                    return op::slice::slice_mode::starts_input;
-                case slice_input_flags::ends_input:
-                    return op::slice::slice_mode::ends_input;
-                case slice_input_flags::axes_input:
-                    return op::slice::slice_mode::axes_input;
-                case (slice_input_flags::starts_input | slice_input_flags::ends_input):
-                    return op::slice::slice_mode::starts_ends_input;
-                case (slice_input_flags::starts_input | slice_input_flags::axes_input):
-                    return op::slice::slice_mode::starts_axes_input;
-                case (slice_input_flags::ends_input | slice_input_flags::axes_input):
-                    return op::slice::slice_mode::ends_axes_input;
-                case (slice_input_flags::starts_input | slice_input_flags::ends_input | slice_input_flags::axes_input):
-                    return op::slice::slice_mode::starts_ends_axes_input;
-                default:
-                    MIGRAPHX_THROW("PARSE_SLICE: invalid slice_mode");
+            case slice_input_flags::none: return op::slice::slice_mode::one_input;
+            case slice_input_flags::starts_input: return op::slice::slice_mode::starts_input;
+            case slice_input_flags::ends_input: return op::slice::slice_mode::ends_input;
+            case slice_input_flags::axes_input: return op::slice::slice_mode::axes_input;
+            case(slice_input_flags::starts_input | slice_input_flags::ends_input):
+                return op::slice::slice_mode::starts_ends_input;
+            case(slice_input_flags::starts_input | slice_input_flags::axes_input):
+                return op::slice::slice_mode::starts_axes_input;
+            case(slice_input_flags::ends_input | slice_input_flags::axes_input):
+                return op::slice::slice_mode::ends_axes_input;
+            case(slice_input_flags::starts_input | slice_input_flags::ends_input |
+                 slice_input_flags::axes_input):
+                return op::slice::slice_mode::starts_ends_axes_input;
+            default: MIGRAPHX_THROW("PARSE_SLICE: invalid slice_mode");
             }
         }
 
         op::slice create_slice_operator()
         {
             op::slice slice_op;
-            slice_op.axes = axes;
+            slice_op.axes   = axes;
             slice_op.starts = starts;
-            slice_op.ends = ends;
-            slice_op.mode = get_slice_mode(flags);
+            slice_op.ends   = ends;
+            slice_op.mode   = get_slice_mode(flags);
             return slice_op;
         }
     };

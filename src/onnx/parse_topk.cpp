@@ -103,14 +103,14 @@ struct parse_topk : op_parser<parse_topk>
         ret_val    = info.add_instruction(make_op("slice",
                                                {{"axes", {axis}},
                                                 {"starts", {0}},
-                                                {"ends", {to_value(k_var)}},
+                                                {"ends", value::array{to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                                        ret_val,
                                        args.at(1));
         ret_ind    = info.add_instruction(make_op("slice",
                                                {{"axes", {axis}},
                                                 {"starts", {0}},
-                                                {"ends", {to_value(k_var)}},
+                                                {"ends", value::array{to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                                        ret_ind,
                                        args.at(1));

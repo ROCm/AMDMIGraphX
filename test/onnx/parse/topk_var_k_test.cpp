@@ -41,14 +41,14 @@ TEST_CASE(topk_var_k_test)
     val = mm->add_instruction(migraphx::make_op("slice",
                                                {{"axes", {1}},
                                                 {"starts", {0}},
-                                                {"ends", {migraphx::to_value(k_var)}},
+                                                {"ends", migraphx::value::array{migraphx::to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                               val,
                               k);
     ind = mm->add_instruction(migraphx::make_op("slice",
                                                {{"axes", {1}},
                                                 {"starts", {0}},
-                                                {"ends", {migraphx::to_value(k_var)}},
+                                                {"ends", migraphx::value::array{migraphx::to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                               ind,
                               k);
@@ -75,14 +75,14 @@ TEST_CASE(topk_var_k_dynamic_test)
     val = mm->add_instruction(migraphx::make_op("slice",
                                                {{"axes", {1}},
                                                 {"starts", {0}},
-                                                {"ends", {migraphx::to_value(k_var)}},
+                                                {"ends", migraphx::value::array{migraphx::to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                               val,
                               k);
     ind = mm->add_instruction(migraphx::make_op("slice",
                                                {{"axes", {1}},
                                                 {"starts", {0}},
-                                                {"ends", {migraphx::to_value(k_var)}},
+                                                {"ends", migraphx::value::array{migraphx::to_value(k_var)}},
                                                 {"mode", "ends_input"}}),
                               ind,
                               k);

@@ -308,7 +308,9 @@ TEST_CASE(const_slice_2input_ends_axes)
         migraphx::shape s1{migraphx::shape::int32_type, {1}};
         auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
         auto slice_ins    = m0.add_instruction(
-            migraphx::make_op("slice", {{"ends", {3}}, {"axes", {0}}}), input, input_starts);
+            migraphx::make_op("slice", {{"ends", {3}}, {"axes", {0}}, {"mode", "starts_input"}}),
+            input,
+            input_starts);
         m0.add_return({slice_ins});
     }
     run_pass(m0);
@@ -333,7 +335,9 @@ TEST_CASE(const_slice_2input_starts_axes)
         migraphx::shape s1{migraphx::shape::int32_type, {1}};
         auto input_ends = m0.add_literal(migraphx::literal{s1, {3}});
         auto slice_ins  = m0.add_instruction(
-            migraphx::make_op("slice", {{"starts", {0}}, {"axes", {0}}}), input, input_ends);
+            migraphx::make_op("slice", {{"starts", {0}}, {"axes", {0}}, {"mode", "ends_input"}}),
+            input,
+            input_ends);
         m0.add_return({slice_ins});
     }
     run_pass(m0);
@@ -358,7 +362,9 @@ TEST_CASE(const_slice_2input_starts_ends)
         migraphx::shape s1{migraphx::shape::int32_type, {1}};
         auto input_axes = m0.add_literal(migraphx::literal{s1, {0}});
         auto slice_ins  = m0.add_instruction(
-            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}}), input, input_axes);
+            migraphx::make_op("slice", {{"starts", {0}}, {"ends", {3}}, {"mode", "axes_input"}}),
+            input,
+            input_axes);
         m0.add_return({slice_ins});
     }
     run_pass(m0);
@@ -384,7 +390,10 @@ TEST_CASE(const_slice_3input_axes_only)
         auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
         auto input_ends   = m0.add_literal(migraphx::literal{s1, {3}});
         auto slice_ins    = m0.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}}), input, input_starts, input_ends);
+            migraphx::make_op("slice", {{"axes", {0}}, {"mode", "starts_ends_input"}}),
+            input,
+            input_starts,
+            input_ends);
         m0.add_return({slice_ins});
     }
     run_pass(m0);
@@ -410,7 +419,10 @@ TEST_CASE(const_slice_3input_ends_only)
         auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
         auto input_axes   = m0.add_literal(migraphx::literal{s1, {0}});
         auto slice_ins    = m0.add_instruction(
-            migraphx::make_op("slice", {{"ends", {3}}}), input, input_starts, input_axes);
+            migraphx::make_op("slice", {{"ends", {3}}, {"mode", "starts_axes_input"}}),
+            input,
+            input_starts,
+            input_axes);
         m0.add_return({slice_ins});
     }
     run_pass(m0);
@@ -436,7 +448,10 @@ TEST_CASE(const_slice_3inputs_starts_only)
         auto input_ends = m0.add_literal(migraphx::literal{s1, {3}});
         auto input_axes = m0.add_literal(migraphx::literal{s1, {0}});
         auto slice_ins  = m0.add_instruction(
-            migraphx::make_op("slice", {{"starts", {0}}}), input, input_ends, input_axes);
+            migraphx::make_op("slice", {{"starts", {0}}, {"mode", "ends_axes_input"}}),
+            input,
+            input_ends,
+            input_axes);
         m0.add_return({slice_ins});
     }
     run_pass(m0);
@@ -461,7 +476,9 @@ TEST_CASE(const_slice_2input_ends_axes_dyn)
         migraphx::shape s1{migraphx::shape::int32_type, {1}};
         auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
         auto slice_ins    = m0.add_instruction(
-            migraphx::make_op("slice", {{"ends", {3}}, {"axes", {0}}}), input, input_starts);
+            migraphx::make_op("slice", {{"ends", {3}}, {"axes", {0}}, {"mode", "starts_input"}}),
+            input,
+            input_starts);
         m0.add_return({slice_ins});
     }
     run_pass(m0);
@@ -488,7 +505,10 @@ TEST_CASE(const_slice_3input_dyn)
         auto input_starts = m0.add_literal(migraphx::literal{s1, {0}});
         auto input_ends   = m0.add_literal(migraphx::literal{s1, {3}});
         auto slice_ins    = m0.add_instruction(
-            migraphx::make_op("slice", {{"axes", {0}}}), input, input_starts, input_ends);
+            migraphx::make_op("slice", {{"axes", {0}}, {"mode", "starts_ends_input"}}),
+            input,
+            input_starts,
+            input_ends);
         m0.add_return({slice_ins});
     }
     run_pass(m0);
@@ -515,7 +535,11 @@ TEST_CASE(const_slice_4input)
         auto input_ends   = m0.add_literal(migraphx::literal{s1, {3}});
         auto input_axes   = m0.add_literal(migraphx::literal{s1, {0}});
         auto slice_ins    = m0.add_instruction(
-            migraphx::make_op("slice"), input, input_starts, input_ends, input_axes);
+            migraphx::make_op("slice", {{"mode", "starts_ends_axes_input"}}),
+            input,
+            input_starts,
+            input_ends,
+            input_axes);
         m0.add_return({slice_ins});
     }
     run_pass(m0);

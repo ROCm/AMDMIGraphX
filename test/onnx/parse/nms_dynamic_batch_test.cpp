@@ -48,7 +48,7 @@ TEST_CASE(nms_dynamic_batch_test)
         migraphx::make_op("slice",
                           {{"axes", {0}},
                            {"starts", {0}},
-                           {"ends", {migraphx::to_value(num_selected_var)}},
+                           {"ends", migraphx::value::array{migraphx::to_value(num_selected_var)}},
                            {"mode", "ends_input"}}),
         idx,
         cnt);

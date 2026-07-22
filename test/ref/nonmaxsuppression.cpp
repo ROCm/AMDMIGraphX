@@ -44,7 +44,7 @@ static migraphx::instruction_ref add_nms_dynamic_slice(migraphx::module* mm,
         migraphx::make_op("slice",
                           {{"axes", {0}},
                            {"starts", {0}},
-                           {"ends", {migraphx::to_value(num_selected_var)}},
+                           {"ends", migraphx::value::array{migraphx::to_value(num_selected_var)}},
                            {"mode", "ends_input"}}),
         idx,
         cnt);

@@ -513,6 +513,23 @@ literal compute_winograd_weights_f23_fp32_sstore(const argument& w_arg)
     return literal{s_shape, data};
 }
 
+// Look up an exact (C, K, H, W) entry in a measured per-shape override table
+// (each entry must expose in_ch/out_ch/height/width fields); returns the entry or
+// nullptr. Shared by the fp16/fp32 profitability heuristics and the S-store table.
+template <class Table>
+const typename Table::value_type* find_shape_override(const Table& table,
+                                                      std::size_t in_ch,
+                                                      std::size_t out_ch,
+                                                      std::size_t height,
+                                                      std::size_t width)
+{
+    auto it = std::find_if(table.begin(), table.end(), [&](const auto& o) {
+        return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
+               std::tie(in_ch, out_ch, height, width);
+    });
+    return it == table.end() ? nullptr : &*it;
+}
+
 // Measured per-shape overrides: exact (C, K, H, W) convolutions where the
 // analytic heuristic below mispredicts the winograd-vs-default winner by more
 // than 10% (using the better of the two weight stores). These are
@@ -587,13 +604,7 @@ bool winograd_f23_profitable(
     if(nhwc and min_ch >= 224)
         return false;
 
-    // NOLINTNEXTLINE(readability-qualified-auto)
-    const auto ovr = std::find_if(
-        winograd_f23_overrides.begin(), winograd_f23_overrides.end(), [&](const auto& o) {
-            return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
-                   std::tie(in_ch, out_ch, height, width);
-        });
-    if(ovr != winograd_f23_overrides.end())
+    if(const auto* ovr = find_shape_override(winograd_f23_overrides, in_ch, out_ch, height, width))
         return ovr->use_winograd;
 
     if(in_ch < 16 and (max_ch > 16 or in_ch < 8))
@@ -685,12 +696,8 @@ bool winograd_f23_use_sstore(std::size_t in_ch,
 {
     if(std::min(in_ch, out_ch) >= 256 and std::min(height, width) <= 12)
         return true;
-    return std::any_of(winograd_f23_sstore_overrides.begin(),
-                       winograd_f23_sstore_overrides.end(),
-                       [&](const auto& o) {
-                           return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
-                                  std::tie(in_ch, out_ch, height, width);
-                       });
+    return find_shape_override(winograd_f23_sstore_overrides, in_ch, out_ch, height, width) !=
+           nullptr;
 }
 
 // Measured per-shape overrides for the fp32 F(2,3) heuristic below: exact
@@ -759,13 +766,8 @@ bool winograd_f23_fp32_profitable(
         return true;
 
     // Measured per-shape overrides (each listed shape loses in both layouts).
-    // NOLINTNEXTLINE(readability-qualified-auto)
-    const auto ovr = std::find_if(
-        winograd_f23_fp32_overrides.begin(), winograd_f23_fp32_overrides.end(), [&](const auto& o) {
-            return std::tie(o.in_ch, o.out_ch, o.height, o.width) ==
-                   std::tie(in_ch, out_ch, height, width);
-        });
-    if(ovr != winograd_f23_fp32_overrides.end())
+    if(const auto* ovr =
+           find_shape_override(winograd_f23_fp32_overrides, in_ch, out_ch, height, width))
         return ovr->use_winograd;
 
     // NHWC: rocMLIR's coalesced channels-last GEMM wins almost everywhere; the

@@ -27,6 +27,7 @@
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_gen.hpp>
+#include <migraphx/math.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/stringutils.hpp>
@@ -68,6 +69,24 @@ static std::string post_input_cast(const module& pm)
     if(shape{t}.type_size() <= x0->get_shape().type_size())
         return base;
     return shape::cpp_type(t);
+}
+
+// Which host transform prefuse baked into the fp32 winograd weight literal. The
+// choice is encoded in the literal's shape; classify it so the kernel template
+// args are named instead of re-derived from magic dimension sizes.
+enum class winograd_fp32_weight_layout
+{
+    full_u,        // [4, 4, K, C] (u, v, k, c; C innermost) -- NCHW
+    full_u_vinner, // [4, K, C, 4] (u, k, c, v; v innermost) -- NHWC, coalesced load
+    sstore,        // [3, 4, K, C] (i, v, k, c) -- v-half g*G^T, 25% smaller
+};
+
+static winograd_fp32_weight_layout winograd_fp32_weight_layout_of(const shape& w)
+{
+    if(w.lens().at(0) == 3)
+        return winograd_fp32_weight_layout::sstore;
+    return w.lens().at(1) == 4 ? winograd_fp32_weight_layout::full_u
+                               : winograd_fp32_weight_layout::full_u_vinner;
 }
 
 // NOLINTNEXTLINE
@@ -119,7 +138,7 @@ MIGRAPHX_GLOBAL void ${kernel}(${params})
 {
     transform_args(make_tensors(), rotate_last())(${args})(
         [](auto output, auto x, auto u, auto... inputs) {
-            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${pipe}, ${cu}, ${sstore}, ${nhwc}, ${conv_cast}>(
+            winograd_conv_f23_fp32<${nw}, ${ko}, ${tiles}, ${sk}, ${pipe}, ${cu}, ${sstore}, ${nhwc}, ${vinner}, ${conv_cast}>(
                 ${post}, output, x, u, inputs...);
         });
 }
@@ -160,11 +179,15 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         // cu shrinks the pipelined double-buffer (finer-grained pipeline) at the
         // cost of more, narrower weight loads.
         const auto cu = v.get("cu", std::size_t{4});
-        // S-store: the winograd weight literal is the v-half-transformed S=[3,4,K,C]
-        // (dim0==3) rather than the full U=[4,4,K,C] (dim0==4); the kernel finishes
-        // the register-only G u-transform, cutting the weight loads+bytes to 3/4
-        // (dim0 3 vs 4) for a few register FMAs (for weight-bandwidth-bound shapes).
-        const bool sstore = inputs.at(1).lens().at(0) == 3;
+        // Weight layout (chosen by prefuse, read back from the literal's shape):
+        //  - sstore: v-half-transformed S=[3,4,K,C]; the kernel finishes the
+        //    register-only G u-transform, cutting weight loads+bytes to 3/4 (for
+        //    weight-bandwidth-bound shapes).
+        //  - vinner: full U laid out v-innermost so the 4 v_col lanes coalesce (the
+        //    gated NHWC configs); else the plain C-innermost full U.
+        const auto wlayout = winograd_fp32_weight_layout_of(inputs.at(1));
+        const bool sstore  = wlayout == winograd_fp32_weight_layout::sstore;
+        const bool vinner  = wlayout == winograd_fp32_weight_layout::full_u_vinner;
         // NHWC: the conv input has its channel axis innermost (stride 1), so the
         // kernel loads CU contiguous channels with one b128 instead of CU b32.
         const bool nhwc = inputs.front().strides().at(1) == 1;
@@ -185,9 +208,9 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
 
         // One workgroup per (tile_group, k_block); its nw/sk NT-groups cover a
         // contiguous run of tiles for that k_block.
-        const auto k_blocks    = (out_c + ko - 1) / ko;
-        const auto quad_groups = (nt_total + tiles - 1) / tiles;
-        const auto tile_blocks = (quad_groups + quads_per_wg - 1) / quads_per_wg;
+        const auto k_blocks    = integer_divide_ceil(out_c, ko);
+        const auto quad_groups = integer_divide_ceil(nt_total, tiles);
+        const auto tile_blocks = integer_divide_ceil(quad_groups, quads_per_wg);
         const auto num_blocks  = k_blocks * tile_blocks;
 
         options.set_launch_params(v, num_blocks * block_size, block_size);
@@ -204,6 +227,7 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
                                        {"cu", std::to_string(cu)},
                                        {"sstore", sstore ? "true" : "false"},
                                        {"nhwc", nhwc ? "true" : "false"},
+                                       {"vinner", vinner ? "true" : "false"},
                                        {"post", v.get("post", std::string{"op::id{}"})},
                                        {"conv_cast", v.get("conv_cast", std::string{"float"})},
                                        {"preamble", v.get("preamble", std::string{})}});
@@ -255,8 +279,8 @@ struct winograd_conv_compiler : compiler<winograd_conv_compiler>
         const auto tiles_w  = (out_w + 1) / 2;
         const auto nt_total = n * tiles_h * tiles_w;
 
-        const auto k_wg_blocks = (out_c + bk_wg - 1) / bk_wg;
-        const auto t_blocks    = (nt_total + bt - 1) / bt;
+        const auto k_wg_blocks = integer_divide_ceil(out_c, bk_wg);
+        const auto t_blocks    = integer_divide_ceil(nt_total, bt);
         const auto num_blocks  = k_wg_blocks * t_blocks;
 
         options.set_launch_params(v, num_blocks * block_size, block_size);

@@ -26,6 +26,7 @@
 
 #include <migraphx/kernels/array.hpp>
 #include <migraphx/kernels/bit_cast.hpp>
+#include <migraphx/kernels/buffer_load.hpp>
 #include <migraphx/kernels/dpp.hpp>
 #include <migraphx/kernels/index.hpp>
 #include <migraphx/kernels/tensor_view.hpp>
@@ -61,41 +62,10 @@ namespace migraphx {
 // The v-axis DPP butterfly (quad_perm:[2,2,1,1]) can only realize the input
 // transform's v=3 column with a sign flip (d3-d1 instead of d1-d3); the host
 // weight bakes a matching negation into U[:,3,:,:] so the product is exact.
-
-// gfx12 buffer-resource word 3 (from composable_kernel): makes raw buffer loads
-// return 0 for out-of-range byte offsets, so bounds/halo checks collapse to an
-// offset select against a sentinel instead of a branch per load.
-constexpr uint32_t winograd_fp32_buffer_rsrc_word3 = 0x31004000;
-
-__device__ inline auto wino_fp32_make_rsrc(const float* p, uint32_t byte_count)
-{
-    auto* base = const_cast<float*>(p); // NOLINT(cppcoreguidelines-pro-type-const-cast)
-    return __builtin_amdgcn_make_buffer_rsrc(base, 0, byte_count, winograd_fp32_buffer_rsrc_word3);
-}
-
-__device__ inline float wino_fp32_load(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
-{
-    uint32_t v = __builtin_amdgcn_raw_buffer_load_b32(rsrc, byte_offset, 0, 0);
-    return bit_cast<float>(v);
-}
-
-// CU contiguous fp32: b128 (CU=4), b64 (CU=2), or b32 (CU=1). The channel-unroll
-// CU picks the widest weight load that still fits the pipeline's register budget
-// -- smaller CU shrinks the pipelined double-buffer at the cost of more (narrower)
-// weight loads.
-template <index_int CU>
-__device__ inline vec<float, CU> wino_fp32_load_cu(__amdgpu_buffer_rsrc_t rsrc, int byte_offset)
-{
-    if constexpr(CU == 4)
-        return bit_cast<vec<float, 4>>(
-            __builtin_amdgcn_raw_buffer_load_b128(rsrc, byte_offset, 0, 0));
-    else if constexpr(CU == 2)
-        return bit_cast<vec<float, 2>>(
-            __builtin_amdgcn_raw_buffer_load_b64(rsrc, byte_offset, 0, 0));
-    else
-        return vec<float, 1>{
-            bit_cast<float>(__builtin_amdgcn_raw_buffer_load_b32(rsrc, byte_offset, 0, 0))};
-}
+//
+// Input/weight reads use the shared gfx12 OOB buffer loads (buffer_load.hpp):
+// make_oob_buffer_rsrc, buffer_load<float> (b32), and buffer_load_vec<float, CU>
+// (b128/b64/b32) for a CU-wide channel-unrolled load.
 
 // Input transform, v axis (across the 4 lanes of a quad). Given this lane's raw
 // datum d for one tile row, returns P = B^T applied along the v (W) axis.
@@ -166,6 +136,7 @@ template <index_int NW,
           index_int CU,
           bool SSTORE,
           bool NHWC,
+          bool VINNER,
           class PostInput,
           class F,
           class Output,
@@ -244,7 +215,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // ---- Buffer resources + precomputed base offsets ----
     const auto x_str            = x_shape.strides; // {sn, sc, sh, sw}
     const uint32_t x_byte_count = static_cast<uint32_t>(x_shape.element_space()) * sizeof(float);
-    auto x_rsrc                 = wino_fp32_make_rsrc(x.data(), x_byte_count);
+    auto x_rsrc                 = make_oob_buffer_rsrc(x.data(), x_byte_count);
     const int32_t x_oob         = static_cast<int32_t>(x_byte_count);
     const index_int c_stride_x  = x_str[1];
     // The NHWC path assumes the channel axis is innermost (packed, per-channel
@@ -253,7 +224,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
 
     const auto w_str            = w_shape.strides; // {su, sv, sk, sc}
     const uint32_t w_byte_count = static_cast<uint32_t>(w_shape.element_space()) * sizeof(float);
-    auto w_rsrc                 = wino_fp32_make_rsrc(weights.data(), w_byte_count);
+    auto w_rsrc                 = make_oob_buffer_rsrc(weights.data(), w_byte_count);
     const int32_t w_oob         = static_cast<int32_t>(w_byte_count);
     // Innermost weight dim (stride 1) is C for NCHW [u,v,k,c] and v for NHWC
     // [u,k,c,v]; either way dim 3 is packed. NHWC's v-innermost layout makes the 4
@@ -286,14 +257,14 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // Weight byte-offset bases for this lane's v column (channel 0). Computed
     // inline in the loop rather than precomputed per (u,k) so we don't pin
     // 4*KO offset registers live across the channel loop. The host stores U either
-    // packed [u,v,k,c] (c innermost, dim1 == 4) or -- for the gated NHWC configs
-    // where it helps -- [u,k,c,v] (v innermost so the 4 v_col lanes coalesce, dim1
-    // == out_c != 4). Detect the layout from dim1 and pick the v/k/c stride-dim
-    // indices accordingly (u is dim 0).
-    const bool w_vinner = w_shape.lens[1] != 4;
-    const index_int WV  = w_vinner ? 3 : 1; // v-dim stride index
-    const index_int WK  = w_vinner ? 1 : 2; // k-dim stride index
-    const index_int WC  = w_vinner ? 2 : 3; // c-dim stride index
+    // packed [u,v,k,c] (c innermost) or -- for the gated NHWC configs where it
+    // helps -- v-innermost [u,k,c,v] (so the 4 v_col lanes coalesce). VINNER (set
+    // by the JIT from the weight layout) picks the v/k/c stride-dim indices
+    // accordingly (u is always dim 0).
+    constexpr bool w_vinner = VINNER;
+    const index_int WV      = w_vinner ? 3 : 1; // v-dim stride index
+    const index_int WK      = w_vinner ? 1 : 2; // k-dim stride index
+    const index_int WC      = w_vinner ? 2 : 3; // c-dim stride index
     const int32_t w_lane_base =
         static_cast<int32_t>((v_col * w_str[WV] + k_base * w_str[WK]) * sizeof(float));
     const int32_t w_u_stride = static_cast<int32_t>(w_str[0] * sizeof(float));
@@ -310,6 +281,21 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
 
     using v_reg_t = array<array<array<float, CU>, 4>, TILES>;
 
+    // Apply the winograd input transform (B^T along the v axis then the u axis) to
+    // one tile's 4 raw H-column data and store the result into vr[t][*][cu]. Shared
+    // by the NCHW per-channel path and the NHWC block path, which differ only in
+    // where the 4 data come from (a scattered b32 load vs a preloaded b128 vector).
+    auto store_transformed =
+        [&](v_reg_t& vr, index_int t, index_int cu, const array<float, 4>& draw) {
+            array<float, 4> p{};
+            repeat_c<4>([&](auto aa) {
+                constexpr int a = aa;
+                p[a]            = wino_f23_bt_v(draw[a], in_shuf_sign);
+            });
+            const auto vu = wino_f23_bt_u(p);
+            repeat_c<4>([&](auto uu) { vr[t][uu][cu] = vu[uu]; });
+        };
+
     // Input transform of ONE channel cu of the block at c0 (all TILES tiles) into
     // vr. This is the DPP-heavy part (4 fmac_dpp per tile). cu is a compile-time
     // integral_constant so it selects the fixed v_reg slot.
@@ -320,14 +306,12 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
         const int32_t coff = static_cast<int32_t>((c0 + cu) * c_stride_x * sizeof(float));
         repeat_c<TILES>([&](auto tt) {
             constexpr index_int t = tt;
-            array<float, 4> p{};
+            array<float, 4> draw{};
             repeat_c<4>([&](auto aa) {
                 constexpr int a = aa;
-                const float d   = wino_fp32_load(x_rsrc, x_off[t][a] + coff);
-                p[a]            = wino_f23_bt_v(d, in_shuf_sign);
+                draw[a]         = buffer_load<float>(x_rsrc, x_off[t][a] + coff);
             });
-            const auto vu = wino_f23_bt_u(p);
-            repeat_c<4>([&](auto uu) { vr[t][uu][cu] = vu[uu]; });
+            store_transformed(vr, t, cu, draw);
         });
     };
 
@@ -370,19 +354,18 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                 array<vec<float, CU>, 4> d4{}; // [a][cu], CU contiguous channels via b128
                 repeat_c<4>([&](auto aa) {
                     constexpr int a = aa;
-                    d4[a]           = wino_fp32_load_cu<CU>(x_rsrc, x_off[t][a] + coff);
+                    d4[a]           = buffer_load_vec<float, CU>(x_rsrc, x_off[t][a] + coff);
                 });
                 repeat_c<CU>([&](auto cc) {
                     constexpr index_int cu = cc;
                     if(cu >= nchan)
                         return;
-                    array<float, 4> p{};
+                    array<float, 4> draw{};
                     repeat_c<4>([&](auto aa) {
                         constexpr int a = aa;
-                        p[a]            = wino_f23_bt_v(d4[a][cu], in_shuf_sign);
+                        draw[a]         = d4[a][cu];
                     });
-                    const auto vu = wino_f23_bt_u(p);
-                    repeat_c<4>([&](auto uu) { vr[t][uu][cu] = vu[uu]; });
+                    store_transformed(vr, t, cu, draw);
                 });
             });
         }
@@ -424,7 +407,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                 if(not w_vinner and nchan == CU)
                 {
                     // C-innermost weight, full block: 4 contiguous channels in b128.
-                    wv[k] = wino_fp32_load_cu<CU>(w_rsrc, w_off_base);
+                    wv[k] = buffer_load_vec<float, CU>(w_rsrc, w_off_base);
                 }
                 else
                 {
@@ -434,8 +417,8 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                         constexpr index_int cu = cc;
                         wv[k][cu] =
                             (cu < nchan)
-                                ? wino_fp32_load(w_rsrc,
-                                                 w_off_base + static_cast<int32_t>(cu) * w_c_stride)
+                                ? buffer_load<float>(
+                                      w_rsrc, w_off_base + static_cast<int32_t>(cu) * w_c_stride)
                                 : 0.0f;
                     });
                 }
@@ -477,7 +460,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                 const int32_t w_off_base = w_byte_off(i, k) + coff_w;
                 if(nchan == CU)
                 {
-                    s[i] = wino_fp32_load_cu<CU>(w_rsrc, w_off_base);
+                    s[i] = buffer_load_vec<float, CU>(w_rsrc, w_off_base);
                 }
                 else
                 {
@@ -485,7 +468,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                         constexpr index_int cu = cc;
                         s[i][cu] =
                             (cu < nchan)
-                                ? wino_fp32_load(
+                                ? buffer_load<float>(
                                       w_rsrc, w_off_base + static_cast<int32_t>(cu * sizeof(float)))
                                 : 0.0f;
                     });

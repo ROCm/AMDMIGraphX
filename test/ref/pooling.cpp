@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -149,6 +149,36 @@ TEST_CASE(avgpool_rank3_pad_dil_test)
     std::vector<float> results_vector;
     result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
     std::vector<float> gold{0.4, 0.2, 0.2, 0.9, 0.45, 0.5, 0.1, 0.35, 0.7};
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(avgpool_rank3_count_include_pad_asym_pad_test)
+{
+    // 1D case with asymmetric padding and count_include_pad=true (issue #4350).
+    // count_include_pad must always divide by the full window size; the window
+    // must not be shrunk by the (smaller) leading pad when it reaches into the
+    // trailing pad.  The ref result must match the gpu here.
+    migraphx::program p;
+    auto* mm             = p.get_main_module();
+    auto s               = migraphx::shape{migraphx::shape::float_type, {1, 1, 2}};
+    auto op              = migraphx::op::pooling{migraphx::op::pooling_mode::average};
+    op.lengths           = {3};
+    op.padding           = {1, 2};
+    op.stride            = {1};
+    op.dilations         = {1};
+    op.count_include_pad = true;
+
+    std::vector<float> data{3.0, 6.0};
+    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    mm->add_instruction(op, l0);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+
+    std::vector<float> results_vector;
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    // window 0: {pad, 3, 6} -> 9/3;  window 1: {3, 6, pad} -> 9/3;
+    // window 2: {6, pad, pad} -> 6/3 (divisor stays 3, not 2)
+    std::vector<float> gold{3.0, 3.0, 2.0};
     EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
 }
 

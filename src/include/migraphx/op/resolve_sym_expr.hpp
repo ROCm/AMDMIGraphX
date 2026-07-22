@@ -60,7 +60,7 @@ struct resolve_sym_expr
 
     std::string name() const { return "resolve_sym_expr"; }
 
-    shape compute_shape(std::vector<shape> inputs) const
+    shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this}.has(symbols.size()).nelements(1);
         return shape{std::vector<shape>(exprs.size(), shape{shape::int64_type, {1}})};

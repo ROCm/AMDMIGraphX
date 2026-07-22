@@ -31,6 +31,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/argument.hpp>
 #include <cmath>
+#include <cstdint>
 #include <utility>
 
 namespace migraphx {
@@ -55,17 +56,16 @@ struct nonzero
     {
         auto s = args.front().get_shape();
         argument result{output_shape};
-        result.visit([&](auto output) {
-            std::fill(output.begin(), output.end(), 0);
-            args.front().visit([&](auto v) {
-                std::size_t nonzero_idx = 0;
-                shape_for_each(s, [&](const auto& idx_v) {
-                    if(not float_equal(v[idx_v], 0))
-                    {
-                        auto out_idx = nonzero_idx++;
-                        par_for(idx_v.size(), [&](auto j) { output(j, out_idx) = idx_v[j]; });
-                    }
-                });
+        auto output = result.get<std::int64_t>();
+        std::fill(output.begin(), output.end(), 0);
+        args.front().visit([&](auto v) {
+            std::size_t nonzero_idx = 0;
+            shape_for_each(s, [&](const auto& idx_v) {
+                if(not float_equal(v[idx_v], 0))
+                {
+                    auto out_idx = nonzero_idx++;
+                    par_for(idx_v.size(), [&](auto i) { output(i, out_idx) = idx_v[i]; });
+                }
             });
         });
 

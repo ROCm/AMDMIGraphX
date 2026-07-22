@@ -62,8 +62,6 @@ bool is_device_ptr(const void* ptr)
     return attr.type == hipMemoryTypeDevice;
 }
 
-// bool is_gpu_device_ptr(const void* ptr) { return is_device_ptr(ptr); }
-
 static void* get_device_ptr(void* hptr)
 {
     void* result = nullptr;

@@ -38,11 +38,13 @@ TEST_CASE(topk_var_k_test)
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
     val      = mm->add_instruction(
-        migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}),
+        migraphx::make_op(
+            "slice", {{"starts", {0}}, {"axes", {1}}, {"mode", migraphx::value::array{"ends"}}}),
         val,
         k);
     ind = mm->add_instruction(
-        migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}),
+        migraphx::make_op(
+            "slice", {{"starts", {0}}, {"axes", {1}}, {"mode", migraphx::value::array{"ends"}}}),
         ind,
         k);
     mm->add_return({val, ind});
@@ -65,11 +67,13 @@ TEST_CASE(topk_var_k_dynamic_test)
     auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
     auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
     val      = mm->add_instruction(
-        migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}),
+        migraphx::make_op(
+            "slice", {{"starts", {0}}, {"axes", {1}}, {"mode", migraphx::value::array{"ends"}}}),
         val,
         k);
     ind = mm->add_instruction(
-        migraphx::make_op("slice", {{"starts", {0}}, {"axes", {1}}, {"mode", "ends_input"}}),
+        migraphx::make_op(
+            "slice", {{"starts", {0}}, {"axes", {1}}, {"mode", migraphx::value::array{"ends"}}}),
         ind,
         k);
     mm->add_return({val, ind});

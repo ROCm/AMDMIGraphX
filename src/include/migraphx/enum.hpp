@@ -26,7 +26,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cstdint>
 #include <iterator>
 #include <string>
 #include <type_traits>
@@ -141,80 +140,6 @@ struct is_named_enum<T, std::void_t<decltype(migraphx_enum_entries(std::declval<
     : std::true_type
 {
 };
-
-// Detects enums declared with MIGRAPHX_BIT_FLAG_ENUM: those provide a migraphx_is_bit_flag hook and
-// therefore support the type-safe bitwise operators below.
-template <class T, class = void>
-struct is_bit_flag : std::false_type
-{
-};
-
-template <class T>
-struct is_bit_flag<T, std::void_t<decltype(migraphx_is_bit_flag(std::declval<T>()))>>
-    : std::true_type
-{
-};
-
-// Type-safe bitwise operators for enums declared with MIGRAPHX_BIT_FLAG_ENUM. They operate on the
-// enum's underlying integer and return the enum type, so combining values never leaks to a raw
-// integer and different flag enums cannot be mixed.
-template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>
-constexpr E operator|(E lhs, E rhs)
-{
-    using U = std::underlying_type_t<E>;
-    return static_cast<E>(static_cast<U>(lhs) | static_cast<U>(rhs));
-}
-
-template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>
-constexpr E operator&(E lhs, E rhs)
-{
-    using U = std::underlying_type_t<E>;
-    return static_cast<E>(static_cast<U>(lhs) & static_cast<U>(rhs));
-}
-
-template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>
-constexpr E operator^(E lhs, E rhs)
-{
-    using U = std::underlying_type_t<E>;
-    return static_cast<E>(static_cast<U>(lhs) ^ static_cast<U>(rhs));
-}
-
-template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>
-constexpr E operator~(E val)
-{
-    using U = std::underlying_type_t<E>;
-    return static_cast<E>(~static_cast<U>(val));
-}
-
-// clang-format misparses the `E&` reference parameter as a binary-and when the template
-// is constrained with MIGRAPHX_REQUIRES, so keep these declarations formatted by hand.
-// clang-format off
-template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>
-constexpr E& operator|=(E& lhs, E rhs)
-{
-    return lhs = lhs | rhs;
-}
-
-template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>
-constexpr E& operator&=(E& lhs, E rhs)
-{
-    return lhs = lhs & rhs;
-}
-
-template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>
-constexpr E& operator^=(E& lhs, E rhs)
-{
-    return lhs = lhs ^ rhs;
-}
-// clang-format on
-
-// Returns true when every bit set in flag is also set in val.
-template <class E, MIGRAPHX_REQUIRES(is_bit_flag<E>{})>
-constexpr bool has_flag(E val, E flag)
-{
-    using U = std::underlying_type_t<E>;
-    return (static_cast<U>(val) & static_cast<U>(flag)) == static_cast<U>(flag);
-}
 
 // Returns the array of enumerator values for an enum declared with MIGRAPHX_ENUM.
 template <class Enum, MIGRAPHX_REQUIRES(is_named_enum<Enum>{})>
@@ -359,44 +284,5 @@ Enum from_string(const std::string& name)
     };                                        \
     MIGRAPHX_DETAIL_ENUM_HELPERS(             \
         friend, name, MIGRAPHX_DETAIL_ENUM_CLASS_CAPTURE, using enum_scope = name;, __VA_ARGS__)
-
-// Emits the ADL hook that marks an enum as a bit flag, which is_bit_flag detects to enable the
-// bitwise operators. `linkage` is `inline` at namespace scope or `friend` at class scope, mirroring
-// MIGRAPHX_DETAIL_ENUM_HELPERS.
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define MIGRAPHX_DETAIL_BIT_FLAG_ENUM(linkage, name) \
-    linkage constexpr bool migraphx_is_bit_flag(name) { return true; }
-
-// Declares a scoped enum (enum class) with the given underlying type and enables the type-safe
-// bitwise operators |, &, ^, ~, |=, &=, ^= and has_flag() on it. Use it at namespace scope:
-//
-//     MIGRAPHX_BIT_FLAG_ENUM(access, std::uint8_t,
-//         none  = 0,
-//         read  = 1 << 0,
-//         write = 1 << 1)
-//
-//     auto rw = access::read | access::write;
-//     if(has_flag(rw, access::read)) { /* ... */ }
-//
-// Unlike MIGRAPHX_ENUM_CLASS, no to_string/from_string helpers are generated, so enumerator values
-// should be self-contained bit masks.
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define MIGRAPHX_BIT_FLAG_ENUM(name, type, ...) \
-    enum class name : type                      \
-    {                                           \
-        __VA_ARGS__                             \
-    };                                          \
-    MIGRAPHX_DETAIL_BIT_FLAG_ENUM(inline, name)
-
-// Like MIGRAPHX_BIT_FLAG_ENUM, but for a scoped enum declared inside a class or struct; the hook is
-// generated as a hidden friend so argument-dependent lookup still finds it. Use it inside the
-// class/struct body.
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#define MIGRAPHX_NESTED_BIT_FLAG_ENUM(name, type, ...) \
-    enum class name : type                             \
-    {                                                  \
-        __VA_ARGS__                                    \
-    };                                                 \
-    MIGRAPHX_DETAIL_BIT_FLAG_ENUM(friend, name)
 
 #endif // MIGRAPHX_GUARD_MIGRAPHX_ENUM_HPP

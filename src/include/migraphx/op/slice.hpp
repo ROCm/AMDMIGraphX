@@ -40,22 +40,25 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 /// Slice operator that accepts variable axes, starts and ends.
-/// All of `starts`, `ends`, and `axes` attributes must be supplied.
 ///
-/// `mode` specifies what the inputs to slice are:
-/// one_input: slice(input);
-/// starts_input: slice(input, starts);
-/// ends_input: slice(input, ends);
-/// axes_input: slice(input, axes);
-/// starts_ends_input: slice(input, starts, ends);
-/// starts_axes_input: slice(input, starts, axes);
-/// ends_axes_input: slice(input, ends, axes);
-/// starts_ends_axes_input: slice(input, start, ends, axes);
+/// `mode` lists which of `starts`, `ends`, and `axes` are supplied as variable inputs.
+/// Each entry corresponds to one of the trailing inputs (after `data`).
+/// Inputs are always given in the canonical order `starts` before `ends` before `axes`. Valid
+/// modes:
+///   {}: slice(input);
+///   {starts}: slice(input, starts);
+///   {ends}: slice(input, ends);
+///   {axes}: slice(input, axes);
+///   {starts, ends}: slice(input, starts, ends);
+///   {starts, axes}: slice(input, starts, axes);
+///   {ends, axes}: slice(input, ends, axes);
+///   {starts, ends, axes}: slice(input, starts, ends, axes);
 ///
 /// Attributes:
 /// axes: axes to slice over
 /// starts: slice starting indices
 /// ends: slice ending indices
+/// mode: what inputs[1:4] of slice mean
 ///
 /// Parameters:
 /// data: the input tensor to slice (dynamic or static shape)
@@ -64,22 +67,14 @@ namespace op {
 /// axes_input: axes to slice over (optional, static shape)
 struct slice
 {
-    MIGRAPHX_NESTED_ENUM_CLASS(slice_mode,
-                               one_input,
-                               starts_input,
-                               ends_input,
-                               axes_input,
-                               starts_ends_input,
-                               starts_axes_input,
-                               ends_axes_input,
-                               starts_ends_axes_input);
+    MIGRAPHX_NESTED_ENUM_CLASS(slice_mode, starts, ends, axes);
 
     friend std::ostream& operator<<(std::ostream& os, slice_mode v) { return os << to_string(v); }
 
     std::vector<int64_t> axes{};
     std::vector<dim_like> starts{};
     std::vector<dim_like> ends{};
-    slice_mode mode = slice_mode::one_input;
+    std::vector<slice_mode> mode{};
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -133,7 +128,6 @@ struct slice
     /// Check that the inputs, attributes, and mode are valid.
     void check_inputs_and_attributes(std::vector<shape> inputs) const
     {
-        auto input_shape = inputs[0];
         // All set (non-empty) bound attributes must agree on the number of sliced axes.
         // A variable (input-provided) bound leaves its attribute empty, so empty attrs are skipped.
         std::size_t attr_size = 0;
@@ -151,10 +145,15 @@ struct slice
             if(any_sym(starts) or any_sym(ends))
                 MIGRAPHX_THROW(
                     "SLICE: Invalid attributes: symbolic in attribute for 1 input slice");
-            if(mode != slice_mode::one_input)
+            if(not mode.empty())
                 MIGRAPHX_THROW("SLICE: Invalid mode for 1 input");
             return;
         }
+        // There is one mode entry per variable input (the trailing inputs after `data`).
+        if(mode.size() != inputs.size() - 1)
+            MIGRAPHX_THROW("SLICE: number of mode entries (" + migraphx::to_string(mode.size()) +
+                           ") must match number of variable inputs (" +
+                           migraphx::to_string(inputs.size() - 1) + ")");
         // Check that inputs [1, end) are all 1D, have the same dimension, and are static shape.
         check_shapes{inputs.begin() + 1,
                      inputs.end(),
@@ -162,92 +161,30 @@ struct slice
                      false}
             .only_dims(1)
             .same_dims();
-        if(inputs.size() == 2)
-        {
-            std::vector<slice_mode> two_input_modes_not_axes = {slice_mode::starts_input,
-                                                                slice_mode::ends_input};
-            if(contains(two_input_modes_not_axes, mode))
-            {
-                if(inputs[1].lens()[0] != axes.size())
-                    MIGRAPHX_THROW("SLICE: input length (" +
-                                   migraphx::to_string(inputs[1].lens()[0]) +
-                                   ") does not match attribute length (" +
-                                   migraphx::to_string(axes.size()) + ")");
-            }
-            else if(mode == slice_mode::axes_input)
-            {
-                if(inputs[1].lens()[0] != starts.size())
-                    MIGRAPHX_THROW("SLICE: input length (" +
-                                   migraphx::to_string(inputs[1].lens()[0]) +
-                                   ") does not match attribute length (" +
-                                   migraphx::to_string(starts.size()) + ")");
-            }
-            else
-            {
-                MIGRAPHX_THROW("SLICE: Invalid mode for 2 inputs");
-            }
-        }
-        else if(inputs.size() == 3)
-        {
-            if(mode == slice_mode::starts_ends_input)
-            {
-                if(inputs[1].lens()[0] != axes.size())
-                    MIGRAPHX_THROW("SLICE: input length (" +
-                                   migraphx::to_string(inputs[1].lens()[0]) +
-                                   ") does not match attribute length (" +
-                                   migraphx::to_string(axes.size()) + ")");
-            }
-            else if(mode == slice_mode::starts_axes_input)
-            {
-                if(inputs[1].lens()[0] != ends.size())
-                    MIGRAPHX_THROW("SLICE: input length (" +
-                                   migraphx::to_string(inputs[1].lens()[0]) +
-                                   ") does not match attribute length (" +
-                                   migraphx::to_string(ends.size()) + ")");
-            }
-            else if(mode == slice_mode::ends_axes_input)
-            {
-                if(inputs[1].lens()[0] != starts.size())
-                    MIGRAPHX_THROW("SLICE: input length (" +
-                                   migraphx::to_string(inputs[1].lens()[0]) +
-                                   ") does not match attribute length (" +
-                                   migraphx::to_string(starts.size()) + ")");
-            }
-            else
-            {
-                MIGRAPHX_THROW("SLICE: Invalid mode for 3 inputs");
-            }
-        }
-        else
-        {
-            if(mode != slice_mode::starts_ends_axes_input)
-            {
-                MIGRAPHX_THROW("SLICE: Invalid mode for 4 inputs");
-            }
-        }
-        return;
+        // Every set attribute shares `attr_size` and defines the number of sliced axes, so each
+        // variable input must match it.
+        if(attr_size != 0 and inputs[1].lens()[0] != attr_size)
+            MIGRAPHX_THROW("SLICE: input length (" + migraphx::to_string(inputs[1].lens()[0]) +
+                           ") does not match attribute length (" + migraphx::to_string(attr_size) +
+                           ")");
     }
 
+    // Range-based fallback applies when every variable input leaves its associated attribute
+    // unset. A symbolic attribute alongside an input takes the symbolic path instead.
     // TODO: remove this once range-based dynamic shapes are deprecated
     bool use_range_based_logic() const
     {
-        if(mode == slice_mode::starts_input and starts.empty())
-            return true;
-        else if(mode == slice_mode::ends_input and ends.empty())
-            return true;
-        else if(mode == slice_mode::axes_input and axes.empty())
-            return true;
-        else if(mode == slice_mode::starts_ends_input and starts.empty() and ends.empty())
-            return true;
-        else if(mode == slice_mode::starts_axes_input and starts.empty() and axes.empty())
-            return true;
-        else if(mode == slice_mode::ends_axes_input and ends.empty() and axes.empty())
-            return true;
-        else if(mode == slice_mode::starts_ends_axes_input and starts.empty() and ends.empty() and
-                axes.empty())
-            return true;
-        else
+        if(mode.empty())
             return false;
+        return std::all_of(mode.begin(), mode.end(), [&](slice_mode m) {
+            switch(m)
+            {
+            case slice_mode::starts: return starts.empty();
+            case slice_mode::ends: return ends.empty();
+            case slice_mode::axes: return axes.empty();
+            }
+            return false;
+        });
     }
 
     // For when there is a variable input and the associated attribute is not set.
@@ -255,12 +192,8 @@ struct slice
     // TODO: remove this once range-based dynamic shapes are deprecated
     shape range_based_compute_shape_for_two_or_more(shape input_shape) const
     {
-        auto dds                                      = input_shape.to_dynamic().dyn_dims();
-        static std::vector<slice_mode> has_axes_input = {slice_mode::axes_input,
-                                                         slice_mode::starts_axes_input,
-                                                         slice_mode::ends_axes_input,
-                                                         slice_mode::starts_ends_axes_input};
-        if(contains(has_axes_input, mode))
+        auto dds = input_shape.to_dynamic().dyn_dims();
+        if(contains(mode, slice_mode::axes))
         {
             std::transform(dds.begin(), dds.end(), dds.begin(), [](const auto& dd) {
                 return shape::dynamic_dimension{0, dd.get_interval().max};
@@ -376,62 +309,29 @@ struct slice
     }
 
     /// Used to normalize starts/ends/axes at runtime.
-    /// If given, normalize the starts/ends/axes inputs. Otherwise get from operator attributes.
-    /// If starts_input or ends_input is not given, assuming starts/ends attributes are only
-    /// integers. If starts/ends have symbolics, they should go through the starts_input and
+    /// If starts/ends have symbolics, they should go through the starts_input and
     /// ends_input instead. `axes` attribute should always be correctly normalized at compile-time
     /// because shapes with dynamic rank are not supported.
-    ///
-    /// input_shape: static shape of the input
-    /// starts_input: optional
-    /// ends_input: optional
-    /// axes_input: optional
     std::unordered_map<std::string, std::vector<int64_t>>
     normalize_starts_ends_axes(shape input_shape,
-                               const optional<std::vector<int64_t>>& starts_input,
-                               const optional<std::vector<int64_t>>& ends_input,
-                               const optional<std::vector<int64_t>>& axes_input) const
+                               std::vector<int64_t>& starts_vec,
+                               std::vector<int64_t>& ends_vec,
+                               std::vector<int64_t>& axes_vec) const
     {
         assert(not input_shape.dynamic());
         auto axes_attrs = this->attributes().at("normalize_axes");
         std::vector<int64_t> norm_starts;
         std::vector<int64_t> norm_ends;
         std::vector<int64_t> norm_axes;
-        if(axes_input)
-        {
-            norm_axes = normalize_axes(axes_input.value(),
-                                       input_shape,
-                                       axes_attrs.at("axes"),
-                                       "Slice variable axes_input");
-        }
-        else
-        {
-            norm_axes = this->axes;
-        }
-        if(starts_input)
-        {
-            norm_starts = normalize_indices(starts_input.value(),
-                                            norm_axes,
-                                            input_shape,
-                                            axes_attrs.at("starts"),
-                                            "Slice variable starts_input");
-        }
-        else
-        {
-            norm_starts = to_ints(this->starts);
-        }
-        if(ends_input)
-        {
-            norm_ends = normalize_indices(ends_input.value(),
-                                          norm_axes,
-                                          input_shape,
-                                          axes_attrs.at("ends"),
-                                          "Slice variable input ends");
-        }
-        else
-        {
-            norm_ends = to_ints(this->ends);
-        }
+        norm_axes = normalize_axes(
+            axes_vec, input_shape, axes_attrs.at("axes"), "Slice variable axes_input");
+        norm_starts = normalize_indices(starts_vec,
+                                        norm_axes,
+                                        input_shape,
+                                        axes_attrs.at("starts"),
+                                        "Slice variable starts_input");
+        norm_ends   = normalize_indices(
+            ends_vec, norm_axes, input_shape, axes_attrs.at("ends"), "Slice variable input ends");
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
     }
 
@@ -446,82 +346,29 @@ struct slice
         }
         else
         {
-            std::unordered_map<std::string, std::vector<int64_t>> norm_inputs;
-            // Attribute-provided dims are passed as their concrete int values (via to_ints) so they
-            // are re-normalized/clamped against the runtime input shape, just like the runtime
-            // inputs. Symbolic bounds only ever appear on the input-provided dims.
-            if(mode == slice_mode::starts_input)
+            std::vector<int64_t> starts_vec;
+            std::vector<int64_t> ends_vec;
+            std::vector<int64_t> axes_vec;
+            for(std::size_t i = 0; i < mode.size(); ++i)
             {
-                args[1].visit([&](auto starts_input) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   starts_input.template to_vector<int64_t>(),
-                                                   to_ints(this->ends),
-                                                   this->axes);
+                args[i + 1].visit([&](auto input_view) {
+                    auto vec = input_view.template to_vector<int64_t>();
+                    switch(mode[i])
+                    {
+                    case slice_mode::starts: starts_vec = vec; break;
+                    case slice_mode::ends: ends_vec = vec; break;
+                    case slice_mode::axes: axes_vec = vec; break;
+                    }
                 });
             }
-            else if(mode == slice_mode::ends_input)
-            {
-                args[1].visit([&](auto ends_input) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   to_ints(this->starts),
-                                                   ends_input.template to_vector<int64_t>(),
-                                                   this->axes);
-                });
-            }
-            else if(mode == slice_mode::axes_input)
-            {
-                args[1].visit([&](auto axes_input) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   to_ints(this->starts),
-                                                   to_ints(this->ends),
-                                                   axes_input.template to_vector<int64_t>());
-                });
-            }
-            else if(mode == slice_mode::starts_ends_input)
-            {
-                // attr axes set; inputs are (data, starts_input, ends_input)
-                visit_all(args[1], args[2])([&](auto starts_input, auto ends_input) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   starts_input.template to_vector<int64_t>(),
-                                                   ends_input.template to_vector<int64_t>(),
-                                                   this->axes);
-                });
-            }
-            else if(mode == slice_mode::starts_axes_input)
-            {
-                visit_all(args[1], args[2])([&](auto starts_input, auto axes_input) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   starts_input.template to_vector<int64_t>(),
-                                                   to_ints(this->ends),
-                                                   axes_input.template to_vector<int64_t>());
-                });
-            }
-            else if(mode == slice_mode::ends_axes_input)
-            {
-                visit_all(args[1], args[2])([&](auto ends_input, auto axes_input) {
-                    norm_inputs =
-                        normalize_starts_ends_axes(input_shape,
-                                                   to_ints(this->starts),
-                                                   ends_input.template to_vector<int64_t>(),
-                                                   axes_input.template to_vector<int64_t>());
-                });
-            }
-            else // mode == slice_mode::starts_ends_axes_input
-            {
-                visit_all(args[1], args[2], args[3])(
-                    [&](auto starts_input, auto ends_input, auto axes_input) {
-                        norm_inputs =
-                            normalize_starts_ends_axes(input_shape,
-                                                       starts_input.template to_vector<int64_t>(),
-                                                       ends_input.template to_vector<int64_t>(),
-                                                       axes_input.template to_vector<int64_t>());
-                    });
-            }
+            if(starts_vec.empty())
+                starts_vec = to_ints(this->starts);
+            if(ends_vec.empty())
+                ends_vec = to_ints(this->ends);
+            if(axes_vec.empty())
+                axes_vec = this->axes;
+            auto norm_inputs =
+                normalize_starts_ends_axes(input_shape, starts_vec, ends_vec, axes_vec);
             auto offset = compute_offset(
                 input_shape, norm_inputs.at("norm_starts"), norm_inputs.at("norm_axes"));
             shape calc_shape = shape{input_shape.type(),

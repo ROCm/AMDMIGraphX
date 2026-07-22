@@ -50,7 +50,8 @@ TEST_CASE(dyn_slice_lowering_runtime_inputs)
         auto starts = m1.add_parameter("starts", idx_s);
         auto ends   = m1.add_parameter("ends", idx_s);
         auto sl     = m1.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
+            migraphx::make_op("slice",
+                                  {{"axes", {2}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
             data,
             starts,
             ends);
@@ -68,7 +69,8 @@ TEST_CASE(dyn_slice_lowering_runtime_inputs)
         auto sync =
             m2.add_instruction(migraphx::make_op("hip::sync_stream"), copy_starts, copy_ends);
         auto sl = m2.add_instruction(
-            migraphx::make_op("slice", {{"axes", {2}}, {"mode", "starts_ends_input"}}),
+            migraphx::make_op("slice",
+                              {{"axes", {2}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
             data,
             sync,
             copy_ends);

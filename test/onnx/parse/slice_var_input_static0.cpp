@@ -32,7 +32,8 @@ TEST_CASE(slice_var_input_static0)
     auto starts = mm->add_parameter("starts", migraphx::shape{migraphx::shape::int32_type, {2}});
     auto ends   = mm->add_parameter("ends", migraphx::shape{migraphx::shape::int32_type, {2}});
     mm->add_instruction(
-        migraphx::make_op("slice", {{"axes", {0, 1}}, {"mode", "starts_ends_input"}}),
+        migraphx::make_op("slice",
+                          {{"axes", {0, 1}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
         data,
         starts,
         ends);

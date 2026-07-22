@@ -68,7 +68,8 @@ static auto parse_dyn_split(const onnx_parser::node_info& info,
         // slice(input, starts = {n * chunk_size}, ends = {(n+1) * chunk_size}); axes =
         // {tuned_axis}
         ret_ins.at(n) = info.add_instruction(
-            make_op("slice", {{"axes", {tuned_axis}}, {"mode", "starts_ends_input"}}),
+            make_op("slice",
+                    {{"axes", {tuned_axis}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
             args[0],
             info.add_instruction(
                 make_op("mul"), chunk_size, info.add_literal(literal{int64_scalar_shape, {n}})),
@@ -82,7 +83,7 @@ static auto parse_dyn_split(const onnx_parser::node_info& info,
         make_op("slice",
                 {{"axes", {tuned_axis}},
                  {"ends", {std::numeric_limits<int64_t>::max()}},
-                 {"mode", "starts_input"}}),
+                 {"mode", migraphx::value::array{"starts"}}}),
         args[0],
         info.add_instruction(make_op("mul"),
                              chunk_size,

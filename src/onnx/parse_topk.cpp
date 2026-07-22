@@ -90,11 +90,15 @@ struct parse_topk : op_parser<parse_topk>
         {
             // dynamic slice on outputs of `topk`
             ret_val = info.add_instruction(
-                make_op("slice", {{"starts", {0}}, {"axes", {axis}}, {"mode", "ends_input"}}),
+                make_op(
+                    "slice",
+                    {{"starts", {0}}, {"axes", {axis}}, {"mode", migraphx::value::array{"ends"}}}),
                 ret_val,
                 args.at(1));
             ret_ind = info.add_instruction(
-                make_op("slice", {{"starts", {0}}, {"axes", {axis}}, {"mode", "ends_input"}}),
+                make_op(
+                    "slice",
+                    {{"starts", {0}}, {"axes", {axis}}, {"mode", migraphx::value::array{"ends"}}}),
                 ret_ind,
                 args.at(1));
         }

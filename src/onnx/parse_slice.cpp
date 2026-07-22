@@ -27,19 +27,11 @@
 #include <migraphx/ranges.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
-#include <migraphx/enum.hpp>
 #include <migraphx/dim_like.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace onnx {
-
-MIGRAPHX_BIT_FLAG_ENUM(slice_input_flags,
-                       std::uint8_t,
-                       none         = 0,
-                       starts_input = 1 << 0,
-                       ends_input   = 1 << 1,
-                       axes_input   = 1 << 2)
 
 struct parse_slice : op_parser<parse_slice>
 {
@@ -54,7 +46,7 @@ struct parse_slice : op_parser<parse_slice>
         std::vector<dim_like> ends;
         std::vector<int64_t> steps;
         std::vector<int64_t> raxes;
-        slice_input_flags flags = slice_input_flags::none;
+        std::vector<op::slice::slice_mode> mode{};
 
         void always_insert(instruction_ref arg) { op_args.insert(op_args.begin(), arg); }
 
@@ -74,36 +66,7 @@ struct parse_slice : op_parser<parse_slice>
             return result;
         }
 
-        op::slice::slice_mode get_slice_mode(slice_input_flags slice_flags)
-        {
-            switch(slice_flags)
-            {
-            case slice_input_flags::none: return op::slice::slice_mode::one_input;
-            case slice_input_flags::starts_input: return op::slice::slice_mode::starts_input;
-            case slice_input_flags::ends_input: return op::slice::slice_mode::ends_input;
-            case slice_input_flags::axes_input: return op::slice::slice_mode::axes_input;
-            case(slice_input_flags::starts_input | slice_input_flags::ends_input):
-                return op::slice::slice_mode::starts_ends_input;
-            case(slice_input_flags::starts_input | slice_input_flags::axes_input):
-                return op::slice::slice_mode::starts_axes_input;
-            case(slice_input_flags::ends_input | slice_input_flags::axes_input):
-                return op::slice::slice_mode::ends_axes_input;
-            case(slice_input_flags::starts_input | slice_input_flags::ends_input |
-                 slice_input_flags::axes_input):
-                return op::slice::slice_mode::starts_ends_axes_input;
-            default: MIGRAPHX_THROW("PARSE_SLICE: invalid slice_mode");
-            }
-        }
-
-        op::slice create_slice_operator()
-        {
-            op::slice slice_op;
-            slice_op.axes   = axes;
-            slice_op.starts = starts;
-            slice_op.ends   = ends;
-            slice_op.mode   = get_slice_mode(flags);
-            return slice_op;
-        }
+        op::slice create_slice_operator() { return op::slice{axes, starts, ends, mode}; }
     };
 
     instruction_ref parse(const op_desc& /*opd*/,
@@ -151,7 +114,7 @@ struct parse_slice : op_parser<parse_slice>
         {
             auto _axes = sd.try_insert(args.at(3));
             if(_axes.empty())
-                sd.flags |= slice_input_flags::axes_input;
+                sd.mode.insert(sd.mode.begin(), op::slice::slice_mode::axes);
             sd.axes = _axes;
         }
         else if(contains(info.attributes, "axes"))
@@ -165,7 +128,7 @@ struct parse_slice : op_parser<parse_slice>
         {
             auto _ends = sd.try_insert(args.at(2));
             if(_ends.empty())
-                sd.flags |= slice_input_flags::ends_input;
+                sd.mode.insert(sd.mode.begin(), op::slice::slice_mode::ends);
             sd.ends.assign(_ends.begin(), _ends.end());
         }
         else if(contains(info.attributes, "ends"))
@@ -182,7 +145,7 @@ struct parse_slice : op_parser<parse_slice>
         {
             auto _starts = sd.try_insert(args.at(1));
             if(_starts.empty())
-                sd.flags |= slice_input_flags::starts_input;
+                sd.mode.insert(sd.mode.begin(), op::slice::slice_mode::starts);
             sd.starts.assign(_starts.begin(), _starts.end());
         }
         else if(contains(info.attributes, "starts"))

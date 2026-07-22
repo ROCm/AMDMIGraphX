@@ -128,6 +128,7 @@ __device__ inline array<float, 4> wino_f23_bt_u(const array<float, 4>& p)
 // PostInput / F / Inputs...: fused pointwise post-op, same contract as the
 // fp16 kernel -- f(cast(y), inputs[idx]...) is applied at each output position,
 // collapsing to a plain cast when F = op::id{} and Inputs... is empty.
+// NOLINTBEGIN(readability-function-size): one fused winograd transform+FMA+writeback kernel
 template <index_int NW,
           index_int KO,
           index_int TILES,
@@ -143,7 +144,6 @@ template <index_int NW,
           class Input,
           class Weights,
           class... Inputs>
-// NOLINTNEXTLINE(readability-function-size)
 __device__ void
 winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... inputs)
 {
@@ -229,7 +229,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // Innermost weight dim (stride 1) is C for NCHW [u,v,k,c] and v for NHWC
     // [u,k,c,v]; either way dim 3 is packed. NHWC's v-innermost layout makes the 4
     // v_col lanes read consecutive floats (coalesced); its channel load is then
-    // w_str[WC]-strided (see fma_block).
+    // w_str[w_c_dim]-strided (see fma_block).
     MIGRAPHX_ASSERT(w_str[3] == 1);
 
     // Per (tile,row) input byte offset for channel 0 of this lane's column; the
@@ -262,14 +262,14 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
     // by the JIT from the weight layout) picks the v/k/c stride-dim indices
     // accordingly (u is always dim 0).
     constexpr bool w_vinner = VINNER;
-    const index_int WV      = w_vinner ? 3 : 1; // v-dim stride index
-    const index_int WK      = w_vinner ? 1 : 2; // k-dim stride index
-    const index_int WC      = w_vinner ? 2 : 3; // c-dim stride index
+    const index_int w_v_dim = w_vinner ? 3 : 1; // v-dim stride index
+    const index_int w_k_dim = w_vinner ? 1 : 2; // k-dim stride index
+    const index_int w_c_dim = w_vinner ? 2 : 3; // c-dim stride index
     const int32_t w_lane_base =
-        static_cast<int32_t>((v_col * w_str[WV] + k_base * w_str[WK]) * sizeof(float));
+        static_cast<int32_t>((v_col * w_str[w_v_dim] + k_base * w_str[w_k_dim]) * sizeof(float));
     const int32_t w_u_stride = static_cast<int32_t>(w_str[0] * sizeof(float));
-    const int32_t w_k_stride = static_cast<int32_t>(w_str[WK] * sizeof(float));
-    const int32_t w_c_stride = static_cast<int32_t>(w_str[WC] * sizeof(float));
+    const int32_t w_k_stride = static_cast<int32_t>(w_str[w_k_dim] * sizeof(float));
+    const int32_t w_c_stride = static_cast<int32_t>(w_str[w_c_dim] * sizeof(float));
     auto w_byte_off          = [&](index_int u, index_int k) {
         return (k_base + k < out_c) ? (w_lane_base + static_cast<int32_t>(u) * w_u_stride +
                                        static_cast<int32_t>(k) * w_k_stride)
@@ -395,7 +395,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
                          v_reg_t& v_next,
                          index_int c_next,
                          index_int nchan_next) {
-        // Weight channel stride in bytes: 1 float (NCHW, C innermost) or w_str[WC]
+        // Weight channel stride in bytes: 1 float (NCHW, C innermost) or w_str[w_c_dim]
         // (NHWC, v-innermost -> the channel dim is strided by the 4 v's).
         const int32_t coff_w = static_cast<int32_t>(c0) * w_c_stride;
         repeat_c<4>([&](auto uu) {
@@ -651,6 +651,7 @@ winograd_conv_f23_fp32(F f, Output output, Input x, Weights weights, Inputs... i
         });
     });
 }
+// NOLINTEND(readability-function-size)
 
 } // namespace migraphx
 

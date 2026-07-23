@@ -36,20 +36,11 @@ TEST_CASE(clip_dyn_min_only_test)
         mm->add_literal(migraphx::literal{migraphx::shape{migraphx::shape::float_type, {1}, {0}},
                                           {std::numeric_limits<float>::max()}});
 
-    auto min_val_mb =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}),
-                            l0,
-                            min_val,
-                            max_val);
-    auto max_val_mb =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}),
-                            min_val,
-                            min_val_mb);
-    max_val =
-        mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}),
-                            max_val,
-                            min_val_mb);
-    auto ret = mm->add_instruction(migraphx::make_op("clip"), min_val_mb, max_val_mb, max_val);
+    min_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), min_val, l0);
+    max_val = mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(dds)}}), max_val, l0);
+    auto ret = mm->add_instruction(migraphx::make_op("clip"), l0, min_val, max_val);
     mm->add_return({ret});
 
     migraphx::onnx_options options;

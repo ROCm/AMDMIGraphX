@@ -27,7 +27,6 @@
 
 TEST_CASE(concat_dyn_expand_wildcard_test)
 {
-    // Regression for #4924: concat with a fully-unconstrained (wildcard) dynamic dim parses.
     migraphx::onnx_options options;
     options.default_dyn_dim_value = {1, 4};
     auto prog                     = read_onnx("concat_dyn_expand_wildcard_test.onnx", options);

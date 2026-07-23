@@ -82,6 +82,7 @@ Full documentation for MIGraphX is available at
 * Fixed `slice_concat_gather` matcher and interaction between same table and cross table gather fusions(#5038).
 
 ### Optimized
+* Optimized flash decoding recombination in `fuse_attention` to use the exp-normalize form (#5090).
 * Reduced tuning time by scaling the per-candidate benchmark bundle to the candidate's op count (#4989).
 * Enabled tensor vectorization for GPU fused `argmin` and `argmax` (`gpu::arg_reduce`) (#4790).
 * Replaced Hillis-Steele scan algorithm with a wave-based hierarchical scan, reducing work complexity from O(N log N) to O(N) and synchronization from O(log N) to 2 `__syncthreads()` calls (#4720).

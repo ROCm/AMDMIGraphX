@@ -202,13 +202,13 @@ TEST_CASE(rnn_builder_numerical_forward)
     EXPECT(result.size() == 2);
 
     // Verify the shapes of the outputs
-    auto hs_result = result[0];
+    const auto& hs_result = result[0];
     EXPECT(hs_result.get_shape().lens()[0] == seq_len);
     EXPECT(hs_result.get_shape().lens()[1] == num_dirct);
     EXPECT(hs_result.get_shape().lens()[2] == batch_size);
     EXPECT(hs_result.get_shape().lens()[3] == hidden_size);
 
-    auto lho_result = result[1];
+    const auto& lho_result = result[1];
     EXPECT(lho_result.get_shape().lens()[0] == num_dirct);
     EXPECT(lho_result.get_shape().lens()[1] == batch_size);
     EXPECT(lho_result.get_shape().lens()[2] == hidden_size);

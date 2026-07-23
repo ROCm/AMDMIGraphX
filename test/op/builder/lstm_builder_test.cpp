@@ -191,7 +191,7 @@ TEST_CASE(lstm_builder_numerical_forward)
     auto result = p.eval(params);
     EXPECT(result.size() == 3);
 
-    auto hs_result = result[0];
+    const auto& hs_result = result[0];
     EXPECT(hs_result.get_shape().lens()[0] == seq_len);
     EXPECT(hs_result.get_shape().lens()[1] == num_dirct);
     EXPECT(hs_result.get_shape().lens()[2] == batch_size);

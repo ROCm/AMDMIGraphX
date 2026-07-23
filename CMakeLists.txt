@@ -454,44 +454,16 @@ Semicolon-separated list (e.g. gfx90a;gfx942;gfx950) for per-GPU deps, \
 or empty for device-all meta-package deps.")
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
     set(_MGX_PKG_NAME "amdrocm-migraphx")
-    if(MIGRAPHX_THEROCK_GPU_ARCH)
-        set(_MGX_META_DOC "${CMAKE_CURRENT_BINARY_DIR}/migraphx-meta-README.txt")
-        file(WRITE "${_MGX_META_DOC}" "MIGraphX meta package.\n")
-        set(_MGX_ARCH_COMPONENTS "")
-        foreach(mgx_gpu_arch IN LISTS MIGRAPHX_THEROCK_GPU_ARCH)
-            set(_MGX_GPU_DEPS "")
-            if(MIGRAPHX_USE_MIOPEN)
-                list(APPEND _MGX_GPU_DEPS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
-            endif()
-            if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-                list(APPEND _MGX_GPU_DEPS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
-            endif()
-            rocm_package_setup_component(${mgx_gpu_arch}
-                LIBRARY_NAME ${_MGX_PKG_NAME}
-                PACKAGE_NAME ${mgx_gpu_arch}
-                DEPENDS
-                    COMPONENT runtime
-                    COMMON ${_MGX_GPU_DEPS})
-            install(FILES ${_MGX_META_DOC}
-                    DESTINATION share/doc/${_MGX_PKG_NAME}-${mgx_gpu_arch}
-                    COMPONENT ${mgx_gpu_arch})
-            list(APPEND _MGX_ARCH_COMPONENTS ${mgx_gpu_arch})
-        endforeach()
-        rocm_package_setup_component(all
-            LIBRARY_NAME ${_MGX_PKG_NAME}
-            PACKAGE_NAME all
-            DEPENDS
-                COMPONENT runtime ${_MGX_ARCH_COMPONENTS})
-        install(FILES ${_MGX_META_DOC}
-                DESTINATION share/doc/${_MGX_PKG_NAME}-all
-                COMPONENT all)
-    else()
-        if(MIGRAPHX_USE_MIOPEN)
-            list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}")
-        endif()
-        if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-            list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}")
-        endif()
+    # Self-contained per-arch packages (amdrocm-migraphx-gfxNNN) and their per-GPU
+    # amdrocm-* deps are produced by the UFB Dockerfile cpack loop: one fat build,
+    # repackaged once per arch. Here we set only the base name + arch-neutral
+    # runtime dep; the device-all deps below are the standalone default and are
+    # overridden per-arch (amdrocm-dnn/blas-gfxNNN) at cpack time.
+    if(MIGRAPHX_USE_MIOPEN)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}")
+    endif()
+    if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+        list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}")
     endif()
     rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${MIGRAPHX_THEROCK_ROCM_VERSION}")
     rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${MIGRAPHX_THEROCK_ROCM_VERSION}")

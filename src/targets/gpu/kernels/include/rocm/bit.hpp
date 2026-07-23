@@ -95,6 +95,9 @@ constexpr T bit_ceil(T x) noexcept
     if(x <= 1)
         return 1;
     unsigned e = bit_width(T(x - 1));
+    // cppcheck cannot resolve numeric_limits<T>::digits for the dependent T and reads it as the
+    // primary template's 0, so it wrongly sees this as comparing an unsigned value against zero.
+    // cppcheck-suppress unsignedLessThanZero
     ROCM_ASSERT(e < numeric_limits<T>::digits);
     if constexpr(is_same<T, decltype(+x)>{})
         return T{1} << e;
@@ -112,8 +115,13 @@ template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
 constexpr T rotl(T x, int s) noexcept
 {
     constexpr int n = numeric_limits<T>::digits;
-    int r           = s % n;
+    // cppcheck reads numeric_limits<T>::digits as the primary template's 0 (it cannot resolve the
+    // specialization for the dependent T), so it wrongly flags this modulo as a division by zero
+    // and then treats the r == 0 test below as always false.
+    // cppcheck-suppress zerodiv
+    int r = s % n;
 
+    // cppcheck-suppress knownConditionTrueFalse
     if(r == 0)
         return x;
 

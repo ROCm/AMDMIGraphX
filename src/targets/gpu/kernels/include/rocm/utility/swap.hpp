@@ -33,6 +33,8 @@ inline namespace ROCM_INLINE_NS {
 template <class T>
 constexpr void swap(T& a, T& b) noexcept
 {
+    // The cast to an rvalue reference is a move, not a redundant cast.
+    // cppcheck-suppress migraphx-RedundantCast
     T tmp = static_cast<T&&>(a);
     a     = static_cast<T&&>(b);
     b     = static_cast<T&&>(tmp);

@@ -34,6 +34,9 @@ struct test_operators_with_value
     using one_type = rocm::integral_constant<int, 1>;
     using two_type = rocm::integral_constant<int, 2>;
 
+    // These assertions deliberately read ::value to verify the stored constant, which is the point
+    // of the test, so do not rewrite them as trait construction.
+    // cppcheck-suppress-begin migraphx-AvoidNestedValue
     using not_true_type = decltype(not rocm::true_type());
     static_assert(not not_true_type::value);
 
@@ -88,6 +91,7 @@ struct test_operators_with_value
     static_assert(one_type_xor_two_type::value == (1 ^ 2));
     using one_type_bit_or_two_type = decltype(one_type() | two_type());
     static_assert(one_type_bit_or_two_type::value == (1 | 2));
+    // cppcheck-suppress-end migraphx-AvoidNestedValue
 };
 
 // NOLINTEND(hicpp-signed-bitwise,modernize-use-bool-literals,readability-implicit-bool-conversion)
@@ -165,6 +169,8 @@ struct test_operators_with_integrals
     using one_type = rocm::integral_constant<int, 1>;
     using two_type = rocm::integral_constant<int, 2>;
 
+    // Double negation is intentional here to exercise the operators under test.
+    // cppcheck-suppress migraphx-MultipleUnaryOperator
     static_assert(not(not rocm::true_type()));
 
     static_assert(not(rocm::true_type() and rocm::false_type()));

@@ -76,7 +76,9 @@ TEST_CASE(move_return_type_from_rvalue)
 
 TEST_CASE(move_return_type_from_lvalue_ref)
 {
-    int x   = 1;
+    int x = 1;
+    // A non-const lvalue reference is the subject under test here.
+    // cppcheck-suppress constVariableReference
     int& rx = x;
     EXPECT(rocm::is_rvalue_reference<decltype(rocm::move(rx))>{});
 }
@@ -91,7 +93,10 @@ TEST_CASE(move_exact_type_int)
 
 TEST_CASE(move_exact_type_int_ref)
 {
-    int x   = 0;
+    int x = 0;
+    // Must be a non-const lvalue reference so move(rx) yields int&& (a const one would yield
+    // const int&& and fail the assertion below).
+    // cppcheck-suppress constVariableReference
     int& rx = x;
     EXPECT(rocm::is_same<decltype(rocm::move(rx)), int&&>{});
 }

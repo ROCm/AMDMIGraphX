@@ -460,8 +460,12 @@ TEST_CASE(iterate_forward)
 {
     rocm::array<int, 5> a = {1, 2, 3, 4, 5};
     int sum               = 0;
-    for(int& it : a)
+    // The raw loop deliberately exercises array iteration, which is what this test covers.
+    for(const int& it : a)
+    {
+        // cppcheck-suppress useStlAlgorithm
         sum += it;
+    }
     EXPECT(sum == 15);
 }
 

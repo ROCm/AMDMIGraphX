@@ -301,14 +301,14 @@ struct is_void : is_same<void, remove_cv_t<T>>
 {
 };
 template <class T>
-inline constexpr bool is_void_v = is_void<T>::value;
+inline constexpr bool is_void_v = is_void<T>{};
 
 template <class T>
 struct is_null_pointer : is_same<nullptr_t, remove_cv_t<T>>
 {
 };
 template <class T>
-inline constexpr bool is_null_pointer_v = is_null_pointer<T>::value;
+inline constexpr bool is_null_pointer_v = is_null_pointer<T>{};
 
 #define ROCM_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
 

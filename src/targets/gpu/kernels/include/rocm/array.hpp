@@ -55,6 +55,8 @@ struct array
     // fill
     constexpr void fill(const T& u)
     {
+        // This is the device-side reimplementation that std::fill would call into.
+        // cppcheck-suppress useStlAlgorithm
         for(size_type i = 0; i < N; ++i)
             elems[i] = u;
     }

@@ -1595,7 +1595,7 @@ TEST_CASE(rnn_bidirectional_layout)
             {{"actv_func",
               migraphx::to_value({migraphx::make_op("tanh"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)}});
-        auto lho    = rnn_results.at(1);
+        auto lho = rnn_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
         mm->add_return({lho});
         p.compile(migraphx::make_target("ref"));
@@ -3080,7 +3080,7 @@ TEST_CASE(gru_reverse_layout)
               migraphx::to_value({migraphx::make_op("sigmoid"), migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::reverse)},
              {"linear_before_reset", 0}});
-        auto lho       = gru_results.at(1);
+        auto lho = gru_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
         mm->add_return({lho});
         p.compile(migraphx::make_target("ref"));
@@ -3732,7 +3732,7 @@ TEST_CASE(gru_bidirectional_layout)
                                   migraphx::make_op("tanh")})},
              {"direction", migraphx::to_value(migraphx::op::rnn_direction::bidirectional)},
              {"linear_before_reset", 0}});
-        auto lho       = gru_results.at(1);
+        auto lho = gru_results.at(1);
         lho = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", perm}}), lho);
         mm->add_return({lho});
         p.compile(migraphx::make_target("ref"));

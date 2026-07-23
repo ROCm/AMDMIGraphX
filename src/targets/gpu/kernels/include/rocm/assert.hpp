@@ -159,7 +159,12 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
 // NOLINTNEXTLINE
 #define ROCM_CHECK(cond) ROCM_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
 
-#ifdef ROCM_DEBUG
+#ifdef CPPCHECK
+// NOLINTNEXTLINE
+#define ROCM_ASSERT assert
+#define ROCM_ASSUME assert
+#define ROCM_UNREACHABLE() ROCM_ASSERT(false)
+#elifdef ROCM_DEBUG
 // NOLINTNEXTLINE
 #define ROCM_ASSERT ROCM_CHECK
 #define ROCM_ASSUME ROCM_CHECK

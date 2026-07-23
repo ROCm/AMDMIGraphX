@@ -254,18 +254,15 @@ auto compute_op(rank<1>,
                 const shape& output_shape,
                 const std::vector<shape>& input_shapes,
                 const std::vector<argument>& input)
-    -> decltype(
-        x.compute(make_compute_output_shape(pack(x, output_shape, input_shapes, input)), input))
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output_shape, input_shapes, input)),
+                          input))
 {
     return x.compute(make_compute_output_shape(pack(x, output_shape, input_shapes, input)), input);
 }
 
 template <class T>
-argument compute_op(rank<0>,
-                    const T& x,
-                    const shape&,
-                    const std::vector<shape>&,
-                    const std::vector<argument>&)
+argument compute_op(
+    rank<0>, const T& x, const shape&, const std::vector<shape>&, const std::vector<argument>&)
 {
     std::string name = x.name();
     MIGRAPHX_THROW("Not computable: " + name);
@@ -293,11 +290,11 @@ auto compute_op(rank<1>,
                 const std::vector<shape>& input_shapes,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f) -> decltype(x.compute(make_compute_output_shape(
-                                               pack(x, output, input_shapes, inputs)),
-                                           inputs,
-                                           module_args,
-                                           std::move(f)))
+                F f)
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output, input_shapes, inputs)),
+                          inputs,
+                          module_args,
+                          std::move(f)))
 {
     return x.compute(make_compute_output_shape(pack(x, output, input_shapes, inputs)),
                      inputs,
@@ -338,8 +335,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(
-        x, output, std::vector<shape>{}, inputs, module_args, std::move(f));
+    return compute_op(x, output, std::vector<shape>{}, inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -373,11 +369,10 @@ auto compute_op(rank<3>,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
                 F f) // NOLINT
-    -> decltype(x.compute(
-        make_compute_output_shape(pack(x, output, input_shapes, inputs)),
-        inputs,
-        module_args,
-        std::move(f)))
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output, input_shapes, inputs)),
+                          inputs,
+                          module_args,
+                          std::move(f)))
 {
     return x.compute(make_compute_output_shape(pack(x, output, input_shapes, inputs)),
                      inputs,
@@ -394,8 +389,7 @@ auto compute_op(rank<2>,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>&,
                 F) // NOLINT
-    -> decltype(
-        x.compute(make_compute_output_shape(pack(x, output, input_shapes, inputs)), inputs))
+    -> decltype(x.compute(make_compute_output_shape(pack(x, output, input_shapes, inputs)), inputs))
 {
     return x.compute(make_compute_output_shape(pack(x, output, input_shapes, inputs)), inputs);
 }
@@ -441,8 +435,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(
-        rank<4>{}, x, ctx, output, input_shapes, inputs, module_args, std::move(f));
+    return compute_op(rank<4>{}, x, ctx, output, input_shapes, inputs, module_args, std::move(f));
 }
 
 template <class T, class F>
@@ -453,8 +446,7 @@ argument compute_op(const T& x,
                     const std::vector<module_ref>& module_args,
                     F f)
 {
-    return compute_op(
-        x, ctx, output, std::vector<shape>{}, inputs, module_args, std::move(f));
+    return compute_op(x, ctx, output, std::vector<shape>{}, inputs, module_args, std::move(f));
 }
 
 template <class T>
@@ -463,8 +455,7 @@ auto is_context_free_op(rank<1>,
                         const shape& output_shape,
                         const std::vector<argument>& input)
     -> decltype(x.compute(
-                    make_compute_output_shape(
-                        pack(x, output_shape, std::vector<shape>{}, input)),
+                    make_compute_output_shape(pack(x, output_shape, std::vector<shape>{}, input)),
                     input),
                 std::true_type{});
 

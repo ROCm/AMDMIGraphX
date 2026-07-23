@@ -62,18 +62,6 @@ detect_package_backend()
 find_package(ROCmCMakeBuildTools REQUIRED)
 find_package(Threads REQUIRED)
 
-include(CMakeDependentOption)
-
-cmake_dependent_option(MIGRAPHX_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF "WIN32" OFF)
-
-if(NOT MIGRAPHX_MSVC_STATIC_RUNTIME)
-    set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")
-endif()
-
-if(NOT CMAKE_MSVC_RUNTIME_LIBRARY)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
-endif()
-
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     option(MIGRAPHX_USE_BINSKIM_COMPLIANT_COMPILE_FLAGS "Prepare MIGraphX for BinSkim Binary Analyzer" OFF)
     option(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES "Use Spectre-mitigated libraries" OFF)
@@ -96,6 +84,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         if(MIGRAPHX_USE_SPECTRE_MITIGATED_LIBRARIES)
             message(WARNING "Spectre-mitigated libraries are not yet available for Clang in this project.")
         endif()
+    endif()
+    option(MIGRAPHX_USE_MSVC_STATIC_RUNTIME "Link MSVC runtime library statically instead of dynamically" OFF)
+    if(NOT MIGRAPHX_USE_MSVC_STATIC_RUNTIME)
+        set(MIGRAPHX_MSVC_RUNTIME_SUFFIX "DLL")
+    endif()
+    if(NOT CMAKE_MSVC_RUNTIME_LIBRARY)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>${MIGRAPHX_MSVC_RUNTIME_SUFFIX}")
     endif()
 endif()
 
@@ -149,7 +144,7 @@ include(ROCMSetupVersion)
 
 option(BUILD_DEV "Build for development purpose only" OFF)
 
-rocm_setup_version(VERSION 2.16.0)
+rocm_setup_version(VERSION 2.17.0)
 math(EXPR MIGRAPHX_SO_MAJOR_VERSION "(${PROJECT_VERSION_MAJOR} * 1000 * 1000) + (${PROJECT_VERSION_MINOR} * 1000) + ${PROJECT_VERSION_PATCH}")
 set(MIGRAPHX_SO_VERSION ${MIGRAPHX_SO_MAJOR_VERSION}.0)
 

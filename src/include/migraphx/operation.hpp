@@ -288,16 +288,12 @@ auto compute_op(rank<1>,
                 const std::vector<shape>& input_shapes,
                 const std::vector<argument>& inputs,
                 const std::vector<module_ref>& module_args,
-                F f)
-    -> decltype(x.compute(make_compute_output_shape(pack(x, output, input_shapes, inputs)),
-                          inputs,
-                          module_args,
-                          std::move(f)))
+                const F& f)
+    -> decltype(x.compute(
+        make_compute_output_shape(pack(x, output, input_shapes, inputs)), inputs, module_args, f))
 {
-    return x.compute(make_compute_output_shape(pack(x, output, input_shapes, inputs)),
-                     inputs,
-                     module_args,
-                     std::move(f));
+    return x.compute(
+        make_compute_output_shape(pack(x, output, input_shapes, inputs)), inputs, module_args, f);
 }
 
 template <class T, class F>
@@ -307,7 +303,7 @@ argument compute_op(rank<0>,
                     const std::vector<shape>& input_shapes,
                     const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
-                    F) // NOLINT
+                    const F&)
 {
     if(module_args.empty())
         return compute_op(x, output, input_shapes, inputs);
@@ -321,9 +317,9 @@ argument compute_op(const T& x,
                     const std::vector<shape>& input_shapes,
                     const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
-                    F f)
+                    const F& f)
 {
-    return compute_op(rank<1>{}, x, output, input_shapes, inputs, module_args, std::move(f));
+    return compute_op(rank<1>{}, x, output, input_shapes, inputs, module_args, f);
 }
 
 template <class T, class F>
@@ -331,9 +327,9 @@ argument compute_op(const T& x,
                     const shape& output,
                     const std::vector<argument>& inputs,
                     const std::vector<module_ref>& module_args,
-                    F f)
+                    const F& f)
 {
-    return compute_op(x, output, std::vector<shape>{}, inputs, module_args, std::move(f));
+    return compute_op(x, output, std::vector<shape>{}, inputs, module_args, f);
 }
 
 template <class T, class F>

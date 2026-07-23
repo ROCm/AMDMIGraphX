@@ -43,6 +43,7 @@ Full documentation for MIGraphX is available at
 * Added a verbose terminate handler for exceptions on Windows (#5084).
 * Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
 * `split_single_dyn_dim` gains a `bucket_by_optimals` field: when true and `dynamic_dimension::optimals` is non-empty, emit one submodule per (min, optimals..., max) instead of one per integer in `[min, max]` (O(|optimals|) vs O(max-min) compile cost / engine size). `select_module::compute()` always falls back to the smallest compatible bucket on a non-exact runtime shape (ref pads on host, GPU callers pre-pad). GPU/Ref targets read `MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS` once and forward it to the pass field; see `docs/reference/MIGraphX-dev-env-vars.rst`.
+* `split_single_dyn_dim` gains a `bucket_by_optimals` field: when true and `dynamic_dimension::optimals` is non-empty, emit one submodule per (min, optimals..., max) instead of one per integer in `[min, max]` (O(|optimals|) vs O(max-min) compile cost / engine size). `select_module::compute()` always falls back to the smallest compatible bucket on a non-exact runtime shape (ref pads on host, GPU callers pre-pad). The GPU target reads `MIGRAPHX_DYN_DIM_BUCKET_BY_OPTIMALS` once and forwards it to the pass field; see `docs/reference/MIGraphX-dev-env-vars.rst`.
 
 
 ### Changed

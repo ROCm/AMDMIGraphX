@@ -1374,12 +1374,20 @@ tuning_config get_tuning_config_mlir(const context& migraphx_ctx,
     return tc;
 }
 
-bool mlir_lds_usage_fits_arch(int64_t gemm_o, const std::string& arch, shape::type_t elem_type)
+bool mlir_lds_usage_fits_arch(int64_t gemm_o,
+                              const std::string& arch,
+                              shape::type_t elem_type,
+                              const module* m)
 {
-    static mlir_program prog;
     static std::mutex mutex;
     const std::lock_guard<std::mutex> lock(mutex);
-    return mlirMIGraphXLDSUsageFitsArch(gemm_o, arch.c_str(), prog.make_type(elem_type));
+
+    mlir_program prog;
+    if(m != nullptr)
+        prog.parse(*m);
+
+    return mlirMIGraphXLDSUsageFitsArch(
+        gemm_o, arch.c_str(), prog.make_type(elem_type), prog.mmodule.get());
 }
 
 void dump_mlir_to_mxr(module m,
@@ -1440,7 +1448,10 @@ tuning_config get_tuning_config_mlir(const context&, module, const std::vector<s
     return {};
 }
 
-bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t) { return false; }
+bool mlir_lds_usage_fits_arch(int64_t, const std::string&, shape::type_t, const module*)
+{
+    return false;
+}
 // NOLINTEND(performance-unnecessary-value-param)
 
 #endif

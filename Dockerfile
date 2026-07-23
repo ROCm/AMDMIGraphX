@@ -72,10 +72,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     rm -rf /var/lib/apt/lists/*
 
 
-# Install pytorch
-RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.3/torch-2.8.0%2Brocm7.2.3.lw.git2742f6d1-cp310-cp310-linux_x86_64.whl \
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.3/torchvision-0.24.0%2Brocm7.2.3.gitb919bd0c-cp310-cp310-linux_x86_64.whl \
-                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.3/triton-3.4.0%2Brocm7.2.3.git0cace8d2-cp310-cp310-linux_x86_64.whl
+# Install pytorch (ROCm 7.2.4 cp310 wheels — keep in sync with rocm apt version above)
+RUN pip3 install https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.4/torch-2.8.0%2Brocm7.2.4.lw.git6bea3e0b-cp310-cp310-linux_x86_64.whl \
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.4/torchvision-0.24.0%2Brocm7.2.4.gitb919bd0c-cp310-cp310-linux_x86_64.whl \
+                 https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2.4/triton-3.4.0%2Brocm7.2.4.git0cace8d2-cp310-cp310-linux_x86_64.whl
 
 # add this for roctracer dependencies
 RUN pip3 install CppHeaderParser

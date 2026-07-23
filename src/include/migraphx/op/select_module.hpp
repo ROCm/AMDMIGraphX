@@ -28,15 +28,19 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/module.hpp>
 #include <cstddef>
-#include <cstring>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace op {
 
 // Smallest-bucket fallback for runtime dispatch.
-//   compatible: same type+rank, bucket lens >= input lens (componentwise).
-//   winner:     compatible submodule with the smallest total element count.
+//   compatible: same type+rank, and the input lens fit inside the submodule's
+//               input parameter bounds (for a bucket submodule the parameter is
+//               dynamic and fixed_pad expands it up to max_lens; for a legacy
+//               submodule the parameter is static so the bounds collapse to the
+//               static lens, i.e. an exact match).
+//   winner:     compatible submodule with the smallest total (max) element
+//               count, i.e. the least padding.
 // Returns end() if no compatible submodule exists.
 inline std::vector<module_ref>::const_iterator find_smallest_compatible_submodule(
     const std::vector<module_ref>& submodule_list,
@@ -55,21 +59,26 @@ inline std::vector<module_ref>::const_iterator find_smallest_compatible_submodul
         std::size_t score = 1;
         for(std::size_t i = 0; i < in_param_names.size(); ++i)
         {
-            const auto& a  = args[i];
-            const auto& ps = param_shapes.at(in_param_names[i]);
-            if(ps.type() != a.get_shape().type() or ps.lens().size() != a.get_shape().lens().size())
+            const auto& a      = args[i];
+            const auto& ps     = param_shapes.at(in_param_names[i]);
+            const auto& a_lens = a.get_shape().lens();
+            // Dynamic (bucket) params carry a [min_lens, max_lens] range;
+            // static (legacy) params collapse both bounds to the static lens.
+            const auto lo = ps.dynamic() ? ps.min_lens() : ps.lens();
+            const auto hi = ps.dynamic() ? ps.max_lens() : ps.lens();
+            if(ps.type() != a.get_shape().type() or hi.size() != a_lens.size())
             {
                 compatible = false;
                 break;
             }
-            for(std::size_t d = 0; d < ps.lens().size(); ++d)
+            for(std::size_t d = 0; d < hi.size(); ++d)
             {
-                if(ps.lens()[d] < a.get_shape().lens()[d])
+                if(a_lens[d] < lo[d] or a_lens[d] > hi[d])
                 {
                     compatible = false;
                     break;
                 }
-                score *= ps.lens()[d];
+                score *= hi[d];
             }
             if(not compatible)
                 break;
@@ -150,15 +159,15 @@ struct select_module
 
         // Smallest-compatible-bucket fallback (bucket_by_optimals mode). Whether
         // any buckets exist is a compile-time decision in split_single_dyn_dim.
-        // Ref pads the inputs on the host below; GPU callers pre-pad.
-        bool bucket_dispatch = false;
+        // Bucket submodules take a dynamic input and pad it up to the bucket
+        // size in-graph via fixed_pad, so this dispatch is device-agnostic and
+        // does not touch argument buffers on the host.
         if(module_iter == submodule_list.end())
         {
             module_iter =
                 find_smallest_compatible_submodule(submodule_list, args, [this](module_ref mr) {
                     return this->get_input_parameter_names(mr);
                 });
-            bucket_dispatch = (module_iter != submodule_list.end());
         }
 
         if(module_iter == submodule_list.end())
@@ -169,27 +178,15 @@ struct select_module
         auto* module_to_run = *module_iter;
         std::unordered_map<std::string, argument> p_map;
 
-        // Input parameters. On a bucket dispatch the input is smaller than the
-        // bucket shape, so zero-pad on the host into a bucket-sized argument.
+        // Input parameters. Forward the runtime argument unchanged: an exact
+        // match already fits the (static) parameter, and a bucket submodule
+        // pads the input up to its static bucket size in-graph via fixed_pad.
         auto in_param_names = get_input_parameter_names(module_to_run);
         auto param_shapes   = module_to_run->get_parameter_shapes();
         assert(in_param_names.size() <= args.size());
         for(std::size_t i = 0; i < in_param_names.size(); ++i)
         {
-            const auto& name = in_param_names[i];
-            const auto& a    = args[i];
-            const auto& ps   = param_shapes.at(name);
-            if(bucket_dispatch and a.get_shape() != ps)
-            {
-                argument padded{ps};
-                std::memset(padded.data(), 0, ps.bytes());
-                std::memcpy(padded.data(), a.data(), a.get_shape().bytes());
-                p_map.emplace(name, std::move(padded));
-            }
-            else
-            {
-                p_map.emplace(name, a);
-            }
+            p_map.emplace(in_param_names[i], args[i]);
         }
 
         // One tuple output parameter in main module to multiple output parameters in submodule

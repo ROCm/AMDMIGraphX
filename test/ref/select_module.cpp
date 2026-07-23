@@ -214,8 +214,11 @@ TEST_CASE(select_module_not_found_error)
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
 }
 
-// Build a program: one static submodule (data+6) per `bucket_sizes`,
-// dispatched via select_module over the dynamic input shape.
+// Build a program: one bucket submodule (fixed_pad -> data+6) per
+// `bucket_sizes`, dispatched via select_module over the dynamic input shape.
+// Each bucket takes a dynamic input narrowed to (prev, size] and pads it up to
+// a static [size, 4] shape in-graph via fixed_pad. Padding is therefore
+// device-agnostic; select_module does not touch host buffers.
 static migraphx::program make_select_module_add_program(
     const std::vector<std::size_t>& bucket_sizes, std::size_t dyn_min, std::size_t dyn_max)
 {
@@ -224,23 +227,29 @@ static migraphx::program make_select_module_add_program(
     migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
     auto literal_ins = mm->add_literal(migraphx::literal{lit_s, {6.0f}});
 
-    auto create_submodule = [&](std::size_t batch_size, const std::string& module_name) {
-        auto* submod = p.create_module(module_name);
-        migraphx::shape sm_shape{migraphx::shape::float_type, {batch_size, 4}};
-        auto sm_input = submod->add_parameter("data", sm_shape);
-        auto broadcast_lit =
-            submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, sm_input);
-        auto add_ins = submod->add_instruction(migraphx::make_op("add"), sm_input, broadcast_lit);
-        submod->add_return({add_ins});
-        return submod;
-    };
+    auto create_submodule =
+        [&](std::size_t prev_size, std::size_t batch_size, const std::string& module_name) {
+            auto* submod = p.create_module(module_name);
+            migraphx::shape sm_shape{migraphx::shape::float_type,
+                                     {migraphx::shape::dynamic_dimension{prev_size + 1, batch_size},
+                                      migraphx::shape::dynamic_dimension{4, 4}}};
+            auto sm_input = submod->add_parameter("data", sm_shape);
+            auto padded   = submod->add_instruction(migraphx::make_op("fixed_pad"), sm_input);
+            auto broadcast_lit =
+                submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, padded);
+            auto add_ins = submod->add_instruction(migraphx::make_op("add"), padded, broadcast_lit);
+            submod->add_return({add_ins});
+            return submod;
+        };
 
     std::vector<migraphx::module_ref> submods;
     submods.reserve(bucket_sizes.size());
-    std::transform(bucket_sizes.begin(),
-                   bucket_sizes.end(),
-                   std::back_inserter(submods),
-                   [&](auto n) { return create_submodule(n, "bucket_" + std::to_string(n)); });
+    std::size_t prev_size = 0;
+    for(auto n : bucket_sizes)
+    {
+        submods.push_back(create_submodule(prev_size, n, "dim_" + std::to_string(n)));
+        prev_size = n;
+    }
 
     migraphx::shape s{migraphx::shape::float_type, {{dyn_min, dyn_max}, {4, 4}}};
     auto input                              = mm->add_parameter("data", s);
@@ -257,10 +266,10 @@ static migraphx::program make_select_module_add_program(
     return p;
 }
 
-// Exact match wins over bucket fallback.
+// Input at a bucket boundary hits that bucket with no padding.
 TEST_CASE(select_module_bucket_dispatch_exact_match)
 {
-    // N=10 matches bucket_10 exactly.
+    // N=10 lands in bucket dim_10; fixed_pad is a no-op (input == max_lens).
     auto p = make_select_module_add_program({1, 10, 50, 100}, 1, 100);
     p.compile(migraphx::make_target("ref"));
 

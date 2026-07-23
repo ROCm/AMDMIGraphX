@@ -105,7 +105,10 @@ Model performance tunable variables change the compilation behavior of a model. 
       | * ``select_module::compute()`` always falls back to the
       |   smallest compatible bucket when no exact submodule
       |   matches the runtime shape, independent of this env var.
-      |   Ref pads on host; GPU callers pre-pad.
+      |   Each bucket submodule pads its input up to the bucket
+      |   size in-graph via the ``fixed_pad`` op, so padding is
+      |   device-agnostic (no host-side buffer copy, no caller
+      |   pre-pad requirement).
 
     - | ``1``: bucket mode.
       | ``0`` or unset: legacy enumerate mode (default).

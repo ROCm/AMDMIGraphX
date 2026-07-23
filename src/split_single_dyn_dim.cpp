@@ -159,22 +159,49 @@ void split_single_dyn_dim::apply(module_pass_manager& mpm) const
                 dim_sizes.insert(n);
         }
 
+        // Bucket submodules cover disjoint ranges (prev_dim_size, dim_size] so
+        // exactly one bucket accepts any given in-range input; prev_dim_size is
+        // unused in legacy mode.
+        std::size_t prev_dim_size = 0;
         for(std::size_t dim_size : dim_sizes)
         {
             auto* submod = mpm.create_module("dim_" + std::to_string(dim_size));
-            // instruction map for new static shaped submodule parameters
+            // instruction map for new submodule parameters
             std::unordered_map<instruction_ref, instruction_ref> map_ins;
             for(const auto& dd_check : dd_check_vec.value())
             {
-                // create static shape using dim_size
                 const auto& dyn_param = mm->get_parameter(dd_check.dyn_param_str);
                 auto dyn_param_shape  = mm->get_parameter_shape(dd_check.dyn_param_str);
-                auto static_shape     = dyn_param_shape.to_static(dim_size);
-                map_ins[dyn_param]    = submod->add_parameter(dd_check.dyn_param_str, static_shape);
+                if(use_buckets)
+                {
+                    // Bucket submodule: keep the input dynamic (narrowed to this
+                    // bucket's range) and let fixed_pad expand it up to a static
+                    // shape of length dim_size. Padding stays in-graph and
+                    // device-agnostic instead of the caller padding the buffer.
+                    auto new_dyn_dims = dyn_param_shape.dyn_dims();
+                    for(auto& new_dd : new_dyn_dims)
+                    {
+                        if(not new_dd.is_fixed())
+                            new_dd = shape::dynamic_dimension{prev_dim_size + 1, dim_size};
+                    }
+                    auto new_dyn_shape = shape{dyn_param_shape.type(), std::move(new_dyn_dims)};
+                    auto new_dyn_param =
+                        submod->add_parameter(dd_check.dyn_param_str, new_dyn_shape);
+                    map_ins[dyn_param] =
+                        submod->add_instruction(make_op("fixed_pad"), new_dyn_param);
+                }
+                else
+                {
+                    // Legacy submodule: one static shape per integer dim_size.
+                    auto static_shape = dyn_param_shape.to_static(dim_size);
+                    map_ins[dyn_param] =
+                        submod->add_parameter(dd_check.dyn_param_str, static_shape);
+                }
             }
             auto outputs = submod->add_instructions(mm, &map_ins);
             submod->add_return({outputs});
             submodules.push_back(submod);
+            prev_dim_size = dim_size;
         }
         // sort parameters by name for consistency (vs. parameter order attr)
         std::sort(param_names.begin(), param_names.end());

@@ -377,6 +377,58 @@ static migraphx::program build_bucket_add_golden(const std::vector<std::size_t>&
     return p;
 }
 
+// Golden post-pass program for bucket mode: each "dim_<N>" submodule keeps a
+// dynamic input narrowed to (prev, N] and pads it up to a static [N, 4] shape
+// in-graph via fixed_pad, then adds 6. Mirrors split_single_dyn_dim bucket
+// mode so padding is device-agnostic (no host memcpy in select_module).
+static migraphx::program build_bucket_add_golden_padded(
+    const std::vector<std::size_t>& bucket_sizes, std::size_t min, std::size_t max)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    auto create_submodule =
+        [&](std::size_t prev_size, std::size_t batch_size, const std::string& module_name) {
+            auto* submod = p.create_module(module_name);
+            migraphx::shape sm_shape{migraphx::shape::float_type,
+                                     {migraphx::shape::dynamic_dimension{prev_size + 1, batch_size},
+                                      migraphx::shape::dynamic_dimension{4, 4}}};
+            auto sm_input = submod->add_parameter("data", sm_shape);
+            auto padded   = submod->add_instruction(migraphx::make_op("fixed_pad"), sm_input);
+            migraphx::shape lit_s{migraphx::shape{migraphx::shape::float_type, {1}}};
+            auto literal_ins = submod->add_literal(migraphx::literal{lit_s, {6.0f}});
+            auto broadcast_lit =
+                submod->add_instruction(migraphx::make_op("multibroadcast"), literal_ins, padded);
+            auto add_ins = submod->add_instruction(migraphx::make_op("add"), padded, broadcast_lit);
+            submod->add_return({add_ins});
+            return submod;
+        };
+    std::vector<migraphx::module_ref> submods;
+    submods.reserve(bucket_sizes.size());
+    std::size_t prev_size = 0;
+    for(auto n : bucket_sizes)
+    {
+        submods.push_back(create_submodule(prev_size, n, "dim_" + std::to_string(n)));
+        prev_size = n;
+    }
+
+    migraphx::shape s{
+        migraphx::shape::float_type,
+        {migraphx::shape::dynamic_dimension{min, max}, migraphx::shape::dynamic_dimension{4, 4}}};
+    auto input0                             = mm->add_parameter("data", s);
+    std::vector<migraphx::shape> sub_shapes = {};
+    sub_shapes.push_back(migraphx::shape{
+        migraphx::shape::float_type,
+        {migraphx::shape::dynamic_dimension{min, max}, migraphx::shape::dynamic_dimension{4, 4}}});
+    migraphx::shape out_attr = migraphx::shape{sub_shapes};
+    auto sm_ins              = mm->add_instruction(
+        migraphx::make_op("select_module", {{"output_dyn_shapes", migraphx::to_value(out_attr)}}),
+        {input0},
+        submods);
+    auto ret = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), sm_ins);
+    mm->add_return({ret});
+    return p;
+}
+
 // Pre-pass dynamic program with the given dyn_dim.
 static migraphx::program build_bucket_add_input(const migraphx::shape::dynamic_dimension& dd)
 {
@@ -396,7 +448,7 @@ static migraphx::program build_bucket_add_input(const migraphx::shape::dynamic_d
 // bucket_by_optimals=true + optimals -> 1 submodule per (min, optimals..., max).
 TEST_CASE(dynamic_batch_bucket_only_optimals)
 {
-    auto p_expected = build_bucket_add_golden({1, 10, 50, 90, 100}, 1, 100);
+    auto p_expected = build_bucket_add_golden_padded({1, 10, 50, 90, 100}, 1, 100);
     migraphx::shape::dynamic_dimension dd{1, 100, std::set<std::size_t>{10, 50, 90}};
     auto p_actual = build_bucket_add_input(dd);
     run_pass_bucket(p_actual);
@@ -427,7 +479,7 @@ TEST_CASE(dynamic_batch_bucket_env_off_keeps_enumeration)
 TEST_CASE(dynamic_batch_bucket_filters_out_of_range_optimals)
 {
     // 999 dropped; 5, 7 kept; plus min=2, max=10 -> 4 buckets.
-    auto p_expected = build_bucket_add_golden({2, 5, 7, 10}, 2, 10);
+    auto p_expected = build_bucket_add_golden_padded({2, 5, 7, 10}, 2, 10);
 
     migraphx::shape::dynamic_dimension dd{2, 10, std::set<std::size_t>{5, 7, 999}};
     auto p_actual = build_bucket_add_input(dd);

@@ -902,7 +902,7 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
         auto k2_broad1 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 256, 1}}}), k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
-        auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
+        auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, 2, 256, 256}}}), k2_exp);
         auto k2_convert = mm->add_instruction(
@@ -1016,7 +1016,7 @@ TEST_CASE(flash_decoding_3d)
         auto k2_broad1 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 256, 1}}}), k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
-        auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
+        auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
         auto k2_convert = mm->add_instruction(
@@ -1138,7 +1138,7 @@ TEST_CASE(flash_decoding_3d_rectangular)
         auto k2_broad1 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 240, 1}}}), k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
-        auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
+        auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
         auto k2_convert = mm->add_instruction(
@@ -1268,7 +1268,7 @@ TEST_CASE(flash_decoding_3d_padding)
         auto k2_broad1 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", {1, num_splits, 242, 1}}}), k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
-        auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
+        auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
         auto k2_convert = mm->add_instruction(
@@ -1897,7 +1897,7 @@ TEST_CASE(flash_decoding_3d_auto_split_large_sequence)
             migraphx::make_op("multibroadcast", {{"out_lens", {1, expected_splits, 512, 1}}}),
             k2_rmax);
         auto k2_sub = mm->add_instruction(migraphx::make_op("sub"), lse, k2_broad1);
-        auto k2_exp = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
+        auto k2_exp    = mm->add_instruction(migraphx::make_op("exp"), k2_sub);
         auto k2_broad3 = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), k2_exp);
         auto k2_convert = mm->add_instruction(

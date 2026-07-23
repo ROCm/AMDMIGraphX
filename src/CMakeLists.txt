@@ -218,6 +218,7 @@ register_migraphx_ops(
     elu
     equal
     erf
+    eval_expr
     exp
     fill
     fixed_pad
@@ -286,7 +287,6 @@ register_migraphx_ops(
     reshape
     reshape_lazy
     resize
-    resolve_sym_expr
     reverse
     rnn
     rnn_last_cell_output

@@ -429,7 +429,8 @@ argument instruction::eval(bool check_eval) const
                        ins.inputs().end(),
                        std::back_inserter(args),
                        [&](auto arg) { return self(*arg); });
-        auto value = ins.normalized_operator().compute(ins.get_shape(), args);
+        auto value =
+            ins.normalized_operator().compute(ins.get_shape(), to_shapes(ins.inputs()), args);
         cache.emplace(&ins, value);
         return value;
     })(*this);

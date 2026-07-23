@@ -27,6 +27,7 @@
 #include <migraphx/shape.hpp>
 #include <migraphx/argument.hpp>
 #include <utility>
+#include <vector>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -37,6 +38,8 @@ struct dyn_output
     shape ins_shape;
     // shape computed at eval time using input arguments
     shape computed_shape;
+    // original shapes of the instruction inputs
+    std::vector<shape> input_shapes;
 };
 
 /**
@@ -51,18 +54,25 @@ struct compute_output_shape
 
     operator dyn_output() const
     {
-        return ins_inputs([](const auto& x, shape ins_shape, const std::vector<argument>& inputs) {
+        return ins_inputs([](const auto& x,
+                             shape ins_shape,
+                             const std::vector<shape>& input_shapes,
+                             const std::vector<argument>& inputs) {
+            auto original_inputs = input_shapes.empty() ? to_shapes(inputs) : input_shapes;
             // some op returns a tuple shape e.g. TopK
             if(ins_shape.any_of_dynamic())
-                return dyn_output{ins_shape, compute_shape(x, to_shapes(inputs))};
-            return dyn_output{ins_shape, ins_shape};
+                return dyn_output{
+                    ins_shape, compute_shape(x, to_shapes(inputs)), std::move(original_inputs)};
+            return dyn_output{ins_shape, ins_shape, std::move(original_inputs)};
         });
     }
 
     operator shape() const
     {
-        return ins_inputs(
-            [](const auto&, shape ins_shape, const std::vector<argument>&) { return ins_shape; });
+        return ins_inputs([](const auto&,
+                             shape ins_shape,
+                             const std::vector<shape>&,
+                             const std::vector<argument>&) { return ins_shape; });
     }
 };
 

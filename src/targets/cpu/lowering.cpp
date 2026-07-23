@@ -142,9 +142,9 @@ struct cpu_op
     }
     std::string name() const { return "cpu::op"; }
     shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-    argument compute(context&, const shape& output_shape, const std::vector<argument>& args) const
+    argument compute(context&, const dyn_output& dyn_out, const std::vector<argument>& args) const
     {
-        return op.compute(output_shape, args);
+        return op.compute(dyn_out.ins_shape, dyn_out.input_shapes, args);
     }
     value to_value() const
     {

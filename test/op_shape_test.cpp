@@ -5295,33 +5295,29 @@ TEST_CASE(slice_dyn_nonfixed_keeps_other_optimals)
                  input);
 }
 
-TEST_CASE(resolve_sym_expr_shape)
+TEST_CASE(eval_expr_shape)
 {
-    // Output is a tuple with one 1-D int64 element per expr, regardless of the symbolic exprs.
     auto n = var("n", {1, 16});
-    migraphx::shape sv{migraphx::shape::int64_type, {1}};
-    migraphx::shape elem{migraphx::shape::int64_type, {1}};
-    expect_shape(
-        migraphx::shape{std::vector<migraphx::shape>{elem, elem}},
-        migraphx::make_op(
-            "resolve_sym_expr",
-            {{"exprs", migraphx::value::array{migraphx::to_value(n), migraphx::to_value(n)}},
-             {"symbols", migraphx::value::array{migraphx::to_value(n)}}}),
-        sv);
+    auto h = var("h", {1, 32});
+    auto w = var("w", {1, 32});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {3}},
+                 migraphx::make_op("eval_expr",
+                                   {{"expressions",
+                                     migraphx::value::array{migraphx::to_value(n),
+                                                            migraphx::to_value(h / lit(2)),
+                                                            migraphx::to_value(w / lit(2))}}}),
+                 input);
 }
 
-TEST_CASE(resolve_sym_expr_bad_input)
+TEST_CASE(eval_expr_missing_symbol)
 {
-    // One scalar value input is required per symbol; here 2 symbols but only 1 input.
     auto m = var("m", {1, 16});
     auto n = var("n", {1, 16});
-    migraphx::shape sv{migraphx::shape::int64_type, {1}};
-    throws_shape(
-        migraphx::make_op(
-            "resolve_sym_expr",
-            {{"exprs", migraphx::value::array{migraphx::to_value(m)}},
-             {"symbols", migraphx::value::array{migraphx::to_value(m), migraphx::to_value(n)}}}),
-        sv);
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op(
+                     "eval_expr", {{"expressions", migraphx::value::array{migraphx::to_value(m)}}}),
+                 input);
 }
 
 TEST_CASE(slice_sym)

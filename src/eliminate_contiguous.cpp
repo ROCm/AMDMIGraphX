@@ -171,7 +171,8 @@ static void remove_contiguous(const std::string& op_name, module& m, F f)
         shape computed_shape                   = c.compute_shape({prev->get_shape()});
         const std::vector<argument>& prev_eval = {prev->eval()};
         // prev_eval should not be used in make_compute_output_shape() as computed_shape is static
-        auto co_shape = make_compute_output_shape(pack(c, computed_shape, prev_eval));
+        auto co_shape = make_compute_output_shape(
+            pack(c, computed_shape, std::vector<shape>{prev->get_shape()}, prev_eval));
         literals[i]   = c.compute(co_shape, prev_eval);
     });
 

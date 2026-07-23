@@ -412,38 +412,30 @@ TEST_CASE(slice_dyn_test1)
     EXPECT(result.get_shape() == sresult);
 }
 
-TEST_CASE(slice_sym_resolved_input)
+TEST_CASE(slice_eval_expr_input)
 {
-    // A late pass lowers `slice[axes=2, starts=0, ends=n]` to this: the symbolic end becomes a
-    // runtime input from resolve_sym_expr, the concrete start stays an attribute, and slice runs as
-    // a plain dynamic multi-input slice.
-    auto n = migraphx::sym::var("n", {1, 3});
+    using dd = migraphx::shape::dynamic_dimension;
+    auto n   = migraphx::sym::var("n", {1, 3});
 
     migraphx::program p;
     auto* mm = p.get_main_module();
-    std::vector<int> data(2 * 2 * 3);
-    std::iota(data.begin(), data.end(), 0);
-    migraphx::shape s{migraphx::shape::int32_type, {2, 2, 3}};
-    auto l0 = mm->add_literal(migraphx::literal{s, data});
+    migraphx::shape s{migraphx::shape::int32_type,
+                      {dd{migraphx::sym::lit(2)}, dd{migraphx::sym::lit(2)}, dd{n}}};
+    auto x = mm->add_parameter("x", s);
 
-    migraphx::shape val{migraphx::shape::int64_type, {1}};
-    auto nv        = mm->add_parameter("n_val", val);
-    auto end_tuple = mm->add_instruction(
-        migraphx::make_op("resolve_sym_expr",
-                          {{"exprs", migraphx::value::array{migraphx::to_value(n)}},
-                           {"symbols", migraphx::value::array{migraphx::to_value(n)}}}),
-        nv);
-    // resolve_sym_expr returns a tuple; extract the single end value to feed slice's runtime input.
-    auto end_vals =
-        mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), end_tuple);
-    // starts_axes config: attrs starts + axes set, ends arrives as the runtime input.
-    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}}), l0, end_vals);
+    auto end_vals = mm->add_instruction(
+        migraphx::make_op(
+            "eval_expr",
+            {{"expressions",
+              migraphx::value::array{migraphx::to_value(n - migraphx::sym::lit(1))}}}),
+        x);
+    mm->add_instruction(migraphx::make_op("slice", {{"axes", {2}}, {"starts", {0}}}), x, end_vals);
     p.compile(migraphx::make_target("ref"));
 
-    migraphx::parameter_map params;
-    std::vector<int64_t> n_data = {2}; // n = 2 -> slice axis 2 as [0, 2)
-    params["n_val"]             = migraphx::argument(val, n_data.data());
-    auto result                 = p.eval(params).back();
+    std::vector<int> data(2 * 2 * 3);
+    std::iota(data.begin(), data.end(), 0);
+    migraphx::shape input_shape{migraphx::shape::int32_type, {2, 2, 3}};
+    auto result = p.eval({{"x", migraphx::argument{input_shape, data.data()}}}).back();
 
     std::vector<int> gold = {0, 1, 3, 4, 6, 7, 9, 10};
     std::vector<int> results_vector;

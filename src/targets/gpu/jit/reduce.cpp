@@ -712,7 +712,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 tc.solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
         }
         tc.solutions.push_back({{"algo", "lane"}});
-        for(auto block_size : {128, 256, 1024})
+        for(auto block_size : {128, 256, 512, 1024})
             tc.solutions.push_back({{"algo", "block_strided"}, {"block_size", block_size}});
         if(tile.has_value())
         {

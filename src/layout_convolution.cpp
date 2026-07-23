@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,16 +32,18 @@
 #include <migraphx/eliminate_contiguous.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/pass_manager.hpp>
+#include <migraphx/reshape_dims.hpp>
 #include <migraphx/stringutils.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
 namespace {
-std::vector<int64_t> get_permutation(instruction_ref ins, const layout_convolution& lc)
+std::vector<int64_t> get_permutation(instruction_ref ins,
+                                     const layout_convolution::layout_order& order)
 {
     std::vector<int64_t> perm(ins->get_shape().ndim());
-    if(lc.channels_last)
+    if(order == layout_convolution::channels_last)
     {
         std::iota(perm.begin() + 1, perm.end() - 1, 2);
         perm.back() = 1;
@@ -90,7 +92,7 @@ void preserve_output_layout(module& m)
     }
 }
 
-void transform_convolutions(module& m, const layout_convolution& lc)
+void transform_convolutions(module& m, const layout_convolution::layout_order& order)
 {
     for(auto ins : iterator_for(m))
     {
@@ -103,7 +105,7 @@ void transform_convolutions(module& m, const layout_convolution& lc)
         auto v = ins->get_operator().to_value();
         bool is_group_conv = v.at("group").to<int>() > 1;
         auto args = ins->inputs();
-        auto perm = is_group_conv ? get_default_permutation(ins) : get_permutation(ins, lc);
+        auto perm = is_group_conv ? get_default_permutation(ins) : get_permutation(ins, order);
         std::transform(args.begin(), args.end(), args.begin(), [&](const auto& i) {
             return m.insert_instruction(ins, make_op("layout", {{"permutation", perm}}), i);
         });
@@ -126,17 +128,57 @@ void remove_layout(module& m)
         m.replace_instruction(ins, ins->inputs().front());
     }
 }
+
+void apply_layout(module& m, layout_convolution::layout_order order)
+{
+    preserve_output_layout(m);
+    transform_convolutions(m, order);
+    run_passes(
+        m, {dead_code_elimination{}, eliminate_contiguous{"contiguous"}, dead_code_elimination{}});
+    remove_layout(m);
+    run_passes(m, {dead_code_elimination{}});
+}
+
+std::size_t score(const module& m)
+{
+    return std::count_if(m.begin(), m.end(), [](const instruction& ins) {
+        if(ins.can_eval())
+            return false;
+        if(contains({"layout", "contiguous"}, ins.name()))
+            return true;
+        // A reshape whose collapsed dims are not contiguous cannot alias its input as a view
+        // (reshape_lazy) and needs a copy, so count it the same as a contiguous.
+        if(ins.name() == "reshape")
+            return not reshape_dims(ins.inputs().front()->get_shape(),
+                                    ins.get_shape().lens(),
+                                    {.lazy = true})
+                           .has_value();
+        return false;
+    });
+}
 } // namespace
 
 void layout_convolution::apply(module_pass_manager& mpm) const
 {
-    preserve_output_layout(mpm.get_module());
-    transform_convolutions(mpm.get_module(), *this);
-    mpm.run_pass(dead_code_elimination{});
-    mpm.run_pass(eliminate_contiguous{"contiguous"});
-    mpm.run_pass(dead_code_elimination{});
-    remove_layout(mpm.get_module());
-    mpm.run_pass(dead_code_elimination{});
+    if(order == layout_order::channels_auto)
+    {
+        // Score each candidate layout on a copy, then transform the live module in
+        // place with the cheaper one. A copy is not swapped in because its parameters
+        // have fresh identities, which would orphan submodules capturing the originals.
+        module m_first = mpm.get_module();
+        apply_layout(m_first, channels_first);
+        module m_last = mpm.get_module();
+        apply_layout(m_last, channels_last);
+        // channels_last converts each parameter to NHWC and back, so allow up to two extra
+        // layouts per parameter before preferring channels_first.
+        auto allowance = 2 * mpm.get_module().get_parameters().size();
+        auto chosen = (score(m_first) + allowance < score(m_last)) ? channels_first : channels_last;
+        apply_layout(mpm.get_module(), chosen);
+    }
+    else
+    {
+        apply_layout(mpm.get_module(), order);
+    }
 }
 
 } // namespace MIGRAPHX_INLINE_NS

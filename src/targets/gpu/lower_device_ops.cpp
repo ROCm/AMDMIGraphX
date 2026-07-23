@@ -21,29 +21,45 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-#define MIGRAPHX_GUARD_GPU_CROSS_COMPILE_DEVICE_HPP
-
-#include <migraphx/gpu/export.h>
-#include <migraphx/config.hpp>
-#include <hip/hip_runtime_api.h>
-#include <string>
+#include <migraphx/gpu/lower_device_ops.hpp>
+#include <migraphx/matcher.hpp>
+#include <migraphx/module.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/make_op.hpp>
+#include <migraphx/value.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-/// Populate a hipDeviceProp_t with synthetic values for cross-compilation.
-/// Used when no physical GPU is present.
-MIGRAPHX_GPU_EXPORT hipDeviceProp_t
-make_cross_compile_device_props(const std::string& arch_name,
-                                std::size_t cu_count,
-                                std::size_t max_threads_per_cu    = 2048,
-                                std::size_t max_threads_per_block = 1024,
-                                std::size_t wavefront_size        = 0);
+namespace {
+operation precompiled(instruction_ref ins)
+{
+    // gpu::contiguous appends a separate output allocation (additional_args == 1) and compiles as
+    // the "contiguous" kernel; hip::fill/hip::copy already include their output buffer as an input
+    if(ins->name() == "gpu::contiguous")
+        return make_op("gpu::precompile_op",
+                       {{"op", to_value(make_op("contiguous"))}, {"additional_args", 1}});
+    return make_op("gpu::precompile_op",
+                   {{"op", to_value(ins->get_operator())}, {"additional_args", 0}});
+}
+
+struct find_device_memory_op
+{
+    auto matcher() const { return match::name("hip::fill", "hip::copy", "gpu::contiguous"); }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        if(ins->get_shape().dynamic())
+            return;
+        m.replace_instruction(ins, precompiled(ins), ins->inputs());
+    }
+};
+} // namespace
+
+void lower_device_ops::apply(module& m) const { match::find_matches(m, find_device_memory_op{}); }
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-
-#endif

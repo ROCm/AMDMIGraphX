@@ -48,17 +48,17 @@ operation precompiled(instruction_ref ins)
                    {{"op", to_value(ins->get_operator())}, {"additional_args", 0}});
 }
 
-static bool is_concat_op_name(const std::string& name)
+bool is_concat_op_name(const std::string& name)
 {
     return name == "concat" or name == "fused_concat";
 }
 
-static std::string embedded_op_name(const value& v)
+std::string embedded_op_name(const value& v)
 {
     return v.contains("name") ? v.at("name").to<std::string>() : std::string{};
 }
 
-static std::optional<value> get_concat_precompile_config(instruction_ref ins)
+std::optional<value> get_concat_precompile_config(instruction_ref ins)
 {
     if(not contains({"gpu::precompile_op", "gpu::dynamic_code_object_op"}, ins->name()))
         return std::nullopt;
@@ -77,17 +77,17 @@ static std::optional<value> get_concat_precompile_config(instruction_ref ins)
     return pre;
 }
 
-static std::size_t precompile_output_args(const value& pre)
+std::size_t precompile_output_args(const value& pre)
 {
     return pre.contains("additional_args") ? pre.at("additional_args").to<std::size_t>() : 1;
 }
 
-static bool needs_host_to_device_copy(instruction_ref ins)
+bool needs_host_to_device_copy(instruction_ref ins)
 {
     return contains({"@param", "@literal", "hip::copy_from_gpu"}, ins->name());
 }
 
-static bool has_dynamic_concat_input(instruction_ref ins, const value& pre)
+bool has_dynamic_concat_input(instruction_ref ins, const value& pre)
 {
     const auto& inputs     = ins->inputs();
     const auto output_args = precompile_output_args(pre);
@@ -98,14 +98,14 @@ static bool has_dynamic_concat_input(instruction_ref ins, const value& pre)
     });
 }
 
-static instruction_ref insert_gpu_copy(module& m, instruction_ref ins, instruction_ref input)
+instruction_ref insert_gpu_copy(module& m, instruction_ref ins, instruction_ref input)
 {
     auto alloc = m.insert_instruction(
         ins, make_op("hip::allocate", {{"shape", to_value(input->get_shape())}}));
     return m.insert_instruction(ins, make_op("hip::copy_to_gpu"), input, alloc);
 }
 
-static void ensure_dynamic_concat_gpu_inputs(module& m)
+void ensure_dynamic_concat_gpu_inputs(module& m)
 {
     for(auto ins : iterator_for(m))
     {

@@ -130,8 +130,9 @@ make_concat_precompile_module(const std::vector<migraphx::shape>& input_shapes,
     migraphx::module m;
     std::vector<migraphx::instruction_ref> params;
     params.reserve(input_shapes.size());
-    for(const auto& s : input_shapes)
-        params.push_back(m.add_parameter("x" + std::to_string(params.size()), s));
+    std::transform(input_shapes.begin(), input_shapes.end(), std::back_inserter(params), [&](const auto& s) {
+        return m.add_parameter("x" + std::to_string(params.size()), s);
+    });
     auto alloc = m.add_instruction(
         migraphx::make_op("hip::allocate", {{"shape", migraphx::to_value(output_shape)}}));
     params.push_back(alloc);

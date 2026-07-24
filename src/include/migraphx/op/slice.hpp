@@ -129,7 +129,7 @@ struct slice
     void check_inputs_and_attributes(const std::vector<shape>& inputs) const
     {
         // All set (non-empty) bound attributes must agree on the number of sliced axes.
-        // A variable (input-provided) bound leaves its attribute empty, so empty attrs are skipped.
+        // A variable (input-provided) bound can leave its attribute empty, so empty attrs are skipped.
         std::size_t attr_size = 0;
         for(auto s : {axes.size(), starts.size(), ends.size()})
         {

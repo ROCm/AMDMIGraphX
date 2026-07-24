@@ -699,6 +699,18 @@ struct mlir_program
         if(op.name() == "unpack_int4")
             v["axis"] = ins->get_shape().ndim() - 1;
 
+        // Drop slice's `mode` so the emitted IR matches what rocMLIR expects.
+        if(op.name() == "slice" and v.contains("mode"))
+        {
+            value filtered = value::object{};
+            for(const auto& attr : v)
+            {
+                if(attr.get_key() != "mode")
+                    filtered[attr.get_key()] = attr.without_key();
+            }
+            v = filtered;
+        }
+
         return v;
     }
 

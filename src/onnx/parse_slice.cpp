@@ -95,12 +95,9 @@ struct parse_slice : op_parser<parse_slice>
             return ins;
     }
 
-    slice_desc construct_slice_desc(const onnx_parser& parser,
-                                    onnx_parser::node_info info,
-                                    std::vector<instruction_ref> args) const
+    slice_desc handle_sd_inputs(const onnx_parser& parser, onnx_parser::node_info info, std::vector<instruction_ref> args) const
     {
         slice_desc sd;
-
         // ONNX Slice can have up to 5 inputs, we first check the 5th one
         // to decide whether MIGX can handle this slice.
         if(args.size() == 5)
@@ -109,27 +106,25 @@ struct parse_slice : op_parser<parse_slice>
             check_arg_empty(step_arg, "PARSE_SLICE: cannot handle variable steps for slice");
             step_arg.visit([&](auto s) { sd.steps.assign(s.begin(), s.end()); });
         }
-
         if(args.size() >= 4)
         {
-            auto _axes = sd.try_insert(args.at(3));
-            if(_axes.empty())
+            auto tmp_axes = sd.try_insert(args.at(3));
+            if(tmp_axes.empty())
                 sd.mode.insert(sd.mode.begin(), op::slice::slice_mode::axes);
-            sd.axes = _axes;
+            sd.axes = tmp_axes;
         }
         else if(contains(info.attributes, "axes"))
         {
             literal s = parser.parse_value(info.attributes.at("axes"));
             s.visit([&](auto v) { copy(v, std::back_inserter(sd.axes)); });
         }
-
         // NOTE: goes through range-based dynamic shapes pathway only
         if(args.size() >= 3)
         {
-            auto _ends = sd.try_insert(args.at(2));
-            if(_ends.empty())
+            auto tmp_ends = sd.try_insert(args.at(2));
+            if(tmp_ends.empty())
                 sd.mode.insert(sd.mode.begin(), op::slice::slice_mode::ends);
-            sd.ends.assign(_ends.begin(), _ends.end());
+            sd.ends.assign(tmp_ends.begin(), tmp_ends.end());
         }
         else if(contains(info.attributes, "ends"))
         {
@@ -140,13 +135,12 @@ struct parse_slice : op_parser<parse_slice>
                 });
             });
         }
-
         if(args.size() >= 2)
         {
-            auto _starts = sd.try_insert(args.at(1));
-            if(_starts.empty())
+            auto tmp_starts = sd.try_insert(args.at(1));
+            if(tmp_starts.empty())
                 sd.mode.insert(sd.mode.begin(), op::slice::slice_mode::starts);
-            sd.starts.assign(_starts.begin(), _starts.end());
+            sd.starts.assign(tmp_starts.begin(), tmp_starts.end());
         }
         else if(contains(info.attributes, "starts"))
         {
@@ -157,10 +151,16 @@ struct parse_slice : op_parser<parse_slice>
                 });
             });
         }
-
         // data input argument
         sd.always_insert(args.at(0));
+        return sd;
+    }
 
+    slice_desc construct_slice_desc(const onnx_parser& parser,
+                                    onnx_parser::node_info info,
+                                    std::vector<instruction_ref> args) const
+    {
+        slice_desc sd = handle_sd_inputs(parser, info, args);
         // If axes arg is not given, the default is all of them.
         if(sd.axes.empty() and sd.op_args.size() <= 3)
         {

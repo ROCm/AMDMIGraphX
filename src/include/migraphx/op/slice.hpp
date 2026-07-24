@@ -314,9 +314,9 @@ struct slice
     /// because shapes with dynamic rank are not supported.
     std::unordered_map<std::string, std::vector<int64_t>>
     normalize_starts_ends_axes(shape input_shape,
-                               std::vector<int64_t>& starts_vec,
-                               std::vector<int64_t>& ends_vec,
-                               std::vector<int64_t>& axes_vec) const
+                               const std::vector<int64_t>& starts_vec,
+                               const std::vector<int64_t>& ends_vec,
+                               const std::vector<int64_t>& axes_vec) const
     {
         assert(not input_shape.dynamic());
         auto axes_attrs = this->attributes().at("normalize_axes");
@@ -337,8 +337,8 @@ struct slice
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {
-        auto input       = args[0];
-        auto input_shape = input.get_shape();
+        const auto& input = args[0];
+        auto input_shape  = input.get_shape();
         if(args.size() == 1)
         {
             std::size_t offset = compute_offset(input_shape);

@@ -119,6 +119,7 @@ endif()
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
+rocm_add_version_resource(migraphx_device "AMD MIGraphX" "MIGraphX Device Library - GPU Device Operations")
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
@@ -223,6 +224,7 @@ add_library(migraphx_gpu
     hip_gemm_impl.cpp
     hsa_chiplet.cpp
     kernel.cpp
+    lower_device_ops.cpp
     lowering.cpp
     loop.cpp
     lrn.cpp
@@ -301,6 +303,7 @@ if (MIGRAPHX_USE_MIOPEN)
         INCLUDES migraphx/gpu/context.hpp)
 endif()
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
+rocm_add_version_resource(migraphx_gpu "AMD MIGraphX" "MIGraphX GPU Target - AMD GPU Acceleration")
 rocm_clang_tidy_check(migraphx_gpu)
 
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")

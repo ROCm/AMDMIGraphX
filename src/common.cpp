@@ -154,8 +154,38 @@ std::vector<instruction_ref> insert_common_args(module& m,
                                                 std::vector<instruction_ref> inputs,
                                                 common_options options)
 {
-    if(std::any_of(
-           inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().dynamic(); }))
+    // Symbolic inputs (with no range-dynamic mixed in) use single-input broadcasts + converts,
+    // mirroring the static path.
+    bool any_symbolic = std::any_of(
+        inputs.cbegin(), inputs.cend(), [](auto input) { return input->get_shape().symbolic(); });
+    bool any_range = std::any_of(inputs.cbegin(), inputs.cend(), [](auto input) {
+        return input->get_shape().dynamic() and not input->get_shape().symbolic();
+    });
+    if(any_symbolic and not any_range)
+    {
+        auto input_shapes = to_shapes(inputs);
+        auto c_dyn_dims   = compute_common_dyn_dims(input_shapes);
+        auto c_type       = compute_common_types(input_shapes);
+        std::transform(inputs.begin(), inputs.end(), inputs.begin(), [&](auto input) {
+            auto s = input->get_shape();
+            if(options.common_lens and not(s.symbolic() and s.dyn_dims() == c_dyn_dims))
+            {
+                input = m.insert_instruction(
+                    ins,
+                    make_op("multibroadcast", {{"out_dyn_dims", to_value(c_dyn_dims)}}),
+                    input);
+            }
+            if(options.common_type and input->get_shape().type() != c_type)
+            {
+                input =
+                    m.insert_instruction(ins, make_op("convert", {{"target_type", c_type}}), input);
+            }
+            return input;
+        });
+        return inputs;
+    }
+
+    if(any_range)
     {
         auto input_shapes = to_shapes(inputs);
         if(options.common_lens)

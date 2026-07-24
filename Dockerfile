@@ -65,6 +65,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     hipify-clang \
     hiprand-dev \
     hipsparselt \
+    hsa-amd-aqlprofile \
     half \
     libssl-dev \
     zlib1g-dev && \

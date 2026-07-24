@@ -118,6 +118,7 @@ struct miopen_apply
         add_scan_slice_op();
         add_fill_op();
         add_dyn_slice_op();
+        add_dimensions_of_op();
     }
 
     void copy_params() const
@@ -240,8 +241,8 @@ struct miopen_apply
     instruction_ref insert_dynamic_code_object_op(instruction_ref ins) const
     {
         assert(ins->get_operator().name() == "gpu::precompile_op");
-
-        if(not ins->get_shape().dynamic())
+        // some op returns a tuple shape e.g. TopK
+        if(not ins->get_shape().any_of_dynamic())
             return ins;
 
         return mod->replace_instruction(
@@ -460,7 +461,9 @@ struct miopen_apply
                 return lower_nms_to_ref(ins);
             const auto num_boxes = boxes_s.lens().at(1);
             const auto num_bc    = boxes_s.lens().at(0) * scores_s.lens().at(1);
-            // bound on (batch, class) from shared memory limit on compact kernel
+            // Route to ref (CPU) when:
+            // - num_boxes < 2: Single box or no boxes, no sort or IoU comparison needed.
+            // - num_bc > 8192: shared-memory limit on the compact kernel.
             if(num_boxes < 2 or num_bc > 8192)
                 return lower_nms_to_ref(ins);
             return lower_nms_to_gpu_pipeline(ins);
@@ -712,6 +715,20 @@ struct miopen_apply
                     ins, mod->insert_instruction(ins, ins->get_operator(), inputs));
             }
             return ins;
+        });
+    }
+
+    // Get the argument's shape dimensions on host and then copy to gpu
+    void add_dimensions_of_op()
+    {
+        apply_map.emplace("dimensions_of", [=](instruction_ref ins) {
+            auto output = insert_allocation(ins, ins->get_shape());
+            auto sync_input =
+                mod->insert_instruction(ins, make_op("hip::sync_stream"), ins->inputs().front());
+            auto host_out = mod->insert_instruction(ins, ins->get_operator(), sync_input);
+            auto gpu_out =
+                mod->insert_instruction(ins, make_op("hip::copy_to_gpu"), host_out, output);
+            return mod->replace_instruction(ins, gpu_out);
         });
     }
 };

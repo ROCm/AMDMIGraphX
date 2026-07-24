@@ -56,7 +56,7 @@ struct numeric_limits_integer
 {
     static constexpr const bool is_specialized = true;
 
-    static constexpr const bool is_signed = T(-1) < T(0);
+    static constexpr const bool is_signed   = T(-1) < T(0);
     static constexpr const int digits       = sizeof(T) * 8 - static_cast<int>(is_signed);
     static constexpr const int digits10     = digits * 3 / 10;
     static constexpr const int max_digits10 = 0;

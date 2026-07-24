@@ -144,7 +144,7 @@ jobs:
           -DCLANG_TIDY_CACHE=/data/tidy-cache \
           -DGPU_TARGETS=gfx908 \
           ..
-        make -j$(nproc) -k onnx-proto tf-proto tidy
+        make -j$(nproc) -k onnx-proto tf-proto generate_api tidy
 
     # GH actions can not update existing cache, as a workaround clear cache and then save it
     - name: Clear tidy cache before saving

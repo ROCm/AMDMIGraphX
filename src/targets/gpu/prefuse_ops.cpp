@@ -366,8 +366,14 @@ struct winograd_conv
         const auto& x_shape = inputs[0];
         const auto& u_shape = inputs[1];
         auto x_lens         = x_shape.lens();
-        // u_shape is [4 or 3, 3, K, C]; lens()[2] is the output channel count.
-        auto out_c                        = u_shape.lens()[2];
+        const auto& u_lens  = u_shape.lens();
+        // The weight encodes the output channel count K; its axis depends on the
+        // store layout: fp16 [4|3, 3, K, C] and fp32 full-U / S-store [4|3, 4, K, C]
+        // put K at dim 2, while the fp32 v-innermost store [4, K, C, 4] (the NHWC
+        // coalesced weight load) puts K at dim 1. v-inner is the fp32 layout whose
+        // dim 1 is not the 4-wide v axis (matches the kernel's lens[1] != 4 test).
+        const bool vinner                 = x_shape.type() == shape::float_type and u_lens[1] != 4;
+        const auto out_c                  = vinner ? u_lens[1] : u_lens[2];
         std::vector<std::size_t> out_lens = {x_lens[0], out_c, x_lens[2], x_lens[3]};
         return shape::from_permutation(x_shape.type(), out_lens, output_layout);
     }

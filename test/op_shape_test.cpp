@@ -5295,14 +5295,14 @@ TEST_CASE(slice_dyn_nonfixed_keeps_other_optimals)
                  input);
 }
 
-TEST_CASE(eval_expr_shape)
+TEST_CASE(eval_expr_from_shape_shape)
 {
     auto n = var("n", {1, 16});
     auto h = var("h", {1, 32});
     auto w = var("w", {1, 32});
     migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{h}, dd{w}}};
     expect_shape(migraphx::shape{migraphx::shape::int64_type, {3}},
-                 migraphx::make_op("eval_expr",
+                 migraphx::make_op("eval_expr_from_shape",
                                    {{"expressions",
                                      migraphx::value::array{migraphx::to_value(n),
                                                             migraphx::to_value(h / lit(2)),
@@ -5310,14 +5310,44 @@ TEST_CASE(eval_expr_shape)
                  input);
 }
 
-TEST_CASE(eval_expr_missing_symbol)
+TEST_CASE(eval_expr_from_shape_missing_symbol)
 {
     auto m = var("m", {1, 16});
     auto n = var("n", {1, 16});
     migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(3)}}};
-    throws_shape(migraphx::make_op(
-                     "eval_expr", {{"expressions", migraphx::value::array{migraphx::to_value(m)}}}),
-                 input);
+    throws_shape(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::value::array{migraphx::to_value(m)}}}),
+        input);
+}
+
+TEST_CASE(eval_expr_from_shape_multi_input)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    migraphx::shape a{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    expect_shape(migraphx::shape{migraphx::shape::int64_type, {2}},
+                 migraphx::make_op(
+                     "eval_expr_from_shape",
+                     {{"expressions",
+                       migraphx::value::array{migraphx::to_value(m + n), migraphx::to_value(m)}}}),
+                 a,
+                 b);
+}
+
+TEST_CASE(eval_expr_from_shape_missing_symbol_multi_input)
+{
+    auto m = var("m", {1, 16});
+    auto n = var("n", {1, 16});
+    auto k = var("k", {1, 16});
+    migraphx::shape a{migraphx::shape::float_type, {dd{m}, dd{lit(3)}}};
+    migraphx::shape b{migraphx::shape::float_type, {dd{lit(2)}, dd{n}}};
+    throws_shape(
+        migraphx::make_op("eval_expr_from_shape",
+                          {{"expressions", migraphx::value::array{migraphx::to_value(m + k)}}}),
+        a,
+        b);
 }
 
 TEST_CASE(slice_sym)

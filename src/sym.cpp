@@ -1623,6 +1623,27 @@ bool same_symbol(const expr& a, const expr& b)
            });
 }
 
+std::vector<expr> find_variables(const expr& e)
+{
+    std::vector<expr> result;
+    std::unordered_set<expr> visited;
+    std::unordered_set<expr> seen_variables;
+    fix([&](auto self, const expr& x) {
+        if(x.empty() or not visited.insert(x).second)
+            return;
+        if(x.name() == "variable")
+        {
+            auto s = as_symbol(x);
+            if(seen_variables.insert(s).second)
+                result.push_back(std::move(s));
+            return;
+        }
+        for(const auto& c : x.children())
+            self(c);
+    })(e);
+    return result;
+}
+
 // Number of levels in e: a leaf (literal/variable) is depth 1, empty is 0.
 static int expr_depth(const expr& e)
 {

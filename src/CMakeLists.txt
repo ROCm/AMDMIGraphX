@@ -218,7 +218,7 @@ register_migraphx_ops(
     elu
     equal
     erf
-    eval_expr
+    eval_expr_from_shape
     exp
     fill
     fixed_pad

@@ -25,7 +25,6 @@
 #include <migraphx/ref/lowering.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/dfor.hpp>
-#include <migraphx/op/eval_expr.hpp>
 #include <migraphx/op/identity.hpp>
 #include <migraphx/op/convolution.hpp>
 #include <migraphx/op/convolution_backwards.hpp>
@@ -184,6 +183,11 @@ struct ref_op
     {
         return op.compute(output_shape, args);
     }
+    void
+    finalize(migraphx::context& ctx, const shape& output_shape, const std::vector<shape>& inputs)
+    {
+        op.finalize(ctx, output_shape, inputs);
+    }
     value to_value() const
     {
         value v;
@@ -202,27 +206,6 @@ struct ref_op
     }
 };
 MIGRAPHX_REGISTER_OP(ref_op)
-
-struct ref_eval_expr
-{
-    op::eval_expr op;
-
-    template <class Self, class F>
-    static auto reflect(Self& self, F f)
-    {
-        return migraphx::reflect(self.op, f);
-    }
-
-    std::string name() const { return "ref::eval_expr"; }
-
-    shape compute_shape(const std::vector<shape>& inputs) const { return op.compute_shape(inputs); }
-
-    argument compute(context&, const dyn_output& dyn_out, std::vector<argument> args) const
-    {
-        return op.compute(dyn_out, std::move(args));
-    }
-};
-MIGRAPHX_REGISTER_OP(ref_eval_expr)
 
 struct ref_quant_gemm
 {
@@ -407,7 +390,6 @@ struct ref_apply
 
     void init()
     {
-        apply_map["eval_expr"]  = extend_op<ref_eval_expr, op::eval_expr>();
         apply_map["quant_dot"]  = extend_op<ref_quant_gemm, op::quant_dot>();
         apply_map["im2col"]     = extend_op<ref_im2col, op::im2col>();
         apply_map["logsoftmax"] = extend_op<ref_softmax<op::logsoftmax>, op::logsoftmax>();

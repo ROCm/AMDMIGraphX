@@ -254,6 +254,9 @@ MIGRAPHX_EXPORT expr var(std::string name, interval constraint, std::set<scalar>
 MIGRAPHX_EXPORT expr as_symbol(const expr& e, int max_depth = -1);
 MIGRAPHX_EXPORT bool same_symbol(const expr& a, const expr& b);
 
+// Find distinct variables as metadata-free symbols in first-encounter order.
+MIGRAPHX_EXPORT std::vector<expr> find_variables(const expr& e);
+
 MIGRAPHX_EXPORT expr arg(expr x);
 
 template <class T, MIGRAPHX_REQUIRES(std::is_arithmetic<T>{})>

@@ -580,19 +580,13 @@ static std::vector<argument> generic_eval(const module* mod,
 
             results.insert_or_assign(
                 ins, trace(ins, [&] {
-                    auto op           = ins->normalized_operator();
-                    auto input_shapes = to_shapes(ins->inputs());
+                    auto op = ins->normalized_operator();
                     if(op.is_context_free())
-                        return op.compute(
-                            ins->get_shape(), input_shapes, values, mod_args, module_eval);
+                        return op.compute(ins->get_shape(), values, mod_args, module_eval);
                     if(ins->get_target_id() >= ctx.size())
                         MIGRAPHX_THROW("No context available for " + op.name());
-                    return op.compute(ctx[ins->get_target_id()],
-                                      ins->get_shape(),
-                                      input_shapes,
-                                      values,
-                                      mod_args,
-                                      module_eval);
+                    return op.compute(
+                        ctx[ins->get_target_id()], ins->get_shape(), values, mod_args, module_eval);
                 }));
         }
         assert(results.find(ins) != results.end());

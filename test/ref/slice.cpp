@@ -412,7 +412,7 @@ TEST_CASE(slice_dyn_test1)
     EXPECT(result.get_shape() == sresult);
 }
 
-TEST_CASE(slice_eval_expr_input)
+TEST_CASE(slice_eval_expr_from_shape_input)
 {
     using dd = migraphx::shape::dynamic_dimension;
     auto n   = migraphx::sym::var("n", {1, 3});
@@ -425,7 +425,7 @@ TEST_CASE(slice_eval_expr_input)
 
     auto end_vals = mm->add_instruction(
         migraphx::make_op(
-            "eval_expr",
+            "eval_expr_from_shape",
             {{"expressions",
               migraphx::value::array{migraphx::to_value(n - migraphx::sym::lit(1))}}}),
         x);

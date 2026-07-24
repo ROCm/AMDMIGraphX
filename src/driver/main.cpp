@@ -722,10 +722,11 @@ struct compiler_target
     // GPU cross-compile options. When gpu_arch is non-empty, the GPU target is
     // configured for cross-compilation against the given architecture without
     // requiring a physical device.
-    std::string gpu_arch         = {};
-    std::size_t gpu_num_cu       = 120;
-    std::size_t gpu_num_chiplets = 1;
-    std::string gpu_arch_params  = {};
+    std::string gpu_arch           = {};
+    std::size_t gpu_num_cu         = 120;
+    std::size_t gpu_num_chiplets   = 1;
+    std::size_t gpu_wavefront_size = 0;
+    std::string gpu_arch_params    = {};
 
     void parse(argument_parser& ap)
     {
@@ -747,12 +748,17 @@ struct compiler_target
            {"--gpu-num-chiplets"},
            ap.help("Number of chiplets (XCCs) to assume for cross-compilation. "
                    "Only used when --gpu-arch is set."));
+        ap(gpu_wavefront_size,
+           {"--gpu-wavefront-size"},
+           ap.help("Wavefront size to assume for cross-compilation (32 or 64; 0 = infer "
+                   "from architecture). Only used when --gpu-arch is set."));
         ap(gpu_arch_params,
            {"--gpu-arch-params"},
            ap.help("Device properties to assume for cross-compilation, as a JSON object "
                    "(format: \"{arch:gfx942, num_cu:120, num_chiplets:1, "
-                   "max_threads_per_cu:2048, max_threads_per_block:1024}\"). Overrides "
-                   "--gpu-arch, --gpu-num-cus and --gpu-num-chiplets for any keys present."));
+                   "max_threads_per_cu:2048, max_threads_per_block:1024, wavefront_size:32}\"). "
+                   "Overrides --gpu-arch, --gpu-num-cus, --gpu-num-chiplets and "
+                   "--gpu-wavefront-size for any keys present."));
     }
 
     static const std::unordered_map<std::string, std::string>& gpu_arch_param_keys()
@@ -762,7 +768,8 @@ struct compiler_target
             {"num_cu", "gpu_num_cu"},
             {"num_chiplets", "gpu_num_chiplets"},
             {"max_threads_per_cu", "gpu_max_threads_per_cu"},
-            {"max_threads_per_block", "gpu_max_threads_per_block"}};
+            {"max_threads_per_block", "gpu_max_threads_per_block"},
+            {"wavefront_size", "gpu_wavefront_size"}};
         return key_map;
     }
 
@@ -772,7 +779,8 @@ struct compiler_target
         {
             migraphx::value opts = {{"gpu_arch", gpu_arch},
                                     {"gpu_num_cu", gpu_num_cu},
-                                    {"gpu_num_chiplets", gpu_num_chiplets}};
+                                    {"gpu_num_chiplets", gpu_num_chiplets},
+                                    {"gpu_wavefront_size", gpu_wavefront_size}};
             if(not gpu_arch_params.empty())
             {
                 const auto& key_map = gpu_arch_param_keys();

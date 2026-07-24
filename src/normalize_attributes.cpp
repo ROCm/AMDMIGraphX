@@ -69,8 +69,8 @@ static dim_like to_dim_like(const sym::expr& e)
     return shape::dynamic_dimension{e};
 }
 
-// Symbolic analog of tune_attribute for dim_like bounds (clip_min/clip_max +
-// use_len). Applies the ONNX clamp norm(v) = clamp(v < 0 ? v + D : v, 0, D)
+// Symbolic analog of tune_attribute for dim_like bounds. Requires use_len normalization
+// (throws otherwise) and applies the ONNX clamp norm(v) = clamp(v < 0 ? v + D : v, 0, D)
 // symbolically, folding against the interval bounds where provable.
 template <class Message>
 static value tune_attribute_sym(const std::vector<dim_like>& dims,

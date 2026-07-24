@@ -99,7 +99,7 @@ struct parse_slice : op_parser<parse_slice>
     {
         slice_desc sd;
         // ONNX Slice can have up to 5 inputs, we first check the 5th one
-        // to decide whether MIGX can handle this slice.
+        // to decide whether MIGraphX can handle this slice.
         if(args.size() == 5)
         {
             migraphx::argument step_arg = args.back()->eval();
@@ -118,7 +118,6 @@ struct parse_slice : op_parser<parse_slice>
             literal s = parser.parse_value(info.attributes.at("axes"));
             s.visit([&](auto v) { copy(v, std::back_inserter(sd.axes)); });
         }
-        // NOTE: goes through range-based dynamic shapes pathway only
         if(args.size() >= 3)
         {
             auto tmp_ends = sd.try_insert(args.at(2));
@@ -160,7 +159,7 @@ struct parse_slice : op_parser<parse_slice>
                                     onnx_parser::node_info info,
                                     std::vector<instruction_ref> args) const
     {
-        slice_desc sd = handle_sd_inputs(parser, info, args);
+        slice_desc sd = handle_sd_inputs(parser, std::move(info), args);
         // If axes arg is not given, the default is all of them.
         if(sd.axes.empty() and sd.op_args.size() <= 3)
         {

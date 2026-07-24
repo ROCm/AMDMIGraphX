@@ -58,7 +58,7 @@ namespace op {
 /// axes: axes to slice over
 /// starts: slice starting indices
 /// ends: slice ending indices
-/// mode: what inputs[1:4] of slice mean
+/// mode: the role (starts/ends/axes) of each variable input after `data`
 ///
 /// Parameters:
 /// data: the input tensor to slice (dynamic or static shape)
@@ -126,7 +126,7 @@ struct slice
     }
 
     /// Check that the inputs, attributes, and mode are valid.
-    void check_inputs_and_attributes(std::vector<shape> inputs) const
+    void check_inputs_and_attributes(const std::vector<shape>& inputs) const
     {
         // All set (non-empty) bound attributes must agree on the number of sliced axes.
         // A variable (input-provided) bound leaves its attribute empty, so empty attrs are skipped.
@@ -190,7 +190,7 @@ struct slice
     // For when there is a variable input and the associated attribute is not set.
     // ex: slice(data, starts) starts = {}, ends = {2, 3}, axes = {0, 1}
     // TODO: remove this once range-based dynamic shapes are deprecated
-    shape range_based_compute_shape_for_two_or_more(shape input_shape) const
+    shape range_based_compute_shape_for_two_or_more(const shape& input_shape) const
     {
         auto dds = input_shape.to_dynamic().dyn_dims();
         if(contains(mode, slice_mode::axes))
@@ -291,7 +291,7 @@ struct slice
     }
 
     /// Calculates the starting offset for the sliced tensor (for aliasing).
-    /// Used for 2-4 inputs to `slice.
+    /// Used for 2-4 inputs to `slice`.
     ///
     /// s: static input shape
     /// starts_input: starting indices of slice
@@ -320,19 +320,41 @@ struct slice
     {
         assert(not input_shape.dynamic());
         auto axes_attrs = this->attributes().at("normalize_axes");
-        std::vector<int64_t> norm_starts;
-        std::vector<int64_t> norm_ends;
-        std::vector<int64_t> norm_axes;
-        norm_axes = normalize_axes(
+        auto norm_axes  = normalize_axes(
             axes_vec, input_shape, axes_attrs.at("axes"), "Slice variable axes_input");
-        norm_starts = normalize_indices(starts_vec,
-                                        norm_axes,
-                                        input_shape,
-                                        axes_attrs.at("starts"),
-                                        "Slice variable starts_input");
-        norm_ends   = normalize_indices(
+        auto norm_starts = normalize_indices(starts_vec,
+                                             norm_axes,
+                                             input_shape,
+                                             axes_attrs.at("starts"),
+                                             "Slice variable starts_input");
+        auto norm_ends   = normalize_indices(
             ends_vec, norm_axes, input_shape, axes_attrs.at("ends"), "Slice variable input ends");
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
+    }
+
+    /// Resolves the concrete starts/ends/axes for a variable-input slice using the modes and inputs.
+    /// `read_input` is a function that returns a std::vector<int64_t> of the input at i.
+    template <class F>
+    std::array<std::vector<int64_t>, 3> resolve_bounds(F read_input) const
+    {
+
+        std::array<std::vector<int64_t>, 3> result{};
+        for(std::size_t i = 0; i < mode.size(); ++i)
+        {
+            switch(mode[i])
+            {
+            case slice_mode::starts: result[0] = read_input(i); break;
+            case slice_mode::ends: result[1] = read_input(i); break;
+            case slice_mode::axes: result[2] = read_input(i); break;
+            }
+        }
+        if(result[0].empty())
+            result[0] = to_ints(this->starts);
+        if(result[1].empty())
+            result[1] = to_ints(this->ends);
+        if(result[2].empty())
+            result[2] = this->axes;
+        return result;
     }
 
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
@@ -346,27 +368,12 @@ struct slice
         }
         else
         {
-            std::vector<int64_t> starts_vec;
-            std::vector<int64_t> ends_vec;
-            std::vector<int64_t> axes_vec;
-            for(std::size_t i = 0; i < mode.size(); ++i)
-            {
-                args[i + 1].visit([&](auto input_view) {
-                    auto vec = input_view.template to_vector<int64_t>();
-                    switch(mode[i])
-                    {
-                    case slice_mode::starts: starts_vec = vec; break;
-                    case slice_mode::ends: ends_vec = vec; break;
-                    case slice_mode::axes: axes_vec = vec; break;
-                    }
-                });
-            }
-            if(starts_vec.empty())
-                starts_vec = to_ints(this->starts);
-            if(ends_vec.empty())
-                ends_vec = to_ints(this->ends);
-            if(axes_vec.empty())
-                axes_vec = this->axes;
+            auto [starts_vec, ends_vec, axes_vec] = resolve_bounds([&](std::size_t i) {
+                std::vector<int64_t> vec;
+                args[i + 1].visit(
+                    [&](auto input_view) { vec = input_view.template to_vector<int64_t>(); });
+                return vec;
+            });
             auto norm_inputs =
                 normalize_starts_ends_axes(input_shape, starts_vec, ends_vec, axes_vec);
             auto offset = compute_offset(

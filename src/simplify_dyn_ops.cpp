@@ -155,15 +155,13 @@ struct find_static_2in_broadcasts : match::supports_dynamic_shapes
 };
 
 // Matches a slice whose set starts/ends bounds are all concrete ints (no
-// symbolic dim_like bounds), so the const-input rewrites can read them as ints.
+// symbolic dim_like bounds).
 MIGRAPHX_PRED_MATCHER(slice_concrete_bounds, instruction_ref ins)
 {
     if(ins->name() != "slice")
         return false;
     auto slice_op = any_cast<op::slice>(ins->get_operator());
-    auto is_int   = [](const dim_like& d) { return std::holds_alternative<int64_t>(d); };
-    return std::all_of(slice_op.starts.begin(), slice_op.starts.end(), is_int) and
-           std::all_of(slice_op.ends.begin(), slice_op.ends.end(), is_int);
+    return not any_sym(slice_op.starts) and not any_sym(slice_op.ends);
 }
 
 // Fold a slice whose variable bounds are all constant into an attribute-only (1 input) slice.
@@ -171,23 +169,14 @@ MIGRAPHX_PRED_MATCHER(slice_concrete_bounds, instruction_ref ins)
 // remaining slots keep the operator's (concrete) attribute values.
 static void fold_const_input_slice(module& m, instruction_ref ins)
 {
-    auto inputs                     = ins->inputs();
-    auto slice_op                   = any_cast<op::slice>(ins->get_operator());
-    std::vector<int64_t> starts_vec = to_ints(slice_op.starts);
-    std::vector<int64_t> ends_vec   = to_ints(slice_op.ends);
-    std::vector<int64_t> axes_vec   = slice_op.axes;
-    for(std::size_t i = 0; i < slice_op.mode.size(); ++i)
-    {
-        inputs.at(i + 1)->eval().visit([&](auto output) {
-            std::vector<int64_t> vec(output.begin(), output.end());
-            switch(slice_op.mode[i])
-            {
-            case op::slice::slice_mode::starts: starts_vec = vec; break;
-            case op::slice::slice_mode::ends: ends_vec = vec; break;
-            case op::slice::slice_mode::axes: axes_vec = vec; break;
-            }
-        });
-    }
+    auto inputs                           = ins->inputs();
+    auto slice_op                         = any_cast<op::slice>(ins->get_operator());
+    auto [starts_vec, ends_vec, axes_vec] = slice_op.resolve_bounds([&](std::size_t i) {
+        std::vector<int64_t> vec;
+        inputs.at(i + 1)->eval().visit(
+            [&](auto output) { vec.assign(output.begin(), output.end()); });
+        return vec;
+    });
     m.replace_instruction(
         ins,
         make_op("slice", {{"starts", starts_vec}, {"ends", ends_vec}, {"axes", axes_vec}}),

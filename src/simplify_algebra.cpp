@@ -205,10 +205,8 @@ struct find_mul_slice_conv
                auto sop = any_cast<op::slice>(i->get_operator());
                if(sop.axes != slice_op.axes)
                    return true;
-               if(std::max(std::get<int64_t>(sop.starts.front()),
-                           std::get<int64_t>(slice_op.starts.front())) <
-                  std::min(std::get<int64_t>(sop.ends.front()),
-                           std::get<int64_t>(slice_op.ends.front())))
+               if(std::max(std::get<int64_t>(sop.starts.front()), std::get<int64_t>(slice_op.starts.front())) <
+                  std::min(std::get<int64_t>(sop.ends.front()), std::get<int64_t>(slice_op.ends.front())))
                    return true;
                return false;
            }))
@@ -1393,7 +1391,12 @@ static std::vector<instruction_ref> get_splits(instruction_ref ins)
 
     // Sort the "slice" instructions in order of starts
     std::sort(result.begin(), result.end(), [&](auto x, auto y) {
-        return to_ints(get_start(x)) < to_ints(get_start(y));
+        const auto& xs = get_start(x);
+        const auto& ys = get_start(y);
+        return std::lexicographical_compare(
+            xs.begin(), xs.end(), ys.begin(), ys.end(), [](const dim_like& l, const dim_like& r) {
+                return std::get<int64_t>(l) < std::get<int64_t>(r);
+            });
     });
     if(std::any_of(get_start(result.front()).begin(),
                    get_start(result.front()).end(),

@@ -650,6 +650,16 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
             {
                 std::cout << "    " << attr.name() << " = " << to_string(attr) << std::endl;
             }
+            std::cout << "inputs:\n";
+            for(auto&& input : node.input())
+            {
+                std::cout << "    " << input << "\n";
+            }
+            std::cout << "outputs:\n";
+            for(auto&& output : node.output())
+            {
+                std::cout << "    " << output << "\n";
+            }
         }
 
         std::vector<instruction_ref> args;

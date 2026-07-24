@@ -27,6 +27,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/dim_like.hpp>
 #include <sstream>
 #include <migraphx/make_op.hpp>
 #include <migraphx/serialize.hpp>
@@ -1613,6 +1614,41 @@ TEST_CASE(flatten_dyn_axis4)
         migraphx::shape{migraphx::shape::float_type, {{1 * 4 * 6 * 8, 4 * 4 * 6 * 8}, {1, 1}}},
         migraphx::make_op("flatten", {{"axis", 4}}),
         input);
+}
+
+TEST_CASE(flatten_sym_axis1)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(24)}}};
+    expect_shape(output, migraphx::make_op("flatten", {{"axis", 1}}), input);
+}
+
+TEST_CASE(flatten_sym_multi)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    auto k = var("K", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{m * k}}};
+    expect_shape(output, migraphx::make_op("flatten", {{"axis", 1}}), input);
+}
+
+TEST_CASE(flatten_sym_axis0)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(1)}, dd{n * m}}};
+    expect_shape(output, migraphx::make_op("flatten", {{"axis", 0}}), input);
+}
+
+TEST_CASE(flatten_sym_negative_axis)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(4) * n}, dd{lit(6)}}};
+    expect_shape(output, migraphx::make_op("flatten", {{"axis", -1}}), input);
 }
 
 TEST_CASE(fill_static_int)
@@ -4332,6 +4368,194 @@ TEST_CASE(reshape_dyn_1in_multiple_non_fixed1)
     expect_shape(output, migraphx::make_op("reshape", {{"dims", new_shape}}), input);
 }
 
+TEST_CASE(reshape_sym_zero_marker)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 2, 3}}}), input);
+}
+
+TEST_CASE(reshape_sym_negative_1_int_missing)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(3)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {2, 0, -1}}}), input);
+}
+
+TEST_CASE(reshape_sym_minus1_first)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(3) * n}, dd{lit(2)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {-1, 2}}}), input);
+}
+
+TEST_CASE(reshape_sym_minus1_distributes_over_sum)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n + lit(1)}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(3) * n + lit(3)}, dd{lit(2)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {-1, 2}}}), input);
+}
+
+TEST_CASE(reshape_sym_dims_smaller_than_input)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{m}}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(2) * m}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, -1}}}), input);
+}
+
+TEST_CASE(reshape_sym_broadcast_input_standard)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}, {lit(0), lit(1)}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 2, 3}}}), input);
+    EXPECT(output.standard());
+}
+
+TEST_CASE(reshape_sym_transposed_literal_unsqueeze)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(6)}, dd{n}}, {lit(1), lit(6)}};
+    std::vector<migraphx::dim_like> dims = {2, 3, dd{n}};
+    migraphx::shape output{
+        migraphx::shape::float_type, {dd{lit(2)}, dd{lit(3)}, dd{n}}, {lit(3), lit(1), lit(6)}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+    EXPECT(not output.standard());
+}
+
+TEST_CASE(reshape_sym_transposed_symbolic_strides)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}, {lit(1), n}};
+    migraphx::shape output{
+        migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}, {lit(1), lit(3) * n, n}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {0, 2, 3}}}), input);
+    EXPECT(not output.standard());
+}
+
+TEST_CASE(reshape_sym_nonstandard_indeterminate_falls_back)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}, {lit(1), n}};
+    std::vector<migraphx::dim_like> dims = {6, dd{n}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(6)}, dd{n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+    EXPECT(output.standard());
+}
+
+TEST_CASE(reshape_sym_nonpacked_unsqueeze)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{
+        migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(16)}}, {lit(128), lit(32), lit(2)}};
+    std::vector<migraphx::dim_like> dims = {0, 4, 2, 8};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{n}, dd{lit(4)}, dd{lit(2)}, dd{lit(8)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+    EXPECT(output.standard());
+}
+
+TEST_CASE(reshape_sym_target_dim_negative_1)
+{
+    auto n                               = var("N", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {6}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, -1};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n}, dd{lit(6) / n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_minus1_non_exact_div)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{m}, dd{lit(6)}}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{(lit(2) * m * n) / lit(3)}, dd{lit(3)}, dd{lit(3)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", {-1, 3, 3}}}), input);
+}
+
+TEST_CASE(reshape_sym_target_middle_axis)
+{
+    auto n                               = var("N", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {24}};
+    std::vector<migraphx::dim_like> dims = {2, dd{n}, dd{lit(12) / n}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(2)}, dd{n}, dd{lit(12) / n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_target_minus1_cancels_to_literal)
+{
+    auto n                               = var("N", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {dd{lit(12)}, dd{n}}};
+    std::vector<migraphx::dim_like> dims = {-1, dd{lit(2) * n}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(6)}, dd{lit(2) * n}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_target_minus1_symbolic_missing)
+{
+    auto n                               = var("N", {1, 8});
+    auto m                               = var("M", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {dd{n}, dd{m}}};
+    std::vector<migraphx::dim_like> dims = {dd{lit(2) * n}, -1};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(2) * n}, dd{m / lit(2)}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_target_collapse_axes)
+{
+    auto n                               = var("N", {1, 8});
+    auto m                               = var("M", {1, 8});
+    auto k                               = var("K", {1, 8});
+    migraphx::shape input                = {migraphx::shape::float_type, {dd{n}, dd{m}, dd{k}}};
+    std::vector<migraphx::dim_like> dims = {dd{n * m}, dd{k}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{n * m}, dd{k}}};
+    expect_shape(output, migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_element_mismatch_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", {0, 2, 2}}}), input);
+}
+
+TEST_CASE(reshape_sym_symbolic_dim_mismatch_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, dd{lit(7)}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_range_input_sym_dim_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {{1, 8}, {6, 6}}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, dd{lit(2)}, dd{lit(3)}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_range_dim_like_throws)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6}};
+    std::vector<migraphx::dim_like> dims = {dd{1, 4}, dd{1, 6}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_sym_multiple_neg_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", {1, -1, -1}}}), input);
+}
+
 TEST_CASE(reshape_lazy_shape)
 {
     migraphx::shape input{migraphx::shape::float_type, {24, 1, 1, 1}};
@@ -4462,6 +4686,72 @@ TEST_CASE(reshape_lazy_nonpacked_squeeze2)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 1}};
     throws_shape(migraphx::make_op("reshape_lazy", {{"dims", {64}}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_nonpacked_squeeze)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}, {lit(2) * n, lit(2)}};
+    std::vector<migraphx::dim_like> dims = {dd{lit(4) * n}};
+    migraphx::shape output{migraphx::shape::float_type, {dd{lit(4) * n}}, {lit(2)}};
+    expect_shape(
+        output, migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_nonpacked_unsqueeze)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}, {lit(2) * n, lit(2)}};
+    std::vector<migraphx::dim_like> dims = {2, 2, dd{n}};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(2)}, dd{lit(2)}, dd{n}},
+                           {lit(4) * n, lit(2) * n, lit(2)}};
+    expect_shape(
+        output, migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_transposed_squeeze_throws)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{lit(4)}, dd{n}}, {lit(1), lit(4)}};
+    std::vector<migraphx::dim_like> dims = {dd{lit(4) * n}};
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_broadcast_squeeze)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{lit(2)}, dd{n}, dd{lit(16)}, dd{lit(1280)}},
+                          {lit(0), lit(0), lit(0), lit(1)}};
+    std::vector<migraphx::dim_like> dims = {2, dd{lit(16) * n}, 1280};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(2)}, dd{lit(16) * n}, dd{lit(1280)}},
+                           {lit(0), lit(0), lit(1)}};
+    expect_shape(
+        output, migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_broadcast_unsqueeze)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type,
+                          {dd{lit(2)}, dd{lit(16) * n}, dd{lit(1280)}},
+                          {lit(0), lit(0), lit(1)}};
+    std::vector<migraphx::dim_like> dims = {2, dd{n}, 16, 1280};
+    migraphx::shape output{migraphx::shape::float_type,
+                           {dd{lit(2)}, dd{n}, dd{lit(16)}, dd{lit(1280)}},
+                           {lit(0), lit(0), lit(0), lit(1)}};
+    expect_shape(
+        output, migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_sym_element_mismatch_throws)
+{
+    auto n = var("N", {2, 8});
+    migraphx::shape input{migraphx::shape::float_type, {dd{n}, dd{lit(6)}}};
+    std::vector<migraphx::dim_like> dims = {dd{n}, 2, 2};
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
 }
 
 TEST_CASE(reshape_lazy_broadcast_unsqueeze1)
@@ -6327,6 +6617,41 @@ TEST_CASE(test_squeeze_wrong_axis)
     throws_shape(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
 }
 
+TEST_CASE(test_squeeze_sym)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{m}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {1}}}), s1);
+}
+
+TEST_CASE(test_squeeze_sym_transpose)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{
+        migraphx::shape::float_type, {dd{n}, dd{lit(4)}, dd{lit(1)}}, {lit(4), lit(1), lit(4)}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{lit(4)}}, {lit(4), lit(1)}};
+    expect_shape(s2, migraphx::make_op("squeeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_squeeze_sym_empty_axes)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{m}, dd{lit(1)}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    expect_shape(s2, migraphx::make_op("squeeze"), s1);
+}
+
+TEST_CASE(test_squeeze_sym_symbolic_axis_throws)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(1)}, dd{m}}};
+    throws_shape(migraphx::make_op("squeeze", {{"axes", {0}}}), s1);
+}
+
 TEST_CASE(test_unique_axis_invalid)
 {
     migraphx::shape x_shape{migraphx::shape::float_type, {10, 4, 3}};
@@ -6545,6 +6870,49 @@ TEST_CASE(test_unsqueeze_multiple_axes_step)
     migraphx::shape s1{migraphx::shape::float_type, {3, 4, 10}};
     migraphx::shape s2{migraphx::shape::float_type, {3, 4, 2, 5, 1, 1}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2, 4, 5}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_sym)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(3)}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(1)}, dd{lit(3)}}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_sym_symbolic_stride)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{lit(6)}, dd{n}}, {lit(1), lit(6)}};
+    migraphx::shape s2{
+        migraphx::shape::float_type, {dd{lit(1)}, dd{lit(6)}, dd{n}}, {lit(6), lit(1), lit(6)}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {0}}}), s1);
+    EXPECT(not s2.standard());
+}
+
+TEST_CASE(test_unsqueeze_sym_step)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(12)}}};
+    migraphx::shape s2{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(2)}, dd{lit(6)}}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_sym_step_symbolic_divisor)
+{
+    auto n = var("N", {1, 8});
+    auto m = var("M", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    migraphx::shape s2{
+        migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{m / lit(2)}}, {m, m / lit(2), lit(1)}};
+    expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {1}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(test_unsqueeze_sym_step_non_divisible_throws)
+{
+    auto n = var("N", {1, 8});
+    migraphx::shape s1{migraphx::shape::float_type, {dd{n}, dd{lit(5)}, dd{lit(3)}}};
+    throws_shape(migraphx::make_op("unsqueeze", {{"axes", {2}}, {"steps", {2}}}), s1);
 }
 
 TEST_CASE(transpose_shape)

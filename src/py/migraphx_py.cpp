@@ -43,6 +43,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
@@ -389,6 +390,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("type_string", &migraphx::shape::type_string)
         .def("type_size", &migraphx::shape::type_size)
         .def("dyn_dims", &migraphx::shape::dyn_dims)
+        .def("sub_shapes", &migraphx::shape::sub_shapes)
         .def("packed", &migraphx::shape::packed)
         .def("transposed", &migraphx::shape::transposed)
         .def("broadcasted", &migraphx::shape::broadcasted)
@@ -733,6 +735,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("name", [](const py_macro& mac) { return mac.op_name; })
         .def("options",
              [](const py_macro& mac) -> py::object { return to_py_object(mac.options); });
+
+    m.def(
+        "has_op_builder",
+        [](const std::string& name) { return migraphx::op::builder::has_op_builder(name); },
+        py::arg("name"),
+        "Whether an op-builder (e.g. a \"tm::\" kit builder) is registered.");
 
     m.def(
         "argument_from_pointer",

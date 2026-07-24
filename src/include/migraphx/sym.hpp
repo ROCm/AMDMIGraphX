@@ -256,6 +256,8 @@ MIGRAPHX_EXPORT bool same_symbol(const expr& a, const expr& b);
 
 // Find distinct variables as metadata-free symbols in first-encounter order.
 MIGRAPHX_EXPORT std::vector<expr> find_variables(const expr& e);
+// Whether dividend is evenly divisible by divisor (integral operands only).
+MIGRAPHX_EXPORT bool is_divisible(const expr& dividend, const expr& divisor);
 
 MIGRAPHX_EXPORT expr arg(expr x);
 

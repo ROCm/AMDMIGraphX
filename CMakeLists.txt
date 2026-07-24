@@ -448,23 +448,15 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     # TheRock packaging (RFC0009).
     set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
-    set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
-        "TheRock GPU arch(es) for per-GPU package dependencies. \
-Semicolon-separated list (e.g. gfx90a;gfx942;gfx950) for per-GPU deps, \
-or empty for device-all meta-package deps.")
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
     set(_MGX_PKG_NAME "amdrocm-migraphx")
-    # Self-contained per-arch packages (amdrocm-migraphx-gfxNNN) and their per-GPU
-    # amdrocm-* deps are produced by the UFB Dockerfile cpack loop: one fat build,
-    # repackaged once per arch. Here we set only the base name + arch-neutral
-    # runtime dep; the device-all deps below are the standalone default and are
-    # overridden per-arch (amdrocm-dnn/blas-gfxNNN) at cpack time.
-    if(MIGRAPHX_USE_MIOPEN)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}")
-    endif()
-    if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
-        list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}")
-    endif()
+    # Only arch-neutral runtime deps are declared here (amdrocm-runtime), since
+    # that is the only component published as an arch-neutral package.
+    # The device libraries (MIOpen/rocBLAS) exist ONLY as per-arch packages
+    # (amdrocm-dnn-gfxNNN / amdrocm-blas-gfxNNN) with no arch-neutral variant,
+    # so they are intentionally omitted here. To produce a package with device
+    # dependencies, add them externally per target arch:
+    #   amdrocm-dnn-<arch>, amdrocm-blas-<arch>
     rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${MIGRAPHX_THEROCK_ROCM_VERSION}")
     rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${MIGRAPHX_THEROCK_ROCM_VERSION}")
 

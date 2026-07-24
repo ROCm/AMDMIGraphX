@@ -95,7 +95,9 @@ struct parse_slice : op_parser<parse_slice>
             return ins;
     }
 
-    slice_desc handle_sd_inputs(const onnx_parser& parser, onnx_parser::node_info info, std::vector<instruction_ref> args) const
+    slice_desc handle_sd_inputs(const onnx_parser& parser,
+                                onnx_parser::node_info info,
+                                std::vector<instruction_ref> args) const
     {
         slice_desc sd;
         // ONNX Slice can have up to 5 inputs, we first check the 5th one

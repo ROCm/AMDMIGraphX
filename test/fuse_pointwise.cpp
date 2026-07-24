@@ -1409,13 +1409,13 @@ TEST_CASE(split_pointwise_slices_dynamic)
         auto add1    = mm->add_instruction(migraphx::make_op("add"), x, y);
         auto s1      = mm->add_instruction(
             migraphx::make_op("slice",
-                                 {{"axes", {1}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
+                                   {{"axes", {1}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
             add1,
             starts0,
             ends0);
         auto s2 = mm->add_instruction(
             migraphx::make_op("slice",
-                                 {{"axes", {1}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
+                              {{"axes", {1}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
             add1,
             starts1,
             ends1);
@@ -1436,13 +1436,13 @@ TEST_CASE(split_pointwise_slices_dynamic)
         auto add1    = add_pointwise(p2, "main:pointwise0", {x, y}, single_pointwise("add"));
         auto s1      = mm->add_instruction(
             migraphx::make_op("slice",
-                                 {{"axes", {1}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
+                                   {{"axes", {1}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
             add1,
             starts0,
             ends0);
         auto s2 = mm->add_instruction(
             migraphx::make_op("slice",
-                                 {{"axes", {1}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
+                              {{"axes", {1}}, {"mode", migraphx::value::array{"starts", "ends"}}}),
             add1,
             starts1,
             ends1);

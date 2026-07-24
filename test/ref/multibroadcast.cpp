@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -126,4 +126,25 @@ TEST_CASE(multibroadcast_3in_dyn_test)
     EXPECT(output(1, 0, 1) == -3);
     EXPECT(output(1, 1, 0) == -2);
     EXPECT(output(1, 1, 1) == -3);
+}
+
+TEST_CASE(multibroadcast_2in_out_dyn_dims_static_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape a_shape{migraphx::shape::int32_type, {1, 2}};
+    migraphx::shape b_shape{migraphx::shape::int32_type, {1, 2}};
+    std::vector<int32_t> a_data{1, 2};
+    auto l1 = mm->add_literal(migraphx::literal{a_shape, a_data});
+    auto l2 = mm->add_literal(migraphx::literal{b_shape, a_data});
+    std::vector<migraphx::shape::dynamic_dimension> out{{3, 3}, {2, 2}};
+    mm->add_instruction(
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}), l1, l2);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    auto output = result.get<int32_t>();
+    EXPECT(output(0, 0) == 1);
+    EXPECT(output(0, 1) == 2);
+    EXPECT(output(2, 0) == 1);
+    EXPECT(output(2, 1) == 2);
 }

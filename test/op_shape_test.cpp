@@ -29,6 +29,7 @@
 #include <migraphx/sym.hpp>
 #include <sstream>
 #include <migraphx/make_op.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/serialize.hpp>
 
 #include "test.hpp"
@@ -2586,6 +2587,41 @@ TEST_CASE(multibroadcast_2in_static_dyn2)
                  a_shape);
 }
 
+TEST_CASE(multibroadcast_2in_static_out_dyn_dims)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {1, 4}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {1, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> out{{3, 3}, {4, 8}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {3, 4}, {0, 1}},
+                 migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 a_shape,
+                 b_shape);
+}
+
+TEST_CASE(multibroadcast_2in_static_out_dyn_dims_error)
+{
+    migraphx::shape a_shape{migraphx::shape::float_type, {2, 3}};
+    migraphx::shape b_shape{migraphx::shape::float_type, {2, 3}};
+    std::vector<migraphx::shape::dynamic_dimension> out{{4, 4}, {3, 3}};
+    throws_shape(migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+                 a_shape,
+                 b_shape);
+}
+
+TEST_CASE(multibroadcast_2in_dyn_sym_preserve_out_dyn_dims)
+{
+    auto n = var("n", {2, 8});
+    std::vector<dd> a{dd{lit(3)}, dd{n}, dd{lit(2)}, dd{lit(4)}};
+    migraphx::shape a_shape{migraphx::shape::float_type, a};
+    migraphx::shape b_shape{migraphx::shape::float_type, a};
+    std::vector<dd> out{dd{lit(3)}, dd{lit(7)}, dd{lit(2)}, dd{lit(4)}};
+    expect_shape(
+        migraphx::shape{migraphx::shape::float_type, {dd{lit(3)}, dd{n}, dd{lit(2)}, dd{lit(4)}}},
+        migraphx::make_op("multibroadcast", {{"out_dyn_dims", migraphx::to_value(out)}}),
+        a_shape,
+        b_shape);
+}
+
 TEST_CASE(multibroadcast_2in_static_dyn_intersection0)
 {
     // dynamic_dimension.intersection for first dimension
@@ -4590,6 +4626,84 @@ TEST_CASE(reshape_lazy_non_fixed_not_matching_error)
     throws_shape(migraphx::make_op("reshape_lazy", {{"dims", new_shape}}), input);
 }
 
+TEST_CASE(reshape_lazy_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 3}, {2, 8}, {2, 2}, {4, 6}}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{6, 24},
+                                                         migraphx::shape::dynamic_dimension{8, 12}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{6, 24}, {8, 12}}},
+                 migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}),
+                 migraphx::shape{migraphx::shape::float_type, {3, 2, 2, 4}});
+}
+
+TEST_CASE(reshape_lazy_dyn_1in_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{2, 4}, {3, 6}}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{6, 12},
+                                                         migraphx::shape::dynamic_dimension{1, 1}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{6, 12}, {1, 1}}},
+                 migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+}
+
+TEST_CASE(reshape_lazy_static_input_fixed_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{
+        migraphx::shape::dynamic_dimension{2, 2}, migraphx::shape::dynamic_dimension{12, 12}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 12}},
+                 migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+}
+
+TEST_CASE(reshape_lazy_static_input_unfixed_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{2, 2},
+                                                         migraphx::shape::dynamic_dimension{3, 12}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 12}},
+                 migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+}
+
+TEST_CASE(reshape_lazy_static_input_dyn_dim_attr_multi_neg_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{2, 8},
+                                                         migraphx::shape::dynamic_dimension{3, 12}};
+    throws_shape(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}), input);
+}
+
+TEST_CASE(reshape_lazy_dyn_1arg_mixed_dims_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {2, 8}, {2, 8}}};
+    std::vector<migraphx::dim_like> dims_attr = {
+        migraphx::dim_like{0}, dd{12, 12}, migraphx::dim_like{0}, migraphx::dim_like{-1}};
+    std::vector<dd> out_dyn_dims = {{1, 4}, {12, 12}, {2, 8}, {4, 16}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, out_dyn_dims},
+                 migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims_attr)}}),
+                 input);
+}
+
+TEST_CASE(reshape_lazy_dyn_1arg_int64_and_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{1, 4}, {24, 24}, {1, 1}, {1, 1}}};
+    std::vector<migraphx::dim_like> dims_attr = {
+        migraphx::dim_like{2}, dd{1, 1}, dd{1, 1}, migraphx::dim_like{24}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{2, 2}, {1, 1}, {1, 1}, {24, 24}}},
+                 migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims_attr)}}),
+                 input);
+}
+
+TEST_CASE(reshape_lazy_output_alias)
+{
+    auto op = migraphx::make_op("reshape_lazy", {{"dims", {2, 12}}});
+    EXPECT(op.output_alias({migraphx::shape{migraphx::shape::float_type, {6, 4}}}) ==
+           std::vector<std::size_t>{0});
+}
+
 TEST_CASE(resize_single_input)
 {
     migraphx::shape input{migraphx::shape::float_type, {4, 16}, {32, 2}};
@@ -6490,6 +6604,56 @@ TEST_CASE(test_unsqueeze_multiple_axes_step)
     migraphx::shape s1{migraphx::shape::float_type, {3, 4, 10}};
     migraphx::shape s2{migraphx::shape::float_type, {3, 4, 2, 5, 1, 1}};
     expect_shape(s2, migraphx::make_op("unsqueeze", {{"axes", {2, 4, 5}}, {"steps", {2}}}), s1);
+}
+
+TEST_CASE(reshape_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{3, 3}, {2, 8}, {2, 2}, {4, 6}}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{6, 24},
+                                                         migraphx::shape::dynamic_dimension{8, 12}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{6, 24}, {8, 12}}},
+                 migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 migraphx::shape{migraphx::shape::float_type, {3, 2, 2, 4}});
+}
+
+TEST_CASE(reshape_dyn_1in_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {{2, 4}, {3, 6}}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{6, 12},
+                                                         migraphx::shape::dynamic_dimension{1, 1}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {{6, 12}, {1, 1}}},
+                 migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+}
+
+TEST_CASE(reshape_static_input_fixed_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{
+        migraphx::shape::dynamic_dimension{2, 2}, migraphx::shape::dynamic_dimension{12, 12}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 12}},
+                 migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+}
+
+TEST_CASE(reshape_static_input_unfixed_dyn_dim_attr)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{2, 2},
+                                                         migraphx::shape::dynamic_dimension{3, 12}};
+    expect_shape(migraphx::shape{migraphx::shape::float_type, {2, 12}},
+                 migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}),
+                 input);
+}
+
+TEST_CASE(reshape_static_input_dyn_dim_attr_multi_neg_error)
+{
+    migraphx::shape input{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{2, 8},
+                                                         migraphx::shape::dynamic_dimension{3, 12}};
+    throws_shape(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
 }
 
 TEST_CASE(transpose_shape)

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -247,4 +247,78 @@ TEST_CASE(reshape_2in_elements_runtime_error)
     params["X"] = migraphx::argument(s_in, gold.data());
     params["Y"] = migraphx::argument(output_fixed_shape, buffer.data());
     EXPECT(test::throws([&] { std::ignore = p.eval(params).back(); }));
+}
+
+TEST_CASE(reshape_dyn_dim_attr_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {3, 6}}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{6, 12},
+                                                         migraphx::shape::dynamic_dimension{1, 1}};
+    auto input = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> gold(12);
+    std::iota(gold.begin(), gold.end(), 1.f);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {3, 4}};
+    params["X"] = migraphx::argument(input_fixed_shape, gold.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector{};
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(reshape_static_dyn_dim_attr_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{2, 2},
+                                                         migraphx::shape::dynamic_dimension{3, 12}};
+    auto input = mm->add_literal(migraphx::literal{s, std::vector<float>(24, 1.f)});
+    mm->add_instruction(migraphx::make_op("reshape", {{"dims", migraphx::to_value(dims)}}), input);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    EXPECT(result.get_shape().lens() == std::vector<std::size_t>{2, 12});
+}
+
+TEST_CASE(reshape_lazy_dyn_dim_attr_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {3, 6}}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{6, 12},
+                                                         migraphx::shape::dynamic_dimension{1, 1}};
+    auto input = mm->add_parameter("X", s);
+    mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}),
+                        input);
+    p.compile(migraphx::make_target("ref"));
+
+    std::vector<float> gold(12);
+    std::iota(gold.begin(), gold.end(), 1.f);
+    migraphx::parameter_map params;
+    migraphx::shape input_fixed_shape{migraphx::shape::float_type, {3, 4}};
+    params["X"] = migraphx::argument(input_fixed_shape, gold.data());
+    auto result = p.eval(params).back();
+    std::vector<float> results_vector{};
+    result.visit([&](auto output) { results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(results_vector, gold));
+}
+
+TEST_CASE(reshape_lazy_static_dyn_dim_attr_test)
+{
+    migraphx::program p;
+    auto* mm = p.get_main_module();
+    migraphx::shape s{migraphx::shape::float_type, {6, 4}};
+    std::vector<migraphx::shape::dynamic_dimension> dims{migraphx::shape::dynamic_dimension{2, 2},
+                                                         migraphx::shape::dynamic_dimension{3, 12}};
+    auto input = mm->add_literal(migraphx::literal{s, std::vector<float>(24, 1.f)});
+    mm->add_instruction(migraphx::make_op("reshape_lazy", {{"dims", migraphx::to_value(dims)}}),
+                        input);
+    p.compile(migraphx::make_target("ref"));
+    auto result = p.eval({}).back();
+    EXPECT(result.get_shape().lens() == std::vector<std::size_t>{2, 12});
 }

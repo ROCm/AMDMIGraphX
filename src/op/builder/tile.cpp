@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 
+#include <migraphx/dim_like.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/builder/insert.hpp>
@@ -46,9 +47,9 @@ struct tile : op_builder<tile>
     insert(module& m, instruction_ref /*ins*/, const std::vector<instruction_ref>& args) const
     {
         const auto& input_shape = args[0]->get_shape();
-        const auto& input_lens  = input_shape.lens();
+        const auto n_dims       = input_shape.ndim();
 
-        if(repeats.size() != input_lens.size())
+        if(repeats.size() != n_dims)
         {
             MIGRAPHX_THROW("tile op-builder: repeats size mismatch with input shape");
         }
@@ -62,13 +63,35 @@ struct tile : op_builder<tile>
         rN-1*lN-1}; - size: N again; multiplying each pair of dimensions
         */
 
-        std::vector<int64_t> unsq_axes(input_lens.size());
+        std::vector<int64_t> unsq_axes(n_dims);
         std::iota(unsq_axes.begin(), unsq_axes.end(), 0);
         std::transform(
             unsq_axes.begin(), unsq_axes.end(), unsq_axes.begin(), [](auto x) { return 2 * x; });
 
         auto unsq =
             m.add_instruction(migraphx::make_op("unsqueeze", {{"axes", unsq_axes}}), args[0]);
+
+        if(input_shape.dynamic())
+        {
+            auto bcast_dyn_dims = unsq->get_shape().dyn_dims();
+            std::for_each(unsq_axes.begin(), unsq_axes.end(), [&](int64_t axis_idx) {
+                const std::size_t repeat = repeats[axis_idx / 2];
+                bcast_dyn_dims[axis_idx] = shape::dynamic_dimension{repeat, repeat};
+            });
+
+            // 2-input multibroadcast preserves symbolic dims from the input shape.
+            auto mbcast = m.add_instruction(
+                migraphx::make_op("multibroadcast", {{"out_dyn_dims", to_value(bcast_dyn_dims)}}),
+                unsq,
+                unsq);
+
+            std::vector<dim_like> reshape_dims(n_dims);
+            for(std::size_t i = 0; i < n_dims; ++i)
+                reshape_dims[i] = bcast_dyn_dims[i * 2] * bcast_dyn_dims[i * 2 + 1];
+
+            return {m.add_instruction(
+                migraphx::make_op("reshape", {{"dims", to_value(reshape_dims)}}), mbcast)};
+        }
 
         std::vector<std::size_t> bcast_shape_lens = unsq->get_shape().lens();
         std::for_each(unsq_axes.begin(), unsq_axes.end(), [&](int64_t axis_idx) {

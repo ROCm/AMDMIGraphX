@@ -19,6 +19,7 @@ git clone https://github.com/onnx/models.git --depth 1
 ```bash
 # VERBOSE=1 DEBUG=1 # use these for more log
 # ATOL=0.001 RTOL=0.001 TARGET=gpu # are the default values
+# FP16_ATOL=0.04 FP16_RTOL=0.04 # looser tolerances used for the fp16 pass
 ./test_models.sh models/validated
 ```
 
@@ -28,9 +29,26 @@ You can also pass multiple folders, e.g.:
 ./test_models.sh models/validated/text/machine_comprehension/t5/ models/validated/vision/classification/shufflenet/
 ```
 
+## Running against pre-downloaded models
+
+```bash
+# Test every model found under the pre-downloaded location
+USE_LOCAL=1 ./test_models.sh /mnt/nas_share/onnx-model-zoo
+
+# Or select a subset
+USE_LOCAL=1 ./test_models.sh \
+    /mnt/nas_share/onnx-model-zoo/text/machine_comprehension/t5 \
+    /mnt/nas_share/onnx-model-zoo/vision/classification/shufflenet
+```
+
 ## Results
 
-Result are separated by dtype: `logs/fp32` and `logs/fp16`
+Result are separated by dtype: `logs/fp32`, `logs/fp16` and `logs/int8`
+
+> [!NOTE]
+> `int8`/`qdq` models are already quantized in-graph, so they are only run in
+> their native precision and logged under `logs/int8`; the fp16 pass is skipped
+> for them.
 
 ### Helpers
 

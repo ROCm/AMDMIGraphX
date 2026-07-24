@@ -32,7 +32,10 @@ SCRIPT_PATH=$(dirname $(dirname $(dirname $(readlink -f "$0"))))/test_runner.py
 TESTER_SCRIPT="${TESTER:-$SCRIPT_PATH}"
 ATOL="${ATOL:-0.001}"
 RTOL="${RTOL:-0.001}"
+FP16_ATOL="${FP16_ATOL:-0.04}"
+FP16_RTOL="${FP16_RTOL:-0.04}"
 TARGET="${TARGET:-gpu}"
+USE_LOCAL="${USE_LOCAL:-0}"
 
 if [[ "${DEBUG:-0}" -eq 1 ]]; then
     PIPE=/dev/stdout
@@ -61,14 +64,43 @@ function iterate() {
   done
 }
 
+# A previous run passed if its log shows zero failed cases
+function passed() {
+    [[ -f "$1" ]] && grep -qE 'Failed: 0$' "$1"
+}
+
+# Log file path for a given tar.gz and dtype
+function log_file() {
+    local base="$(basename "$1")"
+    echo "$WORK_DIR/logs/$2/${base//\//_}.log"
+}
+
 # Process will download the lfs file, extract model and test data
 # Test it with test_runner.py, then cleanup
 function process() {
     local file="$1"
+    # skip quantizing int8 models
+    local dt dtypes="fp32 fp16"
+    case "$(basename "$file")" in
+        *int8* | *qdq*) dtypes="int8" ;;
+    esac
+
+    # skip when every precision we run for this model already passed
+    local all_passed=1
+    for dt in $dtypes; do
+        passed "$(log_file "$file" "$dt")" || all_passed=0
+    done
+    if [[ "$all_passed" -eq 1 ]]; then
+        echo "INFO: skip $file - already passed"
+        return
+    fi
+
     echo "INFO: process $file started"
     setup $file
-    test $file fp32
-    test $file fp16
+    TEST_DIR="$(find "$WORK_DIR/tmp_model" -type f -name '*.onnx' ! -name '._*' -printf '%h\n' 2>/dev/null | sort -u | head -1)"
+    for dt in $dtypes; do
+        test $file "$dt"
+    done
     cleanup $file
     echo "INFO: process $file finished"
 }
@@ -78,9 +110,11 @@ function setup() {
     local file="$1"
     echo "INFO: setup $file"
     local_file="$(basename $file)"
-    # We need to change the folder to pull the file
-    folder="$(cd -P -- "$(dirname -- "$file")" && pwd -P)"
-    cd $folder &> "${PIPE}" && git lfs pull --include="$local_file" --exclude="" &> "${PIPE}"; cd - &> "${PIPE}"
+    if [[ "$USE_LOCAL" -ne 1 ]]; then
+        # We need to change the folder to pull the file
+        folder="$(cd -P -- "$(dirname -- "$file")" && pwd -P)"
+        cd $folder &> "${PIPE}" && git lfs pull --include="$local_file" --exclude="" &> "${PIPE}"; cd - &> "${PIPE}"
+    fi
     tar xzf $file -C $WORK_DIR/tmp_model &> "${PIPE}"
 }
 
@@ -88,29 +122,44 @@ function setup() {
 function cleanup() {
     local file="$1"
     echo "INFO: cleanup $file"
-    # We need to change the folder to pull the file
-    folder="$(cd -P -- "$(dirname -- "$file")" && pwd -P)"
-    cd $folder &> "${PIPE}" && git lfs prune &> "${PIPE}"; cd - &> "${PIPE}"
+    if [[ "$USE_LOCAL" -ne 1 ]]; then
+        # We need to change the folder to prune the file
+        folder="$(cd -P -- "$(dirname -- "$file")" && pwd -P)"
+        cd $folder &> "${PIPE}" && git lfs prune &> "${PIPE}"; cd - &> "${PIPE}"
+    fi
     rm -r $WORK_DIR/tmp_model/* &> "${PIPE}"
 }
 
 # Run test_runner.py and log if something goes wrong
 function test() {
     local file="$1"
-    echo "INFO: test $file ($2)"
-    local_file="$(basename $file)"
-    flag="--atol $ATOL --rtol $RTOL --target $TARGET"
-    if [[ "$2" = "fp16" ]]; then
-        flag="$flag --fp16"
+    local dtype="$2"
+    local log="$(log_file "$file" "$dtype")"
+    # skip this precision if it already passed
+    if passed "$log"; then
+        echo "INFO: skip $file ($dtype) - already passed"
+        return
+    fi
+    echo "INFO: test $file ($dtype)"
+    if [[ -z "$TEST_DIR" ]]; then
+        echo "SKIPPED: no .onnx model found in archive" > "$log"
+        echo "WARNING: ${file} ($dtype) has no model to test"
+        return
+    fi
+    local flag
+    if [[ "$dtype" = "fp16" ]]; then
+        flag="--atol $FP16_ATOL --rtol $FP16_RTOL --target $TARGET --fp16"
+    else
+        flag="--atol $ATOL --rtol $RTOL --target $TARGET"
     fi
     EXIT_CODE=0
-    python3 $TESTER_SCRIPT ${flag} $WORK_DIR/tmp_model/*/ &> "$WORK_DIR/logs/$2/${local_file//\//_}.log" || EXIT_CODE=$?
+    python3 $TESTER_SCRIPT ${flag} "$TEST_DIR" &> "$log" || EXIT_CODE=$?
     if [[ "${EXIT_CODE:-0}" -ne 0 ]]; then
-        echo "WARNING: ${file} failed ($2)"
+        echo "WARNING: ${file} failed ($dtype)"
     fi
 }
 
-mkdir -p $WORK_DIR/logs/fp32/ $WORK_DIR/logs/fp16/ $WORK_DIR/tmp_model
+mkdir -p $WORK_DIR/logs/fp32/ $WORK_DIR/logs/fp16/ $WORK_DIR/logs/int8/ $WORK_DIR/tmp_model
 rm -fr $WORK_DIR/tmp_model/*
 
 for arg in "$@"; do

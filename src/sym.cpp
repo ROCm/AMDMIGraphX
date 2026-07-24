@@ -1642,6 +1642,8 @@ std::vector<expr> find_variables(const expr& e)
             self(c);
     })(e);
     return result;
+}
+
 [[maybe_unused]] static bool has_float_literal(const expr& e)
 {
     if(e.empty())

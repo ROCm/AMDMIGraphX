@@ -60,7 +60,7 @@ channelwise_conv(TileLens, Padding, F f, Output output, Input x, Weights w, Inpu
     __syncthreads();
 
     tiler.for_each([&](auto out_pos, auto out_multi) {
-        float acc = 0;
+        float acc = 0.0f;
         repeat(wregs.get_shape().elements(), [&](auto ki) {
             auto k_multi = wregs.get_shape().multi(ki);
             acc +=

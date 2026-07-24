@@ -90,14 +90,14 @@ struct eval_expr
         for(const auto& expression : expressions)
             collect_variables(expression, required);
         auto available = direct_variables(inputs.front());
-        for(const auto& variable : required)
-        {
-            if(std::none_of(available.begin(), available.end(), [&](const auto& v) {
-                   return sym::same_symbol(v, variable);
-               }))
-                MIGRAPHX_THROW("EVAL_EXPR: Symbol '" + variable.to_string() +
-                               "' is not a direct input dimension");
-        }
+        auto missing   = std::find_if(required.begin(), required.end(), [&](const auto& variable) {
+            return std::none_of(available.begin(), available.end(), [&](const auto& v) {
+                return sym::same_symbol(v, variable);
+            });
+        });
+        if(missing != required.end())
+            MIGRAPHX_THROW("EVAL_EXPR: Symbol '" + missing->to_string() +
+                           "' is not a direct input dimension");
         return shape{shape::int64_type, {expressions.size()}};
     }
 

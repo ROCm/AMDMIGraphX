@@ -332,8 +332,8 @@ struct slice
         return {{"norm_starts", norm_starts}, {"norm_ends", norm_ends}, {"norm_axes", norm_axes}};
     }
 
-    /// Resolves the concrete starts/ends/axes for a variable-input slice using the modes and inputs.
-    /// `read_input` is a function that returns a std::vector<int64_t> of the input at i.
+    /// Resolves the concrete starts/ends/axes for a variable-input slice using the modes and
+    /// inputs. `read_input` is a function that returns a std::vector<int64_t> of the input at i.
     template <class F>
     std::array<std::vector<int64_t>, 3> resolve_bounds(F read_input) const
     {

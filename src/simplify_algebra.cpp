@@ -205,8 +205,10 @@ struct find_mul_slice_conv
                auto sop = any_cast<op::slice>(i->get_operator());
                if(sop.axes != slice_op.axes)
                    return true;
-               if(std::max(std::get<int64_t>(sop.starts.front()), std::get<int64_t>(slice_op.starts.front())) <
-                  std::min(std::get<int64_t>(sop.ends.front()), std::get<int64_t>(slice_op.ends.front())))
+               if(std::max(std::get<int64_t>(sop.starts.front()),
+                           std::get<int64_t>(slice_op.starts.front())) <
+                  std::min(std::get<int64_t>(sop.ends.front()),
+                           std::get<int64_t>(slice_op.ends.front())))
                    return true;
                return false;
            }))

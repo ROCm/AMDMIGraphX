@@ -75,3 +75,6 @@ RUN rm -rf /opt/rocm/share/rocmcmakebuildtools
 
 # Install yapf
 RUN pipx install yapf==0.28.0
+
+# Install clang format
+RUN pipx install clang-format==22.1.5

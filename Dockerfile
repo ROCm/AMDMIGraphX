@@ -126,6 +126,9 @@ RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
 # Install yapf
 RUN pipx install yapf==0.28.0
 
+# Install clang format
+RUN pipx install clang-format==22.1.5
+
 # Install doc requirements
 ADD docs/sphinx/requirements.txt /doc-requirements.txt
 # pip rejects extras in a constraints file (the pip-compile output pins

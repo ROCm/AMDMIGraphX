@@ -141,7 +141,12 @@ RUN pipx install yapf==0.28.0
 
 # Install doc requirements
 ADD docs/sphinx/requirements.txt /doc-requirements.txt
-RUN pipx install sphinx --pip-args="-c /doc-requirements.txt"
+# pip rejects extras in a constraints file (the pip-compile output pins
+# pyjwt[crypto]), and extras carry no meaning in a constraint, so strip them to
+# pin the sphinx install.
+RUN sed 's/\[[^][]*\]//' /doc-requirements.txt > /doc-constraints.txt && \
+    pipx install sphinx --pip-args="-c /doc-constraints.txt" && \
+    rm /doc-constraints.txt
 RUN pipx inject sphinx -r /doc-requirements.txt
 
 # Install latest ccache version

@@ -217,7 +217,10 @@ else
     done
 fi
 
-pip3 install setuptools wheel
+# Install pipx from pip rather than the distro package. The distro pipx depends
+# on python3-packaging, and a dpkg-owned copy of packaging cannot be uninstalled
+# by pip when requirements-py.txt pins a different version.
+pip3 install setuptools wheel pipx
 
 pipx install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz --include-deps
 

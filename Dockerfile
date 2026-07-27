@@ -19,14 +19,12 @@
 #
 # Build MIGraphX inside the container:
 #   cd /code/AMDMIGraphX
-#   rbuild build -d depend -B build \
-#       -DGPU_TARGETS=$(rocminfo | grep -o -m1 'gfx.*')
+#   rbuild build -d depend -B build
+#
 
 FROM ubuntu:24.04
 
-# Fail a piped command if any stage fails (required for the key-dearmor pipe below).
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
+ARG PREFIX=/usr/local
 # ROCm release version (used in versioned package names, e.g. amdrocm-developer-tools7.13)
 ARG ROCM_VERSION="7.14"
 # GPU architecture family (e.g. gfx942, gfx120x); leave empty for arch-independent packages
@@ -40,93 +38,127 @@ ARG USE_WHL=""
 # pip index URL for the wheel-based ROCm install (only used when USE_WHL is set).
 ARG INDEX_URL="https://repo.amd.com/rocm/whl-multi-arch/"
 
+# Support multiarch
+RUN dpkg --add-architecture i386
 
-# Install prerequisites needed to fetch and dearmor the ROCm signing key.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        ca-certificates \
-        gnupg2 \
-        curl && \
+# Install rocm key
+RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-install-recommends curl && \
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://repo.amd.com/rocm/packages/gpg/rocm.gpg | gpg --dearmor -o /etc/apt/keyrings/amdrocm.gpg
+
+# Add rocm repository
+RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages-multi-arch/ubuntu2404 stable main > /etc/apt/sources.list.d/rocm.list'
+
+# From docs.amd.com for installing rocm. Needed to install properly
+# RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
+
+# rocgdb doesn't work on 22.04, workaround by installing the older python packages that are in 20.04
+# RUN add-apt-repository -y ppa:deadsnakes/ppa
+
+# Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
+RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
+    add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main"
+
+# Install dependencies
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    apt-utils \
+    bison \
+    build-essential \
+    clang-17 \
+    cmake \
+    curl \
+    flex \
+    g++ \
+    gdb \
+    git \
+    lcov \
+    locales \
+    pipx \
+    pkg-config \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-full \
+    libpython3.8 \
+    wget \
+    libnuma-dev \
+    libomp-17-dev \
+    libssl-dev \
+    zlib1g-dev && \
+    apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Register the ROCm apt repository and its signing key.
-RUN mkdir --parents --mode=0755 /etc/apt/keyrings && \
-    curl -fsSL https://repo.amd.com/rocm/packages/gpg/rocm.gpg | \
-        gpg --dearmor | tee /etc/apt/keyrings/amdrocm.gpg > /dev/null && \
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages-multi-arch/ubuntu2404 stable main" \
-        > /etc/apt/sources.list.d/rocm.list
+RUN locale-gen en_US.UTF-8
+RUN update-locale LANG=en_US.UTF-8
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
+ENV PATH=/root/.local/bin:$PATH
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
+COPY ./tools/install_prereqs.sh /
+COPY ./tools/requirements-py.txt /requirements-py.txt
+RUN ./install_prereqs.sh \
+        --rocm-version ${ROCM_VERSION} \
+        ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
+        --index-url ${INDEX_URL} \
+        ${USE_WHL:+--whl}
+RUN rm /install_prereqs.sh && rm /*.txt
+RUN test -f /usr/local/hash || exit 1
+
+ # TheRock installs into a versioned root (/opt/rocm/core-<ver>). Expose the
+ # conventional /opt/rocm/{bin,lib,llvm,...} layout expected by MIGraphX tooling.
+ # RUN mkdir -p /opt/rocm && \
+ #     for d in bin lib libexec include share llvm amdgcn; do \
+ #         ln -snf core-${ROCM_VERSION}/$d /opt/rocm/$d; \
+ #     done
+
+# Workaround broken rocm packages
+RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
+RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
+RUN ldconfig
+
+# Manually remove rocm-cmake, since it shouldnt be installed in the first place
+RUN rm -rf /opt/rocm/share/rocmcmakebuildtools
+
+# Install pytorch
+RUN pip3 install --index-url "${INDEX_URL}" \
+        "torch==2.11.0+rocm${ROCM_VERSION}.0" \
+        "torchvision==0.26.0+rocm${ROCM_VERSION}.0" \
+        "torchaudio==2.11.0+rocm${ROCM_VERSION}.0"
+
 # Location where onnx unit tests models are cached
 ENV ONNX_HOME=/.onnx
 RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
 
-COPY tools/install_prereqs.sh /tmp/install_prereqs.sh
-RUN chmod +x /tmp/install_prereqs.sh && \
-    /tmp/install_prereqs.sh \
-        --rocm-version ${ROCM_VERSION} \
-        ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
-        --index-url ${INDEX_URL} \
-        ${USE_WHL:+--whl} && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
- # TheRock installs into a versioned root (/opt/rocm/core-<ver>). Expose the
- # conventional /opt/rocm/{bin,lib,llvm,...} layout expected by MIGraphX tooling.
- RUN mkdir -p /opt/rocm && \
-     for d in bin lib libexec include share llvm amdgcn; do \
-         ln -snf core-${ROCM_VERSION}/$d /opt/rocm/$d; \
-     done && \
-     echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf && \
-     echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf && \
-     ldconfig
- ENV ROCM_PATH=/opt/rocm
- ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
-
-
-# Additional packages
-RUN python3 -m pip install --index-url "${INDEX_URL}" \
-    "torch==2.11.0+rocm${ROCM_VERSION}.0" \
-    "torchvision==0.26.0+rocm${ROCM_VERSION}.0" \
-    "torchaudio==2.11.0+rocm${ROCM_VERSION}.0"
-
-ADD tools/requirements-py.txt /requirements-py.txt
-RUN CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON" pip3 install -r /requirements-py.txt && \
-    rm /requirements-py.txt
-
-RUN python3 -m pip install onnxruntime clang-format==22.1.5 yapf==0.28.0
+# Install yapf
+RUN pipx install yapf==0.28.0
 
 # Install doc requirements
 ADD docs/sphinx/requirements.txt /doc-requirements.txt
-RUN pip3 install --ignore-installed -r /doc-requirements.txt
-#
+RUN pipx install sphinx --pip-args="-c /doc-requirements.txt"
+RUN pipx inject sphinx -r /doc-requirements.txt
+
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake
 RUN cget -p $PREFIX install ccache@v4.1 -DENABLE_TESTING=OFF
 # Install a newer version of doxygen because the one that comes with ubuntu is broken
 RUN cget -p $PREFIX install doxygen@Release_1_14_0
 
-
-# Set locale
-RUN locale-gen en_US.UTF-8 && update-locale LANG=en_US.UTF-8
-
-ENV LC_ALL=C.UTF-8
+ENV MIOPEN_FIND_DB_PATH=/tmp/miopen/find-db
+ENV MIOPEN_USER_DB_PATH=/tmp/miopen/user-db
 ENV LD_LIBRARY_PATH=$PREFIX/lib
-
 
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
 # Disable odr detection since its broken with shared libraries
 # See: https://github.com/google/sanitizers/issues/1017
-ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1:detect_odr_violation=0
+ENV ASAN_OPTIONS=detect_stack_use_after_return=1:check_initialization_order=1:strict_init_order=1
 RUN ln -s /opt/rocm/llvm/bin/llvm-symbolizer /usr/bin/llvm-symbolizer
 
-RUN git config --global --add safe.directory '*'
-
-RUN cd / && rbuild prepare -d ${PREFIX} -s develop

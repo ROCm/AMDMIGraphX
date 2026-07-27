@@ -53,12 +53,15 @@ set -eo pipefail
 
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
-export PIP_BREAK_SYSTEM_PACKAGES=1
 
 ROCM_VERSION=""
 GPU_ARCH=""
 USE_WHL=0
 INDEX_URL="https://repo.amd.com/rocm/whl-multi-arch/"
+PREFIX=/usr/local
+REQ_FILE_DIR="$(dirname -- "$0")"
+
+source /etc/os-release
 
 usage()
 {
@@ -136,6 +139,17 @@ fi
 
 echo "Using package manager: ${PKG_MGR}"
 
+# pkg_refresh updates the package metadata for the detected manager.
+pkg_refresh()
+{
+    case "$PKG_MGR" in
+        apt) apt-get update ;;
+        dnf) dnf makecache ;;
+        yum) yum makecache ;;
+        zypper) zypper -n --gpg-auto-import-keys refresh ;;
+    esac
+}
+
 # pkg_install installs the given list of packages with the detected manager.
 pkg_install()
 {
@@ -155,105 +169,14 @@ pkg_install()
     esac
 }
 
-# pkg_refresh updates the package metadata for the detected manager.
-pkg_refresh()
-{
-    case "$PKG_MGR" in
-        apt) apt-get update ;;
-        dnf) dnf makecache ;;
-        yum) yum makecache ;;
-        zypper) zypper -n --gpg-auto-import-keys refresh ;;
-    esac
-}
-
-# Build prerequisites needed to compile MIGraphX, expressed per package manager
-# since the package names differ across distributions.
 case "$PKG_MGR" in
     apt)
-        BUILD_PKGS=(
-            apt-utils
-            bison
-            build-essential
-            clang
-            cmake
-            curl
-            flex
-            g++
-            gdb
-            git
-            lcov
-            locales
-            pkg-config
-            python3
-            python3-dev
-            python3-pip
-            python3-full
-            wget
-            libnuma-dev
-            libomp-dev
-            libtbb-dev
-            libssl-dev
-            zlib1g-dev
-        )
         DEV_SUFFIX="-dev"
         ;;
-    dnf | yum)
-        BUILD_PKGS=(
-            bison
-            clang
-            cmake
-            curl
-            flex
-            gcc
-            gcc-c++
-            gdb
-            git
-            glibc-langpack-en
-            lcov
-            make
-            pkgconfig
-            python3
-            python3-devel
-            python3-pip
-            wget
-            numactl-devel
-            libomp-devel
-            tbb-devel
-            openssl-devel
-            zlib-devel
-        )
-        DEV_SUFFIX="-devel"
-        ;;
-    zypper)
-        # The SLE15 base image only ships the limited SLE_BCI repo. clang, lcov
-        # and libomp-devel are not available there and are not needed on SLES:
-        # MIGraphX is built with the ROCm toolchain (/opt/rocm/llvm/bin/clang++)
-        # and its OpenMP runtime, and coverage (lcov) is not run on SLES.
-        BUILD_PKGS=(
-            bison
-            cmake
-            curl
-            flex
-            gcc
-            gcc-c++
-            gdb
-            git
-            make
-            pkg-config
-            python3
-            python3-devel
-            python3-pip
-            wget
-            libnuma-devel
-            libopenssl-devel
-            zlib-devel
-        )
+    dnf | yum | zypper)
         DEV_SUFFIX="-devel"
         ;;
 esac
-
-pkg_refresh
-pkg_install "${BUILD_PKGS[@]}"
 
 # Install the ROCm packages, by WHL or by OS package
 if [[ "$USE_WHL" -eq 1 ]]; then
@@ -264,6 +187,7 @@ if [[ "$USE_WHL" -eq 1 ]]; then
     rocm-sdk init
 
 else
+    pkg_refresh
     ROCM_PKGS=(
         "amdrocm-runtime${DEV_SUFFIX}${ROCM_VERSION}"
         "amdrocm-blas${DEV_SUFFIX}${ROCM_VERSION}"
@@ -287,8 +211,22 @@ else
         ROCM_PKGS+=("amdrocm-core${ROCM_VERSION}")
     fi
     pkg_install "${ROCM_PKGS[@]}"
+    mkdir -p /opt/rocm
+    for d in bin lib libexec include share llvm amdgcn; do
+        ln -snf core-${ROCM_VERSION}/$d /opt/rocm/$d;
+    done
 fi
 
-python3 -m pip install setuptools wheel
+pip3 install setuptools wheel
 
-python3 -m pip install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz
+pipx install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz --include-deps
+
+echo "Dependencies are installed at $PREFIX"
+
+# Install deps with rbuild
+rbuild prepare -d $PREFIX -s develop
+
+if [[ ("${ID}" != "sles") ]]; then
+    export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
+    pip3 install -r $REQ_FILE_DIR/requirements-py.txt
+fi

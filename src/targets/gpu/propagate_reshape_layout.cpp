@@ -56,8 +56,8 @@ bool can_propagate_shape(module& m, instruction_ref start, const shape& start_sh
                        });
         try
         {
-            shapes.emplace(
-                &ins, ins.get_operator().compute_shape(input_shapes, ins.module_inputs()));
+            shapes.emplace(&ins,
+                           ins.get_operator().compute_shape(input_shapes, ins.module_inputs()));
         }
         catch(const exception&)
         {

@@ -187,15 +187,13 @@ TEST_CASE(ambiguous_singleton_strides_noop)
 {
     migraphx::module m1;
     {
-        migraphx::shape input_shape{
-            migraphx::shape::float_type, {1, 1, 2}, {1, 2, 1}};
-        auto x = m1.add_parameter("x", input_shape);
-        auto alloc =
-            m1.add_instruction(migraphx::make_op(
-                "allocate",
-                {{"shape",
-                  migraphx::to_value(
-                      migraphx::shape{migraphx::shape::float_type, input_shape.lens()})}}));
+        migraphx::shape input_shape{migraphx::shape::float_type, {1, 1, 2}, {1, 2, 1}};
+        auto x     = m1.add_parameter("x", input_shape);
+        auto alloc = m1.add_instruction(
+            migraphx::make_op("allocate",
+                              {{"shape",
+                                migraphx::to_value(migraphx::shape{migraphx::shape::float_type,
+                                                                   input_shape.lens()})}}));
         auto c  = m1.add_instruction(migraphx::make_op("gpu::contiguous"), x, alloc);
         auto rl = m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {1, 2}}}), c);
         m1.add_return({rl});

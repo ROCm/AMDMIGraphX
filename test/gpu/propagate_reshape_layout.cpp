@@ -181,4 +181,51 @@ TEST_CASE(no_permutation_noop)
     EXPECT(m1 == m2);
 }
 
+// Singleton dimensions make some stride orders ambiguous. The permutation recovered from the
+// desired layout can then produce a shape that reshape_lazy cannot alias.
+TEST_CASE(ambiguous_singleton_strides_noop)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape input_shape{
+            migraphx::shape::float_type, {1, 1, 2}, {1, 2, 1}};
+        auto x = m1.add_parameter("x", input_shape);
+        auto alloc =
+            m1.add_instruction(migraphx::make_op(
+                "allocate",
+                {{"shape",
+                  migraphx::to_value(
+                      migraphx::shape{migraphx::shape::float_type, input_shape.lens()})}}));
+        auto c  = m1.add_instruction(migraphx::make_op("gpu::contiguous"), x, alloc);
+        auto rl = m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {1, 2}}}), c);
+        m1.add_return({rl});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
+// A replacement can be valid for the matched reshape but make a downstream lazy reshape invalid.
+TEST_CASE(downstream_reshape_lazy_noop)
+{
+    migraphx::module m1;
+    {
+        migraphx::shape input_shape{migraphx::shape::float_type, {1, 4}, {1, 1}};
+        auto x = m1.add_parameter("x", input_shape);
+        auto alloc =
+            m1.add_instruction(migraphx::make_op(
+                "allocate",
+                {{"shape",
+                  migraphx::to_value(
+                      migraphx::shape{migraphx::shape::float_type, input_shape.lens()})}}));
+        auto c   = m1.add_instruction(migraphx::make_op("gpu::contiguous"), x, alloc);
+        auto rl1 = m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {1, 4}}}), c);
+        auto rl2 = m1.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 2}}}), rl1);
+        m1.add_return({rl2});
+    }
+    migraphx::module m2 = m1;
+    run_pass(m1);
+    EXPECT(m1 == m2);
+}
+
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

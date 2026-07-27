@@ -25,16 +25,48 @@
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/reshape_dims.hpp>
 #include <migraphx/value.hpp>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 namespace {
+bool can_propagate_shape(module& m, instruction_ref start, const shape& start_shape)
+{
+    std::unordered_map<const instruction*, shape> shapes = {{&*start, start_shape}};
+    return std::all_of(std::next(start), m.end(), [&](const instruction& ins) {
+        if(std::none_of(ins.inputs().begin(), ins.inputs().end(), [&](instruction_ref input) {
+               return shapes.count(&*input) > 0;
+           }))
+            return true;
+
+        std::vector<shape> input_shapes;
+        std::transform(ins.inputs().begin(),
+                       ins.inputs().end(),
+                       std::back_inserter(input_shapes),
+                       [&](instruction_ref input) {
+                           auto iter = shapes.find(&*input);
+                           return iter == shapes.end() ? input->get_shape() : iter->second;
+                       });
+        try
+        {
+            shapes.emplace(
+                &ins, ins.get_operator().compute_shape(input_shapes, ins.module_inputs()));
+        }
+        catch(const exception&)
+        {
+            return false;
+        }
+        return true;
+    });
+}
+
 struct find_reshape_lazy_contiguous : match::supports_dynamic_shapes
 {
     // eliminate_contiguous only leaves a standardizing gpu::contiguous in front of a
@@ -75,6 +107,12 @@ struct find_reshape_lazy_contiguous : match::supports_dynamic_shapes
 
         auto layout_op    = make_op("layout", {{"permutation", find_permutation(*relayout)}});
         auto layout_shape = layout_op.compute_shape({s});
+        // Singleton dimensions can make a stride order ambiguous. In that case,
+        // find_permutation may produce a packed shape different from relayout that cannot
+        // alias the reshape output. Keep the standardizing contiguous instead.
+        auto reshaped = reshape_dims(layout_shape, rl->get_shape().sym_dims(), {.lazy = true});
+        if(not reshaped or not can_propagate_shape(m, rl, *reshaped))
+            return;
         auto alloc =
             m.insert_instruction(rl, make_op("allocate", {{"shape", to_value(layout_shape)}}));
         auto layout = m.insert_instruction(

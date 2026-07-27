@@ -49,12 +49,6 @@ RUN apt-get update && apt-get install -y software-properties-common gnupg2 --no-
 # Add rocm repository
 RUN sh -c 'echo deb [arch=amd64 signed-by=/etc/apt/keyrings/amdrocm.gpg] https://repo.amd.com/rocm/packages-multi-arch/ubuntu2404 stable main > /etc/apt/sources.list.d/rocm.list'
 
-# From docs.amd.com for installing rocm. Needed to install properly
-# RUN sh -c "echo 'Package: *\nPin: release o=repo.radeon.com\nPin-priority: 600' > /etc/apt/preferences.d/rocm-pin-600"
-
-# rocgdb doesn't work on 22.04, workaround by installing the older python packages that are in 20.04
-# RUN add-apt-repository -y ppa:deadsnakes/ppa
-
 # Add LLVM repository for Clang 17 (ROCm 7.x ships with Clang 20 which has ODR false positives in ASAN)
 RUN curl -sL https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main"
@@ -110,13 +104,6 @@ RUN ./install_prereqs.sh \
         ${USE_WHL:+--whl}
 RUN rm /install_prereqs.sh && rm /*.txt
 RUN test -f /usr/local/hash || exit 1
-
- # TheRock installs into a versioned root (/opt/rocm/core-<ver>). Expose the
- # conventional /opt/rocm/{bin,lib,llvm,...} layout expected by MIGraphX tooling.
- # RUN mkdir -p /opt/rocm && \
- #     for d in bin lib libexec include share llvm amdgcn; do \
- #         ln -snf core-${ROCM_VERSION}/$d /opt/rocm/$d; \
- #     done
 
 # Workaround broken rocm packages
 RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf

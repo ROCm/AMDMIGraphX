@@ -1,84 +1,63 @@
-# MIGraphX build/packaging image for SLES (TheRock amdrocm-* packages, ROCm 7.14).
-#
-# Mirrors the TheRock setup used by the root Dockerfile and hip-clang.docker, but
-# for SUSE Linux Enterprise using zypper/rpm. The ROCm toolchain comes from
-# TheRock's "amdrocm-*" rpm packages (installed via tools/install_prereqs.sh) and
-# the MIGraphX third-party dependencies are prebuilt into PREFIX (/usr/local).
-#
-# Build args:
-#   ROCM_VERSION  ROCm release version for versioned package names (e.g. 7.14)
-#   GPU_ARCH      GPU architecture family (e.g. gfx942); empty installs the fat
-#                 (all-architecture) device code so the image runs on any GPU
-#   PREFIX        Install location for the prebuilt MIGraphX dependencies
-#
-# Build (from the repo root, which is the build context):
-#   docker build -f tools/docker/sles.docker \
-#       --build-arg ROCM_VERSION=7.14 \
-#       --build-arg GPU_ARCH=$(rocminfo 2>/dev/null | grep -o -m1 'gfx.*')
-#       -t migraphx-sles .
-
 FROM registry.suse.com/suse/sle15:15.6
 
 ARG PREFIX=/usr/local
 ARG ROCM_VERSION=7.14
 ARG GPU_ARCH=""
 
-# pip on recent distros is externally managed; allow system-wide installs.
-ENV PIP_BREAK_SYSTEM_PACKAGES=1
-
 # Register TheRock ROCm zypper repository (multi-arch amdrocm-* rpm packages).
 RUN sh -c 'echo -e "\
 [rocm]\n\
-name=ROCm (TheRock)\n\
+name=rocm\n\
 baseurl=https://repo.amd.com/rocm/packages-multi-arch/sles15/x86_64\n\
 enabled=1\n\
 gpgcheck=0\n\
-" > /etc/zypp/repos.d/rocm.repo' && \
-    cat /etc/zypp/repos.d/rocm.repo
+gpgkey=https://repo.radeon.com/rocm/rocm.gpg.key\n\
+" > /etc/zypp/repos.d/rocm.repo'
 
-# Extra repo providing perl tooling needed by some third-party dependency builds.
+RUN cat /etc/zypp/repos.d/rocm.repo
+
+#addition of repos for packages
 RUN zypper addrepo https://download.opensuse.org/repositories/devel:/languages:/perl/15.6/devel:languages:perl.repo
 
 RUN zypper -n --gpg-auto-import-keys refresh
 
-# SLES-specific extras layered on top of the shared prereqs script:
-# rpm-build for CPack RPM packaging and doxygen for documentation.
-RUN zypper -n --gpg-auto-import-keys install -y rpm-build doxygen
+RUN zypper --gpg-auto-import-keys install -y \
+    cmake \
+    doxygen \
+    gcc-c++ \
+    gdb \
+    git \
+    python3-devel \
+    python3-pip \
+    rpm-build
 
-# Install the ROCm toolchain + MIGraphX build prerequisites via the shared script.
-COPY tools/install_prereqs.sh /tmp/install_prereqs.sh
-RUN chmod +x /tmp/install_prereqs.sh && \
-    /tmp/install_prereqs.sh \
-    --rocm-version ${ROCM_VERSION} \
-    ${GPU_ARCH:+--gpu ${GPU_ARCH}} && \
-    rm /tmp/install_prereqs.sh
-
-# TheRock installs into a versioned root (/opt/rocm/core-<ver>). Expose the
-# conventional /opt/rocm/{bin,lib,llvm,...} layout that build tooling and
-# rbuild.ini reference via the hard-coded /opt/rocm/llvm/bin/clang++ path.
-RUN mkdir -p /opt/rocm && \
-    for d in bin lib libexec include share llvm amdgcn; do \
-        ln -snf core-${ROCM_VERSION}/$d /opt/rocm/$d; \
-    done && \
-    echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf && \
-    echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf && \
-    ldconfig
-ENV ROCM_PATH=/opt/rocm
-ENV PATH=/opt/rocm/bin:/opt/rocm/llvm/bin:$PATH
-
-# Set locale (SLES has no locale-gen; C.UTF-8 is always available).
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
-# Install yapf
-RUN pip3 install yapf==0.28.0
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+ENV PATH=/root/.local/bin:$PATH
 
-# Prebuild the MIGraphX third-party dependencies into PREFIX so builds can
-# configure and compile without fetching them.
+# Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
 ADD rbuild.ini /rbuild.ini
 
-RUN git config --global --add safe.directory '*'
+COPY ./tools/install_prereqs.sh /
+COPY ./tools/requirements-py.txt /requirements-py.txt
+RUN ./install_prereqs.sh \
+        --rocm-version ${ROCM_VERSION} \
+        ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
+        ${USE_WHL:+--whl}
+RUN rm /install_prereqs.sh && rm /*.txt
+RUN test -f /usr/local/hash || exit 1
 
-RUN cd / && rbuild prepare -d ${PREFIX} -s develop
+# Workaround broken rocm packages
+RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
+RUN echo "/opt/rocm/llvm/lib" > /etc/ld.so.conf.d/rocm-llvm.conf
+RUN ldconfig
+
+# Manually remove rocm-cmake, since it shouldnt be installed in the first place
+RUN rm -rf /opt/rocm/share/rocmcmakebuildtools
+
+# Install yapf
+RUN pipx install yapf==0.28.0

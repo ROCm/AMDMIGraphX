@@ -222,7 +222,15 @@ fi
 # by pip when requirements-py.txt pins a different version.
 pip3 install setuptools wheel pipx
 
-pipx install --global https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz --include-deps
+# Install apps to the global location so any user can run them. On SLES pipx
+# runs under python 3.6 where pipx 0.16 has no --global flag; there the global
+# locations are set through PIPX_HOME/PIPX_BIN_DIR (see tools/docker/sles.docker).
+PIPX_GLOBAL_FLAG="--global"
+if [[ "${ID}" == "sles" ]]; then
+    PIPX_GLOBAL_FLAG=""
+fi
+
+pipx install ${PIPX_GLOBAL_FLAG} https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz --include-deps
 
 echo "Dependencies are installed at $PREFIX"
 

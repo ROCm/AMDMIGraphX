@@ -36,6 +36,11 @@ ENV LANG=C.UTF-8
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
+# pipx 0.16 (the last version for python 3.6) has no --global flag; these env
+# vars give the same global install locations.
+ENV PIPX_HOME=/opt/pipx
+ENV PIPX_BIN_DIR=/usr/local/bin
+
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
 ADD requirements.txt /requirements.txt
@@ -59,7 +64,7 @@ RUN ldconfig
 RUN rm -rf /opt/rocm/share/rocmcmakebuildtools
 
 # Install yapf
-RUN pipx install --global yapf==0.28.0
+RUN pipx install yapf==0.28.0
 
 # Install clang format
-RUN pipx install --global clang-format==22.1.5
+RUN pipx install clang-format==22.1.5

@@ -58,7 +58,6 @@ using intptr_t  = int64_t;
 using uintptr_t = uint64_t;
 using intmax_t  = int64_t;
 using uintmax_t = uint64_t;
-using intmax_t  = int64_t;
 
 } // namespace ROCM_INLINE_NS
 } // namespace rocm

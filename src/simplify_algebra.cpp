@@ -1002,11 +1002,6 @@ struct find_concat_op
         auto op = x->get_operator();
         if(not is_valid_op(op))
             return {start, last};
-        // Moving a dequantizelinear back through the concat would leave the concat on integer
-        // values, which some backends (e.g. rocMLIR) cannot fuse; keep it floating point.
-        if(op.name() == "dequantizelinear" and
-           shape::is_integral(x->inputs().front()->get_shape().type()))
-            return {start, last};
         auto iaxis = axis;
         // Adjust broadcast lens
         if(op.name() == "broadcast")

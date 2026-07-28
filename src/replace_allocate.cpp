@@ -124,8 +124,11 @@ void insert_copy(module& m, const allocation_model& model)
         if(ins->get_shape().any_of_dynamic())
             continue;
         auto aliases = instruction::get_output_alias(ins);
+        // Skip the copy only if the return aliases a same shape writable
+        // allocation that can serve as the output buffer.
         if(std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
-               return alias->get_shape() == ins->get_shape();
+               return (alias->name() == "allocate" or alias->name() == model.name()) and
+                      alias->get_shape() == ins->get_shape();
            }))
             continue;
         auto insert_ins = std::next(ins);

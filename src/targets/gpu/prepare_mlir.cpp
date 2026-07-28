@@ -129,12 +129,32 @@ struct find_where
     }
 };
 
+// mlir requires literals to be in a standard shape.
+struct find_nonstandard_literal
+{
+    auto matcher() const
+    {
+        return match::name("@literal")(match::not_standard_shape(),
+                                       match::none_of(match::broadcast_shape()));
+    }
+
+    void apply(module& m, const match::matcher_result& r) const
+    {
+        auto ins = r.result;
+        auto arg = ins->get_literal().get_argument();
+        shape s{arg.get_shape().type(), arg.get_shape().lens()};
+        literal result;
+        visit_all(arg)([&](auto x) { result = literal{s, x.to_vector()}; });
+        m.replace_instruction(ins, m.add_literal(result));
+    }
+};
+
 } // namespace
 
 void prepare_mlir::apply(module& m) const
 {
     match::find_matches(m, find_reduce{}, find_leaky_relu{});
-    match::find_matches(m, find_where{});
+    match::find_matches(m, find_where{}, find_nonstandard_literal{});
     run_passes(m, {dead_code_elimination{}});
 }
 

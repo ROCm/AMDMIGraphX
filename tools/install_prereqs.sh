@@ -222,7 +222,7 @@ fi
 # by pip when requirements-py.txt pins a different version.
 pip3 install setuptools wheel pipx
 
-pipx install https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz --include-deps
+pipx install --global https://github.com/RadeonOpenCompute/rbuild/archive/master.tar.gz --include-deps
 
 echo "Dependencies are installed at $PREFIX"
 

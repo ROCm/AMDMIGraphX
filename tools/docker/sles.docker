@@ -35,7 +35,6 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
-ENV PATH=/root/.local/bin:$PATH
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
@@ -60,7 +59,7 @@ RUN ldconfig
 RUN rm -rf /opt/rocm/share/rocmcmakebuildtools
 
 # Install yapf
-RUN pipx install yapf==0.28.0
+RUN pipx install --global yapf==0.28.0
 
 # Install clang format
-RUN pipx install clang-format==22.1.5
+RUN pipx install --global clang-format==22.1.5

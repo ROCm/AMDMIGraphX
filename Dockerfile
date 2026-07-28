@@ -88,7 +88,6 @@ ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 
 ENV PIP_BREAK_SYSTEM_PACKAGES=1
-ENV PATH=/root/.local/bin:$PATH
 
 # Install dependencies
 ADD dev-requirements.txt /dev-requirements.txt
@@ -124,10 +123,10 @@ ENV ONNX_HOME=/.onnx
 RUN mkdir -p $ONNX_HOME/models && chmod 777 $ONNX_HOME/models
 
 # Install yapf
-RUN pipx install yapf==0.28.0
+RUN pipx install --global yapf==0.28.0
 
 # Install clang format
-RUN pipx install clang-format==22.1.5
+RUN pipx install --global clang-format==22.1.5
 
 # Install doc requirements
 ADD docs/sphinx/requirements.txt /doc-requirements.txt
@@ -135,9 +134,9 @@ ADD docs/sphinx/requirements.txt /doc-requirements.txt
 # pyjwt[crypto]), and extras carry no meaning in a constraint, so strip them to
 # pin the sphinx install.
 RUN sed 's/\[[^][]*\]//' /doc-requirements.txt > /doc-constraints.txt && \
-    pipx install sphinx --pip-args="-c /doc-constraints.txt" && \
+    pipx install --global sphinx --pip-args="-c /doc-constraints.txt" && \
     rm /doc-constraints.txt
-RUN pipx inject sphinx -r /doc-requirements.txt
+RUN pipx inject --global sphinx -r /doc-requirements.txt
 
 # Install latest ccache version
 RUN cget -p $PREFIX install facebook/zstd@v1.4.5 -X subdir -DCMAKE_DIR=build/cmake

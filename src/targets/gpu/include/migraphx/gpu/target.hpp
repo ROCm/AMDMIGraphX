@@ -43,6 +43,7 @@ struct MIGRAPHX_GPU_EXPORT target
     std::size_t gpu_num_chiplets          = 1;
     std::size_t gpu_max_threads_per_cu    = 2048;
     std::size_t gpu_max_threads_per_block = 1024;
+    std::size_t gpu_wavefront_size        = 0;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
@@ -51,7 +52,8 @@ struct MIGRAPHX_GPU_EXPORT target
                     f(self.gpu_num_cu, "gpu_num_cu"),
                     f(self.gpu_num_chiplets, "gpu_num_chiplets"),
                     f(self.gpu_max_threads_per_cu, "gpu_max_threads_per_cu"),
-                    f(self.gpu_max_threads_per_block, "gpu_max_threads_per_block"));
+                    f(self.gpu_max_threads_per_block, "gpu_max_threads_per_block"),
+                    f(self.gpu_wavefront_size, "gpu_wavefront_size"));
     }
 
     bool is_cross_compile() const { return not gpu_arch.empty(); }

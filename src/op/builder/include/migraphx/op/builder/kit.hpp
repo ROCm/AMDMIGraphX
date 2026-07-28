@@ -66,7 +66,17 @@ struct kit : auto_register<register_kit_action, T>
 
     op_builder_if from_builder(const std::string& op_builder) const
     {
-        return get_op_builder_if(op_builder);
+        // Resolve lazily: the target builder may register after this kit's apply()
+        // runs during static initialization.
+        return op_builder_if{
+            [=](module& m,
+                instruction_ref ins,
+                const std::vector<instruction_ref>& args,
+                const std::vector<module_ref>& module_args,
+                const value& options) {
+                return get_op_builder_if(op_builder).bld_func(m, ins, args, module_args, options);
+            },
+            [=] { return get_op_builder_if(op_builder).to_val_func(); }};
     }
 
     op_builder_if with_common(const op_builder_if& obi, common_options coptions = {}) const

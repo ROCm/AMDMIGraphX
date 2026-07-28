@@ -79,6 +79,9 @@ typedef enum
 typedef struct migraphx_optimals* migraphx_optimals_t;
 typedef const struct migraphx_optimals* const_migraphx_optimals_t;
 
+typedef struct migraphx_symbol_bounds* migraphx_symbol_bounds_t;
+typedef const struct migraphx_symbol_bounds* const_migraphx_symbol_bounds_t;
+
 typedef struct migraphx_dynamic_dimension* migraphx_dynamic_dimension_t;
 typedef const struct migraphx_dynamic_dimension* const_migraphx_dynamic_dimension_t;
 
@@ -194,6 +197,19 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_optimals_create(migraphx_optimals_t* 
                                                            size_t size);
 
 MIGRAPHX_C_EXPORT migraphx_status
+migraphx_symbol_bounds_destroy(migraphx_symbol_bounds_t symbol_bounds);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_symbol_bounds_assign_to(
+    migraphx_symbol_bounds_t output, const_migraphx_symbol_bounds_t input);
+
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_symbol_bounds_create(migraphx_symbol_bounds_t* symbol_bounds);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_symbol_bounds_add(migraphx_symbol_bounds_t symbol_bounds,
+                                                             const char* name,
+                                                             const_migraphx_dynamic_dimension_t dd);
+
+MIGRAPHX_C_EXPORT migraphx_status
 migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_dynamic_dimension_assign_to(
@@ -208,7 +224,15 @@ migraphx_dynamic_dimension_create_min_max_optimals(migraphx_dynamic_dimension_t*
                                                    size_t max,
                                                    migraphx_optimals_t optimals);
 
+MIGRAPHX_C_EXPORT migraphx_status
+migraphx_dynamic_dimension_create_symbolic(migraphx_dynamic_dimension_t* dynamic_dimension,
+                                           const char* expression,
+                                           const_migraphx_symbol_bounds_t symbols);
+
 MIGRAPHX_C_EXPORT migraphx_status migraphx_dynamic_dimension_is_fixed(
+    bool* out, const_migraphx_dynamic_dimension_t dynamic_dimension);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_dynamic_dimension_is_symbolic(
     bool* out, const_migraphx_dynamic_dimension_t dynamic_dimension);
 
 MIGRAPHX_C_EXPORT migraphx_status
@@ -569,6 +593,9 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_external_data_path(
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options, bool value);
+
+MIGRAPHX_C_EXPORT migraphx_status migraphx_onnx_options_set_dim_param(
+    migraphx_onnx_options_t onnx_options, const char* name, const_migraphx_dynamic_dimension_t dd);
 
 MIGRAPHX_C_EXPORT migraphx_status
 migraphx_file_options_destroy(migraphx_file_options_t file_options);

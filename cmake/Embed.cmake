@@ -24,7 +24,32 @@
 
 include_guard(GLOBAL)
 
-if(NOT BUILD_SHARED_LIBS)
+include(CheckCXXCompilerFlag)
+include(CheckCXXSourceCompiles)
+
+# The #embed directive is only standard in C23 and C++26, but compilers support it as an
+# extension in the earlier standards as well
+function(check_hash_embed VARIABLE)
+    set(DATA_FILE "${CMAKE_BINARY_DIR}/embed-check-data")
+    file(WRITE "${DATA_FILE}" "hash embed")
+    if(NOT MSVC)
+        # Using the directive as an extension is diagnosed, which is fatal with -Werror
+        string(APPEND CMAKE_REQUIRED_FLAGS " -Wno-c23-extensions -Wno-c++26-extensions")
+    endif()
+    check_cxx_source_compiles("
+#include <cstddef>
+extern const char embed_data[] = {
+#embed \"${DATA_FILE}\"
+};
+extern const size_t embed_length = sizeof(embed_data);
+int main() { return 0; }
+" ${VARIABLE})
+endfunction()
+check_hash_embed(EMBED_HAS_HASH_EMBED)
+
+if(EMBED_HAS_HASH_EMBED)
+    set(EMBED_USE_DEFAULT HASH_EMBED)
+elseif(NOT BUILD_SHARED_LIBS)
     set(EMBED_USE_DEFAULT CArrays)
 elseif(WIN32)
     set(EMBED_USE_DEFAULT RC)
@@ -33,11 +58,18 @@ else()
 endif()
 
 if(WIN32)
-    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use RC or CArrays to embed data files")
-    set_property(CACHE EMBED_USE PROPERTY STRINGS "RC;CArrays")
+    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use HASH_EMBED, RC or CArrays to embed data files")
+    set_property(CACHE EMBED_USE PROPERTY STRINGS "HASH_EMBED;RC;CArrays")
 else()
-    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use LD or CArrays to embed data files")
-    set_property(CACHE EMBED_USE PROPERTY STRINGS "LD;CArrays")
+    set(EMBED_USE ${EMBED_USE_DEFAULT} CACHE STRING "Use HASH_EMBED, LD or CArrays to embed data files")
+    set_property(CACHE EMBED_USE PROPERTY STRINGS "HASH_EMBED;LD;CArrays")
+endif()
+
+if(NOT EMBED_HAS_HASH_EMBED)
+    if(EMBED_USE STREQUAL "HASH_EMBED")
+        message(FATAL_ERROR "EMBED_USE is set to HASH_EMBED, but ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION} does not support the #embed directive.")
+    endif()
+    message(STATUS "The compiler does not support #embed, using ${EMBED_USE} to embed data files")
 endif()
 
 option(EMBED_VERBOSE "Show verbose output when creating embed library" OFF)
@@ -120,7 +152,7 @@ extern const char ${END_SYMBOL}[];
 ")
             string(APPEND INIT_KERNELS "
         { \"${BASE_NAME}\", { ${START_SYMBOL}, static_cast<size_t>(${END_SYMBOL} - ${START_SYMBOL})} },")
-        else() # CArrays
+        else() # CArrays or HASH_EMBED
             set(START_SYMBOL "_binary_${SYMBOL}_start")
             set(LENGTH_SYMBOL "_binary_${SYMBOL}_length")
             string(APPEND EXTERNS "
@@ -212,6 +244,23 @@ function(embed_file FILE BASE_DIRECTORY)
             DEPENDS "${FILE}"
             VERBATIM)
         set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
+    elseif(EMBED_USE STREQUAL "HASH_EMBED")
+        get_filename_component(ABS_FILE "${FILE}" ABSOLUTE)
+        set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
+        # The compiler reads the data file when compiling the #embed directive, so the
+        # generated source is independent of the contents and cmake does not need to
+        # rerun when the file changes
+        file(GENERATE OUTPUT "${OUTPUT_FILE}" CONTENT "
+#include <cstddef>
+extern const char _binary_${OUTPUT_SYMBOL}_start[] = {
+#embed \"${ABS_FILE}\"
+};
+extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SYMBOL}_start);
+")
+        # Not every generator uses the dependencies reported by the compiler, so the data
+        # file is added as an explicit dependency of the object file
+        set_source_files_properties("${OUTPUT_FILE}" PROPERTIES GENERATED TRUE OBJECT_DEPENDS "${ABS_FILE}")
+        set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     elseif(EMBED_USE STREQUAL "CArrays")
         set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${FILE})
         set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
@@ -258,12 +307,16 @@ function(add_embed_library EMBED_NAME)
     else()
         add_library(${INTERNAL_EMBED_LIB} OBJECT ${EMBED_FILES})
     endif()
-    if(EMBED_USE STREQUAL "CArrays")
+    if(EMBED_USE STREQUAL "CArrays" OR EMBED_USE STREQUAL "HASH_EMBED")
         target_sources(${INTERNAL_EMBED_LIB} PRIVATE ${OUTPUT_FILES})
     endif()
     target_include_directories(${INTERNAL_EMBED_LIB} PRIVATE "${EMBED_DIR}/include")
     # Disable extra warnings
-    foreach(COMPILER_WARNING -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
+    set(COMPILER_WARNINGS -Wno-reserved-identifier -Wno-extern-initializer -Wno-missing-variable-declarations)
+    if(EMBED_USE STREQUAL "HASH_EMBED")
+        list(APPEND COMPILER_WARNINGS -Wno-c23-extensions -Wno-c++26-extensions)
+    endif()
+    foreach(COMPILER_WARNING ${COMPILER_WARNINGS})
         string(MAKE_C_IDENTIFIER "HAS_CXX_FLAG${COMPILER_WARNING}" HAS_COMPILER_WARNING)
         check_cxx_compiler_flag(${COMPILER_WARNING} ${HAS_COMPILER_WARNING})
         if(${HAS_COMPILER_WARNING})

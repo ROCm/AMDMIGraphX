@@ -145,6 +145,53 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
     return wavefront_size;
 }
 
+/// Choose the workgroup size for a block reduction. A larger block parallelizes a
+/// single reduction across more lanes, which shortens the per-lane strided loop and
+/// the `block` reducer's inner-storage array, but it also deepens the LDS tree
+/// reduction and lowers the number of co-resident workgroups. So the block only
+/// grows past the default when there is something to gain:
+///   - `by_occ` is the block at which the `nelements` workgroups fill the device a
+///     few waves deep; beyond it the extra threads just deepen the tree while the
+///     workgroups already keep every CU busy. The `target_waves` slack lets a
+///     memory-bound reduction oversubscribe to hide latency.
+///   - `by_work` is the block that keeps each lane's strided reduction near
+///     `target_iters` elements; it only grows once the reduction is long.
+/// A lone reduction is memory-bound and gains from filling an under-occupied device,
+/// so it is limited by occupancy alone. A fused multi-reduction (softmax/layernorm)
+/// is compute-bound and a larger block mostly adds tree/sync overhead, so it also
+/// requires the reduction to be long via `by_work`.
+static std::size_t
+reduce_block_size(context& ctx, std::size_t relements, std::size_t nelements, bool simple)
+{
+    const auto wavefront            = ctx.get_current_device().get_wavefront_size();
+    const std::size_t default_block = 256;
+    const std::size_t max_block     = 1024;
+    const std::size_t target_iters  = 32;
+    const std::size_t target_waves  = 8;
+    const std::size_t max_global    = ctx.get_current_device().get_cu_count() *
+                                   ctx.get_current_device().get_max_workitems_per_cu();
+
+    std::size_t by_occ  = (target_waves * max_global) / std::max<std::size_t>(nelements, 1);
+    std::size_t by_work = (relements + target_iters - 1) / target_iters;
+    std::size_t grow;
+    if(simple)
+    {
+        // A memory-bound reduction only benefits from a wider block once it has at
+        // least a full wave of workgroups; below that it is latency-bound and a
+        // wider block just deepens the tree, so keep the default.
+        std::size_t min_groups = max_global / default_block;
+        grow                   = nelements >= min_groups ? by_occ : default_block;
+    }
+    else
+    {
+        grow = std::min(by_work, by_occ);
+    }
+    // Snap down to a whole number of wavefronts so the block stays wavefront-aligned.
+    grow              = std::max<std::size_t>(grow / wavefront, 1) * wavefront;
+    std::size_t block = std::min(max_block, std::max(default_block, grow));
+    return compute_block_size(ctx, relements, block);
+}
+
 /// This will adjust the input shapes so a partial reduction is done per workgroup.
 /// This is done by splitting the reduction axis so each split group becomes
 /// part of the batch. So if we want to do a split redution of a tensor
@@ -378,7 +425,17 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         {
             if(algo == "block")
             {
-                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
+                // A pure reduction writes only the reduced result and is memory-bound
+                // on the input read, so it may grow its block to fill the device. A
+                // normalization (softmax, layernorm) writes a full-size output and is
+                // compute-bound, so it stays on the work-gated path. The output size
+                // distinguishes them robustly; counting reductions does not, since
+                // prepare_reduce merges layernorm's two reductions into one. A split
+                // reduction (assign != none) already gets its parallelism from the
+                // split, so it is excluded too.
+                bool simple = assign == "assign_none" and inputs.back().elements() <= 2 * nelements;
+                auto block_size =
+                    v.get("block_size", reduce_block_size(ctx, relements, nelements, simple));
                 assert(block_size > 0);
                 if(relements >= (block_size - 1) * 256)
                     algo = "block_large";

@@ -155,7 +155,7 @@ add_library(migraphx
 
 enable_static_init(migraphx)
 
-file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
+file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp op/builder/torch/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 
 if(WIN32)

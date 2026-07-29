@@ -173,8 +173,37 @@ static void verify_reuse(context& ctx,
                    to_string(fresh.code.fragment));
 }
 
-/// Reuse an earlier result for this key, or compile and record one. Both the compile pass and
-/// the dynamic shapes compiled during evaluation go through here, so they cache alike.
+/// Look for an earlier result. The cache is not guarded, so callers must not do this while
+/// compiles are running.
+static optional<compiler_replace> cache_lookup(context& ctx, const std::string& key)
+{
+    auto cached = ctx.get_binary_cache().get(ctx, key);
+    if(not cached.has_value())
+        return nullopt;
+    compiler_replace cr;
+    cr.code = std::move(*cached);
+    return cr;
+}
+
+/// Record a freshly compiled result, under the same restriction as cache_lookup.
+static void cache_store(context& ctx,
+                        const operation& preop,
+                        const value& solution,
+                        const std::string& key,
+                        const value& problem,
+                        const compiled_code& code)
+{
+    binary_cache::entry e;
+    e.key      = key;
+    e.op_name  = preop.name();
+    e.problem  = problem;
+    e.solution = solution;
+    e.code     = code;
+    ctx.get_binary_cache().insert(ctx, e);
+}
+
+/// Reuse an earlier result for this key, or compile and record one. For callers with a single
+/// instruction to compile; the compile pass splits these steps around its parallel compiles.
 static compiler_replace compile_cached(context& ctx,
                                        instruction_ref ins,
                                        const operation& preop,
@@ -182,23 +211,14 @@ static compiler_replace compile_cached(context& ctx,
                                        const std::string& key,
                                        const value& problem)
 {
-    auto& cache = ctx.get_binary_cache();
-    if(auto cached = cache.get(ctx, key))
+    if(auto cached = cache_lookup(ctx, key))
     {
-        if(cache.verify())
-            verify_reuse(ctx, ins, preop, solution, *cached);
-        compiler_replace cr;
-        cr.code = std::move(*cached);
-        return cr;
+        if(ctx.get_binary_cache().verify())
+            verify_reuse(ctx, ins, preop, solution, cached->code);
+        return *cached;
     }
     auto cr = compile_fragment(ctx, ins, preop, solution);
-    binary_cache::entry entry;
-    entry.key      = key;
-    entry.op_name  = preop.name();
-    entry.problem  = problem;
-    entry.solution = solution;
-    entry.code     = cr.code;
-    cache.insert(ctx, entry);
+    cache_store(ctx, preop, solution, key, problem, cr.code);
     return cr;
 }
 
@@ -430,6 +450,22 @@ struct compile_plan
         return compile_key_or_empty(*ctx, ins, preop, solution);
     }
 
+    optional<compiler_replace> lookup(const std::string& key) const
+    {
+        return cache_lookup(*ctx, key);
+    }
+
+    void store(const value& solution, const std::string& key, const compiled_code& code) const
+    {
+        cache_store(*ctx, preop, solution, key, config ? config->problem : value{}, code);
+    }
+
+    /// Compile again and compare, so a key that fails to describe its result fails loudly.
+    void verify(const value& solution, const compiled_code& reused) const
+    {
+        verify_reuse(*ctx, ins, preop, solution, reused);
+    }
+
     /// Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
     static std::size_t benchmark_bundle(const module& m)
     {
@@ -441,12 +477,12 @@ struct compile_plan
         return std::max(1, 4 * n - 2);
     }
 
-    optional<compiler_replace> run_compile(const value& solution, const std::string& key) const
+    /// Compile without touching the cache, so this can run in parallel with other compiles.
+    optional<compiler_replace> run_compile(const value& solution) const
     {
         try
         {
-            return compile_cached(
-                *ctx, ins, preop, solution, key, config ? config->problem : value{});
+            return compile_fragment(*ctx, ins, preop, solution);
         }
         catch(const std::exception& e)
         {
@@ -680,6 +716,8 @@ struct compile_task
     /// since every target shares this key and therefore compiles to the same code.
     std::vector<std::pair<std::size_t, std::size_t>> targets = {};
     optional<compiler_replace> result                        = nullopt;
+    /// Set when the result came from the cache, so it is not stored back afterwards.
+    bool reused = false;
 
     std::size_t plan_index() const { return targets.front().first; }
 };
@@ -741,13 +779,39 @@ struct compile_manager
         par_compile(candidates.size(), [&](auto i) {
             candidates[i].key = cps[candidates[i].plan_index].get_key(candidates[i].solution);
         });
+        const bool verify_reused = not cps.empty() and cps.front().ctx->get_binary_cache().verify();
 
         auto tasks = make_tasks(candidates);
         assert(tasks.size() <= candidates.size());
+
+        // The cache is unguarded, so everything it can answer is looked up before any compile
+        // starts, and everything compiled is stored after they all finish.
+        for(auto& task : tasks)
+        {
+            task.result = cps[task.plan_index()].lookup(task.key);
+            task.reused = task.result.has_value();
+        }
+
         par_compile(tasks.size(), [&](auto i) {
-            tasks[i].result =
-                cps[tasks[i].plan_index()].run_compile(tasks[i].solution, tasks[i].key);
+            auto& task       = tasks[i];
+            const auto& plan = cps[task.plan_index()];
+            if(task.reused)
+            {
+                if(verify_reused)
+                    plan.verify(task.solution, task.result->code);
+            }
+            else
+            {
+                task.result = plan.run_compile(task.solution);
+            }
         });
+
+        for(const auto& task : tasks)
+        {
+            if(task.reused or not task.result.has_value())
+                continue;
+            cps[task.plan_index()].store(task.solution, task.key, task.result->code);
+        }
 
         for(const auto& task : tasks)
         {

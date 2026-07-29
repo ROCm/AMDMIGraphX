@@ -31,7 +31,6 @@
 #include <migraphx/reflect.hpp>
 #include <migraphx/value.hpp>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -47,6 +46,10 @@ struct context;
  * Results are held in memory for the life of the context and, when a cache directory is
  * configured, written to disk so later runs can reuse them. Things outside the key, such as the
  * compiler and the embedded kernel headers, are separated by the directory the entries live in.
+ *
+ * This is not thread safe, and deliberately so. Every key is known before any compile begins, so
+ * the compile pass looks results up and stores them in serial passes on either side of its
+ * parallel compiles, and nothing has to be guarded.
  */
 struct MIGRAPHX_GPU_EXPORT binary_cache
 {
@@ -71,36 +74,18 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
         }
     };
 
-    /**
-     * Counts of what the cache did.
-     *
-     * Only the tests ask for these, so a cache built without one keeps no counters at all. It
-     * carries its own lock because one may be shared by several caches.
-     */
+    /// Counts of what the cache did. Only the tests ask for these, so a cache built without one
+    /// keeps no counters at all.
     struct stats
     {
-        struct counts
-        {
-            /// Served from memory, so an earlier compile in this process was shared.
-            std::size_t reused = 0;
-            /// Served from the cache directory.
-            std::size_t hits = 0;
-            /// Not found, so the caller had to compile.
-            std::size_t misses = 0;
-            /// Written to the cache after being compiled.
-            std::size_t compiled = 0;
-        };
-
-        counts get();
-
-        void reused();
-        void hit();
-        void miss();
-        void compiled();
-
-        private:
-        std::mutex mutex;
-        counts data;
+        /// Served from memory, so an earlier compile in this process was shared.
+        std::size_t reused = 0;
+        /// Served from the cache directory.
+        std::size_t hits = 0;
+        /// Not found, so the caller had to compile.
+        std::size_t misses = 0;
+        /// Written to the cache after being compiled.
+        std::size_t compiled = 0;
     };
 
     explicit binary_cache(std::shared_ptr<stats> s = nullptr) : st(std::move(s)) {}
@@ -114,7 +99,7 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     void configure(const binary_cache_settings& s);
 
     /// True when reused results should be checked against a fresh compile.
-    bool verify();
+    bool verify() const;
 
     /// Names the directory holding entries that this build can use: the entry format, the
     /// compiler, a digest of the embedded kernel headers, and the rocMLIR build. Empty when the
@@ -131,7 +116,6 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     optional<compiled_code> record_miss();
     void record_compiled();
 
-    std::mutex mutex;
     std::unordered_map<std::string, compiled_code> memo;
     binary_cache_settings settings = binary_cache_settings::defaults();
     std::shared_ptr<stats> st      = nullptr;

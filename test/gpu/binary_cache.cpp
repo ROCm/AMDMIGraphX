@@ -96,9 +96,9 @@ TEST_CASE(lookup_records_a_miss)
     migraphx::gpu::binary_cache cache{st};
 
     EXPECT(not cache.get(ctx, "absent").has_value());
-    EXPECT(st->get().misses == 1);
-    EXPECT(st->get().hits == 0);
-    EXPECT(st->get().reused == 0);
+    EXPECT(st->misses == 1);
+    EXPECT(st->hits == 0);
+    EXPECT(st->reused == 0);
 }
 
 // An entry served out of memory is one an earlier compile in this process already paid for.
@@ -109,12 +109,12 @@ TEST_CASE(memory_lookup_records_reuse)
     migraphx::gpu::binary_cache cache{st};
 
     cache.insert(ctx, make_entry("a-key"));
-    EXPECT(st->get().compiled == 1);
+    EXPECT(st->compiled == 1);
 
     auto found = cache.get(ctx, "a-key");
     EXPECT(found.has_value());
-    EXPECT(st->get().reused == 1);
-    EXPECT(st->get().misses == 0);
+    EXPECT(st->reused == 1);
+    EXPECT(st->misses == 0);
 }
 
 // A second cache shares nothing in memory, so anything it finds came off disk.
@@ -134,8 +134,8 @@ TEST_CASE(disk_lookup_records_a_hit)
 
     auto found = reader.get(ctx, "shared-key");
     EXPECT(found.has_value());
-    EXPECT(st->get().hits == 1);
-    EXPECT(st->get().misses == 0);
+    EXPECT(st->hits == 1);
+    EXPECT(st->misses == 0);
     EXPECT(*found->fragment.get_main_module() == *make_code().fragment.get_main_module());
 }
 
@@ -165,7 +165,7 @@ TEST_CASE(corrupt_entry_is_ignored)
     reader.configure(settings);
 
     EXPECT(not reader.get(ctx, "damaged").has_value());
-    EXPECT(st->get().misses == 1);
+    EXPECT(st->misses == 1);
 }
 
 // Without a directory nothing reaches disk, though results are still shared in memory.
@@ -179,7 +179,7 @@ TEST_CASE(no_directory_writes_nothing)
 
     cache.insert(ctx, make_entry("in-memory-only"));
     EXPECT(cache.get(ctx, "in-memory-only").has_value());
-    EXPECT(st->get().reused == 1);
+    EXPECT(st->reused == 1);
     EXPECT(migraphx::fs::is_empty(td.path));
 }
 

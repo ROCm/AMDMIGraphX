@@ -62,72 +62,34 @@ binary_cache_settings binary_cache_settings::defaults()
     return {path, false};
 }
 
-binary_cache::stats::counts binary_cache::stats::get()
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    return data;
-}
-
-void binary_cache::stats::reused()
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    data.reused++;
-}
-
-void binary_cache::stats::hit()
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    data.hits++;
-}
-
-void binary_cache::stats::miss()
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    data.misses++;
-}
-
-void binary_cache::stats::compiled()
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    data.compiled++;
-}
-
 void binary_cache::record_reused()
 {
     if(st)
-        st->reused();
+        st->reused++;
 }
 
 void binary_cache::record_hit()
 {
     if(st)
-        st->hit();
+        st->hits++;
 }
 
 optional<compiled_code> binary_cache::record_miss()
 {
     if(st)
-        st->miss();
+        st->misses++;
     return nullopt;
 }
 
 void binary_cache::record_compiled()
 {
     if(st)
-        st->compiled();
+        st->compiled++;
 }
 
-void binary_cache::configure(const binary_cache_settings& s)
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    settings = s;
-}
+void binary_cache::configure(const binary_cache_settings& s) { settings = s; }
 
-bool binary_cache::verify()
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    return settings.verify;
-}
+bool binary_cache::verify() const { return settings.verify; }
 
 /// A digest of the kernel headers compiled into this build. Taken from the embedded sources
 /// rather than the files on disk, so it tracks what is actually compiled even when the build
@@ -199,17 +161,13 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
 {
     if(key.empty())
         return nullopt;
-    fs::path root;
+    auto it = memo.find(key);
+    if(it != memo.end())
     {
-        const std::lock_guard<std::mutex> lock(mutex);
-        auto it = memo.find(key);
-        if(it != memo.end())
-        {
-            record_reused();
-            return it->second;
-        }
-        root = settings.path;
+        record_reused();
+        return it->second;
     }
+    const auto& root = settings.path;
     if(root.empty())
         return record_miss();
 
@@ -236,7 +194,6 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
     }
 
     record_hit();
-    const std::lock_guard<std::mutex> lock(mutex);
     memo[key] = std::move(e.code);
     return memo[key];
 }
@@ -246,12 +203,8 @@ void binary_cache::insert(const context& ctx, const entry& e)
     if(e.key.empty())
         return;
     record_compiled();
-    fs::path root;
-    {
-        const std::lock_guard<std::mutex> lock(mutex);
-        memo[e.key] = e.code;
-        root        = settings.path;
-    }
+    memo[e.key]      = e.code;
+    const auto& root = settings.path;
     if(root.empty())
         return;
 

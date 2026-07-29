@@ -69,8 +69,6 @@ struct slice
 {
     MIGRAPHX_NESTED_ENUM_CLASS(slice_mode, starts, ends, axes);
 
-    friend std::ostream& operator<<(std::ostream& os, slice_mode v) { return os << to_string(v); }
-
     std::vector<int64_t> axes{};
     std::vector<dim_like> starts{};
     std::vector<dim_like> ends{};
@@ -129,7 +127,8 @@ struct slice
     void check_inputs_and_attributes(const std::vector<shape>& inputs) const
     {
         // All set (non-empty) bound attributes must agree on the number of sliced axes.
-        // A variable (input-provided) bound can leave its attribute empty, so empty attrs are skipped.
+        // A variable (input-provided) bound can leave its attribute empty, so empty attrs are
+        // skipped.
         std::size_t attr_size = 0;
         for(auto s : {axes.size(), starts.size(), ends.size()})
         {
@@ -229,7 +228,7 @@ struct slice
     {
         check_shapes{inputs, *this, true}.has(1, 2, 3, 4);
         check_inputs_and_attributes(inputs);
-        auto input_shape    = inputs[0];
+        auto input_shape = inputs[0];
         if(inputs.size() == 1 and input_shape.dynamic() and not input_shape.symbolic())
         {
             // Fallback for range-based dynamic shapes.

@@ -15,7 +15,7 @@ With `keep_weights_external=True`, the weights are kept external as
 1. **Parse once** -- no weight file I/O at parse time
 2. **Compile once** -- shapes are known, values don't matter yet
 3. **Save the template** -- reuse without re-parse/re-compile
-4. **Bake weights** -- `replace_external_weights(prog, dir, target)` produces a new self-contained program
+4. **Bake weights** -- `replace_onnx_external_weights(prog, dir, target)` produces a new self-contained program
 5. **Save baked MXR** -- deploy the result with weights built in
 
 ## Quick start

@@ -1447,11 +1447,11 @@ struct onnx_options : MIGRAPHX_HANDLE_BASE(onnx_options)
     }
 };
 
-/// Copy the program and bake in weights from base_dir, returning a self-contained program
+/// Copy the program and encode weights from base_dir, returning a self-contained program
 inline program
-replace_external_weights(const program& prog, const std::string& base_dir, const target& t)
+replace_onnx_external_weights(const program& prog, const std::string& base_dir, const target& t)
 {
-    return program(make<migraphx_program>(&migraphx_replace_external_weights,
+    return program(make<migraphx_program>(&migraphx_replace_onnx_external_weights,
                                           prog.get_handle_ptr(),
                                           base_dir.c_str(),
                                           t.get_handle_ptr()),

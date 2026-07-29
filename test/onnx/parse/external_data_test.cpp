@@ -58,7 +58,7 @@ TEST_CASE(keep_weights_external_test)
     EXPECT(param_shapes.count("input") > 0);
 }
 
-TEST_CASE(replace_external_weights_test)
+TEST_CASE(replace_onnx_external_weights_test)
 {
     migraphx::onnx_options options;
     options.skip_unknown_operators = true;

@@ -309,11 +309,11 @@ argument target::allocate(const shape& s) const
 }
 
 namespace {
-// After write_literals turns a baked @literal into a gpu::literal (which already
-// produces a device buffer), any hip::copy_to_gpu the original compile inserted
-// after it is redundant. Rewire its consumers to the gpu::literal and drop it.
-// This is done explicitly rather than via DCE, which is unsafe on a compiled
-// program.
+// After write_literals turns an inserted @literal into a gpu::literal (which
+// already produces a device buffer), any hip::copy_to_gpu the original compile
+// inserted after it is redundant. Rewire its consumers to the gpu::literal and
+// drop it. This is done explicitly rather than via DCE, which is unsafe on a
+// compiled program.
 struct remove_literal_copies
 {
     std::string name() const { return "gpu::remove_literal_copies"; }
@@ -338,7 +338,7 @@ struct remove_literal_copies
 };
 } // namespace
 
-// Lower bare @literal instructions inserted after compile (e.g. by baking external
+// Lower bare @literal instructions inserted after compile (e.g. by encoding external
 // weights) using the same write_literals pass the normal compile pipeline uses, so
 // gpu::literal creation has a single source of truth. The literals are not finalized
 // here; the device buffer is materialized on load (program::from_value finalizes) or

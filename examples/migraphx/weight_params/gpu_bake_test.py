@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 """
-Simple GPU validation test for replace_external_weights.
+Simple GPU validation test for replace_onnx_external_weights.
 
 Tests that baking lowers the inserted @literal instructions to gpu::literal
 on a GPU-compiled program (without finalizing during the bake).
@@ -31,7 +31,7 @@ Steps:
   1. Generate a tiny model with external weights (matmul)
   2. Parse with keep_weights_external=True
   3. Compile for GPU
-  4. Bake weights via replace_external_weights with GPU target
+  4. Bake weights via replace_onnx_external_weights with GPU target
   5. Run inference on GPU and compare to a reference computation
 
 Usage:
@@ -135,8 +135,8 @@ def main():
         print(f"    Parameters after compile: {list(params_after_compile.keys())}")
 
         # 5. Bake weights
-        print("\n[4] Baking weights (replace_external_weights with GPU target)...")
-        baked = migraphx.replace_external_weights(prog, weights_dir, gpu_target)
+        print("\n[4] Baking weights (replace_onnx_external_weights with GPU target)...")
+        baked = migraphx.replace_onnx_external_weights(prog, weights_dir, gpu_target)
         baked_params = baked.get_parameter_shapes()
         print(f"    Baked program parameters: {list(baked_params.keys())}")
         assert "W" not in baked_params, "Weight 'W' should no longer be a parameter"
@@ -180,7 +180,7 @@ def main():
         W_half = np.full(weight_shape, 0.5, dtype=np.float32)
         weights_dir2 = write_weights(os.path.join(tmp_dir, "weights2"), W_half)
 
-        baked2 = migraphx.replace_external_weights(prog, weights_dir2, gpu_target)
+        baked2 = migraphx.replace_onnx_external_weights(prog, weights_dir2, gpu_target)
         baked2.finalize(gpu_target)
         baked2_params = baked2.get_parameter_shapes()
         run_params2 = {}

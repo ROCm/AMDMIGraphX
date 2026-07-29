@@ -25,7 +25,7 @@
 Example: Baking external weights into self-contained MXR programs.
 
 This demonstrates the --weight-params / keep_weights_external feature
-combined with replace_external_weights to produce MXR files with different
+combined with replace_onnx_external_weights to produce MXR files with different
 weight sets baked in -- all from a single parse + compile.
 
 Typical use cases:
@@ -96,14 +96,14 @@ def main():
     # ------------------------------------------------------------------
     # Step 4: Bake weights from each directory into separate programs
     #
-    # replace_external_weights copies the template and replaces each
+    # replace_onnx_external_weights copies the template and replaces each
     # external_weight op with a literal read from the specified directory.
     # The result is a self-contained program you can save or run directly.
     # ------------------------------------------------------------------
     outputs = []
     for i, weight_dir in enumerate(weight_dirs):
         print(f"--- Baking weights from: {weight_dir} ---")
-        baked = migraphx.replace_external_weights(template, weight_dir, migraphx.get_target("ref"))
+        baked = migraphx.replace_onnx_external_weights(template, weight_dir, migraphx.get_target("ref"))
 
         baked_params = baked.get_parameter_shapes()
         print(f"  Baked program has {len(baked_params)} parameters (weights gone):")

@@ -143,7 +143,7 @@ def main():
 
     # Step 4: Bake original weights
     print(f"[4] Baking original weights from: {weights_dir}")
-    baked_original = migraphx.replace_external_weights(template, weights_dir, gpu_target)
+    baked_original = migraphx.replace_onnx_external_weights(template, weights_dir, gpu_target)
     orig_params = baked_original.get_parameter_shapes()
     print(f"    Baked program parameters: {len(orig_params)}")
     print(f"    Remaining params: {list(orig_params.keys())[:5]}...")
@@ -164,7 +164,7 @@ def main():
 
     # Step 5: Bake perturbed weights
     print(f"[5] Baking perturbed weights from: {perturbed_dir}")
-    baked_perturbed = migraphx.replace_external_weights(template, perturbed_dir, gpu_target)
+    baked_perturbed = migraphx.replace_onnx_external_weights(template, perturbed_dir, gpu_target)
 
     baked_pert_path = f"resnet50_gpu_baked_perturbed{suffix}.mxr"
     migraphx.save(baked_perturbed, baked_pert_path)

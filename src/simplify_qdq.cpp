@@ -40,8 +40,10 @@
 #include <migraphx/fp8_types.hpp>
 #include <migraphx/match/dq_helpers.hpp>
 #include <algorithm>
+#include <array>
 #include <numeric>
 #include <optional>
+#include <string_view>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -472,7 +474,7 @@ struct match_concat_qlinear
             return;
         }
 
-        auto slices = get_slices(cat_ins);
+        auto slices         = get_slices(cat_ins);
         auto cat_inputs     = cat_ins->inputs();
         auto make_cat_input = [&](auto i, const auto& slc) -> std::optional<instruction_ref> {
             auto scale_slc = m.insert_instruction(ins, make_op("slice", slc), {scale});
@@ -563,31 +565,33 @@ bool is_any_input_int4(instruction_ref a)
  *  that match the name with one input recursively.
  *  Use this after selected quantizations have been made into real quantized instructions.
  */
-static const std::unordered_set<std::string> qdq_skip_ops = {
+constexpr std::array<std::string_view, 7> qdq_skip_ops = {
     "pack_fp4", "unpack_fp4", "broadcast", "slice", "reshape", "reshape_lazy", "pad"};
 
-static const std::unordered_set<std::string> qdq_replay_ops = {
+constexpr std::array<std::string_view, 4> qdq_replay_ops = {
     "broadcast", "slice", "reshape", "reshape_lazy"};
 
-static const std::unordered_set<std::string> qdq_pack_unpack_ops = {"pack_fp4", "unpack_fp4"};
+constexpr std::array<std::string_view, 2> qdq_pack_unpack_ops = {"pack_fp4", "unpack_fp4"};
 
-static bool is_pack_unpack_op(instruction_ref ins)
-{
-    return contains(qdq_pack_unpack_ops, ins->name());
-}
+bool is_pack_unpack_op(instruction_ref ins) { return contains(qdq_pack_unpack_ops, ins->name()); }
 
-static bool is_replay_op(instruction_ref ins) { return contains(qdq_replay_ops, ins->name()); }
+bool is_replay_op(instruction_ref ins) { return contains(qdq_replay_ops, ins->name()); }
 
 template <class Iterator>
-static bool has_pack_unpack_op(Iterator first, Iterator last)
+bool has_pack_unpack_op(Iterator first, Iterator last)
 {
     return std::any_of(first, last, is_pack_unpack_op);
 }
 
-static bool is_supported_qdq_path_op(instruction_ref ins, bool has_pack_unpack)
+bool is_supported_qdq_path_op(instruction_ref ins, bool has_pack_unpack)
 {
     return is_pack_unpack_op(ins) or is_replay_op(ins) or
            (has_pack_unpack and contains(qdq_skip_ops, ins->name()));
+}
+
+MIGRAPHX_PRED_MATCHER(qdq_skip_op, instruction_ref ins)
+{
+    return contains(qdq_skip_ops, ins->name());
 }
 
 struct qdq_replacement
@@ -640,8 +644,7 @@ struct remove_qdq_pairs
 
     auto matcher() const
     {
-        auto q_ins =
-            match::skip(match::name(qdq_skip_ops))(match::name("quantizelinear").bind("q_ins"));
+        auto q_ins = match::skip(qdq_skip_op())(match::name("quantizelinear").bind("q_ins"));
         return match::name("dequantizelinear")(match::arg(0)(q_ins));
     }
 

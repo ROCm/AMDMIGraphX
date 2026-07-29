@@ -54,6 +54,15 @@ struct hiprtc_src_file
     }
 };
 
+/**
+ * Identifies the toolchain that turns kernel source into code objects for an architecture.
+ *
+ * The toolchain is loaded at runtime, and what it reports about itself is coarser than what it
+ * generates, so this compiles a fixed kernel and identifies the result. Returns an empty string
+ * if the toolchain cannot be identified.
+ */
+MIGRAPHX_GPU_EXPORT std::string hip_compiler_version(const std::string& arch);
+
 MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
                                          const std::vector<std::string>& flags);
 

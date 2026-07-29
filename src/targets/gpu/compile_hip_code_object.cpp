@@ -29,6 +29,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx_kernels.hpp>
 #include <migraphx/stringutils.hpp>
+#include <sstream>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -201,20 +202,11 @@ std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t ma
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
-std::vector<char>
-compile_hip_raw(context& ctx, const std::string& content, hip_compile_options options)
+// Append the parameters that are derived from the options and the device rather than passed in
+// by the compiler. Shared with hip_compile_key so the key sees the same final parameter list
+// that the compiler does.
+static void add_derived_params(const context& ctx, hip_compile_options& options)
 {
-    assert(options.global > 0);
-    assert(options.local > 0);
-    std::vector<src_file> srcs = options.additional_src_files;
-    static auto kernels{::migraphx_kernels()};
-    std::transform(
-        kernels.begin(),
-        kernels.end(),
-        std::back_inserter(srcs),
-        [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
-    srcs.emplace_back("main.cpp", content);
-
     if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
         options.emplace_param("-fno-offload-uniform-block");
     else
@@ -230,10 +222,52 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
     options.params.insert(options.params.end(), warnings.begin(), warnings.end());
     options.emplace_param("-ftemplate-backtrace-limit=0");
     options.emplace_param("-Werror");
+}
+
+std::vector<char>
+compile_hip_raw(context& ctx, const std::string& content, hip_compile_options options)
+{
+    assert(options.global > 0);
+    assert(options.local > 0);
+    std::vector<src_file> srcs = options.additional_src_files;
+    static auto kernels{::migraphx_kernels()};
+    std::transform(
+        kernels.begin(),
+        kernels.end(),
+        std::back_inserter(srcs),
+        [](const std::pair<std::string_view, std::string_view>& elem) { return src_file{elem}; });
+    srcs.emplace_back("main.cpp", content);
+
+    add_derived_params(ctx, options);
     auto cos = compile_hip_src(srcs, options.params, ctx.get_current_device().get_device_name());
     if(cos.size() != 1)
         MIGRAPHX_THROW("No code object");
     return cos.front();
+}
+
+std::string hip_compile_key(const context& ctx, const hip_src& src)
+{
+    auto options = src.options;
+    add_derived_params(ctx, options);
+
+    std::stringstream ss;
+    ss << "arch=" << ctx.get_current_device().get_device_name() << "\n";
+    ss << "kernel=" << options.kernel_name << "\n";
+    ss << "global=" << options.global << "\n";
+    ss << "local=" << options.local << "\n";
+    ss << "output_arg=" << options.output_arg << "\n";
+    ss << "params=" << join_strings(options.params, " ") << "\n";
+    // The shapes are recorded because they become fields of the code object, not because they
+    // are part of the source; the source sees them through the generated tensor views below.
+    for(const auto& s : options.inputs)
+        ss << "input=" << s << "\n";
+    ss << "output=" << options.output << "\n";
+    for(const auto& f : options.additional_src_files)
+        ss << "src=" << f.path << "\n" << f.content << "\n";
+    ss << generate_args_hpp(options.virtual_inputs.empty() ? options.inputs
+                                                           : options.virtual_inputs);
+    ss << "main.cpp\n" << src.content;
+    return ss.str();
 }
 
 operation

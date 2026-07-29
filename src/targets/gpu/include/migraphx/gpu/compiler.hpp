@@ -33,6 +33,7 @@
 #include <migraphx/optional.hpp>
 #include <migraphx/rank.hpp>
 #include <migraphx/gpu/tuning_config.hpp>
+#include <migraphx/gpu/compiled_code.hpp>
 #include <functional>
 #include <utility>
 
@@ -72,11 +73,13 @@ struct compiler_replace
     {
     }
 
+    /// The serializable result of the compile. When this is set it supersedes replace_fn: the
+    /// fragment already describes the replacement, so it is used directly.
+    compiled_code code                  = {};
     std::vector<operation> code_objects = {};
     std::function<void(const compiler_replace& cr, module& m, instruction_ref ins)> replace_fn =
         nullptr;
     std::function<void(std::ostream& os, instruction_ref ins)> trace_fn = nullptr;
-    std::unordered_map<std::string, double> fill_map                    = {};
 
     template <class F>
     static auto make_replace(F f)
@@ -96,7 +99,9 @@ struct compiler_replace
 
     void replace(module& m, instruction_ref ins) const
     {
-        if(replace_fn)
+        if(not code.empty())
+            code.replace(m, ins);
+        else if(replace_fn)
             replace_fn(*this, m, ins);
         else
         {
@@ -121,11 +126,14 @@ using compiler_compile_op =
     std::function<operation(context&, const std::vector<shape>& inputs, const value&)>;
 using compiler_tuning_config =
     std::function<optional<tuning_config>(context&, instruction_ref, const operation&, bool)>;
+using compiler_compile_key =
+    std::function<std::string(context&, instruction_ref, const operation&, const value&)>;
 
 MIGRAPHX_GPU_EXPORT void register_compiler(const std::string& name,
                                            compiler_compile c,
                                            compiler_compile_op cop,
-                                           compiler_tuning_config ctg);
+                                           compiler_tuning_config ctg,
+                                           compiler_compile_key ck);
 
 MIGRAPHX_GPU_EXPORT bool has_compiler_for(const std::string& name);
 MIGRAPHX_GPU_EXPORT compiler_replace compile(context& ctx,
@@ -139,6 +147,17 @@ MIGRAPHX_GPU_EXPORT operation compile_op(const std::string& name,
 MIGRAPHX_GPU_EXPORT optional<tuning_config>
 get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive);
 
+/**
+ * A string that uniquely identifies the code the compiler would produce, without producing it.
+ *
+ * This is the text handed to the backend compiler, so it captures the generated source along
+ * with everything else that shapes the result, and no separate accounting of shapes, launch
+ * parameters, or device properties is needed. An empty string means the compiler cannot
+ * describe its output this way, and its result must not be cached.
+ */
+MIGRAPHX_GPU_EXPORT std::string
+compile_key(context& ctx, instruction_ref ins, const operation& op, const value& solution);
+
 template <class T>
 void register_compiler()
 {
@@ -151,7 +170,8 @@ void register_compiler()
                 return c.invoke_compile(rank<1>{}, std::forward<decltype(xs)>(xs)...);
             },
             [=](auto&&... xs) { return c.compile_op(std::forward<decltype(xs)>(xs)...); },
-            [=](auto&&... xs) { return c.get_tuning_config(std::forward<decltype(xs)>(xs)...); });
+            [=](auto&&... xs) { return c.get_tuning_config(std::forward<decltype(xs)>(xs)...); },
+            [=](auto&&... xs) { return c.compile_key(std::forward<decltype(xs)>(xs)...); });
     }
 }
 
@@ -177,6 +197,13 @@ struct compiler : auto_register_compiler<Derived>
         return nullopt;
     }
 
+    /// Compilers opt in to caching by overriding this. Until one does, an empty key keeps its
+    /// results out of the cache, which is always correct if never fast.
+    std::string compile_key(context&, instruction_ref, const operation&, const value&) const
+    {
+        return {};
+    }
+
     // TODO: make it a compile error if this is not overridden by Derived rather than runtime error.
     // Could rename Derived function to something like compile_op_impl.
     // Or refactor to type-erased interface.
@@ -186,17 +213,17 @@ struct compiler : auto_register_compiler<Derived>
     }
 
     template <class D = Derived>
-    auto
-    invoke_compile(rank<1>, context& ctx, instruction_ref ins, operation op, const value& solution)
-        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
+    auto invoke_compile(
+        rank<1>, context& ctx, instruction_ref ins, operation op, const value& solution) const
+        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op), solution))
     {
         return derived().compile(ctx, ins, std::move(op), solution);
     }
 
     template <class D = Derived>
-    auto
-    invoke_compile(rank<0>, context& ctx, instruction_ref ins, operation op, const value& solution)
-        const -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
+    auto invoke_compile(
+        rank<0>, context& ctx, instruction_ref ins, operation op, const value& solution) const
+        -> decltype(std::declval<D>().compile(ctx, ins, std::move(op)))
     {
         assert(solution.empty());
         (void)solution;

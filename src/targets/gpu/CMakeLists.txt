@@ -24,6 +24,25 @@
 
 find_package(hip REQUIRED)
 
+# Produce a short identity for a toolchain file, used to separate binary cache entries that
+# different toolchains cannot share. The content hash is exact but slow on the larger libraries,
+# so fall back to size and timestamp, which still changes whenever the file is replaced.
+function(migraphx_hash_file FILE_PATH OUT_VAR)
+    if(NOT FILE_PATH OR NOT EXISTS "${FILE_PATH}")
+        set(${OUT_VAR} "unknown" PARENT_SCOPE)
+        return()
+    endif()
+    file(SIZE "${FILE_PATH}" HASH_FILE_SIZE)
+    if(HASH_FILE_SIZE LESS 268435456)
+        file(MD5 "${FILE_PATH}" HASH_RESULT)
+    else()
+        file(TIMESTAMP "${FILE_PATH}" HASH_FILE_TIME "%s" UTC)
+        string(MD5 HASH_RESULT "${FILE_PATH}-${HASH_FILE_SIZE}-${HASH_FILE_TIME}")
+    endif()
+    string(SUBSTRING "${HASH_RESULT}" 0 12 HASH_RESULT)
+    set(${OUT_VAR} "${HASH_RESULT}" PARENT_SCOPE)
+endfunction()
+
 # MIGRAPHX_USE_AMDMLSS is resolved to a plain boolean at the top-level CMakeLists.
 if(MIGRAPHX_USE_AMDMLSS)
     message(STATUS "MIGraphX is using AMDMLSS")
@@ -202,7 +221,9 @@ endif()
 add_library(migraphx_gpu
     analyze_streams.cpp
     allocation_model.cpp
+    binary_cache.cpp
     code_object_op.cpp
+    compiled_code.cpp
     compile_ops.cpp
     compile_gen.cpp
     compile_hip.cpp
@@ -313,6 +334,21 @@ if(MIGRAPHX_ENABLE_MLIR)
     find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
     message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
     target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
+
+    # Identify the rocMLIR build for the binary cache by hashing the library that gets linked.
+    # That covers a locally built or substituted rocMLIR, which a recorded version or commit
+    # would not.
+    get_target_property(MIGRAPHX_ROCKCOMPILER_LIB rocMLIR::rockCompiler IMPORTED_LOCATION)
+    if(NOT MIGRAPHX_ROCKCOMPILER_LIB)
+        # rockCompiler is an interface target, so the archive is named as a link dependency.
+        get_target_property(MIGRAPHX_ROCKCOMPILER_LIB rocMLIR::rockCompiler INTERFACE_LINK_LIBRARIES)
+        list(FILTER MIGRAPHX_ROCKCOMPILER_LIB INCLUDE REGEX "rockCompiler")
+        list(GET MIGRAPHX_ROCKCOMPILER_LIB 0 MIGRAPHX_ROCKCOMPILER_LIB)
+    endif()
+    migraphx_hash_file("${MIGRAPHX_ROCKCOMPILER_LIB}" MIGRAPHX_ROCMLIR_ID)
+    message(STATUS "rocMLIR binary cache id: ${MIGRAPHX_ROCMLIR_ID}")
+    target_compile_definitions(migraphx_gpu
+                               PRIVATE "-DMIGRAPHX_ROCMLIR_ID=\"${MIGRAPHX_ROCMLIR_ID}\"")
     # Make this private to avoid multiple inclusions of LLVM symbols.
     target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
     # Hide LLVM internals that come from rocMLIR.

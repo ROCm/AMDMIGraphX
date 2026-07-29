@@ -193,7 +193,7 @@ struct mlir_compiler : compiler<mlir_compiler>
                 {
                     auto id = param.value()->get_shape().type_string() +
                               migraphx::shape::to_sizes_string({param.value()->get_shape()});
-                    cr.fill_map[id] = static_cast<double>(fill_val);
+                    cr.code.fill_map[id] = static_cast<double>(fill_val);
                 }
             }
         }
@@ -221,7 +221,7 @@ struct mlir_compiler : compiler<mlir_compiler>
             input_args.pop_back();
             auto split_ins                               = find_final_split(gemm_like_ins);
             std::array<module_with_inputs, 2> mod_splits = smod->split(input_args, {split_ins});
-            auto dot_mlir_inputs = to_shapes(mod_splits[0].inputs);
+            auto dot_mlir_inputs                         = to_shapes(mod_splits[0].inputs);
             // add alloc for the gemm output
             dot_mlir_inputs.push_back(mod_splits[0].mod.get_output_shapes().front());
             mlir_code_object cop1 = compile_mlir(ctx, mod_splits[0].mod, dot_mlir_inputs, solution);
@@ -234,6 +234,17 @@ struct mlir_compiler : compiler<mlir_compiler>
         auto cr = insert(compile_mlir(ctx, *smod, to_shapes(ins->inputs()), solution));
         set_fill_map(cr, *smod);
         return cr;
+    }
+
+    std::string compile_key(const context& ctx,
+                            instruction_ref ins,
+                            const operation&,
+                            const value& solution) const
+    {
+        // The split into a separate gemm and pointwise kernel is decided from the submodule,
+        // the context and the solution, so the key covers both shapes of the result.
+        auto* smod = ins->module_inputs().front();
+        return mlir_compile_key(ctx, *smod, to_shapes(ins->inputs()), solution);
     }
 
     compiler_replace insert(const mlir_code_object& mco) const

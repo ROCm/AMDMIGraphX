@@ -105,6 +105,53 @@ struct precompile_op
 };
 MIGRAPHX_REGISTER_OP(precompile_op);
 
+/**
+ * Apply a compiler_replace to a standalone module so the replacement can be reused.
+ *
+ * The instruction is rebuilt in a fresh module whose parameters stand in for its inputs, so the
+ * resulting fragment refers to those inputs only by position. Any module arguments are consumed
+ * by the replace, leaving a flat module that no longer refers to the program it came from.
+ */
+static program make_fragment(const compiler_replace& cr, instruction_ref ins)
+{
+    program frag;
+    auto* fm = frag.get_main_module();
+    std::vector<instruction_ref> inputs;
+    std::transform(ins->inputs().begin(),
+                   ins->inputs().end(),
+                   std::back_inserter(inputs),
+                   [&](const auto& arg) {
+                       return fm->add_parameter(compiled_code::input_name(inputs.size()),
+                                                arg->get_shape());
+                   });
+    auto frag_ins = fm->add_instruction(ins->get_operator(), inputs, ins->module_inputs());
+    fm->add_return({frag_ins});
+    cr.replace(*fm, frag_ins);
+    // Only dead code is removed here. eliminate_identity would drop the identity that mlir
+    // inserts to order prefills before the kernel, and memory coloring is done later by the
+    // module this fragment is spliced into.
+    run_passes(*fm, {dead_code_elimination{}});
+    return frag;
+}
+
+/// Identify the code a compile would produce without producing it. A compiler that cannot
+/// describe its output, or that fails trying, gives an empty key, which costs a redundant
+/// compile but is always correct.
+static std::string compile_key_or_empty(context& ctx,
+                                        instruction_ref ins,
+                                        const operation& preop,
+                                        const value& solution)
+{
+    try
+    {
+        return compile_key(ctx, ins, preop, solution);
+    }
+    catch(...)
+    {
+        return {};
+    }
+}
+
 struct dynamic_op_cache
 {
     module mod;
@@ -234,7 +281,29 @@ struct dynamic_code_object_op
         {
             solution = config->solutions.front();
         }
-        auto compiled_op = compile(ctx, ins, preop, solution);
+        // This runs while the program is being evaluated, so reusing an earlier result matters
+        // more here than anywhere else.
+        auto key        = compile_key_or_empty(ctx, ins, preop, solution);
+        auto& bin_cache = ctx.get_binary_cache();
+        compiler_replace compiled_op;
+        if(auto cached = bin_cache.get(ctx, key))
+        {
+            compiled_op.code = *cached;
+        }
+        else
+        {
+            compiled_op = compile(ctx, ins, preop, solution);
+            if(compiled_op.code.empty())
+                compiled_op.code.fragment = make_fragment(compiled_op, ins);
+            bin_cache.record_compiled(1);
+            binary_cache_entry entry;
+            entry.key      = key;
+            entry.op_name  = preop.name();
+            entry.problem  = config ? config->problem : value{};
+            entry.solution = solution;
+            entry.code     = compiled_op.code;
+            bin_cache.insert(ctx, entry);
+        }
         compiled_op.replace(runtime_mod, ins);
         run_passes(runtime_mod, {dead_code_elimination{}});
 
@@ -302,6 +371,16 @@ struct compiled_result
 // forward declared since it requires compile_manager
 static void replace_inserted_device_ops(context& ctx, module& m);
 
+/// One compilation a plan is waiting on. Candidates are collected before anything is compiled,
+/// so identical ones can be found and compiled only once.
+struct compile_candidate
+{
+    std::size_t plan_index   = 0;
+    std::size_t result_index = 0;
+    value solution           = {};
+    std::string key          = {};
+};
+
 struct compile_plan
 {
     context* ctx;
@@ -314,30 +393,73 @@ struct compile_plan
     {
         config = get_tuning_config(*ctx, ins, preop, exhaustive);
     }
-    template <class Vector>
-    void insert_compiles(Vector& compiles, const value& solution, std::size_t i)
+
+    std::string get_key(const value& solution) const
     {
-        compiles.emplace_back([=] {
-            try
-            {
-                results[i] = compiled_result{compile(*ctx, ins, preop, solution), ins};
-            }
-            catch(const std::exception& e)
-            {
-                const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
-                if(trace_level > 0)
-                    std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
-                results[i] = nullopt;
-            }
-            catch(...)
-            {
-                results[i] = nullopt;
-            }
-        });
+        return compile_key_or_empty(*ctx, ins, preop, solution);
     }
 
-    template <class Vector>
-    void add_compiles(Vector& compiles)
+    /**
+     * Compile anyway and check the reused result matches.
+     *
+     * A key that fails to capture something the compiler depends on does not cause a miss, it
+     * hands back the wrong code, so there is nothing to notice at runtime beyond bad numbers.
+     * Running with this on turns that into a loud failure.
+     */
+    void verify_reuse(const value& solution, const compiled_code& reused) const
+    {
+        auto fresh = compile(*ctx, ins, preop, solution);
+        if(fresh.code.empty())
+            fresh.code.fragment = make_fragment(fresh, ins);
+        if(fresh.code.fragment == reused.fragment)
+            return;
+        MIGRAPHX_THROW("Binary cache reused a result that does not match a fresh compile of " +
+                       preop.name() + ".\nReused:\n" + to_string(reused.fragment) +
+                       "\nCompiled:\n" + to_string(fresh.code.fragment));
+    }
+
+    optional<compiler_replace> run_compile(const value& solution, const std::string& key) const
+    {
+        auto& cache = ctx->get_binary_cache();
+        if(auto cached = cache.get(*ctx, key))
+        {
+            compiler_replace cr;
+            cr.code = *cached;
+            if(cache.verify())
+                verify_reuse(solution, *cached);
+            return cr;
+        }
+        try
+        {
+            auto cr = compile(*ctx, ins, preop, solution);
+            // Always replace through the fragment, so the path taken when the result is reused
+            // is the only path and cannot drift from the one taken when it is compiled.
+            if(cr.code.empty())
+                cr.code.fragment = make_fragment(cr, ins);
+            cache.record_compiled(1);
+            binary_cache_entry entry;
+            entry.key      = key;
+            entry.op_name  = preop.name();
+            entry.problem  = config ? config->problem : value{};
+            entry.solution = solution;
+            entry.code     = cr.code;
+            cache.insert(*ctx, entry);
+            return cr;
+        }
+        catch(const std::exception& e)
+        {
+            const auto trace_level = value_of(MIGRAPHX_TRACE_BENCHMARKING{});
+            if(trace_level > 0)
+                std::cerr << "Exception in " + preop.name() + ": " + e.what() << std::endl;
+            return nullopt;
+        }
+        catch(...)
+        {
+            return nullopt;
+        }
+    }
+
+    void add_candidates(std::vector<compile_candidate>& candidates, std::size_t plan_index)
     {
         if(config.has_value())
         {
@@ -349,7 +471,7 @@ struct compile_plan
                 if(solution.is_null())
                     return;
                 results.resize(1);
-                insert_compiles(compiles, solution, 0);
+                candidates.push_back({plan_index, 0, solution});
             }
             else
             {
@@ -364,7 +486,7 @@ struct compile_plan
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
-                    insert_compiles(compiles, solutions.front(), 0);
+                    candidates.push_back({plan_index, 0, solutions.front()});
                 }
                 else
                 {
@@ -372,7 +494,10 @@ struct compile_plan
                     results.resize(solutions.size());
                     for(auto i : range(solutions.size()))
                     {
-                        insert_compiles(compiles, solutions[i], i);
+                        auto& candidate        = candidates.emplace_back();
+                        candidate.plan_index   = plan_index;
+                        candidate.result_index = i;
+                        candidate.solution     = solutions[i];
                     }
                 }
             }
@@ -380,7 +505,7 @@ struct compile_plan
         else
         {
             results.resize(1);
-            insert_compiles(compiles, value{}, 0);
+            candidates.push_back({plan_index, 0, value{}});
         }
     }
     std::string problem_string() const
@@ -469,7 +594,7 @@ struct compile_plan
                            auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
                            auto t      = time_program(*ctx,
                                                  std::move(bench_prog),
-                                                 cr->replace.fill_map,
+                                                 cr->replace.code.fill_map,
                                                  bundle,
                                                  /* nrun */ 20);
                            if(trace_level > 1)
@@ -544,6 +669,18 @@ static void par_compile(std::size_t n, F f)
     par_for(n, n / d, f);
 }
 
+/// A compile that one or more plans are waiting on, along with the places its result goes.
+struct compile_task
+{
+    /// The plan whose instruction drives the compile. Any plan in targets would do, since they
+    /// all produce the same code.
+    std::size_t plan_index                                   = 0;
+    value solution                                           = {};
+    std::string key                                          = {};
+    std::vector<std::pair<std::size_t, std::size_t>> targets = {};
+    optional<compiler_replace> result                        = nullopt;
+};
+
 struct compile_manager
 {
     std::vector<compile_plan> cps;
@@ -560,14 +697,71 @@ struct compile_manager
         par_compile(cps.size(), [&](auto i) { cps[i].update_config(exhaustive); });
     }
 
+    /**
+     * Group the candidates that would compile to the same code.
+     *
+     * Since every key is known before any compile starts, each group can be handed to exactly
+     * one task and the results shared afterwards, so the compiles never have to coordinate.
+     */
+    std::vector<compile_task> make_tasks(const std::vector<compile_candidate>& candidates) const
+    {
+        std::vector<compile_task> tasks;
+        std::unordered_map<std::string, std::size_t> task_index;
+        for(const auto& c : candidates)
+        {
+            std::size_t i = tasks.size();
+            if(c.key.empty())
+            {
+                tasks.push_back({c.plan_index, c.solution, c.key});
+            }
+            else
+            {
+                auto [it, inserted] = task_index.emplace(c.key, i);
+                if(inserted)
+                    tasks.push_back({c.plan_index, c.solution, c.key});
+                i = it->second;
+            }
+            tasks[i].targets.emplace_back(c.plan_index, c.result_index);
+        }
+        return tasks;
+    }
+
     void compile(module& m, bool is_root)
     {
-        std::vector<std::function<void()>> compiles;
-        for(auto& cp : cps)
+        std::vector<compile_candidate> candidates;
+        for(auto i : range(cps.size()))
         {
-            cp.add_compiles(compiles);
+            cps[i].add_candidates(candidates, i);
         }
-        par_compile(compiles.size(), [&](auto i) { compiles[i](); });
+        par_compile(candidates.size(), [&](auto i) {
+            candidates[i].key = cps[candidates[i].plan_index].get_key(candidates[i].solution);
+        });
+
+        auto tasks = make_tasks(candidates);
+        if(not cps.empty())
+        {
+            cps.front().ctx->get_binary_cache().record_reused(candidates.size() - tasks.size());
+        }
+        par_compile(tasks.size(), [&](auto i) {
+            tasks[i].result = cps[tasks[i].plan_index].run_compile(tasks[i].solution, tasks[i].key);
+        });
+
+        for(const auto& task : tasks)
+        {
+            for(auto [pi, ri] : task.targets)
+            {
+                if(not task.result.has_value())
+                {
+                    cps[pi].results[ri] = nullopt;
+                    continue;
+                }
+                auto cr = *task.result;
+                // The fragment is what gets used from here on. The replace function is bound to
+                // the instruction that produced it, so it must not run against another one.
+                cr.replace_fn       = nullptr;
+                cps[pi].results[ri] = compiled_result{std::move(cr), cps[pi].ins};
+            }
+        }
 
         static const auto mxr_path = string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{});
         bool dump_mxr              = not mxr_path.empty();
@@ -633,6 +827,9 @@ void compile_ops::apply(module_pass_manager& mpm) const
 {
     bool is_root = &mpm.get_module() == mpm.get_root_module();
     auto& m      = mpm.get_module();
+    // The cache outlives this pass, since compiling a dynamic shape at evaluation time uses it
+    // too, so the settings are recorded on it rather than passed along.
+    ctx->get_binary_cache().configure(cache_settings);
     compile_manager cm;
     cm.exhaustive = exhaustive_tune;
     // Find all precompile ops

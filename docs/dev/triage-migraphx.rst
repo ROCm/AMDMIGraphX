@@ -151,4 +151,39 @@ Debugging and Tracing
 
 - ``MIGRAPHX_TRACE_BENCHMARKING=3``     # Kernel benchmarking process
 
+Binary Cache
+============
+
+Compiled kernels are always shared within a process, so a kernel that appears many times in a
+model is only compiled once. Setting a directory makes that reuse survive across runs:
+
+.. code-block:: bash
+
+   export MIGRAPHX_BINARY_CACHE=$HOME/.cache/migraphx
+
+Entries are grouped by a directory naming the entry format, the HIP toolchain, a digest of the
+embedded kernel headers, and the rocMLIR build, so entries a build cannot use are never
+consulted. The toolchain is identified by compiling a fixed kernel and hashing the result,
+because it is loaded at runtime and what it reports about itself is coarser than what it
+generates. Reclaim space by deleting the directories for builds you no longer use:
+
+.. code-block:: bash
+
+   ls $HOME/.cache/migraphx        # each directory has a cache.info describing the build
+   rm -r $HOME/.cache/migraphx/v1-hipe0f11f454e40-*
+
+The same settings are available as backend options, which take precedence over the environment
+and are how tests configure the cache:
+
+.. code-block:: python
+
+   model.compile(migraphx.get_target("gpu"),
+                 binary_cache="/tmp/cache", binary_cache_verify=True)
+
+Entries are keyed on the exact source handed to the backend compiler. If a kernel is suspected
+of being reused when it should not be, set ``binary_cache_verify``. That compiles even when a
+result could be reused and fails loudly if the two disagree, which is the only way an
+incomplete key shows up other than as wrong results. It is slower than compiling without a
+cache at all, so use it to diagnose rather than routinely.
+
 This systematic approach helps maintainers quickly understand and fix root causes.

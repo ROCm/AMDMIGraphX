@@ -26,11 +26,14 @@
 #include <migraphx/stringutils.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/md5.hpp>
 #include <migraphx/fileutils.hpp>
 #include <migraphx/logger.hpp>
 #include <cassert>
 #include <iostream>
 #include <deque>
+#include <mutex>
+#include <unordered_map>
 
 #ifdef MIGRAPHX_USE_HIPRTC
 #include <hip/hiprtc.h>
@@ -369,6 +372,44 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 }
 
 #endif // MIGRAPHX_USE_HIPRTC
+
+// A kernel with no dependencies, compiled only so the result can be identified. It has to stay
+// fixed, since changing it changes the identity of every toolchain.
+static const char* const toolchain_probe = R"__migraphx__(
+extern "C" __global__ void migraphx_toolchain_probe(float* p)
+{
+    p[0] = p[0] * 2.0f + 1.0f;
+}
+)__migraphx__";
+
+std::string hip_compiler_version(const std::string& arch)
+{
+    static std::mutex mutex;
+    static std::unordered_map<std::string, std::string> ids;
+    const std::lock_guard<std::mutex> lock(mutex);
+    auto it = ids.find(arch);
+    if(it != ids.end())
+        return it->second;
+
+    std::string id;
+    try
+    {
+        auto cos = compile_hip_src({src_file{"main.cpp", toolchain_probe}},
+                                   {"-std=c++17"},
+                                   arch,
+                                   /* quiet */ true);
+        if(not cos.empty())
+            id = md5(std::string(cos.front().begin(), cos.front().end())).substr(0, 12);
+    }
+    catch(const std::exception& e)
+    {
+        // Callers treat an empty id as "cannot tell toolchains apart" and stop sharing results
+        // between runs, which is slower but never wrong.
+        log::warn() << "Cannot identify the hip toolchain: " << e.what();
+    }
+    ids[arch] = id;
+    return id;
+}
 
 bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)
 {

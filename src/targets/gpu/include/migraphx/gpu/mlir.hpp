@@ -60,6 +60,18 @@ MIGRAPHX_GPU_EXPORT mlir_code_object compile_mlir(const context& migraphx_ctx,
                                                   const std::vector<shape>& in_shapes,
                                                   const value& solution);
 
+/**
+ * A string identifying the code object compile_mlir would produce for these arguments.
+ *
+ * This is the mlir module as parsed, before any pipeline runs, so it is far cheaper than
+ * compiling. Callers that already ran get_tuning_config_mlir have the same text available as
+ * tuning_config::detailed_problem_info and can use that instead of calling this.
+ */
+MIGRAPHX_GPU_EXPORT std::string mlir_compile_key(const context& migraphx_ctx,
+                                                 module m,
+                                                 const std::vector<shape>& in_shapes,
+                                                 const value& solution);
+
 MIGRAPHX_GPU_EXPORT instruction_ref insert_mlir(module& m,
                                                 instruction_ref ins,
                                                 code_object_op co,

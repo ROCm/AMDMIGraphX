@@ -64,7 +64,7 @@ struct pad_compiler : compiler<pad_compiler>
 {
     std::vector<std::string> names() const { return {"pad"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    hip_src make_src(const context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         auto padding    = v.at("pads").to_vector<int64_t>();
         auto input_lens = inputs.front().lens();
@@ -118,12 +118,24 @@ struct pad_compiler : compiler<pad_compiler>
                                       {{"pad_val", to_string(pad_val_string)},
                                        {"offsets", to_string_range(roffsets)},
                                        {"pad_mode", pad_mode_string}});
-        return compile_hip_code_object(ctx, src, options);
+        return {src, options};
+    }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        auto src = make_src(ctx, inputs, v);
+        return compile_hip_code_object(ctx, src.content, src.options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+    }
+
+    std::string
+    compile_key(const context& ctx, instruction_ref ins, const operation& op, const value&) const
+    {
+        return hip_compile_key(ctx, make_src(ctx, to_shapes(ins->inputs()), op.to_value()));
     }
 };
 } // namespace gpu

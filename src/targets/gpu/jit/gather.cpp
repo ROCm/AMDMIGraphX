@@ -61,7 +61,7 @@ struct gather_compiler : compiler<gather_compiler>
 {
     std::vector<std::string> names() const { return {"gather"}; }
 
-    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    hip_src make_src(const context& ctx, const std::vector<shape>& inputs, const value& v) const
     {
         hip_compile_options options;
         const auto& out_s = inputs.back();
@@ -75,12 +75,24 @@ struct gather_compiler : compiler<gather_compiler>
 
         auto src = interpolate_string(gather_kernel, {{"axis", axis}});
 
-        return compile_hip_code_object(ctx, src, options);
+        return {src, options};
+    }
+
+    operation compile_op(context& ctx, const std::vector<shape>& inputs, const value& v) const
+    {
+        auto src = make_src(ctx, inputs, v);
+        return compile_hip_code_object(ctx, src.content, src.options);
     }
 
     compiler_replace compile(context& ctx, instruction_ref ins, const operation& op) const
     {
         return compile_op(ctx, to_shapes(ins->inputs()), op.to_value());
+    }
+
+    std::string
+    compile_key(const context& ctx, instruction_ref ins, const operation& op, const value&) const
+    {
+        return hip_compile_key(ctx, make_src(ctx, to_shapes(ins->inputs()), op.to_value()));
     }
 };
 

@@ -106,11 +106,17 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
+    /// Where compiled kernels are cached between runs. Defaults to the environment setting.
+    std::string binary_cache = binary_cache_settings::defaults().path;
+    /// Compile even when a kernel could be reused, and fail if the two disagree.
+    bool binary_cache_verify = false;
 
     template <class Self, class F>
     static auto reflect(Self& self, F f)
     {
-        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"));
+        return pack(f(self.mlss_use_specific_ops, "mlss_use_specific_ops"),
+                    f(self.binary_cache, "binary_cache"),
+                    f(self.binary_cache_verify, "binary_cache_verify"));
     }
 };
 
@@ -251,7 +257,9 @@ struct pipeline_factory
             adjust_allocation{gpu_allocation_model{}},
             dead_code_elimination{},
             lower_device_ops{},
-            compile_ops{get_context(), options.exhaustive_tune},
+            compile_ops{get_context(),
+                        options.exhaustive_tune,
+                        {backend_opts.binary_cache, backend_opts.binary_cache_verify}},
             dead_code_elimination{},
             promote_literals{},
             dead_code_elimination{},

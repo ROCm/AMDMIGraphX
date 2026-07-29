@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,29 +21,36 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-#ifndef MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP
-#define MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP
-
-#include <migraphx/config.hpp>
-#include <migraphx/instruction_ref.hpp>
-#include <migraphx/gpu/context.hpp>
-#include <migraphx/shape.hpp>
-#include <migraphx/module_ref.hpp>
-#include <migraphx/operation.hpp>
+#include <migraphx/gpu/compiled_code.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/param_utils.hpp>
+#include <migraphx/ranges.hpp>
+#include <migraphx/errors.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
-
 namespace gpu {
 
-/// The options the pointwise compiler is driven with for a pointwise submodule. Exposed so the
-/// same options can be used to identify the kernel without compiling it.
-value pointwise_options(const_module_ref pm);
+std::string compiled_code::input_name(std::size_t i) { return param_name(i); }
 
-operation
-compile_pointwise(context& ctx, const std::vector<migraphx::shape>& in_shapes, const_module_ref pm);
+void compiled_code::replace(module& m, instruction_ref ins) const
+{
+    const auto* frag   = fragment.get_main_module();
+    const auto& inputs = ins->inputs();
+    // Seeding the map with the parameters keeps insert_instructions from copying them, so the
+    // fragment is wired directly onto the inputs of ins.
+    std::unordered_map<instruction_ref, instruction_ref> map_ins;
+    for(auto i : range(inputs.size()))
+    {
+        map_ins[frag->get_parameter(input_name(i))] = inputs[i];
+    }
+    auto returns = m.insert_instructions(ins, frag, &map_ins);
+    if(returns.size() != 1)
+        MIGRAPHX_THROW("compiled_code: expected a single output from the fragment but got " +
+                       std::to_string(returns.size()));
+    m.replace_instruction(ins, returns.front());
+}
 
 } // namespace gpu
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx
-#endif // MIGRAPHX_GUARD_GPU_COMPILE_POINTWISE_HPP

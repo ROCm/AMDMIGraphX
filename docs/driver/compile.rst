@@ -62,6 +62,6 @@ Quantize for int8
 
 Quantize for Float8E4M3FNUZ type
 
-.. option::  --bake-weights [std::string]
+.. option::  --encode-weights [std::string]
 
-Bake the raw weight files in the given directory into the compiled program by replacing each ``external_weight`` op with a literal, producing a self-contained model. The input may be an ONNX model parsed with ``--weight-params`` or a previously-saved template ``.mxr``; the result is written to the path given by ``--output``. The program must contain ``external_weight`` ops (parse with ``--weight-params``) for there to be anything to bake.
+Encode the raw weight files in the given directory into the compiled program by replacing each ``external_weight`` op with a literal, producing a self-contained model. The input may be an ONNX model parsed with ``--weight-params`` or a previously-saved template ``.mxr``; the result is written to the path given by ``--output``. The program must contain ``external_weight`` ops (parse with ``--weight-params``) for there to be anything to encode.

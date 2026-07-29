@@ -793,7 +793,7 @@ struct compiler
     bool to_fp8  = false;
     bool to_int8 = false;
     bool to_int4 = false;
-    std::string bake_weights = {};
+    std::string encode_weights = {};
 
     std::vector<std::string> fill0;
     std::vector<std::string> fill1;
@@ -819,12 +819,11 @@ struct compiler
         ap(to_int8, {"--int8"}, ap.help("Quantize for int8"), ap.set_value(true));
         ap(to_fp8, {"--fp8"}, ap.help("Quantize for fp8"), ap.set_value(true));
         ap(to_int4, {"--int4-weights"}, ap.help("Quantize weights for int4"), ap.set_value(true));
-        ap(bake_weights,
-           {"--bake-weights"},
-           ap.help("Bake external-weight parameters with the raw weight files in the given "
-                   "directory into the compiled program, producing a self-contained model. "
-                   "Requires a template parsed with --weight-params (or loaded from such a "
-                   "template .mxr)."),
+        ap(encode_weights,
+           {"--encode-weights"},
+           ap.help("Encode the raw weight files in the given directory into the program's "
+                   "external-weight ops, producing a self-contained model. Requires a template "
+                   "parsed with --weight-params (or loaded from such a template .mxr)."),
            ap.metavar("<dir>"));
     }
 
@@ -871,9 +870,9 @@ struct compiler
                 log::warn() << "Quantization options are ignored as the program is already "
                                "compiled.";
             }
-            if(not bake_weights.empty())
+            if(not encode_weights.empty())
             {
-                p = bake(p, ct.get_target());
+                p = encode(p, ct.get_target());
                 l.save(p);
             }
             return p;
@@ -909,16 +908,16 @@ struct compiler
         p.compile(t, co);
         auto r = c.record<std::chrono::milliseconds>();
         log::info() << "Compilation time: " << r << "ms";
-        if(not bake_weights.empty())
-            p = bake(p, t);
+        if(not encode_weights.empty())
+            p = encode(p, t);
         l.save(p);
         return p;
     }
 
-    program bake(const program& p, const target& t) const
+    program encode(const program& p, const target& t) const
     {
-        log::info() << "Baking weights from " << bake_weights << " ...";
-        return migraphx::replace_onnx_external_weights(p, bake_weights, t);
+        log::info() << "Encoding weights from " << encode_weights << " ...";
+        return migraphx::replace_onnx_external_weights(p, encode_weights, t);
     }
 };
 

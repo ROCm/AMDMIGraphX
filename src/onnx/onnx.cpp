@@ -35,7 +35,6 @@
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/pass_manager.hpp>
-#include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/load_external_weights.hpp>
 #include <migraphx/target.hpp>
 
@@ -78,7 +77,6 @@ static program parse_onnx_from(const onnx_options& options, Ts&&... xs)
     parser.skip_unknown_operators = options.skip_unknown_operators;
     parser.max_loop_iterations    = options.max_loop_iterations;
     parser.limit_max_iterations   = options.limit_max_iterations;
-    parser.use_dyn_output         = options.use_dyn_output;
     parser.keep_weights_external  = options.keep_weights_external;
 
     if(options.print_program_on_error)
@@ -129,16 +127,16 @@ replace_onnx_external_weights(const program& prog, const std::string& base_dir, 
 {
     program result(prog);
 
-    // Build one pass list (so the program is walked once): replace external_weight
-    // ops with literals, lower them for an already-compiled program, then clean up.
-    // The baked literals are not finalized here; they are materialized on load/run.
+    // Replace external_weight ops with literals (the pass removes the ops it replaces,
+    // so no DCE is needed -- DCE is unsafe on an already-compiled program). When the
+    // program is compiled, also lower the inserted literals to the target's device
+    // representation. They are not finalized here; they are materialized on load/run.
     std::vector<pass> passes = {load_external_weights{base_dir}};
     if(result.is_compiled())
     {
-        auto lowering = t.get_lowering_passes();
+        auto lowering = t.get_literal_passes();
         passes.insert(passes.end(), lowering.begin(), lowering.end());
     }
-    passes.push_back(dead_code_elimination{});
     run_passes(result, passes);
 
     return result;

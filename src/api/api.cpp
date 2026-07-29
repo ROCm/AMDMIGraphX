@@ -2289,10 +2289,10 @@ extern "C" migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t* out,
     return api_error_result;
 }
 
-extern "C" migraphx_status migraphx_replace_external_weights(migraphx_program_t* out,
-                                                             migraphx_program_t prog,
-                                                             const char* base_dir,
-                                                             migraphx_target_t t)
+extern "C" migraphx_status migraphx_replace_onnx_external_weights(migraphx_program_t* out,
+                                                                  migraphx_program_t prog,
+                                                                  const char* base_dir,
+                                                                  migraphx_target_t t)
 {
     auto api_error_result = migraphx::try_([&] {
         if(prog == nullptr)

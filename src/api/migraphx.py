@@ -456,7 +456,7 @@ api.add_function('migraphx_parse_onnx_buffer',
                  fname='migraphx::parse_onnx_buffer',
                  returns='migraphx::program')
 
-api.add_function('migraphx_replace_external_weights',
+api.add_function('migraphx_replace_onnx_external_weights',
                  api.params(prog='migraphx::program',
                             base_dir='const char*',
                             t='migraphx::target'),

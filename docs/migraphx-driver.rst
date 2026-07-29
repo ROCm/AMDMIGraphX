@@ -131,8 +131,8 @@ To learn which options can be used with which commands, see the :ref:`MIGraphX d
       - Quantizes for int8
    *  - --fp8
       - Quantize for ``Float8E4M3FNUZ`` type
-   *  - --bake-weights
-      - Bakes external-weight parameters with the raw weight files in the given directory into the compiled program (use with ``compile`` and ``--weight-params`` / a template ``.mxr``)
+   *  - --encode-weights
+      - Encodes external-weight parameters with the raw weight files in the given directory into the compiled program (use with ``compile`` and ``--weight-params`` / a template ``.mxr``)
    *  - --rms-tol
       - Sets tolerance for the RMS error (Default: 0.001)
    *  - --atol

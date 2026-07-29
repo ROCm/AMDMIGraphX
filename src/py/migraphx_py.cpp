@@ -835,9 +835,9 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("use_debug_symbols")      = false,
         py::arg("keep_weights_external")  = false);
 
-    m.def("replace_external_weights",
+    m.def("replace_onnx_external_weights",
           &migraphx::replace_onnx_external_weights,
-          "Copy the program and bake in weights from base_dir, returning a self-contained program",
+          "Copy the program and encode weights from base_dir, returning a self-contained program",
           py::arg("program"),
           py::arg("base_dir"),
           py::arg("target"));

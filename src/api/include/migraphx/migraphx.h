@@ -612,10 +612,10 @@ MIGRAPHX_C_EXPORT migraphx_status migraphx_parse_onnx_buffer(migraphx_program_t*
                                                              size_t size,
                                                              migraphx_onnx_options_t options);
 
-MIGRAPHX_C_EXPORT migraphx_status migraphx_replace_external_weights(migraphx_program_t* out,
-                                                                    migraphx_program_t prog,
-                                                                    const char* base_dir,
-                                                                    migraphx_target_t t);
+MIGRAPHX_C_EXPORT migraphx_status migraphx_replace_onnx_external_weights(migraphx_program_t* out,
+                                                                         migraphx_program_t prog,
+                                                                         const char* base_dir,
+                                                                         migraphx_target_t t);
 
 MIGRAPHX_C_EXPORT migraphx_status migraphx_tf_options_destroy(migraphx_tf_options_t tf_options);
 

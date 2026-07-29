@@ -36,7 +36,7 @@ Skip unknown operators when parsing and continue to parse.
 
 .. option::  --weight-params
 
-Keep external-data initializers external (as ``external_weight`` ops) instead of loading them as literals, enabling runtime weight swapping. The external weight metadata is recorded in the IR (and serialized into an ``.mxr``) so the weights can later be baked in with ``compile --bake-weights``.
+Keep external-data initializers external (as ``external_weight`` ops) instead of loading them as literals, enabling runtime weight swapping. The external weight metadata is recorded in the IR (and serialized into an ``.mxr``) so the weights can later be encoded in with ``compile --encode-weights``.
 
 .. option::  --nchw
 

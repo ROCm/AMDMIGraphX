@@ -29,7 +29,6 @@
 #include <migraphx/file_buffer.hpp>
 #include <migraphx/filesystem.hpp>
 #include <migraphx/ranges.hpp>
-#include <migraphx/op/external_weight.hpp>
 #include <migraphx/errors.hpp>
 
 namespace migraphx {
@@ -42,22 +41,28 @@ void load_external_weights::apply(module& m) const
 
     for(auto ins : weight_refs)
     {
-        const auto w = any_cast<op::external_weight>(ins->get_operator());
+        const auto v        = ins->get_operator().to_value();
+        const auto location = v.at("location").to<std::string>();
+        const auto offset   = v.at("offset").to<std::size_t>();
+        const auto length   = v.at("length").to<std::size_t>();
+        const auto s        = ins->get_shape();
 
-        auto raw = read_buffer(fs::path{base_dir} / w.location, w.offset, w.length);
+        auto raw = read_buffer(fs::path{base_dir} / location, offset, length);
 
         // The shape comes from the producer op and is always standard; the file region,
         // however, is external input, so its byte size is validated rather than asserted.
-        assert(w.s.standard());
-        if(raw.size() != w.s.bytes())
-            MIGRAPHX_THROW("LOAD_EXTERNAL_WEIGHTS: weight \"" + w.location + "\" file size " +
+        assert(s.standard());
+        if(raw.size() != s.bytes())
+            MIGRAPHX_THROW("LOAD_EXTERNAL_WEIGHTS: weight \"" + location + "\" file size " +
                            std::to_string(raw.size()) + " does not match expected size " +
-                           std::to_string(w.s.bytes()));
+                           std::to_string(s.bytes()));
 
         // Insert the literal where the external_weight op sits so the baked program keeps
-        // the same instruction order as a normal literal-based parse.
-        auto lit = m.insert_literal(ins, literal{w.s, raw.data()});
+        // the same instruction order as a normal literal-based parse, then drop the op
+        // directly (rather than relying on DCE, which is unsafe on a compiled program).
+        auto lit = m.insert_literal(ins, literal{s, raw.data()});
         m.replace_instruction(ins, lit);
+        m.remove_instruction(ins);
     }
 }
 

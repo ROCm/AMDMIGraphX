@@ -309,36 +309,28 @@ argument target::allocate(const shape& s) const
 }
 
 namespace {
-// Lower bare @literal instructions (e.g. those produced by baking external
-// weights into an already-compiled program) into gpu::literal. These are not
-// finalized here: gpu::literal serializes only its host data, so finalizing now
-// would upload every weight to the GPU just to discard it on save. The device
-// buffer is materialized on load (program::from_value finalizes) or before run.
-struct lower_baked_literals
+// After write_literals turns a baked @literal into a gpu::literal (which already
+// produces a device buffer), any hip::copy_to_gpu the original compile inserted
+// after it is redundant. Rewire its consumers to the gpu::literal and drop it.
+// This is done explicitly rather than via DCE, which is unsafe on a compiled
+// program.
+struct remove_literal_copies
 {
-    std::string name() const { return "gpu::lower_baked_literals"; }
+    std::string name() const { return "gpu::remove_literal_copies"; }
 
     void apply(module& m) const
     {
-        auto literal_refs =
-            find_all(iterator_for(m), [](auto ins) { return ins->name() == "@literal"; });
+        auto literals =
+            find_all(iterator_for(m), [](auto ins) { return ins->name() == "gpu::literal"; });
 
-        for(auto ins : literal_refs)
+        for(auto lit : literals)
         {
-            value v;
-            v["data"] = migraphx::to_value(ins->get_literal().get_argument());
-            v["host"] = false;
-
-            // Remember any downstream hip::copy_to_gpu before the rewrite so we
-            // can drop it once the literal is already producing a GPU buffer.
             auto stale_copies = find_all(
-                ins->outputs(), [](auto out) { return out->name() == "hip::copy_to_gpu"; });
-
-            auto new_ins = m.replace_instruction(ins, make_op("gpu::literal", v));
+                lit->outputs(), [](auto out) { return out->name() == "hip::copy_to_gpu"; });
 
             for(auto copy_ins : stale_copies)
             {
-                m.replace_instruction(copy_ins, new_ins);
+                m.replace_instruction(copy_ins, lit);
                 m.remove_instruction(copy_ins);
             }
         }
@@ -346,7 +338,15 @@ struct lower_baked_literals
 };
 } // namespace
 
-std::vector<pass> target::get_lowering_passes() const { return {lower_baked_literals{}}; }
+// Lower bare @literal instructions inserted after compile (e.g. by baking external
+// weights) using the same write_literals pass the normal compile pipeline uses, so
+// gpu::literal creation has a single source of truth. The literals are not finalized
+// here; the device buffer is materialized on load (program::from_value finalizes) or
+// before run.
+std::vector<pass> target::get_literal_passes() const
+{
+    return {write_literals{}, remove_literal_copies{}};
+}
 
 MIGRAPHX_REGISTER_TARGET(target);
 

@@ -98,16 +98,16 @@ struct target
     /**
      * @brief Passes that lower bare @literal instructions inserted into a
      * program after the normal compile pipeline has already run (e.g. by
-     * replace_external_weights). The passes turn the bare literals into
+     * replace_onnx_external_weights). The passes turn the bare literals into
      * whatever target-specific op the target would normally produce during
      * compile. The newly-emitted instructions are not finalized; they are
      * materialized when the program is loaded or run. The default is an empty
      * list for targets that consume @literal directly (e.g. the reference
      * interpreter).
      *
-     * @return The passes to lower the baked literals.
+     * @return The passes to lower the inserted literals.
      */
-    std::vector<pass> get_lowering_passes() const;
+    std::vector<pass> get_literal_passes() const;
 };
 
 #else
@@ -138,7 +138,7 @@ supported_segments target_find_supported(T&, const_module_ref, support_metric)
 }
 
 template <class T>
-std::vector<pass> target_get_lowering_passes(T&)
+std::vector<pass> target_get_literal_passes(T&)
 {
     return {};
 }
@@ -177,7 +177,7 @@ struct MIGRAPHX_EXPORT target
     // (optional)
     argument allocate(const shape& s) const;
     // (optional)
-    std::vector<pass> get_lowering_passes() const;
+    std::vector<pass> get_literal_passes() const;
     // (optional)
     value to_value() const;
     // (optional)
@@ -253,17 +253,17 @@ struct target
     }
 
     template <class T>
-    static auto private_detail_te_default_get_lowering_passes(char, T&& private_detail_te_self)
-        -> decltype(private_detail_te_self.get_lowering_passes())
+    static auto private_detail_te_default_get_literal_passes(char, T&& private_detail_te_self)
+        -> decltype(private_detail_te_self.get_literal_passes())
     {
-        return private_detail_te_self.get_lowering_passes();
+        return private_detail_te_self.get_literal_passes();
     }
 
     template <class T>
     static std::vector<pass>
-    private_detail_te_default_get_lowering_passes(float, T&& private_detail_te_self)
+    private_detail_te_default_get_literal_passes(float, T&& private_detail_te_self)
     {
-        return target_get_lowering_passes(private_detail_te_self);
+        return target_get_literal_passes(private_detail_te_self);
     }
 
     template <class T>
@@ -327,7 +327,7 @@ struct target
                  private_detail_te_default_allocate(char(0),
                                                     std::declval<PrivateDetailTypeErasedT>(),
                                                     std::declval<const shape&>()),
-                 private_detail_te_default_get_lowering_passes(
+                 private_detail_te_default_get_literal_passes(
                      char(0), std::declval<PrivateDetailTypeErasedT>()),
                  private_detail_te_default_to_value(char(0),
                                                     std::declval<PrivateDetailTypeErasedT>()),
@@ -450,10 +450,10 @@ struct target
         return (*this).private_detail_te_get_handle().allocate(s);
     }
 
-    std::vector<pass> get_lowering_passes() const
+    std::vector<pass> get_literal_passes() const
     {
         assert((*this).private_detail_te_handle_mem_var);
-        return (*this).private_detail_te_get_handle().get_lowering_passes();
+        return (*this).private_detail_te_get_handle().get_literal_passes();
     }
 
     value to_value() const
@@ -489,7 +489,7 @@ struct target
         virtual argument copy_to(const argument& input) const                                   = 0;
         virtual argument copy_from(const argument& input) const                                 = 0;
         virtual argument allocate(const shape& s) const                                         = 0;
-        virtual std::vector<pass> get_lowering_passes() const                                   = 0;
+        virtual std::vector<pass> get_literal_passes() const                                    = 0;
         virtual value to_value() const                                                          = 0;
         virtual void from_value(const value& v)                                                 = 0;
     };
@@ -556,10 +556,10 @@ struct target
             return private_detail_te_default_allocate(char(0), private_detail_te_value, s);
         }
 
-        std::vector<pass> get_lowering_passes() const override
+        std::vector<pass> get_literal_passes() const override
         {
 
-            return private_detail_te_default_get_lowering_passes(char(0), private_detail_te_value);
+            return private_detail_te_default_get_literal_passes(char(0), private_detail_te_value);
         }
 
         value to_value() const override

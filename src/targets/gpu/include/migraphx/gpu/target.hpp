@@ -62,7 +62,7 @@ struct MIGRAPHX_GPU_EXPORT target
     argument copy_to(const argument& arg) const;
     argument copy_from(const argument& arg) const;
     argument allocate(const shape& s) const;
-    std::vector<pass> get_lowering_passes() const;
+    std::vector<pass> get_literal_passes() const;
 };
 
 } // namespace gpu

@@ -70,6 +70,8 @@ struct hip_device
     explicit hip_device(const device_description& d) : cross_compile_mode(true), desc(d)
     {
         desc.normalize();
+        if(desc.arch.empty())
+            MIGRAPHX_THROW("Cross-compile device_description.arch must be set");
         add_stream();
     }
 

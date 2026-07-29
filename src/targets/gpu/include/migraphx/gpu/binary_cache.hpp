@@ -115,10 +115,10 @@ struct MIGRAPHX_GPU_EXPORT binary_cache
     bool verify();
 
     /// Names the directory holding entries that this build can use: the entry format, the
-    /// toolchain, a digest of the embedded kernel headers, and the rocMLIR build. Empty when
-    /// the toolchain cannot be identified, in which case nothing is read from or written to
-    /// disk, since entries from different toolchains could not be told apart.
-    static std::string version_dir(const context& ctx);
+    /// compiler, a digest of the embedded kernel headers, and the rocMLIR build. Empty when the
+    /// compiler cannot be identified, in which case nothing is read from or written to disk,
+    /// since entries from different compilers could not be told apart.
+    static const std::string& version_dir();
 
     private:
     std::mutex mutex;

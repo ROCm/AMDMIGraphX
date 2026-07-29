@@ -280,10 +280,9 @@ TEST_CASE(key_covers_more_than_the_source)
 
 TEST_CASE(version_dir_is_stable)
 {
-    migraphx::gpu::context ctx;
-    EXPECT(migraphx::gpu::binary_cache::version_dir(ctx) ==
-           migraphx::gpu::binary_cache::version_dir(ctx));
-    EXPECT(not migraphx::gpu::binary_cache::version_dir(ctx).empty());
+    EXPECT(migraphx::gpu::binary_cache::version_dir() ==
+           migraphx::gpu::binary_cache::version_dir());
+    EXPECT(not migraphx::gpu::binary_cache::version_dir().empty());
 }
 
 int main(int argc, const char* argv[]) { test::run(argc, argv); }

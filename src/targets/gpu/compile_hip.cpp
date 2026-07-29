@@ -33,6 +33,7 @@
 #include <iostream>
 #include <deque>
 #include <mutex>
+#include <string_view>
 #include <unordered_map>
 
 #ifdef MIGRAPHX_USE_HIPRTC
@@ -373,42 +374,78 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
 
 #endif // MIGRAPHX_USE_HIPRTC
 
-// A kernel with no dependencies, compiled only so the result can be identified. It has to stay
-// fixed, since changing it changes the identity of every toolchain.
-static const char* const toolchain_probe = R"__migraphx__(
-extern "C" __global__ void migraphx_toolchain_probe(float* p)
+// Markers around the version string, chosen so it can be found in the compiled output without
+// having to understand the object format.
+static constexpr std::string_view version_prefix = "<<<migraphx-compiler-version:";
+static constexpr std::string_view version_suffix = ">>>";
+
+// The probe is compiled but never run, so the architecture only has to be one the compiler
+// accepts. Keeping it fixed means the answer does not depend on the device present.
+static const char* const version_probe_arch = "gfx950";
+
+// Has the compiler record its own version, since the compiler that generates device code is not
+// the one this was built with and is only known once it runs.
+static const char* const version_probe = R"__migraphx__(
+#define MIGRAPHX_STRINGIZE_(x) #x
+#define MIGRAPHX_STRINGIZE(x) MIGRAPHX_STRINGIZE_(x)
+
+#ifdef __clang_major__
+#define MIGRAPHX_COMPILER_MAJOR MIGRAPHX_STRINGIZE(__clang_major__)
+#define MIGRAPHX_COMPILER_MINOR MIGRAPHX_STRINGIZE(__clang_minor__)
+#define MIGRAPHX_COMPILER_VERSION __clang_version__
+#else
+#define MIGRAPHX_COMPILER_MAJOR "0"
+#define MIGRAPHX_COMPILER_MINOR "0"
+#define MIGRAPHX_COMPILER_VERSION __VERSION__
+#endif
+
+extern "C" __attribute__((used)) __device__ const char migraphx_compiler_version[] =
+    "<<<migraphx-compiler-version:" MIGRAPHX_COMPILER_MAJOR "|" MIGRAPHX_COMPILER_MINOR "|"
+    MIGRAPHX_COMPILER_VERSION ">>>";
+
+extern "C" __global__ void migraphx_version_probe(char* p)
 {
-    p[0] = p[0] * 2.0f + 1.0f;
+    p[0] = migraphx_compiler_version[0];
 }
 )__migraphx__";
 
-std::string hip_compiler_version(const std::string& arch)
+static hip_compiler_info parse_version(const std::vector<char>& obj)
 {
-    static std::mutex mutex;
-    static std::unordered_map<std::string, std::string> ids;
-    const std::lock_guard<std::mutex> lock(mutex);
-    auto it = ids.find(arch);
-    if(it != ids.end())
-        return it->second;
+    auto begin = std::search(obj.begin(), obj.end(), version_prefix.begin(), version_prefix.end());
+    if(begin == obj.end())
+        return {};
+    begin += version_prefix.size();
+    auto end = std::search(begin, obj.end(), version_suffix.begin(), version_suffix.end());
+    if(end == obj.end())
+        return {};
 
-    std::string id;
-    try
-    {
-        auto cos = compile_hip_src({src_file{"main.cpp", toolchain_probe}},
-                                   {"-std=c++17"},
-                                   arch,
-                                   /* quiet */ true);
-        if(not cos.empty())
-            id = md5(std::string(cos.front().begin(), cos.front().end())).substr(0, 12);
-    }
-    catch(const std::exception& e)
-    {
-        // Callers treat an empty id as "cannot tell toolchains apart" and stop sharing results
-        // between runs, which is slower but never wrong.
-        log::warn() << "Cannot identify the hip toolchain: " << e.what();
-    }
-    ids[arch] = id;
-    return id;
+    auto fields = split_string(std::string{begin, end}, '|');
+    if(fields.size() != 3)
+        return {};
+    return {fields[0], fields[1], fields[2]};
+}
+
+const hip_compiler_info& hip_compiler_version()
+{
+    static const hip_compiler_info info = [] {
+        try
+        {
+            auto cos = compile_hip_src({src_file{"main.cpp", version_probe}},
+                                       {"-std=c++17"},
+                                       version_probe_arch,
+                                       /* quiet */ true);
+            if(not cos.empty())
+                return parse_version(cos.front());
+        }
+        catch(const std::exception& e)
+        {
+            // Callers treat an empty version as "cannot tell compilers apart" and stop sharing
+            // results between runs, which is slower but never wrong.
+            log::warn() << "Cannot identify the hip compiler: " << e.what();
+        }
+        return hip_compiler_info{};
+    }();
+    return info;
 }
 
 bool hip_can_compile(const std::string& src, const std::vector<std::string>& flags)

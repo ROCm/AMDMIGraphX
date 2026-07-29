@@ -106,13 +106,19 @@ static const std::string& kernels_digest()
     return digest;
 }
 
-std::string binary_cache::version_dir(const context& ctx)
+const std::string& binary_cache::version_dir()
 {
-    auto toolchain = hip_compiler_version(ctx.get_current_device().get_device_name());
-    if(toolchain.empty())
-        return {};
-    return std::string{binary_cache_format} + "-hip" + toolchain + "-kernels" + kernels_digest() +
-           "-rocmlir" + rocmlir_id;
+    static const std::string dir = [] {
+        const auto& compiler = hip_compiler_version();
+        if(compiler.empty())
+            return std::string{};
+        // The version numbers make the directory readable; the hash of the full version string
+        // separates builds that share them, since it also covers the source revision.
+        return std::string{binary_cache_format} + "-hip" + compiler.major + "." + compiler.minor +
+               "." + md5(compiler.version).substr(0, 12) + "-kernels" + kernels_digest() +
+               "-rocmlir" + rocmlir_id;
+    }();
+    return dir;
 }
 
 /// Entries are grouped by the device they were compiled for. The architecture is part of this
@@ -130,21 +136,21 @@ static std::string device_dir(const context& ctx)
 /// from different toolchains would be indistinguishable.
 static fs::path entry_path(const fs::path& root, const context& ctx, const std::string& key)
 {
-    auto version = binary_cache::version_dir(ctx);
+    const auto& version = binary_cache::version_dir();
     if(version.empty())
         return {};
     return root / version / device_dir(ctx) / (md5(key) + ".mxr");
 }
 
 /// Record what this build is, so a directory full of hashes can be identified later.
-static void write_stamp(const context& ctx, const fs::path& dir)
+static void write_stamp(const fs::path& dir)
 {
     auto stamp = dir / "cache.info";
     if(fs::exists(stamp))
         return;
     std::stringstream ss;
     ss << "format: " << binary_cache_format << "\n";
-    ss << "hip: " << hip_compiler_version(ctx.get_current_device().get_device_name()) << "\n";
+    ss << "hip: " << hip_compiler_version().version << "\n";
     ss << "kernels: " << kernels_digest() << "\n";
     ss << "rocmlir: " << rocmlir_id << "\n";
     write_string(stamp, ss.str());
@@ -223,7 +229,7 @@ void binary_cache::insert(const context& ctx, const binary_cache_entry& entry)
     try
     {
         fs::create_directories(path.parent_path());
-        write_stamp(ctx, path.parent_path().parent_path());
+        write_stamp(path.parent_path().parent_path());
         // Publish by rename so a reader never sees a half-written entry. The content is decided
         // entirely by the key, so a writer that loses the race replaces the file with the same
         // bytes and no locking is needed.

@@ -54,14 +54,26 @@ struct hiprtc_src_file
     }
 };
 
+/// What the compiler that turns kernel source into code objects reports about itself.
+struct hip_compiler_info
+{
+    /// Version numbers from __clang_major__ and __clang_minor__, short enough to read.
+    std::string major = {};
+    std::string minor = {};
+    /// The full __clang_version__ string, which also names the source revision.
+    std::string version = {};
+
+    bool empty() const { return version.empty(); }
+};
+
 /**
- * Identifies the toolchain that turns kernel source into code objects for an architecture.
+ * Ask the device compiler what version it is.
  *
- * The toolchain is loaded at runtime, and what it reports about itself is coarser than what it
- * generates, so this compiles a fixed kernel and identifies the result. Returns an empty string
- * if the toolchain cannot be identified.
+ * It is not the compiler this library was built with, so the answer comes from compiling a
+ * probe and reading back what it recorded. The result is determined once and reused; it is
+ * empty if the compiler could not be asked.
  */
-MIGRAPHX_GPU_EXPORT std::string hip_compiler_version(const std::string& arch);
+MIGRAPHX_GPU_EXPORT const hip_compiler_info& hip_compiler_version();
 
 MIGRAPHX_GPU_EXPORT bool hip_can_compile(const std::string& src,
                                          const std::vector<std::string>& flags);

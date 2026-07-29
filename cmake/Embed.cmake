@@ -34,7 +34,13 @@ function(check_hash_embed VARIABLE)
     file(WRITE "${DATA_FILE}" "hash embed")
     if(NOT MSVC)
         # Using the directive as an extension is diagnosed, which is fatal with -Werror
-        string(APPEND CMAKE_REQUIRED_FLAGS " -Wno-c23-extensions -Wno-c++26-extensions")
+        foreach(_flag -Wno-c23-extensions -Wno-c++26-extensions)
+            string(MAKE_C_IDENTIFIER "HAS_CXX_FLAG${_flag}" _has_flag_var)
+            check_cxx_compiler_flag(${_flag} ${_has_flag_var})
+            if(${_has_flag_var})
+                string(APPEND CMAKE_REQUIRED_FLAGS " ${_flag}")
+            endif()
+        endforeach()
     endif()
     check_cxx_source_compiles("
 #include <cstddef>
@@ -246,6 +252,7 @@ function(embed_file FILE BASE_DIRECTORY)
         set(OUTPUT_FILE ${OUTPUT_FILE} PARENT_SCOPE)
     elseif(EMBED_USE STREQUAL "HASH_EMBED")
         get_filename_component(ABS_FILE "${FILE}" ABSOLUTE)
+        file(TO_CMAKE_PATH "${ABS_FILE}" ABS_FILE_CMAKE)
         set(OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/${REL_FILE}.cpp")
         # The compiler reads the data file when compiling the #embed directive, so the
         # generated source is independent of the contents and cmake does not need to
@@ -253,7 +260,7 @@ function(embed_file FILE BASE_DIRECTORY)
         file(GENERATE OUTPUT "${OUTPUT_FILE}" CONTENT "
 #include <cstddef>
 extern const char _binary_${OUTPUT_SYMBOL}_start[] = {
-#embed \"${ABS_FILE}\"
+#embed \"${ABS_FILE_CMAKE}\"
 };
 extern const size_t _binary_${OUTPUT_SYMBOL}_length = sizeof(_binary_${OUTPUT_SYMBOL}_start);
 ")

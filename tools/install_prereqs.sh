@@ -33,6 +33,7 @@
 #
 # Usage:
 #   install_prereqs.sh [--rocm-version <ver>] [--gpu <arch>] [--whl] [--index-url <url>]
+#                      [--rocm-only]
 #
 #   --rocm-version <ver>  ROCm release version used in versioned package names,
 #                         e.g. 7.13 -> amdrocm-developer-tools7.13
@@ -48,6 +49,8 @@
 #                         https://repo.amd.com/rocm/whl-multi-arch
 #                         https://rocm.prereleases.amd.com/whl-multi-arch
 #                         https://rocm.nightlies.amd.com/whl-multi-arch/
+#   --rocm-only           Install only the ROCm components and skip everything
+#                         else (pipx, rbuild, and the MIGraphX dependencies).
 
 set -eo pipefail
 
@@ -57,6 +60,7 @@ export LANG=C.UTF-8
 ROCM_VERSION=""
 GPU_ARCH=""
 USE_WHL=0
+ROCM_ONLY=0
 INDEX_URL="https://repo.amd.com/rocm/whl-multi-arch/"
 PREFIX=/usr/local
 REQ_FILE_DIR="$(dirname -- "$0")"
@@ -99,6 +103,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --whl)
             USE_WHL=1
+            shift
+            ;;
+        --rocm-only)
+            ROCM_ONLY=1
             shift
             ;;
         --index-url)
@@ -215,6 +223,11 @@ else
     for d in bin lib libexec include share llvm amdgcn; do
         ln -snf core-${ROCM_VERSION}/$d /opt/rocm/$d;
     done
+fi
+
+if [[ "$ROCM_ONLY" -eq 1 ]]; then
+    echo "ROCm is installed; skipping the remaining MIGraphX prerequisites"
+    exit 0
 fi
 
 # Install pipx from pip rather than the distro package. The distro pipx depends

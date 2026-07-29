@@ -33,10 +33,20 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+// Re-clamping against a bound the expression already clamps to would only nest a redundant
+// node, since min(min(x, b), b) == min(x, b) and max(max(x, b), b) == max(x, b). Attributes are
+// normalized again on every shape computation, so without this the nesting grows without bound.
+static bool already_clamped(const sym::expr& e, std::string_view op_name, const sym::expr& bound)
+{
+    return e.name() == op_name and contains(e.children(), bound);
+}
+
 // min/max that fold to one operand when the ordering is provable via intervals,
 // and only fall back to a symbolic min/max node when it is indeterminate.
 static sym::expr fold_min(const sym::expr& a, const sym::expr& b)
 {
+    if(already_clamped(a, "min", b))
+        return a;
     auto lt = sym::strict_less(a, b);
     if(lt.has_value())
         return *lt ? a : b;
@@ -44,6 +54,8 @@ static sym::expr fold_min(const sym::expr& a, const sym::expr& b)
 }
 static sym::expr fold_max(const sym::expr& a, const sym::expr& b)
 {
+    if(already_clamped(a, "max", b))
+        return a;
     auto lt = sym::strict_less(a, b);
     if(lt.has_value())
         return *lt ? b : a;
@@ -53,12 +65,12 @@ static sym::expr fold_max(const sym::expr& a, const sym::expr& b)
 static sym::expr axis_len_expr(const shape& s, int64_t axis)
 {
     if(not s.dynamic())
-        return sym::lit(static_cast<int64_t>(s.lens().at(axis)));
+        return sym::lit(s.lens().at(axis));
     const auto& dd = s.dyn_dims().at(axis);
     if(dd.is_symbolic())
         return dd.sym_expr;
     if(dd.is_fixed())
-        return sym::lit(static_cast<int64_t>(dd.get_interval().max));
+        return sym::lit(dd.get_interval().max);
     MIGRAPHX_THROW("normalize_attributes: cannot normalize a symbolic bound on a non-fixed axis");
 }
 

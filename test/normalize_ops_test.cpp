@@ -23,12 +23,19 @@
  */
 #include <migraphx/normalize_ops.hpp>
 #include <migraphx/dead_code_elimination.hpp>
+#include <migraphx/dim_like.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/functional.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
+#include <migraphx/serialize.hpp>
+#include <migraphx/sym.hpp>
 #include <basic_ops.hpp>
 #include <test.hpp>
+
+using dd = migraphx::shape::dynamic_dimension;
+using migraphx::sym::lit;
+using migraphx::sym::var;
 
 struct normalize_test_op
 {
@@ -177,6 +184,164 @@ TEST_CASE(slice_test_1)
     run_pass(m1);
 
     EXPECT(m1 == m2);
+}
+
+static migraphx::shape slice_sym_data_shape()
+{
+    return {migraphx::shape::float_type, {2, 3, 4, 5}};
+}
+
+// slice's starts/ends attributes are vectors of dim_like: each entry is either a plain integer
+// or a symbolic dynamic_dimension.
+static migraphx::value bounds(std::vector<migraphx::dim_like> v) { return migraphx::to_value(v); }
+
+// Builds slice(data, bound). `mode_key` names the bound that the variable input supplies at
+// runtime; that bound's attribute still carries the compile-time (possibly symbolic) value.
+// Symbolic bounds are only allowed with two or more inputs, hence the extra parameter.
+static migraphx::module create_slice_sym(const std::vector<int64_t>& axes,
+                                         const migraphx::value& starts,
+                                         const migraphx::value& ends,
+                                         const std::string& mode_key,
+                                         const migraphx::shape& data_shape = slice_sym_data_shape())
+{
+    migraphx::module m;
+    auto data = m.add_parameter("data", data_shape);
+    auto bound =
+        m.add_parameter(mode_key, migraphx::shape{migraphx::shape::int64_type, {axes.size()}});
+    auto r = m.add_instruction(migraphx::make_op("slice",
+                                                 {{"axes", axes},
+                                                  {"starts", starts},
+                                                  {"ends", ends},
+                                                  {"mode", migraphx::value::array{mode_key}}}),
+                               data,
+                               bound);
+    m.add_return({r});
+
+    return m;
+}
+
+TEST_CASE(slice_sym_ends_clamped_test)
+{
+    // n is not provably ordered against the axis length 5, so the bound clamps to min(n, 5).
+    auto n  = var("n", {1, 8});
+    auto m1 = create_slice_sym({3}, bounds({int64_t{0}}), bounds({dd{n}}), "ends");
+    auto m2 = create_slice_sym(
+        {3}, bounds({int64_t{0}}), bounds({dd{migraphx::sym::min(n, lit(5))}}), "ends");
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(slice_sym_ends_below_len_test)
+{
+    // n < 5 is provable, so the bound keeps the bare symbol rather than gaining a min wrapper.
+    auto n  = var("n", {1, 4});
+    auto m1 = create_slice_sym({3}, bounds({int64_t{0}}), bounds({dd{n}}), "ends");
+    auto m2 = create_slice_sym({3}, bounds({int64_t{0}}), bounds({dd{n}}), "ends");
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(slice_sym_ends_at_len_test)
+{
+    // n >= 5 is provable, so the bound collapses to the axis length and demotes to an integer.
+    auto n  = var("n", {6, 9});
+    auto m1 = create_slice_sym({3}, bounds({int64_t{0}}), bounds({dd{n}}), "ends");
+    auto m2 = create_slice_sym({3}, bounds({int64_t{0}}), bounds({int64_t{5}}), "ends");
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(slice_sym_starts_clamped_test)
+{
+    // The starts attribute normalizes the same way. Axis 1 has length 3.
+    auto s  = var("s", {0, 5});
+    auto m1 = create_slice_sym({1}, bounds({dd{s}}), bounds({int64_t{3}}), "starts");
+    auto m2 = create_slice_sym(
+        {1}, bounds({dd{migraphx::sym::min(s, lit(3))}}), bounds({int64_t{3}}), "starts");
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(slice_sym_mixed_bounds_test)
+{
+    // One symbolic entry routes the whole attribute through the symbolic path. Each entry is
+    // still clamped against its own axis length (3 for axis 1, 5 for axis 3), and the concrete
+    // entry stays concrete.
+    auto n  = var("n", {1, 8});
+    auto m1 = create_slice_sym(
+        {1, 3}, bounds({int64_t{0}, int64_t{0}}), bounds({dd{n}, int64_t{9}}), "ends");
+    auto m2 = create_slice_sym({1, 3},
+                               bounds({int64_t{0}, int64_t{0}}),
+                               bounds({dd{migraphx::sym::min(n, lit(3))}, int64_t{5}}),
+                               "ends");
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(slice_sym_symbolic_axis_len_test)
+{
+    // When the sliced axis is itself symbolic, the clamp bound is that axis's symbol instead of
+    // a compile-time length.
+    auto k = var("k", {2, 6});
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {dd{k}, dd{lit(4)}}};
+    auto m1 = create_slice_sym({0}, bounds({int64_t{0}}), bounds({dd{n}}), "ends", s);
+    auto m2 = create_slice_sym(
+        {0}, bounds({int64_t{0}}), bounds({dd{migraphx::sym::min(n, k)}}), "ends", s);
+    run_pass(m1);
+
+    EXPECT(m1 == m2);
+}
+
+TEST_CASE(slice_sym_normalize_idempotent_test)
+{
+    // Normalizing an already normalized symbolic bound must not nest a second clamp.
+    auto n  = var("n", {1, 8});
+    auto m1 = create_slice_sym({3}, bounds({int64_t{0}}), bounds({dd{n}}), "ends");
+    run_pass(m1);
+    auto once = m1;
+    run_pass(m1);
+
+    EXPECT(m1 == once);
+}
+
+TEST_CASE(slice_sym_missing_axes_throws)
+{
+    // The axes come from a variable input, leaving the axes attribute empty, so there is no
+    // axis to pair the symbolic bound with.
+    auto n = var("n", {1, 8});
+    EXPECT(test::throws<migraphx::exception>(
+        [&] {
+            migraphx::module m;
+            auto data = m.add_parameter("data", slice_sym_data_shape());
+            migraphx::shape sb{migraphx::shape::int64_type, {1}};
+            auto ends_in = m.add_parameter("ends", sb);
+            auto axes_in = m.add_parameter("axes", sb);
+            m.add_instruction(migraphx::make_op("slice",
+                                                {{"starts", bounds({int64_t{0}})},
+                                                 {"ends", bounds({dd{n}})},
+                                                 {"mode", migraphx::value::array{"ends", "axes"}}}),
+                              data,
+                              ends_in,
+                              axes_in);
+        },
+        "symbolic bounds require one axis per bound"));
+}
+
+TEST_CASE(slice_sym_nonfixed_axis_throws)
+{
+    // A range-based dynamic axis is neither symbolic nor fixed, so it has no length expression
+    // to clamp the symbolic bound against.
+    auto n = var("n", {1, 8});
+    migraphx::shape s{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
+    EXPECT(test::throws<migraphx::exception>(
+        [&] { create_slice_sym({0}, bounds({int64_t{0}}), bounds({dd{n}}), "ends", s); },
+        "cannot normalize a symbolic bound on a non-fixed axis"));
 }
 
 static migraphx::module create_test_op(const std::vector<int64_t>& axes)

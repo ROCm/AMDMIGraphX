@@ -39,7 +39,7 @@
 #include <migraphx/config.hpp>
 #include <migraphx/gpu/device_name.hpp>
 #include <migraphx/gpu/problem_cache.hpp>
-#include <migraphx/gpu/binary_cache.hpp>
+#include <migraphx/gpu/binary_cache_settings.hpp>
 #include <migraphx/gpu/hsa_chiplet.hpp>
 #include <migraphx/gpu/cross_compile_device.hpp>
 #include <unordered_map>
@@ -490,7 +490,7 @@ struct context
     }
 
     /// Compiled kernels shared across every module compiled with this context.
-    binary_cache& get_binary_cache() const { return *bc; }
+    binary_cache& get_binary_cache() { return *bc; }
 
     private:
     // TODO: Make this a vector to support multiple devices
@@ -505,7 +505,7 @@ struct context
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
     std::shared_ptr<auto_save_problem_cache> pc = nullptr;
-    std::shared_ptr<binary_cache> bc            = std::make_shared<binary_cache>();
+    std::shared_ptr<binary_cache> bc            = make_binary_cache();
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

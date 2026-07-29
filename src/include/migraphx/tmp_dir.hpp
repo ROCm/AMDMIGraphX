@@ -33,6 +33,9 @@
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 
+/// A name unlikely to collide with one made by another process or thread.
+MIGRAPHX_EXPORT std::string unique_string(const std::string& prefix);
+
 struct MIGRAPHX_EXPORT tmp_dir
 {
     fs::path path;
@@ -45,7 +48,7 @@ struct MIGRAPHX_EXPORT tmp_dir
         execute(std::string_view{cmd.string()}, args);
     }
 
-    tmp_dir(tmp_dir const&) = delete;
+    tmp_dir(tmp_dir const&)            = delete;
     tmp_dir& operator=(tmp_dir const&) = delete;
 
     ~tmp_dir();

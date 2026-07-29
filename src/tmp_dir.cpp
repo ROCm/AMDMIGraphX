@@ -66,7 +66,7 @@ static std::string random_string(std::string::size_type length)
     return str;
 }
 
-static std::string unique_string(const std::string& prefix)
+std::string unique_string(const std::string& prefix)
 {
     auto pid = getpid();
     auto tid = std::this_thread::get_id();

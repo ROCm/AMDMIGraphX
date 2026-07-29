@@ -37,12 +37,17 @@ void compiled_code::replace(module& m, instruction_ref ins) const
 {
     const auto* frag   = fragment.get_main_module();
     const auto& inputs = ins->inputs();
+    assert(frag->get_parameter_names().size() == inputs.size());
     // Seeding the map with the parameters keeps insert_instructions from copying them, so the
     // fragment is wired directly onto the inputs of ins.
     std::unordered_map<instruction_ref, instruction_ref> map_ins;
     for(auto i : range(inputs.size()))
     {
-        map_ins[frag->get_parameter(input_name(i))] = inputs[i];
+        auto param = frag->get_parameter(input_name(i));
+        // get_parameter returns end() for an unknown name, which would splice a stray parameter
+        // into m instead of wiring the input.
+        assert(param != frag->end());
+        map_ins[param] = inputs[i];
     }
     auto returns = m.insert_instructions(ins, frag, &map_ins);
     if(returns.size() != 1)

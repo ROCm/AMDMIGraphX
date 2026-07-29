@@ -106,7 +106,7 @@ namespace {
 struct backend_options
 {
     std::vector<std::string> mlss_use_specific_ops = {};
-    /// Where compiled kernels are cached between runs. Defaults to the environment setting.
+    /// Where compiled kernels are cached between runs. Defaults to ``MIGRAPHX_BINARY_CACHE``.
     std::string binary_cache = binary_cache_settings::defaults().path;
     /// Compile even when a kernel could be reused, and fail if the two disagree.
     bool binary_cache_verify = false;

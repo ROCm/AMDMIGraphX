@@ -33,21 +33,9 @@
 #include <migraphx/msgpack.hpp>
 #include <migraphx/serialize.hpp>
 #include <migraphx/stringutils.hpp>
+#include <migraphx/tmp_dir.hpp>
 #include <migraphx_kernels.hpp>
 #include <sstream>
-#include <thread>
-
-#ifdef _WIN32
-// cppcheck-suppress definePrefix
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-#undef getpid
-// cppcheck-suppress [definePrefix, defineUpperCase]
-#define getpid _getpid
-#else
-#include <unistd.h>
-#include <sys/types.h>
-#endif
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -66,22 +54,73 @@ static constexpr const char* rocmlir_id = MIGRAPHX_ROCMLIR_ID;
 static constexpr const char* rocmlir_id = "nomlir";
 #endif
 
+std::shared_ptr<binary_cache> make_binary_cache() { return std::make_shared<binary_cache>(); }
+
 binary_cache_settings binary_cache_settings::defaults()
 {
     static const std::string path = string_value_of(MIGRAPHX_BINARY_CACHE{});
     return {path, false};
 }
 
+binary_cache::stats::counts binary_cache::stats::get()
+{
+    const std::lock_guard<std::mutex> lock(mutex);
+    return data;
+}
+
+void binary_cache::stats::reused()
+{
+    const std::lock_guard<std::mutex> lock(mutex);
+    data.reused++;
+}
+
+void binary_cache::stats::hit()
+{
+    const std::lock_guard<std::mutex> lock(mutex);
+    data.hits++;
+}
+
+void binary_cache::stats::miss()
+{
+    const std::lock_guard<std::mutex> lock(mutex);
+    data.misses++;
+}
+
+void binary_cache::stats::compiled()
+{
+    const std::lock_guard<std::mutex> lock(mutex);
+    data.compiled++;
+}
+
+void binary_cache::record_reused()
+{
+    if(st)
+        st->reused();
+}
+
+void binary_cache::record_hit()
+{
+    if(st)
+        st->hit();
+}
+
+optional<compiled_code> binary_cache::record_miss()
+{
+    if(st)
+        st->miss();
+    return nullopt;
+}
+
+void binary_cache::record_compiled()
+{
+    if(st)
+        st->compiled();
+}
+
 void binary_cache::configure(const binary_cache_settings& s)
 {
     const std::lock_guard<std::mutex> lock(mutex);
     settings = s;
-}
-
-bool binary_cache::enabled()
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    return not settings.path.empty();
 }
 
 bool binary_cache::verify()
@@ -124,7 +163,7 @@ const std::string& binary_cache::version_dir()
 /// Entries are grouped by the device they were compiled for. The architecture is part of this
 /// because it is passed to the compiler rather than appearing in the source; the core count and
 /// wavefront size are here to keep the directory self-describing, since they already reach the
-/// key through the launch bounds baked into the source.
+/// key through the launch bounds and -D defines in the parameter list.
 static std::string device_dir(const context& ctx)
 {
     const auto& device = ctx.get_current_device();
@@ -166,102 +205,78 @@ optional<compiled_code> binary_cache::get(const context& ctx, const std::string&
         auto it = memo.find(key);
         if(it != memo.end())
         {
-            stats.hits++;
+            record_reused();
             return it->second;
         }
         root = settings.path;
     }
     if(root.empty())
-        return nullopt;
+        return record_miss();
 
     auto path = entry_path(root, ctx, key);
     if(path.empty() or not fs::exists(path))
-    {
-        const std::lock_guard<std::mutex> lock(mutex);
-        stats.misses++;
-        return nullopt;
-    }
+        return record_miss();
 
-    binary_cache_entry entry;
+    entry e;
     try
     {
-        migraphx::from_value(from_msgpack(read_buffer(path)), entry);
+        migraphx::from_value(from_msgpack(read_buffer(path)), e);
     }
-    catch(const std::exception& e)
+    catch(const std::exception& ex)
     {
         // A damaged or stale entry is only worth a recompile, so treat every failure as a miss
         // and let the result be written over the top.
-        log::warn() << "Ignoring unreadable binary cache entry " << path << ": " << e.what();
-        const std::lock_guard<std::mutex> lock(mutex);
-        stats.misses++;
-        return nullopt;
+        log::warn() << "Ignoring unreadable binary cache entry " << path << ": " << ex.what();
+        return record_miss();
     }
-    if(entry.key != key)
+    if(e.key != key)
     {
         log::warn() << "Ignoring binary cache entry with mismatched key: " << path;
-        const std::lock_guard<std::mutex> lock(mutex);
-        stats.misses++;
-        return nullopt;
+        return record_miss();
     }
 
+    record_hit();
     const std::lock_guard<std::mutex> lock(mutex);
-    memo[key] = entry.code;
-    stats.hits++;
-    return entry.code;
+    memo[key] = std::move(e.code);
+    return memo[key];
 }
 
-void binary_cache::insert(const context& ctx, const binary_cache_entry& entry)
+void binary_cache::insert(const context& ctx, const entry& e)
 {
-    if(entry.key.empty())
+    if(e.key.empty())
         return;
+    record_compiled();
     fs::path root;
     {
         const std::lock_guard<std::mutex> lock(mutex);
-        memo[entry.key] = entry.code;
-        root            = settings.path;
+        memo[e.key] = e.code;
+        root        = settings.path;
     }
     if(root.empty())
         return;
 
-    auto path = entry_path(root, ctx, entry.key);
+    auto path = entry_path(root, ctx, e.key);
     if(path.empty())
         return;
+    // Publish by rename so a reader never sees a half-written entry. The content is decided
+    // entirely by the key, so a writer that loses the race replaces the file with the same bytes
+    // and no locking is needed.
+    auto tmp = path;
+    tmp += "." + unique_string("tmp");
     try
     {
         fs::create_directories(path.parent_path());
         write_stamp(path.parent_path().parent_path());
-        // Publish by rename so a reader never sees a half-written entry. The content is decided
-        // entirely by the key, so a writer that loses the race replaces the file with the same
-        // bytes and no locking is needed.
-        std::stringstream suffix;
-        suffix << "." << getpid() << "." << std::this_thread::get_id() << ".tmp";
-        auto tmp = path;
-        tmp += suffix.str();
-        write_buffer(tmp, to_msgpack(migraphx::to_value(entry)));
+        write_buffer(tmp, to_msgpack(migraphx::to_value(e)));
         fs::rename(tmp, path);
     }
-    catch(const std::exception& e)
+    catch(const std::exception& ex)
     {
-        log::warn() << "Failed to write binary cache entry " << path << ": " << e.what();
+        // Leaving the temporary behind would accumulate in the cache directory.
+        std::error_code ec;
+        fs::remove(tmp, ec);
+        log::warn() << "Failed to write binary cache entry " << path << ": " << ex.what();
     }
-}
-
-void binary_cache::record_compiled(std::size_t n)
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    stats.compiled += n;
-}
-
-void binary_cache::record_reused(std::size_t n)
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    stats.reused += n;
-}
-
-binary_cache_stats binary_cache::get_stats()
-{
-    const std::lock_guard<std::mutex> lock(mutex);
-    return stats;
 }
 
 } // namespace gpu

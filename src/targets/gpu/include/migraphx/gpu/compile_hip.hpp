@@ -57,7 +57,7 @@ struct hiprtc_src_file
 /// What the compiler that turns kernel source into code objects reports about itself.
 struct hip_compiler_info
 {
-    /// Version numbers from __clang_major__ and __clang_minor__, short enough to read.
+    /// __clang_major__ and __clang_minor__, kept separate so the cache directory stays readable.
     std::string major = {};
     std::string minor = {};
     /// The full __clang_version__ string, which also names the source revision.

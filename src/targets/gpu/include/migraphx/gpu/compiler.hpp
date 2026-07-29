@@ -150,10 +150,10 @@ get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool e
 /**
  * A string that uniquely identifies the code the compiler would produce, without producing it.
  *
- * This is the text handed to the backend compiler, so it captures the generated source along
- * with everything else that shapes the result, and no separate accounting of shapes, launch
- * parameters, or device properties is needed. An empty string means the compiler cannot
- * describe its output this way, and its result must not be cached.
+ * The key must cover everything that shapes the result: the generated source, the final
+ * parameter list, the launch bounds, the target architecture, and the shapes recorded on the
+ * code object. An empty string means the compiler cannot describe its output this way, and its
+ * result must not be cached.
  */
 MIGRAPHX_GPU_EXPORT std::string
 compile_key(context& ctx, instruction_ref ins, const operation& op, const value& solution);
@@ -197,8 +197,8 @@ struct compiler : auto_register_compiler<Derived>
         return nullopt;
     }
 
-    /// Compilers opt in to caching by overriding this. Until one does, an empty key keeps its
-    /// results out of the cache, which is always correct if never fast.
+    /// Compilers opt in to caching by overriding this; the default empty key keeps their
+    /// results out of the cache.
     std::string compile_key(context&, instruction_ref, const operation&, const value&) const
     {
         return {};

@@ -25,7 +25,7 @@
 #define MIGRAPHX_GUARD_GPU_COMPILE_OPS_HPP
 
 #include <migraphx/gpu/config.hpp>
-#include <migraphx/gpu/binary_cache.hpp>
+#include <migraphx/gpu/binary_cache_settings.hpp>
 #include <string>
 
 namespace migraphx {

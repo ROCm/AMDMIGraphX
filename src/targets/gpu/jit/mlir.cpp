@@ -241,8 +241,10 @@ struct mlir_compiler : compiler<mlir_compiler>
                             const operation&,
                             const value& solution) const
     {
-        // The split into a separate gemm and pointwise kernel is decided from the submodule,
-        // the context and the solution, so the key covers both shapes of the result.
+        // The split into separate gemm and pointwise kernels is decided from the submodule, the
+        // context and the solution, so a key built from the unsplit submodule already
+        // distinguishes the split and unsplit forms.
+        assert(not ins->module_inputs().empty());
         auto* smod = ins->module_inputs().front();
         return mlir_compile_key(ctx, *smod, to_shapes(ins->inputs()), solution);
     }

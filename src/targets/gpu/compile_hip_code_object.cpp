@@ -202,11 +202,12 @@ std::size_t compute_block_size(const context& ctx, std::size_t n, std::size_t ma
     return std::min(std::max(min_block_size, block_size), max_block_size);
 }
 
-// Append the parameters that are derived from the options and the device rather than passed in
-// by the compiler. Shared with hip_compile_key so the key sees the same final parameter list
-// that the compiler does.
+// Append the parameters derived from the options and the device rather than set by the caller.
+// Shared with hip_compile_key so the key sees the same final parameter list clang does.
 static void add_derived_params(const context& ctx, hip_compile_options& options)
 {
+    assert(options.global > 0);
+    assert(options.local > 0);
     if(options.global % options.local != 0 and hip_accept_non_uniform_wg())
         options.emplace_param("-fno-offload-uniform-block");
     else
@@ -247,6 +248,9 @@ compile_hip_raw(context& ctx, const std::string& content, hip_compile_options op
 
 std::string hip_compile_key(const context& ctx, const hip_src& src)
 {
+    assert(not src.options.inputs.empty());
+    assert(src.options.inputs.size() == src.options.virtual_inputs.size() or
+           src.options.virtual_inputs.empty());
     auto options = src.options;
     add_derived_params(ctx, options);
 

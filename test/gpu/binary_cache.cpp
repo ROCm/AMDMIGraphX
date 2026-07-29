@@ -38,6 +38,7 @@
 #include <migraphx/gpu/compiled_code.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <test.hpp>
+#include <algorithm>
 
 static migraphx::program pointwise_program()
 {
@@ -53,25 +54,6 @@ static migraphx::program pointwise_program()
     return p;
 }
 
-// Independent branches of the same shape lower to separate instructions that cannot fuse into
-// each other, but they all produce the same kernel, so only one of them should be compiled.
-static migraphx::program repeated_reduce(std::size_t n)
-{
-    migraphx::program p;
-    auto* mm = p.get_main_module();
-    migraphx::shape s{migraphx::shape::float_type, {4, 8}};
-    std::vector<migraphx::instruction_ref> branches;
-    for(std::size_t i = 0; i < n; i++)
-    {
-        auto x   = mm->add_parameter("x" + std::to_string(i), s);
-        auto mul = mm->add_instruction(migraphx::make_op("mul"), x, x);
-        branches.push_back(
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {1}}}), mul));
-    }
-    mm->add_return({mm->add_instruction(migraphx::make_op("concat", {{"axis", 1}}), branches)});
-    return p;
-}
-
 static migraphx::compile_options cache_options(const migraphx::fs::path& dir, bool verify = false)
 {
     migraphx::compile_options options;
@@ -80,54 +62,130 @@ static migraphx::compile_options cache_options(const migraphx::fs::path& dir, bo
     return options;
 }
 
-static migraphx::gpu::binary_cache_stats
-compile_and_get_stats(migraphx::program p, const migraphx::compile_options& options)
+static migraphx::gpu::compiled_code make_code()
 {
-    p.compile(migraphx::make_target("gpu"), options);
-    return migraphx::any_cast<migraphx::gpu::context>(p.get_context())
-        .get_binary_cache()
-        .get_stats();
+    migraphx::gpu::compiled_code code;
+    auto* fm = code.fragment.get_main_module();
+    auto x   = fm->add_parameter(migraphx::gpu::compiled_code::input_name(0),
+                                 {migraphx::shape::float_type, {2}});
+    fm->add_return({fm->add_instruction(migraphx::make_op("abs"), x)});
+    code.fill_map["float_type{2}"] = 3.0;
+    return code;
 }
 
-TEST_CASE(identical_kernels_compile_once)
+static migraphx::gpu::binary_cache::entry make_entry(const std::string& key)
 {
-    migraphx::tmp_dir td{"binary-cache"};
-    const std::size_t n = 6;
-    auto stats          = compile_and_get_stats(repeated_reduce(n), cache_options(td.path));
-    EXPECT(stats.reused >= n - 1);
-    EXPECT(stats.compiled < n);
+    migraphx::gpu::binary_cache::entry e;
+    e.key      = key;
+    e.op_name  = "pointwise";
+    e.solution = migraphx::value{{"algo", "block"}};
+    e.code     = make_code();
+    return e;
 }
 
-// The whole point of the cache: a program compiled once should not compile again. The second
-// compile gets a fresh context, so an empty in-memory cache, and everything it reuses has to
-// come back off disk.
-TEST_CASE(second_compile_reads_from_disk)
+// A cache built without stats keeps no counters, so the tests that assert on counts supply one.
+static std::shared_ptr<migraphx::gpu::binary_cache::stats> make_stats()
 {
-    migraphx::tmp_dir td{"binary-cache"};
-    auto options = cache_options(td.path);
-
-    auto cold = compile_and_get_stats(pointwise_program(), options);
-    EXPECT(cold.compiled > 0);
-    EXPECT(cold.misses > 0);
-    EXPECT(cold.hits == 0);
-
-    auto warm = compile_and_get_stats(pointwise_program(), options);
-    EXPECT(warm.hits == cold.misses);
-    EXPECT(warm.compiled == 0);
-    EXPECT(warm.misses == 0);
+    return std::make_shared<migraphx::gpu::binary_cache::stats>();
 }
 
-// Without a directory nothing is written, but results are still shared within the compile.
-TEST_CASE(no_directory_keeps_results_in_memory)
+TEST_CASE(lookup_records_a_miss)
+{
+    migraphx::gpu::context ctx;
+    auto st = make_stats();
+    migraphx::gpu::binary_cache cache{st};
+
+    EXPECT(not cache.get(ctx, "absent").has_value());
+    EXPECT(st->get().misses == 1);
+    EXPECT(st->get().hits == 0);
+    EXPECT(st->get().reused == 0);
+}
+
+// An entry served out of memory is one an earlier compile in this process already paid for.
+TEST_CASE(memory_lookup_records_reuse)
+{
+    migraphx::gpu::context ctx;
+    auto st = make_stats();
+    migraphx::gpu::binary_cache cache{st};
+
+    cache.insert(ctx, make_entry("a-key"));
+    EXPECT(st->get().compiled == 1);
+
+    auto found = cache.get(ctx, "a-key");
+    EXPECT(found.has_value());
+    EXPECT(st->get().reused == 1);
+    EXPECT(st->get().misses == 0);
+}
+
+// A second cache shares nothing in memory, so anything it finds came off disk.
+TEST_CASE(disk_lookup_records_a_hit)
 {
     migraphx::tmp_dir td{"binary-cache"};
-    auto stats = compile_and_get_stats(repeated_reduce(4), cache_options(""));
-    EXPECT(stats.reused > 0);
+    migraphx::gpu::context ctx;
+    migraphx::gpu::binary_cache_settings settings{td.path.string(), false};
+
+    migraphx::gpu::binary_cache writer;
+    writer.configure(settings);
+    writer.insert(ctx, make_entry("shared-key"));
+
+    auto st = make_stats();
+    migraphx::gpu::binary_cache reader{st};
+    reader.configure(settings);
+
+    auto found = reader.get(ctx, "shared-key");
+    EXPECT(found.has_value());
+    EXPECT(st->get().hits == 1);
+    EXPECT(st->get().misses == 0);
+    EXPECT(*found->fragment.get_main_module() == *make_code().fragment.get_main_module());
+}
+
+// A damaged entry must cost a recompile and nothing more.
+TEST_CASE(corrupt_entry_is_ignored)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    migraphx::gpu::binary_cache_settings settings{td.path.string(), false};
+
+    migraphx::gpu::binary_cache writer;
+    writer.configure(settings);
+    writer.insert(ctx, make_entry("damaged"));
+
+    std::size_t truncated = 0;
+    for(const auto& file : migraphx::fs::recursive_directory_iterator(td.path))
+    {
+        if(file.path().extension() != ".mxr")
+            continue;
+        migraphx::write_buffer(file.path(), std::vector<char>(8, 0));
+        truncated++;
+    }
+    EXPECT(truncated > 0);
+
+    auto st = make_stats();
+    migraphx::gpu::binary_cache reader{st};
+    reader.configure(settings);
+
+    EXPECT(not reader.get(ctx, "damaged").has_value());
+    EXPECT(st->get().misses == 1);
+}
+
+// Without a directory nothing reaches disk, though results are still shared in memory.
+TEST_CASE(no_directory_writes_nothing)
+{
+    migraphx::tmp_dir td{"binary-cache"};
+    migraphx::gpu::context ctx;
+    auto st = make_stats();
+    migraphx::gpu::binary_cache cache{st};
+    cache.configure({"", false});
+
+    cache.insert(ctx, make_entry("in-memory-only"));
+    EXPECT(cache.get(ctx, "in-memory-only").has_value());
+    EXPECT(st->get().reused == 1);
     EXPECT(migraphx::fs::is_empty(td.path));
 }
 
-// A result taken from the cache has to produce the same numbers as one that was just compiled.
-TEST_CASE(cached_results_match_reference)
+// Compiling twice against the same directory has to leave entries behind and keep producing the
+// same numbers as the reference, whichever half of the run they came from.
+TEST_CASE(compiling_twice_populates_the_cache_and_matches_reference)
 {
     migraphx::tmp_dir td{"binary-cache"};
     auto options = cache_options(td.path);
@@ -141,9 +199,14 @@ TEST_CASE(cached_results_match_reference)
 
     auto ref_result = p_ref.eval({{"x", x}, {"y", y}}).back();
 
-    // Compile once to fill the cache, then again so the result comes back out of it.
     auto warmup = pointwise_program();
     warmup.compile(migraphx::make_target("gpu"), options);
+
+    auto entries =
+        std::count_if(migraphx::fs::recursive_directory_iterator{td.path},
+                      migraphx::fs::recursive_directory_iterator{},
+                      [](const auto& file) { return file.path().extension() == ".mxr"; });
+    EXPECT(entries > 0);
 
     auto t = migraphx::make_target("gpu");
     auto p = pointwise_program();
@@ -161,76 +224,37 @@ TEST_CASE(cached_results_match_reference)
     }
     auto gpu_result = t.copy_from(p.eval(params).back());
 
-    std::vector<float> ref_vec;
-    std::vector<float> gpu_vec;
-    ref_result.visit([&](auto v) { ref_vec.assign(v.begin(), v.end()); });
-    gpu_result.visit([&](auto v) { gpu_vec.assign(v.begin(), v.end()); });
-
-    EXPECT(migraphx::verify::verify_rms_range(ref_vec, gpu_vec));
+    EXPECT(migraphx::verify::verify_rms_range(ref_result.to_vector<float>(),
+                                              gpu_result.to_vector<float>()));
 }
 
-// With verification on, every reused result is checked against a fresh compile. A clean run
-// means the keys really do capture what the compilers depend on.
+// With verification on, every reused result is compiled again and compared, so a run that does
+// not throw is one where the keys really do capture what the compilers depend on.
 TEST_CASE(verified_reuse_matches_fresh_compiles)
 {
     migraphx::tmp_dir td{"binary-cache"};
     auto options = cache_options(td.path, /* verify */ true);
 
-    compile_and_get_stats(pointwise_program(), options);
-    auto stats = compile_and_get_stats(pointwise_program(), options);
-    EXPECT(stats.hits > 0);
-}
-
-// A damaged entry must cost a recompile and nothing more.
-TEST_CASE(corrupt_entry_is_ignored)
-{
-    migraphx::tmp_dir td{"binary-cache"};
-    auto options = cache_options(td.path);
+    auto warmup = pointwise_program();
+    warmup.compile(migraphx::make_target("gpu"), options);
 
     auto p = pointwise_program();
     p.compile(migraphx::make_target("gpu"), options);
-
-    std::size_t truncated = 0;
-    for(const auto& entry : migraphx::fs::recursive_directory_iterator(td.path))
-    {
-        if(entry.path().extension() != ".mxr")
-            continue;
-        migraphx::write_buffer(entry.path(), std::vector<char>(8, 0));
-        truncated++;
-    }
-    EXPECT(truncated > 0);
-
-    auto stats = compile_and_get_stats(pointwise_program(), options);
-    EXPECT(stats.hits == 0);
-    EXPECT(stats.compiled > 0);
 }
 
 TEST_CASE(entry_round_trip)
 {
-    migraphx::gpu::compiled_code code;
-    {
-        auto* fm = code.fragment.get_main_module();
-        auto x   = fm->add_parameter(migraphx::gpu::compiled_code::input_name(0),
-                                     {migraphx::shape::float_type, {2}});
-        fm->add_return({fm->add_instruction(migraphx::make_op("abs"), x)});
-    }
-    code.fill_map["float_type{2}"] = 3.0;
+    auto e      = make_entry("some-key");
+    auto buffer = migraphx::to_msgpack(migraphx::to_value(e));
 
-    migraphx::gpu::binary_cache_entry entry;
-    entry.key      = "some-key";
-    entry.op_name  = "pointwise";
-    entry.solution = migraphx::value{{"algo", "block"}};
-    entry.code     = code;
-
-    auto buffer = migraphx::to_msgpack(migraphx::to_value(entry));
-    migraphx::gpu::binary_cache_entry loaded;
+    migraphx::gpu::binary_cache::entry loaded;
     migraphx::from_value(migraphx::from_msgpack(buffer), loaded);
 
-    EXPECT(loaded.key == entry.key);
-    EXPECT(loaded.op_name == entry.op_name);
-    EXPECT(loaded.solution == entry.solution);
-    EXPECT(loaded.code.fill_map == entry.code.fill_map);
-    EXPECT(*loaded.code.fragment.get_main_module() == *entry.code.fragment.get_main_module());
+    EXPECT(loaded.key == e.key);
+    EXPECT(loaded.op_name == e.op_name);
+    EXPECT(loaded.solution == e.solution);
+    EXPECT(loaded.code.fill_map == e.code.fill_map);
+    EXPECT(*loaded.code.fragment.get_main_module() == *e.code.fragment.get_main_module());
 }
 
 // The key has to cover everything handed to the compiler, not just the source text. Two

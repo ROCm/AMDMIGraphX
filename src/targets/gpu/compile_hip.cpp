@@ -383,8 +383,8 @@ static constexpr std::string_view version_suffix = ">>>";
 // accepts. Keeping it fixed means the answer does not depend on the device present.
 static const char* const version_probe_arch = "gfx950";
 
-// Has the compiler record its own version, since the compiler that generates device code is not
-// the one this was built with and is only known once it runs.
+// Probe that makes the device compiler embed its own version string in the object. It is not
+// the compiler this library was built with, so its version is only known at runtime.
 static const char* const version_probe = R"__migraphx__(
 #define MIGRAPHX_STRINGIZE_(x) #x
 #define MIGRAPHX_STRINGIZE(x) MIGRAPHX_STRINGIZE_(x)

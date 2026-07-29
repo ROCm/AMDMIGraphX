@@ -26,6 +26,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/onnx.hpp>
 #include <migraphx/tf.hpp>
@@ -150,20 +151,35 @@ static target get_target(const std::string& name) { return make_target(name); }
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
 #endif
 
-static target
-get_target_with_options(const std::string& name, const char* options_json, va_list vlist)
+// Format `options_json` as a printf-style string using `vlist` and parse the
+// result into a value. `options_json` accepts a relaxed JSON object where bare
+// identifiers are treated as strings (see convert_to_json).
+static value parse_json_options(const char* options_json, va_list vlist)
 {
-    if(options_json == nullptr or *options_json == '\0')
-        return make_target(name);
-    std::string soptions = options_json;
-    std::vector<char> buffer(soptions.size() * 2);
-    std::vsnprintf(buffer.data(), buffer.size(), soptions.c_str(), vlist);
-    return make_target(name, from_json_string(convert_to_json(std::string(buffer.data()))));
+    va_list vlist_copy;
+    va_copy(vlist_copy, vlist);
+    const int len = std::vsnprintf(nullptr, 0, options_json, vlist_copy);
+    va_end(vlist_copy);
+    if(len < 0)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Invalid format string for options_json");
+    std::vector<char> buffer(len + 1);
+    va_copy(vlist_copy, vlist);
+    std::vsnprintf(buffer.data(), buffer.size(), options_json, vlist_copy);
+    va_end(vlist_copy);
+    return from_json_string(convert_to_json(std::string(buffer.data())));
 }
 
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
+
+static target
+get_target_with_options(const std::string& name, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return make_target(name);
+    return make_target(name, parse_json_options(options_json, vlist));
+}
 
 static void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
@@ -174,7 +190,25 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+// Parse the backend options from `options_json` and merge them into the
+// compile options. See migraphx::set_backend_options for the merge semantics.
+static void set_backend_options(compile_options& options, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return;
+    set_backend_options(options, parse_json_options(options_json, vlist));
+}
+
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
+
+// Parse an expression string and bind each provided symbol name to the bounds/optimals
+// carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
+static shape::dynamic_dimension make_symbolic_dynamic_dimension(
+    const char* expression,
+    const std::unordered_map<std::string, shape::dynamic_dimension>& symbols)
+{
+    return shape::make_symbolic_dynamic_dimension(expression, symbols);
+}
 
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
@@ -206,6 +240,12 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 static void set_use_debug_symbols(onnx_options& options, bool value)
 {
     options.use_debug_symbols = value;
+}
+
+static void
+set_dim_param(onnx_options& options, const char* name, const shape::dynamic_dimension& dd)
+{
+    options.dim_params[std::string(name)] = dd;
 }
 
 static void set_nhwc(tf_options& options, bool is_nhwc) { options.is_nhwc = is_nhwc; }
@@ -528,6 +568,17 @@ struct migraphx_optimals
     {
     }
     std::set<size_t> object;
+};
+
+extern "C" struct migraphx_symbol_bounds;
+struct migraphx_symbol_bounds
+{
+    template <class... Ts>
+    migraphx_symbol_bounds(Ts&&... xs)
+        : object(std::forward<Ts>(xs)...) // NOLINT(readability-redundant-member-init)
+    {
+    }
+    std::unordered_map<std::string, migraphx::shape::dynamic_dimension> object;
 };
 
 extern "C" struct migraphx_dynamic_dimension;
@@ -924,6 +975,42 @@ migraphx_optimals_create(migraphx_optimals_t* optimals, const size_t* ptr, size_
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_symbol_bounds_destroy(migraphx_symbol_bounds_t symbol_bounds)
+{
+    auto api_error_result = migraphx::try_([&] { destroy((symbol_bounds)); });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_symbol_bounds_assign_to(migraphx_symbol_bounds_t output,
+                                                            const_migraphx_symbol_bounds_t input)
+{
+    auto api_error_result = migraphx::try_([&] { *output = *input; });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_symbol_bounds_create(migraphx_symbol_bounds_t* symbol_bounds)
+{
+    auto api_error_result = migraphx::try_([&] {
+        *symbol_bounds = object_cast<migraphx_symbol_bounds_t>(
+            allocate<std::unordered_map<std::string, migraphx::shape::dynamic_dimension>>());
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_symbol_bounds_add(migraphx_symbol_bounds_t symbol_bounds,
+                                                      const char* name,
+                                                      const_migraphx_dynamic_dimension_t dd)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(symbol_bounds == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter symbol_bounds: Null pointer");
+        if(dd == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dd: Null pointer");
+        (symbol_bounds->object)[(name)] = (dd->object);
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status
 migraphx_dynamic_dimension_destroy(migraphx_dynamic_dimension_t dynamic_dimension)
 {
@@ -965,6 +1052,21 @@ migraphx_dynamic_dimension_create_min_max_optimals(migraphx_dynamic_dimension_t*
 }
 
 extern "C" migraphx_status
+migraphx_dynamic_dimension_create_symbolic(migraphx_dynamic_dimension_t* dynamic_dimension,
+                                           const char* expression,
+                                           const_migraphx_symbol_bounds_t symbols)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(symbols == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter symbols: Null pointer");
+        *dynamic_dimension =
+            object_cast<migraphx_dynamic_dimension_t>(allocate<migraphx::shape::dynamic_dimension>(
+                migraphx::make_symbolic_dynamic_dimension((expression), (symbols->object))));
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
 migraphx_dynamic_dimension_is_fixed(bool* out, const_migraphx_dynamic_dimension_t dynamic_dimension)
 {
     auto api_error_result = migraphx::try_([&] {
@@ -972,6 +1074,19 @@ migraphx_dynamic_dimension_is_fixed(bool* out, const_migraphx_dynamic_dimension_
             MIGRAPHX_THROW(migraphx_status_bad_param,
                            "Bad parameter dynamic_dimension: Null pointer");
         *out = (dynamic_dimension->object).is_fixed();
+    });
+    return api_error_result;
+}
+
+extern "C" migraphx_status
+migraphx_dynamic_dimension_is_symbolic(bool* out,
+                                       const_migraphx_dynamic_dimension_t dynamic_dimension)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(dynamic_dimension == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter dynamic_dimension: Null pointer");
+        *out = (dynamic_dimension->object).is_symbolic();
     });
     return api_error_result;
 }
@@ -2000,6 +2115,8 @@ migraphx_operation_name(char* out, size_t out_size, migraphx_operation_t operati
     auto api_error_result = migraphx::try_([&] {
         if(out == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out: Null pointer");
+        if(out_size == 0)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter out_size: zero");
         if(operation == nullptr)
             MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter operation: Null pointer");
         auto&& api_result = (operation->object).name();
@@ -2152,6 +2269,19 @@ migraphx_onnx_options_set_use_debug_symbols(migraphx_onnx_options_t onnx_options
     return api_error_result;
 }
 
+extern "C" migraphx_status migraphx_onnx_options_set_dim_param(
+    migraphx_onnx_options_t onnx_options, const char* name, const_migraphx_dynamic_dimension_t dd)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(onnx_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter onnx_options: Null pointer");
+        if(dd == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param, "Bad parameter dd: Null pointer");
+        migraphx::set_dim_param((onnx_options->object), (name), (dd->object));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_file_options_destroy(migraphx_file_options_t file_options)
 {
     auto api_error_result = migraphx::try_([&] { destroy((file_options)); });
@@ -2243,6 +2373,21 @@ migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t com
                            "Bad parameter compile_options: Null pointer");
         migraphx::set_exhaustive_tune_flag((compile_options->object), (value));
     });
+    return api_error_result;
+}
+
+extern "C" migraphx_status migraphx_compile_options_set_advance_backend_options(
+    migraphx_compile_options_t compile_options, const char* options_json, ...)
+{
+    va_list vlist;
+    va_start(vlist, options_json);
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_backend_options((compile_options->object), (options_json), (vlist));
+    });
+    va_end(vlist);
     return api_error_result;
 }
 

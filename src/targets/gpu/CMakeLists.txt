@@ -24,6 +24,13 @@
 
 find_package(hip REQUIRED)
 
+# MIGRAPHX_USE_AMDMLSS is resolved to a plain boolean at the top-level CMakeLists.
+if(MIGRAPHX_USE_AMDMLSS)
+    message(STATUS "MIGraphX is using AMDMLSS")
+else()
+    message(STATUS "MIGraphX is not using AMDMLSS")
+endif()
+
 if(NOT WIN32)
     find_package(hsa-runtime64 REQUIRED CONFIG)
     message(STATUS "MIGraphX is using HSA runtime for chiplet query")
@@ -112,6 +119,7 @@ endif()
 
 set_target_properties(migraphx_device PROPERTIES EXPORT_NAME device)
 rocm_set_soversion(migraphx_device ${MIGRAPHX_SO_VERSION})
+rocm_add_version_resource(migraphx_device "AMD MIGraphX" "MIGraphX Device Library - GPU Device Operations")
 rocm_clang_tidy_check(migraphx_device)
 target_link_libraries(migraphx_device PUBLIC migraphx)
 target_link_libraries(migraphx_device PRIVATE compile_for_gpu)
@@ -216,10 +224,12 @@ add_library(migraphx_gpu
     hip_gemm_impl.cpp
     hsa_chiplet.cpp
     kernel.cpp
+    lower_device_ops.cpp
     lowering.cpp
     loop.cpp
     lrn.cpp
     mlir.cpp
+    nms_ops.cpp
     no_device.cpp
     pack_args.cpp
     prefuse_ops.cpp
@@ -227,6 +237,7 @@ add_library(migraphx_gpu
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
+    propagate_reshape_layout.cpp
     rocblas.cpp
     schedule_model.cpp
     sync_device.cpp
@@ -234,6 +245,8 @@ add_library(migraphx_gpu
     time_op.cpp
     topk.cpp
     write_literals.cpp
+    fuse_mlss.cpp
+    mlss_conv_op.cpp
     ${JIT_GPU_SRCS}
 )
 
@@ -290,6 +303,7 @@ if (MIGRAPHX_USE_MIOPEN)
         INCLUDES migraphx/gpu/context.hpp)
 endif()
 rocm_set_soversion(migraphx_gpu ${MIGRAPHX_SO_VERSION})
+rocm_add_version_resource(migraphx_gpu "AMD MIGraphX" "MIGraphX GPU Target - AMD GPU Acceleration")
 rocm_clang_tidy_check(migraphx_gpu)
 
 set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
@@ -447,6 +461,20 @@ endif()
 if(MIGRAPHX_USE_COMPOSABLEKERNEL)
     target_link_libraries(migraphx_gpu PRIVATE composable_kernel::ck_host)
     target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_COMPOSABLEKERNEL=1)
+endif()
+
+if(MIGRAPHX_USE_AMDMLSS)
+    target_link_libraries(migraphx_gpu PRIVATE amdmlss::amdmlss)
+    target_compile_definitions(migraphx_gpu PRIVATE MIGRAPHX_USE_AMDMLSS=1)
+    if(WIN32)
+        # Copy amdmlss.dll next to migraphx_gpu after build so executables can find it.
+        add_custom_command(TARGET migraphx_gpu POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    $<TARGET_FILE:amdmlss::amdmlss>
+                    $<TARGET_FILE_DIR:migraphx_gpu>
+            COMMENT "Copying amdmlss.dll to $<TARGET_FILE_DIR:migraphx_gpu>"
+            VERBATIM)
+    endif()
 endif()
 
 add_subdirectory(driver)

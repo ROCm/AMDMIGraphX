@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -54,13 +54,14 @@ MIGRAPHX_DEVICE_CONSTEXPR void cas(rank<1>, T& x, T y, Op op)
     MIGRAPHX_ATOMIC_CAS_WARNING();
     using storage    = conditional_t<sizeof(T) == 4, uint32_t, uint64_t>;
     storage* address = reinterpret_cast<storage*>(&x);
-    storage expected = __hip_atomic_load(address, __ATOMIC_RELAXED, __HIP_MEMORY_SCOPE_AGENT);
-    while(not __hip_atomic_compare_exchange_strong(address,
-                                                   &expected,
-                                                   bit_cast<storage>(op(bit_cast<T>(expected), y)),
-                                                   __ATOMIC_RELAXED,
-                                                   __ATOMIC_RELAXED,
-                                                   __HIP_MEMORY_SCOPE_AGENT))
+    storage expected = __scoped_atomic_load_n(address, __ATOMIC_RELAXED, __MEMORY_SCOPE_DEVICE);
+    while(not __scoped_atomic_compare_exchange_n(address,
+                                                 &expected,
+                                                 bit_cast<storage>(op(bit_cast<T>(expected), y)),
+                                                 false,
+                                                 __ATOMIC_RELAXED,
+                                                 __ATOMIC_RELAXED,
+                                                 __MEMORY_SCOPE_DEVICE))
     {
     }
 }
@@ -79,11 +80,6 @@ template <class T>
 MIGRAPHX_DEVICE_CONSTEXPR auto builtin_assign(T& x, T y, op::sum)
     MIGRAPHX_RETURNS(unsafeAtomicAdd(&x, y));
 
-__device__ inline void builtin_assign(half2& x, half2 y, op::sum)
-{
-    __builtin_amdgcn_global_atomic_fadd_v2f16(&x, y);
-}
-
 template <class T>
 constexpr bool is_aligned(const void* ptr)
 {
@@ -91,18 +87,25 @@ constexpr bool is_aligned(const void* ptr)
     return (iptr % alignof(T)) == 0;
 }
 
+#if __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2f16)
+__device__ inline void builtin_assign(half2& x, half2 y, op::sum)
+{
+    __builtin_amdgcn_global_atomic_fadd_v2f16(&x, y);
+}
+
+// The packed-f16 atomic operates on an aligned pair, so add a scalar half into
+// its lane of the containing pair and leave the neighbor unchanged.
 __device__ inline void builtin_assign(half& x, half y, op::sum)
 {
     half* address = &x;
     if(is_aligned<float>(address))
-    {
-        __builtin_amdgcn_global_atomic_fadd_v2f16(address, half2{y, half(0)});
-    }
+        __builtin_amdgcn_global_atomic_fadd_v2f16(reinterpret_cast<half2*>(address),
+                                                  half2{y, half(0)});
     else
-    {
-        __builtin_amdgcn_global_atomic_fadd_v2f16(address - 1, half2{half(0), y});
-    }
+        __builtin_amdgcn_global_atomic_fadd_v2f16(reinterpret_cast<half2*>(address - 1),
+                                                  half2{half(0), y});
 }
+#endif
 
 template <class T>
 MIGRAPHX_DEVICE_CONSTEXPR auto builtin_assign(T& x, T y, op::min)

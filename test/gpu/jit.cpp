@@ -37,6 +37,7 @@
 #include <migraphx/gpu/compile_hip.hpp>
 #include <migraphx/gpu/compile_hip_code_object.hpp>
 #include <migraphx/gpu/compiler.hpp>
+#include <migraphx/gpu/cross_compile_device.hpp>
 
 // NOLINTNEXTLINE
 const std::string write_2s = R"__migraphx__(
@@ -240,6 +241,17 @@ TEST_CASE(cross_compile_gpu_target_gfx1101)
     EXPECT(binaries.size() == 1);
     std::string_view bin{binaries.front().data(), binaries.front().size()};
     EXPECT(bin.find("gfx1101") != std::string_view::npos);
+}
+
+TEST_CASE(cross_compile_wavefront_size)
+{
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx1101", 1).warpSize == 32);
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx942", 1).warpSize == 64);
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx942", 1, 2048, 1024, 32).warpSize ==
+           32);
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx12xx", 1).warpSize == 32);
+    EXPECT(migraphx::gpu::make_cross_compile_device_props("gfx12xx", 1, 2048, 1024, 64).warpSize ==
+           64);
 }
 
 TEST_CASE(compile_errors)

@@ -32,12 +32,12 @@
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/gpu/mlir.hpp>
 #include <migraphx/gpu/prepare_mlir.hpp>
-#include <mlir-c/Dialect/RockEnums.h>
 #include <numeric>
 #include <ostream>
 #include <tuple>
 
 #ifdef MIGRAPHX_MLIR
+#include <mlir-c/Dialect/RockEnums.h>
 #include <mlir-c/IR.h>
 #include <mlir-c/BuiltinAttributes.h>
 #include <mlir-c/BuiltinTypes.h>
@@ -48,7 +48,7 @@
 #include <mlir-c/Pass.h>
 #include <mlir-c/Support.h>
 #include <mutex>
-#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 5
+#if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 6
 #warning "Incompatible version of rocMLIR library used, disabling"
 // Only undefine when not using cppcheck
 #ifndef CPPCHECK

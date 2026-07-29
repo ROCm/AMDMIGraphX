@@ -60,13 +60,33 @@ def optimals(h):
                   fname='migraphx::make_set<size_t>')
 
 
+@api.handle(
+    'migraphx_symbol_bounds',
+    'std::unordered_map<std::string, migraphx::shape::dynamic_dimension>')
+def symbol_bounds(h):
+    h.constructor('create')
+    h.method('add',
+             api.params(name='const char*',
+                        dd='const migraphx::shape::dynamic_dimension&'),
+             invoke='${symbol_bounds}[${name}] = ${dd}')
+
+
 @api.handle('migraphx_dynamic_dimension', 'migraphx::shape::dynamic_dimension')
 def dynamic_dimension(h):
     h.constructor('create_min_max', api.params(min='size_t', max='size_t'))
     h.constructor(
         'create_min_max_optimals',
         api.params(min='size_t', max='size_t', optimals='std::set<size_t>'))
+    h.constructor(
+        'create_symbolic',
+        api.params(
+            expression='const char*',
+            symbols=
+            'const std::unordered_map<std::string, migraphx::shape::dynamic_dimension>&'
+        ),
+        fname='migraphx::make_symbolic_dynamic_dimension')
     h.method('is_fixed', returns='bool', const=True)
+    h.method('is_symbolic', returns='bool', const=True)
     h.method('equal',
              api.params(x='const migraphx::shape::dynamic_dimension&'),
              invoke='migraphx::equal($@)',
@@ -414,6 +434,12 @@ def onnx_options(h):
         api.params(value='bool'),
         invoke='migraphx::set_use_debug_symbols($@)',
     )
+    h.method(
+        'set_dim_param',
+        api.params(name='const char*',
+                   dd='const migraphx::shape::dynamic_dimension&'),
+        invoke='migraphx::set_dim_param($@)',
+    )
 
 
 @auto_handle()
@@ -439,6 +465,9 @@ def compile_options(h):
     h.method('set_compile_mode',
              api.params(value='int8_t'),
              invoke='migraphx::set_compile_mode($@)')
+    h.method('set_advance_backend_options',
+             api.params(options_json='const char*', vlist='...'),
+             invoke='migraphx::set_backend_options($@)')
 
 
 api.add_function('migraphx_parse_onnx',

@@ -511,15 +511,15 @@ Operator Support Matrix
 +--------------------------+-----------+-----------------+------------------------------+
 | NegativeLogLikelihoodLoss| ❌        |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| NonMaxSuppression        | ✅        | FP8, FP16,      | fixed output                 |
-|                          |           | FP32, FP64      | size unless                  |
-|                          |           |                 | ``use_dyn_output``           |
-|                          |           |                 | set                          |
+| NonMaxSuppression        | ✅        | FP8, FP16,      | Different from ONNX          |
+|                          |           | FP32, FP64      | specification: Fixed output  |
+|                          |           |                 | size with arbitrary padding. |
+|                          |           |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
-| NonZero                  | ✅        | FP8, FP16,      | fixed output                 |
-|                          |           | FP32, FP64      | size unless                  |
-|                          |           |                 | ``use_dyn_output``           |
-|                          |           |                 | set                          |
+| NonZero                  | ✅        | FP8, FP16,      | Different from ONNX          |
+|                          |           | FP32, FP64      | specification: Fixed output  |
+|                          |           |                 | size with arbitrary padding. |
+|                          |           |                 |                              |
 +--------------------------+-----------+-----------------+------------------------------+
 | Not                      | ✅        | BOOL            |                              |
 +--------------------------+-----------+-----------------+------------------------------+

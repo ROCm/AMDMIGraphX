@@ -284,16 +284,14 @@ struct context
     context(std::size_t device_id = 0, std::size_t n = value_of(MIGRAPHX_NSTREAMS{}, 1))
         : current_device(std::make_shared<hip_device>(device_id, n)),
           begin_event(create_event()),
-          finish_event(create_event()),
-          pc(std::make_shared<auto_save_problem_cache>())
+          finish_event(create_event())
     {
     }
 
     /// Construct a context for a device that is not present, which can only be
     /// used to compile and not to execute.
     explicit context(const device_description& desc)
-        : current_device(std::make_shared<hip_device>(desc)),
-          pc(std::make_shared<auto_save_problem_cache>())
+        : current_device(std::make_shared<hip_device>(desc))
     {
     }
 
@@ -469,7 +467,7 @@ struct context
     // for stream synchronization
     shared<hip_event_ptr> begin_event           = nullptr;
     shared<hip_event_ptr> finish_event          = nullptr;
-    std::shared_ptr<auto_save_problem_cache> pc = nullptr;
+    std::shared_ptr<auto_save_problem_cache> pc = std::make_shared<auto_save_problem_cache>();
 };
 
 inline void migraphx_to_value(value& v, const context& ctx) { v = ctx.to_value(); }

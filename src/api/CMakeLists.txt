@@ -33,6 +33,13 @@ set(MIGRAPHX_API_GEN_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
 set(MIGRAPHX_API_GEN_HEADER ${MIGRAPHX_API_GEN_INCLUDE_DIR}/migraphx/migraphx.h)
 set(MIGRAPHX_API_GEN_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/api.cpp)
 
+if(MIGRAPHX_ENABLE_ONNX)
+    list(APPEND MIGRAPHX_API_DEFINITIONS -Denable_onnx)
+endif()
+if(MIGRAPHX_ENABLE_TENSORFLOW)
+    list(APPEND MIGRAPHX_API_DEFINITIONS -Denable_tensorflow)
+endif()
+
 # generate.py writes migraphx.h under include/migraphx/ and api.cpp at the top
 # level of the output dir, mirroring the source-tree layout. The build copy is
 # only a compiler input, so it is generated without clang-format; `make
@@ -40,6 +47,7 @@ set(MIGRAPHX_API_GEN_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/api.cpp)
 add_custom_command(
     OUTPUT ${MIGRAPHX_API_GEN_HEADER} ${MIGRAPHX_API_GEN_SOURCE}
     COMMAND ${Python_EXECUTABLE} ${MIGRAPHX_API_TOOLS_DIR}/generate.py
+        ${MIGRAPHX_API_DEFINITIONS}
         --api-only
         --api-output-dir ${CMAKE_CURRENT_BINARY_DIR}
     WORKING_DIRECTORY ${MIGRAPHX_API_TOOLS_DIR}

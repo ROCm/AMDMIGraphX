@@ -2290,10 +2290,8 @@ TEST_CASE(fp8_quant_gemm_softmax_gemm)
     }));
 }
 
-// yolo12n attention pattern: dot(V, transpose(softmax(dot(Q, K)), [0,1,3,2]))
 TEST_CASE(transposed_attention)
 {
-    // Shapes from yolo12n model.8
     migraphx::shape query_shape{migraphx::shape::half_type, {1, 4, 400, 32}};
     migraphx::shape key_shape{migraphx::shape::half_type, {1, 4, 32, 400}};
     migraphx::shape value_shape{migraphx::shape::half_type, {1, 4, 32, 400}};

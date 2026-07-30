@@ -942,8 +942,8 @@ struct verify : command<verify>
         ap(bisect, {"-b", "--bisect"}, ap.help("Bisect program and verify"), ap.set_value(true));
         ap(vo.no_rebuild,
            {"--no-rebuild"},
-           ap.help("Compare reference and target outputs layer by layer in a single run, avoiding "
-                   "recompilation for modes such as bisect (requires --debug-symbols)"),
+           ap.help("For --reduce or --bisect, compare outputs layer by layer in a single run "
+                   "instead of recompiling per step (requires --debug-symbols)"),
            ap.set_value(true));
         ap(vo.ref_use_double,
            {"--ref-use-double"},
@@ -955,6 +955,12 @@ struct verify : command<verify>
 
     void run()
     {
+        if(vo.no_rebuild and not(reduce or bisect))
+        {
+            log::error() << "--no-rebuild is only valid for --reduce or --bisect.";
+            return;
+        }
+
         auto p = c.l.load();
         c.l.save(p);
         std::cout << p << std::endl;

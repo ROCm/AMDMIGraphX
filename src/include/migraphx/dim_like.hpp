@@ -56,12 +56,6 @@ struct dim_like_picker
 // A dim attribute entry that may be either a plain int64_t or a dynamic_dimension.
 using dim_like = picked_variant<dim_like_picker, int64_t, shape::dynamic_dimension>;
 
-inline bool is_symbolic(const dim_like& d)
-{
-    return std::holds_alternative<shape::dynamic_dimension>(d) and
-           std::get<shape::dynamic_dimension>(d).is_symbolic();
-}
-
 inline std::ostream& operator<<(std::ostream& os, const dim_like& d)
 {
     visit([&](const auto& x) { os << x; }, d);

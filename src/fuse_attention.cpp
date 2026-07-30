@@ -755,49 +755,51 @@ struct find_flash_decoding
         auto lse = mm.insert_instruction(
             attn_group_ins, make_op("get_tuple_elem", {{"index", 1}}), new_group_ins);
 
-        // kernel 2: combine using exp-normalize trick
-        // O = sum(O' * exp(LSE - max)) / sum(exp(LSE - max))
-        // find max LSE across groups for numerical stability
+        // kernel 2
+        // the partial outputs O'[g] are already weighted by their group's softmax,
+        // LSE[g] contains log(sum(exp(S[g]))) for each group
+        // To combine: weight by exp(LSE[g]) / sum_g(exp(LSE[g']))
+
+        // compute global max for numerical stability
         auto lse_max =
             mm.insert_instruction(attn_group_ins, make_op("reduce_max", {{"axes", {g_axis}}}), lse);
-
         auto lse_max_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}),
             lse_max);
 
-        // compute unnormalized weights
-        // exp(LSE - max)
+        // exp(LSE - max_LSE)
         auto lse_sub = mm.insert_instruction(attn_group_ins, make_op("sub"), lse, lse_max_bcast);
-
         auto lse_exp = mm.insert_instruction(attn_group_ins, make_op("exp"), lse_sub);
 
-        // broadcast weights to match O' shape
-        // [B, G, M] -> [B, G, M, D]
-        auto lse_exp_bcast = mm.insert_instruction(
+        // sum across groups
+        auto lse_sum = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), lse_exp);
+        auto lse_sum_bcast = mm.insert_instruction(
+            attn_group_ins,
+            make_op("multibroadcast", {{"out_lens", lse_exp->get_shape().lens()}}),
+            lse_sum);
+
+        // scale factor: exp(LSE[g] - max_LSE) / sum(exp(LSE - max_LSE))
+        auto scale = mm.insert_instruction(attn_group_ins, make_op("div"), lse_exp, lse_sum_bcast);
+
+        auto scale_bcast = mm.insert_instruction(
             attn_group_ins,
             make_op("multibroadcast", {{"out_lens", partial_output_o_prime->get_shape().lens()}}),
-            lse_exp);
+            scale);
 
-        // convert weights to output type
-        auto output_type = partial_output_o_prime->get_shape().type();
-        auto weights     = mm.insert_instruction(
-            attn_group_ins, make_op("convert", {{"target_type", output_type}}), lse_exp_bcast);
+        // convert scale to match the type of partial_output_o_prime
+        auto output_type     = partial_output_o_prime->get_shape().type();
+        auto scale_converted = mm.insert_instruction(
+            attn_group_ins, make_op("convert", {{"target_type", output_type}}), scale_bcast);
 
-        // compute weighted sum: numerator = sum(O' * weights)
-        auto weighted_o =
-            mm.insert_instruction(attn_group_ins, make_op("mul"), partial_output_o_prime, weights);
+        // R = mul(O', broadcasted_scale)
+        auto scaled_r = mm.insert_instruction(
+            attn_group_ins, make_op("mul"), partial_output_o_prime, scale_converted);
 
-        auto numerator = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weighted_o);
-
-        // compute sum of weights: denominator = sum(weights)
-        auto denominator = mm.insert_instruction(
-            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), weights);
-
-        // final division: O = numerator / denominator
-        auto final_output_o =
-            mm.insert_instruction(attn_group_ins, make_op("div"), numerator, denominator);
+        // O = sum(R, axis=G_axis)
+        auto final_output_o = mm.insert_instruction(
+            attn_group_ins, make_op("reduce_sum", {{"axes", {g_axis}}}), scaled_r);
 
         // squeeze G to match the original output shape
         auto final_squeezed_o = mm.insert_instruction(

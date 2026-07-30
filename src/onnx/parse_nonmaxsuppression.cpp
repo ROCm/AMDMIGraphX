@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  */
 #include <migraphx/onnx/op_parser.hpp>
-#include <migraphx/instruction.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/sym.hpp>
@@ -40,12 +39,6 @@ struct parse_nonmaxsuppression : op_parser<parse_nonmaxsuppression>
                           const onnx_parser::node_info& info,
                           const std::vector<instruction_ref>& args) const
     {
-        if(any_of(args, [](const auto& arg) {
-               const auto& s = arg->get_shape();
-               return not s.dynamic() and s.elements() == 0;
-           }))
-            return info.add_instruction(make_op("undefined"));
-
         auto op      = parser.load(opd.op_name, info);
         auto nms_ins = info.add_instruction(op, args);
         // slice with variable ends to handle dynamic shape output.

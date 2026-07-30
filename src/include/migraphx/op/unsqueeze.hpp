@@ -27,7 +27,6 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/dyn_output.hpp>
@@ -64,92 +63,12 @@ struct unsqueeze
     }
 
     std::string name() const { return "unsqueeze"; }
-
-    // Inserts the axes (sized by step), carrying the kept axes' strides through,
-    // for static and symbolic input through one path.
-    shape symbolic_compute_shape(const shape& s) const
-    {
-        auto sym_in = s.to_symbolic();
-        auto type   = s.type();
-        std::vector<sym::expr> old_lens(sym_in.ndim());
-        std::transform(sym_in.dyn_dims().begin(),
-                       sym_in.dyn_dims().end(),
-                       old_lens.begin(),
-                       [](const auto& dd) { return dd.sym_expr; });
-        const auto& old_strides = sym_in.dyn_strides();
-        auto is_scalar          = sym_in.scalar();
-        auto one                = sym::lit(1);
-
-        if(is_scalar and old_lens.size() == 1 and old_lens.front() == one)
-        {
-            shape result{type, {shape::dynamic_dimension{one}}};
-            return s.symbolic() ? result : result.to_static();
-        }
-
-        if(steps.size() > axes.size())
-            MIGRAPHX_THROW("UNSQUEEZE: Steps provided with no axis: " + to_string(steps.size()) +
-                           " steps but only " + to_string(axes.size()) + " axes");
-
-        std::size_t new_size = old_lens.size() + axes.size();
-        std::vector<sym::expr> new_lens(new_size);
-        std::vector<sym::expr> new_strides(new_size);
-        std::size_t p = 0;
-        for(auto i : range(new_size))
-        {
-            auto axis_idx = std::find(axes.begin(), axes.end(), i) - axes.begin();
-            if(axis_idx < axes.size())
-            {
-                std::int64_t step = 1;
-                if(axis_idx < steps.size())
-                    step = steps[axis_idx];
-                if(step == 0)
-                    MIGRAPHX_THROW("UNSQUEEZE: step must be non-zero at axis " + to_string(i));
-                if(is_scalar and step != 1)
-                    MIGRAPHX_THROW("UNSQUEEZE: step must be 1 when input is scalar but step is " +
-                                   to_string(step) + " at axis " + to_string(i));
-                new_lens[i] = sym::lit(step);
-                if(p < old_strides.size())
-                {
-                    // Only a literal dim can be proven indivisible; a symbolic
-                    // dim is trusted and propagated as a tdiv.
-                    auto rem = old_lens[p] % sym::lit(step);
-                    if(rem.name() == "literal" and not(rem == sym::lit(0)))
-                        MIGRAPHX_THROW("UNSQUEEZE: Axis dimension (" + old_lens[p].to_string() +
-                                       ") is not divisible by step (" + to_string(step) +
-                                       ") at axis " + to_string(i));
-                    old_lens[p]    = old_lens[p] / sym::lit(step);
-                    new_strides[i] = is_scalar ? one : old_strides[p] * old_lens[p];
-                }
-                else
-                {
-                    if(step != 1)
-                        MIGRAPHX_THROW("UNSQUEEZE: Step must be 1 for extra axes but step is " +
-                                       to_string(step) + " at axis " + to_string(i));
-                    new_strides[i] = one;
-                }
-            }
-            else
-            {
-                new_lens[i]    = old_lens[p];
-                new_strides[i] = old_strides[p++];
-            }
-        }
-        std::vector<shape::dynamic_dimension> new_dds(new_size);
-        std::transform(new_lens.begin(), new_lens.end(), new_dds.begin(), [](const auto& e) {
-            return shape::dynamic_dimension{e};
-        });
-        shape result{type, new_dds, new_strides};
-        if(not s.symbolic())
-            return result.to_static();
-        return result;
-    }
-
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
         const auto& input_shape = inputs[0];
 
-        if(input_shape.dynamic() and not input_shape.symbolic())
+        if(input_shape.dynamic())
         {
             if(not steps.empty())
             {
@@ -172,7 +91,66 @@ struct unsqueeze
             }
             return {input_shape.type(), dyn_dims};
         }
-        return symbolic_compute_shape(input_shape);
+        else
+        {
+            auto type               = input_shape.type();
+            auto old_lens           = input_shape.lens();
+            const auto& old_strides = input_shape.strides();
+            auto is_scalar          = input_shape.scalar();
+
+            if(is_scalar and old_lens.size() == 1 and old_lens.front() == 1)
+                return shape{type, old_lens};
+
+            if(steps.size() > axes.size())
+                MIGRAPHX_THROW(
+                    "UNSQUEEZE: Steps provided with no axis: " + to_string(steps.size()) +
+                    " steps but only " + to_string(axes.size()) + " axes");
+
+            std::size_t new_size = old_lens.size() + axes.size();
+
+            std::vector<std::size_t> new_lens(new_size);
+            std::vector<std::size_t> new_strides(new_size);
+            std::size_t p = 0;
+            for(auto i : range(new_size))
+            {
+                auto axis_idx = std::find(axes.begin(), axes.end(), i) - axes.begin();
+                if(axis_idx < axes.size())
+                {
+                    std::int64_t step = 1;
+                    if(axis_idx < steps.size())
+                        step = steps[axis_idx];
+                    if(step == 0)
+                        MIGRAPHX_THROW("UNSQUEEZE: step must be non-zero at axis " + to_string(i));
+                    if(is_scalar and step != 1)
+                        MIGRAPHX_THROW(
+                            "UNSQUEEZE: step must be 1 when input is scalar but step is " +
+                            to_string(step) + " at axis " + to_string(i));
+                    new_lens[i] = step;
+                    if(p < old_strides.size())
+                    {
+                        if((old_lens[p] % step) != 0)
+                            MIGRAPHX_THROW("UNSQUEEZE: Axis dimension (" + to_string(old_lens[p]) +
+                                           ") is not divisible by step (" + to_string(step) +
+                                           ") at axis " + to_string(i));
+                        old_lens[p] /= step;
+                        new_strides[i] = is_scalar ? 1 : old_strides[p] * old_lens[p];
+                    }
+                    else
+                    {
+                        if(step != 1)
+                            MIGRAPHX_THROW("UNSQUEEZE: Step must be 1 for extra axes but step is " +
+                                           to_string(step) + " at axis " + to_string(i));
+                        new_strides[i] = 1;
+                    }
+                }
+                else
+                {
+                    new_lens[i]    = old_lens[p];
+                    new_strides[i] = old_strides[p++];
+                }
+            }
+            return shape{type, new_lens, new_strides};
+        }
     }
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {

@@ -22,17 +22,17 @@
  * THE SOFTWARE.
  */
 
-#include <algorithm>
-#include <iterator>
-#include <string>
-#include <vector>
 #include <op_builder_test_utils.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/op/common.hpp>
+#include <migraphx/operation.hpp>
+#include <migraphx/value.hpp>
 
-// The torch kit registers the common (broadcast/convert) ops and a set of plain passthrough
-// ops under the "tm::" prefix. Each builder must insert exactly its wrapped op over the args.
+// The torch_kit registers builders under the "tm::" prefix. The custom builder
+// "tm::lstm" expands into an lstm op plus the rnn_last_hs_output and
+// rnn_last_cell_output ops; the remaining builders are thin wrappers around
+// native ops, either with common (broadcast/convert) handling or without.
 
 namespace {
 struct param_spec
@@ -41,9 +41,11 @@ struct param_spec
     migraphx::shape shape;
 };
 
-// Verifies a plain (non-common) builder inserts exactly the wrapped op over the given args.
-// Returns the comparison so the caller can EXPECT() it with the op name as a literal -- a failure
-// message then identifies which op did not match.
+// Verifies that a plain (non-common) builder inserts exactly the wrapped op over
+// the given args, unchanged. Builds the expected module by hand and compares it
+// to what the kit's "tm::"-prefixed builder produces. Returns the comparison so
+// the caller can EXPECT() it with the op name as a literal -- that way a failure
+// message identifies which op did not match.
 bool check_plain_op(const std::string& op_name,
                     const migraphx::value& options,
                     const std::vector<param_spec>& params)
@@ -59,12 +61,92 @@ bool check_plain_op(const std::string& op_name,
 }
 } // namespace
 
+TEST_CASE(torch_lstm_forward_op_builder_test)
+{
+    const std::size_t hidden_size = 2;
+
+    migraphx::module mm;
+    auto x = mm.add_parameter("x", {migraphx::shape::float_type, {3, 4, 5}});
+    auto w = mm.add_parameter("w", {migraphx::shape::float_type, {1, 8, 5}});
+    auto r = mm.add_parameter("r", {migraphx::shape::float_type, {1, 8, 2}});
+
+    // A forward lstm defaults to the {sigmoid, tanh, tanh} activation set.
+    std::vector<migraphx::operation> actv_funcs{
+        migraphx::make_op("sigmoid"), migraphx::make_op("tanh"), migraphx::make_op("tanh")};
+
+    auto hs = mm.add_instruction(
+        migraphx::make_op(
+            "lstm", {{"hidden_size", hidden_size}, {"actv_func", migraphx::to_value(actv_funcs)}}),
+        x,
+        w,
+        r);
+    mm.add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+    mm.add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+
+    EXPECT(mm == make_op_module("tm::lstm", {{"hidden_size", hidden_size}}, mm.get_parameters()));
+}
+
+TEST_CASE(torch_lstm_bidirectional_op_builder_test)
+{
+    const std::size_t hidden_size = 2;
+
+    migraphx::module mm;
+    auto x = mm.add_parameter("x", {migraphx::shape::float_type, {3, 4, 5}});
+    auto w = mm.add_parameter("w", {migraphx::shape::float_type, {2, 8, 5}});
+    auto r = mm.add_parameter("r", {migraphx::shape::float_type, {2, 8, 2}});
+
+    // A bidirectional lstm needs the activation set duplicated (6 functions).
+    std::vector<migraphx::operation> actv_funcs{migraphx::make_op("sigmoid"),
+                                                migraphx::make_op("tanh"),
+                                                migraphx::make_op("tanh"),
+                                                migraphx::make_op("sigmoid"),
+                                                migraphx::make_op("tanh"),
+                                                migraphx::make_op("tanh")};
+
+    auto hs = mm.add_instruction(
+        migraphx::make_op("lstm",
+                          {{"hidden_size", hidden_size},
+                           {"actv_func", migraphx::to_value(actv_funcs)},
+                           {"direction", migraphx::op::rnn_direction::bidirectional}}),
+        x,
+        w,
+        r);
+    mm.add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+    mm.add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+
+    migraphx::value options{{"hidden_size", hidden_size},
+                            {"direction", migraphx::op::rnn_direction::bidirectional}};
+    EXPECT(mm == make_op_module("tm::lstm", options, mm.get_parameters()));
+}
+
+TEST_CASE(torch_lstm_custom_actv_funcs_op_builder_test)
+{
+    const std::size_t hidden_size = 2;
+
+    // Explicitly provided activation functions should be used as-is and not be
+    // overridden with the defaults.
+    std::vector<migraphx::operation> actv_funcs{
+        migraphx::make_op("tanh"), migraphx::make_op("sigmoid"), migraphx::make_op("sigmoid")};
+    migraphx::value options{{"hidden_size", hidden_size},
+                            {"actv_func", migraphx::to_value(actv_funcs)}};
+
+    migraphx::module mm;
+    auto x  = mm.add_parameter("x", {migraphx::shape::float_type, {3, 4, 5}});
+    auto w  = mm.add_parameter("w", {migraphx::shape::float_type, {1, 8, 5}});
+    auto r  = mm.add_parameter("r", {migraphx::shape::float_type, {1, 8, 2}});
+    auto hs = mm.add_instruction(migraphx::make_op("lstm", options), x, w, r);
+    mm.add_instruction(migraphx::make_op("rnn_last_hs_output"), hs);
+    mm.add_instruction(migraphx::make_op("rnn_last_cell_output"), hs);
+
+    EXPECT(mm == make_op_module("tm::lstm", options, mm.get_parameters()));
+}
+
 TEST_CASE(torch_kit_common_unary_op_builder_test)
 {
     const std::vector<std::string> unary_ops{
-        "abs",  "acos",  "asin",    "atan",  "ceil", "cos",  "cosh",       "elu", "erf",
-        "exp",  "floor", "isinf",   "isnan", "log",  "log2", "leaky_relu", "neg", "recip",
-        "relu", "rsqrt", "sigmoid", "sign",  "sin",  "sinh", "sqrt",       "tan", "tanh"};
+        "ceil",    "cos",  "cosh", "elu",        "erf",  "exp",   "floor", "isinf",
+        "isnan",   "log",  "log2", "leaky_relu", "neg",  "recip", "relu",  "rsqrt",
+        "sigmoid", "sign", "sin",  "sinh",       "sqrt", "tan",   "tanh"};
 
     std::for_each(unary_ops.begin(), unary_ops.end(), [&](const std::string& op_name) {
         migraphx::module mm;
@@ -78,7 +160,7 @@ TEST_CASE(torch_kit_common_unary_op_builder_test)
 TEST_CASE(torch_kit_common_binary_op_builder_test)
 {
     const std::vector<std::string> binary_ops{
-        "add", "div", "equal", "fmod", "greater", "less", "max", "min", "mul", "pow", "sub"};
+        "div", "equal", "fmod", "greater", "less", "max", "min", "mul", "pow", "sub"};
 
     std::for_each(binary_ops.begin(), binary_ops.end(), [&](const std::string& op_name) {
         migraphx::module mm;
@@ -111,15 +193,16 @@ TEST_CASE(torch_kit_common_not_op_builder_test)
     EXPECT(mm == make_op_module("tm::not", mm.get_parameters()));
 }
 
-TEST_CASE(torch_kit_common_bitwise_and_op_builder_test)
+TEST_CASE(torch_kit_common_dot_op_builder_test)
 {
-    // bitwise_and needs integral types; different ranks exercise common broadcasting.
+    // "dot" is registered as a common op, so its inputs go through common
+    // broadcasting; use matching square shapes that survive it.
     migraphx::module mm;
-    auto a = mm.add_parameter("a", {migraphx::shape::int32_type, {2, 3, 4}});
-    auto b = mm.add_parameter("b", {migraphx::shape::int32_type, {4}});
-    add_common_op(mm, migraphx::make_op("bitwise_and"), {a, b});
+    auto a = mm.add_parameter("a", {migraphx::shape::float_type, {4, 4}});
+    auto b = mm.add_parameter("b", {migraphx::shape::float_type, {4, 4}});
+    add_common_op(mm, migraphx::make_op("dot"), {a, b});
 
-    EXPECT(mm == make_op_module("tm::bitwise_and", mm.get_parameters()));
+    EXPECT(mm == make_op_module("tm::dot", mm.get_parameters()));
 }
 
 TEST_CASE(torch_kit_where_op_builder_test)
@@ -164,13 +247,14 @@ TEST_CASE(torch_kit_ops_op_builder_test)
     EXPECT(check_plain_op("broadcast", {{"axis", 1}, {"out_lens", {2, 4, 6}}}, {{"a", {f, {4}}}}));
     EXPECT(check_plain_op("concat", {{"axis", 0}}, {{"a", {f, {4, 6}}}, {"b", {f, {4, 6}}}}));
     EXPECT(check_plain_op("contiguous", obj, {{"a", {f, {4, 6}}}}));
+    EXPECT(
+        check_plain_op("convolution", obj, {{"x", {f, {1, 3, 8, 8}}}, {"w", {f, {4, 3, 3, 3}}}}));
     EXPECT(check_plain_op(
         "convolution_backwards", obj, {{"x", {f, {1, 3, 8, 8}}}, {"w", {f, {3, 4, 3, 3}}}}));
     EXPECT(check_plain_op("dequantizelinear", obj, {{"x", {i8, {4, 6}}}, {"scale", {f, {4, 6}}}}));
     EXPECT(check_plain_op("gather", {{"axis", 0}}, {{"data", {f, {4, 6}}}, {"ind", {i64, {2}}}}));
     EXPECT(check_plain_op("gathernd", obj, {{"data", {f, {4, 6}}}, {"ind", {i64, {2, 1}}}}));
     EXPECT(check_plain_op("get_tuple_elem", {{"index", 0}}, {{"a", tuple_s}}));
-    EXPECT(check_plain_op("logsoftmax", {{"axis", 1}}, {{"a", {f, {4, 6}}}}));
     EXPECT(check_plain_op("multibroadcast", {{"out_lens", {2, 4, 6}}}, {{"a", {f, {4, 6}}}}));
     EXPECT(check_plain_op("pad", {{"pads", {0, 0, 1, 1}}}, {{"a", {f, {4, 6}}}}));
     EXPECT(check_plain_op("pooling",

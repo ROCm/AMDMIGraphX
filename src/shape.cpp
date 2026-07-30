@@ -662,8 +662,6 @@ std::size_t shape::elements() const { return impl->elements(); }
 
 sym::expr shape::sym_elements() const { return impl->sym_elements(); }
 
-std::vector<sym::expr> shape::sym_dims() const { return impl->sym_dims(); }
-
 std::size_t shape::bytes() const
 {
     if(this->sub_shapes().empty())

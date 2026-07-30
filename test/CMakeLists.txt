@@ -117,9 +117,6 @@ if(MIGRAPHX_ENABLE_PYTHON)
     add_subdirectory(py)
 endif()
 
-# Install a pytest bridge next to the installed C++ tests
-rocm_install_test(FILES ${CMAKE_CURRENT_SOURCE_DIR}/test_pytest_bridge.py)
-
 # Op builder test
 set(TEST_OP_BUILDER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/op)
 add_subdirectory(op)

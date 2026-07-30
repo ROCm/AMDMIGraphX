@@ -318,13 +318,6 @@ struct MIGRAPHX_EXPORT shape
     sym::expr sym_elements() const;
 
     /*!
-     * Return each dimension as a symbolic expression. Works for any shape kind:
-     * static dimensions become literals; symbolic dimensions return their
-     * expression.
-     */
-    std::vector<sym::expr> sym_dims() const;
-
-    /*!
      * Return the number of total bytes used for storage of the tensor data; includes subshapes.
      * For dynamic shape, returns the maximum number of bytes presuming a packed shape.
      */

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -27,7 +27,6 @@
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/argument.hpp>
 #include <migraphx/config.hpp>
-#include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 #include <migraphx/op/normalize_attribute.hpp>
 #include <migraphx/dyn_output.hpp>
@@ -55,32 +54,11 @@ struct flatten
     }
 
     std::string name() const { return "flatten"; }
-
-    // Collapses the dims on each side of axis into a standard 2D shape, for
-    // static and symbolic input through one path.
-    shape symbolic_compute_shape(const shape& s) const
-    {
-        auto sym_in     = s.to_symbolic();
-        const auto& dds = sym_in.dyn_dims();
-        auto x          = std::accumulate(dds.begin(),
-                                 dds.begin() + axis,
-                                 shape::dynamic_dimension{sym::lit(1)},
-                                 std::multiplies<>{});
-        auto y          = std::accumulate(dds.begin() + axis,
-                                 dds.end(),
-                                 shape::dynamic_dimension{sym::lit(1)},
-                                 std::multiplies<>{});
-        shape result{s.type(), {x, y}};
-        if(not s.symbolic())
-            return result.to_static();
-        return result;
-    }
-
     shape normalize_compute_shape(std::vector<shape> inputs) const
     {
         check_shapes{inputs, *this, true}.has(1);
         const auto& s = inputs[0];
-        if(s.dynamic() and not s.symbolic())
+        if(s.dynamic())
         {
             // Doesn't handle optimals
             auto min_lens = s.min_lens();
@@ -100,7 +78,15 @@ struct flatten
                 {}};
             return {s.type(), {x, y}};
         }
-        return symbolic_compute_shape(s);
+        else
+        {
+            auto&& lens = s.lens();
+            auto x      = std::accumulate(
+                lens.begin(), lens.begin() + axis, std::size_t{1}, std::multiplies<>{});
+            auto y = std::accumulate(
+                lens.begin() + axis, lens.end(), std::size_t{1}, std::multiplies<>{});
+            return {s.type(), {x, y}};
+        }
     }
     argument compute(const dyn_output& dyn_out, std::vector<argument> args) const
     {

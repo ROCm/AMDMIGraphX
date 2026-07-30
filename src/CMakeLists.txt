@@ -155,7 +155,7 @@ add_library(migraphx
 
 enable_static_init(migraphx)
 
-file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp op/builder/torch/*.cpp)
+file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 
 if(WIN32)
@@ -218,7 +218,6 @@ register_migraphx_ops(
     elu
     equal
     erf
-    eval_expr_from_shape
     exp
     fill
     fixed_pad

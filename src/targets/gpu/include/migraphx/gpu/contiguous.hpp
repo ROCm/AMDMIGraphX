@@ -41,13 +41,13 @@ struct miopen_contiguous : unary_device<miopen_contiguous, &device::contiguous>
     shape compute_shape(const std::vector<shape>& inputs) const
     {
         check_shapes{inputs, *this, true}.has(2);
-        const auto& input = inputs.at(0);
-        // Packing yields a standard layout; a range-only dynamic shape has no strides to pack.
-        if(input.symbolic())
-            return {input.type(), input.dyn_dims()};
-        if(input.dynamic())
-            return input;
-        return {input.type(), input.lens()};
+        if(inputs.at(0).dynamic())
+        {
+            return inputs.at(0);
+        }
+        auto lens = inputs.at(0).lens();
+        auto t    = inputs.at(0).type();
+        return {t, lens};
     }
 };
 

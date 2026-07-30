@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2025 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 
-file(GLOB OP_BUILDER_TESTS CONFIGURE_DEPENDS builder/*.cpp builder/torch/*.cpp)
+file(GLOB OP_BUILDER_TESTS CONFIGURE_DEPENDS builder/*.cpp)
 
 rocm_add_test_executable(test_op_builder_test ${OP_BUILDER_TESTS})
 target_include_directories(test_op_builder_test PUBLIC ../include include)

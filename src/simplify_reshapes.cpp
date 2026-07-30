@@ -31,7 +31,6 @@
 #include <migraphx/argument.hpp>
 #include <migraphx/literal.hpp>
 #include <migraphx/op/as_shape.hpp>
-#include <migraphx/op/transpose.hpp>
 #include <migraphx/op/concat.hpp>
 #include <migraphx/op/slice.hpp>
 #include <migraphx/op/gather.hpp>

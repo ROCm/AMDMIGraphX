@@ -33,7 +33,6 @@ struct test_gemm_softmax_transpose_gemm : verify_program<test_gemm_softmax_trans
     {
         migraphx::program p;
         auto* mm = p.get_main_module();
-        // Shapes from yolo12n model.8
         migraphx::shape query_shape{migraphx::shape::half_type, {1, 4, 400, 32}};
         migraphx::shape key_shape{migraphx::shape::half_type, {1, 4, 32, 400}};
         migraphx::shape value_shape{migraphx::shape::half_type, {1, 4, 32, 400}};

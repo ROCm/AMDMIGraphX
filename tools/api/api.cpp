@@ -26,6 +26,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/instruction.hpp>
@@ -207,6 +208,14 @@ static void set_file_format(file_options& options, const char* format) { options
 
 #ifdef MIGRAPHX_ENABLE_ONNX
 
+// carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
+static shape::dynamic_dimension make_symbolic_dynamic_dimension(
+    const char* expression,
+    const std::unordered_map<std::string, shape::dynamic_dimension>& symbols)
+{
+    return shape::make_symbolic_dynamic_dimension(expression, symbols);
+}
+
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
@@ -237,6 +246,12 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 static void set_use_debug_symbols(onnx_options& options, bool value)
 {
     options.use_debug_symbols = value;
+}
+
+static void
+set_dim_param(onnx_options& options, const char* name, const shape::dynamic_dimension& dd)
+{
+    options.dim_params[std::string(name)] = dd;
 }
 
 #endif

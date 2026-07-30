@@ -27,6 +27,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
 #include <migraphx/program.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/operation.hpp>
 #include <migraphx/quantization.hpp>
@@ -41,6 +42,7 @@
 #include <migraphx/make_op.hpp>
 #include <migraphx/op/common.hpp>
 #include <migraphx/op/builder/insert.hpp>
+#include <migraphx/op/builder/op_builder.hpp>
 #include <migraphx/float8.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/version.h>
@@ -393,6 +395,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def("type_string", &migraphx::shape::type_string)
         .def("type_size", &migraphx::shape::type_size)
         .def("dyn_dims", &migraphx::shape::dyn_dims)
+        .def("sub_shapes", &migraphx::shape::sub_shapes)
         .def("packed", &migraphx::shape::packed)
         .def("transposed", &migraphx::shape::transposed)
         .def("broadcasted", &migraphx::shape::broadcasted)
@@ -410,6 +413,13 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def(py::init<>())
         .def(py::init<std::size_t, std::size_t>())
         .def(py::init<std::size_t, std::size_t, std::set<std::size_t>>())
+        .def(py::init([](const std::string& expression,
+                         const std::unordered_map<std::string, migraphx::shape::dynamic_dimension>&
+                             symbols) {
+                 return migraphx::shape::make_symbolic_dynamic_dimension(expression, symbols);
+             }),
+             py::arg("expression"),
+             py::arg("symbols"))
         .def_property_readonly(
             "min", [](const migraphx::shape::dynamic_dimension& d) { return d.get_interval().min; })
         .def_property_readonly(
@@ -417,7 +427,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         .def_property_readonly(
             "optimals",
             [](const migraphx::shape::dynamic_dimension& d) { return d.get_optimals(); })
-        .def("is_fixed", &migraphx::shape::dynamic_dimension::is_fixed);
+        .def("is_fixed", &migraphx::shape::dynamic_dimension::is_fixed)
+        .def("is_symbolic", &migraphx::shape::dynamic_dimension::is_symbolic);
 
     py::class_<migraphx::argument>(m, "argument", py::buffer_protocol())
         .def_buffer([](migraphx::argument& x) -> py::buffer_info { return to_buffer_info(x); })
@@ -739,6 +750,12 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
              [](const py_macro& mac) -> py::object { return to_py_object(mac.options); });
 
     m.def(
+        "has_op_builder",
+        [](const std::string& name) { return migraphx::op::builder::has_op_builder(name); },
+        py::arg("name"),
+        "Whether an op-builder (e.g. a \"tm::\" kit builder) is registered.");
+
+    m.def(
         "argument_from_pointer",
         [](const migraphx::shape shape, const int64_t address) {
             return migraphx::argument(shape, reinterpret_cast<void*>(address));
@@ -814,6 +831,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         [](const std::string& onnx_buffer,
            unsigned int default_dim_value,
            migraphx::shape::dynamic_dimension default_dyn_dim_value,
+           std::unordered_map<std::string, migraphx::shape::dynamic_dimension> dim_params,
            std::unordered_map<std::string, std::vector<std::size_t>> map_input_dims,
            std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>
                map_dyn_input_dims,
@@ -824,6 +842,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             migraphx::onnx_options options;
             options.default_dim_value      = default_dim_value;
             options.default_dyn_dim_value  = default_dyn_dim_value;
+            options.dim_params             = dim_params;
             options.map_input_dims         = map_input_dims;
             options.map_dyn_input_dims     = map_dyn_input_dims;
             options.skip_unknown_operators = skip_unknown_operators;
@@ -836,6 +855,8 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
         py::arg("filename"),
         py::arg("default_dim_value")     = 0,
         py::arg("default_dyn_dim_value") = migraphx::shape::dynamic_dimension{1, 1},
+        py::arg("dim_params") =
+            std::unordered_map<std::string, migraphx::shape::dynamic_dimension>(),
         py::arg("map_input_dims") = std::unordered_map<std::string, std::vector<std::size_t>>(),
         py::arg("map_dyn_input_dims") =
             std::unordered_map<std::string, std::vector<migraphx::shape::dynamic_dimension>>(),

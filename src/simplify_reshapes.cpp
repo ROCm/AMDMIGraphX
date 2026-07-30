@@ -896,39 +896,40 @@ struct find_concat_transpose
         return match::name("concat")(match::all_of[match::inputs()](match::name("transpose")));
     }
 
+    // Use the permutation of the transpose operator instead of deducing it from the strides of
+    // its output shape, since the output shape may not be transposed at all.
+    static const std::vector<int64_t>& get_permutation(instruction_ref ins)
+    {
+        return any_cast<const op::transpose&>(ins->get_operator()).dims;
+    }
+
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins          = mr.result;
         auto trans_inputs = ins->inputs();
-        auto s            = trans_inputs.front()->get_shape();
-        assert(s.transposed());
-        auto op          = any_cast<op::concat>(ins->get_operator());
-        auto permutation = find_permutation(s);
+        auto op           = any_cast<op::concat>(ins->get_operator());
+        auto permutation  = get_permutation(trans_inputs.front());
 
         // permutation should be the same for all inputs
         if(not std::all_of(trans_inputs.begin(), trans_inputs.end(), [&](auto in) {
-               return (find_permutation(in->get_shape()) == permutation);
+               return (get_permutation(in) == permutation);
            }))
         {
             return;
         }
 
         // axis could be a negative value
-        int64_t n_dim = s.lens().size();
-        op.axis       = tune_axis(n_dim, op.axis, op.name());
-
-        auto ipermutation = invert_permutation(permutation);
-        op.axis           = ipermutation[op.axis];
+        int64_t n_dim = ins->get_shape().ndim();
+        op.axis       = permutation[tune_axis(n_dim, op.axis, op.name())];
 
         std::vector<instruction_ref> inputs;
-        std::transform(
-            ins->inputs().begin(), ins->inputs().end(), std::back_inserter(inputs), [&](auto i) {
-                return m.insert_instruction(
-                    ins, make_op("transpose", {{"permutation", permutation}}), i);
-            });
+        std::transform(trans_inputs.begin(),
+                       trans_inputs.end(),
+                       std::back_inserter(inputs),
+                       [](instruction_ref i) { return i->inputs().front(); });
         auto concat = m.insert_instruction(ins, op, inputs);
-        auto t      = m.insert_instruction(
-            ins, make_op("transpose", {{"permutation", ipermutation}}), concat);
+        auto t =
+            m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), concat);
         assert(ins->get_shape().lens() == t->get_shape().lens());
         m.replace_instruction(ins, t);
     }

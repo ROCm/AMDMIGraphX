@@ -302,7 +302,6 @@ static void warn_unresolved_dim_params(const onnx_parser& parser, const onnx::Gr
 
 void onnx_parser::parse_from(std::istream& is, std::string name)
 {
-    auto* mm         = prog.get_main_module();
     this->filename   = std::move(name);
     auto parent_path = fs::path(this->filename).parent_path();
     if(not parent_path.empty())
@@ -311,14 +310,7 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
     onnx::ModelProto model;
     if(model.ParseFromIstream(&is))
     {
-        auto version  = get_opset_version(model);
-        opset_version = (version == -1) ? opset_version : version;
-
-        if(model.has_graph())
-        {
-            warn_unresolved_dim_params(*this, model.graph());
-            (void)this->parse_graph(mm, model.graph());
-        }
+        this->parse_model(model);
     }
     else
     {
@@ -328,18 +320,10 @@ void onnx_parser::parse_from(std::istream& is, std::string name)
 
 void onnx_parser::parse_from(const void* data, std::size_t size)
 {
-    auto* mm = prog.get_main_module();
     onnx::ModelProto model;
     if(model.ParseFromArray(data, size))
     {
-        auto version  = get_opset_version(model);
-        opset_version = (version == -1) ? opset_version : version;
-
-        if(model.has_graph())
-        {
-            warn_unresolved_dim_params(*this, model.graph());
-            (void)this->parse_graph(mm, model.graph());
-        }
+        this->parse_model(model);
     }
     else
     {
@@ -438,6 +422,139 @@ parse_inputs(const onnx_parser& parser,
         }
     }
     return mod_insts;
+}
+
+static shape combine_output_shapes(const shape& decode, const shape& prefill)
+{
+    if(decode.type() != prefill.type() or decode.ndim() != prefill.ndim())
+        MIGRAPHX_THROW("ONNX prefill/decode specialization produced incompatible output shapes");
+
+    auto min_lens        = decode.min_lens();
+    const auto other_min = prefill.min_lens();
+    std::transform(
+        min_lens.begin(), min_lens.end(), other_min.begin(), min_lens.begin(), [](auto x, auto y) {
+            return std::min(x, y);
+        });
+
+    auto max_lens        = decode.max_lens();
+    const auto other_max = prefill.max_lens();
+    std::transform(
+        max_lens.begin(), max_lens.end(), other_max.begin(), max_lens.begin(), [](auto x, auto y) {
+            return std::max(x, y);
+        });
+
+    if(min_lens == max_lens)
+        return {decode.type(), min_lens};
+    return {decode.type(), min_lens, max_lens, {}};
+}
+
+static bool has_sequence_length(const onnx::GraphProto& graph)
+{
+    return std::any_of(graph.input().begin(), graph.input().end(), [](const auto& input) {
+        const auto& dims = input.type().tensor_type().shape().dim();
+        return std::any_of(dims.begin(), dims.end(), [](const auto& dim) {
+            return dim.has_dim_param() and dim.dim_param() == "sequence_length";
+        });
+    });
+}
+
+static onnx_parser::instruction_map
+make_initializer_parameters(module* mod, const onnx_parser::instruction_map& shared_initializers)
+{
+    onnx_parser::instruction_map result;
+    std::transform(shared_initializers.begin(),
+                   shared_initializers.end(),
+                   std::inserter(result, result.end()),
+                   [&](const auto& initializer) {
+                       return std::make_pair(
+                           initializer.first,
+                           mod->add_parameter(initializer.first, initializer.second->get_shape()));
+                   });
+    return result;
+}
+
+void onnx_parser::parse_model(const onnx::ModelProto& model)
+{
+    auto version  = get_opset_version(model);
+    opset_version = (version == -1) ? opset_version : version;
+    if(not model.has_graph())
+        return;
+
+    const auto& graph = model.graph();
+    warn_unresolved_dim_params(*this, graph);
+    auto* root = prog.get_main_module();
+
+    const auto sequence_dim = dim_params.find("sequence_length");
+    if(sequence_dim == dim_params.end() or not has_sequence_length(graph))
+    {
+        (void)this->parse_graph(root, graph);
+        return;
+    }
+
+    const auto sequence_interval = sequence_dim->second.get_interval();
+    if(sequence_interval.min != 1 or sequence_interval.max <= 1)
+    {
+        (void)this->parse_graph(root, graph);
+        return;
+    }
+
+    // Parse constants once in the root. Each specialization receives them through parameters so
+    // graph passes cannot follow a shared literal's outputs into the other specialization.
+    const auto shared_initializers   = parse_initializer(*this, root, graph);
+    const auto root_instructions     = parse_inputs(*this, root, graph, shared_initializers);
+    const auto original_sequence_dim = sequence_dim->second;
+
+    auto parse_specialization = [&](const std::string& name, std::size_t sequence_length) {
+        instructions.clear();
+        parent_input_nodes.clear();
+        dim_params["sequence_length"]     = {sequence_length, sequence_length};
+        auto* mod                         = prog.create_module(name);
+        const auto initializer_parameters = make_initializer_parameters(mod, shared_initializers);
+        (void)this->parse_graph(mod, graph, false, &initializer_parameters);
+        return mod;
+    };
+
+    const auto module_prefix = root->name() + ":split_prefill_decode:";
+    auto* decode             = parse_specialization(module_prefix + "decode", 1);
+    auto* prefill = parse_specialization(module_prefix + "prefill", sequence_interval.max);
+    dim_params["sequence_length"] = original_sequence_dim;
+    instructions.clear();
+    parent_input_nodes.clear();
+
+    auto decode_outputs  = decode->get_output_shapes();
+    auto prefill_outputs = prefill->get_output_shapes();
+    if(decode_outputs.size() != prefill_outputs.size())
+        MIGRAPHX_THROW("ONNX prefill/decode specialization produced different output counts");
+
+    std::vector<shape> output_shapes(decode_outputs.size());
+    std::transform(decode_outputs.begin(),
+                   decode_outputs.end(),
+                   prefill_outputs.begin(),
+                   output_shapes.begin(),
+                   combine_output_shapes);
+
+    std::vector<std::string> input_names(root_instructions.size());
+    std::transform(root_instructions.begin(),
+                   root_instructions.end(),
+                   input_names.begin(),
+                   [](const auto& input) { return input.first; });
+    std::sort(input_names.begin(), input_names.end());
+    std::vector<instruction_ref> inputs(input_names.size());
+    std::transform(input_names.begin(), input_names.end(), inputs.begin(), [&](const auto& name) {
+        return root_instructions.at(name);
+    });
+
+    auto select = root->add_instruction(
+        make_op("select_module", {{"output_dyn_shapes", to_value(shape{output_shapes})}}),
+        inputs,
+        {decode, prefill});
+    std::vector<instruction_ref> outputs(output_shapes.size());
+    auto output_indices = range(output_shapes.size());
+    std::transform(
+        output_indices.begin(), output_indices.end(), outputs.begin(), [&](std::size_t index) {
+            return root->add_instruction(make_op("get_tuple_elem", {{"index", index}}), select);
+        });
+    root->add_return(outputs);
 }
 
 struct node_maps
@@ -617,8 +734,10 @@ static void log_node_parse_exception(const onnx::NodeProto& node,
     }
 }
 
-std::vector<instruction_ref>
-onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
+std::vector<instruction_ref> onnx_parser::parse_graph(module* mod,
+                                                      const onnx::GraphProto& graph,
+                                                      bool inlining,
+                                                      const instruction_map* shared_initializers)
 {
     std::vector<size_t> node_indices(graph.node_size());
 
@@ -634,7 +753,8 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
     }
 
     std::unordered_map<std::string, instruction_ref> mod_insts =
-        parse_initializer(*this, mod, graph);
+        shared_initializers == nullptr ? parse_initializer(*this, mod, graph)
+                                       : *shared_initializers;
 
     mod_insts = parse_inputs(*this, mod, graph, mod_insts);
 

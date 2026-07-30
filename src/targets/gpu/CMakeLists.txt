@@ -311,13 +311,30 @@ set(MIGRAPHX_ENABLE_MLIR ON CACHE BOOL "")
 if(MIGRAPHX_ENABLE_MLIR)
     # Find package rocMLIR
     find_package(rocMLIR 1.0.0 CONFIG REQUIRED)
-    message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
-    target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
-    # Make this private to avoid multiple inclusions of LLVM symbols.
-    target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
-    # Hide LLVM internals that come from rocMLIR.
-    if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
-        target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+    include(CheckCXXSourceCompiles)
+    set(CMAKE_REQUIRED_LIBRARIES rocMLIR::rockCompiler)
+    check_cxx_source_compiles("
+        #include <mlir-c/Dialect/MIGraphX.h>
+        #if !defined(MLIR_MIGRAPHX_DIALECT_API_VERSION) || MLIR_MIGRAPHX_DIALECT_API_VERSION != 6
+        #error Incompatible rocMLIR C API
+        #endif
+        int main() { return 0; }
+    " MIGRAPHX_ROCMLIR_API_COMPATIBLE)
+    unset(CMAKE_REQUIRED_LIBRARIES)
+
+    if(MIGRAPHX_ROCMLIR_API_COMPATIBLE)
+        message(STATUS "Build with rocMLIR::rockCompiler ${rocMLIR_VERSION}")
+        target_compile_definitions(migraphx_gpu PRIVATE "-DMIGRAPHX_MLIR")
+        # Make this private to avoid multiple inclusions of LLVM symbols.
+        target_link_libraries(migraphx_gpu PRIVATE rocMLIR::rockCompiler)
+        # Hide LLVM internals that come from rocMLIR.
+        if(NOT WIN32 AND NOT APPLE AND BUILD_SHARED_LIBS)
+            target_link_options(migraphx_gpu PRIVATE "LINKER:--exclude-libs,ALL")
+        endif()
+    else()
+        message(WARNING
+            "rocMLIR ${rocMLIR_VERSION} has an incompatible MIGraphX dialect API; "
+            "building without rocMLIR support")
     endif()
 endif()
 

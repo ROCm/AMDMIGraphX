@@ -340,7 +340,10 @@ struct find_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        auto module_name = "attn" + get_count();
+        if(mpm.get_module().name() != "main")
+            module_name = mpm.get_module().name() + ":" + module_name;
+        module_ref mpm_attn = mpm.create_module(module_name, std::move(m_attn));
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
@@ -1000,7 +1003,10 @@ struct find_kv_cache_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        module_ref mpm_attn = mpm.create_module("attn" + get_count(), std::move(m_attn));
+        auto module_name = "attn" + get_count();
+        if(mpm.get_module().name() != "main")
+            module_name = mpm.get_module().name() + ":" + module_name;
+        module_ref mpm_attn = mpm.create_module(module_name, std::move(m_attn));
         mpm_attn->set_bypass();
 
         // Construct group op with the attention module

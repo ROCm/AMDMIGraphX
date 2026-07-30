@@ -64,6 +64,7 @@
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
 #include <migraphx/split_reduce.hpp>
+#include <migraphx/split_prefill_decode.hpp>
 #include <migraphx/split_single_dyn_dim.hpp>
 #include <migraphx/gpu/allocation_model.hpp>
 #include <migraphx/gpu/compile_hipblaslt.hpp>
@@ -128,6 +129,9 @@ struct pipeline_factory
     std::vector<pass> dynamic_shapes_pipeline() const
     {
         return {
+            // Specialize only decode/prefill endpoints before the generic splitter expands every
+            // length.
+            enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_prefill_decode{}),
             enable_pass(disabled(MIGRAPHX_ENABLE_FULL_DYNAMIC{}), split_single_dyn_dim{}),
             dead_code_elimination{},
             simplify_dyn_ops{},

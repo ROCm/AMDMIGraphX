@@ -43,6 +43,7 @@ namespace onnx = onnx_for_migraphx;
 
 struct onnx_parser
 {
+    using instruction_map = std::unordered_map<std::string, instruction_ref>;
     std::string filename;
     fs::path path;
     std::string external_data_path;
@@ -123,8 +124,11 @@ struct onnx_parser
 
     void parse_from(std::istream& is, std::string name = "");
     void parse_from(const void* data, std::size_t size);
-    std::vector<instruction_ref>
-    parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining = false);
+    void parse_model(const onnx::ModelProto& model);
+    std::vector<instruction_ref> parse_graph(module* mod,
+                                             const onnx::GraphProto& graph,
+                                             bool inlining                              = false,
+                                             const instruction_map* shared_initializers = nullptr);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::string& name) const;

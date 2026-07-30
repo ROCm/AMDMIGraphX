@@ -24,8 +24,10 @@
 #ifndef MIGRAPHX_GUARD_OPERATORS_SELECT_MODULE_HPP
 #define MIGRAPHX_GUARD_OPERATORS_SELECT_MODULE_HPP
 
+#include <migraphx/algorithm.hpp>
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/ranges.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -74,15 +76,40 @@ struct select_module
         return ret;
     }
 
+    static bool parameter_shape_matches(const shape& actual, const shape& expected)
+    {
+        if(not expected.dynamic())
+            return actual == expected;
+        if(actual.type() != expected.type() or not shape::is_compatible_lens(actual, expected))
+            return false;
+        if(not expected.symbolic())
+            return true;
+        if(actual.dynamic())
+            return actual == expected;
+
+        std::unordered_map<sym::expr, std::size_t> bindings;
+        auto indices = migraphx::range(expected.ndim());
+        transform_if(
+            indices.begin(),
+            indices.end(),
+            std::inserter(bindings, bindings.end()),
+            [&](auto i) { return expected.dyn_dims()[i].sym_expr.name() != "literal"; },
+            [&](auto i) {
+                return std::make_pair(sym::as_symbol(expected.dyn_dims()[i].sym_expr),
+                                      actual.lens()[i]);
+            });
+        return shape::is_compatible(actual, expected.to_static(bindings));
+    }
+
     argument compute(const shape&,
                      const std::vector<argument>& args,
                      const std::vector<module_ref>& submodule_list,
                      const std::function<std::vector<argument>(
                          module_ref&, const std::unordered_map<std::string, argument>&)>& run) const
     {
-        // Find submodule with input parameter shapes exactly the same as the input instruction
-        // arguments. Assuming instruction arguments are in the same order as the instruction
-        // parameters.
+        // Select the first submodule whose sorted input parameters match the argument shapes.
+        // Static shapes require equality; dynamic shapes require matching types and compatible
+        // bounds.
         auto module_iter =
             std::find_if(submodule_list.cbegin(), submodule_list.cend(), [&](module_ref mr) {
                 auto in_param_names = get_input_parameter_names(mr);
@@ -92,7 +119,9 @@ struct select_module
                                   in_param_names.cend(),
                                   args.cbegin(),
                                   [&](const auto& p_name, const auto& a) {
-                                      return a.get_shape() == param_shapes[p_name];
+                                      const auto& expected = param_shapes.at(p_name);
+                                      const auto& actual   = a.get_shape();
+                                      return parameter_shape_matches(actual, expected);
                                   });
             });
 

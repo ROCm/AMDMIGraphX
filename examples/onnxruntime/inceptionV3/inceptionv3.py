@@ -243,10 +243,10 @@ def main():
         session_ops.log_verbosity_level = 0
         session_ops.log_severity_level = 0
 
-    session_fp32 = onnxruntime.InferenceSession(
-        "inception_v3.onnx",
-        providers=ensure_migraphx_ep(ep_options),
-        sess_options=session_ops)
+    providers = ensure_migraphx_ep(session_ops, ep_options)
+    session_fp32 = onnxruntime.InferenceSession("inception_v3.onnx",
+                                                 providers=providers,
+                                                 sess_options=session_ops)
 
     if flags.verbose:
         print("Preprocessing Batched Images")

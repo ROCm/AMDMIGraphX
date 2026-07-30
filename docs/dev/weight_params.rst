@@ -253,5 +253,5 @@ Notes and Caveats
   every remaining parameter (including output buffers) at run time, as shown in
   the Python example.
 * Working end-to-end examples live under
-  ``examples/migraphx/weight_params/`` (for example ``gpu_bake_test.py`` and
-  ``resnet50_weight_baking.py``).
+  ``examples/migraphx/weight_params/`` (for example ``gpu_encode_test.py`` and
+  ``resnet50_gpu_encode_test.py``).

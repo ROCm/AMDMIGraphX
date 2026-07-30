@@ -24,18 +24,18 @@
 """
 Simple GPU validation test for replace_onnx_external_weights.
 
-Tests that baking lowers the inserted @literal instructions to gpu::literal
-on a GPU-compiled program (without finalizing during the bake).
+Tests that encoding lowers the inserted @literal instructions to gpu::literal
+on a GPU-compiled program (without finalizing during the encode).
 
 Steps:
   1. Generate a tiny model with external weights (matmul)
   2. Parse with keep_weights_external=True
   3. Compile for GPU
-  4. Bake weights via replace_onnx_external_weights with GPU target
+  4. Encode weights via replace_onnx_external_weights with GPU target
   5. Run inference on GPU and compare to a reference computation
 
 Usage:
-  python3 gpu_bake_test.py
+  python3 gpu_encode_test.py
 """
 
 import os
@@ -76,7 +76,7 @@ def create_test_model(tmp_dir):
     matmul_node = helper.make_node("MatMul", ["input", "W"], ["output"])
 
     graph = helper.make_graph(
-        [matmul_node], "gpu_bake_test", [X], [Y], initializer=[weight_tensor]
+        [matmul_node], "gpu_encode_test", [X], [Y], initializer=[weight_tensor]
     )
     model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 13)])
     model.ir_version = 7
@@ -99,7 +99,7 @@ def write_weights(directory, weight_data):
 
 def main():
     print("=" * 60)
-    print("GPU Weight Baking Validation Test")
+    print("GPU Weight Encoding Validation Test")
     print("=" * 60)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -134,18 +134,18 @@ def main():
         params_after_compile = prog.get_parameter_shapes()
         print(f"    Parameters after compile: {list(params_after_compile.keys())}")
 
-        # 5. Bake weights
-        print("\n[4] Baking weights (replace_onnx_external_weights with GPU target)...")
-        baked = migraphx.replace_onnx_external_weights(prog, weights_dir, gpu_target)
-        baked_params = baked.get_parameter_shapes()
-        print(f"    Baked program parameters: {list(baked_params.keys())}")
-        assert "W" not in baked_params, "Weight 'W' should no longer be a parameter"
-        assert "input" in baked_params, "'input' should still be a parameter"
+        # 5. Encode weights
+        print("\n[4] Encoding weights (replace_onnx_external_weights with GPU target)...")
+        encoded = migraphx.replace_onnx_external_weights(prog, weights_dir, gpu_target)
+        encoded_params = encoded.get_parameter_shapes()
+        print(f"    Encoded program parameters: {list(encoded_params.keys())}")
+        assert "W" not in encoded_params, "Weight 'W' should no longer be a parameter"
+        assert "input" in encoded_params, "'input' should still be a parameter"
         print("    Weight parameter successfully removed.")
 
-        # Baking does not finalize, so materialize device buffers before running
+        # Encoding does not finalize, so materialize device buffers before running
         # in-process (a saved MXR is finalized automatically on load instead).
-        baked.finalize(gpu_target)
+        encoded.finalize(gpu_target)
 
         # 6. Run inference (must provide all GPU buffers with offload_copy=False)
         print("\n[5] Running inference on GPU...")
@@ -153,14 +153,14 @@ def main():
 
         # Allocate all required parameters (input + output buffers)
         run_params = {}
-        for pname, pshape in baked_params.items():
+        for pname, pshape in encoded_params.items():
             if pname == "input":
                 run_params[pname] = migraphx.to_gpu(migraphx.argument(input_data))
             else:
                 run_params[pname] = migraphx.allocate_gpu(pshape)
 
         print(f"    Run parameters: {list(run_params.keys())}")
-        result = baked.run(run_params)
+        result = encoded.run(run_params)
         output = np.array(migraphx.from_gpu(result[0]))
         print(f"    Input:    {input_data}")
         print(f"    Output:   {output}")
@@ -175,22 +175,22 @@ def main():
             print(f"\n    FAIL: Output mismatch! Max diff = {np.max(np.abs(output - expected))}")
             sys.exit(1)
 
-        # 7. Test with different weights to confirm baking actually changes behavior
+        # 7. Test with different weights to confirm encoding actually changes behavior
         print("\n[6] Testing with different weights (all 0.5)...")
         W_half = np.full(weight_shape, 0.5, dtype=np.float32)
         weights_dir2 = write_weights(os.path.join(tmp_dir, "weights2"), W_half)
 
-        baked2 = migraphx.replace_onnx_external_weights(prog, weights_dir2, gpu_target)
-        baked2.finalize(gpu_target)
-        baked2_params = baked2.get_parameter_shapes()
+        encoded2 = migraphx.replace_onnx_external_weights(prog, weights_dir2, gpu_target)
+        encoded2.finalize(gpu_target)
+        encoded2_params = encoded2.get_parameter_shapes()
         run_params2 = {}
-        for pname, pshape in baked2_params.items():
+        for pname, pshape in encoded2_params.items():
             if pname == "input":
                 run_params2[pname] = migraphx.to_gpu(migraphx.argument(input_data))
             else:
                 run_params2[pname] = migraphx.allocate_gpu(pshape)
 
-        result2 = baked2.run(run_params2)
+        result2 = encoded2.run(run_params2)
         output2 = np.array(migraphx.from_gpu(result2[0]))
 
         expected2 = input_data @ W_half
@@ -199,7 +199,7 @@ def main():
         print(f"    Expected: {expected2}")
 
         if np.allclose(output2, expected2, atol=1e-5):
-            print("\n    PASS: Second bake also matches!")
+            print("\n    PASS: Second encode also matches!")
         else:
             print(f"\n    FAIL: Output mismatch! Max diff = {np.max(np.abs(output2 - expected2))}")
             sys.exit(1)

@@ -22,16 +22,16 @@
 # THE SOFTWARE.
 #####################################################################################
 """
-Example: Baking external weights into self-contained MXR programs.
+Example: Encoding external weights into self-contained MXR programs.
 
 This demonstrates the --weight-params / keep_weights_external feature
 combined with replace_onnx_external_weights to produce MXR files with different
-weight sets baked in -- all from a single parse + compile.
+weight sets encoded in -- all from a single parse + compile.
 
 Typical use cases:
   - Generating deployment-ready MXRs for multiple fine-tuned variants
   - A/B testing different weight checkpoints
-  - Offline baking of LoRA adapter variants
+  - Offline encoding of LoRA adapter variants
 
 Directory layout assumed:
   model.onnx              <-- ONNX graph (references external weight files)
@@ -62,7 +62,7 @@ def main():
     # ------------------------------------------------------------------
     # Step 1: Parse with keep_weights_external=True
     #
-    # Weights are kept external as external_weight ops in the IR (not baked-in
+    # Weights are kept external as external_weight ops in the IR (not encoded-in
     # constants). No weight file I/O happens at parse time.
     # ------------------------------------------------------------------
     print(f"Parsing {model_path} with weights kept external...")
@@ -94,7 +94,7 @@ def main():
     print(f"Saved template MXR: {template_mxr}\n")
 
     # ------------------------------------------------------------------
-    # Step 4: Bake weights from each directory into separate programs
+    # Step 4: Encode weights from each directory into separate programs
     #
     # replace_onnx_external_weights copies the template and replaces each
     # external_weight op with a literal read from the specified directory.
@@ -102,27 +102,27 @@ def main():
     # ------------------------------------------------------------------
     outputs = []
     for i, weight_dir in enumerate(weight_dirs):
-        print(f"--- Baking weights from: {weight_dir} ---")
-        baked = migraphx.replace_onnx_external_weights(template, weight_dir, migraphx.get_target("ref"))
+        print(f"--- Encoding weights from: {weight_dir} ---")
+        encoded = migraphx.replace_onnx_external_weights(template, weight_dir, migraphx.get_target("ref"))
 
-        baked_params = baked.get_parameter_shapes()
-        print(f"  Baked program has {len(baked_params)} parameters (weights gone):")
-        for name, shape in baked_params.items():
+        encoded_params = encoded.get_parameter_shapes()
+        print(f"  Encoded program has {len(encoded_params)} parameters (weights gone):")
+        for name, shape in encoded_params.items():
             print(f"    {name}: {shape}")
 
-        # Save baked MXR
-        mxr_path = f"baked_v{i+1}.mxr"
-        migraphx.save(baked, mxr_path)
+        # Save encoded MXR
+        mxr_path = f"encoded_v{i+1}.mxr"
+        migraphx.save(encoded, mxr_path)
         print(f"  Saved: {mxr_path}")
 
         # Run with dummy input
         all_params = {}
-        for name, shape in baked_params.items():
+        for name, shape in encoded_params.items():
             lens = shape.lens()
             dummy_input = np.ones(lens, dtype=np.float32)
             all_params[name] = migraphx.argument(dummy_input)
 
-        results = baked.run(all_params)
+        results = encoded.run(all_params)
         output = np.array(results[0])
         print(f"  Output shape: {output.shape}, sum: {output.sum():.4f}")
         print()
@@ -131,10 +131,10 @@ def main():
     # Verify different weights produce different outputs
     if len(outputs) >= 2:
         if np.array_equal(outputs[0], outputs[1]):
-            print("WARNING: Outputs are identical -- weight baking may not have worked!")
+            print("WARNING: Outputs are identical -- weight encoding may not have worked!")
             sys.exit(1)
         else:
-            print("SUCCESS: Different weights produced different baked programs.")
+            print("SUCCESS: Different weights produced different encoded programs.")
 
 
 if __name__ == "__main__":

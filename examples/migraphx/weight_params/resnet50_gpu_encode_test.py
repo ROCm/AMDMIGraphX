@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #####################################################################################
 """
-Example: Baking different weight sets into ResNet50 MXRs on GPU.
+Example: Encoding different weight sets into ResNet50 MXRs on GPU.
 
 Compiles with offload_copy=False and runs inference with GPU buffers.
 Supports --fp16 flag to quantize the model to half precision.
@@ -34,7 +34,7 @@ Prerequisites:
        resnet50_v1_external.weights
 
 Usage:
-  python3 resnet50_gpu_bake_test.py <resnet50_v1_external.onnx> <weights_dir> [--fp16]
+  python3 resnet50_gpu_encode_test.py <resnet50_v1_external.onnx> <weights_dir> [--fp16]
 
   where <weights_dir> contains resnet50_v1_external.weights
 """
@@ -81,7 +81,7 @@ def run_on_gpu(prog, input_data):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ResNet50 GPU weight baking test"
+        description="ResNet50 GPU weight encoding test"
     )
     parser.add_argument("model_path", help="Path to resnet50_v1_external.onnx")
     parser.add_argument("weights_dir", help="Directory containing resnet50_v1_external.weights")
@@ -100,7 +100,7 @@ def main():
 
     precision = "fp16" if use_fp16 else "fp32"
     print("=" * 60)
-    print(f"ResNet50 GPU Weight Baking Test ({precision}, offload_copy=False)")
+    print(f"ResNet50 GPU Weight Encoding Test ({precision}, offload_copy=False)")
     print("=" * 60)
 
     # Create perturbed weights directory
@@ -141,37 +141,37 @@ def main():
     migraphx.save(template, template_path)
     print(f"[3] Saved template: {template_path} ({os.path.getsize(template_path):,} bytes)\n")
 
-    # Step 4: Bake original weights
-    print(f"[4] Baking original weights from: {weights_dir}")
-    baked_original = migraphx.replace_onnx_external_weights(template, weights_dir, gpu_target)
-    orig_params = baked_original.get_parameter_shapes()
-    print(f"    Baked program parameters: {len(orig_params)}")
+    # Step 4: Encode original weights
+    print(f"[4] Encoding original weights from: {weights_dir}")
+    encoded_original = migraphx.replace_onnx_external_weights(template, weights_dir, gpu_target)
+    orig_params = encoded_original.get_parameter_shapes()
+    print(f"    Encoded program parameters: {len(orig_params)}")
     print(f"    Remaining params: {list(orig_params.keys())[:5]}...")
 
-    baked_orig_path = f"resnet50_gpu_baked_original{suffix}.mxr"
-    migraphx.save(baked_original, baked_orig_path)
-    print(f"    Saved: {baked_orig_path}")
+    encoded_orig_path = f"resnet50_gpu_encoded_original{suffix}.mxr"
+    migraphx.save(encoded_original, encoded_orig_path)
+    print(f"    Saved: {encoded_orig_path}")
 
-    # Baking does not finalize; materialize device buffers before in-process run.
+    # Encoding does not finalize; materialize device buffers before in-process run.
     # (The saved MXR above is finalized automatically when it is loaded.)
-    baked_original.finalize(gpu_target)
+    encoded_original.finalize(gpu_target)
 
     # Run with dummy input
     dummy_input = np.random.randn(1, 3, 224, 224).astype(np.float32)
-    output_orig = run_on_gpu(baked_original, dummy_input)
+    output_orig = run_on_gpu(encoded_original, dummy_input)
     print(f"    Output: shape={output_orig.shape}, top-5 indices={np.argsort(output_orig[0])[-5:][::-1]}")
     print()
 
-    # Step 5: Bake perturbed weights
-    print(f"[5] Baking perturbed weights from: {perturbed_dir}")
-    baked_perturbed = migraphx.replace_onnx_external_weights(template, perturbed_dir, gpu_target)
+    # Step 5: Encode perturbed weights
+    print(f"[5] Encoding perturbed weights from: {perturbed_dir}")
+    encoded_perturbed = migraphx.replace_onnx_external_weights(template, perturbed_dir, gpu_target)
 
-    baked_pert_path = f"resnet50_gpu_baked_perturbed{suffix}.mxr"
-    migraphx.save(baked_perturbed, baked_pert_path)
-    print(f"    Saved: {baked_pert_path}")
+    encoded_pert_path = f"resnet50_gpu_encoded_perturbed{suffix}.mxr"
+    migraphx.save(encoded_perturbed, encoded_pert_path)
+    print(f"    Saved: {encoded_pert_path}")
 
-    baked_perturbed.finalize(gpu_target)
-    output_pert = run_on_gpu(baked_perturbed, dummy_input)
+    encoded_perturbed.finalize(gpu_target)
+    output_pert = run_on_gpu(encoded_perturbed, dummy_input)
     print(f"    Output: shape={output_pert.shape}, top-5 indices={np.argsort(output_pert[0])[-5:][::-1]}")
     print()
 

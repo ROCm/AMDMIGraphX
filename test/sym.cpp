@@ -2647,6 +2647,84 @@ TEST_CASE(builtin_log_exp_nested)
     EXPECT(log(exp(x)) + log(exp(y)) == x + y);
 }
 
+TEST_CASE(builtin_min_already_clamped)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // min(min(x, y), y) automatically folds to min(x, y)
+    EXPECT(min(min(x, y), y) == min(x, y));
+}
+
+TEST_CASE(builtin_max_already_clamped)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // max(max(x, y), y) automatically folds to max(x, y)
+    EXPECT(max(max(x, y), y) == max(x, y));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_literal_bound)
+{
+    auto x = var("x");
+    EXPECT(min(min(x, lit(5)), lit(5)) == min(x, lit(5)));
+    EXPECT(max(max(x, lit(0)), lit(0)) == max(x, lit(0)));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_bound_first)
+{
+    auto x = var("x");
+    auto y = var("y");
+    // The inner node folds with the bound in either operand
+    EXPECT(min(min(y, x), y) == min(y, x));
+    EXPECT(max(max(y, x), y) == max(y, x));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_literal_bound_first)
+{
+    auto x = var("x");
+    EXPECT(min(min(lit(5), x), lit(5)) == min(lit(5), x));
+    EXPECT(max(max(lit(0), x), lit(0)) == max(lit(0), x));
+}
+
+TEST_CASE(builtin_min_max_clamp_repeated)
+{
+    // Clamping a clamped expression any number of times keeps a single min/max node, as
+    // repeated attribute normalization does.
+    auto n    = var("n", interval{int64_t{1}, int64_t{8}});
+    auto len  = lit(5);
+    auto once = min(n, len);
+    EXPECT(min(once, len) == once);
+    EXPECT(min(min(once, len), len) == once);
+    auto zero      = lit(0);
+    auto once_from = max(n, zero);
+    EXPECT(max(once_from, zero) == once_from);
+    EXPECT(max(max(once_from, zero), zero) == once_from);
+}
+
+TEST_CASE(builtin_min_max_different_bound_not_folded)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto z = var("z");
+    // The inner bound is not the outer bound, so the nesting is meaningful and kept
+    EXPECT(min(min(x, y), z) != min(x, y));
+    EXPECT(min(min(x, y), z).children().front() == min(x, y));
+    EXPECT(max(max(x, y), z) != max(x, y));
+    EXPECT(max(max(x, y), z).children().front() == max(x, y));
+}
+
+TEST_CASE(builtin_min_max_already_clamped_eval)
+{
+    auto x = var("x");
+    auto y = var("y");
+    auto e = min(min(x, y), y);
+    EXPECT(e.eval({{var("x"), int64_t{7}}, {var("y"), int64_t{5}}}) == scalar{int64_t{5}});
+    EXPECT(e.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{5}}}) == scalar{int64_t{3}});
+    auto f = max(max(x, y), y);
+    EXPECT(f.eval({{var("x"), int64_t{7}}, {var("y"), int64_t{5}}}) == scalar{int64_t{7}});
+    EXPECT(f.eval({{var("x"), int64_t{3}}, {var("y"), int64_t{5}}}) == scalar{int64_t{5}});
+}
+
 TEST_CASE(builtin_raw_no_leak)
 {
     auto x = var("x");

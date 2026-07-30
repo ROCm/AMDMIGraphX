@@ -1788,11 +1788,7 @@ struct find_split_concat
         if(not std::is_sorted(it, it + splits.size(), [](instruction_ref x, instruction_ref y) {
                auto xop = any_cast<op::slice>(x->get_operator());
                auto yop = any_cast<op::slice>(y->get_operator());
-               auto xs  = to_ints(xop.starts);
-               auto xe  = to_ints(xop.ends);
-               auto ys  = to_ints(yop.starts);
-               auto ye  = to_ints(yop.ends);
-               return std::tie(xs, xe) < std::tie(ys, ye);
+               return std::tuple(to_ints(xop.starts), to_ints(xop.ends)) < std::tuple(to_ints(yop.starts), to_ints(yop.ends));
            }))
             return;
 

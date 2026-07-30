@@ -898,16 +898,16 @@ struct find_concat_transpose
 
     // Use the permutation of the transpose operator instead of deducing it from the strides of
     // its output shape, since the output shape may not be transposed at all.
-    static const std::vector<int64_t>& get_permutation(instruction_ref ins)
+    static std::vector<int64_t> get_permutation(instruction_ref ins)
     {
-        return any_cast<const op::transpose&>(ins->get_operator()).dims;
+        return ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
     }
 
     void apply(module& m, const match::matcher_result& mr) const
     {
         auto ins          = mr.result;
         auto trans_inputs = ins->inputs();
-        auto op           = any_cast<op::concat>(ins->get_operator());
+        auto v            = ins->get_operator().to_value();
         auto permutation  = get_permutation(trans_inputs.front());
 
         // permutation should be the same for all inputs
@@ -920,14 +920,14 @@ struct find_concat_transpose
 
         // axis could be a negative value
         int64_t n_dim = ins->get_shape().ndim();
-        op.axis       = permutation[tune_axis(n_dim, op.axis, op.name())];
+        v["axis"]     = permutation[tune_axis(n_dim, v.at("axis").to<int64_t>(), ins->name())];
 
         std::vector<instruction_ref> inputs;
         std::transform(trans_inputs.begin(),
                        trans_inputs.end(),
                        std::back_inserter(inputs),
                        [](instruction_ref i) { return i->inputs().front(); });
-        auto concat = m.insert_instruction(ins, op, inputs);
+        auto concat = m.insert_instruction(ins, make_op(ins->name(), v), inputs);
         auto t =
             m.insert_instruction(ins, make_op("transpose", {{"permutation", permutation}}), concat);
         assert(ins->get_shape().lens() == t->get_shape().lens());

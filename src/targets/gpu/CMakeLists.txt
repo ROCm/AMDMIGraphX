@@ -225,6 +225,7 @@ add_library(migraphx_gpu
     hsa_chiplet.cpp
     kernel.cpp
     lower_device_ops.cpp
+    lower_reshape.cpp
     lowering.cpp
     loop.cpp
     lrn.cpp
@@ -237,7 +238,6 @@ add_library(migraphx_gpu
     prepare_reduce.cpp
     pooling.cpp
     problem_cache.cpp
-    propagate_reshape_layout.cpp
     rocblas.cpp
     schedule_model.cpp
     sync_device.cpp

@@ -96,9 +96,6 @@ def main():
     if args.api_only and not args.api_output_dir:
         parser.error('--api-only requires --api-output-dir')
 
-    output_dir = args.output_directory \
-        if args.output_directory is not None else src_dir
-
     global clang_format_path
     if args.clang_format:
         clang_format_path = args.clang_format

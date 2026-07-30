@@ -24,6 +24,7 @@
 #include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
@@ -41,13 +42,12 @@ static void run_pass(migraphx::module& m)
                           migraphx::dead_code_elimination{}});
 }
 
-static migraphx::instruction_ref
-add_contiguous(migraphx::module& m, migraphx::instruction_ref input)
+static migraphx::instruction_ref add_contiguous(migraphx::module& m,
+                                                migraphx::instruction_ref input)
 {
     const auto& s = input->get_shape();
     auto output_shape =
-        s.dynamic() ? migraphx::shape{s.type(), s.dyn_dims()}
-                    : migraphx::shape{s.type(), s.lens()};
+        s.dynamic() ? migraphx::shape{s.type(), s.dyn_dims()} : migraphx::shape{s.type(), s.lens()};
     auto alloc = m.add_instruction(
         migraphx::make_op("allocate", {{"shape", migraphx::to_value(output_shape)}}));
     return m.add_instruction(migraphx::make_op("gpu::contiguous"), input, alloc);
@@ -56,8 +56,8 @@ add_contiguous(migraphx::module& m, migraphx::instruction_ref input)
 TEST_CASE(lower_standard_reshape)
 {
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
-    auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), x);
+    auto x              = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+    auto r              = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), x);
     auto expected_shape = r->get_shape();
     m.add_return({r});
 
@@ -68,19 +68,19 @@ TEST_CASE(lower_standard_reshape)
     EXPECT(result->get_shape() == expected_shape);
 }
 
-TEST_CASE(lower_output_buffer_reshape)
+// The 2 input form only carries its target shape on the output buffer, which no GPU
+// copy op can honor for a rank changing reshape. It must be rejected, not lowered to a
+// copy that reports the input shape.
+TEST_CASE(lower_output_buffer_reshape_throws)
 {
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+    auto x      = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
     auto output = m.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
     auto r      = m.add_instruction(migraphx::make_op("reshape"), x, output);
     m.add_return({r});
 
-    run_pass(m);
-
-    auto result = std::prev(m.end())->inputs().front();
-    EXPECT(result->name() == "gpu::contiguous");
-    EXPECT(result->get_shape() == output->get_shape());
+    EXPECT(test::throws<migraphx::exception>([&] { run_pass(m); },
+                                             "reshape with a runtime output buffer"));
 }
 
 TEST_CASE(lower_range_dynamic_reshape)
@@ -88,8 +88,8 @@ TEST_CASE(lower_range_dynamic_reshape)
     using dd = migraphx::shape::dynamic_dimension;
 
     migraphx::module m;
-    auto x = m.add_parameter(
-        "x", migraphx::shape{migraphx::shape::float_type, {dd{1, 4}, dd{24, 24}}});
+    auto x =
+        m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{1, 4}, dd{24, 24}}});
     auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", {0, 24}}}), x);
     m.add_return({r});
 
@@ -135,13 +135,12 @@ TEST_CASE(lower_standard_result_with_copy)
 TEST_CASE(propagate_reshape_layout)
 {
     migraphx::module m;
-    auto x = m.add_parameter("x", {migraphx::shape::float_type, {1, 1, 1024, 1024}});
-    auto r1 =
-        m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 256, 4, 256, 4}}}), x);
-    auto t = m.add_instruction(
-        migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r1);
-    auto c  = add_contiguous(m, t);
-    auto r2 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 256, 256}}}), c);
+    auto x  = m.add_parameter("x", {migraphx::shape::float_type, {1, 1, 1024, 1024}});
+    auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 256, 4, 256, 4}}}), x);
+    auto t =
+        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r1);
+    auto c      = add_contiguous(m, t);
+    auto r2     = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 256, 256}}}), c);
     auto output = add_contiguous(m, r2);
     m.add_return({output});
 
@@ -197,7 +196,7 @@ TEST_CASE(propagate_symbolic_reshape_layout)
     using dd = migraphx::shape::dynamic_dimension;
     using migraphx::sym::lit;
 
-    auto n = migraphx::sym::var("N", {1, 8});
+    auto n                      = migraphx::sym::var("N", {1, 8});
     migraphx::shape input_shape = migraphx::shape::from_permutation(
         migraphx::shape::float_type,
         {dd{n}, dd{lit(4)}, dd{lit(4)}, dd{lit(256)}, dd{lit(256)}},

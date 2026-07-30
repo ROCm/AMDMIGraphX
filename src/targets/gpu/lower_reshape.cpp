@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/lower_reshape.hpp>
+#include <migraphx/errors.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
@@ -43,17 +44,14 @@ instruction_ref insert_copy(module& m,
 {
     auto alloc =
         m.insert_instruction(pos, make_op("allocate", {{"shape", to_value(output_shape)}}));
-    return m.insert_instruction(pos,
-                                make_op("gpu::precompile_op", {{"op", to_value(op)}}),
-                                input,
-                                alloc);
+    return m.insert_instruction(
+        pos, make_op("gpu::precompile_op", {{"op", to_value(op)}}), input, alloc);
 }
 
 instruction_ref insert_standard_copy(module& m, instruction_ref pos, instruction_ref input)
 {
-    const auto& s = input->get_shape();
-    shape output_shape =
-        s.dynamic() ? shape{s.type(), s.dyn_dims()} : shape{s.type(), s.lens()};
+    const auto& s      = input->get_shape();
+    shape output_shape = s.dynamic() ? shape{s.type(), s.dyn_dims()} : shape{s.type(), s.lens()};
     auto alloc =
         m.insert_instruction(pos, make_op("allocate", {{"shape", to_value(output_shape)}}));
     return m.insert_instruction(pos, make_op("gpu::contiguous"), input, alloc);
@@ -66,11 +64,15 @@ struct find_reshape : match::supports_dynamic_shapes
     void apply(module& m, const match::matcher_result& r) const
     {
         auto ins = r.result;
+        // The 2 input form carries its target shape on the output buffer, which is only
+        // resolved at runtime. There is no GPU copy op that can express it: every
+        // candidate (gpu::contiguous, hip::copy) derives its kernel from a single index
+        // space shared by source and destination, so a rank changing copy either reports
+        // the wrong shape or fails in the copy itself. Reject it explicitly rather than
+        // lowering to something that silently computes the wrong result.
         if(ins->inputs().size() == 2)
-        {
-            m.replace_instruction(ins, make_op("gpu::contiguous"), ins->inputs());
-            return;
-        }
+            MIGRAPHX_THROW("lower_reshape: reshape with a runtime output buffer (2 input form) is "
+                           "not supported on the GPU target");
 
         auto dims       = ins->get_operator().to_value().at("dims");
         auto reshape_op = make_op("reshape_lazy", {{"dims", {dims}}});
@@ -92,11 +94,9 @@ struct find_reshape : match::supports_dynamic_shapes
                 reshape_dims(ins->get_shape().to_symbolic(), s.sym_dims(), {.lazy = true});
             if(relayout)
             {
-                auto layout_op =
-                    make_op("layout", {{"permutation", find_permutation(*relayout)}});
-                auto layout_shape = layout_op.compute_shape({s});
-                auto layout_reshape =
-                    reshape_dims(layout_shape, output_dims, {.lazy = true});
+                auto layout_op = make_op("layout", {{"permutation", find_permutation(*relayout)}});
+                auto layout_shape   = layout_op.compute_shape({s});
+                auto layout_reshape = reshape_dims(layout_shape, output_dims, {.lazy = true});
                 if(layout_reshape and *layout_reshape == expected)
                 {
                     auto layout = insert_copy(m, ins, input, layout_op, layout_shape);

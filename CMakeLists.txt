@@ -450,6 +450,7 @@ if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
     #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
     # We target versioned names to match what install_rocm_packages.sh actually installs.
     # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
+    set(_MGX_PKG_NAME "amdrocm-migraphx")
     set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
     set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
@@ -495,6 +496,7 @@ or empty for device-all meta-package deps.")
     set(ROCM_DEP_ROCMCORE OFF)
 else()
     # Default ROCm (default for ROCM packaging)
+    set(_MGX_PKG_NAME "MIGraphX")
     if(BUILD_ADDRESS_SANITIZER)
         set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan")
     else()
@@ -514,7 +516,7 @@ else()
 endif()
 
 rocm_create_package(
-    NAME MIGraphX
+    NAME ${_MGX_PKG_NAME}
     DESCRIPTION "AMD graph optimizer"
     MAINTAINER "AMDMIGraphX Maintainer <migraphx-lib.support@amd.com>"
     LDCONFIG

@@ -29,10 +29,13 @@
 #   "default"  - Traditional ROCm with deb/rpm packages
 #
 # Preferred usage (explicit):
-#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock ..
+#   cmake -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=gfx120x ..
 #
 # If MIGRAPHX_PACKAGE_BACKEND is not set, falls back to auto-detection via
 # dpkg/rpm to check for installed amdrocm-runtime packages.
+#
+# When MIGRAPHX_PACKAGE_BACKEND=therock, MIGRAPHX_THEROCK_GPU_ARCH must be set
+# to the target GPU architecture family that follows TheRock packaging requirements.
 
 function(_detect_therock_via_package_manager)
     set(_found FALSE)
@@ -74,7 +77,7 @@ function(detect_package_backend)
         if(_MIGRAPHX_THEROCK_DETECTED)
             set(_default_backend "therock")
             message(STATUS "MIGraphX package backend auto-detected: therock (amdrocm-runtime found)")
-            message(STATUS "  Hint: prefer explicit -DMIGRAPHX_PACKAGE_BACKEND=therock")
+            message(STATUS "  Hint: prefer explicit -DMIGRAPHX_PACKAGE_BACKEND=therock -DMIGRAPHX_THEROCK_GPU_ARCH=<arch>")
         else()
             set(_default_backend "default")
         endif()
@@ -91,5 +94,18 @@ function(detect_package_backend)
             "Must be one of: ${_valid_backends}")
     endif()
 
-    message(STATUS "MIGraphX package backend: ${MIGRAPHX_PACKAGE_BACKEND}")
+    if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
+        if(DEFINED ENV{GPU_ARCH_FOR_THEROCK})
+            # Env name drops MIGRAPHX_ prefix to avoid the "unused MIGRAPHX_* env" warning.
+            set(_default_gpu_arch "$ENV{GPU_ARCH_FOR_THEROCK}")
+        else()
+            set(_default_gpu_arch "")
+        endif()
+        set(MIGRAPHX_THEROCK_GPU_ARCH "${_default_gpu_arch}" CACHE STRING
+            "TheRock GPU architecture family suffix (e.g. gfx120x ..)")
+
+        message(STATUS "MIGraphX package backend: therock (GPU arch: ${MIGRAPHX_THEROCK_GPU_ARCH})")
+    else()
+        message(STATUS "MIGraphX package backend: default (traditional ROCm)")
+    endif()
 endfunction()

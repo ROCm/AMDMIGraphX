@@ -445,25 +445,57 @@ foreach(py_file ${backend_files})
 endforeach(py_file)
 
 if(MIGRAPHX_PACKAGE_BACKEND STREQUAL "therock")
-    # TheRock packaging (RFC0009).
+    # TheRock versioned packaging (RFC0009-OS-Packaging-Requirements):
+    #   Versioned (installed by meta-package): amdrocm-{component}{MAJOR.MINOR}[-{gpu_arch}]
+    #   Non-versioned (compat wrapper):        amdrocm-{component}[-{gpu_arch}]
+    # We target versioned names to match what install_rocm_packages.sh actually installs.
+    # See: https://github.com/ROCm/TheRock/blob/main/build_tools/packaging/linux/packaging_utils.py
+    set(_MGX_PKG_NAME "amdrocm-migraphx")
     set(MIGRAPHX_THEROCK_ROCM_VERSION "" CACHE STRING
         "TheRock ROCm major.minor version suffix for package dependencies (e.g. 7.13)")
+    set(MIGRAPHX_THEROCK_GPU_ARCH "" CACHE STRING
+        "TheRock GPU arch(es) for per-GPU package dependencies. \
+Semicolon-separated list (e.g. gfx90a;gfx942;gfx950) for per-GPU deps, \
+or empty for device-all meta-package deps.")
     set(DEPENDS_HIP_RUNTIME "amdrocm-runtime${MIGRAPHX_THEROCK_ROCM_VERSION}")
-    set(_MGX_PKG_NAME "amdrocm-migraphx")
-    # Only arch-neutral runtime deps are declared here (amdrocm-runtime), since
-    # that is the only component published as an arch-neutral package.
-    # The device libraries (MIOpen/rocBLAS) exist ONLY as per-arch packages
-    # (amdrocm-dnn-gfxNNN / amdrocm-blas-gfxNNN) with no arch-neutral variant,
-    # so they are intentionally omitted here. To produce a package with device
-    # dependencies, add them externally per target arch:
-    #   amdrocm-dnn-<arch>, amdrocm-blas-<arch>
+    if(MIGRAPHX_THEROCK_GPU_ARCH)
+        # Collect per-GPU dependencies: one amdrocm-dnn/blas per arch
+        set(_MGX_GPU_DEPS "")
+        foreach(mgx_gpu_arch IN LISTS MIGRAPHX_THEROCK_GPU_ARCH)
+            if(MIGRAPHX_USE_MIOPEN)
+                list(APPEND _MGX_GPU_DEPS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
+            endif()
+            if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+                list(APPEND _MGX_GPU_DEPS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}-${mgx_gpu_arch}")
+            endif()
+        endforeach()
+        list(LENGTH MIGRAPHX_THEROCK_GPU_ARCH _MGX_NUM_ARCHS)
+        if(_MGX_NUM_ARCHS GREATER 1)
+            # Multi-arch fat binary: per-GPU libs are Recommends (only the
+            # libs for the GPU actually present are needed at runtime).
+            string(REPLACE ";" ", " _MGX_GPU_DEPS_CSV "${_MGX_GPU_DEPS}")
+            set(CPACK_DEBIAN_RUNTIME_PACKAGE_RECOMMENDS "${_MGX_GPU_DEPS_CSV}")
+            set(CPACK_RPM_RUNTIME_PACKAGE_SUGGESTS "${_MGX_GPU_DEPS_CSV}")
+        else()
+            # Single-arch: hard dependency (user explicitly targets one GPU).
+            list(APPEND PACKAGE_DEPENDS ${_MGX_GPU_DEPS})
+        endif()
+    else()
+        # Device-all: depend on arch-independent meta packages
+        if(MIGRAPHX_USE_MIOPEN)
+            list(APPEND PACKAGE_DEPENDS "amdrocm-dnn${MIGRAPHX_THEROCK_ROCM_VERSION}")
+        endif()
+        if(MIGRAPHX_USE_ROCBLAS OR MIGRAPHX_USE_HIPBLASLT)
+            list(APPEND PACKAGE_DEPENDS "amdrocm-blas${MIGRAPHX_THEROCK_ROCM_VERSION}")
+        endif()
+    endif()
     rocm_package_add_deb_dependencies(SHARED_DEPENDS "amdrocm-runtime-dev${MIGRAPHX_THEROCK_ROCM_VERSION}")
     rocm_package_add_rpm_dependencies(SHARED_DEPENDS "amdrocm-runtime-devel${MIGRAPHX_THEROCK_ROCM_VERSION}")
 
     # SET ROCM_DEP_ROCMCORE to OFF for TheRock packaging, since rocm-core has been included in amdrocm-base
     set(ROCM_DEP_ROCMCORE OFF)
 else()
-    # Legacy ROCm packaging.
+    # Default ROCm (default for ROCM packaging)
     set(_MGX_PKG_NAME "MIGraphX")
     if(BUILD_ADDRESS_SANITIZER)
         set(DEPENDS_HIP_RUNTIME "hip-runtime-amd-asan")

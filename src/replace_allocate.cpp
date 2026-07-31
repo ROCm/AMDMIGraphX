@@ -122,21 +122,24 @@ get_output_debug_symbols(const module& mod)
 }
 
 // Collect the shape transformations that are applied to the allocation at the end of `path` to
-// produce the instruction at the start of it. Instructions that alias their input without changing
-// the shape are the identity transformation, so they are skipped. This includes the operator
-// writing into the allocation.
+// produce the instruction at the start of it. An instruction that aliases its input without
+// changing the shape is the identity transformation, which is recorded as a `contiguous` since the
+// descriptor ignores it. This includes the operator writing into the allocation.
 std::vector<operation> get_alias_transforms(const std::vector<instruction_ref>& path)
 {
     std::vector<operation> ops;
-    adjacent_for_each(path.begin(), path.end(), [&](instruction_ref ins, instruction_ref input) {
-        if(ins->get_shape() == input->get_shape())
-            return;
-        auto op = ins->normalized_operator();
-        // The descriptor records reshapes with the non-lazy operator
-        if(op.name() == "reshape_lazy")
-            op = make_op("reshape", {{"dims", ins->get_shape().lens()}});
-        ops.push_back(op);
-    });
+    adjacent_transform(path.begin(),
+                       path.end(),
+                       std::back_inserter(ops),
+                       [](instruction_ref ins, instruction_ref input) {
+                           if(ins->get_shape() == input->get_shape())
+                               return make_op("contiguous");
+                           auto op = ins->normalized_operator();
+                           // The descriptor records reshapes with the non-lazy operator
+                           if(op.name() == "reshape_lazy")
+                               return make_op("reshape", {{"dims", ins->get_shape().lens()}});
+                           return op;
+                       });
     std::reverse(ops.begin(), ops.end());
     return ops;
 }

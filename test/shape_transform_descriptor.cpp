@@ -1343,6 +1343,15 @@ TEST_CASE(invert_multiple)
                make_op("transpose", {{"permutation", {2, 0, 1}}})});
 }
 
+TEST_CASE(invert_contiguous)
+{
+    // A contiguous does not change the dimensions so it is ignored
+    EXPECT(check_invert({2, 8, 1},
+                        {make_op("contiguous"),
+                         make_op("squeeze", {{"axes", {2}}}),
+                         make_op("contiguous")}) == ops{make_op("unsqueeze", {{"axes", {2}}})});
+}
+
 TEST_CASE(invert_broadcast)
 {
     // A broadcast duplicates elements so it has no inverse

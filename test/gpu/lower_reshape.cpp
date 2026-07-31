@@ -151,8 +151,10 @@ TEST_CASE(propagate_reshape_layout)
 
     auto output_contiguous = std::prev(m.end())->inputs().front();
     auto reshape           = output_contiguous->inputs().front();
+    migraphx::shape expected_shape{
+        migraphx::shape::float_type, {1, 16, 256, 256}, {1048576, 1, 4096, 16}};
     EXPECT(reshape->name() == "reshape_lazy");
-    EXPECT(not reshape->get_shape().standard());
+    EXPECT(reshape->get_shape() == expected_shape);
     EXPECT(reshape->inputs().front()->name() == "gpu::precompile_op");
 }
 

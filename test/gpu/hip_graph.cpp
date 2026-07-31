@@ -32,18 +32,35 @@
 #include <migraphx/verify.hpp>
 #include <migraphx/gpu/hip.hpp>
 #include <test.hpp>
+#include <algorithm>
+#include <cstdint>
 #include <vector>
 
-static migraphx::instruction_ref
-add_dot(migraphx::module& m, migraphx::instruction_ref x, const migraphx::shape& s)
+// One layer of the kernel chain: a pointwise multiply followed by a reverse.
+// Both are jit-compiled into code-object kernels with packed argument buffers
+// (no library call, which would not be capturable), and the reverse keeps the
+// pointwise ops from fusing so the chain stays several kernels long while
+// mixing the elements between layers.
+static migraphx::instruction_ref add_layer(migraphx::module& m,
+                                           migraphx::instruction_ref x,
+                                           const migraphx::shape& s,
+                                           std::int64_t axis)
 {
-    std::vector<float> w(s.elements(), 0.0f);
-    // A mostly-diagonal weight keeps the repeated products bounded while still
-    // mixing the elements.
-    for(std::size_t r = 0; r < s.lens()[0]; ++r)
-        for(std::size_t c = 0; c < s.lens()[1]; ++c)
-            w[r * s.lens()[1] + c] = (r == c) ? 0.5f : 0.05f;
-    return m.add_instruction(migraphx::make_op("dot"), x, m.add_literal({s, w}));
+    // Weights below one keep the repeated products bounded.
+    std::vector<float> w(s.elements());
+    std::generate(w.begin(), w.end(), [n = 0]() mutable { return 0.5f + 0.01f * (n++ % 8); });
+    auto scaled = m.add_instruction(migraphx::make_op("mul"), x, m.add_literal({s, w}));
+    return m.add_instruction(migraphx::make_op("reverse", {{"axes", {axis}}}), scaled);
+}
+
+// A chain of layers over `s`, alternating the reversed axis.
+static migraphx::instruction_ref
+add_layers(migraphx::module& m, migraphx::instruction_ref x, const migraphx::shape& s, int n)
+{
+    auto cur = x;
+    for(int i = 0; i < n; ++i)
+        cur = add_layer(m, cur, s, i % 2);
+    return cur;
 }
 
 // Compile `p` for the gpu without offload copy (so it reads/writes
@@ -103,18 +120,16 @@ static void check_rebind(const migraphx::program& p, const migraphx::shape& s)
     EXPECT(migraphx::verify::verify_rms_range(stable, ref1));
 }
 
-// A chain of matmuls lowers to several code-object kernels with packed argument
-// buffers, so a moved input is patched directly into the executable graph.
+// A chain of pointwise/reverse layers lowers to several code-object kernels with
+// packed argument buffers, so a moved input is patched directly into the
+// executable graph.
 TEST_CASE(rebind_kernel_only)
 {
     migraphx::shape s{migraphx::shape::float_type, {8, 8}};
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto x   = mm->add_parameter("x", s);
-    auto cur = x;
-    for(int i = 0; i < 6; ++i)
-        cur = add_dot(*mm, cur, s);
-    mm->add_return({cur});
+    mm->add_return({add_layers(*mm, x, s, 3)});
     check_rebind(p, s);
 }
 
@@ -149,10 +164,7 @@ TEST_CASE(offload_copy_no_rebind)
     migraphx::program p;
     auto* mm = p.get_main_module();
     auto x   = mm->add_parameter("x", s);
-    auto cur = x;
-    for(int i = 0; i < 6; ++i)
-        cur = add_dot(*mm, cur, s);
-    mm->add_return({cur});
+    mm->add_return({add_layers(*mm, x, s, 3)});
 
     auto p_gpu = p;
     auto p_ref = p;

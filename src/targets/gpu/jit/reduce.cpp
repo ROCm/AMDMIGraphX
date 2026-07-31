@@ -107,20 +107,44 @@ static shape get_output_shape(const shape& s, const std::vector<T>& axes)
     return s.with_lens(lens);
 }
 
+/// The minimum stride of the input along the reduced dimensions, skipping the
+/// dimensions where the input only has a single element since their strides
+/// are meaningless. Returns the max value when the input has no reduced
+/// dimensions at all.
+template <class ReduceLens>
+static std::size_t min_reduce_stride(const shape& input, const ReduceLens& rlens)
+{
+    const auto init = std::numeric_limits<std::size_t>::max();
+    auto is         = range(rlens.size());
+    return transform_accumulate(
+        is.begin(), is.end(), init, MIGRAPHX_LIFT(std::min), [&](auto i) -> std::size_t {
+            if(rlens[i] == 1 or input.lens()[i] == 1)
+                return init;
+            return input.strides()[i];
+        });
+}
+
 template <class ReduceLens>
 static std::string get_reduce_algo(context& ctx, const std::vector<shape>& inputs, ReduceLens rlens)
 {
-    const auto init = std::numeric_limits<std::size_t>::max();
-    auto relements  = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
-    bool is_strided_reduce = std::all_of(inputs.begin(), inputs.end(), [&](const shape& input) {
-        // The minimum stride
-        auto min_stride = std::inner_product(
-            rlens.begin(),
-            rlens.end(),
-            input.strides().begin(),
-            init,
-            [](auto x, auto y) { return std::min(x, y); },
-            [](auto len, auto stride) { return len == 1 ? init : stride; });
+    auto relements = std::accumulate(rlens.begin(), rlens.end(), 1, std::multiplies<>{});
+    // Use the memory layout of the dominant inputs to decide the algorithm
+    // since the small inputs will be served from cache either way
+    auto max_bytes = std::max_element(inputs.begin(),
+                                      inputs.end(),
+                                      by(std::less<>{}, [](const shape& s) { return s.bytes(); }))
+                         ->bytes();
+    // Use lane when any dominant input is strided along the reduction: the
+    // lane algorithm reads the strided input coalesced across the outputs,
+    // whereas the block algorithm would waste most of every cacheline on it.
+    // Dense inputs still stream whole cachelines per lane.
+    bool is_strided_reduce = std::any_of(inputs.begin(), inputs.end(), [&](const shape& input) {
+        if(input.bytes() * 4 < max_bytes)
+            return false;
+        auto min_stride = min_reduce_stride(input, rlens);
+        // Inputs with no reduced dimensions do not read along the reduction
+        if(min_stride == std::numeric_limits<std::size_t>::max())
+            return false;
         return min_stride > 2;
     });
     if(is_strided_reduce)
@@ -143,6 +167,104 @@ static std::size_t compute_subwave_size(context& ctx, std::size_t n)
     while(wavefront_size <= n and wavefront_size < max_wavefront_size)
         wavefront_size *= 2;
     return wavefront_size;
+}
+
+struct reduce_tile
+{
+    std::size_t axis = 0;
+    std::size_t size = 1;
+};
+
+struct strided_tile
+{
+    std::size_t block_size = 256;
+    std::size_t out_tile   = 64;
+    bool large             = false;
+
+    std::string algo() const
+    {
+        return "block_strided<" + std::to_string(out_tile) + (large ? ", true" : "") + ">";
+    }
+};
+
+/// The lane algorithm needs one thread per output. When there are too few
+/// outputs to fill the device, a workgroup instead computes a tile of
+/// consecutive outputs and the remaining lanes parallelize each reduction.
+static optional<strided_tile>
+find_strided_tile(context& ctx, std::size_t relements, std::size_t block_size)
+{
+    strided_tile result{block_size, ctx.get_current_device().get_wavefront_size()};
+    if(result.block_size <= result.out_tile or (result.block_size % result.out_tile) != 0)
+        return nullopt;
+    auto seg_lanes = result.block_size / result.out_tile;
+    // The unrolled stride loop with per-thread register storage is limited to
+    // 256 iterations, so larger reductions re-read the inputs lazily instead
+    result.large = (relements + seg_lanes - 1) / seg_lanes > 255;
+    return result;
+}
+
+/// Find a non-reduced axis where most of the input bytes are broadcast, so all
+/// the outputs along that axis read the same data. Computing such outputs in
+/// the same workgroup lets the broadcast input be loaded from cache instead of
+/// being streamed from memory once per output.
+static optional<reduce_tile> find_reduce_tile(const std::vector<shape>& inputs,
+                                              std::size_t noutputs,
+                                              const shape& reduce_output_shape,
+                                              const std::vector<std::size_t>& reduce_lens)
+{
+    const std::size_t min_tile  = 2;
+    const std::size_t max_tile  = 16;
+    const std::size_t min_bytes = 8388608; // 8MB
+    // The loads can only be reused from cache when the reduction reads are
+    // dense, otherwise the cacheline footprint of a single output exceeds the
+    // cache
+    auto reusable = [&](const shape& input) {
+        auto min_stride = min_reduce_stride(input, reduce_lens);
+        return min_stride <= 2 or min_stride == std::numeric_limits<std::size_t>::max();
+    };
+    // Sum the memory footprint of the inputs that are reused(or not) across the
+    // outputs along the axis, skipping the output shapes since they are only
+    // written once per element
+    auto axis_bytes = [&](std::size_t axis, bool reused) {
+        return transform_accumulate(inputs.begin(),
+                                    inputs.end() - noutputs,
+                                    std::size_t{0},
+                                    std::plus<>{},
+                                    [&](const shape& input) -> std::size_t {
+                                        if((input.strides()[axis] == 0 and reusable(input)) ==
+                                           reused)
+                                            return input.bytes();
+                                        return 0;
+                                    });
+    };
+    using candidate    = std::pair<std::size_t, reduce_tile>;
+    auto get_candidate = [&](std::size_t axis) -> optional<candidate> {
+        auto extent = reduce_output_shape.lens()[axis];
+        if(extent < min_tile)
+            return nullopt;
+        auto tile = extent / split_dim(extent, max_tile);
+        if(tile < min_tile or tile > max_tile)
+            return nullopt;
+        auto saved = axis_bytes(axis, true);
+        if(saved < min_bytes)
+            return nullopt;
+        // The non-broadcast inputs are re-read once per output in the tile, so
+        // tiling should only be done when the broadcast bytes dominate
+        if(saved < axis_bytes(axis, false) * 4)
+            return nullopt;
+        return candidate{saved, reduce_tile{axis, tile}};
+    };
+    auto is = range(reduce_output_shape.lens().size());
+    std::vector<optional<candidate>> candidates;
+    std::transform(is.begin(), is.end(), std::back_inserter(candidates), get_candidate);
+    auto it = std::max_element(candidates.begin(),
+                               candidates.end(),
+                               by(std::less<>{}, [](const optional<candidate>& c) -> std::size_t {
+                                   return c.has_value() ? c->first : 0;
+                               }));
+    if(it == candidates.end() or not it->has_value())
+        return nullopt;
+    return (*it)->second;
 }
 
 /// This will adjust the input shapes so a partial reduction is done per workgroup.
@@ -256,7 +378,23 @@ struct simple_reduce_compiler : compiler<simple_reduce_compiler>
         }
         else if(algo == "lane")
         {
-            options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
+            auto relements   = get_reduce_elements(options.virtual_inputs);
+            bool few_outputs = nelements < ctx.get_current_device().get_cu_count() * 1024;
+            optional<strided_tile> stile;
+            if(few_outputs)
+                stile = find_strided_tile(ctx, relements, 256);
+            if(stile.has_value())
+            {
+                algo         = stile->algo();
+                auto ngroups = (nelements + stile->out_tile - 1) / stile->out_tile;
+                options.set_launch_params(v,
+                                          compute_global_for(ctx, ngroups * stile->block_size, 256),
+                                          stile->block_size);
+            }
+            else
+            {
+                options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
+            }
         }
         else
         {
@@ -320,6 +458,7 @@ struct fused_reduce_plan
     std::vector<shape> finputs        = {};
     std::vector<shape> virtual_inputs = {};
     shape reduce_output_shape         = {};
+    shape reduction_shape             = {};
     vectorize vec                     = {};
     std::string algo                  = {};
     std::string assign                = {};
@@ -344,17 +483,39 @@ compute_fused_reduce_plan(context& ctx, const std::vector<shape>& inputs, const 
         plan.virtual_inputs = split_reduce(plan.virtual_inputs);
     plan.reduce_output_shape = plan.virtual_inputs.back();
     plan.virtual_inputs.pop_back();
-    auto reduction_shape = plan.virtual_inputs.back();
+    plan.reduction_shape = plan.virtual_inputs.back();
     plan.virtual_inputs.pop_back();
 
     auto faxis = find_fast_axis({plan.virtual_inputs.front()});
-    plan.algo  = v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, reduction_shape.lens()));
+    plan.algo =
+        v.get("algo", get_reduce_algo(ctx, plan.virtual_inputs, plan.reduction_shape.lens()));
     bool no_vectorize = v.get("no_vectorize", false);
-    if((plan.algo == "block" or plan.algo == "wave") and
+    if((plan.algo == "block" or plan.algo == "block_tile" or plan.algo == "wave") and
        plan.reduce_output_shape.lens()[faxis] == 1 and not no_vectorize)
         plan.vec = vectorize::elements(ctx, faxis, plan.virtual_inputs);
-    plan.relements = reduction_shape.elements() / plan.vec.size;
+    plan.relements = plan.reduction_shape.elements() / plan.vec.size;
     return plan;
+}
+
+/// The lane algorithm should be replaced with block_strided when there are
+/// too few outputs to fill the device with one lane per output, or when a
+/// dominant input is dense along the reduction: the segmented lanes read the
+/// dense input in coalesced segments which lane cant do.
+bool prefer_block_strided(context& ctx, const fused_reduce_plan& plan, std::size_t noutputs)
+{
+    bool few_outputs =
+        plan.reduce_output_shape.elements() < ctx.get_current_device().get_cu_count() * 1024;
+    auto max_bytes = std::max_element(plan.virtual_inputs.begin(),
+                                      plan.virtual_inputs.end(),
+                                      by(std::less<>{}, [](const shape& s) { return s.bytes(); }))
+                         ->bytes();
+    bool mixed_density = std::any_of(
+        plan.virtual_inputs.begin(), plan.virtual_inputs.end() - noutputs, [&](const shape& input) {
+            if(input.bytes() * 4 < max_bytes)
+                return false;
+            return min_reduce_stride(input, plan.reduction_shape.lens()) <= 2;
+        });
+    return few_outputs or mixed_density;
 }
 } // namespace
 
@@ -371,17 +532,37 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         auto nelements = plan.reduce_output_shape.elements();
 
         hip_compile_options options;
-        options.inputs         = plan.finputs;
+        options.inputs             = plan.finputs;
         options.output         = inputs.back();
-        options.virtual_inputs = plan.virtual_inputs;
+        options.virtual_inputs     = plan.virtual_inputs;
+        optional<reduce_tile> tile = nullopt;
+        if(plan.assign == "assign_none" and
+           (algo == "block_tile" or (algo == "block" and not v.contains("algo"))))
+            tile = find_reduce_tile(options.virtual_inputs,
+                                    noutputs,
+                                    plan.reduce_output_shape,
+                                    plan.reduction_shape.lens());
+        if(algo == "block_tile")
+            algo = "block";
         if(algo == "block" or algo == "wave")
         {
             if(algo == "block")
             {
-                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 256));
+                auto block_size = v.get("block_size", compute_block_size(ctx, relements, 1024));
                 assert(block_size > 0);
                 if(relements >= (block_size - 1) * 256)
+                {
                     algo = "block_large";
+                }
+                else if(tile.has_value())
+                {
+                    // Smaller workgroups keep the reused loads resident in cache
+                    auto max_block = tile->size == 2 ? 512 : 256;
+                    block_size = v.get("block_size", compute_block_size(ctx, relements, max_block));
+                    algo       = "block_tile<" + std::to_string(tile->axis) + ", " +
+                           std::to_string(tile->size) + ">";
+                    nelements /= tile->size;
+                }
                 options.set_launch_params(
                     v, compute_global_for(ctx, nelements * block_size, 256), block_size);
             }
@@ -394,9 +575,25 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                                           ctx.get_current_device().get_wavefront_size());
             }
         }
-        else if(algo == "lane")
+        else if(algo == "lane" or algo == "block_strided")
         {
-            options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
+            optional<strided_tile> stile;
+            if(algo == "block_strided" or
+               (prefer_block_strided(ctx, plan, noutputs) and not v.contains("algo")))
+                stile = find_strided_tile(ctx, relements, v.get("block_size", 256));
+            if(stile.has_value())
+            {
+                algo         = stile->algo();
+                auto ngroups = (nelements + stile->out_tile - 1) / stile->out_tile;
+                options.set_launch_params(v,
+                                          compute_global_for(ctx, ngroups * stile->block_size, 256),
+                                          stile->block_size);
+            }
+            else
+            {
+                algo = "lane";
+                options.set_launch_params(v, compute_global_for(ctx, nelements, 256));
+            }
         }
         else
         {
@@ -435,26 +632,61 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
         return compile_op(ctx, shapes, v);
     }
 
+    /// Add a solution for the algo with the given block size, plus the
+    /// larger-block alternative when it differs
+    static void add_block_size_solutions(tuning_config& tc,
+                                         const std::string& algo,
+                                         std::size_t block_size,
+                                         std::size_t large_block_size)
+    {
+        tc.solutions.push_back({{"algo", algo}, {"block_size", block_size}});
+        if(large_block_size != block_size)
+            tc.solutions.push_back({{"algo", algo}, {"block_size", large_block_size}});
+    }
+
     optional<tuning_config>
     get_tuning_config(context& ctx, instruction_ref ins, const operation& op, bool exhaustive) const
     {
-        if(op.name() != "fused_reduce")
+        if(not contains({"fused_reduce", "split_fused_reduce"}, op.name()))
             return nullopt;
         tuning_config tc;
-        auto shapes = to_shapes(ins->inputs());
-        tc.problem  = to_value(shapes);
+        auto shapes   = to_shapes(ins->inputs());
+        tc.problem    = to_value(shapes);
+        auto plan     = compute_fused_reduce_plan(ctx, shapes, op.to_value());
+        auto noutputs = plan.finputs.size() - shapes.size() + 1;
+        auto tile     = find_reduce_tile(
+            plan.virtual_inputs, noutputs, plan.reduce_output_shape, plan.reduction_shape.lens());
         if(not exhaustive)
         {
-            // Without exhaustive tuning, offer the default plus, when the algo is block, an
-            // additional candidate that allows a larger block size (max 1024 instead of 256).
-            auto plan = compute_fused_reduce_plan(ctx, shapes, op.to_value());
+            // Without exhaustive tuning, offer the algorithms compile_op would pick on its own
+            // plus a few alternatives so benchmarking can decide: block_tile when a tile is
+            // found, a larger block size (max 1024 instead of 256) for block, and
+            // block_strided when the lane heuristics prefer it.
             if(plan.algo == "block")
             {
-                auto block_size       = compute_block_size(ctx, plan.relements, 256);
-                auto large_block_size = compute_block_size(ctx, plan.relements, 1024);
-                tc.solutions.push_back({{"algo", "block"}, {"block_size", block_size}});
-                if(large_block_size != block_size)
-                    tc.solutions.push_back({{"algo", "block"}, {"block_size", large_block_size}});
+                if(tile.has_value() and plan.assign == "assign_none")
+                    tc.solutions.push_back({{"algo", "block_tile"}});
+                add_block_size_solutions(tc,
+                                         "block",
+                                         compute_block_size(ctx, plan.relements, 256),
+                                         compute_block_size(ctx, plan.relements, 1024));
+            }
+            else if(plan.algo == "lane" and prefer_block_strided(ctx, plan, noutputs) and
+                    find_strided_tile(ctx, plan.relements, 256).has_value())
+            {
+                // A block_strided workgroup computes a tile of out_tile outputs at once, so
+                // its block size is fitted to the parallel work across the whole tile
+                // rather than a single reduction
+                auto swork = ctx.get_current_device().get_wavefront_size() * plan.relements;
+                add_block_size_solutions(tc,
+                                         "block_strided",
+                                         compute_block_size(ctx, swork, 256),
+                                         compute_block_size(ctx, swork, 1024));
+                tc.solutions.push_back({{"algo", "lane"}});
+                add_block_size_solutions(tc,
+                                         "block",
+                                         compute_block_size(ctx, plan.relements, 256),
+                                         compute_block_size(ctx, plan.relements, 1024));
             }
             else
             {
@@ -462,10 +694,7 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
             }
             return tc;
         }
-        auto axes         = op.to_value().at("axes").to_vector<std::size_t>();
-        auto input_shape  = get_input_shape(shapes);
-        auto reduce_shape = get_reduced_shape(input_shape, axes);
-        auto relements    = reduce_shape.elements();
+        auto relements = plan.reduction_shape.elements();
         std::unordered_set<std::size_t> tile_sizes;
         for(auto per_lane : {1, 2, 4, 8, 16})
         {
@@ -483,6 +712,13 @@ struct fused_reduce_compiler : compiler<fused_reduce_compiler>
                 tc.solutions.push_back({{"algo", "wave"}, {"subwave_size", tile_size}});
         }
         tc.solutions.push_back({{"algo", "lane"}});
+        for(auto block_size : {128, 256, 512, 1024})
+            tc.solutions.push_back({{"algo", "block_strided"}, {"block_size", block_size}});
+        if(tile.has_value())
+        {
+            for(auto block_size : {64, 128, 256, 512})
+                tc.solutions.push_back({{"algo", "block_tile"}, {"block_size", block_size}});
+        }
         return tc;
     }
 };

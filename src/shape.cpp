@@ -662,6 +662,8 @@ std::size_t shape::elements() const { return impl->elements(); }
 
 sym::expr shape::sym_elements() const { return impl->sym_elements(); }
 
+std::vector<sym::expr> shape::sym_dims() const { return impl->sym_dims(); }
+
 std::size_t shape::bytes() const
 {
     if(this->sub_shapes().empty())
@@ -890,6 +892,28 @@ shape shape::to_dynamic() const
         return *this;
     }
     return {type(), lens(), lens(), {}};
+}
+
+shape::dynamic_dimension shape::make_symbolic_dynamic_dimension(
+    const std::string& expression,
+    const std::unordered_map<std::string, dynamic_dimension>& symbols)
+{
+    auto e = sym::parse(expression);
+    if(e.empty())
+        MIGRAPHX_THROW("MAKE_SYMBOLIC_DYNAMIC_DIMENSION: symbolic expression is empty");
+    std::unordered_map<sym::expr, sym::expr> bindings;
+    std::transform(symbols.begin(),
+                   symbols.end(),
+                   std::inserter(bindings, bindings.end()),
+                   [](const auto& kv) {
+                       const auto& [name, dd] = kv;
+                       auto iv                = dd.get_interval();
+                       auto opts              = dd.get_optimals();
+                       std::set<sym::scalar> optimals(opts.begin(), opts.end());
+                       return std::pair<sym::expr, sym::expr>{
+                           sym::parse(name), sym::var(name, {iv.min, iv.max}, std::move(optimals))};
+                   });
+    return dynamic_dimension{e.subs(bindings)};
 }
 
 static bool any_non_sym_dynamic(const shape& s)

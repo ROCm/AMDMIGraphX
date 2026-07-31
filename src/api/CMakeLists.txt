@@ -22,9 +22,50 @@
 # THE SOFTWARE.
 #####################################################################################
 
-add_library(migraphx_c
-    api.cpp
+# The C API (migraphx.h and api.cpp) is generated from the templates in
+# tools/api. `make generate` still writes them into the source tree so the
+# output can be reviewed, but migraphx_c is built from a freshly generated copy
+# placed in the build directory instead of the checked-in src/api copies.
+find_package(Python 3 COMPONENTS Interpreter REQUIRED)
+
+set(MIGRAPHX_API_TOOLS_DIR ${PROJECT_SOURCE_DIR}/tools)
+set(MIGRAPHX_API_GEN_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include)
+set(MIGRAPHX_API_GEN_HEADER ${MIGRAPHX_API_GEN_INCLUDE_DIR}/migraphx/migraphx.h)
+set(MIGRAPHX_API_GEN_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/api.cpp)
+
+# generate.py writes migraphx.h under include/migraphx/ and api.cpp at the top
+# level of the output dir, mirroring the source-tree layout. The build copy is
+# only a compiler input, so it is generated without clang-format; `make
+# generate` still formats the reviewable source-tree copy.
+add_custom_command(
+    OUTPUT ${MIGRAPHX_API_GEN_HEADER} ${MIGRAPHX_API_GEN_SOURCE}
+    COMMAND ${Python_EXECUTABLE} ${MIGRAPHX_API_TOOLS_DIR}/generate.py
+        --api-only
+        --api-output-dir ${CMAKE_CURRENT_BINARY_DIR}
+    WORKING_DIRECTORY ${MIGRAPHX_API_TOOLS_DIR}
+    DEPENDS
+        ${MIGRAPHX_API_TOOLS_DIR}/generate.py
+        ${MIGRAPHX_API_TOOLS_DIR}/api.py
+        ${MIGRAPHX_API_TOOLS_DIR}/api/migraphx.h
+        ${MIGRAPHX_API_TOOLS_DIR}/api/api.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/migraphx.py
+    COMMENT "Generating C API (migraphx.h and api.cpp) in build directory"
+    VERBATIM
 )
+
+add_custom_target(generate_api DEPENDS ${MIGRAPHX_API_GEN_HEADER} ${MIGRAPHX_API_GEN_SOURCE})
+
+# migraphx.hpp is hand-written (not generated); copy it next to the generated
+# migraphx.h so the build include directory is a complete public API.
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/migraphx/migraphx.hpp
+    ${MIGRAPHX_API_GEN_INCLUDE_DIR}/migraphx/migraphx.hpp
+    COPYONLY)
+
+add_library(migraphx_c
+    ${MIGRAPHX_API_GEN_SOURCE}
+)
+add_dependencies(migraphx_c generate_api)
 set_target_properties(migraphx_c PROPERTIES EXPORT_NAME c)
 migraphx_generate_export_header(migraphx_c DIRECTORY migraphx/api)
 
@@ -44,5 +85,5 @@ target_link_libraries(migraphx_c PUBLIC migraphx_version)
 rocm_install_targets(
   TARGETS migraphx_c
   INCLUDE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${MIGRAPHX_API_GEN_INCLUDE_DIR}
 )

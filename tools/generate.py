@@ -1,7 +1,7 @@
 #####################################################################################
 # The MIT License (MIT)
 #
-# Copyright (c) 2015-2023 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -41,40 +41,72 @@ def clang_format(buffer, **kwargs):
                           **kwargs).stdout.decode('utf-8')
 
 
-def api_generate(input_path: Path, output_path: Path):
-    with open(output_path, 'w') as f:
-        f.write(clang_format(api.run(input_path)))
+def maybe_format(buffer, do_format=True):
+    return clang_format(buffer) if do_format else buffer
 
 
-def te_generate(input_path: Path, output_path: Path):
+def api_generate(input_path: Path, output_path: Path, do_format=True):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, 'w') as f:
-        f.write(clang_format(te.run(input_path)))
+        f.write(maybe_format(api.run(input_path), do_format))
+
+
+def te_generate(input_path: Path, output_path: Path, do_format=True):
+    with open(output_path, 'w') as f:
+        f.write(maybe_format(te.run(input_path), do_format))
+
+
+def generate_api(output_dir: Path, do_format=True):
+    runpy.run_path(str(migraphx_py_path))
+    header_path = output_dir / 'include/migraphx/migraphx.h'
+    source_path = output_dir / 'api.cpp'
+    api_generate(work_dir / 'api/migraphx.h', header_path, do_format)
+    print(f'Finished generating header {header_path}')
+    api_generate(work_dir / 'api/api.cpp', source_path, do_format)
+    print(f'Finished generating source {source_path}')
+
+
+def generate_all(do_format=True):
+    files = Path('include').absolute().iterdir()
+    for f in [f for f in files if f.is_file()]:
+        te_generate(f, src_dir / f'include/migraphx/{f.name}', do_format)
+    generate_api(src_dir / 'api', do_format)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--clang-format', type=Path)
+    parser.add_argument('--api-only',
+                        action='store_true',
+                        help='Only generate the C API files (migraphx.h and '
+                        'api.cpp) under the directory given by '
+                        '--api-output-dir instead of writing into the source '
+                        'tree')
+    parser.add_argument('--api-output-dir',
+                        type=Path,
+                        help='Base output directory for the generated C API '
+                        'files: migraphx.h is written under include/migraphx/ '
+                        'and api.cpp at the top level')
     args = parser.parse_args()
+
+    if args.api_only and not args.api_output_dir:
+        parser.error('--api-only requires --api-output-dir')
 
     global clang_format_path
     if args.clang_format:
         clang_format_path = args.clang_format
 
-    if not clang_format_path.is_file():
-        print(f"{clang_format_path}: invalid path or not installed",
-              file=sys.stderr)
-        return
-
     try:
-        files = Path('include').absolute().iterdir()
-        for f in [f for f in files if f.is_file()]:
-            te_generate(f, src_dir / f'include/migraphx/{f.name}')
-        runpy.run_path(str(migraphx_py_path))
-        api_generate(work_dir / 'api/migraphx.h',
-                     src_dir / 'api/include/migraphx/migraphx.h')
-        print('Finished generating header migraphx.h')
-        api_generate(work_dir / 'api/api.cpp', src_dir / 'api/api.cpp')
-        print('Finished generating source api.cpp')
+        if args.api_only:
+            # These files are only consumed by the compiler, so skip
+            # clang-format; only `make generate` formats them for review.
+            generate_api(args.api_output_dir, do_format=False)
+        else:
+            if not clang_format_path.is_file():
+                print(f"{clang_format_path}: invalid path or not installed",
+                      file=sys.stderr)
+                return
+            generate_all()
     except subprocess.CalledProcessError as ex:
         if ex.stdout:
             print(ex.stdout.decode('utf-8'))

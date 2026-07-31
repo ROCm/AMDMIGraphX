@@ -379,6 +379,7 @@ bool instruction::can_eval() const
         return true;
     if(not is_context_free(op))
         return false;
+    // Finalize-dependent ops cannot be evaluated during pre-finalization constant folding.
     if(has_finalize(op))
         return false;
 #if MIGRAPHX_HAS_PMR

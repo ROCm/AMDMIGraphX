@@ -32,7 +32,11 @@
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/op/allocate.hpp>
 #include <migraphx/logger.hpp>
+#include <migraphx/optional.hpp>
+#include <migraphx/shape_transform_descriptor.hpp>
+#include <algorithm>
 #include <map>
+#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -115,18 +119,135 @@ get_output_debug_symbols(const module& mod)
     return mod_output_debug_symbols;
 }
 
+// Collect the shape transformations that are applied to `alloc` to produce `ins`. Instructions
+// that alias their input without changing the shape are the identity transformation, so they are
+// skipped. This includes the operator writing into the allocation.
+optional<std::vector<operation>> get_alias_transforms(instruction_ref ins, instruction_ref alloc)
+{
+    std::vector<operation> ops;
+    while(ins != alloc)
+    {
+        auto aliases = instruction::get_output_alias(ins, true);
+        if(aliases.size() != 1)
+            return nullopt;
+        auto input = aliases.front();
+        if(input == ins)
+            return nullopt;
+        if(ins->get_shape() != input->get_shape())
+        {
+            auto op = ins->normalized_operator();
+            // The descriptor records reshapes with the non-lazy operator
+            if(op.name() == "reshape_lazy")
+                op = make_op("reshape", {{"dims", ins->get_shape().lens()}});
+            ops.push_back(op);
+        }
+        ins = input;
+    }
+    std::reverse(ops.begin(), ops.end());
+    return ops;
+}
+
+// Compute the shape that results from applying `ops` to `s`. Every operator must be an alias of
+// its input, since a copy is what is being avoided, and it must preserve the number of elements so
+// that every element of the buffer is written to exactly once.
+optional<shape> compute_alias_view(const std::vector<operation>& ops, const shape& s)
+{
+    shape result = s;
+    for(const auto& op : ops)
+    {
+        std::vector<shape> inputs = {result};
+        if(op.output_alias(inputs).empty())
+            return nullopt;
+        try
+        {
+            result = op.compute_shape(inputs);
+        }
+        catch(const migraphx::exception&)
+        {
+            return nullopt;
+        }
+        if(result.elements() != s.elements())
+            return nullopt;
+    }
+    return result;
+}
+
+// Compute the transformations that produce `alloc_shape` from `out_shape`, which is the inverse of
+// `ops`.
+optional<std::vector<operation>> invert_alias_transforms(const shape& alloc_shape,
+                                                         const shape& out_shape,
+                                                         const std::vector<operation>& ops)
+{
+    auto desc = shape_transform_descriptor::create(alloc_shape.lens(), ops);
+    // A broadcast cannot be inverted since it does not write to every element
+    if(desc.empty() or desc.has_broadcast())
+        return nullopt;
+    auto result = desc.to_common_from_dst().generate();
+    auto to_src = desc.to_src_from_common().generate();
+    result.insert(result.end(), to_src.begin(), to_src.end());
+    result = optimize_shape_transforms(out_shape.lens(), result);
+    // Reshapes need to be lazy so the output buffer is aliased instead of copied
+    std::transform(result.begin(), result.end(), result.begin(), [](const operation& op) {
+        if(op.name() != "reshape")
+            return op;
+        return make_op("reshape_lazy", op.to_value());
+    });
+    // The transformations are only the inverse when they produce the same shape the operator
+    // writes to, otherwise the buffer would be written to in a different order
+    if(compute_alias_view(result, out_shape) != alloc_shape)
+        return nullopt;
+    return result;
+}
+
+// Rather than copying the result into the output buffer, transform the output buffer into the
+// shape of the allocation and then write into it directly.
+bool replace_alias_allocation(module& m, instruction_ref ins)
+{
+    auto aliases = instruction::get_output_alias(ins);
+    if(aliases.size() != 1)
+        return false;
+    auto alloc = aliases.front();
+    if(alloc->name() != "allocate" or alloc->get_shape().any_of_dynamic())
+        return false;
+    // Each return value needs its own output parameter, so an allocation that is shared with
+    // another return value still needs to be copied
+    auto returns = m.get_returns();
+    if(std::count_if(returns.begin(), returns.end(), [&](instruction_ref r) {
+           return contains(instruction::get_output_alias(r), alloc);
+       }) > 1)
+        return false;
+    auto ops = get_alias_transforms(ins, alloc);
+    if(not ops.has_value())
+        return false;
+    auto inverse = invert_alias_transforms(alloc->get_shape(), ins->get_shape(), *ops);
+    if(not inverse.has_value())
+        return false;
+    auto out = m.insert_instruction(
+        alloc, make_op("allocate", migraphx::value{{"shape", to_value(ins->get_shape())}}));
+    out = std::accumulate(
+        inverse->begin(), inverse->end(), out, [&](instruction_ref input, const operation& op) {
+            return m.insert_instruction(alloc, op, input);
+        });
+    m.replace_instruction(alloc, out);
+    return true;
+}
+
 void insert_copy(module& m, const allocation_model& model)
 {
-    auto returns = m.get_returns();
-    std::unordered_set<instruction_ref> returns_set(returns.begin(), returns.end());
-    for(auto ins : returns_set)
+    // Rewriting a return can change the aliases of the other returns, so visit them in order
+    std::unordered_set<instruction_ref> visited;
+    for(auto ins : m.get_returns())
     {
+        if(not visited.insert(ins).second)
+            continue;
         if(ins->get_shape().any_of_dynamic())
             continue;
         auto aliases = instruction::get_output_alias(ins);
         if(std::any_of(aliases.begin(), aliases.end(), [&](instruction_ref alias) {
                return alias->get_shape() == ins->get_shape();
            }))
+            continue;
+        if(replace_alias_allocation(m, ins))
             continue;
         auto insert_ins = std::next(ins);
         auto alloc      = m.insert_instruction(

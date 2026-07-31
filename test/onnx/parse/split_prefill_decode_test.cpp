@@ -65,8 +65,8 @@ TEST_CASE(split_prefill_decode_test)
 
     auto specializations = find_specializations(p.get_main_module());
     EXPECT(specializations.size() == 2);
-    EXPECT(specializations.at(0)->name() == "main:split_prefill_decode:decode");
-    EXPECT(specializations.at(1)->name() == "main:split_prefill_decode:prefill");
+    EXPECT(specializations.at(0)->name() == "main:split:decode");
+    EXPECT(specializations.at(1)->name() == "main:split:prefill");
     EXPECT(specializations.at(0)->get_parameter_shape("x") ==
            migraphx::shape{migraphx::shape::float_type, {1, 1, 2}});
     EXPECT(specializations.at(1)->get_parameter_shape("x") ==

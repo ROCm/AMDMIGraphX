@@ -636,7 +636,7 @@ static void parse_prefill_decode(onnx_parser& parser, const onnx::GraphProto& gr
         parser.parent_input_nodes.clear();
         parser.dim_params[sequence_length_dim_param] = {length, length};
 
-        auto* mod = parser.prog.create_module(root->name() + ":merged:" + name);
+        auto* mod = parser.prog.create_module(root->name() + ":split:" + name);
         auto initializer_params = add_initializer_parameters(mod, initializers);
         (void)parser.parse_graph(mod, graph, false, &initializer_params);
         return mod;

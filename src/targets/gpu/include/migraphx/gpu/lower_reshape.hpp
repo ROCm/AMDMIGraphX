@@ -60,6 +60,9 @@ namespace gpu {
  *     wrapped in `gpu::precompile_op` and compiles to the existing pointwise copy
  *     kernel, so this costs the same single kernel as a standardizing contiguous while
  *     preserving the permutation a following op may want (e.g. NHWC into pooling).
+ *     An identity permutation is declined here and left to case 3, since a `layout`
+ *     that reorders nothing is just a standardizing copy and `gpu::contiguous` has a
+ *     prebuilt code object for it.
  *
  *  3. Otherwise fall back to a standardizing `gpu::contiguous` followed by the
  *     `reshape_lazy`.

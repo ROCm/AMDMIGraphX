@@ -116,6 +116,9 @@ TEST_CASE(keep_required_contiguous)
     EXPECT(result->inputs().front()->name() == "gpu::contiguous");
 }
 
+// The input is transposed so case 1 cannot alias it, but the backwards derivation lands on
+// the identity permutation. Case 2 declines that and case 3 emits gpu::contiguous, which is
+// the same copy without the jit compile a layout would cost.
 TEST_CASE(lower_standard_result_with_copy)
 {
     migraphx::module m;
@@ -153,7 +156,10 @@ TEST_CASE(propagate_reshape_layout)
     EXPECT(reshape->inputs().front()->name() == "gpu::precompile_op");
 }
 
-TEST_CASE(ambiguous_singleton_layout_falls_back)
+// The singleton dims carry arbitrary strides, but the two elements still sit at offsets
+// 0 and 1, so dropping a singleton is a pure restriding. eliminate_contiguous drops the
+// incoming copy and case 1 aliases the parameter directly; no copy is needed at all.
+TEST_CASE(singleton_dims_alias_without_copy)
 {
     migraphx::module m;
     migraphx::shape input_shape{migraphx::shape::float_type, {1, 1, 2}, {1, 2, 1}};
@@ -168,7 +174,7 @@ TEST_CASE(ambiguous_singleton_layout_falls_back)
     auto output_contiguous = std::prev(m.end())->inputs().front();
     auto reshape           = output_contiguous->inputs().front();
     EXPECT(reshape->name() == "reshape_lazy");
-    EXPECT(reshape->inputs().front()->name() == "gpu::contiguous");
+    EXPECT(reshape->inputs().front() == x);
 }
 
 TEST_CASE(lower_dependent_reshapes)

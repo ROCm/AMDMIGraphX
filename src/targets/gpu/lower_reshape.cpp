@@ -30,6 +30,7 @@
 #include <migraphx/permutation.hpp>
 #include <migraphx/reshape_dims.hpp>
 #include <migraphx/value.hpp>
+#include <algorithm>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -94,14 +95,22 @@ struct find_reshape : match::supports_dynamic_shapes
                 reshape_dims(ins->get_shape().to_symbolic(), s.sym_dims(), {.lazy = true});
             if(relayout)
             {
-                auto layout_op = make_op("layout", {{"permutation", find_permutation(*relayout)}});
-                auto layout_shape   = layout_op.compute_shape({s});
-                auto layout_reshape = reshape_dims(layout_shape, output_dims, {.lazy = true});
-                if(layout_reshape and *layout_reshape == expected)
+                auto perm = find_permutation(*relayout);
+                // An identity permutation means the input only needs standardizing, which is
+                // what gpu::contiguous already does. Prefer it: lower_device_ops turns it into
+                // a prebuilt code object, whereas a layout under gpu::precompile_op would pay
+                // for a jit compile to produce the same copy.
+                if(not std::is_sorted(perm.begin(), perm.end()))
                 {
-                    auto layout = insert_copy(m, ins, input, layout_op, layout_shape);
-                    m.replace_instruction(ins, reshape_op, {layout});
-                    return;
+                    auto layout_op      = make_op("layout", {{"permutation", perm}});
+                    auto layout_shape   = layout_op.compute_shape({s});
+                    auto layout_reshape = reshape_dims(layout_shape, output_dims, {.lazy = true});
+                    if(layout_reshape and *layout_reshape == expected)
+                    {
+                        auto layout = insert_copy(m, ins, input, layout_op, layout_shape);
+                        m.replace_instruction(ins, reshape_op, {layout});
+                        return;
+                    }
                 }
             }
         }

@@ -106,6 +106,31 @@ static std::vector<int64_t> run_strided_view(const migraphx::shape& s, std::int6
     return l.get_argument().reshape(s).to_vector<int64_t>();
 }
 
+static std::vector<std::size_t> compute_dims(const std::vector<std::size_t>& dims,
+                                             const std::vector<migraphx::operation>& ops)
+{
+    migraphx::shape s{migraphx::shape::int64_type, dims};
+    for(const auto& op : ops)
+        s = op.compute_shape({s});
+    return s.lens();
+}
+
+// Generate the operators that invert `ops`, and check that applying them afterwards gives back
+// the original tensor
+static std::vector<migraphx::operation> check_invert(const std::vector<std::size_t>& dims,
+                                                     const std::vector<migraphx::operation>& ops)
+{
+    auto inverse = migraphx::shape_transform_descriptor::create(dims, ops).invert();
+    if(inverse.empty())
+        return {};
+    auto result = inverse.generate();
+    auto all    = ops;
+    all.insert(all.end(), result.begin(), result.end());
+    CHECK(compute_dims(dims, all) == dims);
+    CHECK(run_shape_transforms(dims, all) == run_shape_transforms(dims, {}));
+    return result;
+}
+
 static std::vector<migraphx::operation>
 check_optimize_shape_transforms(const std::vector<std::size_t>& dims,
                                 const std::vector<migraphx::operation>& ops)
@@ -1273,6 +1298,65 @@ TEST_CASE(rebase_adjust_squeeze_unsqueeze_broadcast)
         EXPECT(desc.generate() == ops{});
     }
 }
+
+TEST_CASE(invert_squeeze)
+{
+    EXPECT(check_invert({2, 8, 1}, {make_op("squeeze", {{"axes", {2}}})}) ==
+           ops{make_op("unsqueeze", {{"axes", {2}}})});
+    EXPECT(check_invert({1, 2, 8}, {make_op("squeeze", {{"axes", {0}}})}) ==
+           ops{make_op("unsqueeze", {{"axes", {0}}})});
+    EXPECT(check_invert({2, 8}, {make_op("unsqueeze", {{"axes", {1}}})}) ==
+           ops{make_op("squeeze", {{"axes", {1}}})});
+}
+
+TEST_CASE(invert_reshape)
+{
+    EXPECT(check_invert({2, 4, 3}, {make_op("reshape", {{"dims", {8, 3}}})}) ==
+           ops{make_op("reshape", {{"dims", {2, 4, 3}}})});
+    EXPECT(check_invert({8, 3}, {make_op("reshape", {{"dims", {2, 4, 3}}})}) ==
+           ops{make_op("reshape", {{"dims", {8, 3}}})});
+    // Splitting an axis and then merging it needs two reshapes
+    EXPECT(check_invert({2, 32, 2560}, {make_op("reshape", {{"dims", {2, 1280, 8, 8}}})}) ==
+           ops{make_op("reshape", {{"dims", {2, 32, 40, 8, 8}}}),
+               make_op("reshape", {{"dims", {2, 32, 2560}}})});
+}
+
+TEST_CASE(invert_transpose)
+{
+    EXPECT(check_invert({2, 4}, {make_op("transpose", {{"permutation", {1, 0}}})}) ==
+           ops{make_op("transpose", {{"permutation", {1, 0}}})});
+    EXPECT(check_invert({2, 4, 8}, {make_op("transpose", {{"permutation", {1, 2, 0}}})}) ==
+           ops{make_op("transpose", {{"permutation", {2, 0, 1}}})});
+}
+
+TEST_CASE(invert_multiple)
+{
+    EXPECT(check_invert({2, 4, 3},
+                        {make_op("reshape", {{"dims", {8, 3}}}),
+                         make_op("transpose", {{"permutation", {1, 0}}})}) ==
+           ops{make_op("reshape", {{"dims", {3, 2, 4}}}),
+               make_op("transpose", {{"permutation", {1, 2, 0}}})});
+    EXPECT(check_invert({2, 4, 1},
+                        {make_op("squeeze", {{"axes", {2}}}),
+                         make_op("transpose", {{"permutation", {1, 0}}})}) ==
+           ops{make_op("unsqueeze", {{"axes", {1}}}),
+               make_op("transpose", {{"permutation", {2, 0, 1}}})});
+}
+
+TEST_CASE(invert_broadcast)
+{
+    // A broadcast duplicates elements so it has no inverse
+    EXPECT(migraphx::shape_transform_descriptor::create(
+               {2, 1}, {make_op("multibroadcast", {{"out_lens", {2, 4}}})})
+               .invert()
+               .empty());
+    EXPECT(migraphx::shape_transform_descriptor::create(
+               {2}, {make_op("broadcast", {{"axis", 0}, {"out_lens", {2, 4}}})})
+               .invert()
+               .empty());
+}
+
+TEST_CASE(invert_empty) { EXPECT(migraphx::shape_transform_descriptor{}.invert().empty()); }
 
 TEST_CASE(generate_shape_transforms_for)
 {

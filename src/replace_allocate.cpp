@@ -33,6 +33,8 @@
 #include <migraphx/op/allocate.hpp>
 #include <migraphx/logger.hpp>
 #include <migraphx/optional.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/instruction_traversal.hpp>
 #include <migraphx/shape_transform_descriptor.hpp>
 #include <algorithm>
 #include <map>
@@ -119,30 +121,22 @@ get_output_debug_symbols(const module& mod)
     return mod_output_debug_symbols;
 }
 
-// Collect the shape transformations that are applied to `alloc` to produce `ins`. Instructions
-// that alias their input without changing the shape are the identity transformation, so they are
-// skipped. This includes the operator writing into the allocation.
-optional<std::vector<operation>> get_alias_transforms(instruction_ref ins, instruction_ref alloc)
+// Collect the shape transformations that are applied to the allocation at the end of `path` to
+// produce the instruction at the start of it. Instructions that alias their input without changing
+// the shape are the identity transformation, so they are skipped. This includes the operator
+// writing into the allocation.
+std::vector<operation> get_alias_transforms(const std::vector<instruction_ref>& path)
 {
     std::vector<operation> ops;
-    while(ins != alloc)
-    {
-        auto aliases = instruction::get_output_alias(ins, true);
-        if(aliases.size() != 1)
-            return nullopt;
-        auto input = aliases.front();
-        if(input == ins)
-            return nullopt;
-        if(ins->get_shape() != input->get_shape())
-        {
-            auto op = ins->normalized_operator();
-            // The descriptor records reshapes with the non-lazy operator
-            if(op.name() == "reshape_lazy")
-                op = make_op("reshape", {{"dims", ins->get_shape().lens()}});
-            ops.push_back(op);
-        }
-        ins = input;
-    }
+    adjacent_for_each(path.begin(), path.end(), [&](instruction_ref ins, instruction_ref input) {
+        if(ins->get_shape() == input->get_shape())
+            return;
+        auto op = ins->normalized_operator();
+        // The descriptor records reshapes with the non-lazy operator
+        if(op.name() == "reshape_lazy")
+            op = make_op("reshape", {{"dims", ins->get_shape().lens()}});
+        ops.push_back(op);
+    });
     std::reverse(ops.begin(), ops.end());
     return ops;
 }
@@ -178,14 +172,10 @@ optional<std::vector<operation>> invert_alias_transforms(const shape& alloc_shap
                                                          const shape& out_shape,
                                                          const std::vector<operation>& ops)
 {
-    auto desc = shape_transform_descriptor::create(alloc_shape.lens(), ops);
-    // A broadcast cannot be inverted since it does not write to every element
-    if(desc.empty() or desc.has_broadcast())
+    auto inverse = shape_transform_descriptor::create(alloc_shape.lens(), ops).invert();
+    if(inverse.empty())
         return nullopt;
-    auto result = desc.to_common_from_dst().generate();
-    auto to_src = desc.to_src_from_common().generate();
-    result.insert(result.end(), to_src.begin(), to_src.end());
-    result = optimize_shape_transforms(out_shape.lens(), result);
+    auto result = inverse.generate();
     // Reshapes need to be lazy so the output buffer is aliased instead of copied
     std::transform(result.begin(), result.end(), result.begin(), [](const operation& op) {
         if(op.name() != "reshape")
@@ -203,10 +193,9 @@ optional<std::vector<operation>> invert_alias_transforms(const shape& alloc_shap
 // shape of the allocation and then write into it directly.
 bool replace_alias_allocation(module& m, instruction_ref ins)
 {
-    auto aliases = instruction::get_output_alias(ins);
-    if(aliases.size() != 1)
-        return false;
-    auto alloc = aliases.front();
+    auto path = get_alias_path(ins);
+    std::vector<instruction_ref> aliases(path.begin(), path.end());
+    auto alloc = aliases.back();
     if(alloc->name() != "allocate" or alloc->get_shape().any_of_dynamic())
         return false;
     // Each return value needs its own output parameter, so an allocation that is shared with
@@ -216,10 +205,8 @@ bool replace_alias_allocation(module& m, instruction_ref ins)
            return contains(instruction::get_output_alias(r), alloc);
        }) > 1)
         return false;
-    auto ops = get_alias_transforms(ins, alloc);
-    if(not ops.has_value())
-        return false;
-    auto inverse = invert_alias_transforms(alloc->get_shape(), ins->get_shape(), *ops);
+    auto inverse = invert_alias_transforms(
+        alloc->get_shape(), ins->get_shape(), get_alias_transforms(aliases));
     if(not inverse.has_value())
         return false;
     auto out = m.insert_instruction(

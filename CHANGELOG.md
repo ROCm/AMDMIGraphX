@@ -39,6 +39,7 @@ Full documentation for MIGraphX is available at
 * Added GPU kernel for ONNX `NonMaxSuppression` operation and redesigned the `nonmaxsuppression` operation to better represent the data-dependent output shape in the MIGraphX IR (#4893).
 * Added a `lower_device_ops` pass that lowers `hip::fill`, `hip::copy`, and `gpu::contiguous` operators to code objects before `compile_ops` (#5030).
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
+* Added a verbose terminate handler for exceptions on Windows (#5084).
 
 
 ### Changed

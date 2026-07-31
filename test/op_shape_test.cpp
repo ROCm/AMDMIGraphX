@@ -5621,6 +5621,78 @@ TEST_CASE(slice_sym_symbolic_bounds)
     }
 }
 
+static migraphx::shape dyn_topk_shape(const std::vector<dd>& dims)
+{
+    return migraphx::shape({migraphx::shape{migraphx::shape::float_type, dims},
+                            migraphx::shape{migraphx::shape::int64_type, dims}});
+}
+
+TEST_CASE(dyn_topk_static_input)
+{
+    // The runtime `k` is unknown, so a static input still yields a symbolic output: min(k, 4).
+    auto k = var("k", {1, 4});
+    auto op =
+        migraphx::make_op("dyn_topk", {{"k", migraphx::to_value(k)}, {"axis", 1}, {"largest", 1}});
+    migraphx::shape sin{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape kin{migraphx::shape::int64_type, {1}};
+    expect_shape(dyn_topk_shape({dd{lit(2)}, dd{migraphx::sym::min(k, lit(4))}}), op, sin, kin);
+}
+
+TEST_CASE(dyn_topk_symbolic_input)
+{
+    // The axis length is itself a symbol, so the sliced extent is min(k, m).
+    auto k = var("k", {1, 4});
+    auto n = var("n", {1, 4});
+    auto m = var("m", {2, 4});
+    auto op =
+        migraphx::make_op("dyn_topk", {{"k", migraphx::to_value(k)}, {"axis", 1}, {"largest", 1}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}}};
+    migraphx::shape kin{migraphx::shape::int64_type, {1}};
+    expect_shape(dyn_topk_shape({dd{n}, dd{migraphx::sym::min(k, m)}}), op, sin, kin);
+}
+
+TEST_CASE(dyn_topk_range_input)
+{
+    // A range-based axis has no symbol to clamp against, so the extent widens to [0, max].
+    auto k = var("k", {1, 4});
+    auto op =
+        migraphx::make_op("dyn_topk", {{"k", migraphx::to_value(k)}, {"axis", 1}, {"largest", 1}});
+    migraphx::shape sin{migraphx::shape::float_type, {dd{1, 4}, dd{2, 4}}};
+    migraphx::shape kin{migraphx::shape::int64_type, {1}};
+    expect_shape(dyn_topk_shape({dd{1, 4}, dd{0, 4}}), op, sin, kin);
+}
+
+TEST_CASE(dyn_topk_bad_inputs)
+{
+    auto k = var("k", {1, 4});
+    auto op =
+        migraphx::make_op("dyn_topk", {{"k", migraphx::to_value(k)}, {"axis", 1}, {"largest", 1}});
+    migraphx::shape sin{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape kin{migraphx::shape::int64_type, {1}};
+    // `k` input is required and there is no indexing input
+    throws_shape(op, sin);
+    throws_shape(op, sin, kin, kin);
+    // `k` must be a static single-element 1-D tensor
+    throws_shape(op, sin, migraphx::shape{migraphx::shape::int64_type, {2}});
+    throws_shape(op, sin, migraphx::shape{migraphx::shape::int64_type, {1, 1}});
+    throws_shape(op, sin, migraphx::shape{migraphx::shape::int64_type, {dd{1, 4}}});
+}
+
+TEST_CASE(dyn_topk_bad_k_attribute)
+{
+    migraphx::shape sin{migraphx::shape::float_type, {2, 4}};
+    migraphx::shape kin{migraphx::shape::int64_type, {1}};
+    // `k` names the runtime value, so it has to be a bare variable
+    throws_shape(migraphx::make_op("dyn_topk", {{"axis", 1}}), sin, kin);
+    throws_shape(
+        migraphx::make_op("dyn_topk", {{"k", migraphx::to_value(lit(3))}, {"axis", 1}}), sin, kin);
+    throws_shape(
+        migraphx::make_op("dyn_topk",
+                          {{"k", migraphx::to_value(var("k", {1, 4}) + lit(1))}, {"axis", 1}}),
+        sin,
+        kin);
+}
+
 TEST_CASE(test_scan_slice1)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 3, 4}};

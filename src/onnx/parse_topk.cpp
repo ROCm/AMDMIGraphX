@@ -27,6 +27,7 @@
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/literal.hpp>
+#include <migraphx/sym.hpp>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -53,56 +54,54 @@ struct parse_topk : op_parser<parse_topk>
             axis = parser.parse_value(info.attributes.at("axis")).at<int>();
         }
 
-        bool var_k = false;
-        int64_t k  = 0;
-        if(args.size() == 2)
+        // opset-1 form: `k` is an attribute. Synthesize a constant `k` input so the topk
+        // operator always has (x, k) inputs.
+        if(args.size() == 1)
         {
-            auto arg_k = args.at(1)->eval();
-            if(not arg_k.empty())
+            int64_t k = 0;
+            if(contains(info.attributes, "k"))
             {
-                k = arg_k.at<int>();
+                k = info.attributes.at("k").i();
             }
-            else
-            {
-                var_k = true;
-            }
-        }
-        else if(contains(info.attributes, "k"))
-        {
-            k = info.attributes.at("k").i();
+            auto topk_ret = info.add_instruction(
+                make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
+            auto ret_val =
+                info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
+            auto ret_ind =
+                info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
+            return {ret_val, ret_ind};
         }
 
-        if(var_k)
+        // opset-10+ form: `k` is a runtime input. A constant `k` gives an exactly sized output,
+        // so no slicing is needed.
+        auto arg_k = args.at(1)->eval();
+        if(not arg_k.empty())
         {
-            // set `k` to axis dimension
-            auto input_shape = args.at(0)->get_shape();
-            auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
-            k                = input_shape.max_lens().at(norm_axis);
+            auto topk_ret = info.add_instruction(
+                make_op("topk", {{"k", arg_k.at<int64_t>()}, {"axis", axis}, {"largest", largest}}),
+                args.at(0));
+            auto ret_val =
+                info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
+            auto ret_ind =
+                info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
+            return {ret_val, ret_ind};
         }
+
+        // Variable (data-dependent) `k`: name the runtime value with a symbol and let dyn_topk
+        // describe its output as min(k, axis length). ONNX requires 1 <= k <= axis length, and
+        // those bounds are what keep the resulting dimension's interval finite.
+        // TODO: rewrite_topk should later turn this into topk + slice so it can run on a target.
+        auto input_shape = args.at(0)->get_shape();
+        auto norm_axis   = axis < 0 ? axis + input_shape.ndim() : axis;
+        int64_t k_max    = input_shape.max_lens().at(norm_axis);
+        auto k_var       = sym::var(info.name, {1, k_max});
 
         auto topk_ret = info.add_instruction(
-            make_op("topk", {{"k", k}, {"axis", axis}, {"largest", largest}}), args.at(0));
-
+            make_op("dyn_topk", {{"k", to_value(k_var)}, {"axis", axis}, {"largest", largest}}),
+            args.at(0),
+            args.at(1));
         auto ret_val = info.add_instruction(make_op("get_tuple_elem", {{"index", 0}}), topk_ret);
         auto ret_ind = info.add_instruction(make_op("get_tuple_elem", {{"index", 1}}), topk_ret);
-
-        if(var_k)
-        {
-            // dynamic slice on outputs of `topk`
-            ret_val = info.add_instruction(
-                make_op(
-                    "slice",
-                    {{"starts", {0}}, {"axes", {axis}}, {"mode", migraphx::value::array{"ends"}}}),
-                ret_val,
-                args.at(1));
-            ret_ind = info.add_instruction(
-                make_op(
-                    "slice",
-                    {{"starts", {0}}, {"axes", {axis}}, {"mode", migraphx::value::array{"ends"}}}),
-                ret_ind,
-                args.at(1));
-        }
-
         return {ret_val, ret_ind};
     }
 };

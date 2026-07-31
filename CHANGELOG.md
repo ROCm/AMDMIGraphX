@@ -60,6 +60,7 @@ Full documentation for MIGraphX is available at
 * Allow for 1 arg slicing over a dynamic dimension. (#5015)
 * Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
 * Refactored `slice` operator to handle symbolics and data-dependent shape functions (#5088).
+* Added a `dyn_topk` operator that takes `k` as a runtime input, so ONNX TopK with a data-dependent `K` no longer has to pad to the axis length and slice.
 
 ### Resolved issues
 

@@ -24,63 +24,37 @@
 
 #include <onnx_test.hpp>
 
-// `k` is a runtime input (graph input, not an initializer), so the parser takes the var_k
-// path: topk runs with k set to the axis dimension, then the outputs are sliced down to the
-// runtime `k`.
-TEST_CASE(topk_var_k_test)
+// `k` is a runtime input (graph input, not an initializer), so the parser emits dyn_topk with
+// the runtime `k` named by a symbol bounded by the axis length.
+static void add_dyn_topk(migraphx::module& m, const std::vector<migraphx::instruction_ref>& args)
 {
-    migraphx::program p;
-    auto* mm  = p.get_main_module();
-    auto data = mm->add_parameter("data", {migraphx::shape::float_type, {2, 4}});
-    auto k    = mm->add_parameter("k", {migraphx::shape::int64_type, {1}});
-    auto out  = mm->add_instruction(
-        migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
-    auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
-    auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    val      = mm->add_instruction(
-        migraphx::make_op(
-            "slice", {{"starts", {0}}, {"axes", {1}}, {"mode", migraphx::value::array{"ends"}}}),
-        val,
-        k);
-    ind = mm->add_instruction(
-        migraphx::make_op(
-            "slice", {{"starts", {0}}, {"axes", {1}}, {"mode", migraphx::value::array{"ends"}}}),
-        ind,
-        k);
-    mm->add_return({val, ind});
-
-    auto prog = read_onnx("topk_var_k_test.onnx");
-
-    EXPECT(p == prog);
+    auto k_var = migraphx::sym::var("TopK_2", {1, 4});
+    auto out   = m.add_instruction(
+        migraphx::make_op("dyn_topk",
+                          {{"k", migraphx::to_value(k_var)}, {"axis", 1}, {"largest", 1}}),
+        args[0],
+        args[1]);
+    auto val = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
+    auto ind = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
+    m.add_return({val, ind});
 }
 
-// Same model, but `data` is overridden to a dynamic shape. `k` stays a runtime input, so the
-// var_k path still fires and sets the topk `k` to the axis dimension's max length.
-TEST_CASE(topk_var_k_dynamic_test)
+TEST_CASE(topk_var_k_test)
 {
-    migraphx::program p;
-    auto* mm  = p.get_main_module();
-    auto data = mm->add_parameter("data", {migraphx::shape::float_type, {{1, 4}, {2, 4}}});
-    auto k    = mm->add_parameter("k", {migraphx::shape::int64_type, {1}});
-    auto out  = mm->add_instruction(
-        migraphx::make_op("topk", {{"k", 4}, {"axis", 1}, {"largest", 1}}), data);
-    auto val = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), out);
-    auto ind = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), out);
-    val      = mm->add_instruction(
-        migraphx::make_op(
-            "slice", {{"starts", {0}}, {"axes", {1}}, {"mode", migraphx::value::array{"ends"}}}),
-        val,
-        k);
-    ind = mm->add_instruction(
-        migraphx::make_op(
-            "slice", {{"starts", {0}}, {"axes", {1}}, {"mode", migraphx::value::array{"ends"}}}),
-        ind,
-        k);
-    mm->add_return({val, ind});
+    EXPECT(check_parse("topk_var_k_test.onnx",
+                       {{"data", {migraphx::shape::float_type, {2, 4}}},
+                        {"k", {migraphx::shape::int64_type, {1}}}},
+                       add_dyn_topk));
+}
 
-    migraphx::onnx_options options;
-    options.map_dyn_input_dims["data"] = {{1, 4}, {2, 4}};
-    auto prog                          = read_onnx("topk_var_k_test.onnx", options);
-
-    EXPECT(p == prog);
+// Same model, but `data` is overridden to a symbolic shape. The `k` symbol is still bounded by
+// the axis length, which comes from the symbol's upper bound rather than a fixed length.
+TEST_CASE(topk_var_k_symbolic_test)
+{
+    using migraphx::sym::var;
+    EXPECT(check_parse(
+        "topk_var_k_test.onnx",
+        {{"data", {migraphx::shape::float_type, sym_dims({var("n", {1, 4}), var("m", {2, 4})})}},
+         {"k", {migraphx::shape::int64_type, {1}}}},
+        add_dyn_topk));
 }

@@ -215,6 +215,7 @@ register_migraphx_ops(
     dimensions_of
     div
     dot
+    dyn_topk
     elu
     equal
     erf

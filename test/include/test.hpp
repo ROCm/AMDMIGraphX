@@ -871,6 +871,7 @@ struct driver
             run_test_case(p.first, p.second, args);
     }
 
+    // NOLINTNEXTLINE(readability-function-size)
     void run(int argc, const char* argv[])
     {
         auto args = parse(argc, argv);

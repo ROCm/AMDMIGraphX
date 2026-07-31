@@ -61,6 +61,11 @@ struct onnx_options
     bool use_debug_symbols = false;
     /// Build shapes with symbolic dimensions, resolving ONNX dim_param names to sym::var
     bool use_symbolic_shapes = false;
+    /// Compile the prefill and decode phases of a kv-cache model into one program. Needs a
+    /// `sequence_length` dim_param of {1, MAX_SEQ_LEN}: the graph is parsed once specialized to a
+    /// single token (decode) and once to MAX_SEQ_LEN (prefill), and a select_module picks between
+    /// them from the runtime input shapes.
+    bool split_prefill_decode = false;
     /// Path to use for the external data if it is stored at different location compared to onnx
     /// file
     std::string external_data_path = "";

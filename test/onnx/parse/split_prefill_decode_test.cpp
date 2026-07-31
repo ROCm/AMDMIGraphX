@@ -25,18 +25,19 @@
 #include <onnx_test.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/iterator_for.hpp>
-#include <migraphx/register_target.hpp>
 #include <algorithm>
-#include <cassert>
 
 namespace {
 
-migraphx::instruction_ref find_select_module(migraphx::module_ref mod)
+std::vector<migraphx::module_ref> find_specializations(migraphx::const_module_ref mod)
 {
-    auto result = std::find_if(
-        mod->begin(), mod->end(), [](const auto& ins) { return ins.name() == "select_module"; });
-    assert(result != mod->end());
-    return result;
+    auto instructions = migraphx::iterator_for(*mod);
+    auto select       = std::find_if(instructions.begin(), instructions.end(), [](auto ins) {
+        return ins->name() == "select_module";
+    });
+    if(select == instructions.end())
+        return {};
+    return (*select)->module_inputs();
 }
 
 std::size_t count_literals(migraphx::const_module_ref mod)
@@ -47,63 +48,110 @@ std::size_t count_literals(migraphx::const_module_ref mod)
     });
 }
 
-std::vector<float>
-run_program(migraphx::program& p, const std::vector<std::size_t>& lens, std::vector<float> data)
+migraphx::onnx_options split_options(std::size_t max_sequence_length)
 {
-    migraphx::parameter_map params;
-    params["x"] =
-        migraphx::argument{migraphx::shape{migraphx::shape::float_type, lens}, data.data()};
-    auto result = p.eval(params).back();
-    std::vector<float> output;
-    result.visit([&](auto view) { output.assign(view.begin(), view.end()); });
-    return output;
+    migraphx::onnx_options options;
+    options.split_prefill_decode          = true;
+    options.use_symbolic_shapes           = true;
+    options.dim_params["sequence_length"] = {1, max_sequence_length};
+    return options;
 }
 
 } // namespace
 
 TEST_CASE(split_prefill_decode_test)
 {
-    migraphx::onnx_options options;
-    options.use_symbolic_shapes           = true;
-    options.dim_params["sequence_length"] = {1, 4};
-    auto p                                = read_onnx("split_prefill_decode_test.onnx", options);
+    auto p = read_onnx("split_prefill_decode_test.onnx", split_options(4));
 
-    auto* root      = p.get_main_module();
-    auto select     = find_select_module(root);
-    auto submodules = select->module_inputs();
-    EXPECT(submodules.size() == 2);
-    EXPECT(submodules.at(0)->name() == "main:split_prefill_decode:decode");
-    EXPECT(submodules.at(1)->name() == "main:split_prefill_decode:prefill");
-    EXPECT(submodules.at(0)->get_parameter_shape("x").lens() == std::vector<std::size_t>{1, 1, 2});
-    EXPECT(submodules.at(1)->get_parameter_shape("x").lens() == std::vector<std::size_t>{1, 4, 2});
+    auto specializations = find_specializations(p.get_main_module());
+    EXPECT(specializations.size() == 2);
+    EXPECT(specializations.at(0)->name() == "main:split_prefill_decode:decode");
+    EXPECT(specializations.at(1)->name() == "main:split_prefill_decode:prefill");
+    EXPECT(specializations.at(0)->get_parameter_shape("x") ==
+           migraphx::shape{migraphx::shape::float_type, {1, 1, 2}});
+    EXPECT(specializations.at(1)->get_parameter_shape("x") ==
+           migraphx::shape{migraphx::shape::float_type, {1, 4, 2}});
 
-    EXPECT(count_literals(root) == 1);
-    EXPECT(count_literals(submodules.at(0)) == 0);
-    EXPECT(count_literals(submodules.at(1)) == 0);
-
-    p.compile(migraphx::make_target("ref"));
-    EXPECT(run_program(p, {1, 1, 2}, {1.0f, 2.0f}) == std::vector<float>{2.0f, 3.0f});
-    EXPECT(run_program(p, {1, 4, 2}, std::vector<float>(8, 2.0f)) == std::vector<float>(8, 3.0f));
+    // The initializer stays in the main module and reaches both specializations as a parameter.
+    EXPECT(count_literals(p.get_main_module()) == 1);
+    EXPECT(count_literals(specializations.at(0)) == 0);
+    EXPECT(count_literals(specializations.at(1)) == 0);
+    EXPECT(specializations.at(0)->get_parameter_shape("one") ==
+           migraphx::shape{migraphx::shape::float_type, {1}});
+    EXPECT(specializations.at(1)->get_parameter_shape("one") ==
+           migraphx::shape{migraphx::shape::float_type, {1}});
 }
 
-TEST_CASE(group_query_attention_symbolic_test)
+// The split has to happen while parsing because a kv-cache attention operator cannot be parsed
+// with a symbolic sequence length at all.
+TEST_CASE(split_prefill_decode_group_query_attention_test)
+{
+    auto p = read_onnx("group_query_attention_symbolic_test.onnx", split_options(8));
+
+    auto specializations = find_specializations(p.get_main_module());
+    EXPECT(specializations.size() == 2);
+    EXPECT(specializations.at(0)->get_parameter_shape("qkv").lens() ==
+           std::vector<std::size_t>{1, 1, 96});
+    EXPECT(specializations.at(1)->get_parameter_shape("qkv").lens() ==
+           std::vector<std::size_t>{1, 8, 96});
+
+    // The caches are initializers, so they are literals of the main module and reach the
+    // specializations as parameters. Whatever constants the operator parser itself adds are not.
+    EXPECT(count_literals(p.get_main_module()) == 3);
+    EXPECT(specializations.at(0)->get_parameter_shape("cos_cache").lens() ==
+           std::vector<std::size_t>{10, 8});
+    EXPECT(specializations.at(1)->get_parameter_shape("cos_cache").lens() ==
+           std::vector<std::size_t>{10, 8});
+}
+
+// The split describes how the model is used, not how its shapes are spelled, so it applies to
+// plain dynamic dimensions too.
+TEST_CASE(split_prefill_decode_without_symbolic_shapes_test)
+{
+    auto options                = split_options(4);
+    options.use_symbolic_shapes = false;
+    auto p                      = read_onnx("split_prefill_decode_test.onnx", options);
+
+    auto specializations = find_specializations(p.get_main_module());
+    EXPECT(specializations.size() == 2);
+    EXPECT(specializations.at(0)->get_parameter_shape("x") ==
+           migraphx::shape{migraphx::shape::float_type, {1, 1, 2}});
+    EXPECT(specializations.at(1)->get_parameter_shape("x") ==
+           migraphx::shape{migraphx::shape::float_type, {1, 4, 2}});
+}
+
+// Without the opt-in a sequence_length range is an ordinary dynamic dimension.
+TEST_CASE(split_prefill_decode_not_enabled_test)
+{
+    auto options                 = split_options(4);
+    options.split_prefill_decode = false;
+    auto p                       = read_onnx("split_prefill_decode_test.onnx", options);
+
+    EXPECT(find_specializations(p.get_main_module()).empty());
+}
+
+// Asking for the split without giving it something to split on is worth reporting: the
+// alternative is a program that silently handles only one of the two phases.
+TEST_CASE(split_prefill_decode_missing_dim_param_test)
 {
     migraphx::onnx_options options;
-    options.use_symbolic_shapes           = true;
-    options.dim_params["sequence_length"] = {1, 8};
-    auto p = read_onnx("group_query_attention_symbolic_test.onnx", options);
+    options.split_prefill_decode = true;
+    options.use_symbolic_shapes  = true;
+    EXPECT(test::throws([&] { read_onnx("split_prefill_decode_test.onnx", options); }));
+}
 
-    auto* root      = p.get_main_module();
-    auto select     = find_select_module(root);
-    auto submodules = select->module_inputs();
-    EXPECT(submodules.size() == 2);
-    EXPECT(submodules.at(0)->get_parameter_shape("qkv").lens() ==
-           std::vector<std::size_t>{1, 1, 96});
-    EXPECT(submodules.at(1)->get_parameter_shape("qkv").lens() ==
-           std::vector<std::size_t>{1, 8, 96});
-    EXPECT(count_literals(root) == 3);
-    EXPECT(submodules.at(0)->get_parameter_shape("cos_cache").lens() ==
-           std::vector<std::size_t>{10, 8});
-    EXPECT(submodules.at(1)->get_parameter_shape("cos_cache").lens() ==
-           std::vector<std::size_t>{10, 8});
+// Only a range that bottoms out at a single token describes decoding.
+TEST_CASE(split_prefill_decode_range_does_not_start_at_one_test)
+{
+    auto options                          = split_options(4);
+    options.dim_params["sequence_length"] = {2, 4};
+    EXPECT(test::throws([&] { read_onnx("split_prefill_decode_test.onnx", options); }));
+}
+
+// Explicit dims replace the dim-param, so there is no sequence length left to specialize on.
+TEST_CASE(split_prefill_decode_input_dim_override_test)
+{
+    auto options                = split_options(4);
+    options.map_input_dims["x"] = {1, 4, 2};
+    EXPECT(test::throws([&] { read_onnx("split_prefill_decode_test.onnx", options); }));
 }

@@ -107,6 +107,7 @@ struct onnx_parser
     bool skip_unknown_operators  = false;
     bool use_debug_symbols       = false;
     bool use_symbolic_shapes     = false;
+    bool split_prefill_decode    = false;
     int64_t max_loop_iterations  = 10;
     int64_t limit_max_iterations = std::numeric_limits<uint16_t>::max();
     int64_t opset_version        = 13;
@@ -125,10 +126,13 @@ struct onnx_parser
     void parse_from(std::istream& is, std::string name = "");
     void parse_from(const void* data, std::size_t size);
     void parse_model(const onnx::ModelProto& model);
+    /// Parse `graph` into `mod`. Unless `initializers` supplies them, the graph's constants are
+    /// added to `mod` as literals; passing them lets a caller that parses the same graph more than
+    /// once keep one shared copy and feed it in through parameters instead.
     std::vector<instruction_ref> parse_graph(module* mod,
                                              const onnx::GraphProto& graph,
-                                             bool inlining                              = false,
-                                             const instruction_map* shared_initializers = nullptr);
+                                             bool inlining                       = false,
+                                             const instruction_map* initializers = nullptr);
     literal parse_value(const onnx::AttributeProto& attr) const;
     literal parse_tensor(const onnx::TensorProto& t) const;
     shape parse_type(const onnx::TypeProto& t, const std::string& name) const;

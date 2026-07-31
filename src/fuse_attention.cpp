@@ -114,6 +114,15 @@ inline std::size_t calculate_groups(std::size_t groups,
     return 0;
 }
 
+// Submodule names have to be unique across the program, but the counter that numbers them starts
+// over for every module the pass visits, so qualify the name outside of the main module.
+inline std::string submodule_name(const module& parent, const std::string& name)
+{
+    if(parent.name() == "main")
+        return name;
+    return parent.name() + ":" + name;
+}
+
 // TODO: Write this in matcher.hpp as a general matcher for iterating through inputs
 inline auto pointwise_inputs()
 {
@@ -340,10 +349,8 @@ struct find_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        auto module_name = "attn" + get_count();
-        if(mpm.get_module().name() != "main")
-            module_name = mpm.get_module().name() + ":" + module_name;
-        module_ref mpm_attn = mpm.create_module(module_name, std::move(m_attn));
+        module_ref mpm_attn = mpm.create_module(
+            submodule_name(mpm.get_module(), "attn" + get_count()), std::move(m_attn));
         mpm_attn->set_bypass();
 
         auto group_ins = mpm.get_module().insert_instruction(
@@ -1003,10 +1010,8 @@ struct find_kv_cache_attention
         auto map_mattn_to_mm = invert_map_ins(map_mm_to_mattn);
         auto new_inputs      = m_attn.get_inputs(map_mattn_to_mm);
 
-        auto module_name = "attn" + get_count();
-        if(mpm.get_module().name() != "main")
-            module_name = mpm.get_module().name() + ":" + module_name;
-        module_ref mpm_attn = mpm.create_module(module_name, std::move(m_attn));
+        module_ref mpm_attn = mpm.create_module(
+            submodule_name(mpm.get_module(), "attn" + get_count()), std::move(m_attn));
         mpm_attn->set_bypass();
 
         // Construct group op with the attention module

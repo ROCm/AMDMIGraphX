@@ -540,7 +540,13 @@ struct simplify_select_module_output_shape : match::supports_dynamic_shapes
 
     void apply(module& m, const match::matcher_result& mr) const
     {
-        auto sm_ins           = mr.result;
+        auto sm_ins = mr.result;
+        // The submodules are already specialized, so all this pass can recover from them is the
+        // range their outputs span. A symbolic output_dyn_shapes ties those dimensions to the
+        // inputs that drive them, which says strictly more, so leave it alone.
+        const auto& current = sm_ins->get_shape().sub_shapes();
+        if(std::any_of(current.begin(), current.end(), [](const shape& s) { return s.symbolic(); }))
+            return;
         auto sm_module_inputs = sm_ins->module_inputs();
         std::vector<std::vector<shape>> all_output_shapes(sm_module_inputs.size());
         std::transform(sm_module_inputs.begin(),

@@ -325,7 +325,7 @@ if(MIGRAPHX_USE_HIPRTC)
     find_package(hiprtc REQUIRED)
     message(STATUS "MIGraphX is using hipRTC")
     # GPUEP workaround for MLIR to use by default
-    target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1)
+    target_compile_definitions(migraphx_gpu PRIVATE -DMIGRAPHX_USE_HIPRTC=1 -DMIGRAPHX_MLIR=1)	   
     target_link_libraries(migraphx_gpu PUBLIC hiprtc::hiprtc)
 else()
     message(STATUS "MIGraphX is using HIP Clang")

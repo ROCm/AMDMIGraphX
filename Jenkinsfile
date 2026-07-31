@@ -276,8 +276,8 @@ def rocmtest = { Map conf = [:], Closure body ->
                 timeout(time: 4, unit: 'HOURS') {
                     sh """
                         mkdir -p ${ccache} ${comgr_cache}
-                        ls /workspaces/
-                        ls /workspaces/.cache/
+                        ls -l /workspaces/
+                        ls -l /workspaces/.cache/
                     """
                     body()
                 }

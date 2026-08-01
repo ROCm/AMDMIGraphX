@@ -630,6 +630,9 @@ struct driver
         add_flag({"--list", "-l"}, "List all test cases");
         add_flag({"--continue", "-c"}, "Continue after failure");
         add_flag({"--quiet", "-q"}, "Don't print out extra output");
+        add_arg({"--start-from", "-s"},
+                "Run all test cases starting from the given test case name (or glob) in "
+                "registration order, skipping the ones before it.");
     }
     struct argument
     {
@@ -770,6 +773,7 @@ struct driver
         std::string msg;
         args[""] = {name};
         args.erase("--continue");
+        args.erase("--start-from");
         args["--quiet"];
         auto cmd = create_command(args);
         auto r   = std::system(cmd.c_str()); // NOLINT
@@ -867,6 +871,7 @@ struct driver
             run_test_case(p.first, p.second, args);
     }
 
+    // NOLINTNEXTLINE(readability-function-size)
     void run(int argc, const char* argv[])
     {
         auto args = parse(argc, argv);
@@ -886,7 +891,24 @@ struct driver
             quiet = true;
 
         auto cases = args[""];
-        if(cases.empty())
+        if(args.count("--start-from") > 0 and not args.at("--start-from").empty())
+        {
+            const auto& start = args.at("--start-from").front();
+            auto&& all        = get_test_cases();
+            auto it           = std::find_if(all.begin(), all.end(), [&](const auto& tc) {
+                return tc.first == start or
+                       glob_match(tc.first.begin(), tc.first.end(), start.begin(), start.end());
+            });
+            if(it == all.end())
+            {
+                out() << color::fg_red << "[  ERROR   ] Start-from test case '" << start
+                      << "' not found." << color::reset << std::endl;
+                std::exit(1);
+            }
+            std::vector<std::pair<std::string, test_case>> resumed(it, all.end());
+            run_test_cases(resumed, args);
+        }
+        else if(cases.empty())
         {
             run_test_cases(get_test_cases(), args);
         }

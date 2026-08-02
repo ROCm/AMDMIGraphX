@@ -113,7 +113,8 @@ Read and Grep). Give each agent the full diff, the classified file list, and the
 one angle it owns. Each candidate has `file`, `line`, a one-line `summary`, and
 a concrete `failure_scenario`.
 
-**Core angles** (A, B, C, Languages, Quality, Conventions, Tests) always run.
+**Core angles** (A, B, C, Languages, Quality, Conventions, Tests, Precedent)
+always run.
 **Conditional angles** (API/ABI, IR contracts) run when Phase 0 says their
 surface was touched; at `xhigh` and `max` run the IR-contract angle regardless.
 
@@ -334,6 +335,143 @@ specific bug it would have caught — not that coverage is low. Tag these
 ranks with the correctness findings; other coverage gaps rank alongside quality
 and conventions.
 
+### Angle J — review precedent
+
+Distilled from the human review comments on PRs #4891–#5108. None of this is
+written down in `AGENTS.md` or `/migraphx-simplify` — it is the unwritten
+standard this repo's reviewers apply. Flag only what the diff actually does, and
+**cite the precedent PR number** in `failure_scenario` so the author sees an
+established expectation rather than a personal preference.
+
+**Configuration and knobs**
+- New behavior gated on an environment variable where a pass parameter or a
+  field in the target's reflected `backend_options` struct would do (#4911,
+  #5053, #5028). Env values are read once and cached for the process.
+- A test that sets an environment variable — the value leaks into every later
+  test in the same process (#5064, #4911).
+- An enable/disable flag that is never set to false anywhere, or left behind
+  after the feature became the default (#5036, #5030, #5064).
+- A CMake workaround enabled for everyone instead of an opt-in cache flag
+  guarded on the compiler or condition that actually needs it (#4920, #4941).
+
+**Pass and matcher discipline**
+- A precondition checked inside `apply()` that belongs in `matcher()` — use
+  `match::nargs`, a named `MIGRAPHX_PRED_MATCHER` predicate, or a composable
+  matcher rather than `match::any()` when the surrounding pattern is known
+  (#4891, #5105, #4900).
+- A predicate helper that mutates the graph: `can_*` functions must stay
+  query-only, with every mutation in `apply()` (#4900).
+- A pass that needs to run other passes but takes `module&` instead of
+  `module_pass_manager&` (#5066).
+- A pass inserted into a pipeline without a justified position, a duplicate DCE
+  left behind, or an old path the new pass subsumes left in place (#4904,
+  #5030, #5096).
+- `eval()` or `can_eval()` called from an optimization pass — it walks and
+  evaluates the graph at compile time (#4948).
+- A rewrite that increases work (hoisting compute above a slice onto a larger
+  tensor) or inserts the same instruction more than once (#5004, #5030, #5038).
+
+**Layering and placement**
+- Target-specific concepts leaking into target-agnostic code: GPU exceptions
+  caught in `pass_manager`, GPU errors added to `errors.hpp`, GPU-only fields in
+  `compile_options` (#5021, #5008).
+- A helper in the wrong home — put it in the utility header that owns its
+  purpose (`fileutils.hpp`, `stringutils.hpp`, `value.cpp`, `device_name.cpp`)
+  and keep ONNX-specific logic in the ONNX module (#5024, #4991, #4957, #4895).
+- A pass-internal helper promoted to a public header only so a test can reach
+  it; prefer black-box coverage through an existing test, and note that Windows
+  then needs an export (#4989).
+
+**Error handling**
+- A catch-all handler: catch the specific exception, or log and exit. Never
+  swallow a failure to keep an optimization "safe" — a shape that fails to
+  propagate should surface (#5096, #5021).
+- A raise that isn't `MIGRAPHX_THROW` (#4946).
+
+**Shape, layout, and symbolic idioms**
+- Linear-index math in an op's `compute` where the output shape can be
+  non-standard — use the multi-index `output(i, j)` form, and `with_lens` so a
+  permutation propagates (#5046).
+- Code assuming the last argument is the output buffer, or forwarding an input
+  layout unconditionally (#5030, #5046).
+- An axis used without normalization — check for negative, or use
+  `ins->normalized_operator()`; assert the invariant if it should already hold
+  (#4891).
+- `==` / `!=` on symbolic dimensions instead of `same_value` / `same_symbol`
+  (#4977).
+- A dynamic-shape `compute_shape` that ignores `intersection()` semantics or
+  picks a min bound it cannot justify (#4924, #5015, #5043).
+- Attribute combinations left unvalidated in `compute_shape` — empty or
+  degenerate `starts`/`ends`/`axes`; a zero-length dimension that should become
+  `undefined` at parse time (#5088, #4999).
+
+**Naming**
+- A name that doesn't say what the code does or doesn't match the local
+  convention: encode the side effect (`block_sync_copy_index_if_n`), match
+  existing suffixes (`_n`, not `_limit`), prefix by subsystem
+  (`replace_onnx_external_weights`), and prefer a precise verb over a vague one
+  (#4893, #4957, #5105, #5049, #5030). Renaming an existing shared function
+  needs a stated reason (#4893).
+
+**How the test is written** — Angle I asks whether a test exists; this asks
+whether the one that exists is written the way reviewers require.
+- A pass test asserting on instruction counts or side effects instead of
+  building the expected module and comparing against it (#5030, #5105, #4992,
+  #5060).
+- A fix tested only by pointing at a customer model — distill a minimal repro
+  into the matching test file (#5052, #4919).
+- An edge case tested at the wrong layer, e.g. contorting the ONNX parser to
+  produce a case that belongs in an op-level test (#4999).
+- A test carrying ops the case doesn't need, or several verify classes sharing
+  one `.cpp` (#5064, #5060).
+- A test that runs extra normalizing passes, or trims/resizes the output, so the
+  path under test is masked (#4891, #4893).
+- A new kernel or optimization tested only for the type or config it was
+  developed against when it claims to support more (#4954, #4893).
+- A deleted or disabled test — update it if the IR legitimately changed, never
+  remove it to go green (#5052).
+
+**Performance claims and heuristics**
+- A perf-motivated change with no measured before/after, or one that drops a
+  path still faster for some shapes (#5018, #4954, #4948).
+- A tuning constant with no stated origin — say where the number came from and
+  whether it generalizes past the model that motivated it (#5040, #5038).
+- A cache or dedup key derived from the gfx arch name or another non-content
+  property; keys must be content-based (#5039, #4992).
+- A lock held across expensive work such as a host-to-device copy (#5039).
+
+**What ships with the change**
+- A user-visible change with no `Changelog.md` entry, or one filed under the
+  wrong category (#4919, #4939, #5038, #4923); internal-only refactors don't
+  need one (#4904).
+- A touched file whose copyright year range wasn't updated — CI enforces it
+  (#4899, #4965, #4966).
+- Behavior or options changed without the matching docs page updated, or docs
+  claiming support the code doesn't implement (#5028, #4945, #4965, #4946).
+- A generated file edited directly instead of its template under `tools/`
+  (#4935).
+- A new `NOLINT` or `cppcheck-suppress` where the code should be fixed, or tidy
+  flags changed in the build instead of `.clang-tidy` (for example adding a type
+  to `AllowedTypes`) (#4911, #4977, #4952).
+
+**Public API additions** — extends Angle E.
+- An API taking an internal type where a string the implementation parses would
+  do (`sym::expr` behind `sym::parse`) (#4946).
+- An API added for behavior meant to become the default, which will then do
+  nothing (#4946).
+- A public signature changed in place instead of adding a forwarding overload
+  (#4977).
+- A change that makes users include a different header or link new targets —
+  that is breaking; call it out (#4961).
+
+**Build and toolchain**
+- A local stub, shim, or version workaround for a problem that belongs upstream
+  in the pinned dependency (#4988, #4952).
+- Docker or prereq changes that drop existing settings (sanitizer flags),
+  hand-edit `PATH` for ROCm-installed tools, or pin an old clang-format instead
+  of the ROCm-shipped one (#4952).
+- CI logic duplicated per stage instead of living in the shared harness (#4910).
+
 ## Phase 2 — Verify (1-vote)
 
 Dedup candidates that point at the same line or mechanism, keeping the one with
@@ -397,7 +535,8 @@ first; each entry has `file`, `line`, `summary`, `short_summary` — the claim
 compressed to ≤60 characters, no rationale or consequence clause —
 `failure_scenario`, `category`, and the `verdict` from Phase 2. Use categories
 such as `correctness`, `language-pitfall`, `api-abi`, `ir-contract`,
-`conventions`, `test-coverage`, and `quality` for everything from Angle G. If
+`conventions`, `test-coverage`, `quality` for everything from Angle G, and
+`precedent` for an Angle J finding that fits none of the others. If
 more than the cap survive, keep the most severe. If nothing survives
 verification, call it with an empty array. Do not also print the findings as
 text, and do not create or publish an artifact of the review — the tool call is

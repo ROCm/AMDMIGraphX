@@ -1,5 +1,5 @@
 ---
-description: "Code review the changed MIGraphX code for correctness bugs, language-specific pitfalls, C/C++ API-ABI breakage, and convention violations, with a verify pass that drops false positives. Quality cleanup is delegated to /migraphx-simplify rather than repeated. Effort levels low through max; --comment posts inline PR comments, --fix applies the bug fixes."
+description: "Code review the changed MIGraphX code for correctness bugs, language-specific pitfalls, C/C++ API-ABI breakage, missing test coverage, and convention violations, with a verify pass that drops false positives. The quality checklist is delegated to /migraphx-simplify rather than repeated. Effort levels low through max; --comment posts inline PR comments, --fix applies every class of finding including the quality cleanups."
 allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git blame:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git branch:*), Bash(git fetch:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh api:*), Bash(grep:*), Bash(find:*), Read, Grep, Glob, Edit, Agent, Skill, ReportFindings, Artifact, mcp__github_inline_comment__create_inline_comment
 ---
 
@@ -65,7 +65,9 @@ exception that should propagate, wrong-variable or wrong-axis copy-paste, an
 hunk alone — new code that duplicates a helper visible in the diff context, and
 dead code the diff leaves behind.
 
-Do **not** flag style, naming, perf, missing tests, or anything outside the hunk.
+Do **not** flag style, naming, perf, missing tests, or anything outside the
+hunk. Test coverage is deliberately not reviewed at this level — it starts at
+`medium` (Angle I), which reads the mirrored test files.
 
 Report at most **4 findings**, most-severe first, in one `ReportFindings` call
 with `{level, findings}` — each entry has `file`, `line`, `summary`,
@@ -111,7 +113,7 @@ Read and Grep). Give each agent the full diff, the classified file list, and the
 one angle it owns. Each candidate has `file`, `line`, a one-line `summary`, and
 a concrete `failure_scenario`.
 
-**Core angles** (A, B, C, Languages, Quality, Conventions) always run.
+**Core angles** (A, B, C, Languages, Quality, Conventions, Tests) always run.
 **Conditional angles** (API/ABI, IR contracts) run when Phase 0 says their
 surface was touched; at `xhigh` and `max` run the IR-contract angle regardless.
 
@@ -244,8 +246,8 @@ matcher's `apply` does not invalidate the instruction it matched.
 Read `.claude/skills/migraphx-simplify/SKILL.md` and run **its Phase 1 review
 angles** — reuse, simplification, efficiency, altitude, safety, comments — over
 this diff. Use that skill's checklists as written; do not restate them here and
-do not re-derive your own version. **Report only. Do not apply any fix from this
-angle**, whatever flags were passed to this review.
+do not re-derive your own version. These findings are reported like any other,
+and `--fix` applies them along with the rest.
 
 Then expand past it. That skill is tuned to local cleanups; this review wants
 the larger defect those cleanups hint at. For each thing you would have flagged
@@ -265,7 +267,7 @@ it is real:
 
 Drop pure nits: if `/migraphx-simplify` would fix it in one edit and nothing
 larger follows from it, it is not worth a finding here. Tag every finding from
-this angle with `category: quality` so the `--fix` step can exclude them.
+this angle with `category: quality` so they can be ranked and applied as a group.
 
 ### Angle H — conventions
 
@@ -292,8 +294,45 @@ than taste. Incidental differences are not findings.
 Convention candidates use the same `file`/`line`/`summary` shape; in
 `failure_scenario`, state the concrete cost — which rule is broken, or which
 established pattern the code now contradicts — instead of a crash. Correctness,
-API/ABI, and IR-contract findings always outrank quality and convention
-findings when the output cap forces a cut.
+API/ABI, and IR-contract findings always outrank quality, test-coverage, and
+convention findings when the output cap forces a cut.
+
+### Angle I — test coverage
+
+Read `AGENTS.md` § *Testing Guidelines* — directory organization, unit tests,
+testing passes, numerical verification, verify tests, and test best practices —
+and check what the diff adds against it, quoting the guidance you are applying.
+Flag:
+
+- a bug fix with no regression test that would have failed before the fix; name
+  the test file it belongs in (mirroring the `src/` layout) and the case;
+- a new or changed operation with no shape test and no reference-target test, or
+  a new ONNX/TF operator with no parse test and no verify test;
+- a new or changed pass with no unit test that builds the expected module and
+  asserts equality against it;
+- changed kernel or GPU numerics with no `test/verify` case;
+- a new C API entry point with no `test/api` coverage, and a new Python binding
+  with no `test/py` coverage;
+- a test that was added but does not actually exercise the change — it would
+  pass with the change reverted, or it asserts nothing about the new behavior;
+- edge cases the change newly makes reachable that the added tests skip, from
+  the list in `AGENTS.md` § *Test Best Practices* (zero-length dimensions,
+  dynamic shapes at extreme min/max, mixed type promotion, broadcasting
+  asymmetries, reduction axis ordering);
+- a deleted or disabled test with no replacement;
+- an added test that ignores the repo's test conventions where that will cause
+  real friction — for example a verify test sharing a file with another verify
+  class.
+
+Before flagging, Grep the mirrored test file for a case that already covers the
+path — do not ask for coverage that exists. Do not flag coverage for docs-only,
+comment-only, or pure-rename changes.
+
+In `failure_scenario`, state what would break undetected without the test — the
+specific bug it would have caught — not that coverage is low. Tag these
+`category: test-coverage`. A missing regression test for a bug this diff fixes
+ranks with the correctness findings; other coverage gaps rank alongside quality
+and conventions.
 
 ## Phase 2 — Verify (1-vote)
 
@@ -395,22 +434,29 @@ fan-out, so whoever reads it isn't misled about what actually ran.
 ## Applying fixes (`--fix`)
 
 Only when the `--fix` flag was passed. After producing the findings list, apply
-them to the working tree: correctness, language-pitfall, API/ABI, IR-contract,
-and convention findings.
+every class of finding to the working tree — correctness, language-pitfall,
+API/ABI, IR-contract, and convention findings, **and the `quality` findings from
+Angle G**. For those, apply the fix `/migraphx-simplify` would have made
+(that skill's Phase 2 describes how it applies its own findings); running this
+review with `--fix` should leave the tree in the state a bug-fix pass followed by
+`/migraphx-simplify` would have.
 
-**Exclude every finding tagged `category: quality`** — the Angle G findings
-delegated to `/migraphx-simplify`. Report them, and say that `/migraphx-simplify`
-applies that class of change; do not edit for them here.
+For `test-coverage` findings, add the missing test when it is a small,
+clearly-derivable case that follows the patterns already in the mirrored test
+file — a regression test for a bug you just fixed is the common case. When the
+test needs a new fixture, a golden model, or a judgement call about what to
+assert, skip it and say what the test should cover.
 
 Skip any finding whose fix would change intended behavior, require changes well
 outside the reviewed diff, or that you judge to be a false positive — note the
-skip rather than arguing with it. **Never modify a test to match new output**;
-if a fix breaks a test, the fix is wrong. Then call `ReportFindings` again with
-the same findings, each carrying an `outcome`: `fixed`, `no_change_needed` (the
-finding was wrong or already handled), or `skipped` (real but not applied, which
-includes every `quality` finding). Do not repeat the findings as text; after the
+skip rather than arguing with it. **Never modify or weaken an existing test to
+make a fix pass**; if a fix breaks a test, the fix is wrong. Then call
+`ReportFindings` again with the same findings, each carrying an `outcome`:
+`fixed`, `no_change_needed` (the finding was wrong or already handled), or
+`skipped` (real but not applied). Do not repeat the findings as text; after the
 call, give one line per skipped finding saying why. If `ReportFindings` isn't
-available, finish with a brief summary of what was fixed and what was skipped.
+available, finish with a brief summary of what was fixed and what was skipped,
+grouped by category.
 
 Without `--fix`, do not modify any file — the report is the only output.
 
@@ -463,8 +509,9 @@ Do not flag, and treat as false positives:
 - Anything the linters already catch — clang-format, and the clang-tidy and
   cppcheck warnings that `make -j<N> analyze` reports (see `AGENTS.md`
   § *Linting* for what is enabled). CI runs those.
-- Missing test coverage in general; flag it only when the diff fixes a bug and
-  adds no regression test, or changes kernel numerics with no `test/verify` case.
+- Coverage gaps that Angle I rules out: a path an existing test already
+  exercises, or a docs-only, comment-only, or pure-rename change. Coverage that
+  the diff genuinely leaves untested is in scope — report it.
 - Style preferences that no convention source states and no established pattern
   in comparable files supports.
 - Changes in behavior that are plainly the intent of the change.

@@ -50,8 +50,10 @@ Run only the two turns below; skip every phase that follows.
 
 ### Turn 1 — read
 
-One tool call: read the unified diff (`git diff $(git merge-base HEAD origin/develop)`,
-or the target passed as an argument). Skip test and fixture hunks (`test/`,
+One tool call: read the unified diff against the merge-base with the remote
+integration branch — `git diff $(git merge-base HEAD origin/develop)`, or the
+fallback base `/migraphx-simplify` Phase 0 resolves when `origin/develop` does
+not exist, or the target passed as an argument. Skip test and fixture hunks (`test/`,
 `*_test.cpp`, `test/onnx/*.onnx`, `test/py/`) — test changes are not reviewed at
 this level. No subagents, no full-file reads.
 
@@ -92,16 +94,25 @@ the given range for a ref range, or restrict the diff to the given paths.
 
 Then classify the changed files — the conditional angles below are gated on this:
 
-- **languages present**: C++ host (`src/**`, `test/**`), HIP/device
-  (`src/targets/gpu/kernels/**`, `src/targets/gpu/device/**`), Python
-  (`tools/*.py`, `src/py/**`, `test/py/**`, `examples/**`), Bash (`*.sh`),
-  CMake (`CMakeLists.txt`, `cmake/*.cmake`), MLIR-facing C++
-  (`src/targets/gpu/mlir.cpp`, `fuse_mlir.cpp`), ONNX/TF parsers (`src/onnx/**`,
-  `src/tf/**`), CI YAML (`.github/**`).
-- **C/C++ API surface**: `src/api/**`, `tools/api/**`,
-  `src/api/include/migraphx/migraphx.h`, `.../migraphx.hpp`.
-- **IR surface**: `src/op/**`, passes in `src/**` with their headers,
-  `src/targets/*/target.cpp`.
+- **languages present**: put each changed file in the **first** bucket it
+  matches, so no file feeds two specialists:
+  1. Python — `*.py` anywhere (`tools/`, `src/py/`, `src/api/migraphx.py`,
+     `test/py/`, `examples/`)
+  2. Bash — `*.sh`
+  3. CMake — `CMakeLists.txt`, `*.cmake`
+  4. CI YAML — `.github/**`
+  5. HIP / device — `src/targets/gpu/kernels/**`, `src/targets/gpu/device/**`
+  6. MLIR-facing C++ — `src/targets/gpu/mlir.cpp`,
+     `src/targets/gpu/fuse_mlir.cpp`
+  7. ONNX / TF parsers — `src/onnx/**`, `src/tf/**`
+  8. C++ host — everything else under `src/**` and `test/**`
+- **C/C++ API surface**: the generator inputs `tools/api/migraphx.h`,
+  `tools/api/api.cpp` and `src/api/migraphx.py`; the hand-written
+  `src/api/include/migraphx/migraphx.hpp`; and the generated
+  `src/api/include/migraphx/migraphx.h` and `src/api/api.cpp`.
+- **IR surface**: the operations in `src/include/migraphx/op/**` and
+  `src/op/builder/**`, passes in `src/**` with their headers under
+  `src/include/migraphx/**`, and `src/targets/*/target.cpp`.
 
 If there are no changes at all, stop and report that there is nothing to review.
 
@@ -110,8 +121,9 @@ If there are no changes at all, stop and report that there is nothing to review.
 Launch the angles as **independent agents via the `Agent` tool, all in a single
 message** so they run concurrently (`subagent_type: general-purpose`; they need
 Read and Grep). Give each agent the full diff, the classified file list, and the
-one angle it owns. Each candidate has `file`, `line`, a one-line `summary`, and
-a concrete `failure_scenario`.
+one angle it owns. Each angle surfaces up to the level's candidate cap — 6 at
+`medium` and `high`, 8 at `xhigh` and `max`. Each candidate has `file`, `line`,
+a one-line `summary`, and a concrete `failure_scenario`.
 
 **Core angles** (A, B, C, Languages, Quality, Conventions, Tests, Precedent)
 always run.
@@ -145,7 +157,7 @@ enforced, then search the new code for where that invariant is re-established.
 If you can't find it, that's a candidate: a removed guard, a dropped error path,
 a narrowed validation, a matcher predicate that now lets extra instructions
 through, a type dropped from a supported-type list, a pass removed from a
-target's `get_passes()`, a deleted test that was covering a real case.
+target's `get_passes()`. Leave deleted tests to Angle I.
 
 ### Angle C — cross-file tracer
 
@@ -182,10 +194,12 @@ context. Each hunts the pitfalls its language actually has:
   reference lifetime versus the underlying C++ object, GIL handling around
   long-running calls, buffer-protocol shapes and strides, and a new C++ API with
   no binding.
-- **Bash** — unquoted expansions and word splitting, missing `set -euo pipefail`,
-  `[` versus `[[`, unguarded `cd`, glob expansion on empty matches, exit codes
-  swallowed by a pipeline, plus the command-invocation rules stated in
-  `CLAUDE.md`/`AGENTS.md`.
+- **Bash** — unquoted expansions and word splitting, `[` versus `[[`, unguarded
+  `cd`, glob expansion on empty matches, a failure silently swallowed by a
+  pipeline where the rest of the script checks its exit codes, plus the
+  command-invocation rules stated in `AGENTS.md`/`CLAUDE.md`. Do not flag a
+  missing `set -euo pipefail` — no script in this repo uses it, so its absence
+  is the local convention.
 - **CMake** — a new source or header not added to its target, install, or embed
   list; a dependency declared `PRIVATE` that headers expose; an option default
   flipped; a generator expression that silently evaluates empty.
@@ -203,8 +217,16 @@ Each specialist reports in the same candidate shape as every other angle.
 
 ### Angle E — C/C++ API and ABI auditor *(when the API surface changed)*
 
-Review `src/api/include/migraphx/migraphx.h` (C) and `migraphx.hpp` (C++), and
-the generator inputs under `tools/api/`, for compatibility and durability:
+The C API is **generated**: `tools/generate.py` produces
+`src/api/include/migraphx/migraphx.h` and `src/api/api.cpp` from
+`tools/api/migraphx.h`, `tools/api/api.cpp`, and the API description in
+`src/api/migraphx.py` (see `src/api/CMakeLists.txt`), and `make generate`
+refreshes the checked-in copies. `src/api/include/migraphx/migraphx.hpp` (C++)
+is hand-written. Review the generator inputs and the C++ header as the source of
+truth, and read the generated header only to see the resulting surface — a diff
+that edits the generated files instead of their inputs is itself a finding.
+
+Check that surface for compatibility and durability:
 
 - **API breakage** — a removed or renamed function, a changed parameter list or
   return type, a changed ownership or lifetime contract, a changed error
@@ -233,7 +255,9 @@ the generator inputs under `tools/api/`, for compatibility and durability:
 Read the relevant "Extension Patterns" section of `AGENTS.md` — *Adding an
 Operation*, *Adding an Optimization Pass*, *Adding a Backend Target*, and the
 type-erasure notes — and check the diff against the contracts stated there,
-quoting the rule you are checking. Report each violation as a finding: an
+quoting the rule you are checking. (The type-erasure templates are
+`tools/include/*.hpp`; `make generate` runs `tools/te.py` over them and writes
+`src/include/migraphx/<name>.hpp`.) Report each violation as a finding: an
 operation missing a piece of its required interface or registration, a pass that
 is not idempotent or not deterministic, a `compute_shape` that ignores dynamic
 shapes, an interface change without regenerated boilerplate. Beyond what the
@@ -320,7 +344,8 @@ Flag:
   the list in `AGENTS.md` § *Test Best Practices* (zero-length dimensions,
   dynamic shapes at extreme min/max, mixed type promotion, broadcasting
   asymmetries, reduction axis ordering);
-- a deleted or disabled test with no replacement;
+- a deleted or disabled test — updating one is fine when the IR legitimately
+  changed, but never deleting or disabling one to make a change pass;
 - an added test that ignores the repo's test conventions where that will cause
   real friction — for example a verify test sharing a file with another verify
   class.
@@ -337,16 +362,21 @@ and conventions.
 
 ### Angle J — review precedent
 
-Distilled from the human review comments on PRs #4891–#5108. None of this is
-written down in `AGENTS.md` or `/migraphx-simplify` — it is the unwritten
-standard this repo's reviewers apply. Flag only what the diff actually does, and
-**cite the precedent PR number** in `failure_scenario` so the author sees an
-established expectation rather than a personal preference.
+Distilled from the human review comments on PRs #4891–#5108 — the standard this
+repo's reviewers apply beyond what `AGENTS.md` and `/migraphx-simplify` already
+state. Flag only what the diff actually does, and **cite the precedent PR
+number** in `failure_scenario` so the author sees an established expectation
+rather than a personal preference. If a point here turns out to be stated
+explicitly in an `AGENTS.md` rule, report it from Angle H with the quote
+instead, so the finding cites the written rule rather than a PR.
 
 **Configuration and knobs**
-- New behavior gated on an environment variable where a pass parameter or a
-  field in the target's reflected `backend_options` struct would do (#4911,
-  #5053, #5028). Env values are read once and cached for the process.
+- New behavior gated on an environment variable where a pass parameter or an
+  entry in `compile_options::backend_options` would do — the target reads that
+  map (optionally deserializing it into a reflected struct of its own with
+  `from_value`) instead of calling `getenv` (#4911, #5053, #5028). Env values
+  are read once and cached for the process, which is why they can't be varied
+  per compile.
 - A test that sets an environment variable — the value leaks into every later
   test in the same process (#5064, #4911).
 - An enable/disable flag that is never set to false anywhere, or left behind
@@ -397,8 +427,9 @@ established expectation rather than a personal preference.
 - An axis used without normalization — check for negative, or use
   `ins->normalized_operator()`; assert the invariant if it should already hold
   (#4891).
-- `==` / `!=` on symbolic dimensions instead of `same_value` / `same_symbol`
-  (#4977).
+- `==` / `!=` on symbolic dimensions where the comparison should ignore variable
+  metadata — a `sym::expr` carries constraints and optimals, so use
+  `same_symbol` (or `as_symbol` first) to compare structural form (#4977).
 - A dynamic-shape `compute_shape` that ignores `intersection()` semantics or
   picks a min bound it cannot justify (#4924, #5015, #5043).
 - Attribute combinations left unvalidated in `compute_shape` — empty or
@@ -415,21 +446,19 @@ established expectation rather than a personal preference.
 
 **How the test is written** — Angle I asks whether a test exists; this asks
 whether the one that exists is written the way reviewers require.
-- A pass test asserting on instruction counts or side effects instead of
-  building the expected module and comparing against it (#5030, #5105, #4992,
-  #5060).
 - A fix tested only by pointing at a customer model — distill a minimal repro
   into the matching test file (#5052, #4919).
 - An edge case tested at the wrong layer, e.g. contorting the ONNX parser to
   produce a case that belongs in an op-level test (#4999).
-- A test carrying ops the case doesn't need, or several verify classes sharing
-  one `.cpp` (#5064, #5060).
+- A test carrying ops the case doesn't need (#5064, #5060).
 - A test that runs extra normalizing passes, or trims/resizes the output, so the
   path under test is masked (#4891, #4893).
 - A new kernel or optimization tested only for the type or config it was
   developed against when it claims to support more (#4954, #4893).
-- A deleted or disabled test — update it if the IR legitimately changed, never
-  remove it to go green (#5052).
+
+  The expected-module form for pass tests and one verify class per `.cpp` are
+  written rules in `AGENTS.md`; Angle H owns those, and a deleted or disabled
+  test belongs to Angle I.
 
 **Performance claims and heuristics**
 - A perf-motivated change with no measured before/after, or one that drops a
@@ -441,7 +470,7 @@ whether the one that exists is written the way reviewers require.
 - A lock held across expensive work such as a host-to-device copy (#5039).
 
 **What ships with the change**
-- A user-visible change with no `Changelog.md` entry, or one filed under the
+- A user-visible change with no `CHANGELOG.md` entry, or one filed under the
   wrong category (#4919, #4939, #5038, #4923); internal-only refactors don't
   need one (#4904).
 - A touched file whose copyright year range wasn't updated — CI enforces it
@@ -516,8 +545,7 @@ the diff and enclosing functions looking ONLY for defects not already listed. Do
 not re-derive or re-confirm anything already there — the job is gaps. Check the
 diff against every trap listed in `AGENTS.md` § *Common Issues*, quoting the one
 you are checking, then focus on what a first pass here tends to miss: an
-interface change with no regenerated type-erasure boilerplate; a bug fixed with
-no regression test added;
+interface change with no regenerated type-erasure boilerplate;
 a dtype missing from a supported-type list so fusion silently stops matching; a
 pass wired into one target's `get_passes()` but not another's; moved or
 extracted code that dropped a guard; setup and teardown asymmetry in tests; a

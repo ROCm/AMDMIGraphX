@@ -908,10 +908,7 @@ static shape::dynamic_dimension make_symbol(const std::string& sym_name,
                                             const shape::dynamic_dimension& bounds)
 {
     auto iv = bounds.get_interval();
-    return shape::dynamic_dimension{
-        sym::var(sym_name,
-                 {static_cast<int64_t>(iv.min), static_cast<int64_t>(iv.max)},
-                 sym_optimals(bounds))};
+    return shape::dynamic_dimension{sym::var(sym_name, {iv.min, iv.max}, sym_optimals(bounds))};
 }
 
 static shape::dynamic_dimension resolve_dim(const onnx_parser& parser,

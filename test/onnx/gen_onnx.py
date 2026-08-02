@@ -11611,6 +11611,80 @@ def nms_dynamic_classes_test():
 
 
 @onnx_test()
+def nonmaxsuppression_zero_boxes_test():
+    b = helper.make_tensor_value_info('boxes', TensorProto.FLOAT, [1, 6, 4])
+    s = helper.make_tensor_value_info('scores', TensorProto.FLOAT, [1, 1, 6])
+    mo = helper.make_tensor_value_info('max_output_boxes_per_class',
+                                       TensorProto.INT64, [1])
+    iou = helper.make_tensor_value_info('iou_threshold', TensorProto.FLOAT,
+                                        [1])
+    st = helper.make_tensor_value_info('score_threshold', TensorProto.FLOAT,
+                                       [1])
+    out = helper.make_tensor_value_info('selected_indices', TensorProto.INT64,
+                                        [None, 3])
+
+    start = np.array([0])
+    start_tensor = helper.make_tensor(name='start',
+                                      data_type=TensorProto.INT64,
+                                      dims=start.shape,
+                                      vals=start.astype(int))
+    arg_start = helper.make_node('Constant',
+                                 inputs=[],
+                                 outputs=['arg_start'],
+                                 value=start_tensor)
+
+    end = np.array([0])
+    end_tensor = helper.make_tensor(name='end',
+                                    data_type=TensorProto.INT64,
+                                    dims=end.shape,
+                                    vals=end.astype(int))
+    arg_end = helper.make_node('Constant',
+                               inputs=[],
+                               outputs=['arg_end'],
+                               value=end_tensor)
+
+    boxes_axis = np.array([1])
+    boxes_axis_tensor = helper.make_tensor(name='boxes_axis',
+                                           data_type=TensorProto.INT64,
+                                           dims=boxes_axis.shape,
+                                           vals=boxes_axis.astype(int))
+    arg_boxes_axis = helper.make_node('Constant',
+                                      inputs=[],
+                                      outputs=['arg_boxes_axis'],
+                                      value=boxes_axis_tensor)
+
+    scores_axis = np.array([2])
+    scores_axis_tensor = helper.make_tensor(name='scores_axis',
+                                            data_type=TensorProto.INT64,
+                                            dims=scores_axis.shape,
+                                            vals=scores_axis.astype(int))
+    arg_scores_axis = helper.make_node('Constant',
+                                       inputs=[],
+                                       outputs=['arg_scores_axis'],
+                                       value=scores_axis_tensor)
+
+    slice_boxes = onnx.helper.make_node(
+        'Slice',
+        inputs=['boxes', 'arg_start', 'arg_end', 'arg_boxes_axis'],
+        outputs=['sliced_boxes'])
+    slice_scores = onnx.helper.make_node(
+        'Slice',
+        inputs=['scores', 'arg_start', 'arg_end', 'arg_scores_axis'],
+        outputs=['sliced_scores'])
+
+    node = onnx.helper.make_node('NonMaxSuppression',
+                                 inputs=[
+                                     'sliced_boxes', 'sliced_scores',
+                                     'max_output_boxes_per_class',
+                                     'iou_threshold', 'score_threshold'
+                                 ],
+                                 outputs=['selected_indices'])
+
+    return ([arg_start, arg_end, arg_boxes_axis, arg_scores_axis,
+             slice_boxes, slice_scores, node], [b, s, mo, iou, st], [out])
+
+
+@onnx_test()
 def not_test():
     x = helper.make_tensor_value_info('0', TensorProto.INT32, [4])
     y = helper.make_tensor_value_info('1', TensorProto.INT32, [4])

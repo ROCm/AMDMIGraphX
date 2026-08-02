@@ -25,6 +25,63 @@
 #include <rocm/iterator/reverse_iterator.hpp>
 #include <migraphx/kernels/test.hpp>
 
+struct point
+{
+    int x;
+    int y;
+};
+
+// A class-type iterator, which is not implicitly convertible to a pointer
+template <class T>
+struct wrapper_iterator
+{
+    using difference_type   = rocm::ptrdiff_t;
+    using value_type        = rocm::remove_cv_t<T>;
+    using pointer           = T*;
+    using reference         = T&;
+    using iterator_category = rocm::random_access_iterator_tag;
+
+    T* p = nullptr;
+
+    constexpr reference operator*() const { return *p; }
+    constexpr pointer operator->() const { return p; }
+
+    constexpr wrapper_iterator& operator++()
+    {
+        ++p;
+        return *this;
+    }
+    constexpr wrapper_iterator& operator--()
+    {
+        --p;
+        return *this;
+    }
+    constexpr wrapper_iterator& operator+=(difference_type n)
+    {
+        p += n;
+        return *this;
+    }
+    constexpr wrapper_iterator& operator-=(difference_type n)
+    {
+        p -= n;
+        return *this;
+    }
+    friend constexpr wrapper_iterator operator+(wrapper_iterator it, difference_type n)
+    {
+        return it += n;
+    }
+    friend constexpr wrapper_iterator operator-(wrapper_iterator it, difference_type n)
+    {
+        return it -= n;
+    }
+    friend constexpr difference_type operator-(wrapper_iterator x, wrapper_iterator y)
+    {
+        return x.p - y.p;
+    }
+    friend constexpr bool operator==(wrapper_iterator x, wrapper_iterator y) { return x.p == y.p; }
+    friend constexpr bool operator!=(wrapper_iterator x, wrapper_iterator y) { return x.p != y.p; }
+};
+
 // ---- Construction ----
 
 TEST_CASE(default_construct)
@@ -69,6 +126,73 @@ TEST_CASE(dereference_first)
     int arr[] = {10, 20, 30};
     rocm::reverse_iterator<const int*> ri(arr + 1);
     EXPECT(*ri == 10);
+}
+
+// ---- Arrow ----
+
+TEST_CASE(arrow_pointer)
+{
+    point arr[] = {{1, 2}, {3, 4}, {5, 6}};
+    rocm::reverse_iterator<const point*> ri(arr + 3);
+    EXPECT(ri->x == 5);
+    EXPECT(ri->y == 6);
+}
+
+TEST_CASE(arrow_pointer_traversal)
+{
+    point arr[] = {{1, 2}, {3, 4}, {5, 6}};
+    rocm::reverse_iterator<const point*> ri(arr + 3);
+    EXPECT(ri->x == 5);
+    ++ri;
+    EXPECT(ri->x == 3);
+    ++ri;
+    EXPECT(ri->x == 1);
+}
+
+TEST_CASE(arrow_pointer_mutable)
+{
+    point arr[] = {{1, 2}, {3, 4}, {5, 6}};
+    rocm::reverse_iterator<point*> ri(arr + 3);
+    ri->x = 50;
+    ri->y = 60;
+    EXPECT(arr[2].x == 50);
+    EXPECT(arr[2].y == 60);
+}
+
+TEST_CASE(arrow_class_iterator)
+{
+    point arr[] = {{1, 2}, {3, 4}, {5, 6}};
+    auto ri     = rocm::make_reverse_iterator(wrapper_iterator<const point>{arr + 3});
+    EXPECT(ri->x == 5);
+    EXPECT(ri->y == 6);
+}
+
+TEST_CASE(arrow_class_iterator_traversal)
+{
+    point arr[] = {{1, 2}, {3, 4}, {5, 6}};
+    auto ri     = rocm::make_reverse_iterator(wrapper_iterator<const point>{arr + 3});
+    EXPECT(ri->x == 5);
+    ++ri;
+    EXPECT(ri->x == 3);
+    ++ri;
+    EXPECT(ri->x == 1);
+}
+
+TEST_CASE(arrow_class_iterator_mutable)
+{
+    point arr[] = {{1, 2}, {3, 4}, {5, 6}};
+    auto ri     = rocm::make_reverse_iterator(wrapper_iterator<point>{arr + 2});
+    ri->x       = 30;
+    ri->y       = 40;
+    EXPECT(arr[1].x == 30);
+    EXPECT(arr[1].y == 40);
+}
+
+TEST_CASE(arrow_matches_dereference)
+{
+    point arr[] = {{1, 2}, {3, 4}, {5, 6}};
+    auto ri     = rocm::make_reverse_iterator(wrapper_iterator<const point>{arr + 3});
+    EXPECT(ri.operator->() == &(*ri));
 }
 
 // ---- Subscript ----
@@ -301,6 +425,16 @@ TEST_CASE(constexpr_arithmetic)
     static_assert(*(rocm::reverse_iterator<const int*>(arr + 4) + 2) == 20);
     static_assert(*(2 + rocm::reverse_iterator<const int*>(arr + 4)) == 20);
     static_assert(*(rocm::reverse_iterator<const int*>(arr + 1) - 1) == 20);
+}
+
+TEST_CASE(constexpr_arrow)
+{
+    static constexpr point arr[] = {{1, 2}, {3, 4}, {5, 6}};
+    static_assert(rocm::reverse_iterator<const point*>(arr + 3)->x == 5);
+    static_assert(rocm::reverse_iterator<const point*>(arr + 2)->y == 4);
+    using iterator = wrapper_iterator<const point>;
+    static_assert(rocm::make_reverse_iterator(iterator{arr + 3})->x == 5);
+    static_assert(rocm::make_reverse_iterator(iterator{arr + 2})->y == 4);
 }
 
 TEST_CASE(constexpr_comparison)

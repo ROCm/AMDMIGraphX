@@ -30,6 +30,22 @@
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
 
+namespace detail {
+
+// Convert an iterator into a pointer to the element it refers to. A pointer iterator is already a
+// pointer, but a class iterator needs to have its operator-> called since it is not implicitly
+// convertible to a pointer.
+template <class Iterator>
+constexpr auto iterator_to_pointer(Iterator it)
+{
+    if constexpr(is_pointer<Iterator>{})
+        return it;
+    else
+        return it.operator->();
+}
+
+} // namespace detail
+
 template <class Iterator>
 struct reverse_iterator
 {
@@ -71,7 +87,7 @@ struct reverse_iterator
     {
         iterator_type tmp = current;
         --tmp;
-        return tmp;
+        return detail::iterator_to_pointer(tmp);
     }
 
     constexpr reference operator[](difference_type n) const { return *(*this + n); }

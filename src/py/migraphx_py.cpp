@@ -647,7 +647,7 @@ MIGRAPHX_PYBIND11_MODULE(migraphx, m)
             py::arg("offload_copy")            = true,
             py::arg("fast_math")               = true,
             py::arg("exhaustive_tune")         = false,
-            py::arg("compile_mode")    = migraphx::compile_modes::balanced,
+            py::arg("compile_mode")            = migraphx::compile_modes::balanced,
             py::arg("advance_backend_options") = py::dict())
         .def(
             "finalize",

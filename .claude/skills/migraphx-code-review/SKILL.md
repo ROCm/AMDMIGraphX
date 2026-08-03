@@ -1,11 +1,11 @@
 ---
-description: "Code review the changed MIGraphX code for correctness bugs, language-specific pitfalls, C/C++ API-ABI breakage, missing test coverage, and convention violations, with a verify pass that drops false positives. The quality checklist is delegated to /migraphx-simplify rather than repeated. Effort levels low through max; --comment posts inline PR comments, --fix applies every class of finding including the quality cleanups. A bare --fix or --comment after a review already ran this session applies or posts that review's findings instead of reviewing again."
-allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git blame:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git branch:*), Bash(git fetch:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh api:*), Bash(grep:*), Bash(find:*), Read, Grep, Glob, Edit, Agent, Skill, ReportFindings, Artifact, mcp__github_inline_comment__create_inline_comment
+description: "Code review the changed MIGraphX code for correctness bugs, language-specific pitfalls, C/C++ API-ABI breakage, missing test coverage, and convention violations, with a verify pass that drops false positives. The quality checklist is delegated to /migraphx-simplify rather than repeated. Effort levels low through max; --comment posts inline PR comments, --fix applies every class of finding including the quality cleanups. A bare --fix or --comment after a review already ran this session applies or posts that review's findings instead of reviewing again. --select opens a checkbox picker so only the chosen findings are fixed or posted."
+allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git blame:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git branch:*), Bash(git fetch:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh api:*), Bash(grep:*), Bash(find:*), Read, Grep, Glob, Edit, Agent, Skill, ReportFindings, Artifact, AskUserQuestion, mcp__github_inline_comment__create_inline_comment, mcp__review-picker__select_findings
 ---
 
 # migraphx-code-review
 
-Usage: `/migraphx-code-review [low|medium|high|xhigh|max] [--fix] [--comment] [<target>]`
+Usage: `/migraphx-code-review [low|medium|high|xhigh|max] [--fix] [--comment] [--select] [<target>]`
 
 Pick the effort level from the first argument; if none is given, use the session
 effort, defaulting to **medium**. Anything after the level is the review target
@@ -45,7 +45,8 @@ Open with the stance for the level:
 ## Reusing a completed review
 
 If a review from this skill already completed earlier in this session and the
-invocation adds nothing but `--fix` and/or `--comment`, do **not** review again.
+invocation adds nothing but `--fix`, `--comment`, and/or `--select`, do **not**
+review again.
 Act on the findings that review already reported: skip every phase below and go
 straight to *Applying fixes* and *Posting to GitHub* with the existing findings
 list. Say in one line that you are applying the findings from the earlier review
@@ -618,14 +619,55 @@ keeping it, dropping anything you can't back with a concrete failure scenario.
 State clearly in your summary that this was a single-pass review without the
 fan-out, so whoever reads it isn't misled about what actually ran.
 
+## Choosing which findings to act on (`--select`)
+
+Only when the `--select` flag was passed. It filters what `--fix` and
+`--comment` act on; on its own it changes nothing, so if neither of those was
+also passed, say the flag had nothing to act on and stop after the report.
+
+Run this **after** the `ReportFindings` call that reports the review — the user
+picks from findings they can already see — and **before** applying or posting
+anything. Offer every reported finding, in the same ranked order, using the
+first of these that works:
+
+1. `mcp__review-picker__select_findings` — a checkbox dialog. Pass one item per
+   finding with `id` set to its 1-based rank and `label` set to
+   `file:line — short_summary`, plus a `message` naming the action ("Which
+   findings should I fix?" / "…post as PR comments?"). It returns `action` and
+   the selected ids.
+2. `AskUserQuestion` with `multiSelect: true`, when the picker is unavailable or
+   returns `action: "unsupported"`. One option per finding, `short_summary` as
+   the label and `failure_scenario` as the description, split across as many
+   questions as it takes — four options each, four questions per call.
+3. Printing the numbered findings and asking which to act on, when neither tool
+   is available.
+
+Act only on the selected findings. Treat `decline`, `cancel`, or an empty
+selection as "act on nothing" — never fall back to applying everything, because
+the user asked to choose. In a headless run where no picker can be answered, do
+the same and say the selection could not be made.
+
+Every reported finding still appears in the follow-up `ReportFindings` call.
+The ones the user did not select carry `outcome: skipped`; say they were skipped
+as unselected, and do not argue for them.
+
+The checkbox dialog comes from a small MCP server kept with this skill at
+`.claude/mcp/select_findings.mjs`. It is not registered by default — enable it
+once per machine from the repo root with
+`claude mcp add review-picker -- node "$PWD/.claude/mcp/select_findings.mjs"`
+and restart the session. Without it, `--select` falls through to
+`AskUserQuestion`, so the flag works either way.
+
 ## Applying fixes (`--fix`)
 
 Only when the `--fix` flag was passed. The findings list is either the one this
 invocation just produced, or — per *Reusing a completed review* — the one an
 earlier review in this session reported; in the reuse case start here without
-re-reviewing. Apply every class of finding to the working tree — correctness, language-pitfall,
-API/ABI, IR-contract, and convention findings, **and the `quality` findings from
-Angle G**. For those, apply the fix `/migraphx-simplify` would have made
+re-reviewing. When `--select` was also passed, act only on the findings chosen
+there. Apply every class of finding to the working tree — correctness,
+language-pitfall, API/ABI, IR-contract, and convention findings, **and the
+`quality` findings from Angle G**. For those, apply the fix
+`/migraphx-simplify` would have made
 (that skill's Phase 2 describes how it applies its own findings); running this
 review with `--fix` should leave the tree in the state a bug-fix pass followed by
 `/migraphx-simplify` would have.
@@ -654,8 +696,9 @@ Without `--fix`, do not modify any file — the report is the only output.
 Only when the `--comment` flag was passed. The findings list is either the one
 this invocation just produced, or — per *Reusing a completed review* — the one an
 earlier review in this session reported; in the reuse case start here without
-re-reviewing, and post against the PR that review targeted. If the review target
-is a GitHub PR, post each finding as an inline PR comment via
+re-reviewing, and post against the PR that review targeted. When `--select` was
+also passed, post only the findings chosen there. If the review target is a
+GitHub PR, post each finding as an inline PR comment via
 `mcp__github_inline_comment__create_inline_comment` (one call per finding;
 include a suggestion block only when it fully fixes the issue). If that tool is
 not available in this session, fall back to `gh api`

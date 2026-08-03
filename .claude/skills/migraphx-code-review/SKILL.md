@@ -713,6 +713,33 @@ ones. Keep the marker outside a `suggestion` block — a suggestion's contents a
 committed verbatim when someone accepts it, so a marker inside one lands in the
 source.
 
+### Writing the comment
+
+Keep every comment clear and concise. The body is normally one short paragraph:
+the defect in a single sentence, then the concrete failure it causes — the
+input, shape, type, or target that triggers it and what goes wrong. Aim for
+under 80 words, and when a finding needs more, spend them on the failure
+scenario.
+
+- Lead with the defect. No preamble, no restating what the diff does, no praise,
+  no summary of the surrounding code.
+- Default to full sentences with the technical terms spelled out. Use a short
+  bullet list, a small table, or a fenced `mermaid` diagram (GitHub renders
+  them) when it explains the problem *more* concisely than prose — an ordering
+  or lifetime that goes wrong across several steps, a shape or layout
+  transformation, a handful of enumerable cases or shapes. Skip it when prose is
+  just as short, and keep it small: a few bullets or nodes, not a document. No
+  labels the reader has to cross-reference back to.
+- Do not quote the lines being commented on — the comment is already anchored to
+  them. Quote a different line only when the failure depends on it.
+- Give the fix as a short clause, or as a `suggestion` block when it fully fixes
+  the issue. Not both, and do not offer alternatives to choose between.
+- Cite the source in a brief parenthetical when the finding rests on one — the
+  `AGENTS.md` rule or the precedent PR number — rather than a separate paragraph.
+- State what is wrong, not how sure you are: drop "consider", "you may want to",
+  and "it seems". For a `PLAUSIBLE` verdict, name the condition that triggers it
+  instead of hedging the claim.
+
 ## If findings are fixed later
 
 Whenever reported findings get fixed later in this session — the user asks you

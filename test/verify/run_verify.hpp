@@ -61,9 +61,12 @@ struct run_verify
     void disable_parallel_for(const std::string& name);
     void add_validation_for(const std::string& name, target_info::validation_function v);
     void disable_test_for(const std::string& name, const std::vector<std::string>& tests);
+    void disable_eager_tests(const std::vector<std::string>& tests);
+    bool check_skiped_eager_tests(const std::string& name) const;
 
     private:
     std::map<std::string, target_info> info{};
+    std::vector<std::string> eager_disabled_tests{};
 };
 
 #endif

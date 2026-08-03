@@ -36,7 +36,7 @@ constexpr void iter_swap(Iterator1 a, Iterator2 b)
 {
     if(a == b)
         return;
-    swap(*a, *b);
+    rocm::swap(*a, *b);
 }
 
 } // namespace ROCM_INLINE_NS

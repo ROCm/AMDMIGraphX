@@ -50,7 +50,7 @@ constexpr Iterator is_sorted_until(Iterator first, Iterator last, Compare comp)
 template <class Iterator>
 constexpr Iterator is_sorted_until(Iterator first, Iterator last)
 {
-    return is_sorted_until(first, last, less<>{});
+    return rocm::is_sorted_until(first, last, less<>{});
 }
 
 } // namespace ROCM_INLINE_NS

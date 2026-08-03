@@ -47,10 +47,10 @@ constexpr Iterator rotate(Iterator first, Iterator middle, Iterator last)
     {
         if(write == next_read)
             next_read = read;
-        iter_swap(write, read);
+        rocm::iter_swap(write, read);
     }
 
-    rotate(write, next_read, last);
+    rocm::rotate(write, next_read, last);
     return write;
 }
 

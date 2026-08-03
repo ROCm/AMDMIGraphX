@@ -310,7 +310,9 @@ struct is_null_pointer : is_same<nullptr_t, remove_cv_t<T>>
 template <class T>
 inline constexpr bool is_null_pointer_v = is_null_pointer<T>{};
 
-#define ROCM_REQUIRES(...) class = enable_if_t<__VA_ARGS__>
+// A non-type parameter, not `class = enable_if_t<...>`: a defaulted type parameter is not part of
+// the signature, so two overloads distinguished only by it would be a redefinition.
+#define ROCM_REQUIRES(...) enable_if_t<__VA_ARGS__, int> = 0
 
 } // namespace ROCM_INLINE_NS
 } // namespace rocm

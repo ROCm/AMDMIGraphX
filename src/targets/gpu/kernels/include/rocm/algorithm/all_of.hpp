@@ -34,7 +34,7 @@ inline namespace ROCM_INLINE_NS {
 template <class InputIt, class UnaryPredicate>
 constexpr bool all_of(InputIt first, InputIt last, UnaryPredicate p)
 {
-    return none_of(first, last, [=](auto&& x) { return not p(x); });
+    return rocm::none_of(first, last, [=](auto&& x) { return not p(x); });
 }
 
 } // namespace ROCM_INLINE_NS

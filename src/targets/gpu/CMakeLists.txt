@@ -118,8 +118,11 @@ if(HAS_HIP_LAMBDA_HOST_DEVICE)
     target_compile_options(compile_for_gpu INTERFACE -fhip-lambda-host-device)
 endif()
 
+include(CheckCXXSourceCompiles)
 function(check_hip_deduction_guide VAR)
     set(CMAKE_REQUIRED_LIBRARIES hip::device)
+    set(CMAKE_REQUIRED_FLAGS "-std=c++17")
+    # check_cxx_source_compiles links an executable, so the probe needs a main().
     check_cxx_source_compiles("
 template<class T>
 struct S
@@ -134,6 +137,8 @@ __attribute__((device)) auto f()
 {
     return S{1};
 }
+
+int main() { return 0; }
     " ${VAR})
 endfunction()
 check_hip_deduction_guide(HIP_HAS_WORKING_DEDUCTION_GUIDE)

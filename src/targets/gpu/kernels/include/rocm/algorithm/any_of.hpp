@@ -34,7 +34,7 @@ inline namespace ROCM_INLINE_NS {
 template <class InputIt, class UnaryPredicate>
 constexpr bool any_of(InputIt first, InputIt last, UnaryPredicate p)
 {
-    return find_if(first, last, p) != last;
+    return rocm::find_if(first, last, p) != last;
 }
 
 } // namespace ROCM_INLINE_NS

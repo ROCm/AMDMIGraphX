@@ -119,6 +119,11 @@ CheckOptions:
     value:           UPPER_CASE
   - key:             readability-identifier-naming.MacroDefinitionPrefix
     value:           MIGRAPHX_
+  # The rocm/ device headers carry their own prefix. This has to live here rather than in a
+  # rocm/.clang-tidy: rocm_clang_tidy_check passes --config-file=<root>/.clang-tidy, which
+  # suppresses the per-directory walk, so a child config is never read.
+  - key:             readability-identifier-naming.MacroDefinitionIgnoredRegexp
+    value:           '^ROCM_.*'
   - key:             readability-identifier-naming.ConstexprMethodIgnoredRegexp
     value:           'quiet_NaN|signaling_NaN'
   - key:             readability-operators-representation.BinaryOperators

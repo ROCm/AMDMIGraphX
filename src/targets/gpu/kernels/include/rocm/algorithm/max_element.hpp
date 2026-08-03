@@ -35,7 +35,7 @@ inline namespace ROCM_INLINE_NS {
 template <class Iterator, class Compare>
 constexpr Iterator max_element(Iterator first, Iterator last, Compare comp)
 {
-    return min_element(first, last, [&](auto&& a, auto&& b) { return comp(b, a); });
+    return rocm::min_element(first, last, [&](auto&& a, auto&& b) { return comp(b, a); });
 }
 
 template <class Iterator>

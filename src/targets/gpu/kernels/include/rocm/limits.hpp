@@ -305,6 +305,16 @@ struct numeric_limits<const volatile T> : numeric_limits<T>
     {                                                            \
     }
 
+// bool holds a single value bit and does not wrap, so digits, digits10 and
+// is_modulo all differ from what numeric_limits_integer derives from sizeof.
+template <>
+struct numeric_limits<bool> : detail::numeric_limits_integer<bool>
+{
+    static constexpr const int digits     = 1;
+    static constexpr const int digits10   = 0;
+    static constexpr const bool is_modulo = false;
+};
+
 ROCM_DEFINE_NUMERIC_LIMITS_INT(char);
 ROCM_DEFINE_NUMERIC_LIMITS_INT(signed char);
 ROCM_DEFINE_NUMERIC_LIMITS_INT(unsigned char);

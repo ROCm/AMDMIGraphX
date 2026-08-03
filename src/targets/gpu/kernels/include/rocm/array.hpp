@@ -25,6 +25,7 @@
 #ifndef ROCM_GUARD_ROCM_ARRAY_HPP
 #define ROCM_GUARD_ROCM_ARRAY_HPP
 
+#include <rocm/assert.hpp>
 #include <rocm/config.hpp>
 #include <rocm/stdint.hpp>
 #include <rocm/type_traits.hpp>
@@ -96,11 +97,27 @@ struct array
     constexpr bool empty() const noexcept { return N == 0; }
 
     // element access
-    constexpr reference operator[](size_type n) { return elems[n]; }
-    constexpr const_reference operator[](size_type n) const { return elems[n]; }
+    constexpr reference operator[](size_type n)
+    {
+        ROCM_ASSERT(n < N);
+        return elems[n];
+    }
+    constexpr const_reference operator[](size_type n) const
+    {
+        ROCM_ASSERT(n < N);
+        return elems[n];
+    }
 
-    constexpr reference at(size_type n) { return elems[n]; }
-    constexpr const_reference at(size_type n) const { return elems[n]; }
+    constexpr reference at(size_type n)
+    {
+        ROCM_ASSERT(n < N);
+        return elems[n];
+    }
+    constexpr const_reference at(size_type n) const
+    {
+        ROCM_ASSERT(n < N);
+        return elems[n];
+    }
 
     constexpr reference front() { return elems[0]; }
     constexpr const_reference front() const { return elems[0]; }
@@ -185,6 +202,51 @@ struct array<T, 0>
     constexpr size_type size() const noexcept { return 0; }
     constexpr size_type max_size() const noexcept { return 0; }
     constexpr bool empty() const noexcept { return true; }
+
+    // Element access is never valid on an empty array, but it must still exist so that generic
+    // code compiles when instantiated at N == 0. Calling any of these is a contract violation.
+    constexpr reference operator[](size_type)
+    {
+        ROCM_ASSERT(false);
+        return *data();
+    }
+    constexpr const_reference operator[](size_type) const
+    {
+        ROCM_ASSERT(false);
+        return *data();
+    }
+
+    constexpr reference at(size_type)
+    {
+        ROCM_ASSERT(false);
+        return *data();
+    }
+    constexpr const_reference at(size_type) const
+    {
+        ROCM_ASSERT(false);
+        return *data();
+    }
+
+    constexpr reference front()
+    {
+        ROCM_ASSERT(false);
+        return *data();
+    }
+    constexpr const_reference front() const
+    {
+        ROCM_ASSERT(false);
+        return *data();
+    }
+    constexpr reference back()
+    {
+        ROCM_ASSERT(false);
+        return *data();
+    }
+    constexpr const_reference back() const
+    {
+        ROCM_ASSERT(false);
+        return *data();
+    }
 
     constexpr T* data() noexcept { return nullptr; }
     constexpr const T* data() const noexcept { return nullptr; }

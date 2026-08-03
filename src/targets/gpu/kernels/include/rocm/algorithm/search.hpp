@@ -58,7 +58,7 @@ search(Iterator1 first, Iterator1 last, Iterator2 s_first, Iterator2 s_last, Bin
 template <class Iterator1, class Iterator2>
 constexpr Iterator1 search(Iterator1 first, Iterator1 last, Iterator2 s_first, Iterator2 s_last)
 {
-    return search(first, last, s_first, s_last, [](auto&& x, auto&& y) { return x == y; });
+    return rocm::search(first, last, s_first, s_last, [](auto&& x, auto&& y) { return x == y; });
 }
 
 } // namespace ROCM_INLINE_NS

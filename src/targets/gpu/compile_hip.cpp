@@ -209,7 +209,10 @@ std::vector<std::vector<char>> compile_hip_src_with_hiprtc(std::vector<hiprtc_sr
     auto options = params;
     options.push_back("-DMIGRAPHX_USE_HIPRTC=1");
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
+    {
         options.push_back("-DMIGRAPHX_DEBUG");
+        options.push_back("-DROCM_DEBUG");
+    }
     if(std::none_of(options.begin(), options.end(), [](const std::string& s) {
            return starts_with(s, "--std=") or starts_with(s, "-std=");
        }))
@@ -340,7 +343,10 @@ std::vector<std::vector<char>> compile_hip_src(const std::vector<src_file>& srcs
     compiler.flags.emplace_back("-O" + string_value_of(MIGRAPHX_GPU_OPTIMIZE{}, "3") + " ");
 
     if(enabled(MIGRAPHX_GPU_DEBUG{}))
+    {
         compiler.flags.emplace_back("-DMIGRAPHX_DEBUG");
+        compiler.flags.emplace_back("-DROCM_DEBUG");
+    }
 
     compiler.flags.emplace_back("-Wno-unused-command-line-argument");
     compiler.flags.emplace_back("-Wno-cuda-compat");

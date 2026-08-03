@@ -43,7 +43,7 @@ constexpr T accumulate(InputIt first, InputIt last, T init, BinaryOperation op)
 template <class InputIt, class T>
 constexpr T accumulate(InputIt first, InputIt last, T init)
 {
-    return accumulate(first, last, init, [](auto x, auto y) { return x + y; });
+    return rocm::accumulate(first, last, init, [](auto x, auto y) { return x + y; });
 }
 
 } // namespace ROCM_INLINE_NS

@@ -41,14 +41,14 @@ constexpr void sort(Iterator first, Iterator last, Compare comp)
     if(first == last)
         return;
     for(auto i = first; i != last - 1; ++i)
-        iter_swap(i, min_element(i, last, comp));
+        rocm::iter_swap(i, rocm::min_element(i, last, comp));
     ROCM_ASSERT(is_sorted(first, last, comp));
 }
 
 template <class Iterator>
 constexpr void sort(Iterator first, Iterator last)
 {
-    sort(first, last, less<>{});
+    rocm::sort(first, last, less<>{});
 }
 
 } // namespace ROCM_INLINE_NS

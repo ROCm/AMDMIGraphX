@@ -35,7 +35,7 @@ inline namespace ROCM_INLINE_NS {
 template <class Iterator, class Compare>
 constexpr bool is_sorted(Iterator first, Iterator last, Compare comp)
 {
-    return is_sorted_until(first, last, comp) == last;
+    return rocm::is_sorted_until(first, last, comp) == last;
 }
 
 template <class Iterator>

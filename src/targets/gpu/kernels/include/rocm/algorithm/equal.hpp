@@ -44,7 +44,7 @@ constexpr bool equal(Iterator1 first1, Iterator1 last1, Iterator2 first2, Binary
 template <class Iterator1, class Iterator2>
 constexpr bool equal(Iterator1 first1, Iterator1 last1, Iterator2 first2)
 {
-    return equal(first1, last1, first2, [](auto&& x, auto&& y) { return x == y; });
+    return rocm::equal(first1, last1, first2, [](auto&& x, auto&& y) { return x == y; });
 }
 
 } // namespace ROCM_INLINE_NS

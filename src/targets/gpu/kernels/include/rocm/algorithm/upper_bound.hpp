@@ -58,7 +58,7 @@ constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value, Co
 template <class Iterator, class T>
 constexpr Iterator upper_bound(Iterator first, Iterator last, const T& value)
 {
-    return upper_bound(first, last, value, less<>{});
+    return rocm::upper_bound(first, last, value, less<>{});
 }
 
 } // namespace ROCM_INLINE_NS

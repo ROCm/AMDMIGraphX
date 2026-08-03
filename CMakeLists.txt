@@ -314,6 +314,7 @@ rocm_enable_clang_tidy(
     EXTRA_ARGS
         -UNDEBUG
         -DMIGRAPHX_USE_CLANG_TIDY
+        -DROCM_USE_CLANG_TIDY
     CLANG_ARGS
         -analyzer-max-loop 10
         -analyzer-inline-max-stack-depth 10
@@ -401,6 +402,7 @@ rocm_enable_cppcheck(
         __global__=
     UNDEFINE
         MIGRAPHX_USE_CLANG_TIDY
+        ROCM_USE_CLANG_TIDY
         DOXYGEN
         HAS_HALF_V1
         TYPE_ERASED_DECLARATION

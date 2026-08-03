@@ -34,7 +34,7 @@ inline namespace ROCM_INLINE_NS {
 template <class Iterator, class T>
 constexpr Iterator find(Iterator first, Iterator last, const T& value)
 {
-    return find_if(first, last, [&](const auto& x) { return x == value; });
+    return rocm::find_if(first, last, [&](const auto& x) { return x == value; });
 }
 
 } // namespace ROCM_INLINE_NS

@@ -50,7 +50,7 @@ constexpr T inner_product(InputIt1 first1,
 template <class InputIt1, class InputIt2, class T>
 constexpr T inner_product(InputIt1 first1, InputIt1 last1, InputIt2 first2, T init)
 {
-    return inner_product(
+    return rocm::inner_product(
         first1,
         last1,
         first2,

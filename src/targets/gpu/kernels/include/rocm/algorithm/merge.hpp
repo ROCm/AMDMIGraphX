@@ -42,7 +42,7 @@ constexpr OutputIterator merge(Iterator1 first1,
     for(; first1 != last1; ++d_first)
     {
         if(first2 == last2)
-            return copy(first1, last1, d_first);
+            return rocm::copy(first1, last1, d_first);
 
         if(comp(*first2, *first1))
         {
@@ -55,7 +55,7 @@ constexpr OutputIterator merge(Iterator1 first1,
             ++first1;
         }
     }
-    return copy(first2, last2, d_first);
+    return rocm::copy(first2, last2, d_first);
 }
 
 } // namespace ROCM_INLINE_NS

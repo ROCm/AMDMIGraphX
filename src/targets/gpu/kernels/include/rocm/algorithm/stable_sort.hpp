@@ -41,14 +41,14 @@ constexpr void stable_sort(Iterator first, Iterator last, Compare comp)
     if(first == last)
         return;
     for(auto i = first; i != last; ++i)
-        rotate(upper_bound(first, i, *i, comp), i, i + 1);
+        rocm::rotate(rocm::upper_bound(first, i, *i, comp), i, i + 1);
     ROCM_ASSERT(is_sorted(first, last, comp));
 }
 
 template <class Iterator>
 constexpr void stable_sort(Iterator first, Iterator last)
 {
-    stable_sort(first, last, less<>{});
+    rocm::stable_sort(first, last, less<>{});
 }
 
 } // namespace ROCM_INLINE_NS

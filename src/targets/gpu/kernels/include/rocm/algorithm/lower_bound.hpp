@@ -35,13 +35,14 @@ inline namespace ROCM_INLINE_NS {
 template <class Iterator, class T, class Compare>
 constexpr Iterator lower_bound(Iterator first, Iterator last, const T& value, Compare comp)
 {
-    return upper_bound(first, last, value, [&](auto&& a, auto&& b) { return not comp(b, a); });
+    return rocm::upper_bound(
+        first, last, value, [&](auto&& a, auto&& b) { return not comp(b, a); });
 }
 
 template <class Iterator, class T>
 constexpr Iterator lower_bound(Iterator first, Iterator last, const T& value)
 {
-    return lower_bound(first, last, value, less<>{});
+    return rocm::lower_bound(first, last, value, less<>{});
 }
 
 } // namespace ROCM_INLINE_NS

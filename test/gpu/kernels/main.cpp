@@ -40,14 +40,17 @@
 
 std::vector<std::string> parse_cases(const std::string_view& content)
 {
-    std::regex case_re(R"((TEST_CASE_REGISTER|TEST_CASE)\s*\(\s*([A-Za-z_][A-Za-z0-9_<>:]*)\s*\))");
+    // The name may be a template-id, so it can contain spaces and commas
+    // (`TEST_CASE_REGISTER(foo<unsigned long, int>)`); trim what that lets in trailing.
+    std::regex case_re(
+        R"((TEST_CASE_REGISTER|TEST_CASE)\s*\(\s*([A-Za-z_][A-Za-z0-9_<>:, ]*)\))");
     std::match_results<std::string_view::const_iterator> m;
     std::vector<std::string> test_names;
 
     auto it = content.cbegin();
     while(std::regex_search(it, content.cend(), m, case_re))
     {
-        test_names.push_back(m[2].str());
+        test_names.push_back(migraphx::trim(m[2].str()));
         it = m.suffix().first;
     }
     return test_names;
@@ -81,7 +84,7 @@ struct test_suite : std::enable_shared_from_this<test_suite>
         options.global      = 1;
         options.local       = ctx.get_current_device().get_wavefront_size();
         options.kernel_name = "gpu_test_kernel";
-        options.src_file    = src_name;
+        options.src_name    = src_name;
     }
 
     std::string generate_source() const

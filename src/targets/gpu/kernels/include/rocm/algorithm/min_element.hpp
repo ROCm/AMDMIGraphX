@@ -49,7 +49,7 @@ constexpr Iterator min_element(Iterator first, Iterator last, Compare comp)
 template <class Iterator>
 constexpr Iterator min_element(Iterator first, Iterator last)
 {
-    return min_element(first, last, less<>{});
+    return rocm::min_element(first, last, less<>{});
 }
 
 } // namespace ROCM_INLINE_NS

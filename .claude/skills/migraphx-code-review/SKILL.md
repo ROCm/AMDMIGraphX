@@ -706,6 +706,13 @@ not available in this session, fall back to `gh api`
 target is not a PR, print the findings to the terminal and note that
 `--comment` was ignored.
 
+Begin every comment body with `[agent]: ` so a reader can tell it was generated
+by an agent rather than written by the account posting it. This applies to both
+paths above and to any summary or review-level comment, not just the inline
+ones. Keep the marker outside a `suggestion` block — a suggestion's contents are
+committed verbatim when someone accepts it, so a marker inside one lands in the
+source.
+
 ## If findings are fixed later
 
 Whenever reported findings get fixed later in this session — the user asks you

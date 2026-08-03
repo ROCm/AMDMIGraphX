@@ -268,7 +268,7 @@ void run_verify::run(int argc, const char* argv[]) const
         labels[p.section].push_back(p.name);
         test::add_test_case(p.name, [=] { verify(p, migraphx::compile_modes::balanced); });
 
-        if(check_skiped_eager_tests(p.name))
+        if(check_skipped_eager_tests(p.name))
         {
             migraphx::log::warn() << "Skipping " << p.name << "_eager: test is not compatible with eager mode";
             continue;
@@ -304,7 +304,7 @@ void run_verify::disable_eager_tests(const std::vector<std::string>& tests)
     eager_disabled_tests.insert(eager_disabled_tests.end(), tests.begin(), tests.end());
 }
 
-bool run_verify::check_skiped_eager_tests(const std::string& name) const
+bool run_verify::check_skipped_eager_tests(const std::string& name) const
 {
     return migraphx::any_of(eager_disabled_tests, [&](const std::string& s) {
           return name.find(s) != std::string::npos;

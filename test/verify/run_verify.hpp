@@ -62,7 +62,7 @@ struct run_verify
     void add_validation_for(const std::string& name, target_info::validation_function v);
     void disable_test_for(const std::string& name, const std::vector<std::string>& tests);
     void disable_eager_tests(const std::vector<std::string>& tests);
-    bool check_skiped_eager_tests(const std::string& name) const;
+    bool check_skipped_eager_tests(const std::string& name) const;
 
     private:
     std::map<std::string, target_info> info{};

@@ -1253,7 +1253,6 @@ struct compile_options : MIGRAPHX_HANDLE_BASE(compile_options)
     {
         call(&migraphx_compile_options_set_compile_mode, this->get_handle_ptr(), value);
     }
-    
     /// Set backend-specific options that targets can read to configure
     /// compilation. `json_str` is a relaxed JSON object (bare identifiers are
     /// treated as strings) and accepts printf-style format specifiers followed

@@ -46,7 +46,6 @@ struct compile_options
     bool exhaustive_tune = false;
 
     compile_modes compile_mode = compile_modes::balanced;
-    
     /**
      * Backend-specific options keyed by name. Targets can read these to
      * configure compilation in a way that is opaque to the core engine.

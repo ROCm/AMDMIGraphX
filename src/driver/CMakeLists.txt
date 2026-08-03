@@ -33,6 +33,11 @@ add_executable(driver
     trim.cpp
     marker_roctx.cpp
 )
+
+if(WIN32)
+    target_sources(driver PRIVATE verbose_terminate.cpp)
+endif()
+
 set_target_properties(driver PROPERTIES OUTPUT_NAME migraphx-driver)
 if(NOT WIN32)
     # Copy driver for backwards compatibility (Linux only)

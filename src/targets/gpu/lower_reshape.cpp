@@ -37,19 +37,17 @@ inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
 namespace {
-instruction_ref insert_copy(module& m,
-                            instruction_ref pos,
-                            instruction_ref input,
-                            const operation& op,
-                            const shape& output_shape)
+instruction_ref
+insert_precompile_op(module& m, instruction_ref pos, instruction_ref input, const operation& op)
 {
+    auto output_shape = op.compute_shape({input->get_shape()});
     auto alloc =
         m.insert_instruction(pos, make_op("allocate", {{"shape", to_value(output_shape)}}));
     return m.insert_instruction(
         pos, make_op("gpu::precompile_op", {{"op", to_value(op)}}), input, alloc);
 }
 
-instruction_ref insert_standard_copy(module& m, instruction_ref pos, instruction_ref input)
+instruction_ref insert_contiguous(module& m, instruction_ref pos, instruction_ref input)
 {
     const auto& s      = input->get_shape();
     shape output_shape = s.dynamic() ? shape{s.type(), s.dyn_dims()} : shape{s.type(), s.lens()};
@@ -107,7 +105,7 @@ struct find_reshape : match::supports_dynamic_shapes
                     auto layout_reshape = reshape_dims(layout_shape, output_dims, {.lazy = true});
                     if(layout_reshape and *layout_reshape == expected)
                     {
-                        auto layout = insert_copy(m, ins, input, layout_op, layout_shape);
+                        auto layout = insert_precompile_op(m, ins, input, layout_op);
                         m.replace_instruction(ins, reshape_op, {layout});
                         return;
                     }
@@ -115,7 +113,7 @@ struct find_reshape : match::supports_dynamic_shapes
             }
         }
 
-        auto contiguous = insert_standard_copy(m, ins, input);
+        auto contiguous = insert_contiguous(m, ins, input);
         m.replace_instruction(ins, reshape_op, {contiguous});
     }
 };

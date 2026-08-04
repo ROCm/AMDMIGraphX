@@ -23,6 +23,8 @@
  *
  */
 #include <rocm/array.hpp>
+#include <rocm/integral_constant.hpp>
+#include <rocm/type_traits.hpp>
 #include <migraphx/kernels/test.hpp>
 
 // ---- Aggregate initialization ----
@@ -412,6 +414,42 @@ TEST_CASE(constexpr_element_access)
     static_assert(a.back() == 30);
     static_assert(a.at(1) == 20);
 }
+
+// An out-of-range at() throws, and a throw is never a constant expression, so these detect that
+// at() rejects the index. This is the only way to observe the rejection from a test that runs on
+// the device, where the throw degrades to a trap that would take the whole test process with it.
+template <rocm::size_t I, class = void>
+struct at_is_constant : rocm::false_type
+{
+};
+
+template <rocm::size_t I>
+struct at_is_constant<
+    I,
+    rocm::void_t<rocm::integral_constant<int, rocm::array<int, 3>{{10, 20, 30}}.at(I)>>>
+    : rocm::true_type
+{
+};
+
+template <rocm::size_t I, class = void>
+struct empty_at_is_constant : rocm::false_type
+{
+};
+
+template <rocm::size_t I>
+struct empty_at_is_constant<I,
+                            rocm::void_t<rocm::integral_constant<int, rocm::array<int, 0>{}.at(I)>>>
+    : rocm::true_type
+{
+};
+
+static_assert(at_is_constant<0>{});
+static_assert(at_is_constant<2>{});
+static_assert(not at_is_constant<3>{});
+static_assert(not at_is_constant<300>{});
+// Every index is out of range on an empty array
+static_assert(not empty_at_is_constant<0>{});
+static_assert(not empty_at_is_constant<1>{});
 
 TEST_CASE(constexpr_comparison)
 {

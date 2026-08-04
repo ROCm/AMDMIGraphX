@@ -29,6 +29,13 @@
 #include <rocm/stdint.hpp>
 
 #ifndef __HIPCC_RTC__
+// The device overloads of printf and abort come from the hip runtime. They must be declared
+// before <cstdio> and <cstdlib> introduce the host ones, since assert_fail looks both names up
+// in its definition context, so pulling this in here is what makes assert_fail usable for device
+// code no matter what order a translation unit includes its headers in.
+#ifdef __HIP__
+#include <hip/hip_runtime.h>
+#endif
 #include <cstdlib>
 #include <cstdio>
 #endif
@@ -158,6 +165,19 @@ assert_fail(const T1& assertion, const T2& file, const T3& line, const T4& funct
 
 // NOLINTNEXTLINE
 #define ROCM_CHECK(cond) ROCM_ASSERT_FAIL(cond, #cond, __FILE__, __LINE__, __PRETTY_FUNCTION__)
+
+// Exceptions are disabled for device code, so a throw degrades there to the same
+// report-and-terminate that a failed check does. The trap is what makes the device expansion
+// noreturn, since assert_fail cannot be marked as such while hip's abort is broken.
+#ifdef __HIP_DEVICE_COMPILE__
+// NOLINTNEXTLINE
+#define ROCM_THROW(E, msg) \
+    (assert_fail(msg, __FILE__, __LINE__, __PRETTY_FUNCTION__), __builtin_trap())
+#else
+// NOLINTNEXTLINE
+#define ROCM_THROW(E, msg) \
+    throw E { msg }
+#endif
 
 #ifdef CPPCHECK
 // NOLINTNEXTLINE

@@ -27,6 +27,7 @@
 
 #include <rocm/assert.hpp>
 #include <rocm/config.hpp>
+#include <rocm/stdexcept.hpp>
 #include <rocm/stdint.hpp>
 #include <rocm/type_traits.hpp>
 #include <rocm/utility/swap.hpp>
@@ -110,12 +111,14 @@ struct array
 
     constexpr reference at(size_type n)
     {
-        ROCM_ASSERT(n < N);
+        if(n >= N)
+            ROCM_THROW(out_of_range, "rocm::array::at: index out of range");
         return elems[n];
     }
     constexpr const_reference at(size_type n) const
     {
-        ROCM_ASSERT(n < N);
+        if(n >= N)
+            ROCM_THROW(out_of_range, "rocm::array::at: index out of range");
         return elems[n];
     }
 
@@ -204,7 +207,8 @@ struct array<T, 0>
     constexpr bool empty() const noexcept { return true; }
 
     // Element access is never valid on an empty array, but it must still exist so that generic
-    // code compiles when instantiated at N == 0. Calling any of these is a contract violation.
+    // code compiles when instantiated at N == 0. Calling any of these apart from at() is a
+    // contract violation; at() always reports the empty array instead.
     constexpr reference operator[](size_type)
     {
         ROCM_ASSERT(false);
@@ -218,13 +222,11 @@ struct array<T, 0>
 
     constexpr reference at(size_type)
     {
-        ROCM_ASSERT(false);
-        return *data();
+        ROCM_THROW(out_of_range, "rocm::array::at: array is empty");
     }
     constexpr const_reference at(size_type) const
     {
-        ROCM_ASSERT(false);
-        return *data();
+        ROCM_THROW(out_of_range, "rocm::array::at: array is empty");
     }
 
     constexpr reference front()

@@ -2381,6 +2381,18 @@ migraphx_compile_options_set_exhaustive_tune_flag(migraphx_compile_options_t com
     return api_error_result;
 }
 
+extern "C" migraphx_status
+migraphx_compile_options_set_compile_mode(migraphx_compile_options_t compile_options, int8_t value)
+{
+    auto api_error_result = migraphx::try_([&] {
+        if(compile_options == nullptr)
+            MIGRAPHX_THROW(migraphx_status_bad_param,
+                           "Bad parameter compile_options: Null pointer");
+        migraphx::set_compile_mode((compile_options->object), (value));
+    });
+    return api_error_result;
+}
+
 extern "C" migraphx_status migraphx_compile_options_set_advance_backend_options(
     migraphx_compile_options_t compile_options, const char* options_json, ...)
 {
@@ -2393,18 +2405,6 @@ extern "C" migraphx_status migraphx_compile_options_set_advance_backend_options(
         migraphx::set_backend_options((compile_options->object), (options_json), (vlist));
     });
     va_end(vlist);
-    return api_error_result;
-}
-
-extern "C" migraphx_status
-migraphx_compile_options_set_compile_mode(migraphx_compile_options_t compile_options, int8_t value)
-{
-    auto api_error_result = migraphx::try_([&] {
-        if(compile_options == nullptr)
-            MIGRAPHX_THROW(migraphx_status_bad_param,
-                           "Bad parameter compile_options: Null pointer");
-        migraphx::set_compile_mode((compile_options->object), (value));
-    });
     return api_error_result;
 }
 

@@ -50,7 +50,6 @@ RUN ./install_prereqs.sh \
         --rocm-only \
         --rocm-version ${ROCM_VERSION} \
         ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
-        --index-url ${INDEX_URL} \
         ${USE_WHL:+--whl}
 RUN rm /install_prereqs.sh && rm /*.txt
 RUN test -f /usr/local/hash || exit 1

@@ -1,6 +1,6 @@
 ---
 description: "Code review the changed MIGraphX code for correctness bugs, language-specific pitfalls, C/C++ API-ABI breakage, missing test coverage, and convention violations, with a verify pass that drops false positives. The quality checklist is delegated to /migraphx-simplify rather than repeated. Effort levels low through max; --comment posts inline PR comments, --fix applies every class of finding including the quality cleanups. A bare --fix or --comment after a review already ran this session applies or posts that review's findings instead of reviewing again. --select opens a checkbox picker so only the chosen findings are fixed or posted."
-allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git blame:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git branch:*), Bash(git fetch:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh api:*), Bash(grep:*), Bash(find:*), Read, Grep, Glob, Edit, Agent, Skill, ReportFindings, Artifact, AskUserQuestion, mcp__github_inline_comment__create_inline_comment, mcp__review-picker__select_findings
+allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git blame:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git branch:*), Bash(git fetch:*), Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh api:*), Bash(grep:*), Bash(find:*), Read, Grep, Glob, Edit, Agent, Skill, ReportFindings, AskUserQuestion, mcp__github_inline_comment__create_inline_comment, mcp__review-picker__select_findings
 ---
 
 # migraphx-code-review
@@ -770,25 +770,6 @@ to fix them, or later work fixes them incidentally — you MUST call
 Make that call immediately after the fixes land, before any prose summary; the
 host UI's per-finding status updates only from it, and without it the findings
 stay marked unresolved.
-
-## Publishing a shareable review (Artifact)
-
-Only when the review's output contract is *not* the `ReportFindings` tool call
-(that contract forbids publishing). Publish the findings so they can be shared
-and iterated on outside the terminal:
-
-1. Load the `artifact-design` skill (utilitarian treatment — this is a
-   document).
-2. Write the findings to an HTML file: one section per finding with the file
-   path and line, the one-line summary, the concrete failure scenario, and the
-   relevant code snippet. If nothing survived verification, the page says so in
-   one line.
-3. Call the `Artifact` tool with that file path.
-4. End the page body with this line verbatim:
-
-   > Paste this URL back into Claude Code to keep iterating on these findings.
-
-Skip this step if the review was invoked only to feed another tool.
 
 ## Out of scope
 

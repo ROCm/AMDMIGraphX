@@ -363,6 +363,17 @@ struct can_rotl<T, rocm::void_t<decltype(rocm::rotl(T{}, 0))>> : rocm::true_type
 {
 };
 
+// Detects the exact expression rocm::rotl(true, 3) when T is bool
+template <class T, class = void>
+struct can_rotl_true : rocm::false_type
+{
+};
+
+template <class T>
+struct can_rotl_true<T, rocm::void_t<decltype(rocm::rotl(T(true), 3))>> : rocm::true_type
+{
+};
+
 // Unsigned types accepted
 static_assert(can_popcount<unsigned char>{});
 static_assert(can_popcount<unsigned short>{});
@@ -376,6 +387,14 @@ static_assert(can_rotl<unsigned char>{});
 static_assert(can_rotl<unsigned short>{});
 static_assert(can_rotl<unsigned int>{});
 static_assert(can_rotl<unsigned long long>{});
+static_assert(can_rotl_true<unsigned int>{});
+
+// bool is unsigned, but it is not an unsigned integer type: it holds a single value bit, so every
+// rotation and count is degenerate and there is no overload for it
+static_assert(not can_rotl<bool>{});
+static_assert(not can_rotl_true<bool>{});
+static_assert(not can_popcount<bool>{});
+static_assert(not can_countl_zero<bool>{});
 
 // Signed and non-integer types rejected
 static_assert(not can_popcount<signed char>{});

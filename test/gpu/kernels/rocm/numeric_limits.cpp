@@ -92,9 +92,48 @@ struct foo
 {
 };
 
+// bool holds a single value bit and does not wrap, so it differs from what
+// numeric_limits_integer derives from sizeof for every other integer type.
+template <class T>
+static constexpr void test_numeric_limits_bool()
+{
+    using nl = rocm::numeric_limits<T>;
+    static_assert(nl::digits == 1);
+    static_assert(nl::digits10 == 0);
+    static_assert(nl::max_digits10 == 0);
+    static_assert(not nl::is_signed);
+    static_assert(not nl::is_modulo);
+    static_assert(nl::is_integer);
+    static_assert(nl::is_exact);
+    static_assert(nl::is_bounded);
+    static_assert(nl::radix == 2);
+    static_assert(not nl::min());
+    static_assert(not nl::lowest());
+    static_assert(nl::max());
+    static_assert(not nl::epsilon());
+    static_assert(not nl::round_error());
+    static_assert(not nl::has_infinity);
+    static_assert(not nl::has_quiet_NaN);
+    static_assert(not nl::has_signaling_NaN);
+    static_assert(not nl::infinity());
+    static_assert(not nl::quiet_NaN());
+    static_assert(not nl::signaling_NaN());
+    static_assert(not nl::denorm_min());
+    static_assert(not nl::is_iec559);
+    static_assert(nl::round_style == rocm::round_toward_zero);
+}
+
+TEST_CASE(all_bool)
+{
+    test_numeric_limits_all<bool>();
+    test_numeric_limits_bool<bool>();
+    test_numeric_limits_bool<const bool>();
+    test_numeric_limits_bool<volatile bool>();
+    test_numeric_limits_bool<const volatile bool>();
+}
+
 TEST_CASE(all)
 {
-    // test_numeric_limits_all<bool>();
     test_numeric_limits_all<char>();
     test_numeric_limits_all<signed char>();
     test_numeric_limits_all<unsigned char>();

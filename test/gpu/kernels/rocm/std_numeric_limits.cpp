@@ -83,6 +83,7 @@ TEST_CASE_TEMPLATE(test_numeric_limits)
 }
 #endif
 
+TEST_CASE_REGISTER(test_numeric_limits<bool>);
 TEST_CASE_REGISTER(test_numeric_limits<char>);
 TEST_CASE_REGISTER(test_numeric_limits<signed char>);
 TEST_CASE_REGISTER(test_numeric_limits<unsigned char>);

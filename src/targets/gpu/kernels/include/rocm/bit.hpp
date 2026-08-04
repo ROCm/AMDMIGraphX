@@ -33,6 +33,18 @@
 namespace rocm {
 inline namespace ROCM_INLINE_NS {
 
+namespace detail {
+
+// The bit manipulation functions take an unsigned integer type, which excludes bool even though
+// is_unsigned<bool> is true. A single value bit makes every rotation and count degenerate, so
+// there is no overload for it.
+template <class T>
+struct is_bit_unsigned : bool_constant<is_unsigned<T>{} and not is_same<T, bool>{}>
+{
+};
+
+} // namespace detail
+
 template <typename To,
           typename From,
           ROCM_REQUIRES(rocm::is_trivially_copyable<To>{} and
@@ -42,43 +54,43 @@ constexpr To bit_cast(From fr) noexcept
     return __builtin_bit_cast(To, fr);
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr int countl_zero(T x) noexcept
 {
     return __builtin_clzg(x, numeric_limits<T>::digits);
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr int countl_one(T x) noexcept
 {
     return countl_zero(T(~x));
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr int countr_zero(T x) noexcept
 {
     return __builtin_ctzg(x, numeric_limits<T>::digits);
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr int countr_one(T x) noexcept
 {
     return countr_zero(T(~x));
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr int popcount(T x) noexcept
 {
     return __builtin_popcountg(x);
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr int bit_width(T x) noexcept
 {
     return numeric_limits<T>::digits - countl_zero(x);
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr T bit_floor(T x) noexcept
 {
     if(x != 0)
@@ -89,7 +101,7 @@ constexpr T bit_floor(T x) noexcept
     return 0;
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr T bit_ceil(T x) noexcept
 {
     if(x <= 1)
@@ -105,13 +117,13 @@ constexpr T bit_ceil(T x) noexcept
     return 1u << (e + offset_for_ub) >> offset_for_ub;
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr bool has_single_bit(T x) noexcept
 {
     return popcount(x) == 1;
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr T rotl(T x, int s) noexcept
 {
     constexpr int n = numeric_limits<T>::digits;
@@ -139,7 +151,7 @@ constexpr T rotl(T x, int s) noexcept
     return (x >> ur) | (x << shift);
 }
 
-template <class T, ROCM_REQUIRES(rocm::is_unsigned<T>{})>
+template <class T, ROCM_REQUIRES(detail::is_bit_unsigned<T>{})>
 constexpr T rotr(T x, int s) noexcept
 {
     return rotl(x, -s);

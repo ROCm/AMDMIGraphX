@@ -969,6 +969,14 @@ static const std::vector<rewrite_rule>& get_rewrite_rules()
             sqrt(_1 / _2) >> sqrt(_1) / sqrt(_2),
             log(exp(_1)) >> _1,
             exp(log(_1)) >> _1,
+            // Clamping against a bound the expression already clamps to only nests a
+            // redundant node, so repeated clamping (as attribute normalization does on
+            // every shape computation) keeps a single min/max instead of growing without
+            // bound. The inner node can hold the bound in either operand.
+            min(min(_1, _2), _2) >> min(_1, _2),
+            min(min(_2, _1), _2) >> min(_2, _1),
+            max(max(_1, _2), _2) >> max(_1, _2),
+            max(max(_2, _1), _2) >> max(_2, _1),
         };
     }();
     return rules;

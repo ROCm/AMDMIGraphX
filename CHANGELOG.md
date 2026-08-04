@@ -41,6 +41,8 @@ Full documentation for MIGraphX is available at
 * Added mixed length gather fusion in same_table_gather_horizontal_fusion to bundle gather kernels that share the same data (#5044).
 * Added a verbose terminate handler for exceptions on Windows (#5084).
 * Added a `--start-from` or `-s` flag to test binaries which resumes from a test name in the list instead of the beginning (#5072).
+* Added a `dyn_slice` operator, `dyn_slice(data, starts, ends)`, that describes its bound inputs with symbolic attributes so slicing by a data-dependent bound keeps a symbolic output shape; the axes are an attribute since they must be known when the shape is computed (#5088).
+* Added symbolic normalization of operator attributes, selected with the `use_sym` normalize attribute, which clamps a bound against a symbolic axis length instead of leaving it unnormalized (#5088).
 
 
 ### Changed
@@ -61,6 +63,7 @@ Full documentation for MIGraphX is available at
 * Updated python API to allow getting and adding debug symbols from instructions. (#4803)
 * Allow for 1 arg slicing over a dynamic dimension. (#5015)
 * Route convolutions and dot operations through rocMLIR when MIOpen or GEMM libraries are disabled at build time (#5059).
+* The `slice` operator now rejects symbolic input shapes since its integer bounds cannot express a symbolic output extent; use `dyn_slice` for those (#5088).
 
 ### Resolved issues
 

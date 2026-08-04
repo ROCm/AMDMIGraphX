@@ -560,6 +560,17 @@ struct find_flash_decoding
             if(ins->name() == "@param" or ins->name() == "@return")
                 continue;
 
+            if(ins->name() == "@literal")
+            {
+                map_old_to_new[ins] = target_mod.add_literal(ins->get_literal());
+                continue;
+            }
+            if(ins->name() == "@outline")
+            {
+                map_old_to_new[ins] = target_mod.add_outline(ins->get_shape());
+                continue;
+            }
+
             // gather inputs for the new instruction
             std::vector<instruction_ref> new_inputs;
             std::transform(ins->inputs().begin(),

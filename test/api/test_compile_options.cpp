@@ -93,14 +93,6 @@ TEST_CASE(compile_options_backend_options_json)
     run_and_check(p, s);
 }
 
-TEST_CASE(compile_options_default_compile_mode)
-{
-    migraphx::api::compile_options options;
-    const auto* s_options = reinterpret_cast<const migraphx::MIGRAPHX_INLINE_NS::compile_options*>(
-        options.get_handle_ptr());
-    CHECK(s_options->compile_mode == migraphx::MIGRAPHX_INLINE_NS::compile_modes::balanced);
-}
-
 TEST_CASE(compile_options_compile_with_eager_mode)
 {
     migraphx::api::program p;

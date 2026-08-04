@@ -270,7 +270,8 @@ void run_verify::run(int argc, const char* argv[]) const
 
         if(check_skipped_eager_tests(p.name))
         {
-            migraphx::log::warn() << "Skipping " << p.name << "_eager: test is not compatible with eager mode";
+            migraphx::log::warn() << "Skipping " << p.name 
+                                  << "_eager: test is not compatible with eager mode";
             continue;
         }
 
@@ -307,6 +308,6 @@ void run_verify::disable_eager_tests(const std::vector<std::string>& tests)
 bool run_verify::check_skipped_eager_tests(const std::string& name) const
 {
     return migraphx::any_of(eager_disabled_tests, [&](const std::string& s) {
-          return name.find(s) != std::string::npos;
-      });
+        return name.find(s) != std::string::npos;
+    });
 }

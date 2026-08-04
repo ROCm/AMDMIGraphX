@@ -198,6 +198,59 @@ struct find_quant_attention
     }
 };
 
+struct find_transposed_attention
+{
+    auto matcher() const
+    {
+        auto gemm1         = match::any_of[pointwise_inputs()](match::name("dot").bind("dot1"));
+        auto softmax       = match::skip(match::name("convert"))(match::softmax_input(gemm1));
+        auto swap_last_two = match::make_basic_pred_matcher([](instruction_ref ins) {
+            auto perm = ins->get_operator().to_value()["permutation"].to_vector<int64_t>();
+            if(perm.size() < 2)
+                return false;
+            return std::equal(
+                       perm.begin(), perm.end() - 2, migraphx::range(perm.size() - 2).begin()) and
+                   perm[perm.size() - 2] == static_cast<int64_t>(perm.size() - 1) and
+                   perm[perm.size() - 1] == static_cast<int64_t>(perm.size() - 2);
+        });
+        auto transposed_softmax = match::name("transpose")(swap_last_two, match::arg(0)(softmax))
+                                      .bind("transposed_softmax");
+        auto input_of_dot2 = match::any().bind("input_of_dot2");
+        return match::name("dot")(match::arg(0)(input_of_dot2), match::arg(1)(transposed_softmax));
+    }
+
+    void apply(module_pass_manager& mpm, const match::matcher_result& r) const
+    {
+        auto& m                 = mpm.get_module();
+        auto gemm2              = r.result;
+        auto input_of_dot2      = r.instructions["input_of_dot2"];
+        auto transposed_softmax = r.instructions["transposed_softmax"];
+        auto softmax            = transposed_softmax->inputs().front();
+        auto perm =
+            transposed_softmax->get_operator().to_value()["permutation"].to_vector<int64_t>();
+
+        if(input_of_dot2->get_shape().ndim() != perm.size())
+            return;
+
+        auto values = input_of_dot2;
+        if(input_of_dot2->name() == "transpose")
+        {
+            auto input_perm =
+                input_of_dot2->get_operator().to_value()["permutation"].to_vector<int64_t>();
+            if(input_perm == perm)
+                values = input_of_dot2->inputs().front();
+        }
+        if(values == input_of_dot2)
+            values = m.insert_instruction(
+                gemm2, make_op("transpose", {{"permutation", perm}}), input_of_dot2);
+
+        auto canonical_gemm  = m.insert_instruction(gemm2, make_op("dot"), softmax, values);
+        auto transposed_gemm = m.insert_instruction(
+            gemm2, make_op("transpose", {{"permutation", perm}}), canonical_gemm);
+        m.replace_instruction(gemm2, transposed_gemm);
+    }
+};
+
 struct find_attention
 {
     std::size_t* counter;
@@ -1042,6 +1095,9 @@ void fuse_attention::apply(module_pass_manager& mpm) const
         // remove quantization from attention blocks so they can be fused; rocMLIR currently does
         // not support fp8 attention
         match::find_matches(mpm, find_quant_attention{});
+        mpm.run_pass(dead_code_elimination{});
+
+        match::find_matches(mpm, find_transposed_attention{});
         mpm.run_pass(dead_code_elimination{});
 
         match::find_matches(mpm, find_attention{.counter = &counter});

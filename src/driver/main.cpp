@@ -34,6 +34,7 @@
 #include "trim.hpp"
 #include "models.hpp"
 #include "marker_roctx.hpp"
+#include "verbose_terminate.hpp"
 
 #include <migraphx/tf.hpp>
 #include <migraphx/onnx.hpp>
@@ -1326,6 +1327,9 @@ using namespace migraphx::driver; // NOLINT
 
 int main(int argc, const char* argv[], const char* envp[])
 {
+#ifdef _WIN32
+    install_verbose_terminate_handler();
+#endif
     std::vector<std::string> args(argv + 1, argv + argc);
     // Save original args for display purposes before they get modified
     const std::vector<std::string> original_args = args;

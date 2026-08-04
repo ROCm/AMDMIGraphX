@@ -686,23 +686,15 @@ struct find_flash_decoding
                     op.from_value(
                         {{"axes", {static_cast<int64_t>(new_input_shape.lens().size() - 1)}}});
                 }
-                // TODO make less reliant on ops around it
-                else if(op.name() == "multibroadcast")
+                else if(is_broadcast_op(op))
                 {
-                    // broadcast target shape is the shape of the
-                    // other input to the 'sub' or 'div' instruction.
-                    auto parent = ins->outputs().front();
-                    assert(parent->name() == "sub" or parent->name() == "div");
-
-                    // Find the sibling input that isn't the reduction result
-                    auto sibling = std::find_if(parent->inputs().begin(),
-                                                parent->inputs().end(),
-                                                [&](auto i) { return i != ins; });
-                    assert(sibling != parent->inputs().end() and
-                           "Could not find sibling for broadcast target");
-
-                    const auto& target_shape = map_old_to_new.at(*sibling)->get_shape();
-                    op.from_value({{"out_lens", target_shape.lens()}});
+                    // broadcast target shape is the shape of the score tensor this
+                    // broadcast is expanded to match, found by walking consumer ops.
+                    const auto& target_shape =
+                        map_old_to_new.at(broadcast_shape_ins(ins))->get_shape();
+                    auto value        = op.to_value();
+                    value["out_lens"] = target_shape.lens();
+                    op.from_value(value);
                 }
 
                 auto new_ins        = target_mod.add_instruction(op, new_inputs);

@@ -259,14 +259,22 @@ Check that surface for compatibility and durability:
   removed from the exported set; anything that makes an already-compiled client
   binary wrong rather than merely uncompilable. Distinguish this from API
   breakage in the finding.
-- **Robustness against future ABI changes** — the C API should hand out
-  **opaque handles** (`typedef struct migraphx_x* migraphx_x_t`) with accessor
-  functions, not structs passed or returned by value, and not structs whose
-  layout callers can see. Flag a new entry point that takes or returns a struct
-  by value, exposes a field directly, returns a pointer into internals, or fixes
-  a size or count in the signature where a create/query/free triple would let
-  the implementation change later. Name the opaque-handle form it should use
-  instead, matching the surrounding entry points.
+- **Robustness against future changes** — opaque handles
+  (`typedef struct migraphx_x* migraphx_x_t`) with accessor functions keep both
+  the *data layout* and the *function signatures* free to change later, and the
+  C API should hand out one rather than exposing either. Flag both failure
+  modes, and name the opaque-handle form to use instead, matching the
+  surrounding entry points:
+  - *robustness against struct changes* — a new entry point that takes or
+    returns a struct by value, exposes a field directly, returns a pointer into
+    internals, or fixes a size or count in the signature, where a
+    create/query/free triple would let the layout change later.
+  - *robustness against parameter changes* — a new entry point whose options are
+    spelled out as individual parameters, so adding one later changes the
+    signature and breaks existing callers. The established form is an options
+    handle created and populated through accessors — `migraphx_compile_options_t`
+    and `migraphx_onnx_options_t` have a `_create` plus one `_set_*` per option —
+    which absorbs a new option without touching the entry point that consumes it.
 - Check that the C++ header's inline wrappers stay in step with the C entry
   points they wrap, and that additions are reflected in the Python bindings and
   covered under `test/api`.
@@ -284,8 +292,21 @@ is not idempotent or not deterministic, a `compute_shape` that ignores dynamic
 shapes, an interface change without regenerated boilerplate. Beyond what the
 document states, check that `compute_shape` and `compute` agree on type, lengths
 and strides; that a new member is reflected so printing, hashing and
-serialization see it and previously serialized programs still load; and that a
-matcher's `apply` does not invalidate the instruction it matched.
+serialization see it; and that a matcher's `apply` does not invalidate the
+instruction it matched.
+
+**Operators do not maintain backwards compatibility.** Do not flag an operator
+whose attributes, semantics, or serialized form changed as a compatibility
+break, and never ask for `program_file_version` to be incremented because an
+operator changed. That constant lives in `src/include/migraphx/program.hpp` and
+gates loading a serialized `.mxr`: `program::from_value` throws on any mismatch,
+so a bump invalidates every `.mxr` file in existence. It is incremented **only
+when the structure of the IR itself changes** — how programs, modules, and
+instructions are laid out in the serialized value — not when an individual
+operator changes. Flag it in both directions: an IR structure change with no
+bump, where an old `.mxr` is parsed against the new structure instead of being
+rejected with the version-mismatch error; and a bump attached to an
+operator-only change, which invalidates every saved `.mxr` for nothing.
 
 ### Angle G — quality checks (delegated to `/migraphx-simplify`)
 

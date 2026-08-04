@@ -2001,12 +2001,6 @@ struct find_splits
             }
         }
 
-        // The full-cover groups above require every sibling slice to share the
-        // op.  Fall back to hoisting maximal contiguous matching subsets so a
-        // mixed full-cover group (e.g. SiLU heads next to a reshape head) still
-        // fuses its heads.  (The `partial` path already covers partial tiling.)
-        if(not partial)
-            hoist_partial_groups(m, ins, splits);
     }
 };
 

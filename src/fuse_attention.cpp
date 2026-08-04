@@ -588,6 +588,28 @@ struct find_flash_decoding
         MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
     }
 
+    bool broadcast_shape_ready(
+        instruction_ref bc,
+        const std::unordered_map<instruction_ref, instruction_ref>& map_old_to_new) const
+    {
+        assert(is_broadcast_op(bc->get_operator()));
+        return contains(map_old_to_new, broadcast_shape_ins(bc));
+    }
+
+    bool rebuild_ready(instruction_ref ins,
+                       const std::unordered_map<instruction_ref, instruction_ref>& map_old_to_new) const
+    {
+        if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
+               return contains(map_old_to_new, input);
+           }))
+            return false;
+
+        if(is_broadcast_op(ins->get_operator()))
+            return broadcast_shape_ready(ins, map_old_to_new);
+
+        return true;
+    }
+
     std::unordered_map<instruction_ref, instruction_ref>
     map_submod_params_to_inputs(module_ref submod,
                                 const std::vector<instruction_ref>& group_inputs) const
@@ -608,77 +630,96 @@ struct find_flash_decoding
         std::unordered_map<instruction_ref, instruction_ref> map_old_to_new = param_map;
         std::unordered_map<std::string, instruction_ref> softmax_parts;
 
-        for(auto it = source_mod.begin(); it != source_mod.end(); ++it)
+        std::vector<instruction_ref> pending;
+        std::copy_if(source_mod.begin(),
+                     source_mod.end(),
+                     std::back_inserter(pending),
+                     [](instruction_ref ins) {
+                         return ins->name() != "@param" and ins->name() != "@return";
+                     });
+
+        while(not pending.empty())
         {
-            auto ins = it;
-            if(ins->name() == "@param" or ins->name() == "@return")
-                continue;
-
-            if(ins->name() == "@literal")
+            std::vector<instruction_ref> next_pending;
+            bool progress = false;
+            for(auto ins : pending)
             {
-                map_old_to_new[ins] = target_mod.add_literal(ins->get_literal());
-                continue;
+                if(ins->name() == "@literal")
+                {
+                    map_old_to_new[ins] = target_mod.add_literal(ins->get_literal());
+                    progress            = true;
+                    continue;
+                }
+                if(ins->name() == "@outline")
+                {
+                    map_old_to_new[ins] = target_mod.add_outline(ins->get_shape());
+                    progress            = true;
+                    continue;
+                }
+                if(not rebuild_ready(ins, map_old_to_new))
+                {
+                    next_pending.push_back(ins);
+                    continue;
+                }
+
+                // gather inputs for the new instruction
+                std::vector<instruction_ref> new_inputs;
+                std::transform(ins->inputs().begin(),
+                               ins->inputs().end(),
+                               std::back_inserter(new_inputs),
+                               [&](auto i) { return map_old_to_new.at(i); });
+
+                auto op = ins->get_operator();
+
+                // transform operators that depend on tensor shape/rank
+                // adjust reduction axes for the new rank
+                if(op.name() == "reduce_max" or op.name() == "reduce_sum")
+                {
+                    auto original_axes = op.to_value()["axes"].to_vector<int64_t>();
+                    assert(original_axes.size() == 1 and "Expected single axis for reduction");
+
+                    const auto& new_input_shape = new_inputs.front()->get_shape();
+                    assert(original_axes.front() ==
+                               static_cast<int64_t>(ins->inputs().front()->get_shape().lens().size() -
+                                                    1) or
+                           original_axes.front() == -1);
+                    op.from_value(
+                        {{"axes", {static_cast<int64_t>(new_input_shape.lens().size() - 1)}}});
+                }
+                // TODO make less reliant on ops around it
+                else if(op.name() == "multibroadcast")
+                {
+                    // broadcast target shape is the shape of the
+                    // other input to the 'sub' or 'div' instruction.
+                    auto parent = ins->outputs().front();
+                    assert(parent->name() == "sub" or parent->name() == "div");
+
+                    // Find the sibling input that isn't the reduction result
+                    auto sibling = std::find_if(parent->inputs().begin(),
+                                                parent->inputs().end(),
+                                                [&](auto i) { return i != ins; });
+                    assert(sibling != parent->inputs().end() and
+                           "Could not find sibling for broadcast target");
+
+                    const auto& target_shape = map_old_to_new.at(*sibling)->get_shape();
+                    op.from_value({{"out_lens", target_shape.lens()}});
+                }
+
+                auto new_ins        = target_mod.add_instruction(op, new_inputs);
+                map_old_to_new[ins] = new_ins;
+                progress            = true;
+
+                // store key softmax components for LSE calculation
+                if(op.name() == "reduce_max")
+                    softmax_parts["max"] = new_ins;
+                if(op.name() == "reduce_sum")
+                    softmax_parts["sum_exp"] = new_ins;
             }
-            if(ins->name() == "@outline")
-            {
-                map_old_to_new[ins] = target_mod.add_outline(ins->get_shape());
-                continue;
-            }
 
-            // gather inputs for the new instruction
-            std::vector<instruction_ref> new_inputs;
-            std::transform(ins->inputs().begin(),
-                           ins->inputs().end(),
-                           std::back_inserter(new_inputs),
-                           [&](auto i) {
-                               assert(contains(map_old_to_new, i) and "Input not found in map");
-                               return map_old_to_new.at(i);
-                           });
+            if(not progress)
+                MIGRAPHX_THROW("Failed to rebuild attention submodule for flash decoding");
 
-            auto op = ins->get_operator();
-
-            // transform operators that depend on tensor shape/rank
-            // adjust reduction axes for the new rank
-            if(op.name() == "reduce_max" or op.name() == "reduce_sum")
-            {
-                auto original_axes = op.to_value()["axes"].to_vector<int64_t>();
-                assert(original_axes.size() == 1 and "Expected single axis for reduction");
-
-                const auto& new_input_shape = new_inputs.front()->get_shape();
-                assert(original_axes.front() ==
-                           static_cast<int64_t>(ins->inputs().front()->get_shape().lens().size() -
-                                                1) or
-                       original_axes.front() == -1);
-                op.from_value(
-                    {{"axes", {static_cast<int64_t>(new_input_shape.lens().size() - 1)}}});
-            }
-            // TODO make less reliant on ops around it
-            else if(op.name() == "multibroadcast")
-            {
-                // broadcast target shape is the shape of the
-                // other input to the 'sub' or 'div' instruction.
-                auto parent = ins->outputs().front();
-                assert(parent->name() == "sub" or parent->name() == "div");
-
-                // Find the sibling input that isn't the reduction result
-                auto sibling = std::find_if(parent->inputs().begin(),
-                                            parent->inputs().end(),
-                                            [&](auto i) { return i != ins; });
-                assert(sibling != parent->inputs().end() and
-                       "Could not find sibling for broadcast target");
-
-                const auto& target_shape = map_old_to_new.at(*sibling)->get_shape();
-                op.from_value({{"out_lens", target_shape.lens()}});
-            }
-
-            auto new_ins        = target_mod.add_instruction(op, new_inputs);
-            map_old_to_new[ins] = new_ins;
-
-            // store key softmax components for LSE calculation
-            if(op.name() == "reduce_max")
-                softmax_parts["max"] = new_ins;
-            if(op.name() == "reduce_sum")
-                softmax_parts["sum_exp"] = new_ins;
+            pending = std::move(next_pending);
         }
 
         // get the final partial output (O')

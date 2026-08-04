@@ -46,6 +46,7 @@
 #include <migraphx/instruction_traversal.hpp>
 #include <migraphx/output_iterator.hpp>
 #include <migraphx/par.hpp>
+#include <migraphx/reshape_dims.hpp>
 
 #include <array>
 #include <functional>
@@ -1617,6 +1618,13 @@ struct find_reshape_cont
         }
 
         if(ins->get_shape().ndim() > cont_input->get_shape().ndim())
+            return;
+
+        auto rdims_sz = std::vector<std::size_t>(dims.begin(), dims.end());
+        if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto in) {
+                return in == in_ins or
+                    reshape_dims(in->get_shape(), rdims_sz, {.lazy = true}).has_value();
+            }))
             return;
 
         auto out_lens = ins->get_shape().lens();

@@ -31,7 +31,9 @@
 #include <migraphx/generic_float.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/split_factor.hpp>
+#include <deque>
 #include <optional>
+#include <unordered_set>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -532,6 +534,58 @@ struct find_flash_decoding
         result.v_shape[result.v_shape.size() - 2] = n_split;
 
         return result;
+    }
+
+    static bool is_broadcast_op(const operation& op)
+    {
+        const auto& name = op.name();
+        return name == "multibroadcast" or name == "broadcast";
+    }
+
+    static bool uses_ins(instruction_ref start, instruction_ref target)
+    {
+        std::unordered_set<instruction_ref> visited;
+        return fix<bool>([&](auto self, instruction_ref ins) -> bool {
+            if(ins == target)
+                return true;
+            if(not visited.insert(ins).second)
+                return false;
+            return std::any_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
+                return self(input);
+            });
+        })(start);
+    }
+
+    instruction_ref broadcast_shape_ins(instruction_ref bc) const
+    {
+        assert(is_broadcast_op(bc->get_operator()));
+
+        std::deque<instruction_ref> queue(bc->outputs().begin(), bc->outputs().end());
+        std::unordered_set<instruction_ref> visited;
+        while(not queue.empty())
+        {
+            auto cur = queue.front();
+            queue.pop_front();
+            if(not visited.insert(cur).second)
+                continue;
+
+            if(cur->name() == "where")
+                return cur->inputs().at(1);
+
+            if(cur->inputs().size() == 2)
+            {
+                for(auto input : cur->inputs())
+                {
+                    if(not uses_ins(input, bc))
+                        return input;
+                }
+                MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
+            }
+
+            for(auto output : cur->outputs())
+                queue.push_back(output);
+        }
+        MIGRAPHX_THROW("Failed to find broadcast shape reference for flash decoding");
     }
 
     std::unordered_map<instruction_ref, instruction_ref>

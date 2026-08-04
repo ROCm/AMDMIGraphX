@@ -270,7 +270,7 @@ void run_verify::run(int argc, const char* argv[]) const
 
         if(check_skipped_eager_tests(p.name))
         {
-            migraphx::log::warn() << "Skipping " << p.name 
+            migraphx::log::warn() << "Skipping " << p.name
                                   << "_eager: test is not compatible with eager mode";
             continue;
         }

@@ -35,6 +35,7 @@
 #include <migraphx/split_factor.hpp>
 #include <migraphx/generic_float.hpp>
 #include <migraphx/env.hpp>
+#include <migraphx/literal.hpp>
 #include <migraphx/op/builder/insert.hpp>
 #include <basic_ops.hpp>
 #include <group.hpp>
@@ -43,11 +44,100 @@
 #include <reduce.hpp>
 #include <utility>
 #include <cstdlib>
+#include <limits>
 
 static void run_pass(migraphx::program& p, migraphx::fuse_attention fa = {})
 {
     migraphx::run_passes(p, {fa, migraphx::dead_code_elimination{}});
 }
+
+// Run fuse_attention without inheriting flash-decoding settings from the environment.
+static void run_pass_isolated(migraphx::program& p, migraphx::fuse_attention fa = {})
+{
+    const char* splits_env    = std::getenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS");
+    const char* enabled_env   = std::getenv("MIGRAPHX_FLASH_DECODING_ENABLED");
+    const char* threshold_env = std::getenv("MIGRAPHX_FLASH_DECODING_THRESHOLD");
+    const char* max_env       = std::getenv("MIGRAPHX_FLASH_DECODING_MAX_SPLITS");
+    const char* min_env       = std::getenv("MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE");
+
+    if(splits_env != nullptr)
+        unsetenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS");
+    if(enabled_env != nullptr)
+        unsetenv("MIGRAPHX_FLASH_DECODING_ENABLED");
+    if(threshold_env != nullptr)
+        unsetenv("MIGRAPHX_FLASH_DECODING_THRESHOLD");
+    if(max_env != nullptr)
+        unsetenv("MIGRAPHX_FLASH_DECODING_MAX_SPLITS");
+    if(min_env != nullptr)
+        unsetenv("MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE");
+
+    run_pass(p, fa);
+
+    if(splits_env != nullptr)
+        setenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS", splits_env, 1);
+    if(enabled_env != nullptr)
+        setenv("MIGRAPHX_FLASH_DECODING_ENABLED", enabled_env, 1);
+    if(threshold_env != nullptr)
+        setenv("MIGRAPHX_FLASH_DECODING_THRESHOLD", threshold_env, 1);
+    if(max_env != nullptr)
+        setenv("MIGRAPHX_FLASH_DECODING_MAX_SPLITS", max_env, 1);
+    if(min_env != nullptr)
+        setenv("MIGRAPHX_FLASH_DECODING_MIN_CHUNK_SIZE", min_env, 1);
+}
+
+static void run_flash_decoding_only(migraphx::program& p, migraphx::fuse_attention fa = {})
+{
+    fa.attn_enabled = false;
+    run_pass_isolated(p, fa);
+}
+
+static bool has_flash_decoding_submodule(const migraphx::program& p)
+{
+    for(const auto& ins : *p.get_main_module())
+    {
+        if(ins.name() != "group")
+            continue;
+        for(const auto* sm : ins.module_inputs())
+        {
+            if(sm->name().find("flash_decoding") != std::string::npos)
+                return true;
+        }
+    }
+    return false;
+}
+
+static std::size_t count_flash_decoding_submodules(const migraphx::program& p)
+{
+    std::size_t count = 0;
+    for(const auto& ins : *p.get_main_module())
+    {
+        if(ins.name() != "group")
+            continue;
+        for(const auto* sm : ins.module_inputs())
+        {
+            if(sm->name().find("flash_decoding") != std::string::npos)
+                ++count;
+        }
+    }
+    return count;
+}
+
+// Flash-decoding BERT regression tests (intended incremental fix order):
+//  1  flash_decoding_3d_with_attention_literal          @literal in rebuild
+//  2  flash_decoding_rebuild_instruction_order         topo-sort rebuild
+//  3  flash_decoding_4d_with_unary_on_softmax_broadcast  unary between bc and sub
+//  4  flash_decoding_4d_with_attention_mask_param        extra @param + where
+//  5  flash_decoding_4d_with_lower_rank_mask_param     broadcast lower-rank mask
+//  6  flash_decoding_4d_with_full_broadcast_scale_literal  score-shaped @literal split
+//  7  flash_decoding_4d_with_broadcast_op_scale
+//  8  flash_decoding_rebuild_with_outline              @outline in rebuild
+//  9  flash_decoding_skips_lse_attention
+// 10  flash_decoding_skips_non_param_qkv
+// 11  flash_decoding_4d_bert_like_attention              BERT-shaped golden IR
+// 12  flash_decoding_multiple_attention_groups
+// 13  flash_decoding_env_var_enables_splits
+// 14  flash_decoding_4d_with_fp32_softmax_intermediate
+// (also: gemm_softmax_gemm_flash_decoding, flash_decoding_3d_padding, etc.)
 
 // Test helper functions used in fuse_attention pass
 TEST_CASE(get_num_splits_from_member)
@@ -847,7 +937,7 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
-    run_pass(
+    run_pass_isolated(
         p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
     migraphx::program p2;
     {
@@ -920,6 +1010,777 @@ TEST_CASE(gemm_softmax_gemm_flash_decoding)
     EXPECT(p1.sort() == p2.sort());
 }
 
+TEST_CASE(flash_decoding_3d_with_attention_literal)
+{
+    // Models BERT-like attention where find_attention fuses evaluable constants
+    // (e.g. 1/sqrt(d) scale) into the attention submodule as @literal.
+    migraphx::shape s_3d{migraphx::shape::half_type, {1, 256, 256}};
+    migraphx::shape s_scalar{migraphx::shape::half_type, {1}};
+    const std::size_t num_splits = 2;
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s_3d);
+        auto k   = mm->add_parameter("k", s_3d);
+        auto v   = mm->add_parameter("v", s_3d);
+        k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), k);
+        v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), v);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+
+        auto scale = mm->add_literal(migraphx::literal{s_scalar, {0.125f}});
+        auto bc_scale =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}),
+                                scale);
+        auto scaled = mm->add_instruction(migraphx::make_op("mul"), gemm1, bc_scale);
+
+        auto rmax =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), scaled);
+        rmax = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
+        rsum = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass_isolated(p1,
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
+
+    bool found_flash_decoding = false;
+    bool found_literal        = false;
+    for(const auto& ins : *p1.get_main_module())
+    {
+        if(ins.name() != "group")
+            continue;
+        for(const auto* sm : ins.module_inputs())
+        {
+            if(sm->name().find("flash_decoding") == std::string::npos)
+                continue;
+            found_flash_decoding = true;
+            for(const auto& sm_ins : *sm)
+            {
+                if(sm_ins.name() == "@literal")
+                    found_literal = true;
+            }
+        }
+    }
+    EXPECT(found_flash_decoding);
+    EXPECT(found_literal);
+}
+
+TEST_CASE(flash_decoding_4d_with_attention_mask_param)
+{
+    // Models BERT-like attention with an extra mask @param (same shape as gemm1 output)
+    // plus @literal constants inside the fused attention submodule.
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+    migraphx::shape s_mask{migraphx::shape::bool_type, {1, 12, 256, 256}};
+    const std::size_t num_splits = 2;
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto q    = mm->add_parameter("q", s1);
+        auto k    = mm->add_parameter("k", s1);
+        auto v    = mm->add_parameter("v", s1);
+        auto mask = mm->add_parameter("mask", s_mask);
+        auto ninf = mm->add_literal(-std::numeric_limits<float>::infinity());
+        auto ninf_h =
+            mm->add_instruction(migraphx::make_op("convert", {{"target_type", s1.type()}}), ninf);
+        k = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), k);
+        v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), v);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto ninf_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), ninf_h);
+        auto masked  = mm->add_instruction(migraphx::make_op("where"), mask, gemm1, ninf_bc);
+        auto rmax    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), masked);
+        rmax         = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), masked, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass_isolated(p1,
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
+
+    bool found_flash_decoding = false;
+    bool found_mask_param     = false;
+    bool found_literal        = false;
+    migraphx::shape expected_mask_shape{migraphx::shape::bool_type, {1, 12, num_splits, 256, 128}};
+    for(const auto& ins : *p1.get_main_module())
+    {
+        if(ins.name() != "group")
+            continue;
+        for(const auto* sm : ins.module_inputs())
+        {
+            if(sm->name().find("flash_decoding") == std::string::npos)
+                continue;
+            found_flash_decoding = true;
+            for(const auto& sm_ins : *sm)
+            {
+                if(sm_ins.name() == "@literal")
+                    found_literal = true;
+                if(sm_ins.name() == "@param" and sm_ins.get_shape() == expected_mask_shape)
+                    found_mask_param = true;
+            }
+        }
+    }
+    EXPECT(found_flash_decoding);
+    EXPECT(found_literal);
+    EXPECT(found_mask_param);
+}
+
+TEST_CASE(flash_decoding_4d_bert_like_attention)
+{
+    // Matches bert_base_uncased: 4D Q/V [1,12,384,64], transposed K [1,12,64,384],
+    // scale @literal (1/sqrt(64)), no attention mask param.
+    migraphx::shape s_qv{migraphx::shape::half_type, {1, 12, 384, 64}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 12, 64, 384}};
+    migraphx::shape s_scores{migraphx::shape::half_type, {1, 12, 384, 384}};
+    migraphx::shape s_scalar{migraphx::shape::half_type, {1}};
+    const std::size_t num_splits = 2;
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s_qv);
+        auto k   = mm->add_parameter("k", s_k);
+        auto v   = mm->add_parameter("v", s_qv);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+
+        auto scale = mm->add_literal(migraphx::literal{s_scalar, {0.125f}});
+        auto bc_scale =
+            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}),
+                                scale);
+        auto scaled = mm->add_instruction(migraphx::make_op("mul"), gemm1, bc_scale);
+
+        auto rmax =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scaled);
+        rmax = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass_isolated(p1,
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
+
+    migraphx::program p2;
+    {
+        auto* mm = p2.get_main_module();
+        auto q   = mm->add_parameter("q", s_qv);
+        auto k   = mm->add_parameter("k", s_k);
+        auto v   = mm->add_parameter("v", s_qv);
+
+        std::vector<size_t> q_prime_shape = {1, 12, num_splits, 384, 64};
+        std::vector<size_t> k_prime_shape = {1, 12, num_splits, 64, 192};
+        std::vector<size_t> v_prime_shape = {1, 12, num_splits, 192, 64};
+        int64_t g_axis                    = 2;
+
+        auto q_unsqueeze = mm->add_instruction(migraphx::make_op("unsqueeze", {{"axes", {g_axis}}}), q);
+        auto q_reshaped  = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", q_prime_shape}}), q_unsqueeze);
+
+        auto k_reshape_intermediate = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", {1, 12, 64, num_splits, 192}}}), k);
+        auto k_reshaped = mm->add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2, 4}}}), k_reshape_intermediate);
+
+        auto v_reshaped = mm->add_instruction(
+            migraphx::make_op("reshape", {{"dims", v_prime_shape}}), v);
+
+        auto group = add_group(
+            p2,
+            "attn0_flash_decoding",
+            "attention",
+            {q_reshaped, k_reshaped, v_reshaped},
+            {"x0", "x1", "x2"},
+            [=](auto* gm, const auto& inputs) {
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto scale = gm->add_literal(migraphx::literal{s_scalar, {0.125f}});
+                auto bc_scale =
+                    gm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, num_splits, 384, 192}}}),
+                                        scale);
+                auto scaled = gm->add_instruction(migraphx::make_op("mul"), gemm1, bc_scale);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {4}}}), scaled);
+                auto rmax_broad = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, num_splits, 384, 192}}}),
+                    rmax);
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), scaled, rmax_broad);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {4}}}), exp);
+                auto rsum_broad = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", {1, 12, num_splits, 384, 192}}}),
+                    rsum);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum_broad);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                auto log   = gm->add_instruction(migraphx::make_op("log"), rsum);
+                auto add   = gm->add_instruction(migraphx::make_op("add"), rmax, log);
+                return std::vector<migraphx::instruction_ref>{gemm2, add};
+            });
+
+        auto o_p = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), group);
+        auto lse = mm->add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), group);
+        auto lse_max =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {g_axis}}}), lse);
+        auto lse_max_broad = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", lse->get_shape().lens()}}), lse_max);
+        auto lse_sub = mm->add_instruction(migraphx::make_op("sub"), lse, lse_max_broad);
+        auto lse_exp = mm->add_instruction(migraphx::make_op("exp"), lse_sub);
+        auto lse_exp_broad = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", o_p->get_shape().lens()}}), lse_exp);
+        auto weights = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), lse_exp_broad);
+        auto weighted_o = mm->add_instruction(migraphx::make_op("mul"), o_p, weights);
+        auto numerator =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), weighted_o);
+        auto denominator =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {g_axis}}}), weights);
+        auto final_output =
+            mm->add_instruction(migraphx::make_op("div"), numerator, denominator);
+        auto final_squeezed =
+            mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {g_axis}}}), final_output);
+        mm->add_return({final_squeezed});
+    }
+    EXPECT(p1.sort() == p2.sort());
+}
+
+TEST_CASE(flash_decoding_4d_with_unary_on_softmax_broadcast)
+{
+    // Unary ops (e.g. contiguous) between multibroadcast(reduce_max) and sub must not
+    // block multibroadcast shape inference during flash decoding rebuild.
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 384, 384}};
+    migraphx::shape s_qv{migraphx::shape::half_type, {1, 12, 384, 64}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 12, 64, 384}};
+    const std::size_t num_splits = 2;
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s_qv);
+        auto k   = mm->add_parameter("k", s_k);
+        auto v   = mm->add_parameter("v", s_qv);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+
+        auto rmax =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+        auto rmax_cont =
+            mm->add_instruction(migraphx::make_op("contiguous"), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax_cont);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass_isolated(p1,
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
+
+    EXPECT(has_flash_decoding_submodule(p1));
+}
+
+TEST_CASE(flash_decoding_rebuild_instruction_order)
+{
+    // Submodule inserts scale multibroadcast before dot; linear rebuild fails without topo-sort.
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+    migraphx::shape s_scalar{migraphx::shape::half_type, {1}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("1", s1);
+        auto b   = mm->add_parameter("2", s1);
+        auto b1  = mm->add_parameter("3", s1);
+        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
+
+        auto group = add_group(
+            p1,
+            "attn0",
+            "attention",
+            {a, b, b1},
+            {"x0", "x1", "x2"},
+            [&](auto* gm, const auto& inputs) {
+                auto scale = gm->add_literal(migraphx::literal{s_scalar, {0.125f}});
+                auto bc_scale =
+                    gm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                        scale);
+                auto gemm1  = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto scaled = gm->add_instruction(migraphx::make_op("mul"), gemm1, bc_scale);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scaled);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub  = gm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
+                auto exp  = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum      = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                return std::vector<migraphx::instruction_ref>{gemm2};
+            });
+        mm->add_return({group});
+    }
+
+    run_flash_decoding_only(
+        p1, {.flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+    EXPECT(has_flash_decoding_submodule(p1));
+}
+
+TEST_CASE(flash_decoding_4d_with_lower_rank_mask_param)
+{
+    // Lower-rank mask [1, 384] must broadcast to score shape then split for flash decoding.
+    migraphx::shape s_qv{migraphx::shape::half_type, {1, 12, 384, 64}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 12, 64, 384}};
+    migraphx::shape s_scores{migraphx::shape::half_type, {1, 12, 384, 384}};
+    migraphx::shape s_mask{migraphx::shape::bool_type, {1, 384}};
+    const std::size_t num_splits = 2;
+
+    migraphx::program p1;
+    {
+        auto* mm  = p1.get_main_module();
+        auto q    = mm->add_parameter("q", s_qv);
+        auto k    = mm->add_parameter("k", s_k);
+        auto v    = mm->add_parameter("v", s_qv);
+        auto mask = mm->add_parameter("mask", s_mask);
+        auto ninf = mm->add_literal(-std::numeric_limits<float>::infinity());
+        auto ninf_h =
+            mm->add_instruction(migraphx::make_op("convert", {{"target_type", s_scores.type()}}), ninf);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto mask_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), mask);
+        auto ninf_bc = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), ninf_h);
+        auto masked  = mm->add_instruction(migraphx::make_op("where"), mask_bc, gemm1, ninf_bc);
+        auto rmax    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), masked);
+        rmax         = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), masked, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass_isolated(p1,
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
+
+    migraphx::shape expected_mask_shape{migraphx::shape::bool_type, {1, 12, num_splits, 384, 192}};
+    bool found_mask_param = false;
+    for(const auto& ins : *p1.get_main_module())
+    {
+        if(ins.name() != "group")
+            continue;
+        for(const auto* sm : ins.module_inputs())
+        {
+            if(sm->name().find("flash_decoding") == std::string::npos)
+                continue;
+            for(const auto& sm_ins : *sm)
+            {
+                if(sm_ins.name() == "@param" and sm_ins.get_shape() == expected_mask_shape)
+                    found_mask_param = true;
+            }
+        }
+    }
+    EXPECT(has_flash_decoding_submodule(p1));
+    EXPECT(found_mask_param);
+}
+
+TEST_CASE(flash_decoding_4d_with_full_broadcast_scale_literal)
+{
+    // Fused 4D scale @literal (no scalar+multibroadcast) as find_attention may produce.
+    migraphx::shape s_qv{migraphx::shape::half_type, {1, 12, 256, 64}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 12, 64, 256}};
+    migraphx::shape s_scores{migraphx::shape::half_type, {1, 12, 256, 256}};
+    const std::size_t num_splits = 2;
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s_qv);
+        auto k   = mm->add_parameter("k", s_k);
+        auto v   = mm->add_parameter("v", s_qv);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+
+        std::vector<float> scale_data(s_scores.elements(), 0.125f);
+        auto scale_lit = mm->add_literal(migraphx::literal{s_scores, scale_data});
+        auto scaled    = mm->add_instruction(migraphx::make_op("mul"), gemm1, scale_lit);
+
+        auto rmax =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scaled);
+        rmax = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass_isolated(p1,
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
+    EXPECT(has_flash_decoding_submodule(p1));
+
+    bool found_scaled_mul = false;
+    for(const auto& ins : *p1.get_main_module())
+    {
+        if(ins.name() != "group")
+            continue;
+        for(const auto* sm : ins.module_inputs())
+        {
+            if(sm->name().find("flash_decoding") == std::string::npos)
+                continue;
+            for(const auto& sm_ins : *sm)
+            {
+                if(sm_ins.name() != "mul")
+                    continue;
+                const auto& in0 = sm_ins.inputs().front()->get_shape().lens();
+                const auto& in1 = sm_ins.inputs().back()->get_shape().lens();
+                if(in0 == in1 and in0.size() == 5)
+                    found_scaled_mul = true;
+            }
+        }
+    }
+    EXPECT(found_scaled_mul);
+}
+
+TEST_CASE(flash_decoding_4d_with_broadcast_op_scale)
+{
+    // Uses broadcast (not multibroadcast) for scale; rebuild must rewrite out_lens.
+    migraphx::shape s_qv{migraphx::shape::half_type, {1, 12, 256, 64}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 12, 64, 256}};
+    migraphx::shape s_scores{migraphx::shape::half_type, {1, 12, 256, 256}};
+    migraphx::shape s_scalar{migraphx::shape::half_type, {1}};
+    const std::size_t num_splits = 2;
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s_qv);
+        auto k   = mm->add_parameter("k", s_k);
+        auto v   = mm->add_parameter("v", s_qv);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+
+        auto scale = mm->add_literal(migraphx::literal{s_scalar, {0.125f}});
+        auto bc_scale =
+            mm->add_instruction(migraphx::make_op("broadcast", {{"axis", 0}, {"out_lens", s_scores.lens()}}),
+                                scale);
+        auto scaled = mm->add_instruction(migraphx::make_op("mul"), gemm1, bc_scale);
+
+        auto rmax =
+            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scaled);
+        rmax = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass_isolated(p1,
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
+    EXPECT(has_flash_decoding_submodule(p1));
+}
+
+TEST_CASE(flash_decoding_rebuild_with_outline)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("1", s1);
+        auto b   = mm->add_parameter("2", s1);
+        auto b1  = mm->add_parameter("3", s1);
+        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
+
+        auto group = add_group(
+            p1,
+            "attn0",
+            "attention",
+            {a, b, b1},
+            {"x0", "x1", "x2"},
+            [&](auto* gm, const auto& inputs) {
+                gm->add_outline(s1);
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub  = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp  = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum      = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                return std::vector<migraphx::instruction_ref>{gemm2};
+            });
+        mm->add_return({group});
+    }
+
+    run_flash_decoding_only(
+        p1, {.flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+    EXPECT(has_flash_decoding_submodule(p1));
+}
+
+TEST_CASE(flash_decoding_skips_lse_attention)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+    migraphx::shape s2{migraphx::shape::bool_type, {1, 12, 256, 256}};
+    migraphx::shape s3{migraphx::shape::half_type, {1, 12, 256, 1}};
+    auto s1_elements = s1.elements();
+    auto s3_elements = s3.elements();
+
+    migraphx::program p1;
+    {
+        auto* mm    = p1.get_main_module();
+        auto a      = mm->add_parameter("1", s1);
+        auto b      = mm->add_parameter("2", s1);
+        auto b1     = mm->add_parameter("3", s1);
+        auto select = mm->add_parameter("4", s2);
+        std::vector<float> eights(s1_elements, 0.125);
+        std::vector<float> tens(s1_elements, 10);
+        std::vector<float> log2s(s3_elements, 1.44238);
+        auto eight = mm->add_literal(migraphx::literal{s1, eights});
+        auto ten   = mm->add_literal(migraphx::literal{s1, tens});
+        auto log2  = mm->add_literal(migraphx::literal{s3, log2s});
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto mul     = mm->add_instruction(migraphx::make_op("mul"), gemm1, eight);
+        auto where   = mm->add_instruction(migraphx::make_op("where"), select, mul, ten);
+        auto rmax    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), where);
+        auto rmax_mb = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), where, rmax_mb);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        auto log  = mm->add_instruction(migraphx::make_op("log"), rsum);
+        rsum      = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
+        auto div        = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto adjust_lse = mm->add_instruction(migraphx::make_op("add"), log, rmax);
+        auto log2se     = mm->add_instruction(migraphx::make_op("mul"), adjust_lse, log2);
+        auto convert    = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), log2se);
+        auto lse = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), convert);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
+        mm->add_return({gemm2, lse});
+    }
+    run_pass_isolated(p1,
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = 2});
+    EXPECT(not has_flash_decoding_submodule(p1));
+}
+
+TEST_CASE(flash_decoding_skips_non_param_qkv)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("1", s1);
+        auto b   = mm->add_parameter("2", s1);
+        auto b1  = mm->add_parameter("3", s1);
+        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
+
+        auto group = add_group(
+            p1,
+            "attn0",
+            "attention",
+            {a, b, b1},
+            {"x0", "x1", "x2"},
+            [&](auto* gm, const auto& inputs) {
+                auto q = gm->add_instruction(migraphx::make_op("contiguous"), inputs[0]);
+                auto gemm1 = gm->add_instruction(migraphx::make_op("dot"), q, inputs[1]);
+                auto rmax =
+                    gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+                rmax = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+                auto sub  = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp  = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum      = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+                auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
+                auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
+                return std::vector<migraphx::instruction_ref>{gemm2};
+            });
+        mm->add_return({group});
+    }
+
+    run_flash_decoding_only(
+        p1, {.flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+    EXPECT(not has_flash_decoding_submodule(p1));
+}
+
+TEST_CASE(flash_decoding_multiple_attention_groups)
+{
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+
+    auto build_attention = [&](migraphx::module* mm,
+                               migraphx::instruction_ref a,
+                               migraphx::instruction_ref b,
+                               migraphx::instruction_ref b1) {
+        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax       = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum      = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        return mm->add_instruction(migraphx::make_op("dot"), div, b1);
+    };
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a1  = mm->add_parameter("a1", s1);
+        auto b1p = mm->add_parameter("b1", s1);
+        auto c1  = mm->add_parameter("c1", s1);
+        auto out1 = build_attention(mm, a1, b1p, c1);
+
+        auto a2  = mm->add_parameter("a2", s1);
+        auto b2p = mm->add_parameter("b2", s1);
+        auto c2  = mm->add_parameter("c2", s1);
+        auto out2 = build_attention(mm, a2, b2p, c2);
+
+        mm->add_return({out1, out2});
+    }
+
+    run_pass_isolated(p1,
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = 2});
+    EXPECT(count_flash_decoding_submodules(p1) == 2);
+}
+
+TEST_CASE(flash_decoding_env_var_enables_splits)
+{
+    const char* old = std::getenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS");
+    setenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS", "2", 1);
+
+    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto a   = mm->add_parameter("1", s1);
+        auto b   = mm->add_parameter("2", s1);
+        auto b1  = mm->add_parameter("3", s1);
+        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
+        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax       = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rmax);
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum      = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
+        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
+        mm->add_return({gemm2});
+    }
+
+    run_pass_isolated(p1, {.attn_enabled = true});
+    EXPECT(has_flash_decoding_submodule(p1));
+
+    if(old != nullptr)
+        setenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS", old, 1);
+    else
+        unsetenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS");
+}
+
+TEST_CASE(flash_decoding_4d_with_fp32_softmax_intermediate)
+{
+    migraphx::shape s_qv{migraphx::shape::half_type, {1, 12, 256, 64}};
+    migraphx::shape s_k{migraphx::shape::half_type, {1, 12, 64, 256}};
+    migraphx::shape s_scores{migraphx::shape::half_type, {1, 12, 256, 256}};
+    const std::size_t num_splits = 2;
+
+    migraphx::program p1;
+    {
+        auto* mm = p1.get_main_module();
+        auto q   = mm->add_parameter("q", s_qv);
+        auto k   = mm->add_parameter("k", s_k);
+        auto v   = mm->add_parameter("v", s_qv);
+        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto scores_f = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), gemm1);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scores_f);
+        rmax      = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rmax);
+        auto sub = mm->add_instruction(migraphx::make_op("sub"), scores_f, rmax);
+        auto exp = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum =
+            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rsum);
+        auto div_f = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
+        auto div   = mm->add_instruction(
+            migraphx::make_op("convert", {{"target_type", migraphx::shape::half_type}}), div_f);
+        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
+        mm->add_return({gemm2});
+    }
+    run_pass_isolated(p1,
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
+    EXPECT(has_flash_decoding_submodule(p1));
+}
+
 TEST_CASE(flash_decoding_3d)
 {
     // 3D Shape: [batch, sequence_length, head_dim]
@@ -947,7 +1808,7 @@ TEST_CASE(flash_decoding_3d)
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2});
     }
-    run_pass(
+    run_pass_isolated(
         p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
 
     migraphx::program p2;
@@ -1068,7 +1929,7 @@ TEST_CASE(flash_decoding_3d_rectangular)
             migraphx::make_op("dot"), div, b1); // [1, 240, 240] x [1, 240, 256] = [1, 240, 256]
         mm->add_return({gemm2});
     }
-    run_pass(p1,
+    run_pass_isolated(p1,
              {.attn_enabled              = true,
               .flash_decoding_enabled    = true,
               .flash_decoding_num_splits = num_splits});
@@ -1190,7 +2051,7 @@ TEST_CASE(flash_decoding_3d_padding)
             migraphx::make_op("dot"), div, b1); // [1, 241, 241] x [1, 241, 256] = [1, 241, 256]
         mm->add_return({gemm2});
     }
-    run_pass(p1,
+    run_pass_isolated(p1,
              {.attn_enabled              = true,
               .flash_decoding_enabled    = true,
               .flash_decoding_num_splits = num_splits});

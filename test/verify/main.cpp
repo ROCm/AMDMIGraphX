@@ -174,7 +174,7 @@ int main(int argc, const char* argv[])
                             "test_quant_dot_3args_5<migraphx::fp8::fp8e5m2, float>",
                         });
 
-    // Eager mode drops precision-preserving passes (rewrite_low_precision, propagate_precision, 
+    // Eager mode drops precision-preserving passes (rewrite_low_precision, propagate_precision,
     // rewrite_gelu)
     rv.disable_eager_tests({"test_topk", "test_softmax", "test_logsoftmax"});
 

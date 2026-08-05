@@ -22,13 +22,13 @@
  * THE SOFTWARE.
  */
 #include <migraphx/gpu/lower_reshape.hpp>
-#include <migraphx/errors.hpp>
 #include <migraphx/matcher.hpp>
 #include <migraphx/module.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/permutation.hpp>
 #include <migraphx/reshape_dims.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/value.hpp>
 #include <algorithm>
 
@@ -58,21 +58,13 @@ instruction_ref insert_contiguous(module& m, instruction_ref pos, instruction_re
 
 struct find_reshape : match::supports_dynamic_shapes
 {
-    auto matcher() const { return match::name("reshape"); }
+    // Skip reshape(data, output_buffer). Every GPU copy op derives its kernel from one
+    // index space shared by source and destination, so none of them can change rank.
+    auto matcher() const { return match::name("reshape")(match::nargs(1)); }
 
     void apply(module& m, const match::matcher_result& r) const
     {
-        auto ins = r.result;
-        // The 2 input form carries its target shape on the output buffer, which is only
-        // resolved at runtime. There is no GPU copy op that can express it: every
-        // candidate (gpu::contiguous, hip::copy) derives its kernel from a single index
-        // space shared by source and destination, so a rank changing copy either reports
-        // the wrong shape or fails in the copy itself. Reject it explicitly rather than
-        // lowering to something that silently computes the wrong result.
-        if(ins->inputs().size() == 2)
-            MIGRAPHX_THROW("lower_reshape: reshape with a runtime output buffer (2 input form) is "
-                           "not supported on the GPU target");
-
+        auto ins        = r.result;
         auto dims       = ins->get_operator().to_value().at("dims");
         auto reshape_op = make_op("reshape_lazy", {{"dims", {dims}}});
         auto input      = ins->inputs().front();
@@ -83,7 +75,7 @@ struct find_reshape : match::supports_dynamic_shapes
             auto expected    = ins->get_shape().to_symbolic();
             auto output_dims = ins->get_shape().sym_dims();
             auto reshaped    = reshape_dims(s.to_symbolic(), output_dims, {.lazy = true});
-            if(reshaped and *reshaped == expected)
+            if(reshaped and sym::same_symbol(reshaped->sym_elements(), expected.sym_elements()))
             {
                 m.replace_instruction(ins, reshape_op, {input});
                 return;
@@ -100,15 +92,10 @@ struct find_reshape : match::supports_dynamic_shapes
                 // for a jit compile to produce the same copy.
                 if(not std::is_sorted(perm.begin(), perm.end()))
                 {
-                    auto layout_op      = make_op("layout", {{"permutation", perm}});
-                    auto layout_shape   = layout_op.compute_shape({s});
-                    auto layout_reshape = reshape_dims(layout_shape, output_dims, {.lazy = true});
-                    if(layout_reshape and *layout_reshape == expected)
-                    {
-                        auto layout = insert_precompile_op(m, ins, input, layout_op);
-                        m.replace_instruction(ins, reshape_op, {layout});
-                        return;
-                    }
+                    auto layout = insert_precompile_op(
+                        m, ins, input, make_op("layout", {{"permutation", perm}}));
+                    m.replace_instruction(ins, reshape_op, {layout});
+                    return;
                 }
             }
         }

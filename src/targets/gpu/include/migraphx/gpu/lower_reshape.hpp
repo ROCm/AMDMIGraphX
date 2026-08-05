@@ -50,13 +50,13 @@ namespace gpu {
  *
  * For each `reshape`, in order:
  *
- *  1. If `reshape_lazy` can alias the input directly and lands on exactly the shape the
- *     `reshape` declared, emit just the `reshape_lazy`. No copy.
+ *  1. If `reshape_lazy` can alias the input directly and lands on the element count the
+ *     `reshape` declared, emit just the `reshape_lazy`. No copy. The resulting view keeps
+ *     whatever strides aliasing produced, which need not be the ones `reshape` reported.
  *
  *  2. Otherwise, derive the memory order the input would need in order to be aliasable
- *     by running the dim mapping backwards (output dims -> input dims), and verify
- *     forward that repacking into that order does reach the declared shape. If so, emit
- *     a `layout` copy into that order followed by the `reshape_lazy`. The `layout` is
+ *     by running the dim mapping backwards (output dims -> input dims), and emit a
+ *     `layout` copy into that order followed by the `reshape_lazy`. The `layout` is
  *     wrapped in `gpu::precompile_op` and compiles to the existing pointwise copy
  *     kernel, so this costs the same single kernel as a standardizing contiguous while
  *     preserving the permutation a following op may want (e.g. NHWC into pooling).
@@ -72,9 +72,9 @@ namespace gpu {
  * to symbolic literals so static and symbolic shapes share one code path.
  *
  * The 2 input form of `reshape` (`reshape(data, output_buffer)`, where the target shape
- * is carried by a runtime-sized output buffer) is rejected. No GPU copy op can express
- * it: they all derive their kernel from an index space shared by source and
- * destination, which a rank-changing copy does not have.
+ * is carried by a runtime-sized output buffer) is not matched and passes through
+ * un-lowered. No GPU copy op can express it: they all derive their kernel from an index
+ * space shared by source and destination, which a rank-changing copy does not have.
  */
 struct MIGRAPHX_GPU_EXPORT lower_reshape
 {

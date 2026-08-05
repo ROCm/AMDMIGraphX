@@ -203,8 +203,8 @@ struct find_transposed_attention
                 return false;
             return std::equal(
                        perm.begin(), perm.end() - 2, migraphx::range(perm.size() - 2).begin()) and
-                   perm[perm.size() - 2] == perm.size() - 1 and
-                   perm[perm.size() - 1] == perm.size() - 2;
+                   perm[perm.size() - 2] == static_cast<int64_t>(perm.size() - 1) and
+                   perm[perm.size() - 1] == static_cast<int64_t>(perm.size() - 2);
         });
         auto transposed_softmax = match::name("transpose")(swap_last_two, match::arg(0)(softmax))
                                       .bind("transposed_softmax");

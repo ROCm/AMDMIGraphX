@@ -118,7 +118,7 @@ struct dyn_slice
     {
         check_shapes{inputs, *this, true}.has(3);
         check_inputs_and_attributes(inputs);
-        auto input_shape = inputs.front();
+        const auto& input_shape = inputs.front();
         if(input_shape.dynamic() and not input_shape.symbolic())
             MIGRAPHX_THROW("DYN_SLICE: data input must have a static or symbolic shape");
 
@@ -151,18 +151,14 @@ struct dyn_slice
             arg.visit([&](auto values) { result = values.template to_vector<int64_t>(); });
             return result;
         };
-        // The bound attributes are only the compile-time view of the inputs; the inputs hold the
-        // values to slice with, so they are renormalized against the run-time shape here. The
-        // axes attribute needs no such handling: shapes with a dynamic rank are not supported, so
-        // it is already normalized at compile time.
         auto axes_attrs  = this->attributes().at("normalize_axes");
+        // Only use the starts_input and ends_input for the output slice. Not the attributes.
         auto norm_starts = normalize_indices(
             read(args[1]), axes, input_shape, axes_attrs.at("starts"), "DYN_SLICE: starts input");
         auto norm_ends = normalize_indices(
             read(args[2]), axes, input_shape, axes_attrs.at("ends"), "DYN_SLICE: ends input");
 
-        // The compile-time shape asserts a non-negative extent on every sliced axis, so
-        // inconsistent run-time bounds are rejected instead of wrapping around to a huge length.
+        // Get end-start for output dimension sizes. Reject if ends before starts (no wrap around).
         std::vector<std::size_t> extents(axes.size());
         std::transform(norm_ends.begin(),
                        norm_ends.end(),

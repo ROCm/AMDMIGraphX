@@ -1408,46 +1408,44 @@ TEST_CASE(dot_sym_k_vs_range)
     expect_shape(expected, migraphx::make_op("dot"), s_a, s_b);
 }
 
-// dyn_slice takes its bounds as inputs; this is the shape they have for `n` sliced axes.
-static migraphx::shape dyn_slice_bounds(std::size_t n)
-{
-    return migraphx::shape{migraphx::shape::int64_type, {n}};
-}
-
 TEST_CASE(dyn_slice_static)
 {
     // Concrete bounds over a static input stay static: a slice is just a view.
     migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    // dyn_slice takes its bounds as inputs, with one element per sliced axis.
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
     migraphx::shape expected{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}};
     expect_shape(expected,
                  migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}}),
                  input,
-                 dyn_slice_bounds(1),
-                 dyn_slice_bounds(1));
+                 bounds,
+                 bounds);
 }
 
 TEST_CASE(dyn_slice_static_clamped_bounds)
 {
     // Out of range bounds are clipped and negative bounds resolved against the axis length.
     migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
     migraphx::shape expected{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}};
     expect_shape(expected,
                  migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {-2}}, {"ends", {10}}}),
                  input,
-                 dyn_slice_bounds(1),
-                 dyn_slice_bounds(1));
+                 bounds,
+                 bounds);
 }
 
 TEST_CASE(dyn_slice_negative_axis)
 {
     // A negative axis attribute is normalized against the input rank.
     migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
     migraphx::shape expected{migraphx::shape::float_type, {2, 2, 2}, {6, 3, 1}};
     expect_shape(expected,
                  migraphx::make_op("dyn_slice", {{"axes", {-1}}, {"starts", {1}}, {"ends", {3}}}),
                  input,
-                 dyn_slice_bounds(1),
-                 dyn_slice_bounds(1));
+                 bounds,
+                 bounds);
 }
 
 TEST_CASE(dyn_slice_symbolic_end_static_input)
@@ -1463,7 +1461,8 @@ TEST_CASE(dyn_slice_symbolic_end_static_input)
     migraphx::shape sin{migraphx::shape::float_type, {10}};
     migraphx::shape sout{
         migraphx::shape::float_type, {dd{migraphx::sym::min(n, lit(10))}}, {lit(1)}};
-    expect_shape(sout, op, sin, dyn_slice_bounds(1), dyn_slice_bounds(1));
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    expect_shape(sout, op, sin, bounds, bounds);
     EXPECT(sout.symbolic());
     EXPECT(not sout.is_fixed());
     EXPECT(sout.to_static({{n, 7}}) == migraphx::shape{migraphx::shape::float_type, {7}, {1}});
@@ -1474,7 +1473,7 @@ TEST_CASE(dyn_slice_symbolic_bounds)
 {
     // The sliced extent (ends - starts) must be non-negative across the whole variable
     // range, so each var range is chosen to keep end >= start.
-    auto bounds = dyn_slice_bounds(1);
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
     {
         // Symbolic end clamped to the axis length 12: dim = min(n, 12) - 2.
         auto m  = var("m", {1, 16});
@@ -1526,7 +1525,7 @@ TEST_CASE(dyn_slice_sym_data_fixed_axis)
     // result matches slicing the equivalent static shape.
     auto n                                      = var("n", {1, 8});
     std::unordered_map<se, std::size_t> sym_map = {{n, 5}};
-    auto bounds                                 = dyn_slice_bounds(1);
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
     auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
 
     migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{lit(2)}, dd{lit(3)}}};
@@ -1540,10 +1539,10 @@ TEST_CASE(dyn_slice_sym_data_symbolic_axis)
 {
     // Slicing the non-fixed symbolic axis: the concrete end is clamped against the axis symbol
     // rather than a compile-time length, so the extent stays symbolic.
-    auto n      = var("n", {1, 8});
-    auto m      = var("m", {1, 8});
-    auto bounds = dyn_slice_bounds(1);
-    auto op     = migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}});
+    auto n = var("n", {1, 8});
+    auto m = var("m", {1, 8});
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {0}}, {"starts", {0}}, {"ends", {2}}});
 
     migraphx::shape sin{migraphx::shape::float_type, {dd{n}, dd{m}}};
     migraphx::shape sout{
@@ -1560,7 +1559,7 @@ TEST_CASE(dyn_slice_sym_multiple_axes)
     // Slice two axes at once; the symbol at the untouched axis survives.
     auto n                                      = var("n", {1, 8});
     std::unordered_map<se, std::size_t> sym_map = {{n, 4}};
-    auto bounds                                 = dyn_slice_bounds(2);
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
     auto op =
         migraphx::make_op("dyn_slice", {{"axes", {0, 2}}, {"starts", {1, 2}}, {"ends", {4, 5}}});
 
@@ -1576,7 +1575,7 @@ TEST_CASE(dyn_slice_sym_nonstandard_layout)
     // Non-standard symbolic input: the slice must preserve the permutation.
     auto n                                      = var("n", {1, 8});
     std::unordered_map<se, std::size_t> sym_map = {{n, 6}};
-    auto bounds                                 = dyn_slice_bounds(1);
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
 
     auto sin = migraphx::shape::from_permutation(
         migraphx::shape::float_type, {dd{n}, dd{lit(3)}, dd{lit(5)}, dd{lit(7)}}, {0, 2, 3, 1});
@@ -1589,8 +1588,8 @@ TEST_CASE(dyn_slice_wrong_number_of_inputs_error)
 {
     // The bounds are the only inputs: the axes are an attribute, not a fourth input.
     migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
-    auto bounds = dyn_slice_bounds(1);
-    auto op     = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
+    auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
     throws_shape(op, input, bounds);
     throws_shape(op, input, bounds, bounds, bounds);
 }
@@ -1614,14 +1613,16 @@ TEST_CASE(dyn_slice_dynamic_bounds_input_error)
 TEST_CASE(dyn_slice_bounds_input_length_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
+    // One axis is sliced, so a two element bounds input does not match.
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
     auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {1}}, {"ends", {3}}});
-    throws_shape(op, input, dyn_slice_bounds(2), dyn_slice_bounds(2));
+    throws_shape(op, input, bounds, bounds);
 }
 
 TEST_CASE(dyn_slice_attribute_length_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
-    auto bounds = dyn_slice_bounds(2);
+    migraphx::shape bounds{migraphx::shape::int64_type, {2}};
     auto op = migraphx::make_op("dyn_slice", {{"axes", {2}}, {"starts", {0, 1}}, {"ends", {2, 3}}});
     throws_shape(op, input, bounds, bounds);
 }
@@ -1629,7 +1630,7 @@ TEST_CASE(dyn_slice_attribute_length_error)
 TEST_CASE(dyn_slice_missing_attribute_error)
 {
     migraphx::shape input{migraphx::shape::float_type, {2, 2, 3}};
-    auto bounds = dyn_slice_bounds(1);
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
     throws_shape(
         migraphx::make_op("dyn_slice", {{"starts", {1}}, {"ends", {3}}}), input, bounds, bounds);
 }
@@ -1638,7 +1639,7 @@ TEST_CASE(dyn_slice_range_dynamic_data_error)
 {
     // A range-based dynamic dimension has no expression to build a symbolic extent from.
     migraphx::shape input{migraphx::shape::float_type, {{2, 4}, {3, 3}}};
-    auto bounds = dyn_slice_bounds(1);
+    migraphx::shape bounds{migraphx::shape::int64_type, {1}};
     throws_shape(migraphx::make_op("dyn_slice", {{"axes", {1}}, {"starts", {0}}, {"ends", {2}}}),
                  input,
                  bounds,

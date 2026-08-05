@@ -203,8 +203,8 @@ struct find_transposed_attention
                 return false;
             return std::equal(
                        perm.begin(), perm.end() - 2, migraphx::range(perm.size() - 2).begin()) and
-                   perm[perm.size() - 2] == static_cast<int64_t>(perm.size() - 1) and
-                   perm[perm.size() - 1] == static_cast<int64_t>(perm.size() - 2);
+                   perm[perm.size() - 2] == perm.size() - 1 and
+                   perm[perm.size() - 1] == perm.size() - 2;
         });
         auto transposed_softmax = match::name("transpose")(swap_last_two, match::arg(0)(softmax))
                                       .bind("transposed_softmax");
@@ -536,6 +536,142 @@ struct find_flash_decoding
         return result;
     }
 
+    static std::vector<size_t> get_scores_split_lens(const std::vector<size_t>& lens,
+                                                     std::size_t num_groups)
+    {
+        assert(lens.size() >= 2);
+        assert(lens.back() % num_groups == 0);
+
+        const auto ndim    = lens.size();
+        const auto n_split = lens.back() / num_groups;
+        std::vector<size_t> result(lens.begin(), lens.begin() + ndim - 2);
+        result.push_back(num_groups);
+        result.insert(result.end(), lens.begin() + ndim - 2, lens.end() - 1);
+        result.push_back(n_split);
+        return result;
+    }
+
+    // Score-aligned tensor [B, H, M, N] -> [B, H, G, M, N/G] for flash decoding splits
+    instruction_ref reshape_scores_aligned(module& mm,
+                                           instruction_ref ins,
+                                           instruction_ref insert_before,
+                                           std::size_t num_groups) const
+    {
+        const auto split_lens = get_scores_split_lens(ins->get_shape().lens(), num_groups);
+        return mm.insert_instruction(
+            insert_before, make_op("reshape", {{"dims", split_lens}}), ins);
+    }
+
+    // how each submodule @param is transformed for flash decoding
+    enum class flash_input_kind
+    {
+        q,
+        k,
+        v,
+        // Extra @param with the same lens() as gemm1 (Q@K attention scores), e.g. a mask.
+        scores,
+        other,
+    };
+
+    static flash_input_kind get_flash_input_kind(instruction_ref param,
+                                                 instruction_ref q_param,
+                                                 instruction_ref k_param,
+                                                 instruction_ref v_param,
+                                                 const std::vector<size_t>& scores_lens)
+    {
+        if(param == q_param)
+            return flash_input_kind::q;
+        if(param == k_param)
+            return flash_input_kind::k;
+        if(param == v_param)
+            return flash_input_kind::v;
+        if(param->get_shape().lens() == scores_lens)
+            return flash_input_kind::scores;
+        return flash_input_kind::other;
+    }
+
+    static std::vector<std::size_t> flash_decoding_pad_axes(flash_input_kind kind, std::size_t ndim)
+    {
+        switch(kind)
+        {
+        // Q: [B, M, k] or [B, H, M, k]. Pad M (sequence length dim).
+        case flash_input_kind::q: return {ndim - 2};
+        // K: [B, k, N] or [B, H, k, N]. Pad N.
+        case flash_input_kind::k: return {ndim - 1};
+        // V: [B, N, D] or [B, H, N, D]. Pad N.
+        case flash_input_kind::v: return {ndim - 2};
+        // Attention score tensor [B, H, M, N]: pad both sequence dims to match padded gemm1.
+        case flash_input_kind::scores: return {ndim - 2, ndim - 1};
+        case flash_input_kind::other: return {};
+        }
+        MIGRAPHX_THROW("Unknown flash input kind");
+    }
+
+    instruction_ref pad_for_flash_decoding(module& mm,
+                                           instruction_ref ins,
+                                           flash_input_kind kind,
+                                           std::size_t padding_needed,
+                                           instruction_ref insert_before) const
+    {
+        if(padding_needed == 0 or kind == flash_input_kind::other)
+            return ins;
+
+        const auto ndim = ins->get_shape().ndim();
+        std::vector<std::size_t> pads(2 * ndim, 0);
+        for(auto axis : flash_decoding_pad_axes(kind, ndim))
+            pads[ndim + axis] = padding_needed;
+
+        return mm.insert_instruction(insert_before, make_op("pad", {{"pads", pads}}), ins);
+    }
+
+    // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
+    instruction_ref reshape_q_for_flash_decoding(module& mm,
+                                                 instruction_ref q,
+                                                 instruction_ref insert_before,
+                                                 const transformed_shapes_result& transform_info,
+                                                 int64_t g_axis) const
+    {
+        auto q_unsqueeze =
+            mm.insert_instruction(insert_before, make_op("unsqueeze", {{"axes", {g_axis}}}), q);
+        return mm.insert_instruction(
+            insert_before,
+            make_op("multibroadcast", {{"out_lens", transform_info.q_shape}}),
+            q_unsqueeze);
+    }
+
+    // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
+    instruction_ref reshape_k_for_flash_decoding(
+        module& mm,
+        instruction_ref k,
+        instruction_ref insert_before,
+        const transformed_shapes_result& transform_info) const
+    {
+        auto k_intermediate = mm.insert_instruction(
+            insert_before, make_op("reshape", {{"dims", transform_info.k_intermediate}}), k);
+        return mm.insert_instruction(
+            insert_before,
+            make_op("transpose", {{"permutation", transform_info.k_transpose_perm}}),
+            k_intermediate);
+    }
+
+    // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
+    instruction_ref reshape_v_for_flash_decoding(module& mm,
+                                                 instruction_ref v,
+                                                 instruction_ref insert_before,
+                                                 const transformed_shapes_result& transform_info) const
+    {
+        return mm.insert_instruction(
+            insert_before, make_op("reshape", {{"dims", transform_info.v_shape}}), v);
+    }
+
+    struct flash_input_transform
+    {
+        instruction_ref orig_main{}; // main-module input before padding (for group input lookup)
+        instruction_ref padded_main{};
+        instruction_ref split_main{};
+        shape submodule_param_shape{};
+    };
+
     static bool is_broadcast_op(const operation& op)
     {
         const auto& name = op.name();
@@ -631,12 +767,11 @@ struct find_flash_decoding
         std::unordered_map<std::string, instruction_ref> softmax_parts;
 
         std::vector<instruction_ref> pending;
-        std::copy_if(source_mod.begin(),
-                     source_mod.end(),
-                     std::back_inserter(pending),
-                     [](instruction_ref ins) {
-                         return ins->name() != "@param" and ins->name() != "@return";
-                     });
+        for(auto ins : iterator_for(source_mod))
+        {
+            if(ins->name() != "@param" and ins->name() != "@return")
+                pending.push_back(ins);
+        }
 
         while(not pending.empty())
         {
@@ -679,17 +814,14 @@ struct find_flash_decoding
                     assert(original_axes.size() == 1 and "Expected single axis for reduction");
 
                     const auto& new_input_shape = new_inputs.front()->get_shape();
-                    assert(original_axes.front() ==
-                               static_cast<int64_t>(ins->inputs().front()->get_shape().lens().size() -
-                                                    1) or
+                    assert(original_axes.front() == ins->inputs().front()->get_shape().ndim() - 1 or
                            original_axes.front() == -1);
-                    op.from_value(
-                        {{"axes", {static_cast<int64_t>(new_input_shape.lens().size() - 1)}}});
+                    op.from_value({{"axes", {new_input_shape.ndim() - 1}}});
                 }
                 else if(is_broadcast_op(op))
                 {
                     // broadcast target shape is the shape of the score tensor this
-                    // broadcast is expanded to match, found by walking consumer ops.
+                    // broadcast is expanded to match, found by walking consumer ops
                     const auto& target_shape =
                         map_old_to_new.at(broadcast_shape_ins(ins))->get_shape();
                     auto value        = op.to_value();
@@ -781,109 +913,95 @@ struct find_flash_decoding
         auto group_inputs      = attn_group_ins->inputs();
         auto map_param_to_main = map_submod_params_to_inputs(submod, group_inputs);
 
-        // get actual Q, K, V instructions from main module
-        auto q = map_param_to_main.at(q_param);
-        auto k = map_param_to_main.at(k_param);
-        auto v = map_param_to_main.at(v_param);
+        // gemm1 output shape (Q@K attention scores); used to detect extra @param inputs
+        const auto scores_lens = gemm1->get_shape().lens();
+        std::unordered_map<instruction_ref, flash_input_transform> param_transforms;
 
-        // save original references before padding (needed for group_inputs replacement later)
-        auto q_orig = q;
-        auto k_orig = k;
-        auto v_orig = v;
-
-        // pad Q, K and V if necessary
-        if(padding_needed > 0)
+        // pad Q, K, V, and score-shaped params if sequence length is not evenly split.
+        for(auto param : iterator_for(*submod))
         {
-            // Q shape: [B, M, k] or [B, H, M, k] for 4D. Padding on M (sequence length dim)
-            auto q_ndim = q->get_shape().ndim();
-            std::vector<std::size_t> q_pads(2 * q_ndim, 0);
-            q_pads[q_ndim + q_ndim - 2] = padding_needed; // pad right on M dim (second to last)
-            q = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", q_pads}}), q);
+            if(param->name() != "@param")
+                continue;
 
-            // K shape: [B, k, N] or [B, H, k, N] for 4D. Padding on N
-            auto k_ndim = k->get_shape().ndim();
-            std::vector<std::size_t> k_pads(2 * k_ndim, 0);
-            k_pads[k_ndim + k_ndim - 1] = padding_needed; // pad right on last dim
-            k = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", k_pads}}), k);
-
-            // V shape: [B, N, D] or [B, H, N, D] for 4D
-            auto v_ndim = v->get_shape().ndim();
-            std::vector<std::size_t> v_pads(2 * v_ndim, 0);
-            v_pads[v_ndim + v_ndim - 2] = padding_needed; // pad right on N dim
-            v = mm.insert_instruction(attn_group_ins, make_op("pad", {{"pads", v_pads}}), v);
+            const auto kind   = get_flash_input_kind(param, q_param, k_param, v_param, scores_lens);
+            const auto orig   = map_param_to_main.at(param);
+            const auto padded = pad_for_flash_decoding(mm, orig, kind, padding_needed, attn_group_ins);
+            param_transforms[param] = flash_input_transform{orig, padded, {}, {}};
         }
 
-        // get Q, K, V shapes (using potentially padded K and V)
-        auto qkv_shapes = get_qkv_shapes(q, k, v);
+        // Get Q, K, V shapes (using potentially padded inputs) and flash decoding transforms
+        const auto& q_padded = param_transforms.at(q_param).padded_main;
+        const auto& k_padded = param_transforms.at(k_param).padded_main;
+        const auto& v_padded = param_transforms.at(v_param).padded_main;
+        auto qkv_shapes      = get_qkv_shapes(q_padded, k_padded, v_padded);
+        auto transform_info  = get_transformed_shapes(qkv_shapes, actual_groups);
+        const int64_t g_axis = q_padded->get_shape().ndim() - 2;
 
-        // check shapes are ok and get flash decoding transformed shapes (Q', V', K')
-        auto transform_info = get_transformed_shapes(qkv_shapes, actual_groups);
-
-        // insert reshape operations before group, for Q, K, V
-        auto q_ndim    = q->get_shape().lens().size();
-        int64_t g_axis = q_ndim - 2;
-
-        // Q: [B, M, k] -> [B, G, M, k] via unsqueeze + broadcast
-        auto q_unsqueeze =
-            mm.insert_instruction(attn_group_ins, make_op("unsqueeze", {{"axes", {g_axis}}}), q);
-        auto q_reshaped =
-            mm.insert_instruction(attn_group_ins,
-                                  make_op("multibroadcast", {{"out_lens", transform_info.q_shape}}),
-                                  q_unsqueeze);
-
-        // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
-        auto k_reshaped_intermediate = mm.insert_instruction(
-            attn_group_ins, make_op("reshape", {{"dims", transform_info.k_intermediate}}), k);
-        auto k_reshaped = mm.insert_instruction(
-            attn_group_ins,
-            make_op("transpose", {{"permutation", transform_info.k_transpose_perm}}),
-            k_reshaped_intermediate);
-
-        // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
-        auto v_reshaped = mm.insert_instruction(
-            attn_group_ins, make_op("reshape", {{"dims", transform_info.v_shape}}), v);
-
-        // create new input list by replacing Q, K, V with reshaped versions
-        // use original references (before padding) for comparison
-        std::vector<instruction_ref> new_group_inputs = group_inputs;
-        for(size_t i = 0; i < group_inputs.size(); ++i)
+        // insert reshape operations before the group for every submodule @param
+        for(auto& [param, transform] : param_transforms)
         {
-            if(group_inputs[i] == q_orig)
+            const auto kind = get_flash_input_kind(param, q_param, k_param, v_param, scores_lens);
+            switch(kind)
             {
-                new_group_inputs[i] = q_reshaped;
+            case flash_input_kind::q:
+                transform.split_main = reshape_q_for_flash_decoding(
+                    mm, transform.padded_main, attn_group_ins, transform_info, g_axis);
+                transform.submodule_param_shape =
+                    shape{qkv_shapes[0].type(), transform_info.q_shape};
+                break;
+            case flash_input_kind::k:
+                transform.split_main = reshape_k_for_flash_decoding(
+                    mm, transform.padded_main, attn_group_ins, transform_info);
+                transform.submodule_param_shape =
+                    shape{qkv_shapes[1].type(), transform_info.k_shape};
+                break;
+            case flash_input_kind::v:
+                transform.split_main = reshape_v_for_flash_decoding(
+                    mm, transform.padded_main, attn_group_ins, transform_info);
+                transform.submodule_param_shape =
+                    shape{qkv_shapes[2].type(), transform_info.v_shape};
+                break;
+            case flash_input_kind::scores:
+                transform.split_main = reshape_scores_aligned(
+                    mm, transform.padded_main, attn_group_ins, actual_groups);
+                transform.submodule_param_shape = shape{
+                    param->get_shape().type(),
+                    get_scores_split_lens(transform.padded_main->get_shape().lens(), actual_groups)};
+                break;
+            case flash_input_kind::other:
+                transform.split_main            = transform.padded_main;
+                transform.submodule_param_shape = param->get_shape();
+                break;
             }
-            else if(group_inputs[i] == k_orig)
-            {
-                new_group_inputs[i] = k_reshaped;
-            }
-            else if(group_inputs[i] == v_orig)
-            {
-                new_group_inputs[i] = v_reshaped;
-            }
+        }
+
+        // Create new input list by replacing group inputs with split versions.
+        // Use original main-module references (before padding) for lookup.
+        std::unordered_map<instruction_ref, instruction_ref> main_to_split;
+        for(const auto& entry : param_transforms)
+            main_to_split[entry.second.orig_main] = entry.second.split_main;
+
+        std::vector<instruction_ref> new_group_inputs = group_inputs;
+        for(std::size_t i = 0; i < group_inputs.size(); ++i)
+        {
+            if(contains(main_to_split, group_inputs[i]))
+                new_group_inputs[i] = main_to_split.at(group_inputs[i]);
         }
 
         // create new submodule for flash decoding
         module m_flash_decode;
         m_flash_decode.set_bypass();
 
-        // get parameter names
-        auto q_name = q_param->get_operator().to_value()["parameter"].to<std::string>();
-        auto k_name = k_param->get_operator().to_value()["parameter"].to<std::string>();
-        auto v_name = v_param->get_operator().to_value()["parameter"].to<std::string>();
-
-        // new params added first
-        auto new_q_param = m_flash_decode.add_parameter(
-            q_name, shape{qkv_shapes[0].type(), transform_info.q_shape});
-        auto new_k_param = m_flash_decode.add_parameter(
-            k_name, shape{qkv_shapes[1].type(), transform_info.k_shape});
-        auto new_v_param = m_flash_decode.add_parameter(
-            v_name, shape{qkv_shapes[2].type(), transform_info.v_shape});
-
-        // build mapping for old params -> new params
         std::unordered_map<instruction_ref, instruction_ref> map_old_params_to_new;
-        map_old_params_to_new[q_param] = new_q_param;
-        map_old_params_to_new[k_param] = new_k_param;
-        map_old_params_to_new[v_param] = new_v_param;
+        for(auto param : iterator_for(*submod))
+        {
+            if(param->name() != "@param")
+                continue;
+
+            const auto& name = param->get_operator().to_value()["parameter"].to<std::string>();
+            map_old_params_to_new[param] = m_flash_decode.add_parameter(
+                name, param_transforms.at(param).submodule_param_shape);
+        }
 
         // don't simply fuse previous attn submod, need to rebuild all the ops
         rebuild_attention_submodule(m_flash_decode, *submod, map_old_params_to_new);

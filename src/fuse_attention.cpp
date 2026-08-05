@@ -666,6 +666,7 @@ struct find_flash_decoding
 
     struct flash_input_transform
     {
+        flash_input_kind kind{};
         instruction_ref orig_main{}; // main-module input before padding (for group input lookup)
         instruction_ref padded_main{};
         instruction_ref split_main{};
@@ -674,8 +675,8 @@ struct find_flash_decoding
 
     static bool is_broadcast_op(const operation& op)
     {
-        const auto& name = op.name();
-        return name == "multibroadcast" or name == "broadcast";
+        static const std::unordered_set<std::string> broadcast_ops = {"multibroadcast", "broadcast"};
+        return contains(broadcast_ops, op.name());
     }
 
     static bool uses_ins(instruction_ref start, instruction_ref target)
@@ -751,9 +752,8 @@ struct find_flash_decoding
                                 const std::vector<instruction_ref>& group_inputs) const
     {
         auto map_param_to_main = submod->get_ins_param_map(group_inputs, true);
-        // verify the mapping is correct
-        auto expected_inputs = submod->get_inputs(map_param_to_main);
-        assert(expected_inputs == group_inputs and "Mapped inputs don't match group inputs");
+        assert(submod->get_inputs(map_param_to_main) == group_inputs and
+               "Mapped inputs don't match group inputs");
         return map_param_to_main;
     }
 
@@ -820,8 +820,7 @@ struct find_flash_decoding
                 }
                 else if(is_broadcast_op(op))
                 {
-                    // broadcast target shape is the shape of the score tensor this
-                    // broadcast is expanded to match, found by walking consumer ops
+                    // Walk broadcast consumers to find the score tensor shape.
                     const auto& target_shape =
                         map_old_to_new.at(broadcast_shape_ins(ins))->get_shape();
                     auto value        = op.to_value();
@@ -926,7 +925,7 @@ struct find_flash_decoding
             const auto kind   = get_flash_input_kind(param, q_param, k_param, v_param, scores_lens);
             const auto orig   = map_param_to_main.at(param);
             const auto padded = pad_for_flash_decoding(mm, orig, kind, padding_needed, attn_group_ins);
-            param_transforms[param] = flash_input_transform{orig, padded, {}, {}};
+            param_transforms[param] = flash_input_transform{kind, orig, padded, {}, {}};
         }
 
         // Get Q, K, V shapes (using potentially padded inputs) and flash decoding transforms
@@ -940,8 +939,7 @@ struct find_flash_decoding
         // insert reshape operations before the group for every submodule @param
         for(auto& [param, transform] : param_transforms)
         {
-            const auto kind = get_flash_input_kind(param, q_param, k_param, v_param, scores_lens);
-            switch(kind)
+            switch(transform.kind)
             {
             case flash_input_kind::q:
                 transform.split_main = reshape_q_for_flash_decoding(
@@ -982,10 +980,10 @@ struct find_flash_decoding
             main_to_split[entry.second.orig_main] = entry.second.split_main;
 
         std::vector<instruction_ref> new_group_inputs = group_inputs;
-        for(std::size_t i = 0; i < group_inputs.size(); ++i)
+        for(auto& input : new_group_inputs)
         {
-            if(contains(main_to_split, group_inputs[i]))
-                new_group_inputs[i] = main_to_split.at(group_inputs[i]);
+            if(contains(main_to_split, input))
+                input = main_to_split.at(input);
         }
 
         // create new submodule for flash decoding

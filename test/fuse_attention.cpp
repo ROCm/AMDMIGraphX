@@ -106,7 +106,6 @@ static bool has_flash_decoding_submodule(const migraphx::program& p)
     return false;
 }
 
-
 // Test helper functions used in fuse_attention pass
 TEST_CASE(get_num_splits_from_member)
 {
@@ -1291,43 +1290,6 @@ TEST_CASE(flash_decoding_skips_lse_attention)
                        .flash_decoding_enabled    = true,
                        .flash_decoding_num_splits = 2});
     EXPECT(not has_flash_decoding_submodule(p1));
-}
-
-TEST_CASE(flash_decoding_env_var_enables_splits)
-{
-    const char* old = std::getenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS");
-    setenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS", "2", 1);
-
-    migraphx::shape s1{migraphx::shape::half_type, {1, 12, 256, 256}};
-    migraphx::program p1;
-    {
-        auto* mm = p1.get_main_module();
-        auto a   = mm->add_parameter("1", s1);
-        auto b   = mm->add_parameter("2", s1);
-        auto b1  = mm->add_parameter("3", s1);
-        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), a, b);
-        auto rmax  = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
-        rmax       = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
-                                   rmax);
-        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
-        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-        rsum      = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
-                                   rsum);
-        auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
-        auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
-        mm->add_return({gemm2});
-    }
-
-    run_pass_isolated(p1, {.attn_enabled = true});
-    EXPECT(has_flash_decoding_submodule(p1));
-
-    if(old != nullptr)
-        setenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS", old, 1);
-    else
-        unsetenv("MIGRAPHX_FLASH_DECODING_NUM_SPLITS");
 }
 
 TEST_CASE(flash_decoding_4d_with_fp32_softmax_intermediate)

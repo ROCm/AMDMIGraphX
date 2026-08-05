@@ -640,11 +640,11 @@ struct find_flash_decoding
     }
 
     // K: [B, k, N] -> [B, G, k, N/G] via reshape + transpose
-    instruction_ref reshape_k_for_flash_decoding(
-        module& mm,
-        instruction_ref k,
-        instruction_ref insert_before,
-        const transformed_shapes_result& transform_info) const
+    instruction_ref
+    reshape_k_for_flash_decoding(module& mm,
+                                 instruction_ref k,
+                                 instruction_ref insert_before,
+                                 const transformed_shapes_result& transform_info) const
     {
         auto k_intermediate = mm.insert_instruction(
             insert_before, make_op("reshape", {{"dims", transform_info.k_intermediate}}), k);
@@ -655,10 +655,11 @@ struct find_flash_decoding
     }
 
     // V: [B, N, D] -> [B, G, N/G, D] via direct reshape
-    instruction_ref reshape_v_for_flash_decoding(module& mm,
-                                                 instruction_ref v,
-                                                 instruction_ref insert_before,
-                                                 const transformed_shapes_result& transform_info) const
+    instruction_ref
+    reshape_v_for_flash_decoding(module& mm,
+                                 instruction_ref v,
+                                 instruction_ref insert_before,
+                                 const transformed_shapes_result& transform_info) const
     {
         return mm.insert_instruction(
             insert_before, make_op("reshape", {{"dims", transform_info.v_shape}}), v);
@@ -675,7 +676,8 @@ struct find_flash_decoding
 
     static bool is_broadcast_op(const operation& op)
     {
-        static const std::unordered_set<std::string> broadcast_ops = {"multibroadcast", "broadcast"};
+        static const std::unordered_set<std::string> broadcast_ops = {"multibroadcast",
+                                                                      "broadcast"};
         return contains(broadcast_ops, op.name());
     }
 
@@ -733,8 +735,9 @@ struct find_flash_decoding
         return contains(map_old_to_new, broadcast_shape_ins(bc));
     }
 
-    bool rebuild_ready(instruction_ref ins,
-                       const std::unordered_map<instruction_ref, instruction_ref>& map_old_to_new) const
+    bool
+    rebuild_ready(instruction_ref ins,
+                  const std::unordered_map<instruction_ref, instruction_ref>& map_old_to_new) const
     {
         if(not std::all_of(ins->inputs().begin(), ins->inputs().end(), [&](auto input) {
                return contains(map_old_to_new, input);
@@ -922,9 +925,10 @@ struct find_flash_decoding
             if(param->name() != "@param")
                 continue;
 
-            const auto kind   = get_flash_input_kind(param, q_param, k_param, v_param, scores_lens);
-            const auto orig   = map_param_to_main.at(param);
-            const auto padded = pad_for_flash_decoding(mm, orig, kind, padding_needed, attn_group_ins);
+            const auto kind = get_flash_input_kind(param, q_param, k_param, v_param, scores_lens);
+            const auto orig = map_param_to_main.at(param);
+            const auto padded =
+                pad_for_flash_decoding(mm, orig, kind, padding_needed, attn_group_ins);
             param_transforms[param] = flash_input_transform{kind, orig, padded, {}, {}};
         }
 
@@ -962,9 +966,10 @@ struct find_flash_decoding
             case flash_input_kind::scores:
                 transform.split_main = reshape_scores_aligned(
                     mm, transform.padded_main, attn_group_ins, actual_groups);
-                transform.submodule_param_shape = shape{
-                    param->get_shape().type(),
-                    get_scores_split_lens(transform.padded_main->get_shape().lens(), actual_groups)};
+                transform.submodule_param_shape =
+                    shape{param->get_shape().type(),
+                          get_scores_split_lens(transform.padded_main->get_shape().lens(),
+                                                actual_groups)};
                 break;
             case flash_input_kind::other:
                 transform.split_main            = transform.padded_main;

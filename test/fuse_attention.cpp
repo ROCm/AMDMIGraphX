@@ -995,29 +995,27 @@ TEST_CASE(flash_decoding_3d_with_attention_literal)
         v = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 1}}}), v);
         auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
 
-        auto scale = mm->add_literal(migraphx::literal{s_scalar, {0.125f}});
-        auto bc_scale =
-            mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}),
-                                scale);
+        auto scale    = mm->add_literal(migraphx::literal{s_scalar, {0.125f}});
+        auto bc_scale = mm->add_instruction(
+            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), scale);
         auto scaled = mm->add_instruction(migraphx::make_op("mul"), gemm1, bc_scale);
 
-        auto rmax =
-            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), scaled);
-        rmax = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), rmax);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {2}}}), scaled);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}),
+                                   rmax);
         auto sub  = mm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
         auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {2}}}), exp);
-        rsum = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}), rsum);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s_3d.lens()}}),
+                                   rsum);
         auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
         mm->add_return({gemm2});
     }
     run_pass_isolated(p1,
-             {.attn_enabled              = true,
-              .flash_decoding_enabled    = true,
-              .flash_decoding_num_splits = num_splits});
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
 
     bool found_flash_decoding = false;
     bool found_literal        = false;
@@ -1064,23 +1062,23 @@ TEST_CASE(flash_decoding_4d_with_attention_mask_param)
         auto gemm1   = mm->add_instruction(migraphx::make_op("dot"), q, k);
         auto ninf_bc = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), ninf_h);
-        auto masked  = mm->add_instruction(migraphx::make_op("where"), mask, gemm1, ninf_bc);
-        auto rmax    = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), masked);
-        rmax         = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
+        auto masked = mm->add_instruction(migraphx::make_op("where"), mask, gemm1, ninf_bc);
+        auto rmax   = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), masked);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rmax);
         auto sub  = mm->add_instruction(migraphx::make_op("sub"), masked, rmax);
         auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-        rsum      = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
         auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
         mm->add_return({gemm2});
     }
     run_pass_isolated(p1,
-             {.attn_enabled              = true,
-              .flash_decoding_enabled    = true,
-              .flash_decoding_num_splits = num_splits});
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
 
     bool found_flash_decoding = false;
     bool found_mask_param     = false;
@@ -1120,31 +1118,29 @@ TEST_CASE(flash_decoding_4d_with_unary_on_softmax_broadcast)
 
     migraphx::program p1;
     {
-        auto* mm = p1.get_main_module();
-        auto q   = mm->add_parameter("q", s_qv);
-        auto k   = mm->add_parameter("k", s_k);
-        auto v   = mm->add_parameter("v", s_qv);
+        auto* mm   = p1.get_main_module();
+        auto q     = mm->add_parameter("q", s_qv);
+        auto k     = mm->add_parameter("k", s_k);
+        auto v     = mm->add_parameter("v", s_qv);
         auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
 
-        auto rmax =
-            mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
-        rmax = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
-        auto rmax_cont =
-            mm->add_instruction(migraphx::make_op("contiguous"), rmax);
-        auto sub  = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax_cont);
-        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
-        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-        rsum      = mm->add_instruction(
-            migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
+        auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
+        rmax = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rmax);
+        auto rmax_cont = mm->add_instruction(migraphx::make_op("contiguous"), rmax);
+        auto sub       = mm->add_instruction(migraphx::make_op("sub"), gemm1, rmax_cont);
+        auto exp       = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum      = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+                                   rsum);
         auto div   = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, v);
         mm->add_return({gemm2});
     }
     run_pass_isolated(p1,
-             {.attn_enabled              = true,
-              .flash_decoding_enabled    = true,
-              .flash_decoding_num_splits = num_splits});
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
 
     EXPECT(has_flash_decoding_submodule(p1));
 }
@@ -1161,8 +1157,9 @@ TEST_CASE(flash_decoding_rebuild_instruction_order)
         auto a   = mm->add_parameter("1", s1);
         auto b   = mm->add_parameter("2", s1);
         auto b1  = mm->add_parameter("3", s1);
-        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                 b1);
 
         auto group = add_group(
             p1,
@@ -1171,20 +1168,20 @@ TEST_CASE(flash_decoding_rebuild_instruction_order)
             {a, b, b1},
             {"x0", "x1", "x2"},
             [&](auto* gm, const auto& inputs) {
-                auto scale = gm->add_literal(migraphx::literal{s_scalar, {0.125f}});
-                auto bc_scale =
-                    gm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
-                                        scale);
+                auto scale    = gm->add_literal(migraphx::literal{s_scalar, {0.125f}});
+                auto bc_scale = gm->add_instruction(
+                    migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), scale);
                 auto gemm1  = gm->add_instruction(migraphx::make_op("dot"), inputs[0], inputs[1]);
                 auto scaled = gm->add_instruction(migraphx::make_op("mul"), gemm1, bc_scale);
                 auto rmax =
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scaled);
                 rmax = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
-                auto sub  = gm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
-                auto exp  = gm->add_instruction(migraphx::make_op("exp"), sub);
-                auto rsum = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-                rsum      = gm->add_instruction(
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), scaled, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
                 auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
                 auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
@@ -1193,8 +1190,7 @@ TEST_CASE(flash_decoding_rebuild_instruction_order)
         mm->add_return({group});
     }
 
-    run_flash_decoding_only(
-        p1, {.flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+    run_flash_decoding_only(p1, {.flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
     EXPECT(has_flash_decoding_submodule(p1));
 }
 
@@ -1208,8 +1204,9 @@ TEST_CASE(flash_decoding_rebuild_with_outline)
         auto a   = mm->add_parameter("1", s1);
         auto b   = mm->add_parameter("2", s1);
         auto b1  = mm->add_parameter("3", s1);
-        b  = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
-        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
+        b = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                 b1);
 
         auto group = add_group(
             p1,
@@ -1224,10 +1221,11 @@ TEST_CASE(flash_decoding_rebuild_with_outline)
                     gm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), gemm1);
                 rmax = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rmax);
-                auto sub  = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
-                auto exp  = gm->add_instruction(migraphx::make_op("exp"), sub);
-                auto rsum = gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-                rsum      = gm->add_instruction(
+                auto sub = gm->add_instruction(migraphx::make_op("sub"), gemm1, rmax);
+                auto exp = gm->add_instruction(migraphx::make_op("exp"), sub);
+                auto rsum =
+                    gm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+                rsum = gm->add_instruction(
                     migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}), rsum);
                 auto div   = gm->add_instruction(migraphx::make_op("div"), exp, rsum);
                 auto gemm2 = gm->add_instruction(migraphx::make_op("dot"), div, inputs[2]);
@@ -1236,8 +1234,7 @@ TEST_CASE(flash_decoding_rebuild_with_outline)
         mm->add_return({group});
     }
 
-    run_flash_decoding_only(
-        p1, {.flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
+    run_flash_decoding_only(p1, {.flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
     EXPECT(has_flash_decoding_submodule(p1));
 }
 
@@ -1273,7 +1270,7 @@ TEST_CASE(flash_decoding_skips_lse_attention)
         auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
         auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
         auto log  = mm->add_instruction(migraphx::make_op("log"), rsum);
-        rsum      = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
+        rsum = mm->add_instruction(migraphx::make_op("multibroadcast", {{"out_lens", s1.lens()}}),
                                    rsum);
         auto div        = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
         auto adjust_lse = mm->add_instruction(migraphx::make_op("add"), log, rmax);
@@ -1281,14 +1278,13 @@ TEST_CASE(flash_decoding_skips_lse_attention)
         auto convert    = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), log2se);
         auto lse = mm->add_instruction(migraphx::make_op("squeeze", {{"axes", {3}}}), convert);
-        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}), b1);
+        b1 = mm->add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 1, 3, 2}}}),
+                                 b1);
         auto gemm2 = mm->add_instruction(migraphx::make_op("dot"), div, b1);
         mm->add_return({gemm2, lse});
     }
-    run_pass_isolated(p1,
-                      {.attn_enabled              = true,
-                       .flash_decoding_enabled    = true,
-                       .flash_decoding_num_splits = 2});
+    run_pass_isolated(
+        p1, {.attn_enabled = true, .flash_decoding_enabled = true, .flash_decoding_num_splits = 2});
     EXPECT(not has_flash_decoding_submodule(p1));
 }
 
@@ -1301,21 +1297,20 @@ TEST_CASE(flash_decoding_4d_with_fp32_softmax_intermediate)
 
     migraphx::program p1;
     {
-        auto* mm = p1.get_main_module();
-        auto q   = mm->add_parameter("q", s_qv);
-        auto k   = mm->add_parameter("k", s_k);
-        auto v   = mm->add_parameter("v", s_qv);
-        auto gemm1 = mm->add_instruction(migraphx::make_op("dot"), q, k);
+        auto* mm      = p1.get_main_module();
+        auto q        = mm->add_parameter("q", s_qv);
+        auto k        = mm->add_parameter("k", s_k);
+        auto v        = mm->add_parameter("v", s_qv);
+        auto gemm1    = mm->add_instruction(migraphx::make_op("dot"), q, k);
         auto scores_f = mm->add_instruction(
             migraphx::make_op("convert", {{"target_type", migraphx::shape::float_type}}), gemm1);
         auto rmax = mm->add_instruction(migraphx::make_op("reduce_max", {{"axes", {3}}}), scores_f);
         rmax      = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rmax);
-        auto sub = mm->add_instruction(migraphx::make_op("sub"), scores_f, rmax);
-        auto exp = mm->add_instruction(migraphx::make_op("exp"), sub);
-        auto rsum =
-            mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
-        rsum = mm->add_instruction(
+        auto sub  = mm->add_instruction(migraphx::make_op("sub"), scores_f, rmax);
+        auto exp  = mm->add_instruction(migraphx::make_op("exp"), sub);
+        auto rsum = mm->add_instruction(migraphx::make_op("reduce_sum", {{"axes", {3}}}), exp);
+        rsum      = mm->add_instruction(
             migraphx::make_op("multibroadcast", {{"out_lens", s_scores.lens()}}), rsum);
         auto div_f = mm->add_instruction(migraphx::make_op("div"), exp, rsum);
         auto div   = mm->add_instruction(
@@ -1479,9 +1474,9 @@ TEST_CASE(flash_decoding_3d_rectangular)
         mm->add_return({gemm2});
     }
     run_pass_isolated(p1,
-             {.attn_enabled              = true,
-              .flash_decoding_enabled    = true,
-              .flash_decoding_num_splits = num_splits});
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
 
     migraphx::program p2;
     {
@@ -1601,9 +1596,9 @@ TEST_CASE(flash_decoding_3d_padding)
         mm->add_return({gemm2});
     }
     run_pass_isolated(p1,
-             {.attn_enabled              = true,
-              .flash_decoding_enabled    = true,
-              .flash_decoding_num_splits = num_splits});
+                      {.attn_enabled              = true,
+                       .flash_decoding_enabled    = true,
+                       .flash_decoding_num_splits = num_splits});
 
     migraphx::program p2;
     {

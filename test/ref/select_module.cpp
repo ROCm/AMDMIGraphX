@@ -66,6 +66,17 @@ TEST_CASE(select_module_add_test)
     mm->add_return({ret});
     p.compile(migraphx::make_target("ref"));
 
+    std::vector<float> batch1_input_data{-4, 8, -1, 4};
+    migraphx::parameter_map batch1_params;
+    migraphx::shape batch1_shape{migraphx::shape::float_type, {1, 4}};
+    batch1_params["data"] = migraphx::argument(batch1_shape, batch1_input_data.data());
+    auto batch1_result    = p.eval(batch1_params).back();
+    std::vector<float> batch1_results_vector;
+    batch1_result.visit(
+        [&](auto output) { batch1_results_vector.assign(output.begin(), output.end()); });
+    EXPECT(migraphx::verify::verify_rms_range(batch1_results_vector,
+                                              std::vector<float>{2, 14, 5, 10}));
+
     std::vector<float> input_data{-4, 8, -1, 4, -1, 8, 8, -4};
     migraphx::parameter_map params;
     migraphx::shape input_fixed_shape{migraphx::shape::float_type, {2, 4}};

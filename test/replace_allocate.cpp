@@ -263,6 +263,30 @@ TEST_CASE(allocate_copy_with_out)
     EXPECT(m1.sort() == m2.sort());
 }
 
+TEST_CASE(allocate_tuple_subobjects_with_out)
+{
+    migraphx::shape s0{migraphx::shape::float_type, {5}};
+    migraphx::shape s1{migraphx::shape::int32_type, {3}};
+    migraphx::shape tuple_shape{{s0, s1}};
+    migraphx::module m;
+    auto alloc = m.add_instruction(
+        migraphx::make_op("allocate", {{"shape", migraphx::to_value(tuple_shape)}}));
+    auto tuple = m.add_instruction(pass_op{}, alloc);
+    auto elem0 = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 0}}), tuple);
+    auto elem1 = m.add_instruction(migraphx::make_op("get_tuple_elem", {{"index", 1}}), tuple);
+    m.add_return({elem0, elem1});
+
+    run_pass(m, allocation_with_out_model{});
+
+    EXPECT(std::none_of(m.begin(), m.end(), [](const migraphx::instruction& ins) {
+        return ins.name() == "test_copy";
+    }));
+    EXPECT(std::count_if(m.begin(), m.end(), [](const migraphx::instruction& ins) {
+               return ins.name() == "@param" and
+                      ins.get_shape().type() == migraphx::shape::tuple_type;
+           }) == 1);
+}
+
 TEST_CASE(allocate_copy_with_no_out)
 {
     migraphx::shape s{migraphx::shape::float_type, {5}};

@@ -114,6 +114,8 @@ TEST_CASE(tuple)
     EXPECT(a1.get_sub_objects().size() == 2);
     EXPECT(a1.get_sub_objects()[0] == as_argument(3));
     EXPECT(a1.get_sub_objects()[1] == as_argument(3.0));
+    EXPECT(a1.get_sub_object(0) == as_argument(3));
+    EXPECT(a1.get_sub_object(1) == as_argument(3.0));
 
     auto a2 = make_tuple(3, 3.0);
 
@@ -133,6 +135,8 @@ TEST_CASE(nested_tuple)
     EXPECT(a1.get_sub_objects().size() == 2);
     EXPECT(a1.get_sub_objects()[0] == as_argument(3));
     EXPECT(a1.get_sub_objects()[1] == make_tuple(5, 4));
+    EXPECT(a1.get_sub_object(1).get_sub_object(0) == as_argument(5));
+    EXPECT(a1.get_sub_object(1).get_sub_object(1) == as_argument(4));
 
     auto a2 = make_tuple(3, make_tuple(5, 4));
 

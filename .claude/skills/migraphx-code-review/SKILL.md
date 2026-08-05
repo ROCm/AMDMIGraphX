@@ -404,144 +404,367 @@ and conventions.
 
 ### Angle J — review precedent
 
-Distilled from the human review comments on PRs #4891–#5108 — the standard this
-repo's reviewers apply beyond what `AGENTS.md` and `/migraphx-simplify` already
-state. Flag only what the diff actually does, and **cite the precedent PR
-number** in `failure_scenario` so the author sees an established expectation
-rather than a personal preference. If a point here turns out to be stated
-explicitly in an `AGENTS.md` rule, report it from Angle H with the quote
-instead, so the finding cites the written rule rather than a PR.
+Distilled from ~2,000 human review comments on the last 1000 PRs (#3959–#5108) —
+the standard this repo's reviewers apply beyond what `AGENTS.md` and
+`/migraphx-simplify` already state. Flag only what the diff actually does, and
+**cite the precedent PR number** in `failure_scenario` so the author sees an
+established expectation rather than a personal preference. If a point here turns
+out to be stated explicitly in an `AGENTS.md` rule, report it from Angle H with
+the quote instead, so the finding cites the written rule rather than a PR.
 
 **Configuration and knobs**
-- New behavior gated on an environment variable where a pass parameter or an
-  entry in `compile_options::backend_options` would do — the target reads that
-  map (optionally deserializing it into a reflected struct of its own with
-  `from_value`) instead of calling `getenv` (#4911, #5053, #5028). Env values
-  are read once and cached for the process, which is why they can't be varied
-  per compile.
+- New behavior gated on an environment variable where a pass parameter, a field
+  on the `target`/`context`, or an entry in `compile_options::backend_options`
+  would do — the target reads that map (optionally deserializing it into a
+  reflected struct of its own with `from_value`) instead of calling `getenv`
+  (#4626, #4651, #4795, #4831, #4882, #4911, #5028, #5053). Env values are read
+  once and cached for the process, which is why they can't be varied per compile;
+  read the ones that remain through the memoized `MIGRAPHX_<NAME>{}` objects
+  rather than at the use site (#4710).
 - A test that sets an environment variable — the value leaks into every later
-  test in the same process (#5064, #4911).
+  test in the same process. Add a parameter to the pass and pass it in, e.g.
+  `run_pass({.dyn_dim_bucket_by_optimals = true})` (#4911, #5064, #4294).
 - An enable/disable flag that is never set to false anywhere, or left behind
-  after the feature became the default (#5036, #5030, #5064).
+  after the feature became the default; a flag gating behavior that should
+  simply always be on needs a stated reason why it can't be (#4725, #4732,
+  #4770, #5030, #5036, #5064).
+- A new environment variable where an existing one already covers the case, or
+  several boolean knobs where one value-taking knob would do — e.g.
+  `MIGRAPHX_DISABLE_ELIMINATE_TYPES=int64_t,uint64_t` (#4535, #4580).
+- An env variable declared inside a device kernel, which cannot work (#4363).
 - A CMake workaround enabled for everyone instead of an opt-in cache flag
-  guarded on the compiler or condition that actually needs it (#4920, #4941).
+  guarded on the compiler or condition that actually needs it (#4920, #4941,
+  #4952).
 
 **Pass and matcher discipline**
 - A precondition checked inside `apply()` that belongs in `matcher()` — use
   `match::nargs`, a named `MIGRAPHX_PRED_MATCHER` predicate, or a composable
   matcher rather than `match::any()` when the surrounding pattern is known
-  (#4891, #5105, #4900).
+  (#4677, #4725, #4831, #4841, #4880, #4891, #4900, #5105).
 - A predicate helper that mutates the graph: `can_*` functions must stay
-  query-only, with every mutation in `apply()` (#4900).
+  query-only, with every mutation in `apply()`, so an early return can't leave
+  half a rewrite applied (#4900). Do the eligibility check before inserting
+  anything rather than inserting and then calling `remove_instruction` (#4994).
+- A transformation placed in the wrong pass. Reshape/transpose/broadcast
+  rewrites belong in `simplify_reshapes`, elementwise algebra in
+  `simplify_algebra`, redundant-copy elimination in its own pass — never as a
+  side effect of lowering (#4546, #4709, #4723, #5014).
+- A new finder or matcher that redoes what an existing one already does — extend
+  `find_splits`, `find_nested_shape_transforms`, `find_concat_reshape`, or
+  `get_splits` (e.g. with a `partial` flag) instead of adding a parallel path
+  (#4723, #4724, #5014, #5024, #5064, #5088).
+- A matcher that dispatches on operator-name strings where a structural property
+  works — prefer `not input->can_eval()` over enumerating `{"add","mul"}` (#4677,
+  #4696). Equally, a matcher restricted more than the transform requires, with
+  guards copied from a different op's matcher (#4240, #4246, #4292, #4727,
+  #4746, #4785).
 - A pass that needs to run other passes but takes `module&` instead of
-  `module_pass_manager&` (#5066).
+  `module_pass_manager&` (#5066); a transform that must reach weights but walks
+  the module directly instead of running the pass manager, so submodules are
+  missed (#4957).
 - A pass inserted into a pipeline without a justified position, a duplicate DCE
-  left behind, or an old path the new pass subsumes left in place (#4904,
-  #5030, #5096).
+  left behind, DCE run from inside a pass, or an old path the new pass subsumes
+  left in place (#4109, #4904, #5030, #5096). Never run DCE on an
+  already-compiled program — it produces junk results (#4957).
 - `eval()` or `can_eval()` called from an optimization pass — it walks and
   evaluates the graph at compile time (#4948).
 - A rewrite that increases work (hoisting compute above a slice onto a larger
   tensor) or inserts the same instruction more than once (#5004, #5030, #5038).
+- A throw from a rewrite path: if the precondition doesn't hold, skip the
+  transformation instead, and let a later pass handle the case (#4620, #5105).
+- **A new representable state added to an op without auditing every existing
+  consumer.** When an attribute gains a form it never had, the guards elsewhere
+  that used to imply the old form silently stop holding — check every matcher in
+  `simplify_reshapes`, `simplify_algebra`, and `simplify_dyn_ops`, not just the
+  ones the new test exercises (#5088).
 
 **Layering and placement**
 - Target-specific concepts leaking into target-agnostic code: GPU exceptions
   caught in `pass_manager`, GPU errors added to `errors.hpp`, GPU-only fields in
-  `compile_options` (#5021, #5008).
+  `compile_options` (use `backend_options`), `gfx` references in a generic pass,
+  a backend fusion op emitted by the ONNX frontend, or a target-specific
+  decision made inside quantization (#4292, #4303, #4467, #4992, #5008, #5021).
+  A new generic pass belongs under `src/`, not `src/targets/gpu/` (#4109).
 - A helper in the wrong home — put it in the utility header that owns its
-  purpose (`fileutils.hpp`, `stringutils.hpp`, `value.cpp`, `device_name.cpp`)
-  and keep ONNX-specific logic in the ONNX module (#5024, #4991, #4957, #4895).
+  purpose (`fileutils.hpp`, `stringutils.hpp`, `value.hpp`/`value.cpp`,
+  `functional.hpp`, `instruction_traversal.hpp`, `gpu/device_name.cpp`) with its
+  own unit tests, and keep ONNX-specific logic in the ONNX module (#4700, #4895,
+  #4957, #4991, #5024, #5048, #5088).
 - A pass-internal helper promoted to a public header only so a test can reach
   it; prefer black-box coverage through an existing test, and note that Windows
-  then needs an export (#4989).
+  then needs an export (#4989). Conversely, a helper class used by one
+  translation unit should live in that `.cpp`, not a new header (#4770).
+- Operator and class implementations left in a header where they should be in
+  the `.cpp` — headers everyone includes must stay light (#4496, #4549, #4619,
+  #4831).
 
 **Error handling**
 - A catch-all handler: catch the specific exception, or log and exit. Never
   swallow a failure to keep an optimization "safe" — a shape that fails to
-  propagate should surface (#5096, #5021).
-- A raise that isn't `MIGRAPHX_THROW` (#4946).
+  propagate should surface (#4978, #5021, #5096). A `try` that only rethrows
+  should be deleted (#4770).
+- A raise that isn't `MIGRAPHX_THROW`, including in the Python bindings (#4946).
+- An error status from an external C API (HSA/HIP) discarded — propagate it, or
+  say in a comment why partial results are acceptable (#4496).
+- A stub or unimplemented path that returns a plausible constant instead of
+  throwing, which hides the missing implementation behind a wrong answer (#4710).
+- `assert` used for a condition that causes a real failure — it does not fire in
+  release builds, so throw or size the allocation correctly (#4831).
+- An error message that doesn't identify what threw or what value was rejected;
+  name the component (the builder, not the ONNX op) and print the offending
+  value (#4005, #4054).
 
 **Shape, layout, and symbolic idioms**
 - Linear-index math in an op's `compute` where the output shape can be
   non-standard — use the multi-index `output(i, j)` form, and `with_lens` so a
-  permutation propagates (#5046).
-- Code assuming the last argument is the output buffer, or forwarding an input
-  layout unconditionally (#5030, #5046).
+  permutation propagates (#5046). A derived shape built assuming a packed layout
+  must recompute strides explicitly (#4409).
+- Code assuming the last argument is the output buffer, that argument 1 is
+  `starts` and 2 is `ends`, that the scale is the first literal, that a batch
+  dimension is named "batch", or that an op is already normalized (#4831, #4850,
+  #5030, #5088, #5105).
 - An axis used without normalization — check for negative, or use
   `ins->normalized_operator()`; assert the invariant if it should already hold
   (#4891).
 - `==` / `!=` on symbolic dimensions where the comparison should ignore variable
-  metadata — a `sym::expr` carries constraints and optimals, so use
-  `same_symbol` (or `as_symbol` first) to compare structural form (#4977).
+  metadata — a `sym::expr` carries constraints and optimals, so use `same_value`
+  / `same_symbol` (or `as_symbol` first) to compare structural form (#4924,
+  #4925, #4977). Use `shape::same_lens()` for length comparison because it also
+  works for dynamic shapes (#4881), and `ndim()` rather than `lens().size()`
+  (#4521, #4591).
 - A dynamic-shape `compute_shape` that ignores `intersection()` semantics or
   picks a min bound it cannot justify (#4924, #5015, #5043).
 - Attribute combinations left unvalidated in `compute_shape` — empty or
-  degenerate `starts`/`ends`/`axes`; a zero-length dimension that should become
-  `undefined` at parse time (#5088, #4999).
+  degenerate `starts`/`ends`/`axes`, a duplicate or misordered mode entry, an
+  attribute supplied both by attribute and by input, or a zero-length dimension
+  that should become `undefined` at parse time (#4290, #4881, #4999, #5088).
+- `std::get<int64_t>` on an attribute that may now be symbolic — it throws
+  `std::bad_variant_access` out of the middle of a pass with no op name or
+  instruction context, since nothing catches around the pipeline (#5088). Read
+  attributes with `ins->get_operator().to_value()` rather than `any_cast` to the
+  concrete op type (#4725, #5088).
+- A literal or limit created as `float` instead of the input's element type,
+  which silently promotes an fp16 model (#4067, #4103, #4190, #4518).
+
+**Signatures and parameters**
+- `instruction_ref` passed by reference — it is a cheap handle and goes by value
+  (#4204); other non-trivial parameters go by `const&` (#4001, #4790).
+- An output parameter where a return value works, including "return the index,
+  don't take an output parameter" and functions that should return a struct
+  rather than write through several references (#3989, #4001, #4095, #4481,
+  #4766).
+- A sentinel or size-derived presence check where `std::optional` says it
+  directly — `attn_bias.has_value()` rather than inspecting `args.size()` or the
+  operator name (#4095, #4637, #4703, #4880).
+- A new overload where a defaulted parameter would do, including test helpers
+  that then read as `run_pass(p1, {.flash_decoding_num_splits = 2})` (#4384,
+  #4393, #4626, #4823).
+- A parameter, member, or attribute fully derivable from something already
+  passed — `sizes.size()` rather than a separate `num_segments`, `s0.max_lens()`
+  rather than an `output_lens` attribute, a capturing lambda rather than a
+  `user_data` pair (#4290, #4409, #4483, #4496, #4527).
+
+**State, lifetime, and thread safety**
+- A `mutable` member used to write from a `const` method; hold the state behind
+  a `shared_ptr` initialized in the constructor or `finalize` instead — there is
+  a cppcheck rule for this (#4101, #4204, #4549).
+- A namespace-scope object with a global constructor; wrap it in a function with
+  a `static` local and return a reference (#4015, #4037, #4109, #4111, #4197,
+  #4469).
+- State stashed in `module`, or a `module` mutated from more than one thread —
+  the class is not thread-safe (#4626).
+- A pointer into an internally allocated or scratch buffer returned to the
+  caller: it dangles once the program is destroyed (#4880).
+- Iterators taken from two different temporaries, or from a function returning
+  by value — copy to a named local first (#4567).
+
+**Logging and diagnostics**
+- Status or progress written to `std::cout`; route it through the logger so it
+  can be filtered by level, and reserve stdout for intended output such as
+  program results, times, and perf reports (#4804, #4861, #4992, #5064).
+- A `debug_print` or dump helper routed through the logger or gated on an env
+  variable — those exist to be called from a debugger, so they print to
+  `std::cout` directly (#4732).
+- A warning that fires on a common legitimate case, such as an internal type
+  conversion or a value the user already configured (#3985, #4850).
+- A failure path silenced rather than demoted — keep the message and lower its
+  level (#4861).
 
 **Naming**
 - A name that doesn't say what the code does or doesn't match the local
-  convention: encode the side effect (`block_sync_copy_index_if_n`), match
-  existing suffixes (`_n`, not `_limit`), prefix by subsystem
-  (`replace_onnx_external_weights`), and prefer a precise verb over a vague one
-  (#4893, #4957, #5105, #5049, #5030). Renaming an existing shared function
-  needs a stated reason (#4893).
+  convention: encode the side effect (`block_sync_copy_index_if_n` when the
+  function calls `__syncthreads`), match existing suffixes (`_n`, not `_limit`),
+  prefix by subsystem (`replace_onnx_external_weights`), read predicates as
+  predicates (`has_symbolic_strides`), state the relation in a threshold
+  (`min_partition_threshold`), and prefer a precise verb over a vague one
+  (#4893, #4957, #5049, #5105, #5030).
+- A name that stops being true when scope widens — `lower_hip_ops` once it also
+  handles `gpu::contiguous` (#5030); a name that collides with an established
+  meaning in this codebase (`ctx`, `half`, `time`); and cryptic abbreviations in
+  user-facing output (`[w]` for `[warn]`) (#4194, #4384, #4469, #4810).
+- Renaming an existing shared function needs a stated reason (#4893).
 
 **How the test is written** — Angle I asks whether a test exists; this asks
 whether the one that exists is written the way reviewers require.
 - A fix tested only by pointing at a customer model — distill a minimal repro
-  into the matching test file (#5052, #4919).
+  into the matching test file (#4919, #5052).
 - An edge case tested at the wrong layer, e.g. contorting the ONNX parser to
-  produce a case that belongs in an op-level test (#4999).
-- A test carrying ops the case doesn't need (#5064, #5060).
-- A test that runs extra normalizing passes, or trims/resizes the output, so the
-  path under test is masked (#4891, #4893).
-- A new kernel or optimization tested only for the type or config it was
-  developed against when it claims to support more (#4954, #4893).
+  produce a case that belongs in an op-level test, or a verify test where
+  `test/ref/<op>.cpp` with gold values fits because the input is a literal
+  (#4999, #5014, #5068).
+- A test carrying ops the case doesn't need, or a redundant trailing
+  `add_return` — the last instruction is already the output (#5007, #5060,
+  #5064).
+- A test that runs extra normalizing or fusion passes, or trims/resizes the
+  output, so the path under test is masked; write the replacement instructions
+  directly instead of producing them with `fuse_pointwise` (#4626, #4891, #4893,
+  #5064).
+- A test that does not actually reach the changed code — it must use ops that
+  survive to the new matcher rather than being rewritten away first (#4176,
+  #4388).
+- A test gated on an environment variable or wrapped in `try`/`catch`; check
+  every precondition explicitly so the test always runs (#4294). Test against
+  `migraphx::module` rather than `migraphx::program` when the pass takes a
+  module (#4294).
+- An assertion derived by calling the code under test — state expected shapes
+  literally in `op_shape_test` rather than computing them with `compute_shape()`,
+  and never assert by counting instructions or matching printed text (#4699,
+  #4992, #5030, #5060, #5105).
+- A "dynamic shape" test whose inputs are all static (#4704).
+- A new kernel, mode, or optimization tested only for the type or config it was
+  developed against when it claims to support more; a new compile mode should
+  run the existing suite under both configurations rather than adding one-off
+  tests (#4893, #4954, #4770).
+- Gold/expected numeric data with no comment saying how it was produced, and
+  ONNX test assets not generated through `test/onnx/gen_onnx.py` (#4041, #4067,
+  #4521, #4673).
+- An ONNX operator change with only a verify test — parse tests are white-box
+  and should build the expected program by hand (#4067, #4093).
 
   The expected-module form for pass tests and one verify class per `.cpp` are
   written rules in `AGENTS.md`; Angle H owns those, and a deleted or disabled
   test belongs to Angle I.
 
+**ONNX and spec conformance**
+- Behavior branched on the opset version where checking whether the input or
+  attribute is actually present says the same thing more directly (#4518).
+- An optional input accepted but never consumed downstream, or accepted without
+  validating the inputs the spec requires alongside it (#4637, #4703).
+- A spec assumption that doesn't hold: scale and zero-point may be N-D rather
+  than scalar, negative axes need `tune_axis`, an op with several spec outputs
+  must return `std::vector<instruction_ref>`, and a zero-element output can be
+  legal (#4521, #4571, #4591).
+- Type-promotion logic invented for the parser instead of matching the C++
+  rules, especially special cases for literals — exceptions make the promotion
+  impossible to reason about, and the dynamic branch must behave like the static
+  one (#4826).
+- A parser limitation worked around by changing an existing operator's
+  semantics, where composing existing ops would do (#4880).
+
 **Performance claims and heuristics**
-- A perf-motivated change with no measured before/after, or one that drops a
-  path still faster for some shapes (#5018, #4954, #4948).
+- A perf-motivated change with no measured before/after across models and sizes,
+  or one that drops a path still faster for some shapes (#4948, #4954, #5014,
+  #5018).
 - A tuning constant with no stated origin — say where the number came from and
-  whether it generalizes past the model that motivated it (#5040, #5038).
+  whether it generalizes past the model that motivated it; launch-geometry
+  constants in particular need measurements across hardware (#4591, #4595,
+  #4709, #5038, #5040).
 - A cache or dedup key derived from the gfx arch name or another non-content
-  property; keys must be content-based (#5039, #4992).
-- A lock held across expensive work such as a host-to-device copy (#5039).
+  property — multiple GPUs share a gfx name; keys must be content-based, and a
+  bare hash without the shape (or without collision handling) silently loses
+  data (#4992, #5039).
+- A lock held across expensive work such as a host-to-device copy, or a new
+  in-process cache with a lock where `problem_cache` or ccache already applies —
+  it bottlenecks parallel compilation and doesn't persist (#4708, #5039).
+- Work proportional to the whole module inside a matcher or finder: traversing
+  from `begin()`, or building a map sized to the module, is slow on large models
+  and runs on every match (#4152, #4216, #4626, #4727).
+- Compile-time cost treated as free — nested `visit`/`visit_all` in lowering, a
+  `static_assert` added for an invariant, and a second lookup table all slow
+  compilation measurably (#4255, #4591, #4631, #4720).
+
+**Reference and GPU parity**
+- A spec-mandated error handled differently on the two paths: the reference
+  implementation should throw and the GPU should `MIGRAPHX_ASSERT` and write a
+  defined value, rather than reading out of bounds (#4363).
+- A GPU path that leaves the tail of a fixed-size output uninitialized where the
+  reference zero-fills it — a consumer reading the full output then gathers
+  garbage (#4893).
+- A `static_assert` or capacity limit added to a JIT kernel without extending
+  the lowering fallback to every static case the reference op accepts; a
+  `static_assert` is a hard build failure, not a fallback (#4893).
+- An allocation hidden inside another operator's implementation — memory
+  coloring cannot see it (#4591) — or a host/device copy moved inside a code
+  object op, which breaks hipGraph (#5032).
+- Launch bounds or occupancy hints set on JIT kernels, which costs the
+  optimizations the default range enables (#4217).
 
 **What ships with the change**
 - A user-visible change with no `CHANGELOG.md` entry, or one filed under the
-  wrong category (#4919, #4939, #5038, #4923); internal-only refactors don't
-  need one (#4904).
+  wrong category (#4919, #4923, #4939, #5038). Write it as a complete
+  past-tense sentence naming the exact API or operator affected, reference the
+  PR number rather than the issue, and merge it into a related existing entry
+  instead of duplicating; internal-only refactors and incomplete or experimental
+  features don't get one at all (#4373, #4497, #4512, #4567, #4904, #5007,
+  #5065).
 - A touched file whose copyright year range wasn't updated — CI enforces it
-  (#4899, #4965, #4966).
+  (#4899, #4965, #4966, #5088).
 - Behavior or options changed without the matching docs page updated, or docs
-  claiming support the code doesn't implement (#5028, #4945, #4965, #4946).
-- A generated file edited directly instead of its template under `tools/`
-  (#4935).
-- A new `NOLINT` or `cppcheck-suppress` where the code should be fixed, or tidy
-  flags changed in the build instead of `.clang-tidy` (for example adding a type
-  to `AllowedTypes`) (#4911, #4977, #4952).
+  claiming support the code doesn't implement (#4945, #4946, #4965, #5028).
+- A generated file edited directly instead of its template under `tools/` —
+  including the type-erasure headers in `src/include/migraphx/`, which come from
+  `tools/include/` via `make generate` (#4709, #4935).
+- A new `NOLINT` or `cppcheck-suppress` where the code should be fixed, tidy
+  flags changed in the build instead of `.clang-tidy` (for example adding a
+  cheap-copy type to `AllowedTypes`), or a warning disabled globally to silence
+  one site (#4143, #4190, #4801, #4911, #4952, #4977).
+- **Unrelated changes bundled in.** Drive-by formatting, `.gitignore` edits, a
+  refactor, and a second feature belong in their own PRs; a large refactor should
+  land first as a no-functional-change PR so the behavior change is reviewable
+  (#4363, #4626, #4663, #4725, #4760, #4803, #4911, #4952).
+- A new `TODO` that isn't tracked — file an issue and reference it, or say
+  concretely what remains (#4174, #4246, #4875, #4893, #4894).
 
 **Public API additions** — extends Angle E.
 - An API taking an internal type where a string the implementation parses would
   do (`sym::expr` behind `sym::parse`) (#4946).
 - An API added for behavior meant to become the default, which will then do
-  nothing (#4946).
-- A public signature changed in place instead of adding a forwarding overload
-  (#4977).
+  nothing, or a compile option that duplicates an existing environment variable
+  (#4893, #4946).
+- A public signature changed in place instead of adding a forwarding overload —
+  other in-flight PRs call it (#4931, #4977).
+- A C++ container passed or returned across the C API boundary; materialize it
+  on the wrapper side, since C strings are ABI-safe and `std::vector` is not
+  (#4341). A C callback should hand back an opaque extensible handle rather than
+  raw strings, registered through the generator's `api.add_callback` (#4780).
+- A new parallel entry point where an existing options struct could take one
+  more defaulted field — combinations of overloads multiply fast (#4701, #4770,
+  #4780, #4823).
+- A C++ API addition not mirrored in the Python bindings, or a new enum or
+  constant not mirrored in `migraphx.h` with its `convert_to_*` overloads
+  (#4701, #4770).
+- A public API extended ahead of a design that covers the known cases — expose
+  the minimal accessor instead (#4803).
 - A change that makes users include a different header or link new targets —
   that is breaking; call it out (#4961).
 
 **Build and toolchain**
 - A local stub, shim, or version workaround for a problem that belongs upstream
-  in the pinned dependency (#4988, #4952).
+  in the pinned dependency, in rocm-cmake, or in the compiler (#4765, #4952,
+  #4988). A release-driven hack may go to a release branch but not to `develop`
+  (#4765).
 - Docker or prereq changes that drop existing settings (sanitizer flags),
-  hand-edit `PATH` for ROCm-installed tools, or pin an old clang-format instead
-  of the ROCm-shipped one (#4952).
-- CI logic duplicated per stage instead of living in the shared harness (#4910).
+  hand-edit `PATH` for ROCm-installed tools, pin an old clang-format instead of
+  the ROCm-shipped one, install a toolchain with `curl | bash`, or base a CI
+  image on a large uncontrolled upstream image (#4466, #4623, #4714, #4952).
+- CI logic duplicated per stage instead of living in the shared harness, or
+  behavior that depends on stage names (#4682, #4910).
+- CMake that links raw library paths instead of imported targets, installs an
+  embedded artifact that should be an object library folded into the static
+  library, makes each consumer repeat requirements that belong on the
+  `INTERFACE`, adds an unprefixed global or cache variable, or conditions a core
+  dependency on a target-specific one (#3992, #4243, #4345, #4714, #4765, #4791,
+  #4839).
 
 ## Phase 2 — Verify (1-vote)
 

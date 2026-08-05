@@ -41,10 +41,9 @@ namespace op {
 /// Slice operator whose bounds are only known at run time.
 ///
 /// The starts and ends are always supplied as inputs. The attribute of the same name describes
-/// that input at compile time: either a concrete value or, when the value is only known
-/// symbolically, a symbolic dynamic_dimension whose expression evaluates to what the input will
-/// hold at run time. That is what lets the output shape stay symbolic instead of collapsing to a
-/// range. The axes have to be known when the shape is computed, so they are an attribute only.
+/// that input at compile time: either a concrete value or a symbolic dynamic_dimension whose 
+/// expression evaluates to what the input will hold at run time. The axes have to be known when
+/// the shape is computed, so they are an attribute only.
 ///
 /// Attributes:
 /// axes: axes to slice over

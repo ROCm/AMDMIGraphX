@@ -72,14 +72,12 @@ TEST_CASE(split_prefill_decode_test)
     EXPECT(specializations.at(1)->get_parameter_shape("x") ==
            migraphx::shape{migraphx::shape::float_type, {1, 4, 2}});
 
-    // The initializer stays in the main module and reaches both specializations as a parameter.
+    // The initializer stays in the main module and is captured by both specializations.
     EXPECT(count_literals(p.get_main_module()) == 1);
     EXPECT(count_literals(specializations.at(0)) == 0);
     EXPECT(count_literals(specializations.at(1)) == 0);
-    EXPECT(specializations.at(0)->get_parameter_shape("one") ==
-           migraphx::shape{migraphx::shape::float_type, {1}});
-    EXPECT(specializations.at(1)->get_parameter_shape("one") ==
-           migraphx::shape{migraphx::shape::float_type, {1}});
+    EXPECT(specializations.at(0)->get_parameter_shape("one") == migraphx::shape{});
+    EXPECT(specializations.at(1)->get_parameter_shape("one") == migraphx::shape{});
 }
 
 // The split has to happen while parsing because a kv-cache attention operator cannot be parsed
@@ -95,13 +93,11 @@ TEST_CASE(split_prefill_decode_group_query_attention_test)
     EXPECT(specializations.at(1)->get_parameter_shape("qkv").lens() ==
            std::vector<std::size_t>{1, 8, 96});
 
-    // The caches are initializers, so they are literals of the main module and reach the
-    // specializations as parameters. Whatever constants the operator parser itself adds are not.
+    // Initializers remain literals in the main module and are captured by both specializations.
+    // Constants synthesized by an operator parser remain local to that specialization.
     EXPECT(count_literals(p.get_main_module()) == 3);
-    EXPECT(specializations.at(0)->get_parameter_shape("cos_cache").lens() ==
-           std::vector<std::size_t>{10, 8});
-    EXPECT(specializations.at(1)->get_parameter_shape("cos_cache").lens() ==
-           std::vector<std::size_t>{10, 8});
+    EXPECT(specializations.at(0)->get_parameter_shape("cos_cache") == migraphx::shape{});
+    EXPECT(specializations.at(1)->get_parameter_shape("cos_cache") == migraphx::shape{});
 }
 
 // The split describes how the model is used, not how its shapes are spelled, so it applies to

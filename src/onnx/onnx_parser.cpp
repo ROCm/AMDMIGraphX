@@ -555,51 +555,30 @@ static std::vector<shape> common_output_shapes(const module& decode,
     return result;
 }
 
-/// Give `mod` a parameter for each of the parent module's initializers, so that the weights exist
-/// once in the parent instead of once per specialization.
-static onnx_parser::instruction_map
-add_initializer_parameters(module* mod, const onnx_parser::instruction_map& initializers)
-{
-    onnx_parser::instruction_map result;
-    std::transform(initializers.begin(),
-                   initializers.end(),
-                   std::inserter(result, result.end()),
-                   [&](const auto& initializer) {
-                       return std::make_pair(
-                           initializer.first,
-                           mod->add_parameter(initializer.first, initializer.second->get_shape()));
-                   });
-    return result;
-}
-
 /// Dispatch between the two specializations from `root` and return their outputs. select_module
 /// pairs its arguments with the submodule parameters sorted by name, so the arguments are passed
-/// in that order and each specialization has to take exactly the inputs named in `inputs`.
+/// in that order and both specializations have to take the same parameters.
 static void add_select_module(module& root,
                               const onnx_parser::instruction_map& inputs,
                               module_ref decode,
                               module_ref prefill,
                               const shape::dynamic_dimension& sequence_length)
 {
-    std::vector<std::string> names;
-    names.reserve(inputs.size());
-    std::transform(inputs.begin(), inputs.end(), std::back_inserter(names), [](const auto& input) {
-        return input.first;
-    });
+    auto names = decode->get_parameter_names();
     std::sort(names.begin(), names.end());
 
-    for(module_ref specialization : {decode, prefill})
-    {
-        auto param_names = specialization->get_parameter_names();
-        std::sort(param_names.begin(), param_names.end());
-        if(param_names != names)
-            MIGRAPHX_THROW("PARSE_MODEL: module \"" + specialization->name() + "\" takes {" +
-                           join_strings(param_names, ", ") + "} but is dispatched with {" +
-                           join_strings(names, ", ") + "}");
-    }
+    auto prefill_names = prefill->get_parameter_names();
+    std::sort(prefill_names.begin(), prefill_names.end());
+    if(prefill_names != names)
+        MIGRAPHX_THROW("PARSE_MODEL: module \"" + prefill->name() + "\" takes {" +
+                       join_strings(prefill_names, ", ") + "} but \"" + decode->name() +
+                       "\" takes {" + join_strings(names, ", ") + "}");
 
     std::vector<instruction_ref> args(names.size());
     std::transform(names.begin(), names.end(), args.begin(), [&](const auto& name) {
+        if(not contains(inputs, name))
+            MIGRAPHX_THROW("PARSE_MODEL: specialization parameter \"" + name +
+                           "\" is not a main-module input");
         return inputs.at(name);
     });
 
@@ -622,9 +601,8 @@ static void parse_prefill_decode(onnx_parser& parser, const onnx::GraphProto& gr
 {
     auto max_sequence_length = prefill_sequence_length(parser, graph);
     auto* root               = parser.prog.get_main_module();
-    // Parse the constants once into the root. Each specialization reads them through a parameter
-    // rather than a literal of its own, both to share the memory and to stop later passes from
-    // following a shared literal's outputs into the sibling specialization.
+    // Parse constants once into the root and let both specializations capture them. This keeps
+    // their literal storage shared without routing constants through runtime parameters.
     const auto initializers = parse_initializer(parser, root, graph);
     const auto root_inputs  = parse_inputs(parser, root, graph, initializers);
 
@@ -637,8 +615,7 @@ static void parse_prefill_decode(onnx_parser& parser, const onnx::GraphProto& gr
         parser.dim_params[sequence_length_dim_param] = {length, length};
 
         auto* mod = parser.prog.create_module(root->name() + ":split:" + name);
-        auto initializer_params = add_initializer_parameters(mod, initializers);
-        (void)parser.parse_graph(mod, graph, false, &initializer_params);
+        (void)parser.parse_graph(mod, graph, false, &initializers);
         return mod;
     };
     auto* decode  = parse_specialization("decode", 1);

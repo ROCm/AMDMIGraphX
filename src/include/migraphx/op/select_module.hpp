@@ -26,9 +26,11 @@
 
 #include <migraphx/check_shapes.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/algorithm.hpp>
+#include <migraphx/instruction.hpp>
+#include <migraphx/ranges.hpp>
 #include <memory>
 #include <mutex>
-#include <numeric>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -44,12 +46,27 @@ struct select_module
         shape parameter_shape;
     };
 
+    enum class source_kind
+    {
+        unused,
+        input,
+        output
+    };
+
+    struct parameter_source
+    {
+        source_kind kind;
+        std::size_t index;
+    };
+
     struct module_metadata
     {
         module_ref mod;
         std::vector<parameter_metadata> inputs;
         std::vector<parameter_metadata> outputs;
         std::vector<std::size_t> selector_indices;
+        std::vector<parameter_source> parameters;
+        bool leaf_captures = true;
     };
 
     struct module_set_metadata
@@ -66,7 +83,8 @@ struct select_module
     struct metadata_cache
     {
         std::mutex mutex;
-        std::vector<cache_entry> entries;
+        std::vector<std::shared_ptr<const cache_entry>> entries;
+        std::shared_ptr<const cache_entry> last_entry;
     };
 
     mutable std::shared_ptr<metadata_cache> cache = std::make_shared<metadata_cache>();
@@ -113,12 +131,19 @@ struct select_module
     std::shared_ptr<const module_set_metadata>
     get_module_metadata(const std::vector<module_ref>& submodule_list) const
     {
+        auto last_entry = std::atomic_load(&cache->last_entry);
+        if(last_entry != nullptr and last_entry->modules == submodule_list)
+            return last_entry->metadata;
+
         std::lock_guard<std::mutex> lock{cache->mutex};
         auto entry = std::find_if(cache->entries.begin(), cache->entries.end(), [&](const auto& e) {
-            return e.modules == submodule_list;
+            return e->modules == submodule_list;
         });
         if(entry != cache->entries.end())
-            return entry->metadata;
+        {
+            std::atomic_store(&cache->last_entry, *entry);
+            return (*entry)->metadata;
+        }
 
         auto metadata = std::make_shared<module_set_metadata>();
         metadata->modules.reserve(submodule_list.size());
@@ -128,15 +153,56 @@ struct select_module
             std::back_inserter(metadata->modules),
             [&](module_ref mod) {
                 module_metadata result;
-                result.mod        = mod;
-                auto param_shapes = mod->get_parameter_shapes();
-                auto add_metadata = [&](const auto& names, auto output) {
-                    std::transform(names.begin(), names.end(), output, [&](const auto& name) {
-                        return parameter_metadata{name, param_shapes.at(name)};
+                result.mod   = mod;
+                auto modules = mod->get_sub_modules();
+                modules.push_back(mod);
+                result.leaf_captures =
+                    std::all_of(modules.begin(), modules.end(), [](module_ref current) {
+                        return std::all_of(current->begin(), current->end(), [&](const auto& ins) {
+                            return std::all_of(ins.inputs().begin(),
+                                               ins.inputs().end(),
+                                               [&](instruction_ref input) {
+                                                   return current->has_instruction(input) or
+                                                          (input->inputs().empty() and
+                                                           input->module_inputs().empty());
+                                               });
+                        });
                     });
+                auto param_shapes = mod->get_parameter_shapes();
+                auto parameters   = mod->get_parameters();
+                std::unordered_map<std::string, std::size_t> param_orders;
+                param_orders.reserve(parameters.size());
+                std::transform(parameters.begin(),
+                               parameters.end(),
+                               std::inserter(param_orders, param_orders.end()),
+                               [](instruction_ref ins) {
+                                   const auto& param =
+                                       any_cast<builtin::param>(ins->get_operator());
+                                   return std::make_pair(param.parameter, std::size_t{param.order});
+                               });
+                std::size_t parameter_slots = 0;
+                if(not param_orders.empty())
+                {
+                    auto max_order = std::max_element(
+                        param_orders.begin(), param_orders.end(), [](const auto& x, const auto& y) {
+                            return x.second < y.second;
+                        });
+                    parameter_slots = max_order->second + 1;
+                }
+                result.parameters.resize(parameter_slots, parameter_source{source_kind::unused, 0});
+                auto add_metadata = [&](const auto& names, auto& output, source_kind kind) {
+                    output.reserve(names.size());
+                    std::transform(names.begin(),
+                                   names.end(),
+                                   std::back_inserter(output),
+                                   [&, index = std::size_t{0}](const auto& name) mutable {
+                                       auto order               = param_orders.at(name);
+                                       result.parameters[order] = parameter_source{kind, index++};
+                                       return parameter_metadata{name, param_shapes.at(name)};
+                                   });
                 };
-                add_metadata(get_input_parameter_names(mod), std::back_inserter(result.inputs));
-                add_metadata(get_output_parameter_names(mod), std::back_inserter(result.outputs));
+                add_metadata(get_input_parameter_names(mod), result.inputs, source_kind::input);
+                add_metadata(get_output_parameter_names(mod), result.outputs, source_kind::output);
                 return result;
             });
         std::vector<std::vector<std::size_t>> selectors;
@@ -144,8 +210,7 @@ struct select_module
                        metadata->modules.end(),
                        std::back_inserter(selectors),
                        [&](const auto& candidate) {
-                           std::vector<std::size_t> indices(candidate.inputs.size());
-                           std::iota(indices.begin(), indices.end(), 0);
+                           auto indices = range(candidate.inputs.size());
                            std::vector<std::size_t> result;
                            std::copy_if(indices.begin(),
                                         indices.end(),
@@ -166,8 +231,7 @@ struct select_module
                                         });
                            return result;
                        });
-        std::vector<std::size_t> module_indices(metadata->modules.size());
-        std::iota(module_indices.begin(), module_indices.end(), 0);
+        auto module_indices = range(metadata->modules.size());
         std::vector<module_metadata> modules;
         modules.reserve(metadata->modules.size());
         std::transform(module_indices.begin(),
@@ -179,8 +243,65 @@ struct select_module
                            return result;
                        });
         metadata->modules = std::move(modules);
-        cache->entries.push_back({submodule_list, metadata});
-        return metadata;
+        auto new_entry =
+            std::make_shared<const cache_entry>(cache_entry{submodule_list, std::move(metadata)});
+        cache->entries.push_back(new_entry);
+        std::atomic_store(&cache->last_entry, new_entry);
+        return new_entry->metadata;
+    }
+
+    bool has_only_leaf_captures(const std::vector<module_ref>& submodule_list) const
+    {
+        auto metadata = get_module_metadata(submodule_list);
+        return std::all_of(metadata->modules.begin(),
+                           metadata->modules.end(),
+                           [](const auto& info) { return info.leaf_captures; });
+    }
+
+    template <class GetArgument>
+    const module_metadata& find_module(const std::shared_ptr<const module_set_metadata>& metadata,
+                                       std::size_t argument_count,
+                                       GetArgument get_argument) const
+    {
+        auto module_iter =
+            std::find_if(metadata->modules.begin(), metadata->modules.end(), [&](const auto& info) {
+                assert(info.inputs.size() <= argument_count);
+                return std::all_of(info.selector_indices.begin(),
+                                   info.selector_indices.end(),
+                                   [&](std::size_t index) {
+                                       return index < info.inputs.size() and
+                                              index < argument_count and
+                                              get_argument(index).get_shape() ==
+                                                  info.inputs[index].parameter_shape;
+                                   });
+            });
+
+        if(module_iter == metadata->modules.end())
+        {
+            MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
+        }
+        return *module_iter;
+    }
+
+    const module_metadata& find_module(const std::shared_ptr<const module_set_metadata>& metadata,
+                                       const std::vector<argument>& args) const
+    {
+        return find_module(metadata, args.size(), [&](std::size_t index) -> const argument& {
+            return args[index];
+        });
+    }
+
+    argument prepare_output(const parameter_metadata& output, const argument& arg) const
+    {
+        if(arg.get_shape() == output.parameter_shape)
+            return arg;
+        // Reshaping onto a smaller buffer would let the submodule write past its end, so refuse
+        // rather than corrupt memory.
+        if(arg.get_shape().bytes() < output.parameter_shape.bytes())
+            MIGRAPHX_THROW("SELECT_MODULE: output buffer for \"" + output.name + "\" holds " +
+                           std::to_string(arg.get_shape().bytes()) + " bytes but the selected " +
+                           "submodule writes " + std::to_string(output.parameter_shape.bytes()));
+        return arg.reshape(output.parameter_shape);
     }
 
     argument compute(const shape&,
@@ -191,25 +312,8 @@ struct select_module
     {
         // Find the submodule from the input positions whose parameter shapes differ between
         // candidates. The selected submodule still validates every parameter during evaluation.
-        auto metadata = get_module_metadata(submodule_list);
-        auto module_iter =
-            std::find_if(metadata->modules.begin(), metadata->modules.end(), [&](const auto& info) {
-                assert(info.inputs.size() <= args.size());
-                return std::all_of(info.selector_indices.begin(),
-                                   info.selector_indices.end(),
-                                   [&](std::size_t index) {
-                                       return index < info.inputs.size() and index < args.size() and
-                                              args[index].get_shape() ==
-                                                  info.inputs[index].parameter_shape;
-                                   });
-            });
-
-        if(module_iter == metadata->modules.end())
-        {
-            MIGRAPHX_THROW("SELECT_MODULE: no compatible submodules found for given input shapes");
-        }
-
-        const auto& module_info = *module_iter;
+        auto metadata           = get_module_metadata(submodule_list);
+        const auto& module_info = find_module(metadata, args);
         auto module_to_run      = module_info.mod;
         std::unordered_map<std::string, argument> p_map;
         p_map.reserve(module_info.inputs.size() + module_info.outputs.size());
@@ -231,21 +335,45 @@ struct select_module
                        output_sub_objects.begin(),
                        std::inserter(p_map, p_map.end()),
                        [&](const auto& output, const auto& a) {
-                           const auto& name = output.name;
-                           const auto& ps   = output.parameter_shape;
-                           if(a.get_shape() == ps)
-                               return std::make_pair(name, a);
-                           // Reshaping onto a smaller buffer would let the submodule write past
-                           // its end, so refuse rather than corrupt memory.
-                           if(a.get_shape().bytes() < ps.bytes())
-                               MIGRAPHX_THROW("SELECT_MODULE: output buffer for \"" + name +
-                                              "\" holds " + std::to_string(a.get_shape().bytes()) +
-                                              " bytes but the selected submodule writes " +
-                                              std::to_string(ps.bytes()));
-                           return std::make_pair(name, a.reshape(ps));
+                           return std::make_pair(output.name, prepare_output(output, a));
                        });
         auto results = run(module_to_run, p_map);
         return argument{results};
+    }
+
+    template <class GetArgument>
+    struct positional_parameter_view
+    {
+        const select_module* select;
+        const module_metadata* metadata;
+        GetArgument get_argument;
+        argument output;
+
+        argument get_parameter(std::size_t order) const
+        {
+            const auto& source = metadata->parameters.at(order);
+            assert(source.kind != source_kind::unused);
+            if(source.kind == source_kind::input)
+                return get_argument(source.index);
+            auto result = output.get_sub_object(source.index);
+            return select->prepare_output(metadata->outputs[source.index], result);
+        }
+    };
+
+    template <class GetArgument, class Run>
+    argument compute_with_positional_parameters(std::size_t argument_count,
+                                                GetArgument get_argument,
+                                                const std::vector<module_ref>& submodule_list,
+                                                Run run) const
+    {
+        auto metadata           = get_module_metadata(submodule_list);
+        const auto& module_info = find_module(metadata, argument_count, get_argument);
+        assert(argument_count > 0);
+        assert(module_info.inputs.size() + 1 == argument_count);
+        auto params = positional_parameter_view<GetArgument>{
+            this, &module_info, get_argument, get_argument(argument_count - 1)};
+        auto module_to_run = module_info.mod;
+        return argument{run(module_to_run, params)};
     }
 
     std::vector<std::size_t> output_alias(const std::vector<shape>& shapes) const

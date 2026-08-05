@@ -58,13 +58,14 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     hipsparse \
     rccl \
     rocm-smi-lib \
-    rocm-dev \
+    rocminfo \
     roctracer-dev \
     hipcub  \
     hipblas  \
     hipify-clang \
     hiprand-dev \
     hipsparselt \
+    hsa-amd-aqlprofile \
     half \
     libssl-dev \
     zlib1g-dev && \

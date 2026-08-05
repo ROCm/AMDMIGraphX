@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2015-2024 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,9 @@
 
 #include <migraphx/config.hpp>
 #include <migraphx/tracer.hpp>
+#include <migraphx/value.hpp>
+#include <string>
+#include <unordered_map>
 
 namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
@@ -41,8 +44,26 @@ struct compile_options
     bool fast_math       = true;
     bool exhaustive_tune = false;
 
+    /**
+     * Backend-specific options keyed by name. Targets can read these to
+     * configure compilation in a way that is opaque to the core engine.
+     */
+    std::unordered_map<std::string, value> backend_options;
+
     tracer trace{};
 };
+
+/**
+ * Merge the backend options from an object value into the compile options.
+ * Each top-level key of the object becomes an entry in backend_options.
+ */
+inline void set_backend_options(compile_options& options, const value& v)
+{
+    if(not v.is_object())
+        MIGRAPHX_THROW("set_backend_options expects an object value");
+    for(const auto& opt : v)
+        options.backend_options[opt.get_key()] = opt.without_key();
+}
 
 } // namespace MIGRAPHX_INLINE_NS
 } // namespace migraphx

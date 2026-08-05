@@ -28,6 +28,7 @@
 #include <migraphx/par_for.hpp>
 #include <migraphx/register_op.hpp>
 #include <migraphx/algorithm.hpp>
+#include <migraphx/stringutils.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/eliminate_identity.hpp>
 #include <migraphx/dead_code_elimination.hpp>
@@ -37,10 +38,15 @@
 #include <migraphx/builtin.hpp>
 #include <migraphx/load_save.hpp>
 #include <migraphx/filesystem.hpp>
+#include <migraphx/fileutils.hpp>
+#include <migraphx/json.hpp>
 #include <migraphx/gpu/compiler.hpp>
 #include <migraphx/gpu/compile_ops.hpp>
 #include <migraphx/gpu/context.hpp>
+#include <migraphx/gpu/lower_device_ops.hpp>
 #include <migraphx/gpu/time_op.hpp>
+#include <algorithm>
+#include <cstdlib>
 #include <functional>
 
 namespace migraphx {
@@ -51,6 +57,17 @@ MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_COMPILE_PARALLEL);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_TRACE_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_SKIP_BENCHMARKING);
 MIGRAPHX_DECLARE_ENV_VAR(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR);
+
+// Inner repeat count when timing a candidate, raised for split-k (kernel + prefill).
+static std::size_t compute_benchmark_bundle(const module& m)
+{
+    // Count context-requiring ops (kernel + prefills); skip context-free and @-builtins.
+    int n = std::count_if(m.begin(), m.end(), [](const auto& ins) {
+        return not migraphx::is_context_free(ins.get_operator()) and
+               not starts_with(ins.name(), "@");
+    });
+    return std::max(1, 4 * n - 2);
+}
 
 struct precompile_op
 {
@@ -159,11 +176,11 @@ struct dynamic_code_object_op
             return results.front();
         }
 
-        if(output_arg.get_shape().dynamic())
-        {
-            auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
-            static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
-        }
+        auto out_shape = pre_op.compute_shape(to_shapes(static_args), module_args);
+        static_args[static_args.size() - 1] = output_arg.reshape(out_shape);
+        // Skip JIT compilation when dynamic shape resolves to 0 elements at runtime
+        if(args.front().get_shape().elements() == 0)
+            return static_args.back();
 
         // Rewrite submodule without dynamic shapes to be used as the IR for compilation
         module static_submod;
@@ -282,6 +299,9 @@ struct compiled_result
     }
 };
 
+// forward declared since it requires compile_manager
+static void replace_inserted_device_ops(context& ctx, module& m);
+
 struct compile_plan
 {
     context* ctx;
@@ -337,7 +357,10 @@ struct compile_plan
                 if(solutions.empty())
                     MIGRAPHX_THROW("No solutions provided for " + preop.name() + " with " +
                                    problem_string() + "\n\n" + print_modules());
-                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or solutions.size() == 1)
+                const bool dump_mxr =
+                    not string_value_of(MIGRAPHX_GPU_DUMP_BENCHMARK_MXR{}).empty();
+                if(enabled(MIGRAPHX_SKIP_BENCHMARKING{}) or
+                   (ctx->is_cross_compile() and not dump_mxr) or solutions.size() == 1)
                 {
                     ctx->get_problem_cache().insert(preop.name(), problem, solutions.front());
                     results.resize(1);
@@ -443,10 +466,11 @@ struct compile_plan
                            auto bench_prog = cr->make_program();
                            if(trace_level > 2)
                                std::cout << bench_prog << std::endl;
-                           auto t = time_program(*ctx,
+                           auto bundle = compute_benchmark_bundle(*bench_prog.get_main_module());
+                           auto t      = time_program(*ctx,
                                                  std::move(bench_prog),
                                                  cr->replace.fill_map,
-                                                 /* bundle */ 10,
+                                                 bundle,
                                                  /* nrun */ 20);
                            if(trace_level > 1)
                                std::cout << t << "ms" << std::endl;
@@ -485,14 +509,23 @@ struct compile_plan
         {
             if(not results[i].has_value())
                 continue;
-            const auto& solution     = config->solutions[i];
-            auto bench_prog          = results[i]->make_program();
-            auto* mm                 = bench_prog.get_main_module();
-            std::string comment_text = preop.name() + " problem=" + to_string(config->problem) +
-                                       " solution=" + to_string(solution);
+            const auto& solution = config->solutions[i];
+            auto bench_prog      = results[i]->make_program();
+            auto* mm             = bench_prog.get_main_module();
+
+            replace_inserted_device_ops(*ctx, *mm);
+
+            // Use json encoding for the comment used for benchmarking mxr files.
+            value comment_val        = value::object{};
+            comment_val["op"]        = preop.name();
+            comment_val["problem"]   = config->problem;
+            comment_val["solution"]  = solution;
+            std::string comment_text = to_json_string(comment_val);
+
             mm->add_instruction(builtin::comment{comment_text}, {});
             auto problem_hash = std::hash<std::string>{}(to_string(config->problem));
-            auto mxr_file     = mxr_dir / (preop.name() + "_" + std::to_string(i) + "_" +
+            auto op_filename  = sanitize_filename(preop.name());
+            auto mxr_file     = mxr_dir / (op_filename + "_" + std::to_string(i) + "_" +
                                        std::to_string(problem_hash) + ".mxr");
             log::info() << "Saving benchmark binary: " << mxr_file;
             save(bench_prog, mxr_file.string());
@@ -564,9 +597,10 @@ struct compile_manager
         // root module has had a chance to dump its benchmark MXR files.
         if(dump_mxr and is_root)
         {
-            MIGRAPHX_THROW(
-                "Benchmark MXR files dumped to " + mxr_path +
-                ". Run the MXR files to create a problem cache, then recompile with the cache.");
+            log::info() << "Benchmark MXR files dumped to " << mxr_path
+                        << ". Run the MXR files to create a problem cache, then recompile with the "
+                           "cache.";
+            std::exit(0);
         }
 
         // Remove compile_plan already executed
@@ -576,6 +610,24 @@ struct compile_manager
                   cps.end());
     }
 };
+
+static void replace_inserted_device_ops(context& ctx, module& m)
+{
+    run_passes(m, {dead_code_elimination{}});
+    assert(std::none_of(
+        m.begin(), m.end(), [](auto&& ins) { return ins.name() == "gpu::precompile_op"; }));
+    run_passes(m, {lower_device_ops{}});
+    compile_manager cm;
+    for(auto ins : iterator_for(m))
+    {
+        if(ins->name() != "gpu::precompile_op")
+            continue;
+        operation preop = any_cast<precompile_op>(ins->get_operator()).op;
+        cm.add_plan(&ctx, preop, ins, &m);
+    }
+    cm.compile(m, false);
+    assert(cm.cps.empty());
+}
 
 void compile_ops::apply(module_pass_manager& mpm) const
 {
@@ -596,6 +648,8 @@ void compile_ops::apply(module_pass_manager& mpm) const
     // Compile already tuned configs
     cm.compile(m, is_root);
     assert(cm.cps.empty());
+
+    replace_inserted_device_ops(*ctx, m);
 }
 
 } // namespace gpu

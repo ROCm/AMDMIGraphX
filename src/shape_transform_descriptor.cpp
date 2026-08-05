@@ -78,8 +78,8 @@ shape_transform_descriptor::shape_transform_descriptor(const std::vector<std::si
 }
 
 template <class Dimensions, class F>
-static auto for_each_subdimension(Dimensions&& dimensions,
-                                  F f) -> decltype(dimensions.begin()->subdimensions, void())
+static auto for_each_subdimension(Dimensions&& dimensions, F f)
+    -> decltype(dimensions.begin()->subdimensions, void())
 {
     for(auto& dim : dimensions)
     {
@@ -91,8 +91,8 @@ static auto for_each_subdimension(Dimensions&& dimensions,
 }
 
 template <class SubDimensions, class F>
-static auto for_each_subdimension(SubDimensions&& subdimensions,
-                                  F f) -> decltype(subdimensions.begin()->axis, void())
+static auto for_each_subdimension(SubDimensions&& subdimensions, F f)
+    -> decltype(subdimensions.begin()->axis, void())
 {
     for(auto& s : subdimensions)
     {
@@ -1824,6 +1824,59 @@ shape_transform_descriptor shape_transform_descriptor::to_src_from_common() cons
     return result;
 }
 
+shape_transform_descriptor shape_transform_descriptor::invert() const
+{
+    auto all_subs = get_all_subdimensions(dimensions);
+    // A broadcasted dimension is duplicated, so it cant be inverted. A hidden axis is a dimension
+    // of 1 that was broadcasted, so it cant be inverted either.
+    if(std::any_of(all_subs.begin(), all_subs.end(), [](const dimension::sub& s) {
+           return s.has_hidden_axis() or (s.origin_axis().empty() and s.len != 1);
+       }))
+        return {};
+
+    // Set the axis of each subdimension to the dimension it is currently in, since that becomes
+    // the axis of the inverted transformation, while keeping the axis it originated from so the
+    // subdimensions can be regrouped.
+    std::vector<std::pair<std::vector<std::size_t>, dimension::sub>> origins;
+    for(std::size_t i : range(dimensions.size()))
+    {
+        const auto& subs = dimensions[i].subdimensions;
+        std::transform(subs.begin(),
+                       subs.end(),
+                       range(subs.size()).begin(),
+                       std::back_inserter(origins),
+                       [&](dimension::sub s, std::size_t j) {
+                           auto origin = s.origin_axis();
+                           set_origin_axis(s, {i});
+                           s.add_split_axis(j);
+                           return std::make_pair(origin, s);
+                       });
+    }
+    // Dimensions of 1 that dont come from the original dimensions have nothing to invert to
+    erase_if(origins, [](const auto& p) { return p.first.empty(); });
+    if(origins.empty())
+        return {};
+    std::sort(
+        origins.begin(), origins.end(), by(std::less<>{}, [](const auto& p) { return p.first; }));
+
+    // Each group of subdimensions that share an origin axis becomes one of the original dimensions
+    shape_transform_descriptor result;
+    result.rank = dimensions.size();
+    group_unique(
+        origins.begin(),
+        origins.end(),
+        [&](auto start, auto last) {
+            dimension d;
+            std::transform(start, last, std::back_inserter(d.subdimensions), [](const auto& p) {
+                return p.second;
+            });
+            result.dimensions.push_back(d);
+        },
+        [](const auto& x, const auto& y) { return x.first.front() == y.first.front(); });
+    result.simplify();
+    return result;
+}
+
 std::vector<std::vector<std::size_t>> shape_transform_descriptor::common_axes_map_from_src() const
 {
     std::vector<std::vector<std::size_t>> result;
@@ -1897,6 +1950,44 @@ std::vector<std::size_t> shape_transform_descriptor::get_dst_axes_from_src(std::
         result.push_back(i);
     }
     // TODO: Put it in the correct order if there is multiple axes
+    return result;
+}
+
+std::vector<std::vector<std::size_t>>
+shape_transform_descriptor::axes_map_from_src(bool keep_partial_axes) const
+{
+    std::vector<std::vector<std::size_t>> result(rank);
+    std::unordered_set<std::size_t> invalid_axes;
+    for(auto i : range(dimensions.size()))
+    {
+        const auto& dim = dimensions[i];
+        if(dim.subdimensions.empty())
+            continue;
+        auto non_1_axis = [](const dimension::sub& s) {
+            return not s.origin_axis().empty() and s.len > 1;
+        };
+        auto n = std::count_if(dim.subdimensions.begin(), dim.subdimensions.end(), non_1_axis);
+        if(n > 1 and not keep_partial_axes)
+        {
+            transform_if(dim.subdimensions.begin(),
+                         dim.subdimensions.end(),
+                         std::inserter(invalid_axes, invalid_axes.begin()),
+                         non_1_axis,
+                         [&](const dimension::sub& s) { return s.origin_axis().front(); });
+        }
+        for(const auto& s : dim.subdimensions)
+        {
+            if(s.origin_axis().empty())
+                continue;
+            result[s.origin_axis().front()].push_back(i);
+        }
+    }
+    // split axis cannot be mapped
+    for(auto invalid_axis : invalid_axes)
+        result[invalid_axis].clear();
+    // sort the axes
+    for(auto& v : result)
+        std::sort(v.begin(), v.end());
     return result;
 }
 

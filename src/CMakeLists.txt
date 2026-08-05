@@ -59,8 +59,10 @@ add_library(migraphx
     common_dims.cpp
     compile_src.cpp
     convert_to_json.cpp
+    convolution.cpp
     cpp_generator.cpp
     dead_code_elimination.cpp
+    dim_like.cpp
     dom_info.cpp
     dynamic_loader.cpp
     eliminate_allocation.cpp
@@ -121,6 +123,7 @@ add_library(migraphx
     register_op.cpp
     register_target.cpp
     replace_allocate.cpp
+    rewrite_convolution.cpp
     rewrite_reduce.cpp
     rewrite_resize.cpp
     rewrite_dot.cpp
@@ -138,11 +141,11 @@ add_library(migraphx
     serialize.cpp
     shape.cpp
     shape_transform_descriptor.cpp
-    sym.cpp
     simplify_algebra.cpp
     simplify_dyn_ops.cpp
     simplify_reshapes.cpp
     split_single_dyn_dim.cpp
+    sym.cpp
     target.cpp
     tmp_dir.cpp
     truncate_float.cpp
@@ -152,15 +155,12 @@ add_library(migraphx
 
 enable_static_init(migraphx)
 
-file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp)
+file(GLOB BUILDER_SRCS CONFIGURE_DEPENDS op/builder/*.cpp op/builder/torch/*.cpp)
 target_sources(migraphx PRIVATE ${BUILDER_SRCS})
 
 if(WIN32)
     # Due to compilation crashing, we need to use type-erased matchers on Windows.
     target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_TYPE_ERASED_MATCHERS=1)
-    target_compile_options(migraphx PUBLIC "-mno-ms-bitfields")
-    # Due to BinSkim errors EnableControlFlowGuard
-    target_compile_options(migraphx PUBLIC "SHELL:-Xclang -cfguard")
 endif()
 
 configure_file(config.h.in include/migraphx/config.h)
@@ -179,11 +179,15 @@ function(register_migraphx_ops)
         register_op(migraphx HEADER migraphx/op/${OP}.hpp OPERATORS op::${OP})
     endforeach()
 endfunction()
+
+rocm_add_version_resource(migraphx "AMD MIGraphX" "MIGraphX Core Library - AMD Graph Optimization Engine")
+
 register_migraphx_ops(
     abs
     acosh
     acos
     add
+    addressof
     allocate
     argmax
     argmin
@@ -209,6 +213,7 @@ register_migraphx_ops(
     cosh
     cos
     dequantizelinear
+    deref
     dimensions_of
     div
     dot
@@ -224,7 +229,6 @@ register_migraphx_ops(
     gather
     gathernd
     get_tuple_elem
-    gqa_rotary_embedding
     greater
     group
     gru
@@ -353,7 +357,7 @@ endif()
 target_link_libraries(migraphx PUBLIC Threads::Threads)
 
 if(MIGRAPHX_USE_EIGEN)
-    find_package(Eigen3)
+    find_package(Eigen3 QUIET)
     if(Eigen3_FOUND)
         target_compile_definitions(migraphx PUBLIC MIGRAPHX_USE_EIGEN=1)
         target_compile_definitions(migraphx PRIVATE EIGEN_MPL2_ONLY)
@@ -387,7 +391,7 @@ target_link_libraries(migraphx PRIVATE SQLite::SQLite3)
 
 # See: https://github.com/msgpack/msgpack-c/wiki/Q%26A#how-to-support-both-msgpack-c-c-version-5x-and-6x-
 # Prefer 6.x (msgpack-cxx)
-find_package(msgpack-cxx)
+find_package(msgpack-cxx QUIET)
 if(msgpack-cxx_FOUND)
     message(STATUS "Found msgpack-cxx (>=6.x)")
 else()
@@ -453,7 +457,6 @@ if(BUILD_DEV)
 endif()
 
 target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
-add_dependencies(migraphx generate)
 
 rocm_export_targets(
   TARGETS migraphx::migraphx_c

@@ -56,7 +56,9 @@ constexpr migraphx::half to_native(__half x) { return bit_cast<migraphx::half>(x
 
 template <class T>
 constexpr auto to_hip(T x)
-{ return x; }
+{
+    return x;
+}
 constexpr __half to_hip(migraphx::half x) { return bit_cast<__half>(x); }
 
 template <class F, class T, class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<T, Ts...>())>
@@ -118,12 +120,16 @@ __device__ auto wrap(F f, T x, Ts... xs)
 #define MIGRAPHX_DEVICE_MATH_FOR(type, name, fname)                    \
     template <class... Ts, MIGRAPHX_REQUIRES(not is_any_vec<Ts...>())> \
     auto __device__ name(type x, Ts... xs) -> type                     \
-    { return fname(math::to_hip(x), math::to_hip(xs)...); }
+    {                                                                  \
+        return fname(math::to_hip(x), math::to_hip(xs)...);            \
+    }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_BINARY_FOR(type, name, fname) \
     inline auto __device__ name(type x, type y) -> type    \
-    { return fname(math::to_hip(x), math::to_hip(y)); }
+    {                                                      \
+        return fname(math::to_hip(x), math::to_hip(y));    \
+    }
 
 // NOLINTNEXTLINE
 #define MIGRAPHX_DEVICE_MATH_HALF2(name, fname)                                           \
@@ -193,8 +199,6 @@ MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, max, ::fmaxf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(float, min, ::fminf)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, max, ::max)
 MIGRAPHX_DEVICE_MATH_BINARY_FOR(double, min, ::min)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, max, ::__hmax)
-MIGRAPHX_DEVICE_MATH_BINARY_FOR(migraphx::half, min, ::__hmin)
 
 template <class T, MIGRAPHX_REQUIRES(not is_any_vec<T>() and is_integral<T>{})>
 constexpr auto abs(const T& a)
@@ -315,7 +319,42 @@ MIGRAPHX_DEVICE_MATH_VEC2(migraphx::half, sqrt, ::h2sqrt)
 template <class T, class U>
 constexpr auto convert(U v)
 {
-    return vec_transform(v)([](auto x) -> T { return static_cast<T>(x); });
+    return vec_transform(v)([](auto x) -> T {
+        using x_type = remove_cv_t<remove_reference_t<decltype(x)>>;
+        // Clang rejects a direct static_cast between _Float16 (half) and
+        // __bf16 (bf16); bounce that one pair through float. Every other
+        // conversion is a plain static_cast.
+        if constexpr((is_same<T, migraphx::half>{} and is_same<x_type, migraphx::bf16>{}) or
+                     (is_same<T, migraphx::bf16>{} and is_same<x_type, migraphx::half>{}))
+            return static_cast<T>(static_cast<float>(x));
+        else
+            return static_cast<T>(x);
+    });
+}
+
+template <class T, class U>
+constexpr auto deref(U v)
+{
+    return vec_transform(v)([](auto x) -> T { return *reinterpret_cast<T*>(x); });
+}
+
+template <class T>
+constexpr auto addressof(T& x)
+{
+    if constexpr(vec_size<T>() < 2)
+    {
+        return reinterpret_cast<uint64_t>(&x);
+    }
+    else
+    {
+        constexpr auto n             = vec_size<T>();
+        safe_vec<uint64_t, n> result = {0};
+        auto base                    = reinterpret_cast<uint64_t>(&x);
+        constexpr auto element_size  = sizeof(vec_type<T>);
+        for(int i = 0; i < n; i++)
+            result[i] = base + i * element_size;
+        return result;
+    }
 }
 
 template <class T, class U>

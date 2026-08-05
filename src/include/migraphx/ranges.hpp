@@ -263,11 +263,32 @@ std::vector<range_value<Range>> find_all(Range&& r, Predicate p)
     return result;
 }
 
+template <class Range>
+auto find_last(const Range& r)
+{
+    auto first = r.begin();
+    auto last  = r.end();
+    if(first == last)
+        return last;
+
+    auto result = first;
+    while(first != last)
+    {
+        result = first;
+        ++first;
+    }
+    return result;
+}
+
 template <class Iterator>
 struct iterator_range
 {
     Iterator start;
     Iterator last;
+
+    bool empty() const { return start == last; }
+
+    std::size_t size() const { return std::distance(start, last); }
 
     Iterator begin() const { return start; }
 

@@ -26,6 +26,7 @@
 #include <migraphx/rank.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/shape.hpp>
+#include <migraphx/sym.hpp>
 #include <migraphx/program.hpp>
 #include <migraphx/instruction_ref.hpp>
 #include <migraphx/instruction.hpp>
@@ -150,6 +151,41 @@ static auto to_objptr_vector(const U* x, std::size_t n)
 
 static target get_target(const std::string& name) { return make_target(name); }
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+
+// Format `options_json` as a printf-style string using `vlist` and parse the
+// result into a value. `options_json` accepts a relaxed JSON object where bare
+// identifiers are treated as strings (see convert_to_json).
+static value parse_json_options(const char* options_json, va_list vlist)
+{
+    va_list vlist_copy;
+    va_copy(vlist_copy, vlist);
+    const int len = std::vsnprintf(nullptr, 0, options_json, vlist_copy);
+    va_end(vlist_copy);
+    if(len < 0)
+        MIGRAPHX_THROW(migraphx_status_bad_param, "Invalid format string for options_json");
+    std::vector<char> buffer(len + 1);
+    va_copy(vlist_copy, vlist);
+    std::vsnprintf(buffer.data(), buffer.size(), options_json, vlist_copy);
+    va_end(vlist_copy);
+    return from_json_string(convert_to_json(std::string(buffer.data())));
+}
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
+static target
+get_target_with_options(const std::string& name, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return make_target(name);
+    return make_target(name, parse_json_options(options_json, vlist));
+}
+
 static void set_offload_copy(compile_options& options, bool value) { options.offload_copy = value; }
 
 static void set_fast_math(compile_options& options, bool value) { options.fast_math = value; }
@@ -159,18 +195,38 @@ static void set_exhaustive_tune_flag(compile_options& options, bool value)
     options.exhaustive_tune = value;
 }
 
+// Parse the backend options from `options_json` and merge them into the
+// compile options. See migraphx::set_backend_options for the merge semantics.
+static void set_backend_options(compile_options& options, const char* options_json, va_list vlist)
+{
+    if(options_json == nullptr or *options_json == '\0')
+        return;
+    set_backend_options(options, parse_json_options(options_json, vlist));
+}
+
 static void set_file_format(file_options& options, const char* format) { options.format = format; }
+
+// Parse an expression string and bind each provided symbol name to the bounds/optimals
+// carried by its range dynamic_dimension, producing a symbolic dynamic_dimension.
+static shape::dynamic_dimension make_symbolic_dynamic_dimension(
+    const char* expression,
+    const std::unordered_map<std::string, shape::dynamic_dimension>& symbols)
+{
+    return shape::make_symbolic_dynamic_dimension(expression, symbols);
+}
 
 #ifdef MIGRAPHX_ENABLE_ONNX
 
 static void set_default_dim_value(onnx_options& options, size_t value)
 {
     options.default_dim_value = value;
+    options.default_set       = true;
 }
 
 static void set_default_dyn_dim_value(onnx_options& options, const shape::dynamic_dimension& dd)
 {
     options.default_dyn_dim_value = dd;
+    options.default_set           = true;
 }
 
 static void set_default_loop_iterations(onnx_options& options, int64_t value)
@@ -191,6 +247,12 @@ static void set_limit_loop_iterations(onnx_options& options, int64_t value)
 static void set_use_debug_symbols(onnx_options& options, bool value)
 {
     options.use_debug_symbols = value;
+}
+
+static void
+set_dim_param(onnx_options& options, const char* name, const shape::dynamic_dimension& dd)
+{
+    options.dim_params[std::string(name)] = dd;
 }
 
 #endif

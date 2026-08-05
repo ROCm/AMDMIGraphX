@@ -964,9 +964,9 @@ TEST_CASE(flash_decoding_3d_with_attention_literal)
         mm->add_return({gemm2});
     }
     run_pass(p1,
-                      {.attn_enabled              = true,
-                       .flash_decoding_enabled    = true,
-                       .flash_decoding_num_splits = num_splits});
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
 
     bool found_flash_decoding = false;
     bool found_literal        = false;
@@ -1027,9 +1027,9 @@ TEST_CASE(flash_decoding_4d_with_attention_mask_param)
         mm->add_return({gemm2});
     }
     run_pass(p1,
-                      {.attn_enabled              = true,
-                       .flash_decoding_enabled    = true,
-                       .flash_decoding_num_splits = num_splits});
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
 
     bool found_flash_decoding = false;
     bool found_mask_param     = false;
@@ -1089,9 +1089,9 @@ TEST_CASE(flash_decoding_4d_with_unary_on_softmax_broadcast)
         mm->add_return({gemm2});
     }
     run_pass(p1,
-                      {.attn_enabled              = true,
-                       .flash_decoding_enabled    = true,
-                       .flash_decoding_num_splits = num_splits});
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
 
     EXPECT(has_flash_decoding_submodule(p1));
 }
@@ -1270,9 +1270,9 @@ TEST_CASE(flash_decoding_4d_with_fp32_softmax_intermediate)
         mm->add_return({gemm2});
     }
     run_pass(p1,
-                      {.attn_enabled              = true,
-                       .flash_decoding_enabled    = true,
-                       .flash_decoding_num_splits = num_splits});
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
     EXPECT(has_flash_decoding_submodule(p1));
 }
 
@@ -1425,9 +1425,9 @@ TEST_CASE(flash_decoding_3d_rectangular)
         mm->add_return({gemm2});
     }
     run_pass(p1,
-                      {.attn_enabled              = true,
-                       .flash_decoding_enabled    = true,
-                       .flash_decoding_num_splits = num_splits});
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
 
     migraphx::program p2;
     {
@@ -1547,9 +1547,9 @@ TEST_CASE(flash_decoding_3d_padding)
         mm->add_return({gemm2});
     }
     run_pass(p1,
-                      {.attn_enabled              = true,
-                       .flash_decoding_enabled    = true,
-                       .flash_decoding_num_splits = num_splits});
+             {.attn_enabled              = true,
+              .flash_decoding_enabled    = true,
+              .flash_decoding_num_splits = num_splits});
 
     migraphx::program p2;
     {
@@ -2150,7 +2150,6 @@ TEST_CASE(kv_cache_attention_external_pointwise)
     }
     EXPECT(p1.sort() == p2.sort());
 }
-
 
 TEST_CASE(ceil_mul_of_function)
 {

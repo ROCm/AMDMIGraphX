@@ -22,6 +22,7 @@
  * THE SOFTWARE.
  */
 #include <migraphx/operation.hpp>
+#include <migraphx/optional.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/normalize_attributes.hpp>
 #include <migraphx/stringutils.hpp>
@@ -105,6 +106,98 @@ static std::vector<dim_like> tune_attribute_sym(const std::vector<sym::expr>& ex
 }
 
 /**
+ * The maximum that each value is normalized against: the rank of the input, or the length of the
+ * axis the value applies to when `use_len` is set. There is one entry per value, and each axis
+ * picks the entry to fill.
+ *
+ * Returns nullopt when a dynamic_dimension at `axes` is not fixed, since it has no single length
+ * to normalize against.
+ */
+template <class Message>
+static optional<std::vector<int64_t>>
+attribute_max_vals(std::size_t nvals,
+                   const std::vector<int64_t>& axes,
+                   const std::vector<op::normalize_attribute>& attrs,
+                   const shape& input_shape,
+                   Message m)
+{
+    int64_t n_rank = input_shape.ndim();
+    if(contains(attrs, op::normalize_attribute::use_output))
+    {
+        n_rank = n_rank + nvals;
+    }
+    std::vector<int64_t> max_vals(nvals, n_rank);
+    if(not contains(attrs, op::normalize_attribute::use_len))
+        return max_vals;
+    if(axes.size() > nvals)
+        MIGRAPHX_THROW(m() + "more axes than values to normalize!");
+    if(not input_shape.dynamic())
+    {
+        std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
+            return input_shape.lens().at(i);
+        });
+        return max_vals;
+    }
+    if(std::any_of(axes.begin(), axes.end(), [&](auto ax) {
+           return not input_shape.dyn_dims().at(ax).is_fixed();
+       }))
+        return nullopt;
+    std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
+        return input_shape.dyn_dims().at(i).get_interval().max;
+    });
+    return max_vals;
+}
+
+/// Clips the values above the maximum, or range checks them when clipping is off.
+template <class Message>
+static void clip_or_check_max(std::vector<int64_t>& result,
+                              const std::vector<int64_t>& max_vals,
+                              const std::vector<op::normalize_attribute>& attrs,
+                              Message m)
+{
+    bool inclusive = contains(attrs, op::normalize_attribute::include_max);
+    if(contains(attrs, op::normalize_attribute::clip_max))
+    {
+        std::transform(
+            result.begin(), result.end(), max_vals.begin(), result.begin(), [&](auto v, auto mv) {
+                auto limit = inclusive ? mv : mv - 1;
+                return v > limit ? limit : v;
+            });
+        return;
+    }
+    bool in_range =
+        inclusive ? std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{})
+                  : std::equal(result.begin(), result.end(), max_vals.begin(), std::less<>{});
+    if(not in_range)
+        MIGRAPHX_THROW(m() + "value out of range!");
+}
+
+/// Clips the values below the minimum, or range checks them when clipping is off.
+template <class Message>
+static void clip_or_check_min(std::vector<int64_t>& result,
+                              const std::vector<int64_t>& min_vals,
+                              const std::vector<op::normalize_attribute>& attrs,
+                              Message m)
+{
+    bool inclusive = contains(attrs, op::normalize_attribute::include_min);
+    if(contains(attrs, op::normalize_attribute::clip_min))
+    {
+        std::transform(
+            result.begin(), result.end(), min_vals.begin(), result.begin(), [&](auto v, auto mv) {
+                auto limit = inclusive ? mv : mv + 1;
+                return v < limit ? limit : v;
+            });
+        return;
+    }
+    bool in_range =
+        inclusive
+            ? std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{})
+            : std::equal(min_vals.begin(), min_vals.end(), result.begin(), std::less<>{});
+    if(not in_range)
+        MIGRAPHX_THROW(m() + "attribute out of range!");
+}
+
+/**
  * Parameters:
  * vec: the vector attribute to normalize
  * axes: the operator's axes attribute if it exists, empty otherwise
@@ -116,131 +209,30 @@ static std::vector<dim_like> tune_attribute_sym(const std::vector<sym::expr>& ex
  * See normalize_attribute.hpp for explaining the options.
  */
 template <class Message>
-static auto tune_attribute(const std::vector<int64_t>& vec,
-                           const std::vector<int64_t>& axes,
-                           const value& val,
-                           const shape& input_shape,
-                           Message m)
+static std::vector<int64_t> tune_attribute(const std::vector<int64_t>& vec,
+                                           const std::vector<int64_t>& axes,
+                                           const value& val,
+                                           const shape& input_shape,
+                                           Message m)
 {
     std::vector<int64_t> result(vec);
     if(result.empty())
-    {
         return result;
-    };
-    int64_t n_rank                                 = input_shape.ndim();
-    std::vector<op::normalize_attribute> vec_attrs = val.to_vector<op::normalize_attribute>();
-    if(contains(vec_attrs, op::normalize_attribute::use_output))
-    {
-        n_rank = n_rank + vec.size();
-    }
+    auto attrs    = val.to_vector<op::normalize_attribute>();
+    auto max_vals = attribute_max_vals(vec.size(), axes, attrs, input_shape, m);
+    // Without a length to normalize against, the values are returned unchanged. The caller has to
+    // renormalize once the dimensions are known.
+    if(not max_vals.has_value())
+        return result;
+    clip_or_check_max(result, *max_vals, attrs, m);
 
-    std::vector<int64_t> max_vals(vec.size(), n_rank);
+    std::vector<int64_t> min_vals(max_vals->size());
+    std::transform(max_vals->begin(), max_vals->end(), min_vals.begin(), [](auto v) { return -v; });
+    clip_or_check_min(result, min_vals, attrs, m);
 
-    if(contains(vec_attrs, op::normalize_attribute::use_len))
-    {
-        // max_vals has one entry per value, and each axis picks the entry to fill.
-        if(axes.size() > vec.size())
-            MIGRAPHX_THROW(m() + "more axes than values to normalize!");
-        if(input_shape.dynamic())
-        {
-            // return the unchanged `vec` if the dynamic_dimensions at `axes` are not fixed
-            if(std::any_of(axes.begin(), axes.end(), [&](auto ax) {
-                   return not input_shape.dyn_dims().at(ax).is_fixed();
-               }))
-            {
-                return vec;
-            }
-            std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
-                return input_shape.dyn_dims().at(i).get_interval().max;
-            });
-        }
-        else
-        {
-            std::transform(axes.begin(), axes.end(), max_vals.begin(), [&](auto i) {
-                return input_shape.lens().at(i);
-            });
-        }
-    }
-
-    if(contains(vec_attrs, op::normalize_attribute::clip_max))
-    {
-        if(contains(vec_attrs, op::normalize_attribute::include_max))
-        {
-            std::transform(result.begin(),
-                           result.end(),
-                           max_vals.begin(),
-                           result.begin(),
-                           [](auto v, auto mv) { return v > mv ? mv : v; });
-        }
-        else
-        {
-            std::transform(result.begin(),
-                           result.end(),
-                           max_vals.begin(),
-                           result.begin(),
-                           [](auto v, auto mv) { return v >= mv ? mv - 1 : v; });
-        }
-    }
-    else
-    {
-        if(contains(vec_attrs, op::normalize_attribute::include_max))
-        {
-            if(not std::equal(result.begin(), result.end(), max_vals.begin(), std::less_equal<>{}))
-            {
-                MIGRAPHX_THROW(m() + "value out of range!");
-            }
-        }
-        else
-        {
-            if(not std::equal(result.begin(), result.end(), max_vals.begin(), std::less<>{}))
-            {
-                MIGRAPHX_THROW(m() + "value out of range!");
-            }
-        }
-    }
-
-    std::vector<int64_t> min_vals = max_vals;
-    std::transform(min_vals.begin(), min_vals.end(), min_vals.begin(), [](auto v) { return -v; });
-    if(contains(vec_attrs, op::normalize_attribute::clip_min))
-    {
-        if(contains(vec_attrs, op::normalize_attribute::include_min))
-        {
-            std::transform(result.begin(),
-                           result.end(),
-                           min_vals.begin(),
-                           result.begin(),
-                           [](auto v, auto mv) { return v < mv ? mv : v; });
-        }
-        else
-        {
-            std::transform(result.begin(),
-                           result.end(),
-                           min_vals.begin(),
-                           result.begin(),
-                           [](auto v, auto mv) { return v < mv + 1 ? mv + 1 : v; });
-        }
-    }
-    else
-    {
-        if(contains(vec_attrs, op::normalize_attribute::include_min))
-        {
-            if(not std::equal(
-                   min_vals.begin(), min_vals.end(), result.begin(), std::less_equal<>{}))
-            {
-                MIGRAPHX_THROW(m() + "attribute out of range!");
-            }
-        }
-        else
-        {
-            if(not std::equal(result.begin(), result.end(), min_vals.begin(), std::less<>{}))
-            {
-                MIGRAPHX_THROW(m() + "attribute out of range!");
-            }
-        }
-    }
-
+    // Resolve the from-the-end (negative) values against the maximum.
     std::transform(
-        result.begin(), result.end(), max_vals.begin(), result.begin(), [](auto v, auto mv) {
+        result.begin(), result.end(), max_vals->begin(), result.begin(), [](auto v, auto mv) {
             return v < 0 ? v + mv : v;
         });
 
@@ -258,8 +250,92 @@ static auto tune_pad_attribute(const value& val)
 }
 
 /**
+ * Doubles a padding attribute that only gives the padding for one side of each spatial dimension.
+ * Dimensions to pad start from the third dimension (index 2). Auto padding is left to the target.
+ *
+ * Returns whether the padding attribute is normalized.
+ */
+static bool normalize_padding_attribute(operation& op,
+                                        value& val,
+                                        const std::string& key,
+                                        const shape& input_shape)
+{
+    bool use_auto_padding =
+        (val.contains("padding_mode") and
+         (val.at("padding_mode").to<int>() != migraphx::op::padding_mode_t::default_));
+    if(use_auto_padding)
+        return false;
+    auto padding = val.at(key);
+    auto npad    = input_shape.ndim() - 2;
+    if(padding.size() == 2 * npad)
+        return true;
+    if(padding.size() != npad)
+        MIGRAPHX_THROW("normalize_attributes: inconsistent padding vector size ");
+    val[key] = tune_pad_attribute(padding);
+    op.from_value(val);
+    return true;
+}
+
+/**
+ * Normalizes an array attribute, symbolically when the attribute opts in with `use_sym` and either
+ * a value or the axis length it is normalized against is symbolic. See tune_attribute_sym().
+ */
+template <class Message>
+static value tune_array_attribute(const value& vv,
+                                  const std::vector<int64_t>& axes,
+                                  const value& opts,
+                                  const shape& input_shape,
+                                  Message m)
+{
+    auto norm_attrs = opts.to_vector<op::normalize_attribute>();
+    // A symbolic value serializes as an object. Normalizing against a symbolic axis length can
+    // turn a concrete value symbolic too, so a symbolic input shape takes the same path even when
+    // every value is a plain integer.
+    bool sym_values =
+        std::any_of(vv.begin(), vv.end(), [](const auto& e) { return e.is_object(); });
+    bool allow_sym = contains(norm_attrs, op::normalize_attribute::use_sym);
+    if(sym_values and not allow_sym)
+        MIGRAPHX_THROW(m() + "symbolic values are not supported!");
+    if(not vv.empty() and allow_sym and (sym_values or input_shape.symbolic()))
+    {
+        auto dims = migraphx::from_value<std::vector<dim_like>>(vv);
+        return migraphx::to_value(
+            tune_attribute_sym(to_sym_exprs(dims), axes, norm_attrs, input_shape, m));
+    }
+    return value(tune_attribute(vv.to_vector<int64_t>(), axes, opts, input_shape, m));
+}
+
+/// Normalizes one entry of the `normalize_axes` map and writes it back into the operator.
+static void
+normalize_axes_attribute(operation& op, value& val, const value& rv, const shape& input_shape)
+{
+    const auto& key = rv.get_key();
+    if(not val.contains(key))
+        MIGRAPHX_THROW("NORMALIZE_ATTR : op " + op.name() + " attribute \"" + key +
+                       "\" not exist!");
+    auto message = [&] { return op.name() + ": " + key + ": "; };
+    auto opts    = rv.without_key();
+    auto vv      = val.at(key).without_key();
+    if(vv.is_array())
+    {
+        std::vector<int64_t> axes;
+        if(val.contains("axes"))
+        {
+            axes = val.at("axes").without_key().to_vector<int64_t>();
+        }
+        val[key] = tune_array_attribute(vv, axes, opts, input_shape, message);
+    }
+    else
+    {
+        auto num = vv.to<int64_t>();
+        val[key] = tune_attribute({num}, {num}, opts, input_shape, message).front();
+    }
+    op.from_value(val);
+    val = op.to_value();
+}
+
+/**
  * Assumptions:
- *  Dimensions to pad start from the third dimension (index 2).
  *  Called by compute_shape_op() with the shape of the first input.
  */
 bool normalize_attributes(operation& op, const shape& input_shape)
@@ -269,88 +345,20 @@ bool normalize_attributes(operation& op, const shape& input_shape)
     auto val   = op.to_value();
     if(attrs.contains("normalize_padding"))
     {
-        bool use_auto_padding =
-            (val.contains("padding_mode") and
-             (val.at("padding_mode").to<int>() != migraphx::op::padding_mode_t::default_));
-        if(not use_auto_padding)
-        {
-            auto padding       = val.at(attrs.at("normalize_padding").to<std::string>());
-            auto padding_size  = padding.size();
-            auto padding_start = 2;
-            if(padding_size == 2 * (input_shape.ndim() - padding_start))
-                tuned = true;
-            else if(padding_size != (input_shape.ndim() - padding_start))
-            {
-                MIGRAPHX_THROW("normalize_attributes: inconsistent padding vector size ");
-            }
-            else
-            {
-                auto result    = tune_pad_attribute(padding);
-                val["padding"] = result;
-                op.from_value(val);
-                tuned = true;
-            }
-        }
+        tuned = normalize_padding_attribute(
+            op, val, attrs.at("normalize_padding").to<std::string>(), input_shape);
     }
     if(not attrs.contains("normalize_axes"))
     {
         return tuned;
     }
 
-    auto attr_v = attrs.at("normalize_axes").without_key();
-    for(const auto& rv : attr_v)
+    // The keys are normalized in the order the operator declares them, so `axes` is resolved
+    // before the bounds that are normalized against it.
+    for(const auto& rv : attrs.at("normalize_axes").without_key())
     {
-        const auto& key = rv.get_key();
-        if(val.contains(key))
-        {
-            auto message = [&] { return op.name() + ": " + key + ": "; };
-            auto vv      = val.at(key).without_key();
-            if(vv.is_array())
-            {
-                auto attrs = rv.without_key().to_vector<op::normalize_attribute>();
-                // A symbolic value serializes as an object. Normalizing against a symbolic axis
-                // length can turn a concrete value symbolic too, so a symbolic input shape takes
-                // the same path even when every value is a plain integer.
-                bool sym_values =
-                    std::any_of(vv.begin(), vv.end(), [](const auto& e) { return e.is_object(); });
-                bool allow_sym = contains(attrs, op::normalize_attribute::use_sym);
-                if(sym_values and not allow_sym)
-                    MIGRAPHX_THROW(message() + "symbolic values are not supported!");
-                std::vector<int64_t> axes;
-                if(val.contains("axes"))
-                {
-                    axes = val.at("axes").without_key().to_vector<int64_t>();
-                }
-                if(not vv.empty() and allow_sym and (sym_values or input_shape.symbolic()))
-                {
-                    auto dims = migraphx::from_value<std::vector<dim_like>>(vv);
-                    val[key]  = migraphx::to_value(
-                        tune_attribute_sym(to_sym_exprs(dims), axes, attrs, input_shape, message));
-                }
-                else
-                {
-                    auto vec = vv.to_vector<int64_t>();
-                    val[key] = tune_attribute(vec, axes, rv.without_key(), input_shape, message);
-                }
-                op.from_value(val);
-                val   = op.to_value();
-                tuned = true;
-            }
-            else
-            {
-                auto num    = vv.to<int64_t>();
-                auto result = tune_attribute({num}, {num}, rv.without_key(), input_shape, message);
-                val[key]    = result.front();
-                op.from_value(val);
-                val   = op.to_value();
-                tuned = true;
-            }
-        }
-        else
-        {
-            MIGRAPHX_THROW("NORMALIZE_ATTR : op " + op.name() + " attribute \"" + key +
-                           "\" not exist!");
-        }
+        normalize_axes_attribute(op, val, rv, input_shape);
+        tuned = true;
     }
 
     return tuned;

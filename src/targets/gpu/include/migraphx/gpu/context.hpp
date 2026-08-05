@@ -310,6 +310,9 @@ struct context
           finish_event(create_event()),
           pc(std::make_shared<auto_save_problem_cache>())
     {
+        // Bind the cache to this context's device (cross-compile safe: the
+        // key is derived from the context, not a live HIP query).
+        pc->set_device_key(*this);
     }
 
     context(const std::string& arch_name,
@@ -414,6 +417,9 @@ struct context
 
         auto device          = get_device_id();
         this->current_device = std::make_shared<hip_device>(device, n_streams);
+        // Refresh the cache's device binding to match the rehydrated device.
+        if(pc != nullptr)
+            pc->set_device_key(*this);
     }
 
     // Pure event-based synchronization point.  Records an event on the

@@ -620,6 +620,9 @@ static void log_node_parse_exception(const onnx::NodeProto& node,
 std::vector<instruction_ref>
 onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlining)
 {
+    // Save/restore parent_input_nodes so sibling subgraphs can't see each other's inputs.
+    auto saved_parent_inputs = parent_input_nodes;
+
     std::vector<size_t> node_indices(graph.node_size());
 
     if(check_sorted(graph, parent_input_nodes))
@@ -741,6 +744,7 @@ onnx_parser::parse_graph(module* mod, const onnx::GraphProto& graph, bool inlini
         erase_if(instructions, [&](auto&& p) { return mod->has_instruction(p.second); });
     }
 
+    parent_input_nodes = std::move(saved_parent_inputs);
     return output_ins;
 }
 

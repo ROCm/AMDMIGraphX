@@ -26,6 +26,7 @@
 #include <cmath>
 #include <limits>
 #include <sstream>
+#include <unordered_set>
 #include <test.hpp>
 
 using migraphx::sym::abs;
@@ -837,7 +838,7 @@ TEST_CASE(find_variables_collects_distinct)
     auto y    = var("y");
     auto pair = call("find_variables_collects_distinct", [](auto a, auto b) { return a + b; });
     auto vars = migraphx::sym::find_variables(pair(x, pair(y, x)));
-    EXPECT(vars == std::vector<expr>{x, y});
+    EXPECT(vars == std::unordered_set<expr>{x, y});
 }
 
 TEST_CASE(find_variables_constant_is_empty)
@@ -852,7 +853,7 @@ TEST_CASE(find_variables_strips_metadata)
     auto c    = interval{int64_t{1}, int64_t{16}};
     auto pair = call("find_variables_strips_metadata", [](auto a, auto b) { return a + b; });
     auto vars = migraphx::sym::find_variables(pair(var("x", c), var("x")));
-    EXPECT(vars == std::vector<expr>{var("x")});
+    EXPECT(vars == std::unordered_set<expr>{var("x")});
 }
 
 TEST_CASE(find_variables_shared_subexpression)
@@ -861,7 +862,7 @@ TEST_CASE(find_variables_shared_subexpression)
     auto e    = pair(var("x"), lit(1));
     for(int i = 0; i < 20; ++i)
         e = pair(e, e);
-    EXPECT(migraphx::sym::find_variables(e) == std::vector<expr>{var("x")});
+    EXPECT(migraphx::sym::find_variables(e) == std::unordered_set<expr>{var("x")});
 }
 
 TEST_CASE(expr_equal_compound)

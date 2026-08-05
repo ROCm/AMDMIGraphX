@@ -30,6 +30,7 @@
 #include <migraphx/context.hpp>
 #include <migraphx/shape.hpp>
 #include <migraphx/sym.hpp>
+#include <migraphx/zip_view.hpp>
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
@@ -56,20 +57,24 @@ struct eval_expr_from_shape
     {
         check_shapes{inputs, *this, true}.has_at_least(1);
 
-        std::unordered_set<sym::expr> available;
+        std::unordered_set<sym::expr> missing;
+        for(const auto& expression : expressions)
+        {
+            auto variables = sym::find_variables(expression);
+            missing.merge(variables);
+        }
+
         for(const auto& input : inputs)
         {
             if(not input.symbolic())
                 continue;
             for(const auto& d : input.dyn_dims())
                 if(d.sym_expr.name() == "variable")
-                    available.insert(sym::as_symbol(d.sym_expr));
+                    missing.erase(sym::as_symbol(d.sym_expr));
         }
-        for(const auto& expression : expressions)
-            for(const auto& variable : sym::find_variables(expression))
-                if(available.count(variable) == 0)
-                    MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Symbol '" + variable.to_string() +
-                                   "' is not a direct input dimension");
+        if(not missing.empty())
+            MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Symbol '" + missing.begin()->to_string() +
+                           "' is not a direct input dimension");
 
         return shape{shape::int64_type, {expressions.size()}};
     }
@@ -85,23 +90,22 @@ struct eval_expr_from_shape
             MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: input shapes not captured; op was not finalized");
 
         std::unordered_map<sym::expr, std::size_t> values;
-        for(std::size_t i = 0; i < input_shapes.size(); ++i)
+        for(auto&& [input_shape, arg] : views::zip(input_shapes, args))
         {
-            const auto& input_shape = input_shapes[i];
-            auto lens               = args[i].get_shape().lens();
+            const auto& lens = arg.get_shape().lens();
             if(input_shape.ndim() != lens.size())
                 MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Runtime input rank does not match its "
                                "symbolic shape");
             if(not input_shape.symbolic())
                 continue;
             const auto& dims = input_shape.dyn_dims();
-            for(std::size_t axis = 0; axis < dims.size(); ++axis)
+            for(auto&& [dim, len] : views::zip(dims, lens))
             {
-                if(dims[axis].sym_expr.name() != "variable")
+                if(dim.sym_expr.name() != "variable")
                     continue;
-                auto variable = sym::as_symbol(dims[axis].sym_expr);
-                auto result   = values.emplace(variable, lens[axis]);
-                if(not result.second and result.first->second != lens[axis])
+                auto variable = sym::as_symbol(dim.sym_expr);
+                auto result   = values.emplace(variable, len);
+                if(not result.second and result.first->second != len)
                     MIGRAPHX_THROW("EVAL_EXPR_FROM_SHAPE: Repeated symbol has inconsistent runtime "
                                    "dimensions");
             }

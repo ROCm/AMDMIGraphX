@@ -1623,19 +1623,16 @@ bool same_symbol(const expr& a, const expr& b)
            });
 }
 
-std::vector<expr> find_variables(const expr& e)
+std::unordered_set<expr> find_variables(const expr& e)
 {
-    std::vector<expr> result;
     std::unordered_set<expr> visited;
-    std::unordered_set<expr> seen_variables;
+    std::unordered_set<expr> result;
     fix([&](auto self, const expr& x) {
         if(x.empty() or not visited.insert(x).second)
             return;
         if(x.name() == "variable")
         {
-            auto s = as_symbol(x);
-            if(seen_variables.insert(s).second)
-                result.push_back(std::move(s));
+            result.insert(as_symbol(x));
             return;
         }
         for(const auto& c : x.children())

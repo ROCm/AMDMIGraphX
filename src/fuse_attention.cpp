@@ -540,6 +540,7 @@ struct find_flash_decoding
                                                      std::size_t num_groups)
     {
         assert(lens.size() >= 2);
+        assert(num_groups > 0);
         assert(lens.back() % num_groups == 0);
 
         const auto ndim    = lens.size();

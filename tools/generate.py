@@ -81,16 +81,7 @@ def generate_all(defines=None, do_format=True):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--clang-format', type=Path)
-    parser.add_argument(
-        '-D',
-        '--define',
-        type=str,
-        action='append',
-        choices=optional_components,
-        default=[],
-        help='Include an optional component in the generated '
-        'API. Only applies to --api-only; the source-tree copy '
-        'always covers every component')
+    api.add_define_argument(parser)
     parser.add_argument('--api-only',
                         action='store_true',
                         help='Only generate the C API files (migraphx.h and '
@@ -116,7 +107,7 @@ def main():
             # These files are only consumed by the compiler, so skip
             # clang-format; only `make generate` formats them for review.
             generate_api(args.api_output_dir,
-                         dict.fromkeys(args.define, ''),
+                         api.parse_defines(args.define),
                          do_format=False)
         else:
             if not clang_format_path.is_file():

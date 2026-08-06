@@ -217,7 +217,7 @@ void run_verify::verify(const program_info& pi, migraphx::compile_modes mode) co
         }
         migraphx::compile_options c_opts = pi.compile_options;
         c_opts.compile_mode              = mode;
-        auto ref_f = detach_async([=] { return run_ref(p, m, c_opts); });
+        auto ref_f                       = detach_async([=] { return run_ref(p, m, c_opts); });
         for(const auto& tname : target_names)
         {
             target_info ti = get_target_info(tname);

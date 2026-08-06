@@ -24,11 +24,11 @@
 #include <migraphx/gpu/lower_reshape.hpp>
 #include <migraphx/dead_code_elimination.hpp>
 #include <migraphx/eliminate_contiguous.hpp>
-#include <migraphx/errors.hpp>
 #include <migraphx/pass_manager.hpp>
 #include <migraphx/instruction.hpp>
 #include <migraphx/make_op.hpp>
 #include <migraphx/module.hpp>
+#include <migraphx/operation.hpp>
 #include <migraphx/sym.hpp>
 #include <test.hpp>
 #include <algorithm>
@@ -53,67 +53,103 @@ static migraphx::instruction_ref add_contiguous(migraphx::module& m,
     return m.add_instruction(migraphx::make_op("gpu::contiguous"), input, alloc);
 }
 
-TEST_CASE(lower_standard_reshape)
+static migraphx::instruction_ref add_precompile_layout(migraphx::module& m,
+                                                       migraphx::instruction_ref input,
+                                                       const std::vector<int64_t>& permutation)
 {
-    migraphx::module m;
-    auto x              = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
-    auto r              = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), x);
-    auto expected_shape = r->get_shape();
-    m.add_return({r});
-
-    run_pass(m);
-
-    auto result = std::prev(m.end())->inputs().front();
-    EXPECT(result->name() == "reshape_lazy");
-    EXPECT(result->get_shape() == expected_shape);
+    auto op    = migraphx::make_op("layout", {{"permutation", permutation}});
+    auto alloc = m.add_instruction(migraphx::make_op(
+        "allocate", {{"shape", migraphx::to_value(op.compute_shape({input->get_shape()}))}}));
+    return m.add_instruction(
+        migraphx::make_op("gpu::precompile_op", {{"op", migraphx::to_value(op)}}), input, alloc);
 }
 
-// The 2 input form only carries its target shape on the output buffer, which no GPU
-// copy op can honor for a rank changing reshape. It must be rejected, not lowered to a
-// copy that reports the input shape.
-TEST_CASE(lower_output_buffer_reshape_throws)
+TEST_CASE(lower_standard_reshape)
 {
-    migraphx::module m;
-    auto x      = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
-    auto output = m.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
-    auto r      = m.add_instruction(migraphx::make_op("reshape"), x, output);
-    m.add_return({r});
+    migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}};
 
-    EXPECT(test::throws<migraphx::exception>([&] { run_pass(m); },
-                                             "reshape with a runtime output buffer"));
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), x);
+        m1.add_return({r});
+    }
+    run_pass(m1);
+
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto r = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {6, 4}}}), x);
+        m2.add_return({r});
+    }
+    EXPECT(m1 == m2);
+}
+
+// The 2 input form carries its target shape on the output buffer, which no GPU copy op can
+// honor for a rank changing reshape. The matcher does not accept it, so it survives the
+// pass untouched rather than being lowered to a copy that reports the input shape.
+TEST_CASE(output_buffer_reshape_is_not_lowered)
+{
+    auto build = [](migraphx::module& m) {
+        auto x      = m.add_parameter("x", {migraphx::shape::float_type, {2, 3, 4}});
+        auto output = m.add_parameter("output", {migraphx::shape::float_type, {6, 4}});
+        auto r      = m.add_instruction(migraphx::make_op("reshape"), x, output);
+        m.add_return({r});
+    };
+
+    migraphx::module m1;
+    build(m1);
+    run_pass(m1);
+
+    migraphx::module m2;
+    build(m2);
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(lower_range_dynamic_reshape)
 {
     using dd = migraphx::shape::dynamic_dimension;
+    migraphx::shape input_shape{migraphx::shape::float_type, {dd{1, 4}, dd{24, 24}}};
 
-    migraphx::module m;
-    auto x =
-        m.add_parameter("x", migraphx::shape{migraphx::shape::float_type, {dd{1, 4}, dd{24, 24}}});
-    auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", {0, 24}}}), x);
-    m.add_return({r});
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {0, 24}}}), x);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-    run_pass(m);
-
-    auto result = std::prev(m.end())->inputs().front();
-    EXPECT(result->name() == "reshape_lazy");
-    EXPECT(result->inputs().front()->name() == "gpu::contiguous");
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto c = add_contiguous(m2, x);
+        auto r = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {0, 24}}}), c);
+        m2.add_return({r});
+    }
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(keep_required_contiguous)
 {
-    migraphx::module m;
     migraphx::shape input_shape{migraphx::shape::float_type, {2, 3, 4}, {4, 8, 1}};
-    auto x = m.add_parameter("x", input_shape);
-    auto c = add_contiguous(m, x);
-    auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), c);
-    m.add_return({r});
 
-    run_pass(m);
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto c = add_contiguous(m1, x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), c);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-    auto result = std::prev(m.end())->inputs().front();
-    EXPECT(result->name() == "reshape_lazy");
-    EXPECT(result->inputs().front()->name() == "gpu::contiguous");
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto c = add_contiguous(m2, x);
+        auto r = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {6, 4}}}), c);
+        m2.add_return({r});
+    }
+    EXPECT(m1 == m2);
 }
 
 // The input is transposed so case 1 cannot alias it, but the backwards derivation lands on
@@ -121,41 +157,64 @@ TEST_CASE(keep_required_contiguous)
 // the same copy without the jit compile a layout would cost.
 TEST_CASE(lower_standard_result_with_copy)
 {
-    migraphx::module m;
     migraphx::shape input_shape{migraphx::shape::float_type, {3, 2, 4}, {4, 12, 1}};
-    auto x = m.add_parameter("x", input_shape);
-    auto r = m.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), x);
-    m.add_return({r});
 
-    run_pass(m);
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {6, 4}}}), x);
+        m1.add_return({r});
+    }
+    run_pass(m1);
 
-    auto result = std::prev(m.end())->inputs().front();
-    EXPECT(result->name() == "reshape_lazy");
-    EXPECT(result->get_shape().standard());
-    EXPECT(result->inputs().front()->name() == "gpu::contiguous");
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto c = add_contiguous(m2, x);
+        auto r = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {6, 4}}}), c);
+        m2.add_return({r});
+    }
+    EXPECT(m1 == m2);
+    EXPECT(std::prev(m1.end())->inputs().front()->get_shape().standard());
 }
 
 TEST_CASE(propagate_reshape_layout)
 {
-    migraphx::module m;
-    auto x  = m.add_parameter("x", {migraphx::shape::float_type, {1, 1, 1024, 1024}});
-    auto r1 = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 256, 4, 256, 4}}}), x);
-    auto t =
-        m.add_instruction(migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r1);
-    auto c      = add_contiguous(m, t);
-    auto r2     = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 256, 256}}}), c);
-    auto output = add_contiguous(m, r2);
-    m.add_return({output});
+    migraphx::shape input_shape{migraphx::shape::float_type, {1, 1, 1024, 1024}};
 
-    run_pass(m);
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto r1 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 256, 4, 256, 4}}}), x);
+        auto t = m1.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r1);
+        auto c = add_contiguous(m1, t);
+        auto r2 =
+            m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 16, 256, 256}}}), c);
+        m1.add_return({add_contiguous(m1, r2)});
+    }
+    run_pass(m1);
 
-    auto output_contiguous = std::prev(m.end())->inputs().front();
-    auto reshape           = output_contiguous->inputs().front();
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", input_shape);
+        auto r1 = m2.add_instruction(
+            migraphx::make_op("reshape_lazy", {{"dims", {1, 256, 4, 256, 4}}}), x);
+        auto t = m2.add_instruction(
+            migraphx::make_op("transpose", {{"permutation", {0, 2, 4, 1, 3}}}), r1);
+        auto l = add_precompile_layout(m2, t, {0, 3, 4, 1, 2});
+        auto r2 =
+            m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {1, 16, 256, 256}}}), l);
+        m2.add_return({add_contiguous(m2, r2)});
+    }
+    EXPECT(m1 == m2);
+
+    // Pin the layout the view lands on. A module compare cannot catch a stride change that
+    // both sides make together, since both derive their strides from the same ops.
     migraphx::shape expected_shape{
         migraphx::shape::float_type, {1, 16, 256, 256}, {1048576, 1, 4096, 16}};
-    EXPECT(reshape->name() == "reshape_lazy");
-    EXPECT(reshape->get_shape() == expected_shape);
-    EXPECT(reshape->inputs().front()->name() == "gpu::precompile_op");
+    EXPECT(std::prev(m1.end())->inputs().front()->inputs().front()->get_shape() == expected_shape);
 }
 
 // The singleton dims carry arbitrary strides, but the two elements still sit at offsets
@@ -163,42 +222,53 @@ TEST_CASE(propagate_reshape_layout)
 // incoming copy and case 1 aliases the parameter directly; no copy is needed at all.
 TEST_CASE(singleton_dims_alias_without_copy)
 {
-    migraphx::module m;
     migraphx::shape input_shape{migraphx::shape::float_type, {1, 1, 2}, {1, 2, 1}};
-    auto x      = m.add_parameter("x", input_shape);
-    auto c      = add_contiguous(m, x);
-    auto r      = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2}}}), c);
-    auto output = add_contiguous(m, r);
-    m.add_return({output});
 
-    run_pass(m);
+    migraphx::module m1;
+    {
+        auto x = m1.add_parameter("x", input_shape);
+        auto c = add_contiguous(m1, x);
+        auto r = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 2}}}), c);
+        m1.add_return({add_contiguous(m1, r)});
+    }
+    run_pass(m1);
 
-    auto output_contiguous = std::prev(m.end())->inputs().front();
-    auto reshape           = output_contiguous->inputs().front();
-    EXPECT(reshape->name() == "reshape_lazy");
-    EXPECT(reshape->inputs().front() == x);
+    migraphx::module m2;
+    {
+        auto x = m2.add_parameter("x", input_shape);
+        auto r = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {1, 2}}}), x);
+        m2.add_return({add_contiguous(m2, r)});
+    }
+    EXPECT(m1 == m2);
 }
 
 TEST_CASE(lower_dependent_reshapes)
 {
-    migraphx::module m;
     migraphx::shape input_shape{migraphx::shape::float_type, {1, 4}, {1, 1}};
-    auto x      = m.add_parameter("x", input_shape);
-    auto c      = add_contiguous(m, x);
-    auto r1     = m.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4}}}), c);
-    auto r2     = m.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2}}}), r1);
-    auto output = add_contiguous(m, r2);
-    m.add_return({output});
 
-    run_pass(m);
+    migraphx::module m1;
+    {
+        auto x  = m1.add_parameter("x", input_shape);
+        auto c  = add_contiguous(m1, x);
+        auto r1 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {1, 4}}}), c);
+        auto r2 = m1.add_instruction(migraphx::make_op("reshape", {{"dims", {2, 2}}}), r1);
+        m1.add_return({add_contiguous(m1, r2)});
+    }
+    run_pass(m1);
 
-    EXPECT(
-        std::none_of(m.begin(), m.end(), [](const auto& ins) { return ins.name() == "reshape"; }));
-    EXPECT(std::count_if(m.begin(), m.end(), [](const auto& ins) {
-               return ins.name() == "reshape_lazy";
-           }) == 2);
+    migraphx::module m2;
+    {
+        auto x  = m2.add_parameter("x", input_shape);
+        auto r1 = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {1, 4}}}), x);
+        auto r2 = m2.add_instruction(migraphx::make_op("reshape_lazy", {{"dims", {2, 2}}}), r1);
+        m2.add_return({add_contiguous(m2, r2)});
+    }
+    EXPECT(m1 == m2);
 }
 
+// Not converted to a module compare: the expected module would have to name the layout
+// permutation, and deriving that by hand from a from_permutation input is exactly the
+// thing the test is checking.
 TEST_CASE(propagate_symbolic_reshape_layout)
 {
     using dd = migraphx::shape::dynamic_dimension;

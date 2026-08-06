@@ -34,16 +34,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     pip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
+RUN pip3 install pipx
+
 RUN locale-gen en_US.UTF-8
 RUN update-locale LANG=en_US.UTF-8
 
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
-
-# Install dependencies
-ADD dev-requirements.txt /dev-requirements.txt
-ADD requirements.txt /requirements.txt
-ADD rbuild.ini /rbuild.ini
 
 COPY ./tools/install_prereqs.sh /
 COPY ./tools/requirements-py.txt /requirements-py.txt
@@ -53,7 +50,6 @@ RUN ./install_prereqs.sh \
         ${GPU_ARCH:+--gpu ${GPU_ARCH}} \
         ${USE_WHL:+--whl}
 RUN rm /install_prereqs.sh && rm /*.txt
-RUN test -f /usr/local/hash || exit 1
 
 # Workaround broken rocm packages
 RUN echo "/opt/rocm/lib" > /etc/ld.so.conf.d/rocm.conf
@@ -70,4 +66,4 @@ ADD tools/build_and_test_onnxrt.sh /onnxruntime/build_and_test_onnxrt.sh
 ADD tools/pai_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_test_launcher.sh
 ADD tools/pai_provider_test_launcher.sh /onnxruntime/tools/ci_build/github/pai/pai_provider_test_launcher.sh
 
-RUN pipx --global install cmake==4.3.1
+RUN pipx install --global cmake==4.3.1

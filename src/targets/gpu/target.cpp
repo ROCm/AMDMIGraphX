@@ -61,6 +61,7 @@
 #include <migraphx/rewrite_topk.hpp>
 #include <migraphx/schedule.hpp>
 #include <migraphx/serialize.hpp>
+#include <migraphx/simplify_algebra.hpp>
 #include <migraphx/simplify_dyn_ops.hpp>
 #include <migraphx/simplify_qdq.hpp>
 #include <migraphx/simplify_reshapes.hpp>
@@ -286,13 +287,32 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     pipeline_factory p{&gctx, options, from_value<backend_options>(value(options.backend_options))};
 
-    std::vector<std::vector<pass>> pipelines = {
-        p.dynamic_shapes_pipeline(),
-        p.required_pipeline(),
-        p.optimize_rewrite_pipeline(),
-        p.fusion_pipeline(),
-        p.backend_pipeline(),
-    };
+    std::vector<std::vector<pass>> pipelines;
+
+    if(options.compile_mode == compile_modes::eager)
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            {optimize_module{},
+            dead_code_elimination{},
+            rewrite_reduce{},
+            rewrite_topk{},
+            dead_code_elimination{}},
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
+    else
+    {
+        pipelines = {
+            p.dynamic_shapes_pipeline(),
+            p.required_pipeline(),
+            p.optimize_rewrite_pipeline(),
+            p.fusion_pipeline(),
+            p.backend_pipeline(),
+        };
+    }
 
     std::vector<pass> passes;
     std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));

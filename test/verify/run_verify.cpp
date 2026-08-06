@@ -26,7 +26,6 @@
 #include "verify_program.hpp"
 #include "test.hpp"
 #include <migraphx/env.hpp>
-#include <migraphx/logger.hpp>
 #include <migraphx/register_target.hpp>
 #include <migraphx/ranges.hpp>
 #include <migraphx/generate.hpp>
@@ -268,13 +267,6 @@ void run_verify::run(int argc, const char* argv[]) const
         labels[p.section].push_back(p.name);
         test::add_test_case(p.name, [=] { verify(p, migraphx::compile_modes::balanced); });
 
-        if(check_skipped_eager_tests(p.name))
-        {
-            migraphx::log::warn() << "Skipping " << p.name
-                                  << "_eager: test is not compatible with eager mode";
-            continue;
-        }
-
         const std::string eager_name = p.name + "_eager";
         labels[p.section].push_back(eager_name);
         test::add_test_case(eager_name, [=] { verify(p, migraphx::compile_modes::eager); });
@@ -298,16 +290,4 @@ void run_verify::disable_test_for(const std::string& name, const std::vector<std
 {
     auto& disabled_tests = info[name].disabled_tests;
     disabled_tests.insert(disabled_tests.end(), tests.begin(), tests.end());
-}
-
-void run_verify::disable_eager_tests(const std::vector<std::string>& tests)
-{
-    eager_disabled_tests.insert(eager_disabled_tests.end(), tests.begin(), tests.end());
-}
-
-bool run_verify::check_skipped_eager_tests(const std::string& name) const
-{
-    return migraphx::any_of(eager_disabled_tests, [&](const std::string& s) {
-        return name.find(s) != std::string::npos;
-    });
 }

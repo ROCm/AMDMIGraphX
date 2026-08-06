@@ -286,27 +286,14 @@ std::vector<pass> target::get_passes(migraphx::context& gctx, const compile_opti
 
     pipeline_factory p{&gctx, options, from_value<backend_options>(value(options.backend_options))};
 
-    std::vector<std::vector<pass>> pipelines;
-
-    if(options.compile_mode == compile_modes::eager)
-    {
-        pipelines = {
-            p.dynamic_shapes_pipeline(),
-            p.required_pipeline(),
-            p.fusion_pipeline(),
-            p.backend_pipeline(),
-        };
-    }
-    else
-    {
-        pipelines = {
+    std::vector<std::vector<pass>> pipelines = 
+        {
             p.dynamic_shapes_pipeline(),
             p.required_pipeline(),
             p.optimize_rewrite_pipeline(),
             p.fusion_pipeline(),
             p.backend_pipeline(),
         };
-    }
 
     std::vector<pass> passes;
     std::copy(pipelines.begin(), pipelines.end(), join_back_inserter(passes));

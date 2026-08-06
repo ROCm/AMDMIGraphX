@@ -41,16 +41,21 @@ namespace migraphx {
 inline namespace MIGRAPHX_INLINE_NS {
 namespace gpu {
 
-// Ops that synchronize with the host and therefore cannot be recorded into a HIP
-// graph. They become partition boundaries.
+// Ops that cannot be recorded into a HIP graph -- they synchronize with the
+// host or misbehave under stream capture. They become partition boundaries.
 static bool is_unsupported(const std::string& name)
 {
     static const std::unordered_set<std::string> unsupported = {
         "hip::copy_from_gpu",
         "hip::copy_to_gpu",
         "hip::sync_stream",
-        // rocblas crashes with capturing stream
+        // rocblas crashes with capturing stream (both gemm variants share the
+        // same rocblas call path)
         "gpu::gemm",
+        "gpu::quant_gemm",
+        // an already-captured graph cannot be captured again (nested stream
+        // capture fails), so a re-run of the pass leaves its own products alone
+        "hip::graph",
     };
     return contains(unsupported, name);
 }
@@ -130,6 +135,16 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
     // output is allocation-backed (lowered gpu kernels) or none are (view-like
     // ops with no scratch); a mix is left uncaptured.
     std::unordered_map<instruction_ref, instruction_ref> output_buffer;
+    // The output-backing allocation must end up as an input of the hip::graph op
+    // so the alias index below can refer to it. That holds when it is inside the
+    // run (kept in the parent below, referenced through a parameter) or directly
+    // consumed by a run instruction; a root reached only through a view of a
+    // pre-run value is neither, so such a run cannot be captured.
+    auto directly_used_in_run = [&](instruction_ref buf) {
+        return std::any_of(run.begin(), run.end(), [&](instruction_ref ins) {
+            return contains(ins->inputs(), buf);
+        });
+    };
     for(auto out : outputs)
     {
         // Follow the whole alias chain (the output may be a view such as
@@ -138,6 +153,8 @@ graphify_run(module_pass_manager& mpm, const std::vector<instruction_ref>& run, 
         auto roots = instruction::get_output_alias(out, false);
         if(roots.size() == 1 and is_allocation(roots.front()))
         {
+            if(not contains(run_set, roots.front()) and not directly_used_in_run(roots.front()))
+                return;
             output_buffer[out] = roots.front();
             if(contains(run_set, roots.front()))
                 keep.insert(roots.front());

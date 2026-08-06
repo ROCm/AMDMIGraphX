@@ -305,12 +305,7 @@ std::string target::name() const { return "gpu"; }
 migraphx::context target::get_context() const
 {
     if(is_cross_compile())
-        return context(gpu_arch,
-                       gpu_num_cu,
-                       gpu_num_chiplets,
-                       gpu_max_threads_per_cu,
-                       gpu_max_threads_per_block,
-                       gpu_wavefront_size);
+        return context(desc);
     return context(gpu::get_device_id());
 }
 
